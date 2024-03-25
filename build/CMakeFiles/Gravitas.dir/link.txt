@@ -1,1 +1,0 @@
-/usr/bin/g++ -g CMakeFiles/Gravitas.dir/main.cpp.o -o Gravitas  -lglfw /lib/libvulkan.so
