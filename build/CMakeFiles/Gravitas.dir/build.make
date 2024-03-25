@@ -92,6 +92,7 @@ Gravitas_EXTERNAL_OBJECTS =
 
 Gravitas: CMakeFiles/Gravitas.dir/main.cpp.o
 Gravitas: CMakeFiles/Gravitas.dir/build.make
+Gravitas: /lib/libvulkan.so
 Gravitas: CMakeFiles/Gravitas.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/entropy/Desktop/work/Gravitas/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable Gravitas"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/Gravitas.dir/link.txt --verbose=$(VERBOSE)
