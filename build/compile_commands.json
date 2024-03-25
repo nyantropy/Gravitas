@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/home/entropy/Desktop/work/Gravitas/build",
+  "command": "/usr/bin/g++   -g -o CMakeFiles/Gravitas.dir/main.cpp.o -c /home/entropy/Desktop/work/Gravitas/main.cpp",
+  "file": "/home/entropy/Desktop/work/Gravitas/main.cpp",
+  "output": "CMakeFiles/Gravitas.dir/main.cpp.o"
+}
+]

@@ -1,0 +1,1 @@
+/usr/bin/g++ -g -rdynamic CMakeFiles/Gravitas.dir/main.cpp.o -o Gravitas

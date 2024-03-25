@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Site BuildName="Linux-g++"
+	BuildStamp="20240325-1551-Experimental"
+	Name="entropy-linux"
+	Generator="ctest-3.29.0"
+	CompilerName="/usr/bin/g++"
+	CompilerVersion="13.2.1"
+	OSName="Linux"
+	Hostname="entropy-linux"
+	OSRelease="6.8.1-arch1-1"
+	OSVersion="#1 SMP PREEMPT_DYNAMIC Sat, 16 Mar 2024 17:15:35 +0000"
+	OSPlatform="x86_64"
+	Is64Bits="1"
+	VendorString="GenuineIntel"
+	VendorID="Intel Corporation"
+	FamilyID="6"
+	ModelID="60"
+	ProcessorCacheSize="8192"
+	NumberOfLogicalCPU="8"
+	NumberOfPhysicalCPU="4"
+	TotalVirtualMemory="16383"
+	TotalPhysicalMemory="15945"
+	LogicalProcessorsPerPhysical="2"
+	ProcessorClockFrequency="4400.08"
+	>
+	<Testing>
+		<StartDateTime>Mar 25 16:56 CET</StartDateTime>
+		<StartTestTime>1711382204</StartTestTime>
+		<TestList/>
+		<EndDateTime>Mar 25 16:56 CET</EndDateTime>
+		<EndTestTime>1711382204</EndTestTime>
+		<ElapsedMinutes>0</ElapsedMinutes>
+	</Testing>
+</Site>
