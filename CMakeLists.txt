@@ -14,16 +14,15 @@ target_include_directories(Gravitas PUBLIC ${CMAKE_SOURCE_DIR}/external/nuklear)
 target_include_directories(Gravitas PUBLIC ${CMAKE_SOURCE_DIR}/external/stb)
 target_include_directories(Gravitas PUBLIC ${CMAKE_SOURCE_DIR}/external/threadpool)
 
-find_package(glfw3 REQUIRED)
-target_include_directories(Gravitas PUBLIC ${glfw_INCLUDE_DIRS})
-target_link_libraries(Gravitas glfw)
-message(STATUS "GLFW include directories: ${glfw_INCLUDE_DIRS}")
-
-
 find_package(Vulkan REQUIRED)
 target_include_directories(Gravitas PUBLIC ${Vulkan_INCLUDE_DIRS})
 target_link_libraries(Gravitas Vulkan::Vulkan)
 message(STATUS "Vulkan include directories: ${Vulkan_INCLUDE_DIRS}")
+
+find_package(glfw3 REQUIRED)
+target_include_directories(Gravitas PUBLIC ${glfw_INCLUDE_DIRS})
+target_link_libraries(Gravitas glfw)
+message(STATUS "GLFW include directories: ${glfw_INCLUDE_DIRS}")
 
 add_executable(main main.cpp)
 target_link_libraries(main Gravitas)
