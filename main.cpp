@@ -8,7 +8,8 @@
 
 #include <iostream>
 
-int main() {
+int main() 
+{
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -24,7 +25,7 @@ int main() {
     auto test = matrix * vec;
 
     while(!glfwWindowShouldClose(window)) {
-        glfwPollEvents();
+       glfwPollEvents();
     }
 
     glfwDestroyWindow(window);
