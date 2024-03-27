@@ -12,19 +12,16 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR})
 #we need vulkan here as well
 find_package(Vulkan REQUIRED)
 
-#we need to find the glm package as well
-find_package(glm CONFIG REQUIRED)
-
-#include directories
-include_directories(${CMAKE_SOURCE_DIR}/graphics_engine)
-include_directories(${Vulkan_INCLUDE_DIRS})
-
 #main target is just our small cpp file
 add_executable(main main.cpp)
 add_dependencies(main Gravitas)
 
 #include glm as a header only library
-target_include_directories(main PUBLIC ${GLM_INCLUDE_DIRS})
+target_include_directories(main PUBLIC ${CMAKE_SOURCE_DIR}/external/glm)
+#include the graphics engine
+target_include_directories(main PUBLIC ${CMAKE_SOURCE_DIR}/graphics_engine)
+#include vulkan
+target_include_directories(main PUBLIC ${Vulkan_INCLUDE_DIRS})
 
 #link libraries
-target_link_libraries(main Vulkan::Vulkan glm Gravitas)
+target_link_libraries(main Vulkan::Vulkan Gravitas)
