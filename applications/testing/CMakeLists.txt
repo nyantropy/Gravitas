@@ -23,5 +23,8 @@ include_directories(${Vulkan_INCLUDE_DIRS})
 add_executable(main main.cpp)
 add_dependencies(main Gravitas)
 
+#include glm as a header only library
+target_include_directories(main PUBLIC ${GLM_INCLUDE_DIRS})
+
 #link libraries
 target_link_libraries(main Vulkan::Vulkan glm Gravitas)
