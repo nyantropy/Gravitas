@@ -21,10 +21,7 @@ ExternalProject_Add(GLFW
 #get GLFW include directories
 ExternalProject_Get_Property(GLFW SOURCE_DIR)
 set(GLFW_INCLUDE_DIRS ${SOURCE_DIR}/include)
-
-#get GLFW binary directories
-ExternalProject_Get_Property(GLFW BINARY_DIR)
-set(GLFW_LIB_DIR ${BINARY_DIR}/src)
+set(GLFW_LIB_DIR ${SOURCE_DIR}/lib)
 
 #source files for the library are all .c .h .cpp files
 file(GLOB GravitasSRC ./*.cpp ./*.c ./*.h)
