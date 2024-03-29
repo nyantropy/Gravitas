@@ -6,7 +6,6 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 #find Vulkan on the system
 find_package(Vulkan REQUIRED)
-message(STATUS "Vulkan include directories: ${Vulkan_INCLUDE_DIRS}")
 
 #GLFW will be compiled as a separate project
 include(ExternalProject)
@@ -20,8 +19,9 @@ ExternalProject_Add(GLFW
 
 #get GLFW include directories
 ExternalProject_Get_Property(GLFW SOURCE_DIR)
-set(GLFW_INCLUDE_DIRS ${SOURCE_DIR}/include)
-set(GLFW_LIB_DIR ${SOURCE_DIR}/lib)
+get_filename_component(GLFW_ROOT_DIR "${SOURCE_DIR}/../.." ABSOLUTE)
+set(GLFW_INCLUDE_DIRS ${GLFW_ROOT_DIR}/include)
+set(GLFW_LIB_DIR ${GLFW_ROOT_DIR}/lib)
 
 #source files for the library are all .c .h .cpp files
 file(GLOB GravitasSRC ./*.cpp ./*.c ./*.h)
@@ -32,8 +32,11 @@ add_dependencies(Gravitas GLFW)
 target_include_directories(Gravitas PUBLIC 
     ${CMAKE_SOURCE_DIR}/external/glm
     ${GLFW_INCLUDE_DIRS}
+    ${GLFW_LIB_DIR}
     ${Vulkan_INCLUDE_DIRS}
 )
+
+message(STATUS "GLFW library directory: ${GLFW_LIB_DIR}")
 
 #link all the required libraries
 target_link_libraries(Gravitas 

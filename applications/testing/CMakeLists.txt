@@ -9,13 +9,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Set output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-#main target is just our small cpp file
+# main target is just our small cpp file
 add_executable(main main.cpp)
 add_dependencies(main Gravitas)
 
-#include the graphics engine
+# include the graphics engine
 target_include_directories(main PUBLIC ${CMAKE_SOURCE_DIR}/graphics_engine)
 target_link_libraries(main Gravitas)
 
-#include glm as a header only library
-#target_include_directories(main PUBLIC ${CMAKE_SOURCE_DIR}/external/glm)
+# Set the output name to include .exe extension on Windows
+if (WIN32)
+    set_target_properties(main PROPERTIES OUTPUT_NAME "main.exe")
+endif()
