@@ -8,8 +8,8 @@ project(Gravitas VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release")
 
-message(STATUS "Starting Building Graphics Engine!")
+#message(STATUS "Starting Building Graphics Engine!")
 add_subdirectory(graphics_engine)
 
-message(STATUS "Starting Building Applications!")
+#message(STATUS "Starting Building Applications!")
 add_subdirectory(applications)
