@@ -23,6 +23,12 @@ get_filename_component(GLFW_ROOT_DIR "${SOURCE_DIR}/../.." ABSOLUTE)
 set(GLFW_INCLUDE_DIRS ${GLFW_ROOT_DIR}/include)
 set(GLFW_LIB_DIR ${GLFW_ROOT_DIR}/lib)
 
+#Include directory for stb_image.h, stb_image_write.h and tiny_obj_loader.h
+set(STB_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/external/stb)
+
+#Include directory for glm
+set(GLM_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/external/glm/glm)
+
 #source files for the library are all .c .h .cpp files
 file(GLOB GravitasSRC ./*.cpp ./*.c ./*.h)
 add_library(Gravitas STATIC ${GravitasSRC})
@@ -30,10 +36,11 @@ add_dependencies(Gravitas GLFW)
 
 #set all the include directories for this target
 target_include_directories(Gravitas PUBLIC 
-    ${CMAKE_SOURCE_DIR}/external/glm
     ${GLFW_INCLUDE_DIRS}
     ${GLFW_LIB_DIR}
     ${Vulkan_INCLUDE_DIRS}
+    ${STB_INCLUDE_DIR}
+    ${GLM_INCLUDE_DIR}
 )
 
 message(STATUS "GLFW library directory: ${GLFW_LIB_DIR}")
@@ -55,5 +62,3 @@ set_target_properties(Gravitas PROPERTIES
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)
-
-#message(STATUS "Finished Building Graphics Engine!")
