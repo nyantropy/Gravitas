@@ -11,6 +11,7 @@ class VulkanInstance
         ~VulkanInstance();
 
         VkInstance& getInstance();
+        const std::vector<const char*> getValidationLayers();
 
     private:
         void createInstance();

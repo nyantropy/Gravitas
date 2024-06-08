@@ -15,12 +15,17 @@ VulkanInstance::VulkanInstance(bool enableValidationLayers)
 
 VulkanInstance::~VulkanInstance() 
 {
-    //vkDestroyInstance(instance, nullptr);
+    vkDestroyInstance(instance, nullptr);
 }
 
 VkInstance& VulkanInstance::getInstance()
 {
     return instance;
+}
+
+const std::vector<const char*> VulkanInstance::getValidationLayers()
+{
+    return validationLayers;
 }
 
 void VulkanInstance::createInstance() 

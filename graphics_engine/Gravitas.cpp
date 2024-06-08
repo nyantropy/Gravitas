@@ -140,11 +140,13 @@ struct UniformBufferObject {
 
 class Gravitas {
 public:
+    //VulkanInstance vinstance{true};
+
     void run() 
     {
         initWindow();
-        
-        VulkanInstance vi = VulkanInstance(true);
+
+        VulkanInstance vi{true};
         instance = vi.getInstance();
 
         initVulkan();
@@ -320,7 +322,6 @@ private:
         }
 
         vkDestroySurfaceKHR(instance, surface, nullptr);
-        vkDestroyInstance(instance, nullptr);
 
         glfwDestroyWindow(window);
 
