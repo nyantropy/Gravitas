@@ -29,7 +29,9 @@
 #include <set>
 #include <unordered_map>
 
-#include "VulkanInstance.hpp"
+//#include "VulkanInstance.hpp"
+#include "GLFWWindowSurface.hpp"
+
 
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
@@ -53,14 +55,14 @@ const bool enableValidationLayers = false;
 const bool enableValidationLayers = true;
 #endif
 
-VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
-    auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-    if (func != nullptr) {
-        return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
-    } else {
-        return VK_ERROR_EXTENSION_NOT_PRESENT;
-    }
-}
+// VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
+//     auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+//     if (func != nullptr) {
+//         return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
+//     } else {
+//         return VK_ERROR_EXTENSION_NOT_PRESENT;
+//     }
+// }
 
 void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
     auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
@@ -141,17 +143,20 @@ struct UniformBufferObject {
 class Gravitas {
 public:
     VulkanInstance* vinstance;
+    WindowSurface* vsurface;
 
     void run() 
     {
         initWindow();
 
         vinstance = new VulkanInstance(true);
+        vsurface = new GLFWWindowSurface(window, vinstance);
 
         initVulkan();
         mainLoop();
         cleanup();
 
+        delete vsurface;
         delete vinstance;
     }
 
@@ -159,7 +164,7 @@ private:
     GLFWwindow* window;
 
     VkDebugUtilsMessengerEXT debugMessenger;
-    VkSurfaceKHR surface;
+    //VkSurfaceKHR surface;
 
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device;
@@ -230,7 +235,7 @@ private:
 
     void initVulkan() 
     {
-        createSurface();
+        //createSurface();
         pickPhysicalDevice();
         createLogicalDevice();
         createSwapChain();
@@ -321,8 +326,6 @@ private:
             DestroyDebugUtilsMessengerEXT(vinstance->getInstance(), debugMessenger, nullptr);
         }
 
-        vkDestroySurfaceKHR(vinstance->getInstance(), surface, nullptr);
-
         glfwDestroyWindow(window);
 
         glfwTerminate();
@@ -355,11 +358,12 @@ private:
         createInfo.pfnUserCallback = debugCallback;
     }
 
-    void createSurface() {
-        if (glfwCreateWindowSurface(vinstance->getInstance(), window, nullptr, &surface) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create window surface!");
-        }
-    }
+    // void createSurface() 
+    // {
+    //     if (glfwCreateWindowSurface(vinstance->getInstance(), window, nullptr, &surface) != VK_SUCCESS) {
+    //         throw std::runtime_error("failed to create window surface!");
+    //     }
+    // }
 
     void pickPhysicalDevice() {
         uint32_t deviceCount = 0;
@@ -443,7 +447,7 @@ private:
 
         VkSwapchainCreateInfoKHR createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-        createInfo.surface = surface;
+        createInfo.surface = vsurface->getSurface();
 
         createInfo.minImageCount = imageCount;
         createInfo.imageFormat = surfaceFormat.format;
@@ -1415,22 +1419,22 @@ private:
     SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device) {
         SwapChainSupportDetails details;
 
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, vsurface->getSurface(), &details.capabilities);
 
         uint32_t formatCount;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, vsurface->getSurface(), &formatCount, nullptr);
 
         if (formatCount != 0) {
             details.formats.resize(formatCount);
-            vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
+            vkGetPhysicalDeviceSurfaceFormatsKHR(device, vsurface->getSurface(), &formatCount, details.formats.data());
         }
 
         uint32_t presentModeCount;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, vsurface->getSurface(), &presentModeCount, nullptr);
 
         if (presentModeCount != 0) {
             details.presentModes.resize(presentModeCount);
-            vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
+            vkGetPhysicalDeviceSurfacePresentModesKHR(device, vsurface->getSurface(), &presentModeCount, details.presentModes.data());
         }
 
         return details;
@@ -1485,7 +1489,7 @@ private:
             }
 
             VkBool32 presentSupport = false;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, vsurface->getSurface(), &presentSupport);
 
             if (presentSupport) {
                 indices.presentFamily = i;
