@@ -140,24 +140,24 @@ struct UniformBufferObject {
 
 class Gravitas {
 public:
-    //VulkanInstance vinstance{true};
+    VulkanInstance* vinstance;
 
     void run() 
     {
         initWindow();
 
-        VulkanInstance vi{true};
-        instance = vi.getInstance();
+        vinstance = new VulkanInstance(true);
 
         initVulkan();
         mainLoop();
         cleanup();
+
+        delete vinstance;
     }
 
 private:
     GLFWwindow* window;
 
-    VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
     VkSurfaceKHR surface;
 
@@ -318,10 +318,10 @@ private:
         vkDestroyDevice(device, nullptr);
 
         if (enableValidationLayers) {
-            DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+            DestroyDebugUtilsMessengerEXT(vinstance->getInstance(), debugMessenger, nullptr);
         }
 
-        vkDestroySurfaceKHR(instance, surface, nullptr);
+        vkDestroySurfaceKHR(vinstance->getInstance(), surface, nullptr);
 
         glfwDestroyWindow(window);
 
@@ -356,21 +356,21 @@ private:
     }
 
     void createSurface() {
-        if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
+        if (glfwCreateWindowSurface(vinstance->getInstance(), window, nullptr, &surface) != VK_SUCCESS) {
             throw std::runtime_error("failed to create window surface!");
         }
     }
 
     void pickPhysicalDevice() {
         uint32_t deviceCount = 0;
-        vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+        vkEnumeratePhysicalDevices(vinstance->getInstance(), &deviceCount, nullptr);
 
         if (deviceCount == 0) {
             throw std::runtime_error("failed to find GPUs with Vulkan support!");
         }
 
         std::vector<VkPhysicalDevice> devices(deviceCount);
-        vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+        vkEnumeratePhysicalDevices(vinstance->getInstance(), &deviceCount, devices.data());
 
         for (const auto& device : devices) {
             if (isDeviceSuitable(device)) {
