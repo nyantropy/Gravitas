@@ -23,7 +23,7 @@ VkInstance& VulkanInstance::getInstance()
     return instance;
 }
 
-const std::vector<const char*> VulkanInstance::getValidationLayers()
+const std::vector<const char*>& VulkanInstance::getValidationLayers()
 {
     return validationLayers;
 }
