@@ -48,9 +48,12 @@ message(STATUS "GLFW library directory: ${GLFW_LIB_DIR}")
 #link all the required libraries
 target_link_libraries(Gravitas 
     Vulkan::Vulkan
+    instance
     $<$<PLATFORM_ID:Windows>:${GLFW_LIB_DIR}/glfw3.lib> #windoof
     $<$<NOT:$<PLATFORM_ID:Windows>>:${GLFW_LIB_DIR}/libglfw3.a> #linux
 )
+
+add_subdirectory(instance)
 
 #output dirs
 set_target_properties(Gravitas PROPERTIES
