@@ -1,8 +1,8 @@
 #include "VulkanSwapChain.hpp"
 
-VulkanSwapChain::VulkanSwapChain(GLFWwindow* window, WindowSurface* vsurface, VulkanPhysicalDevice* vphysicaldevice, VulkanLogicalDevice* vlogicaldevice)
+VulkanSwapChain::VulkanSwapChain(GTSOutputWindow* vwindow, WindowSurface* vsurface, VulkanPhysicalDevice* vphysicaldevice, VulkanLogicalDevice* vlogicaldevice)
 {
-    this->window = window;
+    this->vwindow = vwindow;
     this->vsurface = vsurface;
     this->vphysicaldevice = vphysicaldevice;
     this->vlogicaldevice = vlogicaldevice;
@@ -132,7 +132,7 @@ VkExtent2D VulkanSwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& cap
     else 
     {
         int width, height;
-        glfwGetFramebufferSize(window, &width, &height);
+        vwindow->getSize(width, height);
 
         VkExtent2D actualExtent = 
         {

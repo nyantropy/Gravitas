@@ -29,6 +29,9 @@
 #include <set>
 #include <unordered_map>
 
+#include "GravitasEngineConstants.h"
+
+#include "GTSGLFWOutputWindow.hpp"
 #include "GLFWWindowSurface.hpp"
 #include "VulkanPhysicalDevice.hpp"
 #include "VulkanLogicalDevice.hpp"
@@ -121,6 +124,7 @@ struct UniformBufferObject {
 
 class Gravitas {
 public:
+    GTSOutputWindow* vwindow;
     VulkanInstance* vinstance;
     WindowSurface* vsurface;
     VulkanPhysicalDevice* vphysicaldevice;
@@ -129,13 +133,15 @@ public:
 
     void run() 
     {
-        initWindow();
+        vwindow = new GTSGLFWOutputWindow();
+        vwindow->init(GravitasEngineConstants::GLFW_DEFAULT_WIDTH, GravitasEngineConstants::GLFW_DEFAULT_HEIGHT, "Title");
+        vwindow->setOnWindowResizeCallback(OnFrameBufferResizeCallback);
 
         vinstance = new VulkanInstance(enableValidationLayers);
-        vsurface = new GLFWWindowSurface(window, vinstance);
+        vsurface = new GLFWWindowSurface(vwindow, vinstance);
         vphysicaldevice = new VulkanPhysicalDevice(vinstance, vsurface);
         vlogicaldevice = new VulkanLogicalDevice(vinstance, vphysicaldevice, enableValidationLayers);
-        vswapchain = new VulkanSwapChain(window, vsurface, vphysicaldevice, vlogicaldevice);
+        vswapchain = new VulkanSwapChain(vwindow, vsurface, vphysicaldevice, vlogicaldevice);
 
 
 
@@ -148,10 +154,10 @@ public:
         delete vphysicaldevice;
         delete vsurface;
         delete vinstance;
+        delete vwindow;
     }
 
 private:
-    GLFWwindow* window;
 
     //VkDebugUtilsMessengerEXT debugMessenger;
 
@@ -194,19 +200,9 @@ private:
 
     bool framebufferResized = false;
 
-    void initWindow() {
-        glfwInit();
-
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-        window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
-        glfwSetWindowUserPointer(window, this);
-        glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-    }
-
-    static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-        auto app = reinterpret_cast<Gravitas*>(glfwGetWindowUserPointer(window));
-        app->framebufferResized = true;
+    static void OnFrameBufferResizeCallback(int width, int height) 
+    {
+        //framebufferResized = true;
     }
 
     void initVulkan() 
@@ -231,9 +227,11 @@ private:
         createSyncObjects();
     }
 
-    void mainLoop() {
-        while (!glfwWindowShouldClose(window)) {
-            glfwPollEvents();
+    void mainLoop() 
+    {
+        while (!vwindow->shouldClose())
+        {
+            vwindow->pollEvents();
             drawFrame();
         }
 
@@ -291,18 +289,16 @@ private:
         }
 
         vkDestroyCommandPool(vlogicaldevice->getDevice(), commandPool, nullptr);
-
-        glfwDestroyWindow(window);
-
-        glfwTerminate();
     }
 
     void recreateSwapChain() {
         int width = 0, height = 0;
-        glfwGetFramebufferSize(window, &width, &height);
-        while (width == 0 || height == 0) {
-            glfwGetFramebufferSize(window, &width, &height);
-            glfwWaitEvents();
+        vwindow->getSize(width, height);
+
+        while (width == 0 || height == 0) 
+        {
+            vwindow->getSize(width, height);
+            vwindow->pollEvents();
         }
 
         vkDeviceWaitIdle(vlogicaldevice->getDevice());
@@ -384,7 +380,8 @@ private:
         }
     }
 
-    void createRenderPass() {
+    void createRenderPass() 
+    {
         VkAttachmentDescription colorAttachment{};
         colorAttachment.format = vswapchain->getSwapChainImageFormat();
         colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -437,7 +434,8 @@ private:
         renderPassInfo.dependencyCount = 1;
         renderPassInfo.pDependencies = &dependency;
 
-        if (vkCreateRenderPass(vlogicaldevice->getDevice(), &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
+        if (vkCreateRenderPass(vlogicaldevice->getDevice(), &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) 
+        {
             throw std::runtime_error("failed to create render pass!");
         }
     }
@@ -650,7 +648,8 @@ private:
         throw std::runtime_error("failed to find supported format!");
     }
 
-    VkFormat findDepthFormat() {
+    VkFormat findDepthFormat() 
+    {
         return findSupportedFormat(
             {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
             VK_IMAGE_TILING_OPTIMAL,
@@ -1294,7 +1293,7 @@ private:
             return capabilities.currentExtent;
         } else {
             int width, height;
-            glfwGetFramebufferSize(window, &width, &height);
+            vwindow->getSize(width, height);
 
             VkExtent2D actualExtent = {
                 static_cast<uint32_t>(width),
