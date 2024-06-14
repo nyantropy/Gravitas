@@ -135,7 +135,7 @@ public:
     {
         vwindow = new GTSGLFWOutputWindow();
         vwindow->init(GravitasEngineConstants::GLFW_DEFAULT_WIDTH, GravitasEngineConstants::GLFW_DEFAULT_HEIGHT, "Title");
-        vwindow->setOnWindowResizeCallback(OnFrameBufferResizeCallback);
+        vwindow->setOnWindowResizeCallback(std::bind(&Gravitas::OnFrameBufferResizeCallback, this, std::placeholders::_1, std::placeholders::_2));
 
         vinstance = new VulkanInstance(enableValidationLayers);
         vsurface = new GLFWWindowSurface(vwindow, vinstance);
@@ -200,9 +200,9 @@ private:
 
     bool framebufferResized = false;
 
-    static void OnFrameBufferResizeCallback(int width, int height) 
+    void OnFrameBufferResizeCallback(int width, int height) 
     {
-        //framebufferResized = true;
+        framebufferResized = true;
     }
 
     void initVulkan() 

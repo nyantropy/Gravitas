@@ -1,9 +1,17 @@
 #include "GTSGLFWOutputWindow.hpp"
 
+GTSGLFWOutputWindow::GTSGLFWOutputWindow()
+{
+    this->window = nullptr;
+}
+
 GTSGLFWOutputWindow::~GTSGLFWOutputWindow()
 {
-    glfwDestroyWindow(window);
-    glfwTerminate();
+    if(window)
+    {
+        glfwDestroyWindow(window);
+        glfwTerminate();
+    }
 }
 
 void GTSGLFWOutputWindow::init(int width, int height, const std::string& title) 
@@ -15,7 +23,7 @@ void GTSGLFWOutputWindow::init(int width, int height, const std::string& title)
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallbackStatic);
 }
 
-void GTSGLFWOutputWindow::setOnWindowResizeCallback(void (*callback)(int, int)) 
+void GTSGLFWOutputWindow::setOnWindowResizeCallback(const std::function<void(int, int)>& callback) 
 {
     resizeCallback = callback;
 }

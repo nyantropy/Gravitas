@@ -7,11 +7,11 @@
 class GTSGLFWOutputWindow : public GTSOutputWindow 
 {
     public:
-        GTSGLFWOutputWindow() : window(nullptr), resizeCallback(nullptr) {}
+        GTSGLFWOutputWindow();
         ~GTSGLFWOutputWindow();
 
         void init(int width, int height, const std::string& title) override;
-        void setOnWindowResizeCallback(void (*callback)(int, int)) override;
+        void setOnWindowResizeCallback(const std::function<void(int, int)>& callback) override;
         bool shouldClose() const override;
         void pollEvents() override;
         void getSize(int& width, int& height) const override;
@@ -31,5 +31,4 @@ class GTSGLFWOutputWindow : public GTSOutputWindow
         }
 
         GLFWwindow* window;
-        void (*resizeCallback)(int, int);
 };
