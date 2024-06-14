@@ -1,13 +1,14 @@
+# Parent CMakeLists.txt
+
 cmake_minimum_required(VERSION 3.5.0)
 
 set(CMAKE_CXX_STANDARD 20)
-
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
-#find Vulkan on the system
+# Find Vulkan on the system
 find_package(Vulkan REQUIRED)
 
-#GLFW will be compiled as a separate project
+# GLFW will be compiled as a separate project
 include(ExternalProject)
 ExternalProject_Add(GLFW
     GIT_REPOSITORY https://github.com/glfw/glfw.git
@@ -17,24 +18,24 @@ ExternalProject_Add(GLFW
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
 )
 
-#get GLFW include directories
+# Get GLFW include directories
 ExternalProject_Get_Property(GLFW SOURCE_DIR)
 get_filename_component(GLFW_ROOT_DIR "${SOURCE_DIR}/../.." ABSOLUTE)
-set(GLFW_INCLUDE_DIRS ${GLFW_ROOT_DIR}/include)
-set(GLFW_LIB_DIR ${GLFW_ROOT_DIR}/lib)
+set(GLFW_INCLUDE_DIRS ${GLFW_ROOT_DIR}/include CACHE INTERNAL "")
+set(GLFW_LIB_DIR ${GLFW_ROOT_DIR}/lib CACHE INTERNAL "")
 
-#Include directory for stb_image.h, stb_image_write.h and tiny_obj_loader.h
-set(STB_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/external/stb)
+# Include directory for stb_image.h, stb_image_write.h and tiny_obj_loader.h
+set(STB_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/external/stb CACHE INTERNAL "")
 
-#Include directory for glm
-set(GLM_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/external/glm/glm)
+# Include directory for glm
+set(GLM_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/external/glm/glm CACHE INTERNAL "")
 
-#source files for the library are all .c .h .cpp files
+# Source files for the library are all .c .h .cpp files
 file(GLOB GravitasSRC ./*.cpp ./*.c ./*.h)
 add_library(Gravitas STATIC ${GravitasSRC})
 add_dependencies(Gravitas GLFW)
 
-#set all the include directories for this target
+# Set all the include directories for this target
 target_include_directories(Gravitas PUBLIC 
     ${GLFW_INCLUDE_DIRS}
     ${GLFW_LIB_DIR}
@@ -45,23 +46,23 @@ target_include_directories(Gravitas PUBLIC
 
 message(STATUS "GLFW library directory: ${GLFW_LIB_DIR}")
 
-#link all the required libraries
+# Link all the required libraries
 target_link_libraries(Gravitas 
     Vulkan::Vulkan
     instance
-    $<$<PLATFORM_ID:Windows>:${GLFW_LIB_DIR}/glfw3.lib> #windoof
-    $<$<NOT:$<PLATFORM_ID:Windows>>:${GLFW_LIB_DIR}/libglfw3.a> #linux
+    $<$<PLATFORM_ID:Windows>:${GLFW_LIB_DIR}/glfw3.lib> # Windows
+    $<$<NOT:$<PLATFORM_ID:Windows>>:${GLFW_LIB_DIR}/libglfw3.a> # Linux
 )
 
 add_subdirectory(instance)
 
-#output dirs
+# Output dirs
 set_target_properties(Gravitas PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
 )
 
-#cpack settings
+# CPack settings
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)
