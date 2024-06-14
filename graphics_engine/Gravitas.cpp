@@ -32,6 +32,7 @@
 #include "GLFWWindowSurface.hpp"
 #include "VulkanPhysicalDevice.hpp"
 #include "VulkanLogicalDevice.hpp"
+#include "VulkanSwapChain.hpp"
 
 
 const uint32_t WIDTH = 800;
@@ -124,6 +125,7 @@ public:
     WindowSurface* vsurface;
     VulkanPhysicalDevice* vphysicaldevice;
     VulkanLogicalDevice* vlogicaldevice;
+    VulkanSwapChain* vswapchain;
 
     void run() 
     {
@@ -133,12 +135,15 @@ public:
         vsurface = new GLFWWindowSurface(window, vinstance);
         vphysicaldevice = new VulkanPhysicalDevice(vinstance, vsurface);
         vlogicaldevice = new VulkanLogicalDevice(vinstance, vphysicaldevice, enableValidationLayers);
+        vswapchain = new VulkanSwapChain(window, vsurface, vphysicaldevice, vlogicaldevice);
+
 
 
         initVulkan();
         mainLoop();
         cleanup();
 
+        delete vswapchain;
         delete vlogicaldevice;
         delete vphysicaldevice;
         delete vsurface;
@@ -149,13 +154,6 @@ private:
     GLFWwindow* window;
 
     //VkDebugUtilsMessengerEXT debugMessenger;
-
-    VkSwapchainKHR swapChain;
-    std::vector<VkImage> swapChainImages;
-    VkFormat swapChainImageFormat;
-    VkExtent2D swapChainExtent;
-    std::vector<VkImageView> swapChainImageViews;
-    std::vector<VkFramebuffer> swapChainFramebuffers;
 
     VkRenderPass renderPass;
     VkDescriptorSetLayout descriptorSetLayout;
@@ -213,7 +211,6 @@ private:
 
     void initVulkan() 
     {
-        createSwapChain();
         createImageViews();
         createRenderPass();
         createDescriptorSetLayout();
@@ -248,15 +245,15 @@ private:
         vkDestroyImage(vlogicaldevice->getDevice(), depthImage, nullptr);
         vkFreeMemory(vlogicaldevice->getDevice(), depthImageMemory, nullptr);
 
-        for (auto framebuffer : swapChainFramebuffers) {
+        for (auto framebuffer : vswapchain->getSwapChainFramebuffers()) {
             vkDestroyFramebuffer(vlogicaldevice->getDevice(), framebuffer, nullptr);
         }
 
-        for (auto imageView : swapChainImageViews) {
+        for (auto imageView : vswapchain->getSwapChainImageViews()) {
             vkDestroyImageView(vlogicaldevice->getDevice(), imageView, nullptr);
         }
 
-        vkDestroySwapchainKHR(vlogicaldevice->getDevice(), swapChain, nullptr);
+        vkDestroySwapchainKHR(vlogicaldevice->getDevice(), vswapchain->getSwapChain(), nullptr);
     }
 
     void cleanup() {
@@ -367,29 +364,29 @@ private:
         createInfo.presentMode = presentMode;
         createInfo.clipped = VK_TRUE;
 
-        if (vkCreateSwapchainKHR(vlogicaldevice->getDevice(), &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
+        if (vkCreateSwapchainKHR(vlogicaldevice->getDevice(), &createInfo, nullptr, &vswapchain->getSwapChain()) != VK_SUCCESS) {
             throw std::runtime_error("failed to create swap chain!");
         }
 
-        vkGetSwapchainImagesKHR(vlogicaldevice->getDevice(), swapChain, &imageCount, nullptr);
-        swapChainImages.resize(imageCount);
-        vkGetSwapchainImagesKHR(vlogicaldevice->getDevice(), swapChain, &imageCount, swapChainImages.data());
+        vkGetSwapchainImagesKHR(vlogicaldevice->getDevice(), vswapchain->getSwapChain(), &imageCount, nullptr);
+        vswapchain->getSwapChainImages().resize(imageCount);
+        vkGetSwapchainImagesKHR(vlogicaldevice->getDevice(), vswapchain->getSwapChain(), &imageCount, vswapchain->getSwapChainImages().data());
 
-        swapChainImageFormat = surfaceFormat.format;
-        swapChainExtent = extent;
+        vswapchain->getSwapChainImageFormat() = surfaceFormat.format;
+        vswapchain->getSwapChainExtent() = extent;
     }
 
     void createImageViews() {
-        swapChainImageViews.resize(swapChainImages.size());
+        vswapchain->getSwapChainImageViews().resize(vswapchain->getSwapChainImages().size());
 
-        for (uint32_t i = 0; i < swapChainImages.size(); i++) {
-            swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+        for (uint32_t i = 0; i < vswapchain->getSwapChainImages().size(); i++) {
+            vswapchain->getSwapChainImageViews()[i] = createImageView(vswapchain->getSwapChainImages()[i], vswapchain->getSwapChainImageFormat(), VK_IMAGE_ASPECT_COLOR_BIT);
         }
     }
 
     void createRenderPass() {
         VkAttachmentDescription colorAttachment{};
-        colorAttachment.format = swapChainImageFormat;
+        colorAttachment.format = vswapchain->getSwapChainImageFormat();
         colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
         colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -595,11 +592,11 @@ private:
     }
 
     void createFramebuffers() {
-        swapChainFramebuffers.resize(swapChainImageViews.size());
+        vswapchain->getSwapChainFramebuffers().resize(vswapchain->getSwapChainImageViews().size());
 
-        for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+        for (size_t i = 0; i < vswapchain->getSwapChainImageViews().size(); i++) {
             std::array<VkImageView, 2> attachments = {
-                swapChainImageViews[i],
+                vswapchain->getSwapChainImageViews()[i],
                 depthImageView
             };
 
@@ -608,11 +605,11 @@ private:
             framebufferInfo.renderPass = renderPass;
             framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
             framebufferInfo.pAttachments = attachments.data();
-            framebufferInfo.width = swapChainExtent.width;
-            framebufferInfo.height = swapChainExtent.height;
+            framebufferInfo.width = vswapchain->getSwapChainExtent().width;
+            framebufferInfo.height = vswapchain->getSwapChainExtent().height;
             framebufferInfo.layers = 1;
 
-            if (vkCreateFramebuffer(vlogicaldevice->getDevice(), &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
+            if (vkCreateFramebuffer(vlogicaldevice->getDevice(), &framebufferInfo, nullptr, &vswapchain->getSwapChainFramebuffers()[i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create framebuffer!");
             }
         }
@@ -634,7 +631,7 @@ private:
     void createDepthResources() {
         VkFormat depthFormat = findDepthFormat();
 
-        createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
+        createImage(vswapchain->getSwapChainExtent().width, vswapchain->getSwapChainExtent().height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
         depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
     }
 
@@ -1112,9 +1109,9 @@ private:
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.renderPass = renderPass;
-        renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
+        renderPassInfo.framebuffer = vswapchain->getSwapChainFramebuffers()[imageIndex];
         renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = swapChainExtent;
+        renderPassInfo.renderArea.extent = vswapchain->getSwapChainExtent();
 
         std::array<VkClearValue, 2> clearValues{};
         clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
@@ -1130,15 +1127,15 @@ private:
             VkViewport viewport{};
             viewport.x = 0.0f;
             viewport.y = 0.0f;
-            viewport.width = (float) swapChainExtent.width;
-            viewport.height = (float) swapChainExtent.height;
+            viewport.width = (float) vswapchain->getSwapChainExtent().width;
+            viewport.height = (float) vswapchain->getSwapChainExtent().height;
             viewport.minDepth = 0.0f;
             viewport.maxDepth = 1.0f;
             vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
             VkRect2D scissor{};
             scissor.offset = {0, 0};
-            scissor.extent = swapChainExtent;
+            scissor.extent = vswapchain->getSwapChainExtent();
             vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
             VkBuffer vertexBuffers[] = {vertexBuffer};
@@ -1188,7 +1185,7 @@ private:
         UniformBufferObject ubo{};
         ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+        ubo.proj = glm::perspective(glm::radians(45.0f), vswapchain->getSwapChainExtent().width / (float) vswapchain->getSwapChainExtent().height, 0.1f, 10.0f);
         ubo.proj[1][1] *= -1;
 
         memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
@@ -1198,7 +1195,7 @@ private:
         vkWaitForFences(vlogicaldevice->getDevice(), 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
-        VkResult result = vkAcquireNextImageKHR(vlogicaldevice->getDevice(), swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR(vlogicaldevice->getDevice(), vswapchain->getSwapChain(), UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
             recreateSwapChain();
@@ -1240,7 +1237,7 @@ private:
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pWaitSemaphores = signalSemaphores;
 
-        VkSwapchainKHR swapChains[] = {swapChain};
+        VkSwapchainKHR swapChains[] = {vswapchain->getSwapChain()};
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapChains;
 

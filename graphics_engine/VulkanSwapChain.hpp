@@ -33,5 +33,13 @@ class VulkanSwapChain
 
     public:
         VulkanSwapChain(GLFWwindow* window, WindowSurface* vsurface, VulkanPhysicalDevice* vphysicaldevice, VulkanLogicalDevice* vlogicaldevice);
+
+        VkSwapchainKHR& getSwapChain();
+        std::vector<VkImage>& getSwapChainImages();
+        VkFormat& getSwapChainImageFormat();
+        VkExtent2D& getSwapChainExtent();
+        std::vector<VkImageView>& getSwapChainImageViews();
+        std::vector<VkFramebuffer>& getSwapChainFramebuffers();
+        
         //~VulkanSwapChain();
 };

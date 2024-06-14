@@ -10,6 +10,36 @@ VulkanSwapChain::VulkanSwapChain(GLFWwindow* window, WindowSurface* vsurface, Vu
     createSwapChain();
 }
 
+VkSwapchainKHR& VulkanSwapChain::getSwapChain()
+{
+    return swapChain;
+}
+
+std::vector<VkImage>& VulkanSwapChain::getSwapChainImages()
+{
+    return swapChainImages;
+}
+
+VkFormat& VulkanSwapChain::getSwapChainImageFormat()
+{
+    return swapChainImageFormat;
+}
+
+VkExtent2D& VulkanSwapChain::getSwapChainExtent()
+{
+    return swapChainExtent;
+}
+
+std::vector<VkImageView>& VulkanSwapChain::getSwapChainImageViews()
+{
+    return swapChainImageViews;
+}
+
+std::vector<VkFramebuffer>& VulkanSwapChain::getSwapChainFramebuffers()
+{
+    return swapChainFramebuffers;
+}
+
 void VulkanSwapChain::createSwapChain() 
 {
     SwapChainSupportDetails swapChainSupport = vphysicaldevice->getSwapChainSupportDetails();
