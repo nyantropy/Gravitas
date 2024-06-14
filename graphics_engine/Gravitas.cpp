@@ -207,7 +207,6 @@ private:
 
     void initVulkan() 
     {
-        createImageViews();
         createRenderPass();
         createDescriptorSetLayout();
         createGraphicsPipeline();
@@ -238,7 +237,8 @@ private:
         vkDeviceWaitIdle(vlogicaldevice->getDevice());
     }
 
-    void cleanupSwapChain() {
+    void cleanupSwapChain() 
+    {
         vkDestroyImageView(vlogicaldevice->getDevice(), depthImageView, nullptr);
         vkDestroyImage(vlogicaldevice->getDevice(), depthImage, nullptr);
         vkFreeMemory(vlogicaldevice->getDevice(), depthImageMemory, nullptr);
@@ -250,8 +250,6 @@ private:
         for (auto imageView : vswapchain->getSwapChainImageViews()) {
             vkDestroyImageView(vlogicaldevice->getDevice(), imageView, nullptr);
         }
-
-        vkDestroySwapchainKHR(vlogicaldevice->getDevice(), vswapchain->getSwapChain(), nullptr);
     }
 
     void cleanup() {
@@ -291,7 +289,8 @@ private:
         vkDestroyCommandPool(vlogicaldevice->getDevice(), commandPool, nullptr);
     }
 
-    void recreateSwapChain() {
+    void recreateSwapChain() 
+    {
         int width = 0, height = 0;
         vwindow->getSize(width, height);
 
@@ -301,84 +300,28 @@ private:
             vwindow->pollEvents();
         }
 
+        std::cout << "swapchain recreated" << std::endl;
+        std::cout << width << std::endl;
+        std::cout << height << std::endl;
+
         vkDeviceWaitIdle(vlogicaldevice->getDevice());
 
         cleanupSwapChain();
 
-        createSwapChain();
-        createImageViews();
+        delete vswapchain;
+        vswapchain = new VulkanSwapChain(vwindow, vsurface, vphysicaldevice, vlogicaldevice);
         createDepthResources();
         createFramebuffers();
     }
 
-    void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) 
-    {
-        createInfo = {};
-        createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-        createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-        createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-        createInfo.pfnUserCallback = debugCallback;
-    }
-
-    void createSwapChain() 
-    {
-        SwapChainSupportDetails swapChainSupport = vphysicaldevice->getSwapChainSupportDetails();
-
-        VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
-        VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-        VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
-
-        uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
-        if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
-            imageCount = swapChainSupport.capabilities.maxImageCount;
-        }
-
-        VkSwapchainCreateInfoKHR createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-        createInfo.surface = vsurface->getSurface();
-
-        createInfo.minImageCount = imageCount;
-        createInfo.imageFormat = surfaceFormat.format;
-        createInfo.imageColorSpace = surfaceFormat.colorSpace;
-        createInfo.imageExtent = extent;
-        createInfo.imageArrayLayers = 1;
-        createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-        QueueFamilyIndices indices = vphysicaldevice->getQueueFamilyIndices();
-        uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
-
-        if (indices.graphicsFamily != indices.presentFamily) {
-            createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-            createInfo.queueFamilyIndexCount = 2;
-            createInfo.pQueueFamilyIndices = queueFamilyIndices;
-        } else {
-            createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        }
-
-        createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
-        createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-        createInfo.presentMode = presentMode;
-        createInfo.clipped = VK_TRUE;
-
-        if (vkCreateSwapchainKHR(vlogicaldevice->getDevice(), &createInfo, nullptr, &vswapchain->getSwapChain()) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create swap chain!");
-        }
-
-        vkGetSwapchainImagesKHR(vlogicaldevice->getDevice(), vswapchain->getSwapChain(), &imageCount, nullptr);
-        vswapchain->getSwapChainImages().resize(imageCount);
-        vkGetSwapchainImagesKHR(vlogicaldevice->getDevice(), vswapchain->getSwapChain(), &imageCount, vswapchain->getSwapChainImages().data());
-
-        vswapchain->getSwapChainImageFormat() = surfaceFormat.format;
-        vswapchain->getSwapChainExtent() = extent;
-    }
-
-    void createImageViews() {
-        vswapchain->getSwapChainImageViews().resize(vswapchain->getSwapChainImages().size());
-
-        for (uint32_t i = 0; i < vswapchain->getSwapChainImages().size(); i++) {
-            vswapchain->getSwapChainImageViews()[i] = createImageView(vswapchain->getSwapChainImages()[i], vswapchain->getSwapChainImageFormat(), VK_IMAGE_ASPECT_COLOR_BIT);
-        }
-    }
+    // void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) 
+    // {
+    //     createInfo = {};
+    //     createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    //     createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    //     createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    //     createInfo.pfnUserCallback = debugCallback;
+    // }
 
     void createRenderPass() 
     {
@@ -630,7 +573,7 @@ private:
         VkFormat depthFormat = findDepthFormat();
 
         createImage(vswapchain->getSwapChainExtent().width, vswapchain->getSwapChainExtent().height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-        depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+        depthImageView = vswapchain->createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
     }
 
     VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
@@ -692,7 +635,7 @@ private:
     }
 
     void createTextureImageView() {
-        textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+        textureImageView = vswapchain->createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
     }
 
     void createTextureSampler() {
@@ -714,29 +657,10 @@ private:
         samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
         samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
-        if (vkCreateSampler(vlogicaldevice->getDevice(), &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) {
+        if (vkCreateSampler(vlogicaldevice->getDevice(), &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) 
+        {
             throw std::runtime_error("failed to create texture sampler!");
         }
-    }
-
-    VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
-        VkImageViewCreateInfo viewInfo{};
-        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        viewInfo.image = image;
-        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        viewInfo.format = format;
-        viewInfo.subresourceRange.aspectMask = aspectFlags;
-        viewInfo.subresourceRange.baseMipLevel = 0;
-        viewInfo.subresourceRange.levelCount = 1;
-        viewInfo.subresourceRange.baseArrayLayer = 0;
-        viewInfo.subresourceRange.layerCount = 1;
-
-        VkImageView imageView;
-        if (vkCreateImageView(vlogicaldevice->getDevice(), &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create image view!");
-        }
-
-        return imageView;
     }
 
     void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
@@ -1246,6 +1170,7 @@ private:
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
             framebufferResized = false;
+            std::cout << "FrameBuffer was resized! recreating swapchain" << std::endl;
             recreateSwapChain();
         } else if (result != VK_SUCCESS) {
             throw std::runtime_error("failed to present swap chain image!");

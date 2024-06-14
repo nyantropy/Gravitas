@@ -8,6 +8,23 @@ VulkanSwapChain::VulkanSwapChain(GTSOutputWindow* vwindow, WindowSurface* vsurfa
     this->vlogicaldevice = vlogicaldevice;
 
     createSwapChain();
+    createImageViews();
+}
+
+VulkanSwapChain::~VulkanSwapChain()
+{
+    // vkDestroyImageView(vlogicaldevice->getDevice(), depthImageView, nullptr);
+    // vkDestroyImage(vlogicaldevice->getDevice(), depthImage, nullptr);
+    // vkFreeMemory(vlogicaldevice->getDevice(), depthImageMemory, nullptr);
+
+    // for (auto framebuffer : vswapchain->getSwapChainFramebuffers()) {
+    //     vkDestroyFramebuffer(vlogicaldevice->getDevice(), framebuffer, nullptr);
+    // }
+
+    // for (auto imageView : vswapchain->getSwapChainImageViews()) {
+    //     vkDestroyImageView(vlogicaldevice->getDevice(), imageView, nullptr);
+    // }
+   vkDestroySwapchainKHR(vlogicaldevice->getDevice(), swapChain, nullptr); 
 }
 
 VkSwapchainKHR& VulkanSwapChain::getSwapChain()
@@ -145,4 +162,36 @@ VkExtent2D VulkanSwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& cap
 
         return actualExtent;
     }
+}
+
+void VulkanSwapChain::createImageViews() 
+{
+    swapChainImageViews.resize(swapChainImages.size());
+
+    for (uint32_t i = 0; i < swapChainImages.size(); i++) 
+    {
+        swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+    }
+}
+
+VkImageView VulkanSwapChain::createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) 
+{
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = format;
+    viewInfo.subresourceRange.aspectMask = aspectFlags;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = 1;
+
+    VkImageView imageView;
+    if (vkCreateImageView(vlogicaldevice->getDevice(), &viewInfo, nullptr, &imageView) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("failed to create image view!");
+    }
+
+    return imageView;
 }

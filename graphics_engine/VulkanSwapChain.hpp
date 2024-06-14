@@ -32,8 +32,11 @@ class VulkanSwapChain
         VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
         VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
+        void createImageViews();
+
     public:
         VulkanSwapChain(GTSOutputWindow* vwindow, WindowSurface* vsurface, VulkanPhysicalDevice* vphysicaldevice, VulkanLogicalDevice* vlogicaldevice);
+        ~VulkanSwapChain();
 
         VkSwapchainKHR& getSwapChain();
         std::vector<VkImage>& getSwapChainImages();
@@ -41,6 +44,6 @@ class VulkanSwapChain
         VkExtent2D& getSwapChainExtent();
         std::vector<VkImageView>& getSwapChainImageViews();
         std::vector<VkFramebuffer>& getSwapChainFramebuffers();
-        
-        //~VulkanSwapChain();
+
+        VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 };
