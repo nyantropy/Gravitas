@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
+#include <array>
 #include <iostream>
 #include <vector>
 #include <cstring>
