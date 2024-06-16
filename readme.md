@@ -15,6 +15,10 @@ As well as glm for simple matrix calculations:
 
 sudo pacman -S glm
 
+Finally, we also need cmake to build the project:
+
+sudo pacman -S cmake
+
 If you want shaders to be recompiled, you may also want to install shaderc:
 
 sudo pacman -S shaderc
