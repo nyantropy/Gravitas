@@ -40,10 +40,7 @@
 #include "VulkanSwapChain.hpp"
 #include "VulkanRenderer.hpp"
 #include "VulkanRenderPass.hpp"
-
-
-const uint32_t WIDTH = 800;
-const uint32_t HEIGHT = 600;
+#include "GTSDescriptorSetManager.hpp"
 
 const std::string MODEL_PATH = "resources/viking_room.obj";
 const std::string TEXTURE_PATH = "resources/viking_room.png";
@@ -82,6 +79,7 @@ public:
     VulkanSwapChain* vswapchain;
     VulkanRenderer* vrenderer;
     VulkanRenderPass* vrenderpass;
+    GTSDescriptorSetManager* vdescriptorsetmanager;
 
     void run() 
     {
@@ -100,6 +98,8 @@ public:
         vrenderpass = new VulkanRenderPass();
         vrenderpass->init(vswapchain, vlogicaldevice, vrenderer);
 
+        vdescriptorsetmanager = new GTSDescriptorSetManager(vlogicaldevice);
+
 
 
 
@@ -108,6 +108,7 @@ public:
         mainLoop();
         cleanup();
 
+        delete vdescriptorsetmanager;
         delete vrenderpass;
         delete vrenderer;
         delete vswapchain;
@@ -122,7 +123,6 @@ private:
 
     //VkDebugUtilsMessengerEXT debugMessenger;
 
-    VkDescriptorSetLayout descriptorSetLayout;
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
 
@@ -167,8 +167,6 @@ private:
 
     void initVulkan() 
     {
-       
-        createDescriptorSetLayout();
         createGraphicsPipeline();
         createCommandPool();
         createDepthResources();
@@ -231,8 +229,6 @@ private:
         vkDestroyImage(vlogicaldevice->getDevice(), textureImage, nullptr);
         vkFreeMemory(vlogicaldevice->getDevice(), textureImageMemory, nullptr);
 
-        vkDestroyDescriptorSetLayout(vlogicaldevice->getDevice(), descriptorSetLayout, nullptr);
-
         vkDestroyBuffer(vlogicaldevice->getDevice(), indexBuffer, nullptr);
         vkFreeMemory(vlogicaldevice->getDevice(), indexBufferMemory, nullptr);
 
@@ -281,32 +277,6 @@ private:
     //     createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
     //     createInfo.pfnUserCallback = debugCallback;
     // }
-
-    void createDescriptorSetLayout() {
-        VkDescriptorSetLayoutBinding uboLayoutBinding{};
-        uboLayoutBinding.binding = 0;
-        uboLayoutBinding.descriptorCount = 1;
-        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uboLayoutBinding.pImmutableSamplers = nullptr;
-        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-        VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-        samplerLayoutBinding.binding = 1;
-        samplerLayoutBinding.descriptorCount = 1;
-        samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        samplerLayoutBinding.pImmutableSamplers = nullptr;
-        samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerLayoutBinding};
-        VkDescriptorSetLayoutCreateInfo layoutInfo{};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-        layoutInfo.pBindings = bindings.data();
-
-        if (vkCreateDescriptorSetLayout(vlogicaldevice->getDevice(), &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor set layout!");
-        }
-    }
 
     void createGraphicsPipeline() {
         auto vertShaderCode = readFile("shaders/vert.spv");
@@ -400,7 +370,7 @@ private:
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+        pipelineLayoutInfo.pSetLayouts = &vdescriptorsetmanager->getDescriptorSetLayout();
 
         if (vkCreatePipelineLayout(vlogicaldevice->getDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout!");
@@ -755,7 +725,7 @@ private:
     }
 
     void createDescriptorSets() {
-        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
+        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, vdescriptorsetmanager->getDescriptorSetLayout());
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocInfo.descriptorPool = descriptorPool;
