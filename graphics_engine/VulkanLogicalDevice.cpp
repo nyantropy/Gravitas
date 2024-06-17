@@ -7,10 +7,12 @@ VulkanLogicalDevice::VulkanLogicalDevice(VulkanInstance* vinstance, VulkanPhysic
     this->enableValidationLayers = enableValidationLayers;
 
     createLogicalDevice();
+    createCommandPool();
 }
 
 VulkanLogicalDevice::~VulkanLogicalDevice()
 {
+    vkDestroyCommandPool(device, commandPool, nullptr);
     vkDestroyDevice(device, nullptr);
 }
 
@@ -27,6 +29,11 @@ VkQueue& VulkanLogicalDevice::getGraphicsQueue()
 VkQueue& VulkanLogicalDevice::getPresentQueue()
 {
     return presentQueue;
+}
+
+VkCommandPool& VulkanLogicalDevice::getCommandPool()
+{
+    return commandPool;
 }
 
 
@@ -79,4 +86,19 @@ void VulkanLogicalDevice::createLogicalDevice()
 
     vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
     vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+}
+
+void VulkanLogicalDevice::createCommandPool() 
+{
+    QueueFamilyIndices queueFamilyIndices = vphysicaldevice->getQueueFamilyIndices();
+
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+
+    if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("failed to create graphics command pool!");
+    }
 }

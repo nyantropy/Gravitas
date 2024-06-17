@@ -14,13 +14,16 @@ class VulkanLogicalDevice
         VkDevice device;
         VkQueue graphicsQueue;
         VkQueue presentQueue;
+        VkCommandPool commandPool;
 
         void createLogicalDevice();
+        void createCommandPool();
     public:
         VulkanLogicalDevice(VulkanInstance* vinstance, VulkanPhysicalDevice* vphysicaldevice, bool enableValidationLayers);
         ~VulkanLogicalDevice();
         VkDevice& getDevice();
         VkQueue& getGraphicsQueue();
         VkQueue& getPresentQueue();
+        VkCommandPool& getCommandPool();
 
 };

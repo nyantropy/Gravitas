@@ -82,7 +82,8 @@ namespace std
     };
 }
 
-class Gravitas {
+class Gravitas 
+{
 public:
     GTSOutputWindow* vwindow;
     VulkanInstance* vinstance;
@@ -139,8 +140,6 @@ private:
 
     //VkDebugUtilsMessengerEXT debugMessenger;
 
-    VkCommandPool commandPool;
-
     VkImage depthImage;
     VkDeviceMemory depthImageMemory;
     VkImageView depthImageView;
@@ -180,7 +179,6 @@ private:
 
     void initVulkan() 
     {
-        createCommandPool();
         createDepthResources();
         createFramebuffers();
         createTextureImage();
@@ -249,8 +247,6 @@ private:
             vkDestroySemaphore(vlogicaldevice->getDevice(), imageAvailableSemaphores[i], nullptr);
             vkDestroyFence(vlogicaldevice->getDevice(), inFlightFences[i], nullptr);
         }
-
-        vkDestroyCommandPool(vlogicaldevice->getDevice(), commandPool, nullptr);
     }
 
     void recreateSwapChain() 
@@ -287,7 +283,8 @@ private:
     //     createInfo.pfnUserCallback = debugCallback;
     // }
 
-    void createFramebuffers() {
+    void createFramebuffers() 
+    {
         vswapchain->getSwapChainFramebuffers().resize(vswapchain->getSwapChainImageViews().size());
 
         for (size_t i = 0; i < vswapchain->getSwapChainImageViews().size(); i++) {
@@ -311,20 +308,8 @@ private:
         }
     }
 
-    void createCommandPool() {
-        QueueFamilyIndices queueFamilyIndices = vphysicaldevice->getQueueFamilyIndices();
-
-        VkCommandPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
-
-        if (vkCreateCommandPool(vlogicaldevice->getDevice(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create graphics command pool!");
-        }
-    }
-
-    void createDepthResources() {
+    void createDepthResources() 
+    {
         VkFormat depthFormat = vrenderer->findDepthFormat();
 
         createImage(vswapchain->getSwapChainExtent().width, vswapchain->getSwapChainExtent().height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
@@ -682,11 +667,12 @@ private:
         vkBindBufferMemory(vlogicaldevice->getDevice(), buffer, bufferMemory, 0);
     }
 
-    VkCommandBuffer beginSingleTimeCommands() {
+    VkCommandBuffer beginSingleTimeCommands() 
+    {
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandPool = commandPool;
+        allocInfo.commandPool = vlogicaldevice->getCommandPool();
         allocInfo.commandBufferCount = 1;
 
         VkCommandBuffer commandBuffer;
@@ -712,7 +698,7 @@ private:
         vkQueueSubmit(vlogicaldevice->getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
         vkQueueWaitIdle(vlogicaldevice->getGraphicsQueue());
 
-        vkFreeCommandBuffers(vlogicaldevice->getDevice(), commandPool, 1, &commandBuffer);
+        vkFreeCommandBuffers(vlogicaldevice->getDevice(), vlogicaldevice->getCommandPool(), 1, &commandBuffer);
     }
 
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
@@ -743,7 +729,7 @@ private:
 
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.commandPool = commandPool;
+        allocInfo.commandPool = vlogicaldevice->getCommandPool();
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         allocInfo.commandBufferCount = (uint32_t) commandBuffers.size();
 
