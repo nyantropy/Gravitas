@@ -1,25 +1,48 @@
 #include "VulkanRenderer.hpp"
 
-VulkanRenderer::VulkanRenderer() 
+VulkanRenderer::VulkanRenderer(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice, VulkanSwapChain* vswapchain) 
 {
+    this->vlogicaldevice = vlogicaldevice;
+    this->vphysicaldevice = vphysicaldevice;
+    this->vswapchain = vswapchain;
+
+    createDepthResources();
 }
 
 VulkanRenderer::~VulkanRenderer() 
 {
+    cleanup();
 }
 
-void VulkanRenderer::init(VulkanPhysicalDevice* vphysicaldevice)
+void VulkanRenderer::cleanup()
 {
-    this->vphysicaldevice = vphysicaldevice;
+    vkDestroyImageView(vlogicaldevice->getDevice(), depthImageView, nullptr);
+    vkDestroyImage(vlogicaldevice->getDevice(), depthImage, nullptr);
+    vkFreeMemory(vlogicaldevice->getDevice(), depthImageMemory, nullptr);
 }
 
-// void VulkanRenderer::createDepthResources(VkExtent2D extent) {
-//     VkFormat depthFormat = findDepthFormat();
+VkImage& VulkanRenderer::getDepthImage()
+{
+    return depthImage;
+}
 
-//     // Assuming vswapchain is an instance of VulkanSwapchain
-//     createImage(extent.width, extent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-//     depthImageView = vswapchain->createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
-// }
+VkDeviceMemory& VulkanRenderer::getDepthImageMemory()
+{
+    return depthImageMemory;
+}
+
+VkImageView& VulkanRenderer::getDepthImageView()
+{
+    return depthImageView;
+}
+
+void VulkanRenderer::createDepthResources() 
+{
+    VkFormat depthFormat = findDepthFormat();
+
+    createImage(vswapchain->getSwapChainExtent().width, vswapchain->getSwapChainExtent().height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
+    depthImageView = vswapchain->createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+}
 
 VkFormat VulkanRenderer::findDepthFormat() 
 {
@@ -48,4 +71,43 @@ VkFormat VulkanRenderer::findSupportedFormat(const std::vector<VkFormat>& candid
     }
 
     throw std::runtime_error("failed to find supported format!");
+}
+
+void VulkanRenderer::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
+                             VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) 
+{
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.extent.width = width;
+    imageInfo.extent.height = height;
+    imageInfo.extent.depth = 1;
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.format = format;
+    imageInfo.tiling = tiling;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.usage = usage;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vkCreateImage(vlogicaldevice->getDevice(), &imageInfo, nullptr, &image) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("failed to create image!");
+    }
+
+    VkMemoryRequirements memRequirements;
+    vkGetImageMemoryRequirements(vlogicaldevice->getDevice(), image, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = vphysicaldevice->findMemoryType(memRequirements.memoryTypeBits, properties);
+
+    if (vkAllocateMemory(vlogicaldevice->getDevice(), &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("failed to allocate image memory!");
+    }
+
+    vkBindImageMemory(vlogicaldevice->getDevice(), image, imageMemory, 0);
 }

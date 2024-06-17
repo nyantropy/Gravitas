@@ -105,8 +105,7 @@ public:
         vphysicaldevice = new VulkanPhysicalDevice(vinstance, vsurface);
         vlogicaldevice = new VulkanLogicalDevice(vinstance, vphysicaldevice, enableValidationLayers);
         vswapchain = new VulkanSwapChain(vwindow, vsurface, vphysicaldevice, vlogicaldevice);
-        vrenderer = new VulkanRenderer();
-        vrenderer->init(vphysicaldevice);
+        vrenderer = new VulkanRenderer(vlogicaldevice, vphysicaldevice, vswapchain);
 
         vrenderpass = new VulkanRenderPass();
         vrenderpass->init(vswapchain, vlogicaldevice, vrenderer);
@@ -137,10 +136,6 @@ public:
 private:
 
     //VkDebugUtilsMessengerEXT debugMessenger;
-
-    VkImage depthImage;
-    VkDeviceMemory depthImageMemory;
-    VkImageView depthImageView;
 
     VkImage textureImage;
     VkDeviceMemory textureImageMemory;
@@ -176,7 +171,6 @@ private:
 
     void initVulkan() 
     {
-        createDepthResources();
         createFramebuffers();
         createTextureImage();
         createTextureImageView();
@@ -203,9 +197,9 @@ private:
 
     void cleanupSwapChain() 
     {
-        vkDestroyImageView(vlogicaldevice->getDevice(), depthImageView, nullptr);
-        vkDestroyImage(vlogicaldevice->getDevice(), depthImage, nullptr);
-        vkFreeMemory(vlogicaldevice->getDevice(), depthImageMemory, nullptr);
+        //vkDestroyImageView(vlogicaldevice->getDevice(), vrenderer->getDepthImageView(), nullptr);
+        //vkDestroyImage(vlogicaldevice->getDevice(), vrenderer->getDepthImage(), nullptr);
+        //vkFreeMemory(vlogicaldevice->getDevice(), vrenderer->getDepthImageMemory(), nullptr);
 
         for (auto framebuffer : vswapchain->getSwapChainFramebuffers()) {
             vkDestroyFramebuffer(vlogicaldevice->getDevice(), framebuffer, nullptr);
@@ -266,7 +260,7 @@ private:
 
         delete vswapchain;
         vswapchain = new VulkanSwapChain(vwindow, vsurface, vphysicaldevice, vlogicaldevice);
-        createDepthResources();
+        //createDepthResources();
         createFramebuffers();
     }
 
@@ -286,7 +280,7 @@ private:
         for (size_t i = 0; i < vswapchain->getSwapChainImageViews().size(); i++) {
             std::array<VkImageView, 2> attachments = {
                 vswapchain->getSwapChainImageViews()[i],
-                depthImageView
+                vrenderer->getDepthImageView()
             };
 
             VkFramebufferCreateInfo framebufferInfo{};
@@ -302,14 +296,6 @@ private:
                 throw std::runtime_error("failed to create framebuffer!");
             }
         }
-    }
-
-    void createDepthResources() 
-    {
-        VkFormat depthFormat = vrenderer->findDepthFormat();
-
-        createImage(vswapchain->getSwapChainExtent().width, vswapchain->getSwapChainExtent().height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-        depthImageView = vswapchain->createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
     }
 
     bool hasStencilComponent(VkFormat format) {
@@ -336,7 +322,7 @@ private:
 
         stbi_image_free(pixels);
 
-        createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+        vrenderer->createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
 
         transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
             copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
@@ -373,41 +359,6 @@ private:
         {
             throw std::runtime_error("failed to create texture sampler!");
         }
-    }
-
-    void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
-        VkImageCreateInfo imageInfo{};
-        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.extent.width = width;
-        imageInfo.extent.height = height;
-        imageInfo.extent.depth = 1;
-        imageInfo.mipLevels = 1;
-        imageInfo.arrayLayers = 1;
-        imageInfo.format = format;
-        imageInfo.tiling = tiling;
-        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        imageInfo.usage = usage;
-        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        if (vkCreateImage(vlogicaldevice->getDevice(), &imageInfo, nullptr, &image) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create image!");
-        }
-
-        VkMemoryRequirements memRequirements;
-        vkGetImageMemoryRequirements(vlogicaldevice->getDevice(), image, &memRequirements);
-
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
-
-        if (vkAllocateMemory(vlogicaldevice->getDevice(), &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate image memory!");
-        }
-
-        vkBindImageMemory(vlogicaldevice->getDevice(), image, imageMemory, 0);
     }
 
     void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
@@ -636,7 +587,7 @@ private:
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+        allocInfo.memoryTypeIndex = vphysicaldevice->findMemoryType(memRequirements.memoryTypeBits, properties);
 
         if (vkAllocateMemory(vlogicaldevice->getDevice(), &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate buffer memory!");
@@ -687,19 +638,6 @@ private:
         vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
         endSingleTimeCommands(commandBuffer);
-    }
-
-    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
-        VkPhysicalDeviceMemoryProperties memProperties;
-        vkGetPhysicalDeviceMemoryProperties(vphysicaldevice->getPhysicalDevice(), &memProperties);
-
-        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-                return i;
-            }
-        }
-
-        throw std::runtime_error("failed to find suitable memory type!");
     }
 
     void createCommandBuffers() {
