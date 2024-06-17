@@ -71,5 +71,6 @@
         "__verbose_abort": "cpp",
         "ios": "cpp",
         "locale": "cpp"
-    }
+    },
+    "cmake.configureOnOpen": false
 }
