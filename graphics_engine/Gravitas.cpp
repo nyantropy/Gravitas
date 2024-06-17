@@ -47,8 +47,6 @@
 const std::string MODEL_PATH = "resources/viking_room.obj";
 const std::string TEXTURE_PATH = "resources/viking_room.png";
 
-const int MAX_FRAMES_IN_FLIGHT = 2;
-
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
 #else
@@ -113,7 +111,7 @@ public:
         vrenderpass = new VulkanRenderPass();
         vrenderpass->init(vswapchain, vlogicaldevice, vrenderer);
 
-        vdescriptorsetmanager = new GTSDescriptorSetManager(vlogicaldevice);
+        vdescriptorsetmanager = new GTSDescriptorSetManager(vlogicaldevice, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
         vpipeline = new VulkanPipeline(vlogicaldevice, vdescriptorsetmanager, vrenderpass, {GravitasEngineConstants::V_SHADER_PATH, GravitasEngineConstants::F_SHADER_PATH});
 
 
@@ -160,7 +158,6 @@ private:
     std::vector<VkDeviceMemory> uniformBuffersMemory;
     std::vector<void*> uniformBuffersMapped;
 
-    VkDescriptorPool descriptorPool;
     std::vector<VkDescriptorSet> descriptorSets;
 
     std::vector<VkCommandBuffer> commandBuffers;
@@ -188,7 +185,6 @@ private:
         createVertexBuffer();
         createIndexBuffer();
         createUniformBuffers();
-        createDescriptorPool();
         createDescriptorSets();
         createCommandBuffers();
         createSyncObjects();
@@ -223,12 +219,12 @@ private:
     void cleanup() {
         cleanupSwapChain();
 
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroyBuffer(vlogicaldevice->getDevice(), uniformBuffers[i], nullptr);
             vkFreeMemory(vlogicaldevice->getDevice(), uniformBuffersMemory[i], nullptr);
         }
 
-        vkDestroyDescriptorPool(vlogicaldevice->getDevice(), descriptorPool, nullptr);
+        
 
         vkDestroySampler(vlogicaldevice->getDevice(), textureSampler, nullptr);
         vkDestroyImageView(vlogicaldevice->getDevice(), textureImageView, nullptr);
@@ -242,7 +238,7 @@ private:
         vkDestroyBuffer(vlogicaldevice->getDevice(), vertexBuffer, nullptr);
         vkFreeMemory(vlogicaldevice->getDevice(), vertexBufferMemory, nullptr);
 
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroySemaphore(vlogicaldevice->getDevice(), renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(vlogicaldevice->getDevice(), imageAvailableSemaphores[i], nullptr);
             vkDestroyFence(vlogicaldevice->getDevice(), inFlightFences[i], nullptr);
@@ -566,49 +562,31 @@ private:
     void createUniformBuffers() {
         VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
-        uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-        uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
-        uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+        uniformBuffers.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
+        uniformBuffersMemory.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
+        uniformBuffersMapped.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
 
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) {
             createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
 
             vkMapMemory(vlogicaldevice->getDevice(), uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
         }
     }
 
-    void createDescriptorPool() {
-        std::array<VkDescriptorPoolSize, 2> poolSizes{};
-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-
-        VkDescriptorPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-        poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-
-        if (vkCreateDescriptorPool(vlogicaldevice->getDevice(), &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create descriptor pool!");
-        }
-    }
-
     void createDescriptorSets() {
-        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, vdescriptorsetmanager->getDescriptorSetLayout());
+        std::vector<VkDescriptorSetLayout> layouts(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT, vdescriptorsetmanager->getDescriptorSetLayout());
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = descriptorPool;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        allocInfo.descriptorPool = vdescriptorsetmanager->getDescriptorPool();
+        allocInfo.descriptorSetCount = static_cast<uint32_t>(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
         allocInfo.pSetLayouts = layouts.data();
 
-        descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+        descriptorSets.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
         if (vkAllocateDescriptorSets(vlogicaldevice->getDevice(), &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate descriptor sets!");
         }
 
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) {
             VkDescriptorBufferInfo bufferInfo{};
             bufferInfo.buffer = uniformBuffers[i];
             bufferInfo.offset = 0;
@@ -725,7 +703,7 @@ private:
     }
 
     void createCommandBuffers() {
-        commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+        commandBuffers.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
 
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -796,9 +774,9 @@ private:
     }
 
     void createSyncObjects() {
-        imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-        renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-        inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+        imageAvailableSemaphores.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
+        renderFinishedSemaphores.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
+        inFlightFences.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
 
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -807,7 +785,7 @@ private:
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) {
             if (vkCreateSemaphore(vlogicaldevice->getDevice(), &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
                 vkCreateSemaphore(vlogicaldevice->getDevice(), &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
                 vkCreateFence(vlogicaldevice->getDevice(), &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
@@ -893,7 +871,7 @@ private:
             throw std::runtime_error("failed to present swap chain image!");
         }
 
-        currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+        currentFrame = (currentFrame + 1) % GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT;
     }
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) 
