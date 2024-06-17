@@ -36,15 +36,13 @@ add_library(Gravitas STATIC ${GravitasSRC})
 add_dependencies(Gravitas GLFW)
 
 # Set all the include directories for this target
-target_include_directories(Gravitas PUBLIC 
+target_include_directories(Gravitas PUBLIC
+    ${GLM_INCLUDE_DIR} 
     ${GLFW_INCLUDE_DIRS}
     ${GLFW_LIB_DIR}
     ${Vulkan_INCLUDE_DIRS}
     ${STB_INCLUDE_DIR}
-    ${GLM_INCLUDE_DIR}
 )
-
-message(STATUS "GLFW library directory: ${GLFW_LIB_DIR}")
 
 # Link all the required libraries
 target_link_libraries(Gravitas 

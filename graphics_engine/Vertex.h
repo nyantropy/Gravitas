@@ -1,7 +1,9 @@
 #pragma once
 
-#include <glm.hpp>
+
 #include <vulkan/vulkan.h>
+#include <glm.hpp>
+#include <array>
 
 struct Vertex 
 {
@@ -45,15 +47,22 @@ struct Vertex
     {
         return pos == other.pos && color == other.color && texCoord == other.texCoord;
     }
+
+    // std::size_t hash() const 
+    // {
+    //     return (std::hash<glm::vec3>()(pos) ^ (std::hash<glm::vec3>()(color) << 1)) >> 1 ^ (std::hash<glm::vec2>()(texCoord) << 1);
+    // }
 };
 
-namespace std 
-{
-    template<> struct hash<Vertex> 
-    {
-        size_t operator()(Vertex const& vertex) const 
-        {
-            return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
-        }
-    };
-}
+
+
+// namespace std 
+// {
+//     template<> struct hash<Vertex> 
+//     {
+//         size_t operator()(Vertex const& vertex) const 
+//         {
+//             return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
+//         }
+//     };
+// }
