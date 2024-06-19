@@ -7,6 +7,7 @@ VulkanRenderer::VulkanRenderer(VulkanLogicalDevice* vlogicaldevice, VulkanPhysic
     this->vswapchain = vswapchain;
 
     createDepthResources();
+    createTextureSampler();
 }
 
 VulkanRenderer::~VulkanRenderer() 
@@ -19,6 +20,13 @@ void VulkanRenderer::cleanup()
     vkDestroyImageView(vlogicaldevice->getDevice(), depthImageView, nullptr);
     vkDestroyImage(vlogicaldevice->getDevice(), depthImage, nullptr);
     vkFreeMemory(vlogicaldevice->getDevice(), depthImageMemory, nullptr);
+
+    vkDestroySampler(vlogicaldevice->getDevice(), textureSampler, nullptr);
+}
+
+VkSampler& VulkanRenderer::getTextureSampler()
+{
+    return textureSampler;
 }
 
 VkImage& VulkanRenderer::getDepthImage()
@@ -110,4 +118,30 @@ void VulkanRenderer::createImage(uint32_t width, uint32_t height, VkFormat forma
     }
 
     vkBindImageMemory(vlogicaldevice->getDevice(), image, imageMemory, 0);
+}
+
+void VulkanRenderer::createTextureSampler() 
+{
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(vphysicaldevice->getPhysicalDevice(), &properties);
+
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.anisotropyEnable = VK_TRUE;
+    samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerInfo.compareEnable = VK_FALSE;
+    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+    if (vkCreateSampler(vlogicaldevice->getDevice(), &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) 
+    {
+        throw std::runtime_error("failed to create texture sampler!");
+    }
 }

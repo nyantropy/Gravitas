@@ -143,7 +143,7 @@ private:
     VkImage textureImage;
     VkDeviceMemory textureImageMemory;
     VkImageView textureImageView;
-    VkSampler textureSampler;
+    
 
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
@@ -176,7 +176,6 @@ private:
     {
         createTextureImage();
         createTextureImageView();
-        createTextureSampler();
         loadModel();
         createVertexBuffer();
         createIndexBuffer();
@@ -199,15 +198,11 @@ private:
 
     void cleanup() 
     {
-
         for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroyBuffer(vlogicaldevice->getDevice(), uniformBuffers[i], nullptr);
             vkFreeMemory(vlogicaldevice->getDevice(), uniformBuffersMemory[i], nullptr);
         }
 
-        
-
-        vkDestroySampler(vlogicaldevice->getDevice(), textureSampler, nullptr);
         vkDestroyImageView(vlogicaldevice->getDevice(), textureImageView, nullptr);
 
         vkDestroyImage(vlogicaldevice->getDevice(), textureImage, nullptr);
@@ -226,43 +221,35 @@ private:
         }
     }
 
+    //we can do that once we figured out how to put everything into classes
     void recreateSwapChain() 
     {
-        int width = 0, height = 0;
-        vwindow->getSize(width, height);
+        // int width = 0, height = 0;
+        // vwindow->getSize(width, height);
 
-        while (width == 0 || height == 0) 
-        {
-            vwindow->getSize(width, height);
-            vwindow->pollEvents();
-        }
+        // while (width == 0 || height == 0) 
+        // {
+        //     vwindow->getSize(width, height);
+        //     vwindow->pollEvents();
+        // }
 
-        std::cout << "swapchain recreated" << std::endl;
-        std::cout << width << std::endl;
-        std::cout << height << std::endl;
+        // std::cout << "swapchain recreated" << std::endl;
+        // std::cout << width << std::endl;
+        // std::cout << height << std::endl;
 
-        vkDeviceWaitIdle(vlogicaldevice->getDevice());
+        // vkDeviceWaitIdle(vlogicaldevice->getDevice());
 
         //cleanupSwapChain();
 
-        delete vswapchain;
+        //delete vswapchain;
         //vswapchain = new VulkanSwapChain(vwindow, vsurface, vphysicaldevice, vlogicaldevice);
         //createDepthResources();
         //createFramebuffers();
     }
 
-    // void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) 
-    // {
-    //     createInfo = {};
-    //     createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    //     createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-    //     createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-    //     createInfo.pfnUserCallback = debugCallback;
+    // bool hasStencilComponent(VkFormat format) {
+    //     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
     // }
-
-    bool hasStencilComponent(VkFormat format) {
-        return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
-    }
 
     void createTextureImage() {
         int texWidth, texHeight, texChannels;
@@ -296,31 +283,6 @@ private:
 
     void createTextureImageView() {
         textureImageView = vswapchain->createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
-    }
-
-    void createTextureSampler() {
-        VkPhysicalDeviceProperties properties{};
-        vkGetPhysicalDeviceProperties(vphysicaldevice->getPhysicalDevice(), &properties);
-
-        VkSamplerCreateInfo samplerInfo{};
-        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerInfo.magFilter = VK_FILTER_LINEAR;
-        samplerInfo.minFilter = VK_FILTER_LINEAR;
-        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.anisotropyEnable = VK_TRUE;
-        samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
-        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-        samplerInfo.unnormalizedCoordinates = VK_FALSE;
-        samplerInfo.compareEnable = VK_FALSE;
-        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-
-        if (vkCreateSampler(vlogicaldevice->getDevice(), &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) 
-        {
-            throw std::runtime_error("failed to create texture sampler!");
-        }
     }
 
     void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
@@ -508,7 +470,7 @@ private:
             VkDescriptorImageInfo imageInfo{};
             imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             imageInfo.imageView = textureImageView;
-            imageInfo.sampler = textureSampler;
+            imageInfo.sampler = vrenderer->getTextureSampler();
 
             std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
 

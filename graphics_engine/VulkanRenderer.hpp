@@ -19,8 +19,8 @@ class VulkanRenderer
         VkImage& getDepthImage();
         VkDeviceMemory& getDepthImageMemory();
         VkImageView& getDepthImageView();
+        VkSampler& getTextureSampler();
 
-        void createDepthResources();
         VkFormat findDepthFormat();
         VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
         void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
@@ -31,10 +31,14 @@ class VulkanRenderer
         VkDeviceMemory depthImageMemory;
         VkImageView depthImageView;
 
+        VkSampler textureSampler;
+
         VulkanLogicalDevice* vlogicaldevice;
         VulkanPhysicalDevice* vphysicaldevice;
         VulkanSwapChain* vswapchain;
 
+        void createDepthResources();
+        void createTextureSampler();
         void cleanup();
 };
 
