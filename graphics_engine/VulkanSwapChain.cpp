@@ -13,18 +13,12 @@ VulkanSwapChain::VulkanSwapChain(GTSOutputWindow* vwindow, WindowSurface* vsurfa
 
 VulkanSwapChain::~VulkanSwapChain()
 {
-    // vkDestroyImageView(vlogicaldevice->getDevice(), depthImageView, nullptr);
-    // vkDestroyImage(vlogicaldevice->getDevice(), depthImage, nullptr);
-    // vkFreeMemory(vlogicaldevice->getDevice(), depthImageMemory, nullptr);
+    for (auto imageView : swapChainImageViews) 
+    {
+        vkDestroyImageView(vlogicaldevice->getDevice(), imageView, nullptr);
+    }
 
-    // for (auto framebuffer : vswapchain->getSwapChainFramebuffers()) {
-    //     vkDestroyFramebuffer(vlogicaldevice->getDevice(), framebuffer, nullptr);
-    // }
-
-    // for (auto imageView : vswapchain->getSwapChainImageViews()) {
-    //     vkDestroyImageView(vlogicaldevice->getDevice(), imageView, nullptr);
-    // }
-   vkDestroySwapchainKHR(vlogicaldevice->getDevice(), swapChain, nullptr); 
+    vkDestroySwapchainKHR(vlogicaldevice->getDevice(), swapChain, nullptr); 
 }
 
 VkSwapchainKHR& VulkanSwapChain::getSwapChain()
@@ -50,11 +44,6 @@ VkExtent2D& VulkanSwapChain::getSwapChainExtent()
 std::vector<VkImageView>& VulkanSwapChain::getSwapChainImageViews()
 {
     return swapChainImageViews;
-}
-
-std::vector<VkFramebuffer>& VulkanSwapChain::getSwapChainFramebuffers()
-{
-    return swapChainFramebuffers;
 }
 
 void VulkanSwapChain::createSwapChain() 

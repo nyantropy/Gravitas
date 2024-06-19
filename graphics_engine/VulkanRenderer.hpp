@@ -8,6 +8,8 @@
 #include "VulkanPhysicalDevice.hpp"
 #include "VulkanSwapChain.hpp"
 
+class VulkanSwapChain;
+
 class VulkanRenderer 
 {
     public:

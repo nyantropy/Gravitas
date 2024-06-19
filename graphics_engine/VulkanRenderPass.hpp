@@ -3,9 +3,12 @@
 #include <vulkan/vulkan.h>
 #include <array>
 
-#include "VulkanSwapChain.hpp"
 #include "VulkanLogicalDevice.hpp"
+#include "VulkanSwapChain.hpp"
 #include "VulkanRenderer.hpp"
+
+class VulkanSwapChain;
+class VulkanRenderer;
 
 class VulkanRenderPass
 {

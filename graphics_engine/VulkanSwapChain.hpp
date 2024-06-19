@@ -11,6 +11,11 @@
 #include "VulkanPhysicalDevice.hpp"
 #include "VulkanLogicalDevice.hpp"
 #include "GTSOutputWindow.hpp"
+#include "VulkanRenderer.hpp"
+#include "VulkanRenderPass.hpp"
+
+class VulkanRenderer;
+class VulkanRenderPass;
 
 class VulkanSwapChain
 {
@@ -20,12 +25,13 @@ class VulkanSwapChain
         VkFormat swapChainImageFormat;
         VkExtent2D swapChainExtent;
         std::vector<VkImageView> swapChainImageViews;
-        std::vector<VkFramebuffer> swapChainFramebuffers;
 
         GTSOutputWindow* vwindow;
         WindowSurface* vsurface;
         VulkanLogicalDevice* vlogicaldevice;
-        VulkanPhysicalDevice* vphysicaldevice;        
+        VulkanPhysicalDevice* vphysicaldevice;
+        VulkanRenderer* vrenderer;
+        VulkanRenderPass* vrenderpass;        
 
         void createSwapChain();
         VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
@@ -33,9 +39,11 @@ class VulkanSwapChain
         VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
         void createImageViews();
+        void createFramebuffers();
 
     public:
-        VulkanSwapChain(GTSOutputWindow* vwindow, WindowSurface* vsurface, VulkanPhysicalDevice* vphysicaldevice, VulkanLogicalDevice* vlogicaldevice);
+        VulkanSwapChain(GTSOutputWindow* vwindow, WindowSurface* vsurface, VulkanPhysicalDevice* vphysicaldevice,
+         VulkanLogicalDevice* vlogicaldevice);
         ~VulkanSwapChain();
 
         VkSwapchainKHR& getSwapChain();
@@ -43,7 +51,6 @@ class VulkanSwapChain
         VkFormat& getSwapChainImageFormat();
         VkExtent2D& getSwapChainExtent();
         std::vector<VkImageView>& getSwapChainImageViews();
-        std::vector<VkFramebuffer>& getSwapChainFramebuffers();
 
         VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 };

@@ -43,6 +43,7 @@
 #include "GTSDescriptorSetManager.hpp"
 #include "VulkanShader.hpp"
 #include "VulkanPipeline.hpp"
+#include "GTSFramebufferManager.hpp"
 
 const std::string MODEL_PATH = "resources/viking_room.obj";
 const std::string TEXTURE_PATH = "resources/viking_room.png";
@@ -93,6 +94,7 @@ public:
     VulkanRenderPass* vrenderpass;
     GTSDescriptorSetManager* vdescriptorsetmanager;
     VulkanPipeline* vpipeline;
+    GTSFramebufferManager* vframebuffer;
 
     void run() 
     {
@@ -112,7 +114,7 @@ public:
 
         vdescriptorsetmanager = new GTSDescriptorSetManager(vlogicaldevice, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
         vpipeline = new VulkanPipeline(vlogicaldevice, vdescriptorsetmanager, vrenderpass, {GravitasEngineConstants::V_SHADER_PATH, GravitasEngineConstants::F_SHADER_PATH});
-
+        vframebuffer = new GTSFramebufferManager(vlogicaldevice, vswapchain, vrenderer, vrenderpass);
 
 
 
@@ -121,6 +123,7 @@ public:
         mainLoop();
         cleanup();
 
+        delete vframebuffer;
         delete vpipeline;
         delete vdescriptorsetmanager;
         delete vrenderpass;
@@ -171,7 +174,6 @@ private:
 
     void initVulkan() 
     {
-        createFramebuffers();
         createTextureImage();
         createTextureImageView();
         createTextureSampler();
@@ -195,23 +197,8 @@ private:
         vkDeviceWaitIdle(vlogicaldevice->getDevice());
     }
 
-    void cleanupSwapChain() 
+    void cleanup() 
     {
-        //vkDestroyImageView(vlogicaldevice->getDevice(), vrenderer->getDepthImageView(), nullptr);
-        //vkDestroyImage(vlogicaldevice->getDevice(), vrenderer->getDepthImage(), nullptr);
-        //vkFreeMemory(vlogicaldevice->getDevice(), vrenderer->getDepthImageMemory(), nullptr);
-
-        for (auto framebuffer : vswapchain->getSwapChainFramebuffers()) {
-            vkDestroyFramebuffer(vlogicaldevice->getDevice(), framebuffer, nullptr);
-        }
-
-        for (auto imageView : vswapchain->getSwapChainImageViews()) {
-            vkDestroyImageView(vlogicaldevice->getDevice(), imageView, nullptr);
-        }
-    }
-
-    void cleanup() {
-        cleanupSwapChain();
 
         for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroyBuffer(vlogicaldevice->getDevice(), uniformBuffers[i], nullptr);
@@ -256,12 +243,12 @@ private:
 
         vkDeviceWaitIdle(vlogicaldevice->getDevice());
 
-        cleanupSwapChain();
+        //cleanupSwapChain();
 
         delete vswapchain;
-        vswapchain = new VulkanSwapChain(vwindow, vsurface, vphysicaldevice, vlogicaldevice);
+        //vswapchain = new VulkanSwapChain(vwindow, vsurface, vphysicaldevice, vlogicaldevice);
         //createDepthResources();
-        createFramebuffers();
+        //createFramebuffers();
     }
 
     // void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) 
@@ -272,31 +259,6 @@ private:
     //     createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
     //     createInfo.pfnUserCallback = debugCallback;
     // }
-
-    void createFramebuffers() 
-    {
-        vswapchain->getSwapChainFramebuffers().resize(vswapchain->getSwapChainImageViews().size());
-
-        for (size_t i = 0; i < vswapchain->getSwapChainImageViews().size(); i++) {
-            std::array<VkImageView, 2> attachments = {
-                vswapchain->getSwapChainImageViews()[i],
-                vrenderer->getDepthImageView()
-            };
-
-            VkFramebufferCreateInfo framebufferInfo{};
-            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            framebufferInfo.renderPass = vrenderpass->getRenderPass();
-            framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-            framebufferInfo.pAttachments = attachments.data();
-            framebufferInfo.width = vswapchain->getSwapChainExtent().width;
-            framebufferInfo.height = vswapchain->getSwapChainExtent().height;
-            framebufferInfo.layers = 1;
-
-            if (vkCreateFramebuffer(vlogicaldevice->getDevice(), &framebufferInfo, nullptr, &vswapchain->getSwapChainFramebuffers()[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create framebuffer!");
-            }
-        }
-    }
 
     bool hasStencilComponent(VkFormat format) {
         return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
@@ -665,7 +627,7 @@ private:
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.renderPass = vrenderpass->getRenderPass();
-        renderPassInfo.framebuffer = vswapchain->getSwapChainFramebuffers()[imageIndex];
+        renderPassInfo.framebuffer = vframebuffer->getFramebuffers()[imageIndex];
         renderPassInfo.renderArea.offset = {0, 0};
         renderPassInfo.renderArea.extent = vswapchain->getSwapChainExtent();
 
