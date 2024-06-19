@@ -8,6 +8,7 @@ add_library(instance STATIC ${INSTANCE_SOURCES} ${INSTANCE_HEADERS})
 # Include directories for the instance module
 target_include_directories(instance PUBLIC 
     ${CMAKE_SOURCE_DIR}/graphics_engine/instance
+    ${CMAKE_SOURCE_DIR}/graphics_engine
     ${Vulkan_INCLUDE_DIRS}
     ${GLFW_INCLUDE_DIRS}
     ${STB_INCLUDE_DIR}

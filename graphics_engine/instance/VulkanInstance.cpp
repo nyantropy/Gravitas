@@ -7,9 +7,10 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL instanceDebugCallback(VkDebugUtilsMessageS
     return VK_FALSE;
 }
 
-VulkanInstance::VulkanInstance(bool enableValidationLayers) 
+VulkanInstance::VulkanInstance(bool enableValidationLayers, GTSOutputWindow* vwindow) 
 {
     this->enableValidationLayers = enableValidationLayers;
+    this->vwindow = vwindow;
     createInstance();
 }
 
@@ -47,7 +48,7 @@ void VulkanInstance::createInstance()
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
 
-    auto extensions = getRequiredExtensions();
+    auto extensions = vwindow->getRequiredExtensions();
     createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
     createInfo.ppEnabledExtensionNames = extensions.data();
 
@@ -102,22 +103,6 @@ bool VulkanInstance::checkValidationLayerSupport()
     }
 
     return true;
-}
-
-std::vector<const char*> VulkanInstance::getRequiredExtensions() 
-{
-    uint32_t glfwExtensionCount = 0;
-    const char** glfwExtensions;
-    glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-    std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-
-    if (enableValidationLayers) 
-    {
-        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    }
-
-    return extensions;
 }
 
 void VulkanInstance::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) 

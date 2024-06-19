@@ -97,10 +97,10 @@ public:
     void run() 
     {
         vwindow = new GTSGLFWOutputWindow();
-        vwindow->init(GravitasEngineConstants::GLFW_DEFAULT_WIDTH, GravitasEngineConstants::GLFW_DEFAULT_HEIGHT, "Title");
+        vwindow->init(GravitasEngineConstants::GLFW_DEFAULT_WIDTH, GravitasEngineConstants::GLFW_DEFAULT_HEIGHT, "Title", enableValidationLayers);
         vwindow->setOnWindowResizeCallback(std::bind(&Gravitas::OnFrameBufferResizeCallback, this, std::placeholders::_1, std::placeholders::_2));
 
-        vinstance = new VulkanInstance(enableValidationLayers);
+        vinstance = new VulkanInstance(enableValidationLayers, vwindow);
         vsurface = new GLFWWindowSurface(vwindow, vinstance);
         vphysicaldevice = new VulkanPhysicalDevice(vinstance, vsurface);
         vlogicaldevice = new VulkanLogicalDevice(vinstance, vphysicaldevice, enableValidationLayers);

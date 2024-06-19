@@ -7,10 +7,12 @@
 #include <vector>
 #include <cstring>
 
+#include "GTSOutputWindow.hpp"
+
 class VulkanInstance 
 {
     public:
-        VulkanInstance(bool enableValidationLayers);
+        VulkanInstance(bool enableValidationLayers, GTSOutputWindow* vwindow);
         ~VulkanInstance();
 
         VkInstance& getInstance();
@@ -19,9 +21,10 @@ class VulkanInstance
     private:
         void createInstance();
         bool checkValidationLayerSupport();
-        std::vector<const char*> getRequiredExtensions();
         void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+        const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
+
         VkInstance instance;
         bool enableValidationLayers;
-        const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
+        GTSOutputWindow* vwindow;
 };

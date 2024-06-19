@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GLFW/glfw3.h>
+#include <vulkan/vulkan.h>
 
 #include "GTSOutputWindow.hpp"
 
@@ -10,12 +11,13 @@ class GTSGLFWOutputWindow : public GTSOutputWindow
         GTSGLFWOutputWindow();
         ~GTSGLFWOutputWindow();
 
-        void init(int width, int height, const std::string& title) override;
+        void init(int width, int height, const std::string& title, bool enableValidationLayers) override;
         void setOnWindowResizeCallback(const std::function<void(int, int)>& callback) override;
         bool shouldClose() const override;
         void pollEvents() override;
         void getSize(int& width, int& height) const override;
         void* getWindow() const override;
+        std::vector<const char*> getRequiredExtensions() const override;
 
     private:
         //this basically just takes the glfw specific event and directs it to whatever callback we have assigned via
@@ -31,4 +33,5 @@ class GTSGLFWOutputWindow : public GTSOutputWindow
         }
 
         GLFWwindow* window;
+        bool enableValidationLayers;
 };
