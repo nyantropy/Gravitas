@@ -13,6 +13,8 @@ class GtsBufferService
 
         static void createVertexBuffer(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice,
                     std::vector<Vertex>& vertices, VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory);
+        static void createIndexBuffer(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice, std::vector<uint32_t> indices,
+                    VkBuffer& indexBuffer, VkDeviceMemory& indexBufferMemory); 
 
         static void createBuffer(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice,
                     VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
