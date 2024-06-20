@@ -1,1 +1,2 @@
-#include "Gravitas.cpp"
+#pragma once
+#include "Gravitas.hpp"
