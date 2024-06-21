@@ -86,6 +86,7 @@ public:
     GTSFramebufferManager* vframebuffer;
     VulkanTexture* vtexture;
     GtsCamera* vcamera;
+    GtsRenderableObject* vobject;
     
 
     void run() 
@@ -107,32 +108,47 @@ public:
         vdescriptorsetmanager = new GTSDescriptorSetManager(vlogicaldevice, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
         vpipeline = new VulkanPipeline(vlogicaldevice, vdescriptorsetmanager, vrenderpass, {GravitasEngineConstants::V_SHADER_PATH, GravitasEngineConstants::F_SHADER_PATH});
         vframebuffer = new GTSFramebufferManager(vlogicaldevice, vswapchain, vrenderer, vrenderpass);
-        vtexture = new VulkanTexture(vlogicaldevice, vphysicaldevice, vrenderer, TEXTURE_PATH);
         vcamera = new GtsCamera(vswapchain->getSwapChainExtent());
 
 
-        GtsRenderableObject object = GtsRenderableObject(vlogicaldevice, vphysicaldevice, vrenderer, MODEL_PATH, TEXTURE_PATH, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
+        vobject = new GtsRenderableObject(vlogicaldevice, vphysicaldevice, vrenderer, MODEL_PATH, TEXTURE_PATH, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
+        vdescriptorsetmanager->allocateDescriptorSets(vobject);
+        vertices = vobject->vertices;
+        vertexBuffer = vobject->vertexBuffer;
+        vertexBufferMemory = vobject->vertexBufferMemory;
+
+        indices = vobject->indices;
+        indexBuffer = vobject->indexBuffer;
+        indexBufferMemory = vobject->indexBufferMemory;
+
+        uniformBuffers = vobject->uniformBuffers;
+        uniformBuffersMemory = vobject->uniformBuffersMemory;
+        uniformBuffersMapped = vobject->uniformBuffersMapped;
+
+        vtexture = vobject->objecttexture;
+        descriptorSets = vobject->descriptorSets;
+
         
 
-        GtsModelLoader::loadModel(MODEL_PATH, vertices, indices);
-        GtsBufferService::createVertexBuffer(vlogicaldevice, vphysicaldevice, vertices, vertexBuffer, vertexBufferMemory);
-        GtsBufferService::createIndexBuffer(vlogicaldevice, vphysicaldevice, indices, indexBuffer, indexBufferMemory);
-        GtsBufferService::createUniformBuffers(vlogicaldevice, vphysicaldevice,
-         uniformBuffers, uniformBuffersMemory, uniformBuffersMapped, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
-        createDescriptorSets();
+        // GtsModelLoader::loadModel(MODEL_PATH, vertices, indices);
+        // GtsBufferService::createVertexBuffer(vlogicaldevice, vphysicaldevice, vertices, vertexBuffer, vertexBufferMemory);
+        // GtsBufferService::createIndexBuffer(vlogicaldevice, vphysicaldevice, indices, indexBuffer, indexBufferMemory);
+        // GtsBufferService::createUniformBuffers(vlogicaldevice, vphysicaldevice,
+        //  uniformBuffers, uniformBuffersMemory, uniformBuffersMapped, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
+        //createDescriptorSets();
         createCommandBuffers();
         createSyncObjects();
         mainLoop();
-        cleanup();
 
+        delete vobject;
         delete vcamera;
-        delete vtexture;
         delete vframebuffer;
         delete vpipeline;
         delete vdescriptorsetmanager;
         delete vrenderpass;
         delete vrenderer;
         delete vswapchain;
+        cleanup();
         delete vlogicaldevice;
         delete vphysicaldevice;
         delete vsurface;
@@ -185,18 +201,20 @@ private:
 
     void cleanup() 
     {
-        for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) {
-            vkDestroyBuffer(vlogicaldevice->getDevice(), uniformBuffers[i], nullptr);
-            vkFreeMemory(vlogicaldevice->getDevice(), uniformBuffersMemory[i], nullptr);
-        }
+        // for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) 
+        // {
+        //     vkDestroyBuffer(vlogicaldevice->getDevice(), uniformBuffers[i], nullptr);
+        //     vkFreeMemory(vlogicaldevice->getDevice(), uniformBuffersMemory[i], nullptr);
+        // }
 
-        vkDestroyBuffer(vlogicaldevice->getDevice(), indexBuffer, nullptr);
-        vkFreeMemory(vlogicaldevice->getDevice(), indexBufferMemory, nullptr);
+        // vkDestroyBuffer(vlogicaldevice->getDevice(), indexBuffer, nullptr);
+        // vkFreeMemory(vlogicaldevice->getDevice(), indexBufferMemory, nullptr);
 
-        vkDestroyBuffer(vlogicaldevice->getDevice(), vertexBuffer, nullptr);
-        vkFreeMemory(vlogicaldevice->getDevice(), vertexBufferMemory, nullptr);
+        // vkDestroyBuffer(vlogicaldevice->getDevice(), vertexBuffer, nullptr);
+        // vkFreeMemory(vlogicaldevice->getDevice(), vertexBufferMemory, nullptr);
 
-        for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) {
+        for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) 
+        {
             vkDestroySemaphore(vlogicaldevice->getDevice(), renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(vlogicaldevice->getDevice(), imageAvailableSemaphores[i], nullptr);
             vkDestroyFence(vlogicaldevice->getDevice(), inFlightFences[i], nullptr);

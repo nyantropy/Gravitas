@@ -18,7 +18,7 @@ class GTSDescriptorSetManager
         void createDescriptorPool();
 
 
-        void allocateDescriptorSets(GtsRenderableObject& robject);
+        void allocateDescriptorSets(GtsRenderableObject* robject);
         void updateDescriptorSets();
 
         VkDescriptorSetLayout& getDescriptorSetLayout();
@@ -28,7 +28,6 @@ class GTSDescriptorSetManager
     private:
         VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
         VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
-        std::vector<VkDescriptorSet> descriptorSets;
 
         VulkanLogicalDevice* vlogicaldevice;
         int frames_in_flight;

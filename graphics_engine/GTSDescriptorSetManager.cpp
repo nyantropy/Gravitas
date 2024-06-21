@@ -85,7 +85,7 @@ void GTSDescriptorSetManager::createDescriptorPool()
     }
 }
 
-void GTSDescriptorSetManager::allocateDescriptorSets(GtsRenderableObject& robject) 
+void GTSDescriptorSetManager::allocateDescriptorSets(GtsRenderableObject* robject) 
 {
     std::vector<VkDescriptorSetLayout> layouts(frames_in_flight, descriptorSetLayout);
     VkDescriptorSetAllocateInfo allocInfo{};
@@ -94,8 +94,8 @@ void GTSDescriptorSetManager::allocateDescriptorSets(GtsRenderableObject& robjec
     allocInfo.descriptorSetCount = static_cast<uint32_t>(frames_in_flight);
     allocInfo.pSetLayouts = layouts.data();
 
-    descriptorSets.resize(frames_in_flight);
-    if (vkAllocateDescriptorSets(vlogicaldevice->getDevice(), &allocInfo, descriptorSets.data()) != VK_SUCCESS) 
+    robject->getDescriptorSets().resize(frames_in_flight);
+    if (vkAllocateDescriptorSets(vlogicaldevice->getDevice(), &allocInfo, robject->getDescriptorSets().data()) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to allocate descriptor sets!");
     }
@@ -103,19 +103,19 @@ void GTSDescriptorSetManager::allocateDescriptorSets(GtsRenderableObject& robjec
     for (size_t i = 0; i < frames_in_flight; i++) 
     {
         VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = robject.getUniformBuffers()[i];
+        bufferInfo.buffer = robject->getUniformBuffers()[i];
         bufferInfo.offset = 0;
         bufferInfo.range = sizeof(UniformBufferObject);
 
         VkDescriptorImageInfo imageInfo{};
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageInfo.imageView = robject.getTexture().getTextureImageView();
-        imageInfo.sampler = robject.getTexture().getTextureSampler();
+        imageInfo.imageView = robject->getTexture().getTextureImageView();
+        imageInfo.sampler = robject->getTexture().getTextureSampler();
 
         std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
 
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = descriptorSets[i];
+        descriptorWrites[0].dstSet = robject->getDescriptorSets()[i];
         descriptorWrites[0].dstBinding = 0;
         descriptorWrites[0].dstArrayElement = 0;
         descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -123,7 +123,7 @@ void GTSDescriptorSetManager::allocateDescriptorSets(GtsRenderableObject& robjec
         descriptorWrites[0].pBufferInfo = &bufferInfo;
 
         descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[1].dstSet = descriptorSets[i];
+        descriptorWrites[1].dstSet = robject->getDescriptorSets()[i];
         descriptorWrites[1].dstBinding = 1;
         descriptorWrites[1].dstArrayElement = 0;
         descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;

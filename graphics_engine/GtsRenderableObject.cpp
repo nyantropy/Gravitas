@@ -3,14 +3,15 @@
 GtsRenderableObject::GtsRenderableObject(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice, VulkanRenderer* vrenderer,
  std::string model_path, std::string texture_path, int frames_in_flight)
 {
+    this->frames_in_flight = frames_in_flight;
+    this->vlogicaldevice = vlogicaldevice;
+
     //probably inefficient to load a model multiple times, but it should be fine for a small game
     GtsModelLoader::loadModel(model_path, vertices, indices);
+    objecttexture = new VulkanTexture(vlogicaldevice, vphysicaldevice, vrenderer, texture_path);
     GtsBufferService::createVertexBuffer(vlogicaldevice, vphysicaldevice, vertices, vertexBuffer, vertexBufferMemory);
     GtsBufferService::createIndexBuffer(vlogicaldevice, vphysicaldevice, indices, indexBuffer, indexBufferMemory);
     GtsBufferService::createUniformBuffers(vlogicaldevice, vphysicaldevice, uniformBuffers, uniformBuffersMemory, uniformBuffersMapped, frames_in_flight);
-    objecttexture = new VulkanTexture(vlogicaldevice, vphysicaldevice, vrenderer, texture_path);
-    this->frames_in_flight = frames_in_flight;
-    this->vlogicaldevice = vlogicaldevice;
 }
 
 GtsRenderableObject::~GtsRenderableObject()
@@ -18,22 +19,34 @@ GtsRenderableObject::~GtsRenderableObject()
     for (int i = 0; i < frames_in_flight; i++) 
     {
         //uniform buffers
-        vkDestroyBuffer(vlogicaldevice->getDevice(), this->uniformBuffers[i], nullptr);
-        vkFreeMemory(vlogicaldevice->getDevice(), this->uniformBuffersMemory[i], nullptr);
+        vkDestroyBuffer(vlogicaldevice->getDevice(), uniformBuffers[i], nullptr);
+        vkFreeMemory(vlogicaldevice->getDevice(), uniformBuffersMemory[i], nullptr);
     }
 
-    //vertex buffer
-    vkDestroyBuffer(vlogicaldevice->getDevice(), this->vertexBuffer, nullptr);
-    vkFreeMemory(vlogicaldevice->getDevice(), this->vertexBufferMemory, nullptr);
+    // //vertex buffer
+    vkDestroyBuffer(vlogicaldevice->getDevice(), vertexBuffer, nullptr);
+    vkFreeMemory(vlogicaldevice->getDevice(), vertexBufferMemory, nullptr);
 
-    //index buffer
+    // //index buffer
     vkDestroyBuffer(vlogicaldevice->getDevice(), indexBuffer, nullptr);
     vkFreeMemory(vlogicaldevice->getDevice(), indexBufferMemory, nullptr);
+
+    delete objecttexture;
 }
 
 std::vector<VkBuffer>& GtsRenderableObject::getUniformBuffers()
 {
     return uniformBuffers;
+}
+
+std::vector<void*>& GtsRenderableObject::getUniformBuffersMapped()
+{
+    return uniformBuffersMapped;
+}
+
+std::vector<VkDescriptorSet>& GtsRenderableObject::getDescriptorSets()
+{
+    return descriptorSets;
 }
 
 VulkanTexture& GtsRenderableObject::getTexture()
@@ -46,10 +59,16 @@ void GtsRenderableObject::draw(VkCommandBuffer& commandBuffer, VkPipelineLayout&
     VkBuffer vertexBuffers[] = {vertexBuffer};
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+    
+    std::cout << "past vertex buffer bind" << std::endl;
 
     vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
+    std::cout << "past index buffer bind" << std::endl;
+
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
+
+    std::cout << "past descriptor set bind" << std::endl;
 
     vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 }

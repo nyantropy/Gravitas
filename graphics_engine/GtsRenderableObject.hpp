@@ -14,7 +14,7 @@
 
 class GtsRenderableObject
 {
-    private:
+    public:
         int frames_in_flight;
         VulkanLogicalDevice* vlogicaldevice;
 
@@ -49,14 +49,16 @@ class GtsRenderableObject
         //an object also contains a texture, who would have thought
         VulkanTexture* objecttexture;
 
-    public:
+    
         GtsRenderableObject(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice, VulkanRenderer* vrenderer,
          std::string model_path, std::string texture_path, int frames_in_flight);
 
         ~GtsRenderableObject();
 
         std::vector<VkBuffer>& getUniformBuffers();
+        std::vector<void*>& getUniformBuffersMapped();
         VulkanTexture& getTexture();
+        std::vector<VkDescriptorSet>& getDescriptorSets();
 
         glm::mat4 calculateLocalModelMatrix();
 
