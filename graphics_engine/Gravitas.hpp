@@ -163,7 +163,8 @@ private:
         GtsModelLoader::loadModel(MODEL_PATH, vertices, indices);
         GtsBufferService::createVertexBuffer(vlogicaldevice, vphysicaldevice, vertices, vertexBuffer, vertexBufferMemory);
         GtsBufferService::createIndexBuffer(vlogicaldevice, vphysicaldevice, indices, indexBuffer, indexBufferMemory);
-        createUniformBuffers();
+        GtsBufferService::createUniformBuffers(vlogicaldevice, vphysicaldevice,
+         uniformBuffers, uniformBuffersMemory, uniformBuffersMapped, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
         createDescriptorSets();
         createCommandBuffers();
         createSyncObjects();
@@ -229,21 +230,6 @@ private:
     // bool hasStencilComponent(VkFormat format) {
     //     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
     // }
-
-    void createUniformBuffers() 
-    {
-        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-
-        uniformBuffers.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
-        uniformBuffersMemory.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
-        uniformBuffersMapped.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
-
-        for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) {
-            GtsBufferService::createBuffer(vlogicaldevice, vphysicaldevice, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
-
-            vkMapMemory(vlogicaldevice->getDevice(), uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
-        }
-    }
 
     void createDescriptorSets() {
         std::vector<VkDescriptorSetLayout> layouts(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT, vdescriptorsetmanager->getDescriptorSetLayout());

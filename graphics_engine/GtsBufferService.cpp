@@ -145,3 +145,20 @@ void GtsBufferService::createIndexBuffer(VulkanLogicalDevice* vlogicaldevice, Vu
     vkDestroyBuffer(vlogicaldevice->getDevice(), stagingBuffer, nullptr);
     vkFreeMemory(vlogicaldevice->getDevice(), stagingBufferMemory, nullptr);
 }
+
+void GtsBufferService::createUniformBuffers(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice, std::vector<VkBuffer>& uniformBuffers, std::vector<VkDeviceMemory>& uniformBuffersMemory,
+ std::vector<void*>& uniformBuffersMapped, int frames_in_flight) 
+{
+    VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+    uniformBuffers.resize(frames_in_flight);
+    uniformBuffersMemory.resize(frames_in_flight);
+    uniformBuffersMapped.resize(frames_in_flight);
+
+    for (size_t i = 0; i < frames_in_flight; i++) 
+    {
+        GtsBufferService::createBuffer(vlogicaldevice, vphysicaldevice, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
+
+        vkMapMemory(vlogicaldevice->getDevice(), uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
+    }
+}
