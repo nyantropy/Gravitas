@@ -43,6 +43,7 @@
 #include "VulkanTexture.hpp"
 #include "GtsModelLoader.hpp"
 #include "GtsCamera.hpp"
+#include "GtsRenderableObject.hpp"
 
 const std::string MODEL_PATH = "resources/viking_room.obj";
 const std::string TEXTURE_PATH = "resources/viking_room.png";
@@ -110,9 +111,17 @@ public:
         vcamera = new GtsCamera(vswapchain->getSwapChainExtent());
 
 
+        GtsRenderableObject object = GtsRenderableObject(vlogicaldevice, vphysicaldevice, vrenderer, MODEL_PATH, TEXTURE_PATH, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
+        
 
-
-        initVulkan();
+        GtsModelLoader::loadModel(MODEL_PATH, vertices, indices);
+        GtsBufferService::createVertexBuffer(vlogicaldevice, vphysicaldevice, vertices, vertexBuffer, vertexBufferMemory);
+        GtsBufferService::createIndexBuffer(vlogicaldevice, vphysicaldevice, indices, indexBuffer, indexBufferMemory);
+        GtsBufferService::createUniformBuffers(vlogicaldevice, vphysicaldevice,
+         uniformBuffers, uniformBuffersMemory, uniformBuffersMapped, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
+        createDescriptorSets();
+        createCommandBuffers();
+        createSyncObjects();
         mainLoop();
         cleanup();
 
@@ -161,18 +170,6 @@ private:
     void OnFrameBufferResizeCallback(int width, int height) 
     {
         framebufferResized = true;
-    }
-
-    void initVulkan() 
-    {
-        GtsModelLoader::loadModel(MODEL_PATH, vertices, indices);
-        GtsBufferService::createVertexBuffer(vlogicaldevice, vphysicaldevice, vertices, vertexBuffer, vertexBufferMemory);
-        GtsBufferService::createIndexBuffer(vlogicaldevice, vphysicaldevice, indices, indexBuffer, indexBufferMemory);
-        GtsBufferService::createUniformBuffers(vlogicaldevice, vphysicaldevice,
-         uniformBuffers, uniformBuffersMemory, uniformBuffersMapped, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
-        createDescriptorSets();
-        createCommandBuffers();
-        createSyncObjects();
     }
 
     void mainLoop() 
@@ -259,7 +256,7 @@ private:
             VkDescriptorImageInfo imageInfo{};
             imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             imageInfo.imageView = vtexture->getTextureImageView();
-            imageInfo.sampler = vrenderer->getTextureSampler();
+            imageInfo.sampler = vtexture->getTextureSampler();
 
             std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
 

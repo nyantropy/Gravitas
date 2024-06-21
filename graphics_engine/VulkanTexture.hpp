@@ -19,11 +19,13 @@ class VulkanTexture
         VkImage& getTextureImage();
         VkDeviceMemory& getTextureImageMemory();
         VkImageView& getTextureImageView();
+        VkSampler& getTextureSampler();
 
     private:
         VkImage textureImage;
         VkDeviceMemory textureImageMemory;
         VkImageView textureImageView;
+        VkSampler textureSampler;
 
         std::string texture_path;
 
@@ -33,6 +35,7 @@ class VulkanTexture
 
         void createTextureImageView();
         void createTextureImage();
+        void createTextureSampler();
         void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 
 
