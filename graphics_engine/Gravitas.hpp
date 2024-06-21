@@ -10,8 +10,6 @@
 #include <gtc/matrix_transform.hpp>
 #include <gtx/hash.hpp>
 
-#include <tiny_obj_loader.h>
-
 #include <iostream>
 #include <fstream>
 #include <stdexcept>
@@ -25,7 +23,6 @@
 #include <array>
 #include <optional>
 #include <set>
-#include <unordered_map>
 
 #include "GravitasEngineConstants.h"
 #include "Vertex.h"
@@ -44,6 +41,7 @@
 #include "GTSFramebufferManager.hpp"
 #include "GtsBufferService.hpp"
 #include "VulkanTexture.hpp"
+#include "GtsModelLoader.hpp"
 
 const std::string MODEL_PATH = "resources/viking_room.obj";
 const std::string TEXTURE_PATH = "resources/viking_room.png";
@@ -69,17 +67,6 @@ const bool enableValidationLayers = true;
 //         func(instance, debugMessenger, pAllocator);
 //     }
 // }
-
-namespace std 
-{
-    template<> struct hash<Vertex> 
-    {
-        size_t operator()(Vertex const& vertex) const 
-        {
-            return (std::hash<glm::vec3>()(vertex.pos) ^ (std::hash<glm::vec3>()(vertex.color) << 1)) >> 1 ^ (std::hash<glm::vec2>()(vertex.texCoord) << 1);
-        }
-    };
-}
 
 class Gravitas 
 {
@@ -143,9 +130,9 @@ private:
 
     //VkDebugUtilsMessengerEXT debugMessenger;
     
-
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
+
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
     VkBuffer indexBuffer;
@@ -173,7 +160,7 @@ private:
 
     void initVulkan() 
     {
-        loadModel();
+        GtsModelLoader::loadModel(MODEL_PATH, vertices, indices);
         GtsBufferService::createVertexBuffer(vlogicaldevice, vphysicaldevice, vertices, vertexBuffer, vertexBufferMemory);
         GtsBufferService::createIndexBuffer(vlogicaldevice, vphysicaldevice, indices, indexBuffer, indexBufferMemory);
         createUniformBuffers();
@@ -242,45 +229,6 @@ private:
     // bool hasStencilComponent(VkFormat format) {
     //     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
     // }
-
-    void loadModel() {
-        tinyobj::attrib_t attrib;
-        std::vector<tinyobj::shape_t> shapes;
-        std::vector<tinyobj::material_t> materials;
-        std::string warn, err;
-
-        if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, MODEL_PATH.c_str())) {
-            throw std::runtime_error(warn + err);
-        }
-
-        std::unordered_map<Vertex, uint32_t> uniqueVertices{};
-
-        for (const auto& shape : shapes) {
-            for (const auto& index : shape.mesh.indices) {
-                Vertex vertex{};
-
-                vertex.pos = {
-                    attrib.vertices[3 * index.vertex_index + 0],
-                    attrib.vertices[3 * index.vertex_index + 1],
-                    attrib.vertices[3 * index.vertex_index + 2]
-                };
-
-                vertex.texCoord = {
-                    attrib.texcoords[2 * index.texcoord_index + 0],
-                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-                };
-
-                vertex.color = {1.0f, 1.0f, 1.0f};
-
-                if (uniqueVertices.count(vertex) == 0) {
-                    uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
-                    vertices.push_back(vertex);
-                }
-
-                indices.push_back(uniqueVertices[vertex]);
-            }
-        }
-    }
 
     void createUniformBuffers() 
     {
