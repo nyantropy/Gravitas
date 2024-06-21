@@ -42,6 +42,7 @@
 #include "GtsBufferService.hpp"
 #include "VulkanTexture.hpp"
 #include "GtsModelLoader.hpp"
+#include "GtsCamera.hpp"
 
 const std::string MODEL_PATH = "resources/viking_room.obj";
 const std::string TEXTURE_PATH = "resources/viking_room.png";
@@ -83,6 +84,8 @@ public:
     VulkanPipeline* vpipeline;
     GTSFramebufferManager* vframebuffer;
     VulkanTexture* vtexture;
+    GtsCamera* vcamera;
+    
 
     void run() 
     {
@@ -104,6 +107,7 @@ public:
         vpipeline = new VulkanPipeline(vlogicaldevice, vdescriptorsetmanager, vrenderpass, {GravitasEngineConstants::V_SHADER_PATH, GravitasEngineConstants::F_SHADER_PATH});
         vframebuffer = new GTSFramebufferManager(vlogicaldevice, vswapchain, vrenderer, vrenderpass);
         vtexture = new VulkanTexture(vlogicaldevice, vphysicaldevice, vrenderer, TEXTURE_PATH);
+        vcamera = new GtsCamera(vswapchain->getSwapChainExtent());
 
 
 
@@ -112,6 +116,7 @@ public:
         mainLoop();
         cleanup();
 
+        delete vcamera;
         delete vtexture;
         delete vframebuffer;
         delete vpipeline;
@@ -231,6 +236,7 @@ private:
     //     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
     // }
 
+    //setup descriptor sets based on frames in flight
     void createDescriptorSets() {
         std::vector<VkDescriptorSetLayout> layouts(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT, vdescriptorsetmanager->getDescriptorSetLayout());
         VkDescriptorSetAllocateInfo allocInfo{};
@@ -377,9 +383,8 @@ private:
 
         UniformBufferObject ubo{};
         ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.proj = glm::perspective(glm::radians(45.0f), vswapchain->getSwapChainExtent().width / (float) vswapchain->getSwapChainExtent().height, 0.1f, 10.0f);
-        ubo.proj[1][1] *= -1;
+        ubo.view = vcamera->getViewMatrix();
+        ubo.proj = vcamera->getProjectionMatrix();
 
         memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
     }
