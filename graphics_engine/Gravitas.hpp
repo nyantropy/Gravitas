@@ -86,8 +86,7 @@ public:
     GTSFramebufferManager* vframebuffer;
     VulkanTexture* vtexture;
     GtsCamera* vcamera;
-    GtsRenderableObject* vobject;
-    
+    GtsRenderableObject* vobject;  
 
     void run() 
     {
@@ -108,47 +107,34 @@ public:
         vdescriptorsetmanager = new GTSDescriptorSetManager(vlogicaldevice, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
         vpipeline = new VulkanPipeline(vlogicaldevice, vdescriptorsetmanager, vrenderpass, {GravitasEngineConstants::V_SHADER_PATH, GravitasEngineConstants::F_SHADER_PATH});
         vframebuffer = new GTSFramebufferManager(vlogicaldevice, vswapchain, vrenderer, vrenderpass);
+        vtexture = new VulkanTexture(vlogicaldevice, vphysicaldevice, vrenderer, TEXTURE_PATH);
         vcamera = new GtsCamera(vswapchain->getSwapChainExtent());
 
 
         vobject = new GtsRenderableObject(vlogicaldevice, vphysicaldevice, vrenderer, MODEL_PATH, TEXTURE_PATH, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
         vdescriptorsetmanager->allocateDescriptorSets(vobject);
-        vertices = vobject->vertices;
-        vertexBuffer = vobject->vertexBuffer;
-        vertexBufferMemory = vobject->vertexBufferMemory;
 
-        indices = vobject->indices;
-        indexBuffer = vobject->indexBuffer;
-        indexBufferMemory = vobject->indexBufferMemory;
-
-        uniformBuffers = vobject->uniformBuffers;
-        uniformBuffersMemory = vobject->uniformBuffersMemory;
-        uniformBuffersMapped = vobject->uniformBuffersMapped;
-
-        vtexture = vobject->objecttexture;
-        descriptorSets = vobject->descriptorSets;
-
-        
-
-        // GtsModelLoader::loadModel(MODEL_PATH, vertices, indices);
-        // GtsBufferService::createVertexBuffer(vlogicaldevice, vphysicaldevice, vertices, vertexBuffer, vertexBufferMemory);
-        // GtsBufferService::createIndexBuffer(vlogicaldevice, vphysicaldevice, indices, indexBuffer, indexBufferMemory);
-        // GtsBufferService::createUniformBuffers(vlogicaldevice, vphysicaldevice,
-        //  uniformBuffers, uniformBuffersMemory, uniformBuffersMapped, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
-        //createDescriptorSets();
         createCommandBuffers();
         createSyncObjects();
-        mainLoop();
+
+        while (!vwindow->shouldClose())
+        {
+            vwindow->pollEvents();
+            drawFrame();
+        }
+
+        vkDeviceWaitIdle(vlogicaldevice->getDevice());
 
         delete vobject;
         delete vcamera;
+        delete vtexture;
         delete vframebuffer;
         delete vpipeline;
         delete vdescriptorsetmanager;
         delete vrenderpass;
         delete vrenderer;
-        delete vswapchain;
         cleanup();
+        delete vswapchain;
         delete vlogicaldevice;
         delete vphysicaldevice;
         delete vsurface;
@@ -157,23 +143,6 @@ public:
     }
 
 private:
-
-    //VkDebugUtilsMessengerEXT debugMessenger;
-    
-    std::vector<Vertex> vertices;
-    std::vector<uint32_t> indices;
-
-    VkBuffer vertexBuffer;
-    VkDeviceMemory vertexBufferMemory;
-    VkBuffer indexBuffer;
-    VkDeviceMemory indexBufferMemory;
-
-    std::vector<VkBuffer> uniformBuffers;
-    std::vector<VkDeviceMemory> uniformBuffersMemory;
-    std::vector<void*> uniformBuffersMapped;
-
-    std::vector<VkDescriptorSet> descriptorSets;
-
     std::vector<VkCommandBuffer> commandBuffers;
 
     std::vector<VkSemaphore> imageAvailableSemaphores;
@@ -188,31 +157,8 @@ private:
         framebufferResized = true;
     }
 
-    void mainLoop() 
-    {
-        while (!vwindow->shouldClose())
-        {
-            vwindow->pollEvents();
-            drawFrame();
-        }
-
-        vkDeviceWaitIdle(vlogicaldevice->getDevice());
-    }
-
     void cleanup() 
     {
-        // for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) 
-        // {
-        //     vkDestroyBuffer(vlogicaldevice->getDevice(), uniformBuffers[i], nullptr);
-        //     vkFreeMemory(vlogicaldevice->getDevice(), uniformBuffersMemory[i], nullptr);
-        // }
-
-        // vkDestroyBuffer(vlogicaldevice->getDevice(), indexBuffer, nullptr);
-        // vkFreeMemory(vlogicaldevice->getDevice(), indexBufferMemory, nullptr);
-
-        // vkDestroyBuffer(vlogicaldevice->getDevice(), vertexBuffer, nullptr);
-        // vkFreeMemory(vlogicaldevice->getDevice(), vertexBufferMemory, nullptr);
-
         for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) 
         {
             vkDestroySemaphore(vlogicaldevice->getDevice(), renderFinishedSemaphores[i], nullptr);
@@ -251,54 +197,8 @@ private:
     //     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
     // }
 
-    //setup descriptor sets based on frames in flight
-    void createDescriptorSets() {
-        std::vector<VkDescriptorSetLayout> layouts(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT, vdescriptorsetmanager->getDescriptorSetLayout());
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = vdescriptorsetmanager->getDescriptorPool();
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
-        allocInfo.pSetLayouts = layouts.data();
-
-        descriptorSets.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
-        if (vkAllocateDescriptorSets(vlogicaldevice->getDevice(), &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate descriptor sets!");
-        }
-
-        for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) {
-            VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = uniformBuffers[i];
-            bufferInfo.offset = 0;
-            bufferInfo.range = sizeof(UniformBufferObject);
-
-            VkDescriptorImageInfo imageInfo{};
-            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView = vtexture->getTextureImageView();
-            imageInfo.sampler = vtexture->getTextureSampler();
-
-            std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
-
-            descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[0].dstSet = descriptorSets[i];
-            descriptorWrites[0].dstBinding = 0;
-            descriptorWrites[0].dstArrayElement = 0;
-            descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrites[0].descriptorCount = 1;
-            descriptorWrites[0].pBufferInfo = &bufferInfo;
-
-            descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[1].dstSet = descriptorSets[i];
-            descriptorWrites[1].dstBinding = 1;
-            descriptorWrites[1].dstArrayElement = 0;
-            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            descriptorWrites[1].descriptorCount = 1;
-            descriptorWrites[1].pImageInfo = &imageInfo;
-
-            vkUpdateDescriptorSets(vlogicaldevice->getDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
-        }
-    }
-
-    void createCommandBuffers() {
+    void createCommandBuffers() 
+    {
         commandBuffers.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
 
         VkCommandBufferAllocateInfo allocInfo{};
@@ -352,15 +252,9 @@ private:
             scissor.extent = vswapchain->getSwapChainExtent();
             vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-            VkBuffer vertexBuffers[] = {vertexBuffer};
-            VkDeviceSize offsets[] = {0};
-            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-
-            vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vpipeline->getPipelineLayout(), 0, 1, &descriptorSets[currentFrame], 0, nullptr);
-
-            vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+            
+            //call draw for all objects here :)
+            vobject->draw(commandBuffer, vpipeline->getPipelineLayout(), currentFrame);
 
         vkCmdEndRenderPass(commandBuffer);
 
@@ -401,10 +295,11 @@ private:
         ubo.view = vcamera->getViewMatrix();
         ubo.proj = vcamera->getProjectionMatrix();
 
-        memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+        memcpy(vobject->getUniformBuffersMapped()[currentImage], &ubo, sizeof(ubo));
     }
 
-    void drawFrame() {
+    void drawFrame() 
+    {
         vkWaitForFences(vlogicaldevice->getDevice(), 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
