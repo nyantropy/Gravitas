@@ -7,8 +7,8 @@
 class GtsAnimation
 {
     public:
-        glm::mat4 getModelMatrix(float currentTime)
+        glm::mat4 getModelMatrix(float deltaTime)
         {
-            return glm::rotate(glm::mat4(1.0f), currentTime * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+            return glm::rotate(glm::mat4(1.0f), deltaTime * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         }
 };

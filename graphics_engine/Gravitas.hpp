@@ -45,6 +45,7 @@
 #include "GtsCamera.hpp"
 #include "GtsRenderableObject.hpp"
 #include "GtsSceneNode.hpp"
+#include "GtsScene.hpp"
 
 const std::string MODEL_PATH = "resources/viking_room.obj";
 const std::string TEXTURE_PATH = "resources/viking_room.png";
@@ -85,9 +86,20 @@ public:
     GTSDescriptorSetManager* vdescriptorsetmanager;
     VulkanPipeline* vpipeline;
     GTSFramebufferManager* vframebuffer;
-    VulkanTexture* vtexture;
     GtsCamera* vcamera;
-    GtsSceneNode* vscenenode;
+    GtsScene* currentScene;
+
+    GtsRenderableObject* createObject(std::string model_path, std::string texture_path)
+    {
+        GtsRenderableObject* vobject = new GtsRenderableObject(vlogicaldevice, vphysicaldevice, vrenderer, model_path, texture_path, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
+        vdescriptorsetmanager->allocateDescriptorSets(vobject);
+        return vobject;
+    }
+
+    void createEmptyScene()
+    {
+        currentScene = new GtsScene();
+    }
 
 
     void run() 
@@ -109,16 +121,10 @@ public:
         vdescriptorsetmanager = new GTSDescriptorSetManager(vlogicaldevice, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
         vpipeline = new VulkanPipeline(vlogicaldevice, vdescriptorsetmanager, vrenderpass, {GravitasEngineConstants::V_SHADER_PATH, GravitasEngineConstants::F_SHADER_PATH});
         vframebuffer = new GTSFramebufferManager(vlogicaldevice, vswapchain, vrenderer, vrenderpass);
-        vtexture = new VulkanTexture(vlogicaldevice, vphysicaldevice, vrenderer, TEXTURE_PATH);
         vcamera = new GtsCamera(vswapchain->getSwapChainExtent());
 
-
-        GtsRenderableObject* vobject = new GtsRenderableObject(vlogicaldevice, vphysicaldevice, vrenderer, MODEL_PATH, TEXTURE_PATH, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
-        vdescriptorsetmanager->allocateDescriptorSets(vobject);
-
-        vscenenode = new GtsSceneNode();
-        vscenenode->attachRenderableObject(vobject);
-        vscenenode->setAnimation(new GtsAnimation());
+        createEmptyScene();
+        currentScene->addNode(new GtsSceneNode(createObject(MODEL_PATH, TEXTURE_PATH), new GtsAnimation()));
 
         createCommandBuffers();
         createSyncObjects();
@@ -131,9 +137,8 @@ public:
 
         vkDeviceWaitIdle(vlogicaldevice->getDevice());
 
-        delete vscenenode;
+        delete currentScene;
         delete vcamera;
-        delete vtexture;
         delete vframebuffer;
         delete vpipeline;
         delete vdescriptorsetmanager;
@@ -260,7 +265,7 @@ private:
 
             
             //call draw for all objects here :)
-            vscenenode->draw(commandBuffer, vpipeline->getPipelineLayout(), currentFrame);
+            currentScene->render(commandBuffer, vpipeline->getPipelineLayout(), currentFrame);
 
         vkCmdEndRenderPass(commandBuffer);
 
@@ -309,7 +314,7 @@ private:
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
-        vscenenode->update(glm::mat4(1.0f), *vcamera, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT, time);
+        currentScene->update(*vcamera, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT, time);
 
         vkResetFences(vlogicaldevice->getDevice(), 1, &inFlightFences[currentFrame]);
 
