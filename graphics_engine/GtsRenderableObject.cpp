@@ -67,25 +67,13 @@ void GtsRenderableObject::draw(VkCommandBuffer& commandBuffer, VkPipelineLayout&
     vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 }
 
-glm::mat4 GtsRenderableObject::calculateLocalModelMatrix()
-{
-    return this->localTranslationMatrix * this->localRotationMatrix * this->localScaleMatrix;
-}
-
-glm::vec3 GtsRenderableObject::getXYZ()
-{
-    //Extracting the XYZ coordinates from the translation matrix
-    glm::vec4 translation_column = this->currentModelMatrix[3];
-    return glm::vec3(translation_column);
-}
-
-void GtsRenderableObject::updateUniforms(GtsCamera& camera, int frames_in_flight)
+void GtsRenderableObject::updateUniforms(const glm::mat4& modelMatrix, GtsCamera& camera, int frames_in_flight)
 {
     //std::cout << "Updating Uniforms!" << std::endl;
     UniformBufferObject ubo{};
     ubo.view = camera.getViewMatrix();
     ubo.proj = camera.getProjectionMatrix();
-    ubo.model = this->currentModelMatrix;
+    ubo.model = modelMatrix;
 
     for(int i = 0; i < frames_in_flight; i++)
     { 

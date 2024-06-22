@@ -44,6 +44,7 @@
 #include "GtsModelLoader.hpp"
 #include "GtsCamera.hpp"
 #include "GtsRenderableObject.hpp"
+#include "GtsSceneNode.hpp"
 
 const std::string MODEL_PATH = "resources/viking_room.obj";
 const std::string TEXTURE_PATH = "resources/viking_room.png";
@@ -86,7 +87,8 @@ public:
     GTSFramebufferManager* vframebuffer;
     VulkanTexture* vtexture;
     GtsCamera* vcamera;
-    GtsRenderableObject* vobject;  
+    GtsSceneNode* vscenenode;
+
 
     void run() 
     {
@@ -111,8 +113,12 @@ public:
         vcamera = new GtsCamera(vswapchain->getSwapChainExtent());
 
 
-        vobject = new GtsRenderableObject(vlogicaldevice, vphysicaldevice, vrenderer, MODEL_PATH, TEXTURE_PATH, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
+        GtsRenderableObject* vobject = new GtsRenderableObject(vlogicaldevice, vphysicaldevice, vrenderer, MODEL_PATH, TEXTURE_PATH, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
         vdescriptorsetmanager->allocateDescriptorSets(vobject);
+
+        vscenenode = new GtsSceneNode();
+        vscenenode->attachRenderableObject(vobject);
+        vscenenode->setAnimation(new GtsAnimation());
 
         createCommandBuffers();
         createSyncObjects();
@@ -125,7 +131,7 @@ public:
 
         vkDeviceWaitIdle(vlogicaldevice->getDevice());
 
-        delete vobject;
+        delete vscenenode;
         delete vcamera;
         delete vtexture;
         delete vframebuffer;
@@ -254,7 +260,7 @@ private:
 
             
             //call draw for all objects here :)
-            vobject->draw(commandBuffer, vpipeline->getPipelineLayout(), currentFrame);
+            vscenenode->draw(commandBuffer, vpipeline->getPipelineLayout(), currentFrame);
 
         vkCmdEndRenderPass(commandBuffer);
 
@@ -284,22 +290,13 @@ private:
         }
     }
 
-    void updateUniformBuffer(uint32_t currentImage) {
+    void drawFrame() 
+    {
         static auto startTime = std::chrono::high_resolution_clock::now();
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-        UniformBufferObject ubo{};
-        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = vcamera->getViewMatrix();
-        ubo.proj = vcamera->getProjectionMatrix();
-
-        memcpy(vobject->getUniformBuffersMapped()[currentImage], &ubo, sizeof(ubo));
-    }
-
-    void drawFrame() 
-    {
         vkWaitForFences(vlogicaldevice->getDevice(), 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
@@ -312,7 +309,7 @@ private:
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
-        updateUniformBuffer(currentFrame);
+        vscenenode->update(glm::mat4(1.0f), *vcamera, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT, time);
 
         vkResetFences(vlogicaldevice->getDevice(), 1, &inFlightFences[currentFrame]);
 
