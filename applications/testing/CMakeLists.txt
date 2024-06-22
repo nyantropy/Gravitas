@@ -13,11 +13,24 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR})
 add_executable(main main.cpp)
 add_dependencies(main Gravitas)
 
-# include the graphics engine
+# Include the graphics engine
 target_include_directories(main PUBLIC ${CMAKE_SOURCE_DIR}/graphics_engine)
 target_link_libraries(main Gravitas)
+
+# Set working directory for all platforms
+set_target_properties(main PROPERTIES
+    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
 
 # Set the output name to include .exe extension on Windows
 if (WIN32)
     set_target_properties(main PROPERTIES OUTPUT_NAME "main.exe")
+endif()
+
+# Set working directory for Visual Studio
+if (MSVC)
+    set_target_properties(main PROPERTIES
+        VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    )
 endif()

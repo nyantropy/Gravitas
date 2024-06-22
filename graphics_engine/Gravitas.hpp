@@ -47,9 +47,6 @@
 #include "GtsSceneNode.hpp"
 #include "GtsScene.hpp"
 
-const std::string MODEL_PATH = "resources/viking_room.obj";
-const std::string TEXTURE_PATH = "resources/viking_room.png";
-
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
 #else
@@ -96,61 +93,52 @@ public:
         return vobject;
     }
 
-    void createEmptyScene()
-    {
-        currentScene = new GtsScene();
-    }
-
-
-    void run() 
+    void init(uint32_t width, uint32_t height, std::string title, bool enableValidationLayers)
     {
         vwindow = new GTSGLFWOutputWindow();
-        vwindow->init(GravitasEngineConstants::GLFW_DEFAULT_WIDTH, GravitasEngineConstants::GLFW_DEFAULT_HEIGHT, "Title", enableValidationLayers);
+        vwindow->init(width, height, title, enableValidationLayers);
         vwindow->setOnWindowResizeCallback(std::bind(&Gravitas::OnFrameBufferResizeCallback, this, std::placeholders::_1, std::placeholders::_2));
-
         vinstance = new VulkanInstance(enableValidationLayers, vwindow);
         vsurface = new GLFWWindowSurface(vwindow, vinstance);
         vphysicaldevice = new VulkanPhysicalDevice(vinstance, vsurface);
         vlogicaldevice = new VulkanLogicalDevice(vinstance, vphysicaldevice, enableValidationLayers);
         vswapchain = new VulkanSwapChain(vwindow, vsurface, vphysicaldevice, vlogicaldevice);
         vrenderer = new VulkanRenderer(vlogicaldevice, vphysicaldevice, vswapchain);
-
         vrenderpass = new VulkanRenderPass();
         vrenderpass->init(vswapchain, vlogicaldevice, vrenderer);
-
         vdescriptorsetmanager = new GTSDescriptorSetManager(vlogicaldevice, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
         vpipeline = new VulkanPipeline(vlogicaldevice, vdescriptorsetmanager, vrenderpass, {GravitasEngineConstants::V_SHADER_PATH, GravitasEngineConstants::F_SHADER_PATH});
         vframebuffer = new GTSFramebufferManager(vlogicaldevice, vswapchain, vrenderer, vrenderpass);
         vcamera = new GtsCamera(vswapchain->getSwapChainExtent());
-
-        createEmptyScene();
-        currentScene->addNode(new GtsSceneNode(createObject(MODEL_PATH, TEXTURE_PATH), new GtsAnimation()));
-
         createCommandBuffers();
         createSyncObjects();
+    }
 
+    void createEmptyScene()
+    {
+        currentScene = new GtsScene();
+    }
+
+    void addNodeToScene(GtsRenderableObject* object, GtsAnimation* anim)
+    {
+        currentScene->addNode(new GtsSceneNode(object, anim));
+    }
+
+    void run() 
+    {
         while (!vwindow->shouldClose())
         {
             vwindow->pollEvents();
-            drawFrame();
+
+            if(!currentScene->empty())
+            {
+                drawFrame();
+            }
         }
 
         vkDeviceWaitIdle(vlogicaldevice->getDevice());
 
-        delete currentScene;
-        delete vcamera;
-        delete vframebuffer;
-        delete vpipeline;
-        delete vdescriptorsetmanager;
-        delete vrenderpass;
-        delete vrenderer;
         cleanup();
-        delete vswapchain;
-        delete vlogicaldevice;
-        delete vphysicaldevice;
-        delete vsurface;
-        delete vinstance;
-        delete vwindow;
     }
 
 private:
@@ -170,12 +158,25 @@ private:
 
     void cleanup() 
     {
+        delete currentScene;
+        delete vcamera;
+        delete vframebuffer;
+        delete vpipeline;
+        delete vdescriptorsetmanager;
+        delete vrenderpass;
+        delete vrenderer;
         for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) 
         {
             vkDestroySemaphore(vlogicaldevice->getDevice(), renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(vlogicaldevice->getDevice(), imageAvailableSemaphores[i], nullptr);
             vkDestroyFence(vlogicaldevice->getDevice(), inFlightFences[i], nullptr);
         }
+        delete vswapchain;
+        delete vlogicaldevice;
+        delete vphysicaldevice;
+        delete vsurface;
+        delete vinstance;
+        delete vwindow;
     }
 
     //we can do that once we figured out how to put everything into classes
