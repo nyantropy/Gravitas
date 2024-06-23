@@ -3,7 +3,7 @@
 //default camera is gonna be ideal for tetris ig
 GtsCamera::GtsCamera(VkExtent2D& swapChainExtent)
 {
-    viewMatrix = glm::lookAt(glm::vec3(0.0f, 6.0f, 15.0f),
+    viewMatrix = glm::lookAt(glm::vec3(0.0f, 6.0f, 25.0f),
                              glm::vec3(0.0f, 6.0f, 0.0f),
                              glm::vec3(0.0f, 1.0f, 0.0f));
 

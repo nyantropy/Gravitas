@@ -70,7 +70,21 @@
         "__tree": "cpp",
         "__verbose_abort": "cpp",
         "ios": "cpp",
-        "locale": "cpp"
+        "locale": "cpp",
+        "any": "cpp",
+        "codecvt": "cpp",
+        "complex": "cpp",
+        "condition_variable": "cpp",
+        "cstdarg": "cpp",
+        "list": "cpp",
+        "unordered_set": "cpp",
+        "numeric": "cpp",
+        "future": "cpp",
+        "semaphore": "cpp",
+        "stdfloat": "cpp",
+        "stop_token": "cpp",
+        "thread": "cpp",
+        "valarray": "cpp"
     },
     "cmake.configureOnOpen": false
 }

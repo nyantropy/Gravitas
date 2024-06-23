@@ -31,9 +31,9 @@ class GtsSceneNode
         void updateMatrices() 
         {
             translationMatrix = glm::translate(glm::mat4(1.0f), positionVector);
-            rotationMatrix = glm::rotate(glm::mat4(1.0f), rotationVector.x, glm::vec3(1, 0, 0));
-            rotationMatrix = glm::rotate(rotationMatrix, rotationVector.y, glm::vec3(0, 1, 0));
-            rotationMatrix = glm::rotate(rotationMatrix, rotationVector.z, glm::vec3(0, 0, 1));
+            rotationMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(rotationVector.x), glm::vec3(1.0f, 0.0f, 0.0f));
+            rotationMatrix = glm::rotate(rotationMatrix, glm::radians(rotationVector.y), glm::vec3(0.0f, 1.0f, 0.0f));
+            rotationMatrix = glm::rotate(rotationMatrix, glm::radians(rotationVector.z), glm::vec3(0.0f, 0.0f, 1.0f));
             scaleMatrix = glm::scale(glm::mat4(1.0f), scaleVector);
         }
 
@@ -60,9 +60,11 @@ class GtsSceneNode
             animation = anim;
         }
 
-        GtsSceneNode(GtsRenderableObject* obj, GtsAnimation* anim, std::string identifier) : GtsSceneNode(obj, anim)
+        GtsSceneNode(GtsRenderableObject* obj, GtsAnimation* anim, std::string identifier) : GtsSceneNode()
         {
             this->identifier = identifier;
+            renderableObject = obj;
+            animation = anim;
         }
 
         ~GtsSceneNode()
@@ -142,23 +144,24 @@ class GtsSceneNode
         void update(const glm::mat4& parentTransform, GtsCamera& camera, int framesInFlight, float deltaTime) 
         {
             glm::mat4 modelMatrix = parentTransform * translationMatrix * rotationMatrix * scaleMatrix;
+
+            glm::mat4 animationMatrix = glm::mat4(1.0f);
+
+            if (animation != nullptr)
+            {
+                animationMatrix = animation->getModelMatrix(deltaTime);
+            }
+
+            glm::mat4 finalMatrix = modelMatrix * animationMatrix;
             
             if (renderableObject) 
             {
-                glm::mat4 animationMatrix = glm::mat4(1.0f);
-
-                if (animation)
-                {
-                    animationMatrix = animation->getModelMatrix(deltaTime);
-                }
-
-                renderableObject->updateUniforms(modelMatrix * animationMatrix, camera, framesInFlight);
+                renderableObject->updateUniforms(finalMatrix, camera, framesInFlight);
             }
 
-            // Recursively update children
             for (auto child : children) 
             {
-                child->update(modelMatrix, camera, framesInFlight, deltaTime);
+                child->update(finalMatrix, camera, framesInFlight, deltaTime);
             }
         }
 

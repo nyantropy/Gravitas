@@ -124,6 +124,15 @@ public:
     {
         GtsSceneNode* node = new GtsSceneNode(options.objectPtr, options.animPtr, options.identifier);
 
+        if(options.identifier == "tetrispieceroot")
+        {
+            std::cout << "init tetrispieceroot" << std::endl;
+            if(options.animPtr == nullptr)
+            {
+                std::cout << "nullptr" << std::endl;
+            }
+        }
+
         if(options.translationVector != glm::vec3(0.0f, 0.0f, 0.0f))
         {
             node->translate(options.translationVector);
@@ -131,12 +140,12 @@ public:
 
         if(options.rotationVector != glm::vec3(0.0f, 0.0f, 0.0f))
         {
-            node->rotate(options.translationVector);
+            node->rotate(options.rotationVector);
         }
 
         if(options.scaleVector != glm::vec3(0.0f, 0.0f, 0.0f))
         {
-            node->scale(options.translationVector);
+            node->scale(options.scaleVector);
         }
 
         if(options.parentIdentifier.empty())
@@ -148,7 +157,7 @@ public:
             currentScene->addNodeToParent(node, options.parentIdentifier);
         }
 
-        std::cout << "Current Root Nodes: " <<  currentScene->countRootNodes() << std::endl;
+        //std::cout << "Current Root Nodes: " <<  currentScene->countRootNodes() << std::endl;
     }
 
     //add an object as its independent node to the scene, animation can be a nullptr
@@ -345,10 +354,11 @@ private:
 
     void drawFrame() 
     {
-        static auto startTime = std::chrono::high_resolution_clock::now();
-
+        //correct delta time calculations this time around
+        static auto previousTime = std::chrono::high_resolution_clock::now();
         auto currentTime = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+        float deltaTime = std::chrono::duration<float>(currentTime - previousTime).count();
+        previousTime = currentTime;
 
         vkWaitForFences(vlogicaldevice->getDevice(), 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -362,7 +372,7 @@ private:
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
-        currentScene->update(*vcamera, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT, time);
+        currentScene->update(*vcamera, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT, deltaTime);
 
         vkResetFences(vlogicaldevice->getDevice(), 1, &inFlightFences[currentFrame]);
 
