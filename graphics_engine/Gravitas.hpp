@@ -47,6 +47,7 @@
 #include "GtsSceneNode.hpp"
 #include "GtsScene.hpp"
 #include "GtsSceneNodeOpt.h"
+#include "GtsOnKeyPressedEvent.hpp"
 
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
@@ -89,6 +90,15 @@ public:
     GtsScene* currentScene;
     GtsSceneNode* selectedNode;
 
+    GtsOnKeyPressedEvent onKeyPressedEvent;
+
+    void subscribeOnKeyPressedEvent(std::function<void(int key, int scancode, int action, int mods)> f)
+    {
+        onKeyPressedEvent.subscribe(f);
+    }
+
+
+
     //select a node in the engine based on its identifier
     bool selectNode(std::string identifier)
     {
@@ -100,6 +110,16 @@ public:
         }
 
         return true;
+    }
+
+    GtsSceneNode* getSelectedSceneNodePtr()
+    {
+        return selectedNode;
+    }
+
+    GtsSceneNode* getSceneNodePtr(std::string identifier)
+    {
+        return currentScene->search(identifier);
     }
 
     GtsRenderableObject* createObject(std::string model_path, std::string texture_path)
@@ -201,31 +221,7 @@ private:
 
     void OnKeyPressedCallback(int key, int scancode, int action, int mods)
     {
-        //std::cout << "We pressed a key!" << std::endl;
-
-        if(action == GLFW_PRESS)
-        {
-            return;
-        }
-
-        //hardcode this to glfw keys for now
-        switch(key)
-        {
-            case GLFW_KEY_LEFT:
-                selectedNode->rotate(glm::vec3(0.0f, 0.0f, 90.0f));
-                break;
-            case GLFW_KEY_RIGHT:
-                selectedNode->rotate(glm::vec3(0.0f, 0.0f, -90.0f));
-                break;
-            case GLFW_KEY_A:
-                selectedNode->translate(glm::vec3(-1.0f, 0.0f, 0.0f));
-                break;
-            case GLFW_KEY_D:
-                selectedNode->translate(glm::vec3(1.0f, 0.0f, 0.0f));
-                break;
-            case GLFW_KEY_P:
-                break;
-        }
+        onKeyPressedEvent.notify(key, scancode, action, mods);
     }
 
     void cleanup() 

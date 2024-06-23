@@ -15,6 +15,33 @@ const std::string I_PIECE_TEXTURE_PATH = "resources/textures/blue_texture.png";
 
 Gravitas engine;
 
+void onKeyPressed(int key, int scancode, int action, int mods)
+{
+    if(action == GLFW_PRESS)
+    {
+        return;
+    }
+
+    //hardcode this to glfw keys for now
+    switch(key)
+    {
+        case GLFW_KEY_LEFT:
+            engine.getSelectedSceneNodePtr()->rotate(glm::vec3(0.0f, 0.0f, 90.0f));
+            break;
+        case GLFW_KEY_RIGHT:
+            engine.getSelectedSceneNodePtr()->rotate(glm::vec3(0.0f, 0.0f, -90.0f));
+            break;
+        case GLFW_KEY_A:
+            engine.getSelectedSceneNodePtr()->translate(glm::vec3(-1.0f, 0.0f, 0.0f));
+            break;
+        case GLFW_KEY_D:
+            engine.getSelectedSceneNodePtr()->translate(glm::vec3(1.0f, 0.0f, 0.0f));
+            break;
+        case GLFW_KEY_P:
+            break;
+    }
+}
+
 void tetrisFrame(std::string texture_path)
 {
     //create a root object at 0/0/0
@@ -51,7 +78,7 @@ void I_tetrisPiece(std::string texture_path, std::string identifier)
     GtsSceneNodeOpt rootnode;
     rootnode.identifier = identifier;
     rootnode.translationVector = glm::vec3(0.0f, 12.0f, 0.0f);
-    //rootnode.rotationVector = left_rotation;
+    rootnode.rotationVector = left_rotation;
     //rootnode.scaleVector = glm::vec3(1.5f, 1.5f, 1.5f);
     //rootnode.scaleVector = glm::vec3(0.0f, 1.1f, 0.0f);
     rootnode.animPtr = new SlowFallAnimation();
@@ -60,7 +87,6 @@ void I_tetrisPiece(std::string texture_path, std::string identifier)
     GtsSceneNodeOpt object;
     object.objectPtr = engine.createObject(MODEL_PATH, texture_path);
     object.translationVector = glm::vec3(0.0f, 0.0f, 0.0f);
-    //object.rotationVector = glm::vec3(90.0f, 40.0f, 30.0f);
     object.parentIdentifier = identifier;
     engine.addNodeToScene(object);
 
@@ -91,7 +117,26 @@ int main()
     tetrisFrame(FRAME_TEXTURE_PATH);
     I_tetrisPiece(I_PIECE_TEXTURE_PATH, "I");
     engine.selectNode("I");
+    std::vector<glm::ivec3> tetrominoGridCoords = engine.getSceneNodePtr("I")->getGridCoordinates();
+    // Check for collisions or update game state based on these coordinates
+    int i = 1;
+    for (const auto& coord : tetrominoGridCoords)
+    {
+        std::cout << "Grid Position of Object " << i << ":" << std::endl;
+        std::cout << "X: " << coord.x << " Y: " << coord.y << " Z: " << coord.z << std::endl;
 
+        // int x = coord.x;
+        // int y = coord.y;
+        // int z = coord.z;
+        
+        // Example collision check
+        // if (y < 0 || y >= rows || x < 0 || x >= cols || game_grid[y][x] == 1)
+        // {
+        //     // Handle collision or out-of-bounds
+        // }
+        i++;
+    }
+    engine.subscribeOnKeyPressedEvent(onKeyPressed);
     engine.run();
 
 

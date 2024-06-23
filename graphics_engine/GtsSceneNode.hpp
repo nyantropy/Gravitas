@@ -148,11 +148,11 @@ class GtsSceneNode
 
             while (currentNode)
             {
-                modelMatrix = currentNode->translationMatrix * modelMatrix;
+                modelMatrix = currentNode->translationMatrix * currentNode->rotationMatrix * currentNode->scaleMatrix * modelMatrix;
                 currentNode = currentNode->parent;
             }
 
-            glm::vec4 worldPosition = modelMatrix * glm::vec4(positionVector, 1.0f);
+            glm::vec4 worldPosition = modelMatrix * glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
             return glm::vec3(worldPosition);
         }
 
