@@ -14,9 +14,7 @@ void tetrisFrame()
 {
     //create a root object at 0/0/0
     GtsSceneNodeOpt obj1;
-    //obj1.objectPtr = engine.createObject(MODEL_PATH, "resources/textures/red_texture.png");
     obj1.identifier = "tetrisframeroot";
-
     engine.addNodeToScene(obj1);
 
     float lowerboundY = 0.0f;
@@ -25,7 +23,7 @@ void tetrisFrame()
     float lowerboundX = 0.0f;
     float upperboundX = 11.0f;
 
-    //start at the bottom left column
+    //build up the frame and append all the objects to the root scene node
     for(float x = lowerboundX; x <= upperboundX; x++)
     {
         for(float y = lowerboundY; y <= upperboundY; y++)
@@ -36,7 +34,6 @@ void tetrisFrame()
                 object.objectPtr = engine.createObject(MODEL_PATH, TEXTURE_PATH);
                 object.translationVector = glm::vec3(x - round((upperboundX/2)), -1.0f + y, 0.0f);
                 object.parentIdentifier = "tetrisframeroot";
-
                 engine.addNodeToScene(object);
             }
         }
