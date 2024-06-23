@@ -45,11 +45,11 @@ void tetrisFrame(std::string texture_path)
     }
 }
 
-void I_tetrisPiece(std::string texture_path)
+void I_tetrisPiece(std::string texture_path, std::string identifier)
 {
      //for pieces we need to move the root towards the upper end of the frame
     GtsSceneNodeOpt rootnode;
-    rootnode.identifier = "tetrispieceroot";
+    rootnode.identifier = identifier;
     rootnode.translationVector = glm::vec3(0.0f, 12.0f, 0.0f);
     //rootnode.rotationVector = left_rotation;
     //rootnode.scaleVector = glm::vec3(1.5f, 1.5f, 1.5f);
@@ -61,25 +61,25 @@ void I_tetrisPiece(std::string texture_path)
     object.objectPtr = engine.createObject(MODEL_PATH, texture_path);
     object.translationVector = glm::vec3(0.0f, 0.0f, 0.0f);
     //object.rotationVector = glm::vec3(90.0f, 40.0f, 30.0f);
-    object.parentIdentifier = "tetrispieceroot";
+    object.parentIdentifier = identifier;
     engine.addNodeToScene(object);
 
     GtsSceneNodeOpt object1;
     object1.objectPtr = engine.createObject(MODEL_PATH, texture_path);
     object1.translationVector = glm::vec3(0.0f, 1.0f, 0.0f);
-    object1.parentIdentifier = "tetrispieceroot";
+    object1.parentIdentifier = identifier;
     engine.addNodeToScene(object1);
 
     GtsSceneNodeOpt object2;
     object2.objectPtr = engine.createObject(MODEL_PATH, texture_path);
     object2.translationVector = glm::vec3(0.0f, 2.0f, 0.0f);
-    object2.parentIdentifier = "tetrispieceroot";
+    object2.parentIdentifier = identifier;
     engine.addNodeToScene(object2);
 
     GtsSceneNodeOpt object3;
     object3.objectPtr = engine.createObject(MODEL_PATH, texture_path);
     object3.translationVector = glm::vec3(0.0f, -1.0f, 0.0f);
-    object3.parentIdentifier = "tetrispieceroot";
+    object3.parentIdentifier = identifier;
     engine.addNodeToScene(object3);
 }
 
@@ -89,7 +89,9 @@ int main()
     engine.init(600, 800, "Tetris", true);
     engine.createEmptyScene();
     tetrisFrame(FRAME_TEXTURE_PATH);
-    I_tetrisPiece(I_PIECE_TEXTURE_PATH);
+    I_tetrisPiece(I_PIECE_TEXTURE_PATH, "I");
+    engine.selectNode("I");
+
     engine.run();
 
 

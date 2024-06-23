@@ -152,7 +152,8 @@ class GtsSceneNode
                 animationMatrix = animation->getModelMatrix(deltaTime);
             }
 
-            glm::mat4 finalMatrix = modelMatrix * animationMatrix;
+            //animation needs to go from the left, not the right :)
+            glm::mat4 finalMatrix = animationMatrix * modelMatrix;
             
             if (renderableObject) 
             {

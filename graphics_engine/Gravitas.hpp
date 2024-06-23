@@ -85,7 +85,22 @@ public:
     VulkanPipeline* vpipeline;
     GTSFramebufferManager* vframebuffer;
     GtsCamera* vcamera;
+
     GtsScene* currentScene;
+    GtsSceneNode* selectedNode;
+
+    //select a node in the engine based on its identifier
+    bool selectNode(std::string identifier)
+    {
+        selectedNode = currentScene->search(identifier);
+
+        if(selectedNode == nullptr)
+        {
+            return false;
+        }
+
+        return true;
+    }
 
     GtsRenderableObject* createObject(std::string model_path, std::string texture_path)
     {
@@ -188,24 +203,28 @@ private:
     {
         //std::cout << "We pressed a key!" << std::endl;
 
+        if(action == GLFW_PRESS)
+        {
+            return;
+        }
+
         //hardcode this to glfw keys for now
         switch(key)
         {
             case GLFW_KEY_LEFT:
-                std::cout << "rotate left" << std::endl;
+                selectedNode->rotate(glm::vec3(0.0f, 0.0f, 90.0f));
                 break;
             case GLFW_KEY_RIGHT:
-                std::cout << "rotate right" << std::endl;
+                selectedNode->rotate(glm::vec3(0.0f, 0.0f, -90.0f));
                 break;
             case GLFW_KEY_A:
-                std::cout << "move left" << std::endl;
+                selectedNode->translate(glm::vec3(-1.0f, 0.0f, 0.0f));
                 break;
             case GLFW_KEY_D:
-                std::cout << "move right" << std::endl;
+                selectedNode->translate(glm::vec3(1.0f, 0.0f, 0.0f));
                 break;
             case GLFW_KEY_P:
                 break;
-
         }
     }
 
