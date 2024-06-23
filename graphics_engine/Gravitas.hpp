@@ -99,6 +99,7 @@ public:
         vwindow = new GTSGLFWOutputWindow();
         vwindow->init(width, height, title, enableValidationLayers);
         vwindow->setOnWindowResizeCallback(std::bind(&Gravitas::OnFrameBufferResizeCallback, this, std::placeholders::_1, std::placeholders::_2));
+        vwindow->setOnKeyPressedCallback(std::bind(&Gravitas::OnKeyPressedCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
         vinstance = new VulkanInstance(enableValidationLayers, vwindow);
         vsurface = new GLFWWindowSurface(vwindow, vinstance);
         vphysicaldevice = new VulkanPhysicalDevice(vinstance, vsurface);
@@ -123,15 +124,6 @@ public:
     void addNodeToScene(GtsSceneNodeOpt options)
     {
         GtsSceneNode* node = new GtsSceneNode(options.objectPtr, options.animPtr, options.identifier);
-
-        if(options.identifier == "tetrispieceroot")
-        {
-            std::cout << "init tetrispieceroot" << std::endl;
-            if(options.animPtr == nullptr)
-            {
-                std::cout << "nullptr" << std::endl;
-            }
-        }
 
         if(options.translationVector != glm::vec3(0.0f, 0.0f, 0.0f))
         {
@@ -158,26 +150,6 @@ public:
         }
 
         //std::cout << "Current Root Nodes: " <<  currentScene->countRootNodes() << std::endl;
-    }
-
-    //add an object as its independent node to the scene, animation can be a nullptr
-    void addNodeToScene(GtsRenderableObject* object, GtsAnimation* anim)
-    {
-        currentScene->addNode(new GtsSceneNode(object, anim));
-    }
-
-    //another version of the same method, but you can give it an identifier now 
-    void addNodeToScene(GtsRenderableObject* object, GtsAnimation* anim, std::string identifier)
-    {
-        currentScene->addNode(new GtsSceneNode(object, anim, identifier));
-    }
-
-    //add an object as its independent node to the scene, animation can be a nullptr, translation will move the object to the specified location
-    void addNodeToScene(GtsRenderableObject* object, GtsAnimation* anim, glm::vec3 translation)
-    {
-        GtsSceneNode* sceneNode = new GtsSceneNode(object, anim);
-        sceneNode->translate(translation);
-        currentScene->addNode(sceneNode);
     }
 
     void run() 
@@ -210,6 +182,31 @@ private:
     void OnFrameBufferResizeCallback(int width, int height) 
     {
         framebufferResized = true;
+    }
+
+    void OnKeyPressedCallback(int key, int scancode, int action, int mods)
+    {
+        //std::cout << "We pressed a key!" << std::endl;
+
+        //hardcode this to glfw keys for now
+        switch(key)
+        {
+            case GLFW_KEY_LEFT:
+                std::cout << "rotate left" << std::endl;
+                break;
+            case GLFW_KEY_RIGHT:
+                std::cout << "rotate right" << std::endl;
+                break;
+            case GLFW_KEY_A:
+                std::cout << "move left" << std::endl;
+                break;
+            case GLFW_KEY_D:
+                std::cout << "move right" << std::endl;
+                break;
+            case GLFW_KEY_P:
+                break;
+
+        }
     }
 
     void cleanup() 

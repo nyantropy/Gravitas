@@ -13,6 +13,7 @@ class GTSGLFWOutputWindow : public GTSOutputWindow
 
         void init(int width, int height, const std::string& title, bool enableValidationLayers) override;
         void setOnWindowResizeCallback(const std::function<void(int, int)>& callback) override;
+        void setOnKeyPressedCallback(const std::function<void(int, int, int, int)>& callback) override;
         bool shouldClose() const override;
         void pollEvents() override;
         void getSize(int& width, int& height) const override;
@@ -29,6 +30,15 @@ class GTSGLFWOutputWindow : public GTSOutputWindow
             if (app->resizeCallback) 
             {
                 app->resizeCallback(width, height);
+            }
+        }
+
+        static void onKeyPressedCallbackStatic(GLFWwindow* window, int key, int scancode, int action, int mods)
+        {
+            auto app = reinterpret_cast<GTSGLFWOutputWindow*>(glfwGetWindowUserPointer(window));
+            if(app->onKeyPressedCallback)
+            {
+                app->onKeyPressedCallback(key, scancode, action, mods);
             }
         }
 

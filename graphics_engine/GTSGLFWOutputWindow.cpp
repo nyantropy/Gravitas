@@ -21,6 +21,7 @@ void GTSGLFWOutputWindow::init(int width, int height, const std::string& title, 
     window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
     glfwSetWindowUserPointer(window, this);
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallbackStatic);
+    glfwSetKeyCallback(window, onKeyPressedCallbackStatic);
 
     this->enableValidationLayers = enableValidationLayers;
 }
@@ -28,6 +29,11 @@ void GTSGLFWOutputWindow::init(int width, int height, const std::string& title, 
 void GTSGLFWOutputWindow::setOnWindowResizeCallback(const std::function<void(int, int)>& callback) 
 {
     resizeCallback = callback;
+}
+
+void GTSGLFWOutputWindow::setOnKeyPressedCallback(const std::function<void(int, int, int, int)>& callback)
+{
+    onKeyPressedCallback = callback;
 }
 
 bool GTSGLFWOutputWindow::shouldClose() const 
