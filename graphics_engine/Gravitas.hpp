@@ -551,6 +551,40 @@ private:
         }
     }
 
+    void getCurrentFrame(uint32_t imageIndex, uint8_t* bufferData)
+    {
+        //after submitting command buffer, we can pry an image from the swapchain, with a lot of effort that is
+        VkImage srcImage = vswapchain->getSwapChainImages()[imageIndex];
+        vrenderer->transitionImageLayout(vlogicaldevice, srcImage, vswapchain->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        VkDeviceSize imageSize = vswapchain->getSwapChainExtent().width * vswapchain->getSwapChainExtent().height * 4;
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+        GtsBufferService::createBuffer(vlogicaldevice, vphysicaldevice, imageSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+        GtsBufferService::copyImageToBuffer(vlogicaldevice, srcImage, stagingBuffer, vswapchain->getSwapChainExtent().width, vswapchain->getSwapChainExtent().height);
+        void* data;
+        vkMapMemory(vlogicaldevice->getDevice(), stagingBufferMemory, 0, imageSize, 0, &data);
+        memcpy(bufferData, data, (size_t)imageSize);
+
+        //taken from the VVE codebase - i was wondering why the picture looked weird, well i guess the format was not super correct        
+        for (uint32_t i = 0; i < vswapchain->getSwapChainExtent().width * vswapchain->getSwapChainExtent().height; i++)
+		{
+			/*gli::byte*/ unsigned char r = bufferData[4 * i + 0];
+			/*gli::byte*/ unsigned char g = bufferData[4 * i + 1];
+			/*gli::byte*/ unsigned char b = bufferData[4 * i + 2];
+			/*gli::byte*/ unsigned char a = bufferData[4 * i + 3];
+
+			bufferData[4 * i + 0] = b;
+			bufferData[4 * i + 1] = g;
+			bufferData[4 * i + 2] = r;
+			bufferData[4 * i + 3] = a;
+		}
+
+        vrenderer->transitionImageLayout(vlogicaldevice, srcImage, vswapchain->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        vkUnmapMemory(vlogicaldevice->getDevice(), stagingBufferMemory);
+        vkDestroyBuffer(vlogicaldevice->getDevice(), stagingBuffer, nullptr);
+        vkFreeMemory(vlogicaldevice->getDevice(), stagingBufferMemory, nullptr);
+    }
+
     void drawFrame() 
     {
         //correct delta time calculations this time around
@@ -564,10 +598,12 @@ private:
         uint32_t imageIndex;
         VkResult result = vkAcquireNextImageKHR(vlogicaldevice->getDevice(), vswapchain->getSwapChain(), UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
-        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        if (result == VK_ERROR_OUT_OF_DATE_KHR) 
+        {
             recreateSwapChain();
             return;
-        } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) 
+        {
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
@@ -598,44 +634,10 @@ private:
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 
-        //after submitting command buffer, we can pry an image from the swapchain
-        VkImage srcImage = vswapchain->getSwapChainImages()[imageIndex];
-        vrenderer->transitionImageLayout(vlogicaldevice, srcImage, vswapchain->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        VkDeviceSize imageSize = vswapchain->getSwapChainExtent().width * vswapchain->getSwapChainExtent().height * 4;
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
-        GtsBufferService::createBuffer(vlogicaldevice, vphysicaldevice, imageSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-        GtsBufferService::copyImageToBuffer(vlogicaldevice, srcImage, stagingBuffer, vswapchain->getSwapChainExtent().width, vswapchain->getSwapChainExtent().height);
-        void* data;
-        vkMapMemory(vlogicaldevice->getDevice(), stagingBufferMemory, 0, imageSize, 0, &data);
-        uint8_t* bufferData = new uint8_t[imageSize];
-        memcpy(bufferData, data, (size_t)imageSize);
-
-        for (uint32_t i = 0; i < vswapchain->getSwapChainExtent().width * vswapchain->getSwapChainExtent().height; i++)
-		{
-			/*gli::byte*/ unsigned char r = bufferData[4 * i + 0];
-			/*gli::byte*/ unsigned char g = bufferData[4 * i + 1];
-			/*gli::byte*/ unsigned char b = bufferData[4 * i + 2];
-			/*gli::byte*/ unsigned char a = bufferData[4 * i + 3];
-
-			bufferData[4 * i + 0] = b;
-			bufferData[4 * i + 1] = g;
-			bufferData[4 * i + 2] = r;
-			bufferData[4 * i + 3] = a;
-		}
-
-        encodeAndWriteFrame(bufferData, vswapchain->getSwapChainExtent().width, vswapchain->getSwapChainExtent().height);
-
-
-
-
-
-
-        vrenderer->transitionImageLayout(vlogicaldevice, srcImage, vswapchain->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-        // //cleanup
-        vkUnmapMemory(vlogicaldevice->getDevice(), stagingBufferMemory);
-        vkDestroyBuffer(vlogicaldevice->getDevice(), stagingBuffer, nullptr);
-        vkFreeMemory(vlogicaldevice->getDevice(), stagingBufferMemory, nullptr);
+        // uint8_t* bufferData = new uint8_t[vswapchain->getSwapChainExtent().width * vswapchain->getSwapChainExtent().height * 4];
+        // getCurrentFrame(imageIndex, bufferData);
+        // encodeAndWriteFrame(bufferData, vswapchain->getSwapChainExtent().width, vswapchain->getSwapChainExtent().height);
+        // delete bufferData;
 
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
