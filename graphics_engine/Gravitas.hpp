@@ -10,6 +10,19 @@
 #include <gtc/matrix_transform.hpp>
 #include <gtx/hash.hpp>
 
+// extern "C" {
+//     #ifdef HAVE_AV_CONFIG_H
+//     #undef HAVE_AV_CONFIG_H
+//     #endif
+
+//     #include <libavutil/imgutils.h>
+//     #include <libavcodec/avcodec.h>
+//     #include <libswscale/swscale.h>
+//     #include <libavformat/avformat.h>
+//     #include <libavutil/opt.h>
+//     #include <libavutil/timestamp.h>
+// }
+
 #include <iostream>
 #include <fstream>
 #include <stdexcept>
@@ -203,6 +216,63 @@ public:
 
         cleanup();
     }
+
+    // const char* path = "../../media/video/output.mpg";
+    // AVCodecContext *codecContext = nullptr;
+    // AVFormatContext *formatContext = nullptr;
+
+    // const float FPS = 60.0;
+    // double frameInterval = 1.0 / FPS;
+    // double lastFrameTime = 0.0;
+    // int frameCounter = 0;
+
+    // void encoder()
+    // {
+    //     //we are gonna be using h264 for this program
+    //     const AVCodec *codec = avcodec_find_encoder(AV_CODEC_ID_H264);
+
+    //     //initialize context variable
+    //     this->codecContext = avcodec_alloc_context3(codec);
+
+    //     //parameters depend on how big our frames are, in this case we got the values by simply looking at the dimensions the screenshots have
+    //     codecContext->width = 800;
+    //     codecContext->height = 600;
+    //     codecContext->bit_rate = 4000000;
+    //     codecContext->time_base = {1, (int)FPS};
+    //     codecContext->framerate = {(int)FPS, 1};
+    //     codecContext->pix_fmt = AV_PIX_FMT_YUV420P;
+    //     codecContext->codec_type = AVMEDIA_TYPE_VIDEO;
+
+    //     //open the codec
+    //     if (avcodec_open2(codecContext, codec, NULL) < 0) {
+    //         std::cerr << "Failed to open codec\n";
+    //     }
+
+    //     //setup the second variable we need, format context
+    //     if (avformat_alloc_output_context2(&formatContext, NULL, NULL, path) < 0) {
+    //         std::cerr << "Failed to allocate output format context\n";
+    //     }
+
+    //     //we want a video stream in that output file
+    //     AVStream *videoStream = avformat_new_stream(formatContext, codec);
+    //     if (!videoStream) {
+    //         std::cerr << "Failed to create new stream\n";
+    //     }
+
+    //     avcodec_parameters_from_context(videoStream->codecpar, codecContext);
+
+    //     //open output file
+    //     if (!(formatContext->oformat->flags & AVFMT_NOFILE)) {
+    //         if (avio_open(&formatContext->pb, path, AVIO_FLAG_WRITE) < 0) {
+    //             std::cerr << "Failed to open output file\n";
+    //         }
+    //     }
+
+    //     //write file header
+    //     if (avformat_write_header(formatContext, NULL) < 0) {
+    //         std::cerr << "Failed to write file header\n";
+    //     }
+    // }
 
 private:
     std::vector<VkCommandBuffer> commandBuffers;
@@ -413,6 +483,22 @@ private:
 
         //after submitting command buffer, we can pry an image from the swapchain
         VkImage srcImage = vswapchain->getSwapChainImages()[imageIndex];
+        vrenderer->transitionImageLayout(vlogicaldevice, srcImage, vswapchain->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        VkDeviceSize imageSize = vswapchain->getSwapChainExtent().width * vswapchain->getSwapChainExtent().height * 4;
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+        GtsBufferService::createBuffer(vlogicaldevice, vphysicaldevice, imageSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+        GtsBufferService::copyImageToBuffer(vlogicaldevice, srcImage, stagingBuffer, vswapchain->getSwapChainExtent().width, vswapchain->getSwapChainExtent().height);
+        void* data;
+        vkMapMemory(vlogicaldevice->getDevice(), stagingBufferMemory, 0, imageSize, 0, &data);
+        uint8_t* imageData = static_cast<uint8_t*>(data);
+        vrenderer->transitionImageLayout(vlogicaldevice, srcImage, vswapchain->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+
+        // //cleanup
+        vkUnmapMemory(vlogicaldevice->getDevice(), stagingBufferMemory);
+        vkDestroyBuffer(vlogicaldevice->getDevice(), stagingBuffer, nullptr);
+        vkFreeMemory(vlogicaldevice->getDevice(), stagingBufferMemory, nullptr);
 
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;

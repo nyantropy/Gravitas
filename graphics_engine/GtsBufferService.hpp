@@ -25,4 +25,5 @@ class GtsBufferService
         static VkCommandBuffer beginSingleTimeCommands(VulkanLogicalDevice* vlogicaldevice);
         static void endSingleTimeCommands(VulkanLogicalDevice* vlogicaldevice, VkCommandBuffer commandBuffer);
         static void copyBufferToImage(VulkanLogicalDevice* vlogicaldevice, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+        static void copyImageToBuffer(VulkanLogicalDevice* vlogicaldevice, VkImage image, VkBuffer buffer, uint32_t width, uint32_t height);
 };
