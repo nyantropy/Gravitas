@@ -7,6 +7,7 @@
 
 #include "VulkanPhysicalDevice.hpp"
 #include "VulkanSwapChain.hpp"
+#include "GtsBufferService.hpp"
 
 class VulkanSwapChain;
 
@@ -24,6 +25,8 @@ class VulkanRenderer
         VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
         void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
                         VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+        
+        static void transitionImageLayout(VulkanLogicalDevice* vlogicaldevice, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 
     private:
         VkImage depthImage;

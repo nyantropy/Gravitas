@@ -36,7 +36,4 @@ class VulkanTexture
         void createTextureImageView();
         void createTextureImage();
         void createTextureSampler();
-        void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
-
-
 };

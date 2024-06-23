@@ -411,6 +411,9 @@ private:
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 
+        //after submitting command buffer, we can pry an image from the swapchain
+        VkImage srcImage = vswapchain->getSwapChainImages()[imageIndex];
+
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
