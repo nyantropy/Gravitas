@@ -32,6 +32,26 @@ public:
         nodes.push_back(node);
     }
 
+    void addNodeToParent(GtsSceneNode* node, std::string parentIdentifier)
+    {
+        search(parentIdentifier)->addChild(node);
+    }
+
+    GtsSceneNode* search(std::string identifier)
+    {
+        for (auto node : nodes)
+        {
+            auto res = node->search(identifier);
+
+            if(res != nullptr)
+            {
+                return res;
+            }
+        }
+
+        return nullptr;
+    }
+
     void update(GtsCamera& camera, int framesInFlight, float deltaTime) 
     {
         for (auto node : nodes) 
@@ -51,5 +71,10 @@ public:
     bool empty()
     {
         return nodes.empty();
+    }
+
+    int countRootNodes()
+    {
+        return nodes.size();
     }
 };

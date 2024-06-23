@@ -46,6 +46,7 @@
 #include "GtsRenderableObject.hpp"
 #include "GtsSceneNode.hpp"
 #include "GtsScene.hpp"
+#include "GtsSceneNodeOpt.h"
 
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
@@ -119,9 +120,55 @@ public:
         currentScene = new GtsScene();
     }
 
+    void addNodeToScene(GtsSceneNodeOpt options)
+    {
+        GtsSceneNode* node = new GtsSceneNode(options.objectPtr, options.animPtr, options.identifier);
+
+        if(options.translationVector != glm::vec3(0.0f, 0.0f, 0.0f))
+        {
+            node->translate(options.translationVector);
+        }
+
+        if(options.rotationVector != glm::vec3(0.0f, 0.0f, 0.0f))
+        {
+            node->rotate(options.translationVector);
+        }
+
+        if(options.scaleVector != glm::vec3(0.0f, 0.0f, 0.0f))
+        {
+            node->scale(options.translationVector);
+        }
+
+        if(options.parentIdentifier.empty())
+        {
+            currentScene->addNode(node);
+        }
+        else
+        {
+            currentScene->addNodeToParent(node, options.parentIdentifier);
+        }
+
+        std::cout << "Current Root Nodes: " <<  currentScene->countRootNodes() << std::endl;
+    }
+
+    //add an object as its independent node to the scene, animation can be a nullptr
     void addNodeToScene(GtsRenderableObject* object, GtsAnimation* anim)
     {
         currentScene->addNode(new GtsSceneNode(object, anim));
+    }
+
+    //another version of the same method, but you can give it an identifier now 
+    void addNodeToScene(GtsRenderableObject* object, GtsAnimation* anim, std::string identifier)
+    {
+        currentScene->addNode(new GtsSceneNode(object, anim, identifier));
+    }
+
+    //add an object as its independent node to the scene, animation can be a nullptr, translation will move the object to the specified location
+    void addNodeToScene(GtsRenderableObject* object, GtsAnimation* anim, glm::vec3 translation)
+    {
+        GtsSceneNode* sceneNode = new GtsSceneNode(object, anim);
+        sceneNode->translate(translation);
+        currentScene->addNode(sceneNode);
     }
 
     void run() 
