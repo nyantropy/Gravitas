@@ -10,18 +10,18 @@
 #include <gtc/matrix_transform.hpp>
 #include <gtx/hash.hpp>
 
-// extern "C" {
-//     #ifdef HAVE_AV_CONFIG_H
-//     #undef HAVE_AV_CONFIG_H
-//     #endif
+extern "C" {
+    #ifdef HAVE_AV_CONFIG_H
+    #undef HAVE_AV_CONFIG_H
+    #endif
 
-//     #include <libavutil/imgutils.h>
-//     #include <libavcodec/avcodec.h>
-//     #include <libswscale/swscale.h>
-//     #include <libavformat/avformat.h>
-//     #include <libavutil/opt.h>
-//     #include <libavutil/timestamp.h>
-// }
+    #include <libavutil/imgutils.h>
+    #include <libavcodec/avcodec.h>
+    #include <libswscale/swscale.h>
+    #include <libavformat/avformat.h>
+    #include <libavutil/opt.h>
+    #include <libavutil/timestamp.h>
+}
 
 #include <iostream>
 #include <fstream>
@@ -83,6 +83,39 @@ const bool enableValidationLayers = true;
 //         func(instance, debugMessenger, pAllocator);
 //     }
 // }
+
+struct FrameConverter 
+{
+    uint8_t* dst_data[4];
+    int dst_linesize[4];
+
+    FrameConverter(uint8_t* dataImage, int width, int height) 
+	{
+		//ffmpeg is weird, since it does not use all the array entries
+		//we multiply by 4 since we assume the image is RGBA, meaning we store 4 bytes per pixel
+        uint8_t* src_data[4] = { dataImage, nullptr, nullptr, nullptr };
+		//that essentially means that linesize refers to the number of bytes occupied by each row of image data
+        int src_linesize[4] = { width * 4, 0, 0, 0 };
+
+		//the buffers still need to be allocated for all of this to work though, and it does need height as a parameter as well
+        av_image_alloc(dst_data, dst_linesize, width, height, AV_PIX_FMT_YUV420P, 1);
+
+		//now we just use sws to convert the image from RGBA image space to YUV420P image space and we are good to go :)
+        struct SwsContext* sws_ctx = sws_getContext(width, height, AV_PIX_FMT_RGBA,
+                                                     width, height, AV_PIX_FMT_YUV420P,
+                                                     0, nullptr, nullptr, nullptr);
+
+        sws_scale(sws_ctx, src_data, src_linesize, 0, height, dst_data, dst_linesize);
+
+        sws_freeContext(sws_ctx);
+    }
+
+    ~FrameConverter() 
+	{
+		//no sigsegv today, always free up memory, in this case we only need to free the first entry of the array, since the other entries are all nullptr
+        av_freep(&dst_data[0]);
+    }
+};
 
 class Gravitas 
 {
@@ -162,6 +195,7 @@ public:
         vcamera = new GtsCamera(vswapchain->getSwapChainExtent());
         createCommandBuffers();
         createSyncObjects();
+        encoder();
     }
 
     void createEmptyScene()
@@ -217,62 +251,128 @@ public:
         cleanup();
     }
 
-    // const char* path = "../../media/video/output.mpg";
-    // AVCodecContext *codecContext = nullptr;
-    // AVFormatContext *formatContext = nullptr;
+    const char* path = "output.mpg";
+    AVCodecContext *codecContext = nullptr;
+    AVFormatContext *formatContext = nullptr;
 
-    // const float FPS = 60.0;
-    // double frameInterval = 1.0 / FPS;
-    // double lastFrameTime = 0.0;
-    // int frameCounter = 0;
+    float FPS = 60.0f;
+    double frameInterval = 1.0 / FPS;
+    double lastFrameTime = 0.0;
+    int frameCounter = 0;
 
-    // void encoder()
-    // {
-    //     //we are gonna be using h264 for this program
-    //     const AVCodec *codec = avcodec_find_encoder(AV_CODEC_ID_H264);
+    void encoder()
+    {
+        //we are gonna be using h264 for this program
+        const AVCodec *codec = avcodec_find_encoder(AV_CODEC_ID_H264);
 
-    //     //initialize context variable
-    //     this->codecContext = avcodec_alloc_context3(codec);
+        //initialize context variable
+        this->codecContext = avcodec_alloc_context3(codec);
 
-    //     //parameters depend on how big our frames are, in this case we got the values by simply looking at the dimensions the screenshots have
-    //     codecContext->width = 800;
-    //     codecContext->height = 600;
-    //     codecContext->bit_rate = 4000000;
-    //     codecContext->time_base = {1, (int)FPS};
-    //     codecContext->framerate = {(int)FPS, 1};
-    //     codecContext->pix_fmt = AV_PIX_FMT_YUV420P;
-    //     codecContext->codec_type = AVMEDIA_TYPE_VIDEO;
+        //parameters depend on how big our frames are, in this case we got the values by simply looking at the dimensions the screenshots have
+        codecContext->width = 600;
+        codecContext->height = 800;
+        codecContext->bit_rate = 4000000;
+        codecContext->time_base = {1, (int)FPS};
+        codecContext->framerate = {(int)FPS, 1};
+        codecContext->pix_fmt = AV_PIX_FMT_YUV420P;
+        codecContext->codec_type = AVMEDIA_TYPE_VIDEO;
 
-    //     //open the codec
-    //     if (avcodec_open2(codecContext, codec, NULL) < 0) {
-    //         std::cerr << "Failed to open codec\n";
-    //     }
+        //open the codec
+        if (avcodec_open2(codecContext, codec, NULL) < 0) {
+            std::cerr << "Failed to open codec\n";
+        }
 
-    //     //setup the second variable we need, format context
-    //     if (avformat_alloc_output_context2(&formatContext, NULL, NULL, path) < 0) {
-    //         std::cerr << "Failed to allocate output format context\n";
-    //     }
+        //setup the second variable we need, format context
+        if (avformat_alloc_output_context2(&formatContext, NULL, NULL, path) < 0) {
+            std::cerr << "Failed to allocate output format context\n";
+        }
 
-    //     //we want a video stream in that output file
-    //     AVStream *videoStream = avformat_new_stream(formatContext, codec);
-    //     if (!videoStream) {
-    //         std::cerr << "Failed to create new stream\n";
-    //     }
+        //we want a video stream in that output file
+        AVStream *videoStream = avformat_new_stream(formatContext, codec);
+        if (!videoStream) {
+            std::cerr << "Failed to create new stream\n";
+        }
 
-    //     avcodec_parameters_from_context(videoStream->codecpar, codecContext);
+        avcodec_parameters_from_context(videoStream->codecpar, codecContext);
 
-    //     //open output file
-    //     if (!(formatContext->oformat->flags & AVFMT_NOFILE)) {
-    //         if (avio_open(&formatContext->pb, path, AVIO_FLAG_WRITE) < 0) {
-    //             std::cerr << "Failed to open output file\n";
-    //         }
-    //     }
+        //open output file
+        if (!(formatContext->oformat->flags & AVFMT_NOFILE)) {
+            if (avio_open(&formatContext->pb, path, AVIO_FLAG_WRITE) < 0) {
+                std::cerr << "Failed to open output file\n";
+            }
+        }
 
-    //     //write file header
-    //     if (avformat_write_header(formatContext, NULL) < 0) {
-    //         std::cerr << "Failed to write file header\n";
-    //     }
-    // }
+        //write file header
+        if (avformat_write_header(formatContext, NULL) < 0) {
+            std::cerr << "Failed to write file header\n";
+        }
+    }
+
+    void encodeAndWriteFrame(uint8_t *dataImage, uint32_t width, uint32_t height)
+    {
+        //Step 1: Convert RGBA frame data to YUV420p format
+        //this is the image that can be encoded, since we match the format of the video stream
+        FrameConverter image = FrameConverter(dataImage, width, height);
+
+        //Step 2: Allocate AVFrame and fill it with the converted data
+        //messing with this can cause huge memory problems, caution is advised
+        AVFrame *frame = av_frame_alloc();
+        if (!frame) 
+        {
+            std::cerr << "Failed to allocate AVFrame\n";
+            return;
+        }
+
+        frame->format = AV_PIX_FMT_YUV420P;
+        frame->width = width;
+        frame->height = height;
+        av_frame_get_buffer(frame, 0);
+        //this is the holy line, it is needed for timestamps to work correctly with the codec we chose
+        frame->pts = frameCounter;
+        //frame->pkt_dts = frameCounter;
+
+        av_image_copy(frame->data, frame->linesize, image.dst_data, image.dst_linesize, AV_PIX_FMT_YUV420P, width, height);
+
+        //Step 3: Encode the frame
+        //before we append the frame to the video file, we need to encode it
+        AVPacket pkt;
+        av_init_packet(&pkt);
+        pkt.data = nullptr;
+        pkt.size = 0;
+
+        int ret = avcodec_send_frame(codecContext, frame);
+        if (ret < 0) 
+        {
+            std::cerr << "Error sending frame for encoding\n";
+            av_frame_free(&frame);
+            return;
+        }
+
+        while (ret >= 0) 
+        {
+            ret = avcodec_receive_packet(codecContext, &pkt);
+            if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+            {
+                break;
+            }		
+            else if (ret < 0) 
+            {
+                std::cerr << "Error during encoding\n";
+                av_frame_free(&frame);
+                return;
+            }
+
+            //Step 4: Write the encoded frame to the output file
+            //finally, we can write the encoded frame to the video file
+            av_packet_rescale_ts(&pkt, codecContext->time_base, formatContext->streams[0]->time_base);
+            pkt.stream_index = formatContext->streams[0]->index;
+            av_interleaved_write_frame(formatContext, &pkt);
+            av_packet_unref(&pkt);
+        }
+
+        //we need to free the frame at the end so we wont run into memory issues
+        av_frame_free(&frame);
+    }
 
 private:
     std::vector<VkCommandBuffer> commandBuffers;
@@ -296,6 +396,23 @@ private:
 
     void cleanup() 
     {
+        if (codecContext) 
+        {
+            avcodec_free_context(&codecContext);
+        }
+
+        //and dont forget about the format context either
+        if (formatContext) 
+        {
+            av_write_trailer(formatContext);
+
+            if (formatContext->pb) 
+            {
+                avio_close(formatContext->pb);
+            }
+
+            avformat_free_context(formatContext);
+        }
         delete currentScene;
         delete vcamera;
         delete vframebuffer;
@@ -491,10 +608,30 @@ private:
         GtsBufferService::copyImageToBuffer(vlogicaldevice, srcImage, stagingBuffer, vswapchain->getSwapChainExtent().width, vswapchain->getSwapChainExtent().height);
         void* data;
         vkMapMemory(vlogicaldevice->getDevice(), stagingBufferMemory, 0, imageSize, 0, &data);
-        uint8_t* imageData = static_cast<uint8_t*>(data);
+        uint8_t* bufferData = new uint8_t[imageSize];
+        memcpy(bufferData, data, (size_t)imageSize);
+
+        for (uint32_t i = 0; i < vswapchain->getSwapChainExtent().width * vswapchain->getSwapChainExtent().height; i++)
+		{
+			/*gli::byte*/ unsigned char r = bufferData[4 * i + 0];
+			/*gli::byte*/ unsigned char g = bufferData[4 * i + 1];
+			/*gli::byte*/ unsigned char b = bufferData[4 * i + 2];
+			/*gli::byte*/ unsigned char a = bufferData[4 * i + 3];
+
+			bufferData[4 * i + 0] = b;
+			bufferData[4 * i + 1] = g;
+			bufferData[4 * i + 2] = r;
+			bufferData[4 * i + 3] = a;
+		}
+
+        encodeAndWriteFrame(bufferData, vswapchain->getSwapChainExtent().width, vswapchain->getSwapChainExtent().height);
+
+
+
+
+
+
         vrenderer->transitionImageLayout(vlogicaldevice, srcImage, vswapchain->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-
-
         // //cleanup
         vkUnmapMemory(vlogicaldevice->getDevice(), stagingBufferMemory);
         vkDestroyBuffer(vlogicaldevice->getDevice(), stagingBuffer, nullptr);

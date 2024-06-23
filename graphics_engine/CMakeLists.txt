@@ -8,6 +8,17 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 # Find Vulkan on the system
 find_package(Vulkan REQUIRED)
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
+    libavdevice
+    libavfilter
+    libavformat
+    libavcodec
+    libswresample
+    libswscale
+    libavutil
+)
+
 # GLFW will be compiled as a separate project
 include(ExternalProject)
 ExternalProject_Add(GLFW
@@ -48,6 +59,7 @@ target_include_directories(Gravitas PUBLIC
 target_link_libraries(Gravitas 
     Vulkan::Vulkan
     instance
+    PkgConfig::LIBAV
     $<$<PLATFORM_ID:Windows>:${GLFW_LIB_DIR}/glfw3.lib> # Windows
     $<$<NOT:$<PLATFORM_ID:Windows>>:${GLFW_LIB_DIR}/libglfw3.a> # Linux
 )
