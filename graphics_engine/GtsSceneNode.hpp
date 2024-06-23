@@ -140,6 +140,46 @@ class GtsSceneNode
             children.push_back(child);
         }
 
+        //get the current world position
+        glm::vec3 getWorldPosition()
+        {
+            glm::mat4 modelMatrix = glm::mat4(1.0f);
+            GtsSceneNode* currentNode = this;
+
+            while (currentNode)
+            {
+                modelMatrix = currentNode->translationMatrix * modelMatrix;
+                currentNode = currentNode->parent;
+            }
+
+            glm::vec4 worldPosition = modelMatrix * glm::vec4(positionVector, 1.0f);
+            return glm::vec3(worldPosition);
+        }
+
+        // Utility function to convert world position to grid coordinates
+        glm::ivec3 worldPositionToGrid(const glm::vec3& worldPos, float gridCellSize)
+        {
+            int gridX = static_cast<int>(worldPos.x / gridCellSize);
+            int gridY = static_cast<int>(worldPos.y / gridCellSize);
+            int gridZ = static_cast<int>(worldPos.z / gridCellSize);
+            return glm::ivec3(gridX, gridY, gridZ);
+        }
+
+        // Function to get grid coordinates of all children (cubes)
+        std::vector<glm::ivec3> getGridCoordinates()
+        {
+            std::vector<glm::ivec3> gridCoordinates;
+
+            for (auto child : children)
+            {
+                glm::vec3 worldPos = child->getWorldPosition();
+                glm::ivec3 gridPos = worldPositionToGrid(worldPos, 1.0f);
+                gridCoordinates.push_back(gridPos);
+            }
+
+            return gridCoordinates;
+        }
+
         // Update method
         void update(const glm::mat4& parentTransform, GtsCamera& camera, int framesInFlight, float deltaTime) 
         {
