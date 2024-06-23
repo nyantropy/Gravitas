@@ -61,6 +61,7 @@ extern "C" {
 #include "GtsScene.hpp"
 #include "GtsSceneNodeOpt.h"
 #include "GtsOnKeyPressedEvent.hpp"
+#include "GtsOnSceneUpdatedEvent.hpp"
 
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
@@ -137,10 +138,16 @@ public:
     GtsSceneNode* selectedNode;
 
     GtsOnKeyPressedEvent onKeyPressedEvent;
+    GtsOnSceneUpdatedEvent onSceneUpdatedEvent;
 
     void subscribeOnKeyPressedEvent(std::function<void(int key, int scancode, int action, int mods)> f)
     {
         onKeyPressedEvent.subscribe(f);
+    }
+
+    void subscribeOnSceneUpdatedEvent(std::function<void()> f)
+    {
+        onSceneUpdatedEvent.subscribe(f);
     }
 
 
@@ -608,6 +615,7 @@ private:
         }
 
         currentScene->update(*vcamera, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT, deltaTime);
+        onSceneUpdatedEvent.notify();
 
         vkResetFences(vlogicaldevice->getDevice(), 1, &inFlightFences[currentFrame]);
 

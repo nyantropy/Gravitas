@@ -42,6 +42,30 @@ void onKeyPressed(int key, int scancode, int action, int mods)
     }
 }
 
+void onSceneUpdated()
+{
+    std::vector<glm::ivec3> tetrominoGridCoords = engine.getSceneNodePtr("I")->getGridCoordinates();
+    
+    // Check for collisions or update game state based on these coordinates
+    int i = 1;
+    for (const auto& coord : tetrominoGridCoords)
+    {
+        std::cout << "Grid Position of Object " << i << ":" << std::endl;
+        std::cout << "X: " << coord.x << " Y: " << coord.y << " Z: " << coord.z << std::endl;
+
+        // int x = coord.x;
+        // int y = coord.y;
+        // int z = coord.z;
+        
+        // Example collision check
+        // if (y < 0 || y >= rows || x < 0 || x >= cols || game_grid[y][x] == 1)
+        // {
+        //     // Handle collision or out-of-bounds
+        // }
+        i++;
+    }
+}
+
 void tetrisFrame(std::string texture_path)
 {
     //create a root object at 0/0/0
@@ -117,26 +141,9 @@ int main()
     tetrisFrame(FRAME_TEXTURE_PATH);
     I_tetrisPiece(I_PIECE_TEXTURE_PATH, "I");
     engine.selectNode("I");
-    std::vector<glm::ivec3> tetrominoGridCoords = engine.getSceneNodePtr("I")->getGridCoordinates();
-    // Check for collisions or update game state based on these coordinates
-    int i = 1;
-    for (const auto& coord : tetrominoGridCoords)
-    {
-        std::cout << "Grid Position of Object " << i << ":" << std::endl;
-        std::cout << "X: " << coord.x << " Y: " << coord.y << " Z: " << coord.z << std::endl;
-
-        // int x = coord.x;
-        // int y = coord.y;
-        // int z = coord.z;
-        
-        // Example collision check
-        // if (y < 0 || y >= rows || x < 0 || x >= cols || game_grid[y][x] == 1)
-        // {
-        //     // Handle collision or out-of-bounds
-        // }
-        i++;
-    }
+    
     engine.subscribeOnKeyPressedEvent(onKeyPressed);
+    engine.subscribeOnSceneUpdatedEvent(onSceneUpdated);
     engine.run();
 
 

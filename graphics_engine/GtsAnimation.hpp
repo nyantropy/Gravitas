@@ -2,8 +2,12 @@
 
 #include <glm.hpp>
 
+#include "GtsSceneNode.hpp"
+
+class GtsSceneNode;
+
 class GtsAnimation
 {
     public:   
-        virtual glm::mat4 getModelMatrix(float deltaTime) = 0;
+        virtual void animate(GtsSceneNode* node, float deltaTime) = 0;
 };

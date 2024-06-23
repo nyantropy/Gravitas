@@ -181,26 +181,21 @@ class GtsSceneNode
         // Update method
         void update(const glm::mat4& parentTransform, GtsCamera& camera, int framesInFlight, float deltaTime) 
         {
-            glm::mat4 modelMatrix = parentTransform * translationMatrix * rotationMatrix * scaleMatrix;
-
-            glm::mat4 animationMatrix = glm::mat4(1.0f);
-
             if (animation != nullptr)
             {
-                animationMatrix = animation->getModelMatrix(deltaTime);
+                animation->animate(this, deltaTime);
             }
 
-            //animation needs to go from the left, not the right :)
-            glm::mat4 finalMatrix = animationMatrix * modelMatrix;
+            glm::mat4 modelMatrix = parentTransform * translationMatrix * rotationMatrix * scaleMatrix;
             
             if (renderableObject) 
             {
-                renderableObject->updateUniforms(finalMatrix, camera, framesInFlight);
+                renderableObject->updateUniforms(modelMatrix, camera, framesInFlight);
             }
 
             for (auto child : children) 
             {
-                child->update(finalMatrix, camera, framesInFlight, deltaTime);
+                child->update(modelMatrix, camera, framesInFlight, deltaTime);
             }
         }
 
