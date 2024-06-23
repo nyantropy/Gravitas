@@ -156,7 +156,6 @@ class GtsSceneNode
             return glm::vec3(worldPosition);
         }
 
-        // Utility function to convert world position to grid coordinates
         glm::ivec3 worldPositionToGrid(const glm::vec3& worldPos, float gridCellSize)
         {
             int gridX = static_cast<int>(worldPos.x / gridCellSize);
@@ -165,7 +164,6 @@ class GtsSceneNode
             return glm::ivec3(gridX, gridY, gridZ);
         }
 
-        // Function to get grid coordinates of all children (cubes)
         std::vector<glm::ivec3> getGridCoordinates()
         {
             std::vector<glm::ivec3> gridCoordinates;
