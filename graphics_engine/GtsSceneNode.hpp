@@ -209,13 +209,13 @@ public:
         GtsSceneNode* currentNode = this;
 
         while (currentNode) {
-            currentNode->updateMatrices();  // Ensure matrices are updated
+            currentNode->updateMatrices();
             modelMatrix =  currentNode->getModelMatrix() * modelMatrix;
             currentNode = currentNode->parent;
         }
 
-        glm::vec4 worldPosition = modelMatrix * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);  // Use homogeneous coordinates
-        std:: cout << "World Position: " << glm::to_string(worldPosition) << std::endl;
+        glm::vec4 worldPosition = modelMatrix * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        //std:: cout << "World Position: " << glm::to_string(worldPosition) << std::endl;
         return glm::vec3(worldPosition.x, worldPosition.y, worldPosition.z);
     }
 

@@ -3,10 +3,11 @@
 #include <vector>
 
 #include "GravitasInclude.h"
-#include "RotationAnimation.hpp"
 #include "GtsSceneNodeOpt.h"
 #include "GtsSceneNode.hpp"
 #include "SlowFallAnimation.hpp"
+#include "GtsFrameGrabber.hpp"
+
 
 const glm::vec3 right_rotation = glm::vec3(0.0f, 0.0f, -90.0f);
 const glm::vec3 left_rotation = glm::vec3(0.0f, 0.0f, 90.0f);
@@ -126,68 +127,8 @@ std::string I_tetrisPiece(std::string texture_path)
 
     return identifier;
 }
+
 void printTetrisGrid();
-void checkAndClearLines()
-{
-    std::vector<int> fullLines; // To store indices of full lines
-
-    // Check each row from bottom to top
-    for (int y = 0; y < 20; ++y)
-    {
-        bool isFull = true;
-        for (int x = 0; x < 10; ++x)
-        {
-            if (tetrisGrid[y][x] == 0)
-            {
-                isFull = false;
-                break;
-            }
-        }
-
-        if (isFull)
-        {
-            fullLines.push_back(y);
-        }
-    }
-
-    // If there are full lines, clear them
-    if (!fullLines.empty())
-    {
-        // Remove nodes from scene and clear tetrisGrid
-        for (int lineIndex : fullLines)
-        {
-            // Remove scene nodes from the grid
-            for (int x = 0; x < 10; ++x)
-            {
-                GtsSceneNode* node = tetrisGridSceneNodes[lineIndex][x];
-                node->disableRendering();
-            }
-
-            // Clear the tetrisGrid and tetrisGridSceneNodes for this line
-            tetrisGrid[lineIndex].assign(10, 0);
-            tetrisGridSceneNodes[lineIndex].assign(10, nullptr);
-
-            // Move down all rows above the cleared line
-            for (int y = lineIndex; y > 0; --y)
-            {
-                tetrisGrid[y] = tetrisGrid[y - 1];
-                tetrisGridSceneNodes[y] = tetrisGridSceneNodes[y - 1];
-
-                // Update scene nodes' positions accordingly
-                for (int x = 0; x < 10; ++x)
-                {
-                    GtsSceneNode* node = tetrisGridSceneNodes[y][x];
-                    if (node)
-                    {
-                        
-                    }
-                }
-            }
-            tetrisGrid[0].assign(10, 0);
-            tetrisGridSceneNodes[0].assign(10, nullptr);
-        }
-    }
-}
 
 void checkAndClearRowsReworked()
 {
@@ -432,6 +373,7 @@ int main()
     tetrisFrame(FRAME_TEXTURE_PATH);
     nextTetromino();
     engine.subscribeOnKeyPressedEvent(onKeyPressed);
+    //engine.startEncoder();
     engine.run();
 
     return EXIT_SUCCESS;
