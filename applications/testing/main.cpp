@@ -231,6 +231,7 @@ void checkAndClearRowsReworked()
             tetrisGrid[rowToClear][col] = 0;
             GtsSceneNode* node = tetrisGridSceneNodes[rowToClear][col];
             node->disableRendering();
+            engine.removeNodeFromScene(node);
             tetrisGridSceneNodes[rowToClear][col] = nullptr;
         }
 
