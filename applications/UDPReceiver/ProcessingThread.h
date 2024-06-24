@@ -27,4 +27,5 @@ class ProcessingThread
         bool isWorking();
         void start();
         void stop();
+        void handleKeyPress(SDL_Event& event);
 };

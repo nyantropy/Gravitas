@@ -112,10 +112,47 @@ void ProcessingThread::worker()
             {
                 working = false;
             }
+
+            if(event.type == SDL_KEYDOWN)
+            {
+                handleKeyPress(event);
+            }
         }
 
         std::this_thread::sleep_for(frameInterval);
     }
 
     delete pixels;
+}
+
+void ProcessingThread::handleKeyPress(SDL_Event& event)
+{
+    switch (event.key.keysym.sym)
+    {
+        case SDLK_a:
+            std::cout << "Up arrow key pressed" << std::endl;
+            // Handle the Up arrow key press event
+            break;
+        
+        case SDLK_d:
+            std::cout << "Spacebar pressed" << std::endl;
+            // Handle the Spacebar press event
+            break;
+        case SDLK_LEFT:
+            std::cout << "Left arrow key pressed" << std::endl;
+            // Handle Left arrow key press event
+            break;
+        
+        case SDLK_RIGHT:
+            std::cout << "Right arrow key pressed" << std::endl;
+            // Handle Right arrow key press event
+            break;
+        
+        case SDLK_p:
+            std::cout << "P key pressed" << std::endl;
+            // Handle P key press event
+            break;
+        
+        // Handle other keys as needed
+    }
 }
