@@ -1,9 +1,11 @@
 #include <iostream>
 #include <filesystem>
+#include <vector>
 
 #include "GravitasInclude.h"
 #include "RotationAnimation.hpp"
 #include "GtsSceneNodeOpt.h"
+#include "GtsSceneNode.hpp"
 #include "SlowFallAnimation.hpp"
 
 const glm::vec3 right_rotation = glm::vec3(0.0f, 0.0f, -90.0f);
@@ -14,7 +16,10 @@ const std::string FRAME_TEXTURE_PATH = "resources/textures/grey_texture.png";
 const std::string I_PIECE_TEXTURE_PATH = "resources/textures/blue_texture.png";
 
 std::vector<std::vector<int>> tetrisGrid;
+std::vector<std::vector<GtsSceneNode*>> tetrisGridSceneNodes;
 Gravitas engine;
+
+int nodeId = 0;
 
 void onKeyPressed(int key, int scancode, int action, int mods)
 {
@@ -27,16 +32,18 @@ void onKeyPressed(int key, int scancode, int action, int mods)
     switch(key)
     {
         case GLFW_KEY_LEFT:
+            std::cout << "left" << std::endl;
             engine.getSelectedSceneNodePtr()->rotate(glm::vec3(0.0f, 0.0f, 90.0f));
             break;
         case GLFW_KEY_RIGHT:
+            std::cout << "right" << std::endl;
             engine.getSelectedSceneNodePtr()->rotate(glm::vec3(0.0f, 0.0f, -90.0f));
             break;
         case GLFW_KEY_A:
-            engine.getSelectedSceneNodePtr()->translate(glm::vec3(-1.0f, 0.0f, 0.0f));
+            engine.getSelectedSceneNodePtr()->translate(glm::vec3(-1.0f, 0.0f, 0.0f), "keyboard");
             break;
         case GLFW_KEY_D:
-            engine.getSelectedSceneNodePtr()->translate(glm::vec3(1.0f, 0.0f, 0.0f));
+            engine.getSelectedSceneNodePtr()->translate(glm::vec3(1.0f, 0.0f, 0.0f), "keyboard");
             break;
         case GLFW_KEY_P:
             break;
@@ -79,9 +86,6 @@ void I_tetrisPiece(std::string texture_path, std::string identifier)
     GtsSceneNodeOpt rootnode;
     rootnode.identifier = identifier;
     rootnode.translationVector = glm::vec3(0.0f, 12.0f, 0.0f);
-    //rootnode.rotationVector = left_rotation;
-    //rootnode.scaleVector = glm::vec3(1.5f, 1.5f, 1.5f);
-    //rootnode.scaleVector = glm::vec3(0.0f, 1.1f, 0.0f);
     rootnode.animPtr = new SlowFallAnimation();
     engine.addNodeToScene(rootnode);
 
@@ -111,30 +115,91 @@ void I_tetrisPiece(std::string texture_path, std::string identifier)
 }
 
 // Function to update the Tetris grid with the current position of the tetromino
-void updateTetrisGrid(const std::vector<glm::ivec3>& tetrominoGridCoords)
+void updateTetrisGrid(GtsSceneNode* tetromino)
 {
-    for (const auto& coord : tetrominoGridCoords)
+    for(auto cube : tetromino->getChildren())
     {
-        //x needs an offset of +4
-        int modifiedX = coord.x + 4;
-        if (coord.y >= 0 && coord.y < 20 && modifiedX >= 0 && modifiedX < 10)
+        glm::vec3 coords = cube->getWorldPosition();
+        std::cout << "Adding cube: " << glm::to_string(coords) << std::endl;
+
+        //x needs an offset of +5
+        int modifiedX = coords.x + 5;
+        if (coords.y >= 0 && coords.y < 20 && modifiedX >= 0 && modifiedX < 10)
         {
-            tetrisGrid[coord.y][modifiedX] = 1;
-        }
-    }
+            tetrisGrid[coords.y][modifiedX] = 1;
+            tetrisGridSceneNodes[coords.y][modifiedX] = cube;
+        }  
+    }  
 }
 
 // Function to check for collisions with the bottom of the grid
-bool checkCollisionWithBottom(const std::vector<glm::ivec3>& tetrominoGridCoords)
+bool checkCollisionWithBottomAndEmptySpace(GtsSceneNode* tetromino)
 {
-    for (const auto& coord : tetrominoGridCoords)
+    for(auto cube : tetromino->getChildren())
     {
-        if (coord.y <= 0)
+        glm::vec3 coords = cube->getWorldPosition();
+        int modifiedX = coords.x + 5;
+        
+        // Check for collisions with the bottom of the grid
+        if (coords.y < 0)
+        {
+            return true; // Collision with bottom detected
+        }
+        
+        // Check for empty space below the tetromino
+        if (coords.y >= 0 && coords.y < 19 && modifiedX >= 0 && modifiedX < 10)
+        {
+            if (tetrisGrid[coords.y][modifiedX] == 1)
+            {
+                return true; // Collision with existing tetromino wall below
+            }
+        }
+    }
+
+    return false; // No collision with bottom or existing wall below
+}
+
+bool checkCollisionWithWalls(GtsSceneNode* tetromino)
+{
+    for(auto cube : tetromino->getChildren())
+    {
+        glm::vec3 coords = cube->getWorldPosition();
+
+        if (coords.x < -5 | coords.x > 4)
         {
             return true;
         }
     }
+
     return false;
+}
+
+bool checkCollisionWithGrid(GtsSceneNode* tetromino)
+{
+    for(auto cube : tetromino->getChildren())
+    {
+        glm::vec3 coords = cube->getWorldPosition();
+
+        // Adjust x coordinate to match grid indices
+        int modifiedX = coords.x + 5;
+        
+        // Check if cube is within the valid grid bounds
+        if (coords.y >= 0 && coords.y < 20 && modifiedX >= 0 && modifiedX < 10)
+        {
+            // Check if the grid cell is already occupied
+            if (tetrisGrid[coords.y][modifiedX] == 1)
+            {
+                return true; // Collision detected with the Tetris grid
+            }
+        }
+        else
+        {
+            // If cube is out of grid bounds, consider it a collision
+            return true;
+        }
+    }
+
+    return false; // No collision detected
 }
 
 void printTetrisGrid()
@@ -153,60 +218,60 @@ void printTetrisGrid()
     std::cout << "----------------------------" << std::endl;
 }
 
-void onSceneUpdated()
-{
-   
-}
-
-void printTetrominoData()
-{
-    int i = 1;
-    for (const auto& coord : engine.getSelectedSceneNodePtr()->getGridCoordinates())
-    {
-        std::cout << "Grid Position of Object " << i << ":" << std::endl;
-        std::cout << "X: " << coord.x << " Y: " << coord.y << " Z: " << coord.z << std::endl;
-
-        i++;
-    }
-}
+void nextTetromino();
 
 void onTetrominoTransform()
 {
-    printTetrominoData();
+    GtsSceneNode* tetromino = engine.getSelectedSceneNodePtr();
 
-    // Check for collisions or update game state based on these coordinates
-    if (checkCollisionWithBottom(engine.getSelectedSceneNodePtr()->getGridCoordinates()))
+    //bottom collision will always spawn a new tetromino
+    if(checkCollisionWithBottomAndEmptySpace(tetromino))
     {
         std::cout << "Collision with bottom detected! Stopping tetromino and updating grid.\n";
-        //engine.getSelectedSceneNodePtr()->undoLastTransform();
-        engine.getSelectedSceneNodePtr()->setActive(false);
-        updateTetrisGrid(engine.getSelectedSceneNodePtr()->getGridCoordinates());
+        tetromino->disableAnimation();
+        tetromino->undoLastTransform();
+        updateTetrisGrid(tetromino);
         printTetrisGrid();
-        printTetrominoData();
-        
+        nextTetromino();
+        return; 
     }
 
-    
+    //on wall collision, we undo the last transform
+    if(checkCollisionWithWalls(tetromino))
+    {
+        std::cout << "Collision with walls detected!\n";
+        engine.getSelectedSceneNodePtr()->undoLastTransform();
+        return;
+    }
+
+    //on grid collision we undo the last transform too
+    if(checkCollisionWithGrid(tetromino))
+    {
+        std::cout << "Collision with grid detected!\n";
+        engine.getSelectedSceneNodePtr()->undoLastTransform();
+        return;
+    }
+}
+
+void nextTetromino()
+{
+    nodeId++;
+    I_tetrisPiece(I_PIECE_TEXTURE_PATH, std::to_string(nodeId));
+    engine.selectNode(std::to_string(nodeId));
+    engine.getSelectedSceneNodePtr()->subscribeToTransformEvent(onTetrominoTransform);
 }
 
 int main() 
 {
     tetrisGrid = std::vector<std::vector<int>>(20, std::vector<int>(10, 0));
+    tetrisGridSceneNodes = std::vector<std::vector<GtsSceneNode*>>(20, std::vector<GtsSceneNode*>(10, 0));
     engine = Gravitas();
     engine.init(600, 800, "Tetris", true);
     engine.createEmptyScene();
     tetrisFrame(FRAME_TEXTURE_PATH);
-    I_tetrisPiece(I_PIECE_TEXTURE_PATH, "I");
-    engine.selectNode("I");
-    engine.getSelectedSceneNodePtr()->subscribeToTransformEvent(onTetrominoTransform);
-
-    printTetrisGrid();
-    
+    nextTetromino();
     engine.subscribeOnKeyPressedEvent(onKeyPressed);
-    //engine.subscribeOnSceneUpdatedEvent(onSceneUpdated);
-        
     engine.run();
-
 
     return EXIT_SUCCESS;
 }

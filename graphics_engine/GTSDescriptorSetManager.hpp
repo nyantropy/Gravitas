@@ -31,4 +31,5 @@ class GTSDescriptorSetManager
 
         VulkanLogicalDevice* vlogicaldevice;
         int frames_in_flight;
+        int objectcount = 5000;
 };

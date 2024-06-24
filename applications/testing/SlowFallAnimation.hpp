@@ -26,7 +26,7 @@ public:
             // Reset the elapsed time, subtracting the fall interval to handle the overflow
             elapsedTime -= fallInterval;
 
-            node->translate(glm::vec3(0.0f, -1.0f, 0.0f));
+            node->translate(glm::vec3(0.0f, -1.0f, 0.0f), "animation");
         }
     }
 };
