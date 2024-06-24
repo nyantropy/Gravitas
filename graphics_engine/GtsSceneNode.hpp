@@ -39,8 +39,10 @@ private:
 
     GtsSceneNodeTransformEvent transformEvent;
 
-    bool isActive;
+    bool isTransformable;
+    bool isRendering;
     bool isAnimationActive;
+    bool isUpdatable;
 
     void updateMatrices() {
         translationMatrix = glm::translate(glm::mat4(1.0f), positionVector);
@@ -59,7 +61,7 @@ public:
         : positionVector(0.0f), rotationVector(0.0f), scaleVector(1.0f),
         translationMatrix(1.0f), rotationMatrix(1.0f), scaleMatrix(1.0f),
         parent(nullptr), renderableObject(nullptr), animation(nullptr),
-        isActive(true), isAnimationActive(false) {}
+        isTransformable(true), isAnimationActive(false), isRendering(true), isUpdatable(true) {}
 
     GtsSceneNode(GtsRenderableObject* obj, GtsAnimation* anim) : GtsSceneNode() {
         renderableObject = obj;
@@ -81,16 +83,19 @@ public:
         }
     }
 
-    void subscribeToTransformEvent(std::function<void()> f) {
+    void subscribeToTransformEvent(std::function<void()> f) 
+    {
         transformEvent.subscribe(f);
     }
 
-    void setActive(bool active) {
-        isActive = active;
+    void enableRendering()
+    {
+        isRendering = true;
     }
 
-    bool getActive() const {
-        return isActive;
+    void disableRendering()
+    {
+        isRendering = false;
     }
 
     void enableAnimation()
@@ -103,6 +108,26 @@ public:
         isAnimationActive = false;
     }
 
+    void enableTransform()
+    {
+        isTransformable = true;
+    }
+
+    void disableTransform()
+    {
+        isTransformable = false;
+    }
+
+    void enableUpdating()
+    {
+        isUpdatable = true;
+    }
+
+    void disableUpdating()
+    {
+        isUpdatable = false;
+    }
+
     std::vector<GtsSceneNode*> getChildren()
     {
         return children;
@@ -113,8 +138,10 @@ public:
         return parent;
     }
 
-    void undoLastTransform() {
-        switch (lastTransformType) {
+    void undoLastTransform() 
+    {
+        switch (lastTransformType) 
+        {
         case translation:
             positionVector -= lastTransform;
             break;
@@ -130,7 +157,7 @@ public:
 
     void translate(const glm::vec3& offset, std::string debug) 
     {
-        if (!isActive) return;
+        if (!isTransformable) return;
 
         //std::cout << "translate call by " << debug << std::endl;
         lastTransform = offset;
@@ -141,7 +168,7 @@ public:
     }
 
     void rotate(const glm::vec3& rot) {
-        if (!isActive) return;
+        if (!isTransformable) return;
 
         lastTransform = rot;
         lastTransformType = rotation;
@@ -152,7 +179,7 @@ public:
     }
 
     void scale(const glm::vec3& scl) {
-        if (!isActive) return;
+        if (!isTransformable) return;
 
         lastTransform = scl;
         lastTransformType = scaling;
@@ -205,8 +232,9 @@ public:
         return gridCoordinates;
     }
 
-    void update(const glm::mat4& parentTransform, GtsCamera& camera, int framesInFlight, float deltaTime) {
-        if (!isActive) return;
+    void update(const glm::mat4& parentTransform, GtsCamera& camera, int framesInFlight, float deltaTime) 
+    {
+        if (!isUpdatable) return;
         updateMatrices();
 
         if ((animation != nullptr) && isAnimationActive) 
@@ -226,17 +254,23 @@ public:
         }
     }
 
-    void draw(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, uint32_t currentFrame) {
-        if (renderableObject) {
+    void draw(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, uint32_t currentFrame) 
+    {
+        if (!isRendering) return;
+
+        if (renderableObject) 
+        {
             renderableObject->draw(commandBuffer, pipelineLayout, currentFrame);
         }
 
-        for (auto child : children) {
+        for (auto child : children) 
+        {
             child->draw(commandBuffer, pipelineLayout, currentFrame);
         }
     }
 
-    GtsSceneNode* search(const std::string& identifier) {
+    GtsSceneNode* search(const std::string& identifier) 
+    {
         if (this->identifier == identifier) {
             return this;
         }

@@ -160,7 +160,7 @@ void checkAndClearLines()
             for (int x = 0; x < 10; ++x)
             {
                 GtsSceneNode* node = tetrisGridSceneNodes[lineIndex][x];
-                node->getParent()->setActive(false);
+                node->disableRendering();
             }
 
             // Clear the tetrisGrid and tetrisGridSceneNodes for this line
@@ -179,12 +179,70 @@ void checkAndClearLines()
                     GtsSceneNode* node = tetrisGridSceneNodes[y][x];
                     if (node)
                     {
-                        node->translate(glm::vec3(0.0f, -1.0f, 0.0f), "lineClear");
+                        
                     }
                 }
             }
             tetrisGrid[0].assign(10, 0);
             tetrisGridSceneNodes[0].assign(10, nullptr);
+        }
+    }
+}
+
+void checkAndClearRowsReworked()
+{
+    std::vector<int> rowsToClear; // Store the row indices that need to be cleared
+
+    // Check each row for filled cells
+    for (int row = 0; row < 20; ++row)
+    {
+        bool isRowFilled = true;
+        for (int col = 0; col < 10; ++col)
+        {
+            if (tetrisGrid[row][col] == 0)
+            {
+                isRowFilled = false;
+                break;
+            }
+        }
+        if (isRowFilled)
+        {
+            rowsToClear.push_back(row);
+        }
+    }
+
+    std::cout << "Row indices to clear: ";
+
+    for(int& i : rowsToClear)
+    {
+        std::cout << i << " ";
+    }
+
+    std::cout << std::endl;
+
+    for(auto it = rowsToClear.rbegin(); it != rowsToClear.rend(); it++)
+    {
+        int rowToClear = *it;
+        std::cout << "clearing row " << rowToClear << "!" << std::endl;
+
+        //clear the row first
+        for (int col = 0; col < 10; ++col)
+        {
+            tetrisGrid[rowToClear][col] = 0;
+            GtsSceneNode* node = tetrisGridSceneNodes[rowToClear][col];
+            node->disableRendering();
+        }
+
+        std::cout << "Moving rows!" << std::endl;
+        // Move the entries down
+        for (int row = rowToClear; row < 20 - 1; ++row)
+        {
+            for (int col = 0; col < 10; ++col)
+            {
+                std::swap(tetrisGrid[row][col], tetrisGrid[row + 1][col]);
+                std::swap(tetrisGridSceneNodes[row][col], tetrisGridSceneNodes[row + 1][col]);
+                tetrisGridSceneNodes[row + 1][col]->translate(glm::vec3(0.0f, -1.0f, 0.0f), "lineClear");
+            }
         }
     }
 }
@@ -198,12 +256,12 @@ void updateTetrisGrid(GtsSceneNode* tetromino)
         std::cout << "Adding cube:    " << glm::to_string(coords) << std::endl;
 
         //x needs an offset of +5
-        int modifiedX = static_cast<int>(coords.x) + 5;
-        std::cout << "X: " << modifiedX << " Y: " << coords.y << std::endl;
+        int modifiedX = static_cast<int>(std::round(coords.x)) + 5;
+        int modifiedY = static_cast<int>(std::round(coords.y));
+        std::cout << "X: " << modifiedX << " Y: " << modifiedY << std::endl;
 
-        tetrisGrid[coords.y][modifiedX] = 1;
-        tetrisGridSceneNodes[coords.y][modifiedX] = cube;
- 
+        tetrisGrid[modifiedY][modifiedX] = 1;
+        tetrisGridSceneNodes[modifiedY][modifiedX] = cube;
     }  
 }
 
@@ -213,28 +271,14 @@ bool checkCollisionWithBottom(GtsSceneNode* tetromino)
     for(auto cube : tetromino->getChildren())
     {
         glm::vec3 coords = cube->getWorldPosition();
+
+        int modifiedX = static_cast<int>(std::round(coords.x));
+        int modifiedY = static_cast<int>(std::round(coords.y));
         
-        // Check for collisions with the bottom of the grid
-        if (coords.y < 0.0f)
+        if (modifiedY < 0)
         {
-            return true; // Collision with bottom detected
+            return true;
         }
-    }
-
-    return false; // No collision with bottom or existing wall below
-}
-
-bool checkCollisionBelowTetromino(GtsSceneNode* tetromino)
-{
-    for(auto cube : tetromino->getChildren())
-    {
-        glm::vec3 coords = cube->getWorldPosition();
-        int modifiedX = static_cast<int>(coords.x) + 5;
-
-        if (tetrisGrid[coords.y][modifiedX] == 1)
-        {
-            return true; // Collision with existing tetromino wall below
-        }       
     }
 
     return false;
@@ -246,7 +290,10 @@ bool checkCollisionWithWalls(GtsSceneNode* tetromino)
     {
         glm::vec3 coords = cube->getWorldPosition();
 
-        if (coords.x < -5.0f | coords.x > 4.0f)
+        int modifiedX = static_cast<int>(std::round(coords.x));
+        int modifiedY = static_cast<int>(std::round(coords.y));
+
+        if (modifiedX < -5 | modifiedX > 4)
         {
             return true;
         }
@@ -261,21 +308,19 @@ bool checkCollisionWithGrid(GtsSceneNode* tetromino)
     {
         glm::vec3 coords = cube->getWorldPosition();
 
-        // Adjust x coordinate to match grid indices
-        int modifiedX = static_cast<int>(coords.x) + 5;
+        int modifiedX = static_cast<int>(std::round(coords.x)) + 5;
+        int modifiedY = static_cast<int>(std::round(coords.y));
         
-        // Check if cube is within the valid grid bounds
-        if (coords.y >= 0 && coords.y < 20 && modifiedX >= 0 && modifiedX < 10)
+        if (modifiedY >= 0 && modifiedY < 20 && modifiedX >= 0 && modifiedX < 10)
         {
-            // Check if the grid cell is already occupied
-            if (tetrisGrid[coords.y][modifiedX] == 1)
+            if (tetrisGrid[modifiedY][modifiedX] == 1)
             {
-                return true; // Collision detected with the Tetris grid
+                return true;
             }
         }
     }
 
-    return false; // No collision detected
+    return false;
 }
 
 void printTetrisGrid()
@@ -301,7 +346,7 @@ void postCollision(GtsSceneNode* tetromino)
     tetromino->disableAnimation();
     tetromino->undoLastTransform();
     updateTetrisGrid(tetromino);
-    checkAndClearLines();
+    checkAndClearRowsReworked();
     printTetrisGrid();
     nextTetromino();
 }
@@ -313,7 +358,7 @@ void onTetrominoTransform()
     //bottom collision will always spawn a new tetromino
     if(checkCollisionWithBottom(tetromino))
     {
-        std::cout << "Collision with bottom detected! Stopping tetromino and updating grid.\n";
+        //std::cout << "Collision with bottom detected! Stopping tetromino and updating grid.\n";
         postCollision(tetromino);
         return; 
     }
@@ -321,30 +366,31 @@ void onTetrominoTransform()
     //on wall collision, we undo the last transform
     if(checkCollisionWithWalls(tetromino))
     {
-        std::cout << "Collision with walls detected!\n";
+        //std::cout << "Collision with walls detected!\n";
         tetromino->undoLastTransform();
+        return;
     }
 
-    // //colliding with the grid will also undo the last transformation
-    // if(checkCollisionWithGrid(tetromino))
-    // {
-    //     std::cout << "Collision with grid detected!\n";
+    //colliding with the grid will also undo the last transformation
+    if(checkCollisionWithGrid(tetromino))
+    {
+        //std::cout << "Collision with grid detected!\n";
 
-    //     if(gridCollisionCounter >= 1)
-    //     {
-    //         postCollision(tetromino);
-    //         gridCollisionCounter = 0;
-    //     }
-    //     else
-    //     {
-    //         tetromino->undoLastTransform();
-    //         gridCollisionCounter++;
-    //     }
-    // }
-    // else
-    // {
-    //     gridCollisionCounter = 0;
-    // }
+        if(gridCollisionCounter >= 1)
+        {
+            postCollision(tetromino);
+            gridCollisionCounter = 0;
+        }
+        else
+        {
+            tetromino->undoLastTransform();
+            gridCollisionCounter++;
+        }
+    }
+    else
+    {
+        gridCollisionCounter = 0;
+    }
 }
 
 void nextTetromino()

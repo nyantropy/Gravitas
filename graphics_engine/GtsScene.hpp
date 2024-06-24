@@ -75,10 +75,7 @@ public:
     {
         for (auto node : nodes) 
         {
-            if(node->getActive())
-            {
-                node->draw(commandBuffer, pipelineLayout, currentFrame);
-            }
+            node->draw(commandBuffer, pipelineLayout, currentFrame);         
         }
     }
 
