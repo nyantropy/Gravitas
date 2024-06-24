@@ -56,6 +56,8 @@ struct FrameConverter
     }
 };
 
+//adapted from task6, but optimized a bit, at least in terms of performance, but not in terms of overall code cleanliness
+//one could say its a bit hacky indeed, but so is most of this codebase 
 class GtsEncoder
 {
     private:
@@ -212,7 +214,7 @@ class GtsEncoder
                     }
                     else
                     {
-                        std::cout << "Bytes sent: " << bytesSent << std::endl;
+                        //std::cout << "Bytes sent: " << bytesSent << std::endl;
                     }
 
                     av_packet_free(&packet);
@@ -224,7 +226,7 @@ class GtsEncoder
 
         void onFrameEnded(int deltaTime, uint32_t imageIndex)
         {
-            std::cout << "OnFrame ended event" << std::endl;
+            //std::cout << "OnFrame ended event" << std::endl;
             uint32_t imageSize = 600 * 800 * 4;
 
             uint8_t *dataImage = new uint8_t[imageSize];
@@ -303,8 +305,6 @@ class GtsEncoder
 
                 avformat_free_context(formatContext);
             }
-
-            delete framegrabber;
         }
 };
 

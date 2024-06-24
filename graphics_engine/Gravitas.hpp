@@ -112,6 +112,7 @@ public:
     GtsOnSceneUpdatedEvent onSceneUpdatedEvent;
     GtsOnFrameEndedEvent onFrameEndedEvent;
 
+    GtsFrameGrabber* framegrabber;
     GtsEncoder* encoder;
 
     void subscribeOnKeyPressedEvent(std::function<void(int key, int scancode, int action, int mods)> f)
@@ -179,7 +180,6 @@ public:
         vcamera = new GtsCamera(vswapchain->getSwapChainExtent());
         createCommandBuffers();
         createSyncObjects();
-        startEncoder();
     }
 
     void createEmptyScene()
@@ -223,7 +223,8 @@ public:
 
     void startEncoder()
     {
-        encoder = new GtsEncoder(new GtsFrameGrabber(vswapchain, vrenderer, vlogicaldevice, vphysicaldevice));
+        framegrabber = new GtsFrameGrabber(vswapchain, vrenderer, vlogicaldevice, vphysicaldevice);
+        encoder = new GtsEncoder(framegrabber);
         onFrameEndedEvent.subscribe(std::bind(&GtsEncoder::onFrameEnded, encoder, std::placeholders::_1, std::placeholders::_2));
     }
 
