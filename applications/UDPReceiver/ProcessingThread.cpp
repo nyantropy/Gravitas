@@ -3,6 +3,7 @@
 ProcessingThread::ProcessingThread(ThreadSafeQueue<FrameData>& queue) : frameQueue(queue)
 {
     this->running = false;
+    this->working = false;
 }
 
 ProcessingThread::~ProcessingThread()
@@ -23,6 +24,7 @@ void ProcessingThread::start()
 
     std::cout << "Starting Processing Thread!" << std::endl;
     this->running = true;
+    this->working = true;
     processingThread = std::thread(&ProcessingThread::worker, this);
 }
 
@@ -41,7 +43,20 @@ void ProcessingThread::stop()
     if (this->processingThread.joinable())
     {
         this->processingThread.join();
+        std::cout << "Joined Successfully!" << std::endl;
     }
+
+    std::cout << "Stopped Processing Thread!" << std::endl;
+}
+
+bool ProcessingThread::isRunning()
+{
+    return running;
+}
+
+bool ProcessingThread::isWorking()
+{
+    return working;
 }
 
 void ProcessingThread::worker()
@@ -67,7 +82,7 @@ void ProcessingThread::worker()
          pixels[i] = 0xFF0000FF;
     }
 
-    while(running)
+    while(working)
     {
         window.update(pixels);
         //std::cout << "Frames in Queue: " << this->frameQueue.size() << std::endl;
@@ -95,18 +110,12 @@ void ProcessingThread::worker()
         {
             if (event.type == SDL_QUIT) 
             {
-                //this executes whenever we press the x button on the window, need to refactor some code here to actually be able to exit the program and stop
-                //both threads here, but thats work for another day
-                //commenting out the stop here of course since thats a race condition and we really dont want that, id rather just have the program die naturally
-                //window.~SDLWindow();
-                //delete[] pixels;
-                //this->stop();
+                working = false;
             }
         }
 
         std::this_thread::sleep_for(frameInterval);
     }
 
-    delete[] pixels;
-    //window.~SDLWindow();
+    delete pixels;
 }

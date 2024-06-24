@@ -43,8 +43,10 @@ void ReceiverThread::stop()
     {
         //std::cout << "Joining..." << std::endl;
         this->receiverThread.join();
-        //std::cout << "Joined Successfully!" << std::endl;
+        std::cout << "Joined Successfully!" << std::endl;
     }
+
+    std::cout << "Stopped Receiver Thread!" << std::endl;
 }
 
 void ReceiverThread::worker() 
@@ -126,8 +128,6 @@ void ReceiverThread::onFrameDecodedCallback(const AVFrame* frame)
 {
     if(this->running)
     {
-        //std::cout << "Pushing Frame into Queue!" << std::endl;
-
         IMGUtility utility;
         int width = 0;
         int height = 0;

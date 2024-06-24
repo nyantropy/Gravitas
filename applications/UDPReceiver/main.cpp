@@ -45,8 +45,10 @@ int main()
     ProcessingThread processingThread = ProcessingThread(frameQueue);
     processingThread.start();
 
-    //program runs for 30 seconds before it dies, need to rework this bit since i still dont know how to incorporate the sdl surface correctly, but oh well
-    std::this_thread::sleep_for(std::chrono::seconds(30));
+    while(processingThread.isWorking())
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));  
+    }
 
     receiverThread.stop();
     processingThread.stop();

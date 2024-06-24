@@ -17,11 +17,14 @@ class ProcessingThread
         ThreadSafeQueue<FrameData>& frameQueue;
 
         std::atomic<bool> running;
+        std::atomic<bool> working;
 
         void worker();
     public:
         ProcessingThread(ThreadSafeQueue<FrameData>& queue);
         ~ProcessingThread();
+        bool isRunning();
+        bool isWorking();
         void start();
         void stop();
 };
