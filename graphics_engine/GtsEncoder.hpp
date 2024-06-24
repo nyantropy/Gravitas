@@ -20,7 +20,9 @@ extern "C" {
 #include <stdexcept>
 #include <iostream>
 #include <fstream>
-
+#include <mutex>
+#include <condition_variable>
+#include <deque>
 
 #include "UDPSend.h"
 #include "UDPReceive.h"
@@ -34,16 +36,11 @@ struct FrameConverter
 
     FrameConverter(uint8_t* dataImage, int width, int height) 
 	{
-		//ffmpeg is weird, since it does not use all the array entries
-		//we multiply by 4 since we assume the image is RGBA, meaning we store 4 bytes per pixel
         uint8_t* src_data[4] = { dataImage, nullptr, nullptr, nullptr };
-		//that essentially means that linesize refers to the number of bytes occupied by each row of image data
         int src_linesize[4] = { width * 4, 0, 0, 0 };
 
-		//the buffers still need to be allocated for all of this to work though, and it does need height as a parameter as well
         av_image_alloc(dst_data, dst_linesize, width, height, AV_PIX_FMT_YUV420P, 1);
 
-		//now we just use sws to convert the image from RGBA image space to YUV420P image space and we are good to go :)
         struct SwsContext* sws_ctx = sws_getContext(width, height, AV_PIX_FMT_RGBA,
                                                      width, height, AV_PIX_FMT_YUV420P,
                                                      0, nullptr, nullptr, nullptr);
@@ -55,7 +52,6 @@ struct FrameConverter
 
     ~FrameConverter() 
 	{
-		//no sigsegv today, always free up memory, in this case we only need to free the first entry of the array, since the other entries are all nullptr
         av_freep(&dst_data[0]);
     }
 };
@@ -66,26 +62,19 @@ class GtsEncoder
         const char* path = "output.mpg";
         AVCodecContext *codecContext = nullptr;
         AVFormatContext *formatContext = nullptr;
-
         GtsFrameGrabber *framegrabber;
-
         float FPS = 30.0;
-
-        //we want to sync the frame recording with the fps of our video, so we dont have too many or too little frames making up a second
-        //if we dont gatekeep with this mechanism, our video will either pass time too fast if there are excess frames, or too slow if there are too little frames
-        //EDIT: it looks like this bug i experienced was somewhat random? i could not replicate it spontaneously, which is quite weird considering i did not change anything lol
-        //however, manually changing fps still breaks the program without this measure, which is expected by logic, so maybe my application just happened to run with about 60fps per default
         double frameInterval = 1.0 / FPS;
         double lastFrameTime = 0.0;
         int frameCounter = 0;
-
         AVFrame *frame;
         AVPacket *pkt;
-
         UDPSend sender;
-
         std::atomic<bool> reportListenerRunning = true;
         std::thread reportListenerThread;
+        std::mutex sendMutex;
+        std::condition_variable sendCV;
+        std::deque<AVPacket*> packetQueue;
 
         void allocateAVFrame(uint32_t width, uint32_t height)
         {
@@ -96,13 +85,10 @@ class GtsEncoder
                 return;
             }
 
-            //this is the holy line, it is needed for timestamps to work correctly with the codec we chose
             this->frame->pts = this->frameCounter;
             frame->format = AV_PIX_FMT_YUV420P;
             frame->width = width;
             frame->height = height;
-
-            //allocate frame buffers
             av_frame_get_buffer(frame, 0);
         }
 
@@ -119,17 +105,9 @@ class GtsEncoder
 
         void encodeAndWriteFrame(uint8_t *dataImage, uint32_t width, uint32_t height)
         {
-            //Step 1: Convert RGBA frame data to YUV420p format
-            //this is the image that can be encoded, since we match the format of the video stream
             FrameConverter image = FrameConverter(dataImage, width, height);
-
-            //Step 2: Allocate AVFrame and fill it with the converted data
-            //messing with this can cause huge memory problems, caution is advised
             this->allocateAVFrame(width, height);
-
-            //Step 3: Copy the image into the frame
             av_image_copy(frame->data, frame->linesize, image.dst_data, image.dst_linesize, AV_PIX_FMT_YUV420P, width, height);
-
             this->allocateAVPacket();
 
             int ret = avcodec_send_frame(codecContext, frame);
@@ -154,48 +132,15 @@ class GtsEncoder
                     return;
                 }
 
-                //saveDataToFile(pkt->data, pkt->size, "../../media/pktdata/sender/frame" + std::to_string(frameCounter) + ".txt");
-
-                //std::cout << "Packet " << this->frameCounter << std::endl;
-
-                int bytesSent = this->sender.send(reinterpret_cast<char*>(this->pkt->data), this->pkt->size);
-                if (bytesSent == -1) 
-                {
-                    std::cerr << "Failed to send message." << std::endl;
-                }
-                else
-                {
-                    std::cout << "Bytes sent: " << bytesSent << std::endl;
-                }
-
-                //Step 4: Write the encoded frame to the output file
-                //finally, we can write the encoded frame to the video file
                 av_packet_rescale_ts(this->pkt, codecContext->time_base, formatContext->streams[0]->time_base);
                 this->pkt->stream_index = formatContext->streams[0]->index;
-                av_interleaved_write_frame(formatContext, this->pkt);
+
+                std::lock_guard<std::mutex> lock(sendMutex);
+                packetQueue.push_back(av_packet_clone(this->pkt));
+                sendCV.notify_one();
             }
         }
 
-        //helper method to check what kind of data is sent through the network
-        void saveDataToFile(uint8_t* data, size_t dataSize, const std::string& filename)
-        {
-            std::ofstream outputFile(filename, std::ios::binary);
-            if (!outputFile.is_open())
-            {
-                std::cerr << "Failed to open file for writing: " << filename << std::endl;
-                return;
-            }
-
-            for (size_t i = 0; i < dataSize; ++i)
-            {
-                outputFile << static_cast<int>(data[i]) << " ";
-            }
-
-            outputFile.close();
-            std::cout << "Data saved to file: " << filename << std::endl;
-        }
-
-        //loopback address on port 2000
         void initUDPSend()
         {
             char ip[] = "127.0.0.1";
@@ -206,10 +151,8 @@ class GtsEncoder
         {
             UDPReceive receiver;
             receiver.init(10000);
-
             const int bufferSize = 3000000;
             char buffer[bufferSize];
-
             double packetTime;
             int receivedBytes;
 
@@ -228,10 +171,8 @@ class GtsEncoder
                     std::cout << "PacketLossRate: " << report.packetLossRate << std::endl;
                     std::cout << "frameRate: " << report.frameRate << std::endl << std::endl;
 
-                    //adjust framerate bit by bit, we start with 30fps, but can increase it if we dont have packet loss
                     if(report.packetLossRate > 3.0)
                     {
-                        //minimum fps
                         if(!(this->FPS <= 10.0))
                         {
                             this->FPS--;
@@ -239,18 +180,42 @@ class GtsEncoder
                     }
                     else
                     {
-                        //maximum fps
                         if(!(this->FPS >= 40.0))
                         {
                             this->FPS++;
                         }
                     }
 
-                    //we need to adjust the frame Interval as well
-                    //this does work fairly well, problem is we would need to adjust framerate on the receiver as well which is a bit yikes
                     this->frameInterval = 1.0 / FPS;
                     std::cout << "Production FPS: " << this->FPS << std::endl;
                     std::cout << "Frame Interval: " << this->frameInterval << std:: endl << std::endl;
+                }
+            }
+        }
+
+        void sendPacketFunction()
+        {
+            while (reportListenerRunning)
+            {
+                std::unique_lock<std::mutex> lock(sendMutex);
+                sendCV.wait(lock, [this] { return !packetQueue.empty() || !reportListenerRunning; });
+
+                while (!packetQueue.empty())
+                {
+                    AVPacket* packet = packetQueue.front();
+                    packetQueue.pop_front();
+
+                    int bytesSent = this->sender.send(reinterpret_cast<char*>(packet->data), packet->size);
+                    if (bytesSent == -1) 
+                    {
+                        std::cerr << "Failed to send message." << std::endl;
+                    }
+                    else
+                    {
+                        std::cout << "Bytes sent: " << bytesSent << std::endl;
+                    }
+
+                    av_packet_free(&packet);
                 }
             }
         }
@@ -263,31 +228,17 @@ class GtsEncoder
             uint32_t imageSize = 600 * 800 * 4;
 
             uint8_t *dataImage = new uint8_t[imageSize];
-
             framegrabber->getCurrentFrame(imageIndex, dataImage);
-    
-            //rewritten to now use a sender instead
             encodeAndWriteFrame(dataImage, 600, 800);
-
             delete[] dataImage;
-            //this->freePacketAndFrame();
-        }
-
-        GtsEncoder()
-        {
-
         }
 
         GtsEncoder(GtsFrameGrabber* framegrabber)
         {
             this->framegrabber = framegrabber;
-            //we are gonna be using h264 for this program
             const AVCodec *codec = avcodec_find_encoder(AV_CODEC_ID_H264);
 
-            //initialize context variable
             this->codecContext = avcodec_alloc_context3(codec);
-
-            //parameters depend on how big our frames are, in this case we got the values by simply looking at the dimensions the screenshots have
             codecContext->width = 600;
             codecContext->height = 800;
             codecContext->bit_rate = 200000;
@@ -296,17 +247,17 @@ class GtsEncoder
             codecContext->pix_fmt = AV_PIX_FMT_YUV420P;
             codecContext->codec_type = AVMEDIA_TYPE_VIDEO;
 
-            //open the codec
+            av_opt_set(codecContext->priv_data, "preset", "ultrafast", 0);
+            av_opt_set(codecContext->priv_data, "tune", "zerolatency", 0);
+
             if (avcodec_open2(codecContext, codec, NULL) < 0) {
                 std::cerr << "Failed to open codec\n";
             }
 
-            //setup the second variable we need, format context
             if (avformat_alloc_output_context2(&formatContext, NULL, NULL, path) < 0) {
                 std::cerr << "Failed to allocate output format context\n";
             }
 
-            //we want a video stream in that output file
             AVStream *videoStream = avformat_new_stream(formatContext, codec);
             if (!videoStream) {
                 std::cerr << "Failed to create new stream\n";
@@ -314,40 +265,33 @@ class GtsEncoder
 
             avcodec_parameters_from_context(videoStream->codecpar, codecContext);
 
-            //open output file
             if (!(formatContext->oformat->flags & AVFMT_NOFILE)) {
                 if (avio_open(&formatContext->pb, path, AVIO_FLAG_WRITE) < 0) {
                     std::cerr << "Failed to open output file\n";
                 }
             }
 
-            //write file header
             if (avformat_write_header(formatContext, NULL) < 0) {
                 std::cerr << "Failed to write file header\n";
             }
 
             this->initUDPSend();
-
-            //quick and dirty, im tired :(
             reportListenerThread = std::thread(&GtsEncoder::reportListenerFunction, this);
+            std::thread(&GtsEncoder::sendPacketFunction, this).detach();
         }
 
         ~GtsEncoder()
         {
             this->reportListenerRunning = false;
+            this->sendCV.notify_all();
             this->reportListenerThread.join();
-            this->freePacketAndFrame();
             this->sender.closeSock();
 
-            //when we destruct the object, we want to cleanly close the video stream
-            //as well, to avoid any errors
-            //first we close the codec context
             if (codecContext) 
             {
                 avcodec_free_context(&codecContext);
             }
 
-            //and dont forget about the format context either
             if (formatContext) 
             {
                 av_write_trailer(formatContext);
