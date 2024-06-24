@@ -9,7 +9,7 @@ class SlowFallAnimation : public GtsAnimation
 {
 private:
     float elapsedTime = 0.0f;   // Time accumulator
-    float fallInterval = 0.5f;  // Interval in seconds before the object falls by 1.0 unit
+    float fallInterval = 1.0f;  // Interval in seconds before the object falls by 1.0 unit
     //float currentHeight = 0.0f; // Current height of the object
 
 public:

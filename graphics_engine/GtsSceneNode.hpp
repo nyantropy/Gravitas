@@ -2,12 +2,16 @@
 
 #include <vector>
 #include <string>
+#include <cmath>
 
 #include <glm.hpp>
 #include <gtc/matrix_transform.hpp>
 
 #include "GtsRenderableObject.hpp"
 #include "GtsAnimation.hpp"
+#include "GtsSceneNodeTransformEvent.hpp"
+
+enum LastTransform {translation, rotation, scaling};
 
 class GtsSceneNode 
 {
@@ -18,6 +22,9 @@ class GtsSceneNode
         glm::vec3 rotationVector;
         glm::vec3 scaleVector;
 
+        glm::vec3 lastTransform;
+        LastTransform lastTransformType;
+
         glm::mat4 translationMatrix;
         glm::mat4 rotationMatrix;
         glm::mat4 scaleMatrix;
@@ -27,6 +34,10 @@ class GtsSceneNode
 
         GtsRenderableObject* renderableObject;
         GtsAnimation* animation;
+
+        GtsSceneNodeTransformEvent transformEvent;
+
+        bool isActive;
 
         void updateMatrices() 
         {
@@ -47,11 +58,11 @@ class GtsSceneNode
             translationMatrix = glm::mat4(1.0f);
             rotationMatrix = glm::mat4(1.0f);
             scaleMatrix = glm::mat4(1.0f);
+            
             parent = nullptr;
             renderableObject = nullptr;
             animation = nullptr;
-
-            updateMatrices();
+            isActive = true;
         }
 
         GtsSceneNode(GtsRenderableObject* obj, GtsAnimation* anim) : GtsSceneNode()
@@ -88,50 +99,73 @@ class GtsSceneNode
             }
         }
 
-        void setRenderableObject(GtsRenderableObject* obj) 
+        void subscribeToTransformEvent(std::function<void()> f)
         {
-            renderableObject = obj;
+            transformEvent.subscribe(f);
         }
 
-        void setAnimation(GtsAnimation* anim)
+        void setActive(bool active)
         {
-            animation = anim;
+            isActive = active;
         }
 
-        void setPosition(const glm::vec3& pos)
+        bool getActive() const
         {
-            positionVector = pos;
-            updateMatrices();
+            return isActive;
         }
 
-        void setRotation(const glm::vec3& rot)
+        void undoLastTransform()
         {
-            rotationVector = rot;
-            updateMatrices();
-        }
+            switch(lastTransformType)
+            {
+                case translation:
+                    positionVector -= lastTransform;
+                    break;
+                case rotation:
+                    rotationVector -= lastTransform;
+                    break;
+                //not supported lol im too tired
+                case scaling:
+                    break;
+            }
 
-        void setScale(const glm::vec3& scl)
-        {
-            scaleVector = scl;
             updateMatrices();
         }
 
         void translate(const glm::vec3& offset)
         {
+            if (!isActive) return;
+
+            lastTransform = offset;
+            lastTransformType = translation;
+
             positionVector += offset;
             updateMatrices();
+            transformEvent.notify();
         }
 
         void rotate(const glm::vec3& rot)
         {
+            if (!isActive) return;
+
+            lastTransform = rot;
+            lastTransformType = rotation;
+
             rotationVector += rot;
             updateMatrices();
+            transformEvent.notify();
         }
 
         void scale(const glm::vec3& scl)
         {
+            if (!isActive) return;
+
+            lastTransform = scl;
+            lastTransformType = scaling;
+
             scaleVector *= scl;
             updateMatrices();
+            transformEvent.notify();
         }
 
         void addChild(GtsSceneNode* child)
@@ -158,9 +192,9 @@ class GtsSceneNode
 
         glm::ivec3 worldPositionToGrid(const glm::vec3& worldPos, float gridCellSize)
         {
-            int gridX = static_cast<int>(worldPos.x / gridCellSize);
-            int gridY = static_cast<int>(worldPos.y / gridCellSize);
-            int gridZ = static_cast<int>(worldPos.z / gridCellSize);
+            int gridX = static_cast<int>(std::round(worldPos.x / gridCellSize));
+            int gridY = static_cast<int>(std::round(worldPos.y / gridCellSize));
+            int gridZ = static_cast<int>(std::round(worldPos.z / gridCellSize));
             return glm::ivec3(gridX, gridY, gridZ);
         }
 
@@ -181,6 +215,8 @@ class GtsSceneNode
         // Update method
         void update(const glm::mat4& parentTransform, GtsCamera& camera, int framesInFlight, float deltaTime) 
         {
+            if (!isActive) return;
+
             if (animation != nullptr)
             {
                 animation->animate(this, deltaTime);

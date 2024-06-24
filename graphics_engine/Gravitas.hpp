@@ -150,8 +150,6 @@ public:
         onSceneUpdatedEvent.subscribe(f);
     }
 
-
-
     //select a node in the engine based on its identifier
     bool selectNode(std::string identifier)
     {
@@ -202,7 +200,6 @@ public:
         vcamera = new GtsCamera(vswapchain->getSwapChainExtent());
         createCommandBuffers();
         createSyncObjects();
-        encoder();
     }
 
     void createEmptyScene()
