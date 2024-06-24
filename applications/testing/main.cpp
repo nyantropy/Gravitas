@@ -231,6 +231,7 @@ void checkAndClearRowsReworked()
             tetrisGrid[rowToClear][col] = 0;
             GtsSceneNode* node = tetrisGridSceneNodes[rowToClear][col];
             node->disableRendering();
+            tetrisGridSceneNodes[rowToClear][col] = nullptr;
         }
 
         std::cout << "Moving rows!" << std::endl;
@@ -241,7 +242,11 @@ void checkAndClearRowsReworked()
             {
                 std::swap(tetrisGrid[row][col], tetrisGrid[row + 1][col]);
                 std::swap(tetrisGridSceneNodes[row][col], tetrisGridSceneNodes[row + 1][col]);
-                tetrisGridSceneNodes[row + 1][col]->translate(glm::vec3(0.0f, -1.0f, 0.0f), "lineClear");
+
+                if(tetrisGridSceneNodes[row][col] != nullptr)
+                {
+                    tetrisGridSceneNodes[row][col]->translate(glm::vec3(0.0f, -1.0f, 0.0f), "lineClear");
+                }               
             }
         }
     }
@@ -339,6 +344,22 @@ void printTetrisGrid()
     std::cout << "----------------------------" << std::endl;
 }
 
+void printTetrisGridSceneNodes()
+{
+    std::cout << "CURRENT GRID SCENE NODES" << std::endl;
+    std::cout << "----------------------------" << std::endl;
+
+    for (int y = 0; y < 20; ++y)
+    {
+        for (int x = 0; x < 10; ++x)
+        {
+            std::cout << (tetrisGridSceneNodes[y][x] == nullptr ? '.' : '#') << ' ';
+        }
+        std::cout << '\n';
+    }
+    std::cout << "----------------------------" << std::endl;
+}
+
 void nextTetromino();
 
 void postCollision(GtsSceneNode* tetromino)
@@ -348,6 +369,7 @@ void postCollision(GtsSceneNode* tetromino)
     updateTetrisGrid(tetromino);
     checkAndClearRowsReworked();
     printTetrisGrid();
+    printTetrisGridSceneNodes();
     nextTetromino();
 }
 
