@@ -71,10 +71,12 @@ public:
         this->identifier = identifier;
     }
 
-    ~GtsSceneNode() {
+    ~GtsSceneNode() 
+    {
         delete renderableObject;
         delete animation;
-        for (auto child : children) {
+        for (auto child : children) 
+        {
             delete child;
         }
     }
@@ -218,7 +220,8 @@ public:
             renderableObject->updateUniforms(modelMatrix, camera, framesInFlight);
         }
 
-        for (auto child : children) {
+        for (auto child : children) 
+        {
             child->update(modelMatrix, camera, framesInFlight, deltaTime);
         }
     }

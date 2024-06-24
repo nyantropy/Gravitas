@@ -81,38 +81,112 @@ void tetrisFrame(std::string texture_path)
     }
 }
 
-void I_tetrisPiece(std::string texture_path, std::string identifier)
+std::string I_tetrisPiece(std::string texture_path)
 {
-     //for pieces we need to move the root towards the upper end of the frame
+    nodeId++;
+    std::string identifier = std::to_string(nodeId);
+    //for pieces we need to move the root towards the upper end of the frame
     GtsSceneNodeOpt rootnode;
     rootnode.identifier = identifier;
     rootnode.translationVector = glm::vec3(0.0f, 12.0f, 0.0f);
     rootnode.animPtr = new SlowFallAnimation();
     engine.addNodeToScene(rootnode);
 
+    nodeId++;
     GtsSceneNodeOpt object;
     object.objectPtr = engine.createObject(MODEL_PATH, texture_path);
     object.translationVector = glm::vec3(0.0f, 0.0f, 0.0f);
+    object.identifier = std::to_string(nodeId);
     object.parentIdentifier = identifier;
     engine.addNodeToScene(object);
 
+    nodeId++;
     GtsSceneNodeOpt object1;
     object1.objectPtr = engine.createObject(MODEL_PATH, texture_path);
     object1.translationVector = glm::vec3(0.0f, 1.0f, 0.0f);
+    object1.identifier = std::to_string(nodeId);
     object1.parentIdentifier = identifier;
     engine.addNodeToScene(object1);
 
+    nodeId++;
     GtsSceneNodeOpt object2;
     object2.objectPtr = engine.createObject(MODEL_PATH, texture_path);
     object2.translationVector = glm::vec3(0.0f, 2.0f, 0.0f);
+    object2.identifier = std::to_string(nodeId);
     object2.parentIdentifier = identifier;
     engine.addNodeToScene(object2);
 
+    nodeId++;
     GtsSceneNodeOpt object3;
     object3.objectPtr = engine.createObject(MODEL_PATH, texture_path);
     object3.translationVector = glm::vec3(0.0f, -1.0f, 0.0f);
+    object3.identifier = std::to_string(nodeId);
     object3.parentIdentifier = identifier;
     engine.addNodeToScene(object3);
+
+    return identifier;
+}
+void printTetrisGrid();
+void checkAndClearLines()
+{
+    std::vector<int> fullLines; // To store indices of full lines
+
+    // Check each row from bottom to top
+    for (int y = 0; y < 20; ++y)
+    {
+        bool isFull = true;
+        for (int x = 0; x < 10; ++x)
+        {
+            if (tetrisGrid[y][x] == 0)
+            {
+                isFull = false;
+                break;
+            }
+        }
+
+        if (isFull)
+        {
+            fullLines.push_back(y);
+        }
+    }
+
+    // If there are full lines, clear them
+    if (!fullLines.empty())
+    {
+        // Remove nodes from scene and clear tetrisGrid
+        for (int lineIndex : fullLines)
+        {
+            // Remove scene nodes from the grid
+            for (int x = 0; x < 10; ++x)
+            {
+                GtsSceneNode* node = tetrisGridSceneNodes[lineIndex][x];
+                node->getParent()->setActive(false);
+            }
+
+            // Clear the tetrisGrid and tetrisGridSceneNodes for this line
+            tetrisGrid[lineIndex].assign(10, 0);
+            tetrisGridSceneNodes[lineIndex].assign(10, nullptr);
+
+            // Move down all rows above the cleared line
+            for (int y = lineIndex; y > 0; --y)
+            {
+                tetrisGrid[y] = tetrisGrid[y - 1];
+                tetrisGridSceneNodes[y] = tetrisGridSceneNodes[y - 1];
+
+                // Update scene nodes' positions accordingly
+                for (int x = 0; x < 10; ++x)
+                {
+                    GtsSceneNode* node = tetrisGridSceneNodes[y][x];
+                    if (node)
+                    {
+                        node->translate(glm::vec3(0.0f, -1.0f, 0.0f), "lineClear");
+                    }
+                }
+            }
+            tetrisGrid[0].assign(10, 0);
+            tetrisGridSceneNodes[0].assign(10, nullptr);
+        }
+    }
 }
 
 // Function to update the Tetris grid with the current position of the tetromino
@@ -124,13 +198,12 @@ void updateTetrisGrid(GtsSceneNode* tetromino)
         std::cout << "Adding cube:    " << glm::to_string(coords) << std::endl;
 
         //x needs an offset of +5
-        int modifiedX = coords.x + 5;
+        int modifiedX = static_cast<int>(coords.x) + 5;
         std::cout << "X: " << modifiedX << " Y: " << coords.y << std::endl;
-        if (coords.y >= 0 && coords.y < 20 && modifiedX >= 0 && modifiedX < 10)
-        {
-            tetrisGrid[coords.y][modifiedX] = 1;
-            tetrisGridSceneNodes[coords.y][modifiedX] = cube;
-        }  
+
+        tetrisGrid[coords.y][modifiedX] = 1;
+        tetrisGridSceneNodes[coords.y][modifiedX] = cube;
+ 
     }  
 }
 
@@ -142,7 +215,7 @@ bool checkCollisionWithBottom(GtsSceneNode* tetromino)
         glm::vec3 coords = cube->getWorldPosition();
         
         // Check for collisions with the bottom of the grid
-        if (coords.y < 0)
+        if (coords.y < 0.0f)
         {
             return true; // Collision with bottom detected
         }
@@ -156,7 +229,7 @@ bool checkCollisionBelowTetromino(GtsSceneNode* tetromino)
     for(auto cube : tetromino->getChildren())
     {
         glm::vec3 coords = cube->getWorldPosition();
-        int modifiedX = coords.x + 5;
+        int modifiedX = static_cast<int>(coords.x) + 5;
 
         if (tetrisGrid[coords.y][modifiedX] == 1)
         {
@@ -173,7 +246,7 @@ bool checkCollisionWithWalls(GtsSceneNode* tetromino)
     {
         glm::vec3 coords = cube->getWorldPosition();
 
-        if (coords.x < -5 | coords.x > 4)
+        if (coords.x < -5.0f | coords.x > 4.0f)
         {
             return true;
         }
@@ -189,7 +262,7 @@ bool checkCollisionWithGrid(GtsSceneNode* tetromino)
         glm::vec3 coords = cube->getWorldPosition();
 
         // Adjust x coordinate to match grid indices
-        int modifiedX = coords.x + 5;
+        int modifiedX = static_cast<int>(coords.x) + 5;
         
         // Check if cube is within the valid grid bounds
         if (coords.y >= 0 && coords.y < 20 && modifiedX >= 0 && modifiedX < 10)
@@ -228,6 +301,7 @@ void postCollision(GtsSceneNode* tetromino)
     tetromino->disableAnimation();
     tetromino->undoLastTransform();
     updateTetrisGrid(tetromino);
+    checkAndClearLines();
     printTetrisGrid();
     nextTetromino();
 }
@@ -236,12 +310,8 @@ void onTetrominoTransform()
 {
     GtsSceneNode* tetromino = engine.getSelectedSceneNodePtr();
 
-    bool gridCollision = checkCollisionWithGrid(tetromino);
-    bool bottomCollision = checkCollisionWithBottom(tetromino);
-    bool wallCollision = checkCollisionWithWalls(tetromino);
-
     //bottom collision will always spawn a new tetromino
-    if(bottomCollision)
+    if(checkCollisionWithBottom(tetromino))
     {
         std::cout << "Collision with bottom detected! Stopping tetromino and updating grid.\n";
         postCollision(tetromino);
@@ -249,39 +319,37 @@ void onTetrominoTransform()
     }
 
     //on wall collision, we undo the last transform
-    if(wallCollision)
+    if(checkCollisionWithWalls(tetromino))
     {
         std::cout << "Collision with walls detected!\n";
         tetromino->undoLastTransform();
     }
 
-    //colliding with the grid will also undo the last transformation
-    if(gridCollision)
-    {
-        std::cout << "Collision with grid detected!\n";
+    // //colliding with the grid will also undo the last transformation
+    // if(checkCollisionWithGrid(tetromino))
+    // {
+    //     std::cout << "Collision with grid detected!\n";
 
-        if(gridCollisionCounter >= 1)
-        {
-            postCollision(tetromino);
-            gridCollisionCounter = 0;
-        }
-        else
-        {
-            tetromino->undoLastTransform();
-            gridCollisionCounter++;
-        }
-    }
-    else
-    {
-        gridCollisionCounter = 0;
-    }
+    //     if(gridCollisionCounter >= 1)
+    //     {
+    //         postCollision(tetromino);
+    //         gridCollisionCounter = 0;
+    //     }
+    //     else
+    //     {
+    //         tetromino->undoLastTransform();
+    //         gridCollisionCounter++;
+    //     }
+    // }
+    // else
+    // {
+    //     gridCollisionCounter = 0;
+    // }
 }
 
 void nextTetromino()
 {
-    nodeId++;
-    I_tetrisPiece(I_PIECE_TEXTURE_PATH, std::to_string(nodeId));
-    engine.selectNode(std::to_string(nodeId));
+    engine.selectNode(I_tetrisPiece(I_PIECE_TEXTURE_PATH));
     engine.getSelectedSceneNodePtr()->subscribeToTransformEvent(onTetrominoTransform);
 }
 

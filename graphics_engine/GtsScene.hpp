@@ -32,6 +32,17 @@ public:
         nodes.push_back(node);
     }
 
+    void removeNode(GtsSceneNode* node)
+    {
+        auto it = std::find(nodes.begin(), nodes.end(), node);
+        if (it != nodes.end()) 
+        {
+            std::cout << "Removed a Node" << std::endl;
+            delete *it;
+            nodes.erase(it);
+        }
+    }
+
     void addNodeToParent(GtsSceneNode* node, std::string parentIdentifier)
     {
         search(parentIdentifier)->addChild(node);
@@ -64,7 +75,10 @@ public:
     {
         for (auto node : nodes) 
         {
-            node->draw(commandBuffer, pipelineLayout, currentFrame);
+            if(node->getActive())
+            {
+                node->draw(commandBuffer, pipelineLayout, currentFrame);
+            }
         }
     }
 

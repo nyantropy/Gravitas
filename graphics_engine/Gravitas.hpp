@@ -238,6 +238,11 @@ public:
         //std::cout << "Current Root Nodes: " <<  currentScene->countRootNodes() << std::endl;
     }
 
+    void removeNodeFromScene(GtsSceneNode* node)
+    {
+        currentScene->removeNode(node);
+    }
+
     void run() 
     {
         while (!vwindow->shouldClose())
