@@ -20,6 +20,7 @@ std::vector<std::vector<GtsSceneNode*>> tetrisGridSceneNodes;
 Gravitas engine;
 
 int nodeId = 0;
+int gridCollisionCounter = 0;
 
 void onKeyPressed(int key, int scancode, int action, int mods)
 {
@@ -120,10 +121,11 @@ void updateTetrisGrid(GtsSceneNode* tetromino)
     for(auto cube : tetromino->getChildren())
     {
         glm::vec3 coords = cube->getWorldPosition();
-        std::cout << "Adding cube: " << glm::to_string(coords) << std::endl;
+        std::cout << "Adding cube:    " << glm::to_string(coords) << std::endl;
 
         //x needs an offset of +5
         int modifiedX = coords.x + 5;
+        std::cout << "X: " << modifiedX << " Y: " << coords.y << std::endl;
         if (coords.y >= 0 && coords.y < 20 && modifiedX >= 0 && modifiedX < 10)
         {
             tetrisGrid[coords.y][modifiedX] = 1;
@@ -133,30 +135,36 @@ void updateTetrisGrid(GtsSceneNode* tetromino)
 }
 
 // Function to check for collisions with the bottom of the grid
-bool checkCollisionWithBottomAndEmptySpace(GtsSceneNode* tetromino)
+bool checkCollisionWithBottom(GtsSceneNode* tetromino)
 {
     for(auto cube : tetromino->getChildren())
     {
         glm::vec3 coords = cube->getWorldPosition();
-        int modifiedX = coords.x + 5;
         
         // Check for collisions with the bottom of the grid
         if (coords.y < 0)
         {
             return true; // Collision with bottom detected
         }
-        
-        // Check for empty space below the tetromino
-        if (coords.y >= 0 && coords.y < 19 && modifiedX >= 0 && modifiedX < 10)
-        {
-            if (tetrisGrid[coords.y][modifiedX] == 1)
-            {
-                return true; // Collision with existing tetromino wall below
-            }
-        }
     }
 
     return false; // No collision with bottom or existing wall below
+}
+
+bool checkCollisionBelowTetromino(GtsSceneNode* tetromino)
+{
+    for(auto cube : tetromino->getChildren())
+    {
+        glm::vec3 coords = cube->getWorldPosition();
+        int modifiedX = coords.x + 5;
+
+        if (tetrisGrid[coords.y][modifiedX] == 1)
+        {
+            return true; // Collision with existing tetromino wall below
+        }       
+    }
+
+    return false;
 }
 
 bool checkCollisionWithWalls(GtsSceneNode* tetromino)
@@ -192,11 +200,6 @@ bool checkCollisionWithGrid(GtsSceneNode* tetromino)
                 return true; // Collision detected with the Tetris grid
             }
         }
-        else
-        {
-            // If cube is out of grid bounds, consider it a collision
-            return true;
-        }
     }
 
     return false; // No collision detected
@@ -220,36 +223,57 @@ void printTetrisGrid()
 
 void nextTetromino();
 
+void postCollision(GtsSceneNode* tetromino)
+{
+    tetromino->disableAnimation();
+    tetromino->undoLastTransform();
+    updateTetrisGrid(tetromino);
+    printTetrisGrid();
+    nextTetromino();
+}
+
 void onTetrominoTransform()
 {
     GtsSceneNode* tetromino = engine.getSelectedSceneNodePtr();
 
+    bool gridCollision = checkCollisionWithGrid(tetromino);
+    bool bottomCollision = checkCollisionWithBottom(tetromino);
+    bool wallCollision = checkCollisionWithWalls(tetromino);
+
     //bottom collision will always spawn a new tetromino
-    if(checkCollisionWithBottomAndEmptySpace(tetromino))
+    if(bottomCollision)
     {
         std::cout << "Collision with bottom detected! Stopping tetromino and updating grid.\n";
-        tetromino->disableAnimation();
-        tetromino->undoLastTransform();
-        updateTetrisGrid(tetromino);
-        printTetrisGrid();
-        nextTetromino();
+        postCollision(tetromino);
         return; 
     }
 
     //on wall collision, we undo the last transform
-    if(checkCollisionWithWalls(tetromino))
+    if(wallCollision)
     {
         std::cout << "Collision with walls detected!\n";
-        engine.getSelectedSceneNodePtr()->undoLastTransform();
-        return;
+        tetromino->undoLastTransform();
     }
 
-    //on grid collision we undo the last transform too
-    if(checkCollisionWithGrid(tetromino))
+    //colliding with the grid will also undo the last transformation
+    if(gridCollision)
     {
         std::cout << "Collision with grid detected!\n";
-        engine.getSelectedSceneNodePtr()->undoLastTransform();
-        return;
+
+        if(gridCollisionCounter >= 1)
+        {
+            postCollision(tetromino);
+            gridCollisionCounter = 0;
+        }
+        else
+        {
+            tetromino->undoLastTransform();
+            gridCollisionCounter++;
+        }
+    }
+    else
+    {
+        gridCollisionCounter = 0;
     }
 }
 
