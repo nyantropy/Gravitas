@@ -41,10 +41,10 @@ void onKeyPressed(int key, int scancode, int action, int mods)
             engine.getSelectedSceneNodePtr()->rotate(glm::vec3(0.0f, 0.0f, -90.0f));
             break;
         case GLFW_KEY_A:
-            engine.getSelectedSceneNodePtr()->translate(glm::vec3(-1.0f, 0.0f, 0.0f), "keyboard");
+            engine.getSelectedSceneNodePtr()->translate(glm::vec3(-1.0f, 0.0f, 0.0f));
             break;
         case GLFW_KEY_D:
-            engine.getSelectedSceneNodePtr()->translate(glm::vec3(1.0f, 0.0f, 0.0f), "keyboard");
+            engine.getSelectedSceneNodePtr()->translate(glm::vec3(1.0f, 0.0f, 0.0f));
             break;
         case GLFW_KEY_P:
             break;
@@ -245,7 +245,7 @@ void checkAndClearRowsReworked()
 
                 if(tetrisGridSceneNodes[row][col] != nullptr)
                 {
-                    tetrisGridSceneNodes[row][col]->translate(glm::vec3(0.0f, -1.0f, 0.0f), "lineClear");
+                    tetrisGridSceneNodes[row][col]->translate(glm::vec3(0.0f, -1.0f, 0.0f));
                 }               
             }
         }

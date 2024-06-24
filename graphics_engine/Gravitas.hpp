@@ -213,7 +213,7 @@ public:
 
         if(options.translationVector != glm::vec3(0.0f, 0.0f, 0.0f))
         {
-            node->translate(options.translationVector, "engine");
+            node->translate(options.translationVector);
         }
 
         if(options.rotationVector != glm::vec3(0.0f, 0.0f, 0.0f))

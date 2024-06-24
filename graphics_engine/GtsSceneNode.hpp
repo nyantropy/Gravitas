@@ -44,7 +44,8 @@ private:
     bool isAnimationActive;
     bool isUpdatable;
 
-    void updateMatrices() {
+    void updateMatrices() 
+    {
         translationMatrix = glm::translate(glm::mat4(1.0f), positionVector);
 
         glm::quat quatX = glm::angleAxis(glm::radians(rotationVector.x), glm::vec3(1.0f, 0.0f, 0.0f));
@@ -63,13 +64,15 @@ public:
         parent(nullptr), renderableObject(nullptr), animation(nullptr),
         isTransformable(true), isAnimationActive(false), isRendering(true), isUpdatable(true) {}
 
-    GtsSceneNode(GtsRenderableObject* obj, GtsAnimation* anim) : GtsSceneNode() {
+    GtsSceneNode(GtsRenderableObject* obj, GtsAnimation* anim) : GtsSceneNode() 
+    {
         renderableObject = obj;
         animation = anim;
         isAnimationActive = true;
     }
 
-    GtsSceneNode(GtsRenderableObject* obj, GtsAnimation* anim, std::string identifier) : GtsSceneNode(obj, anim) {
+    GtsSceneNode(GtsRenderableObject* obj, GtsAnimation* anim, std::string identifier) : GtsSceneNode(obj, anim) 
+    {
         this->identifier = identifier;
     }
 
@@ -155,11 +158,10 @@ public:
         updateMatrices();
     }
 
-    void translate(const glm::vec3& offset, std::string debug) 
+    void translate(const glm::vec3& offset) 
     {
         if (!isTransformable) return;
 
-        //std::cout << "translate call by " << debug << std::endl;
         lastTransform = offset;
         lastTransformType = translation;
 
@@ -167,18 +169,19 @@ public:
         transformEvent.notify();
     }
 
-    void rotate(const glm::vec3& rot) {
+    void rotate(const glm::vec3& rot) 
+    {
         if (!isTransformable) return;
 
         lastTransform = rot;
         lastTransformType = rotation;
 
         rotationVector += rot;
-        std:: cout << glm::to_string(rotationVector) << std::endl;
         transformEvent.notify();
     }
 
-    void scale(const glm::vec3& scl) {
+    void scale(const glm::vec3& scl) 
+    {
         if (!isTransformable) return;
 
         lastTransform = scl;
@@ -188,7 +191,8 @@ public:
         transformEvent.notify();
     }
 
-    void addChild(GtsSceneNode* child) {
+    void addChild(GtsSceneNode* child) 
+    {
         child->parent = this;
         children.push_back(child);
     }
@@ -215,14 +219,16 @@ public:
         return glm::vec3(worldPosition.x, worldPosition.y, worldPosition.z);
     }
 
-    glm::ivec3 worldPositionToGrid(const glm::vec3& worldPos, float gridCellSize) {
+    glm::ivec3 worldPositionToGrid(const glm::vec3& worldPos, float gridCellSize) 
+    {
         int gridX = std::round(worldPos.x / gridCellSize);
         int gridY = std::round(worldPos.y / gridCellSize);
         int gridZ = std::round(worldPos.z / gridCellSize);
         return glm::ivec3(gridX, gridY, gridZ);
     }
 
-    std::vector<glm::ivec3> getGridCoordinates() {
+    std::vector<glm::ivec3> getGridCoordinates() 
+    {
         std::vector<glm::ivec3> gridCoordinates;
         for (auto child : children) {
             glm::vec3 worldPos = child->getWorldPosition();
