@@ -93,24 +93,13 @@ class GtsEncoder
             frame->height = height;
             av_frame_get_buffer(frame, 0);
         }
-
-        void allocateAVPacket()
-        {
-            this->pkt = av_packet_alloc();
-        }
-
-        void freePacketAndFrame()
-        {
-            av_packet_unref(this->pkt);
-            av_frame_free(&frame);
-        }
-
+        
         void encodeAndWriteFrame(uint8_t *dataImage, uint32_t width, uint32_t height)
         {
             FrameConverter image = FrameConverter(dataImage, width, height);
             this->allocateAVFrame(width, height);
             av_image_copy(frame->data, frame->linesize, image.dst_data, image.dst_linesize, AV_PIX_FMT_YUV420P, width, height);
-            this->allocateAVPacket();
+            this->pkt = av_packet_alloc();
 
             int ret = avcodec_send_frame(codecContext, frame);
             if (ret < 0) 

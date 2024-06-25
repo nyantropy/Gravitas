@@ -82,6 +82,10 @@ void ProcessingThread::worker()
          pixels[i] = 0xFF0000FF;
     }
 
+    //before we start working, we need another thread that will handle sending inputs
+    InputSenderThread inputThread;
+    inputThread.start();
+
     while(working)
     {
         window.update(pixels);
@@ -115,44 +119,15 @@ void ProcessingThread::worker()
 
             if(event.type == SDL_KEYDOWN)
             {
-                handleKeyPress(event);
+                //hand off the event to the input thread
+                inputThread.pushEvent(event);
             }
         }
 
         std::this_thread::sleep_for(frameInterval);
     }
 
-    delete pixels;
-}
+    inputThread.stop();
 
-void ProcessingThread::handleKeyPress(SDL_Event& event)
-{
-    switch (event.key.keysym.sym)
-    {
-        case SDLK_a:
-            std::cout << "Up arrow key pressed" << std::endl;
-            // Handle the Up arrow key press event
-            break;
-        
-        case SDLK_d:
-            std::cout << "Spacebar pressed" << std::endl;
-            // Handle the Spacebar press event
-            break;
-        case SDLK_LEFT:
-            std::cout << "Left arrow key pressed" << std::endl;
-            // Handle Left arrow key press event
-            break;
-        
-        case SDLK_RIGHT:
-            std::cout << "Right arrow key pressed" << std::endl;
-            // Handle Right arrow key press event
-            break;
-        
-        case SDLK_p:
-            std::cout << "P key pressed" << std::endl;
-            // Handle P key press event
-            break;
-        
-        // Handle other keys as needed
-    }
+    delete pixels;
 }

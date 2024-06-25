@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(receiver_project)
 
 # Automatically collect all .cpp files in the directory
-file(GLOB SOURCES "*.cpp")
+file(GLOB SOURCES ./*.cpp ./*.c ./*.h)
 
 # Add the executable
 add_executable(receiver ${SOURCES})

@@ -9,6 +9,7 @@
 #include "FrameData.h"
 #include "IMGUtility.h"
 #include "SDLWindow.h"
+#include "InputSenderThread.h"
 
 class ProcessingThread 
 {
