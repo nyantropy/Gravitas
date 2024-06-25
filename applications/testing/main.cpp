@@ -8,6 +8,7 @@
 #include "SlowFallAnimation.hpp"
 #include "GtsFrameGrabber.hpp"
 #include "RandomNumberGenerator.h"
+#include "InputReceiverThread.hpp"
 
 const std::string MODEL_PATH = "resources/models/cube.obj";
 const std::string FRAME_TEXTURE_PATH = "resources/textures/grey_texture.png";
@@ -38,11 +39,11 @@ void onKeyPressed(int key, int scancode, int action, int mods)
     switch(key)
     {
         case GLFW_KEY_LEFT:
-            std::cout << "left" << std::endl;
+            //std::cout << "left" << std::endl;
             engine.getSelectedSceneNodePtr()->rotate(glm::vec3(0.0f, 0.0f, 90.0f));
             break;
         case GLFW_KEY_RIGHT:
-            std::cout << "right" << std::endl;
+            //std::cout << "right" << std::endl;
             engine.getSelectedSceneNodePtr()->rotate(glm::vec3(0.0f, 0.0f, -90.0f));
             break;
         case GLFW_KEY_A:
@@ -137,7 +138,7 @@ void checkAndClearRowsReworked()
         }
     }
 
-    std::cout << "Row indices to clear: ";
+    //std::cout << "Row indices to clear: ";
 
     for(int& i : rowsToClear)
     {
@@ -149,7 +150,7 @@ void checkAndClearRowsReworked()
     for(auto it = rowsToClear.rbegin(); it != rowsToClear.rend(); it++)
     {
         int rowToClear = *it;
-        std::cout << "clearing row " << rowToClear << "!" << std::endl;
+        //std::cout << "clearing row " << rowToClear << "!" << std::endl;
 
         //clear the row first
         for (int col = 0; col < 10; ++col)
@@ -162,7 +163,7 @@ void checkAndClearRowsReworked()
             tetrisGridSceneNodes[rowToClear][col] = nullptr;
         }
 
-        std::cout << "Moving rows!" << std::endl;
+        //std::cout << "Moving rows!" << std::endl;
         // Move the entries down
         for (int row = rowToClear; row < 20 - 1; ++row)
         {
@@ -187,12 +188,12 @@ void updateTetrisGrid(GtsSceneNode* tetromino)
     for(auto cube : tetromino->getChildren())
     {
         glm::vec3 coords = cube->getWorldPosition();
-        std::cout << "Adding cube:    " << glm::to_string(coords) << std::endl;
+        //std::cout << "Adding cube:    " << glm::to_string(coords) << std::endl;
 
         //x needs an offset of +5
         int modifiedX = static_cast<int>(std::round(coords.x)) + 5;
         int modifiedY = static_cast<int>(std::round(coords.y));
-        std::cout << "X: " << modifiedX << " Y: " << modifiedY << std::endl;
+        //std::cout << "X: " << modifiedX << " Y: " << modifiedY << std::endl;
 
         tetrisGrid[modifiedY][modifiedX] = 1;
         tetrisGridSceneNodes[modifiedY][modifiedX] = cube;
@@ -307,7 +308,7 @@ void onTetrominoTransform()
 {
     GtsSceneNode* tetromino = engine.getSelectedSceneNodePtr();
 
-    std::cout << "into transform" << std::endl;
+    //std::cout << "into transform" << std::endl;
 
     //bottom collision will always spawn a new tetromino
     if(checkCollisionWithBottom(tetromino))
@@ -317,7 +318,7 @@ void onTetrominoTransform()
         return; 
     }
 
-    std::cout << "post bottom collision" << std::endl;
+    //std::cout << "post bottom collision" << std::endl;
 
     //on wall collision, we undo the last transform
     if(checkCollisionWithWalls(tetromino))
@@ -327,7 +328,7 @@ void onTetrominoTransform()
         return;
     }
 
-    std::cout << "post wall collision" << std::endl;
+    //std::cout << "post wall collision" << std::endl;
 
     //colliding with the grid will also undo the last transformation
     if(checkCollisionWithGrid(tetromino))
@@ -350,14 +351,14 @@ void onTetrominoTransform()
         gridCollisionCounter = 0;
     }
 
-    std::cout << "post grid collision" << std::endl;
+    //std::cout << "post grid collision" << std::endl;
 }
 
 void nextTetromino()
 {
     glm::vec3 origin = glm::vec3(0.0f, 12.0f, 0.0f);
 
-    std::cout << "next tetromino begin" << std::endl;
+    //std::cout << "next tetromino begin" << std::endl;
 
     switch(rng.next())
     {
@@ -433,13 +434,15 @@ void nextTetromino()
             break;
     }
 
-    std::cout << "before selecting scene ptr" << std::endl;
+    //std::cout << "before selecting scene ptr" << std::endl;
     engine.getSelectedSceneNodePtr()->subscribeToTransformEvent(onTetrominoTransform);
-    std::cout << "after selecting scene ptr" << std::endl;
+    //std::cout << "after selecting scene ptr" << std::endl;
 }
 
 int main() 
 {
+    InputReceiverThread inputReceiver = InputReceiverThread(onKeyPressed);
+    inputReceiver.start(50000);
     rng = RandomNumberGenerator(0,6);
     tetrisGrid = std::vector<std::vector<int>>(20, std::vector<int>(10, 0));
     tetrisGridSceneNodes = std::vector<std::vector<GtsSceneNode*>>(20, std::vector<GtsSceneNode*>(10, 0));
@@ -451,6 +454,7 @@ int main()
     engine.subscribeOnKeyPressedEvent(onKeyPressed);
     engine.startEncoder();
     engine.run();
+    inputReceiver.stop();
 
     return EXIT_SUCCESS;
 }
