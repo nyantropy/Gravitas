@@ -7,18 +7,22 @@
 #include "GtsSceneNode.hpp"
 #include "SlowFallAnimation.hpp"
 #include "GtsFrameGrabber.hpp"
-
-
-const glm::vec3 right_rotation = glm::vec3(0.0f, 0.0f, -90.0f);
-const glm::vec3 left_rotation = glm::vec3(0.0f, 0.0f, 90.0f);
+#include "RandomNumberGenerator.h"
 
 const std::string MODEL_PATH = "resources/models/cube.obj";
 const std::string FRAME_TEXTURE_PATH = "resources/textures/grey_texture.png";
-const std::string I_PIECE_TEXTURE_PATH = "resources/textures/blue_texture.png";
+const std::string I_PIECE_TEXTURE_PATH = "resources/textures/cyan_texture.png";
+const std::string O_PIECE_TEXTURE_PATH = "resources/textures/yellow_texture.png";
+const std::string S_PIECE_TEXTURE_PATH = "resources/textures/red_texture.png";
+const std::string Z_PIECE_TEXTURE_PATH = "resources/textures/green_texture.png";
+const std::string L_PIECE_TEXTURE_PATH = "resources/textures/orange_texture.png";
+const std::string T_PIECE_TEXTURE_PATH = "resources/textures/purple_texture.png";
+const std::string J_PIECE_TEXTURE_PATH = "resources/textures/blue_texture.png";
 
 std::vector<std::vector<int>> tetrisGrid;
 std::vector<std::vector<GtsSceneNode*>> tetrisGridSceneNodes;
 Gravitas engine;
+RandomNumberGenerator rng;
 
 int nodeId = 0;
 int gridCollisionCounter = 0;
@@ -82,48 +86,29 @@ void tetrisFrame(std::string texture_path)
     }
 }
 
-std::string I_tetrisPiece(std::string texture_path)
+std::string tetrisPiece(std::string texture_path, std::vector<glm::vec3> coords, glm::vec3 origin)
 {
     nodeId++;
     std::string identifier = std::to_string(nodeId);
-    //for pieces we need to move the root towards the upper end of the frame
+
+    //root node
     GtsSceneNodeOpt rootnode;
     rootnode.identifier = identifier;
-    rootnode.translationVector = glm::vec3(0.0f, 12.0f, 0.0f);
+    rootnode.translationVector = origin;
     rootnode.animPtr = new SlowFallAnimation();
     engine.addNodeToScene(rootnode);
 
-    nodeId++;
-    GtsSceneNodeOpt object;
-    object.objectPtr = engine.createObject(MODEL_PATH, texture_path);
-    object.translationVector = glm::vec3(0.0f, 0.0f, 0.0f);
-    object.identifier = std::to_string(nodeId);
-    object.parentIdentifier = identifier;
-    engine.addNodeToScene(object);
-
-    nodeId++;
-    GtsSceneNodeOpt object1;
-    object1.objectPtr = engine.createObject(MODEL_PATH, texture_path);
-    object1.translationVector = glm::vec3(0.0f, 1.0f, 0.0f);
-    object1.identifier = std::to_string(nodeId);
-    object1.parentIdentifier = identifier;
-    engine.addNodeToScene(object1);
-
-    nodeId++;
-    GtsSceneNodeOpt object2;
-    object2.objectPtr = engine.createObject(MODEL_PATH, texture_path);
-    object2.translationVector = glm::vec3(0.0f, 2.0f, 0.0f);
-    object2.identifier = std::to_string(nodeId);
-    object2.parentIdentifier = identifier;
-    engine.addNodeToScene(object2);
-
-    nodeId++;
-    GtsSceneNodeOpt object3;
-    object3.objectPtr = engine.createObject(MODEL_PATH, texture_path);
-    object3.translationVector = glm::vec3(0.0f, -1.0f, 0.0f);
-    object3.identifier = std::to_string(nodeId);
-    object3.parentIdentifier = identifier;
-    engine.addNodeToScene(object3);
+    //a tetromino consists of 4 cubes
+    for(glm::vec3 pos : coords)
+    {
+        nodeId++;
+        GtsSceneNodeOpt cube;
+        cube.objectPtr = engine.createObject(MODEL_PATH, texture_path);
+        cube.translationVector = pos;
+        cube.identifier = std::to_string(nodeId);
+        cube.parentIdentifier = identifier;
+        engine.addNodeToScene(cube);
+    }
 
     return identifier;
 }
@@ -359,12 +344,88 @@ void onTetrominoTransform()
 
 void nextTetromino()
 {
-    engine.selectNode(I_tetrisPiece(I_PIECE_TEXTURE_PATH));
+    glm::vec3 origin = glm::vec3(0.0f, 12.0f, 0.0f);
+
+    switch(rng.next())
+    {
+        case 0:
+            engine.selectNode(tetrisPiece(O_PIECE_TEXTURE_PATH,
+            {
+                glm::vec3(0.0f, 0.0f, 0.0f),
+                glm::vec3(0.0f, 1.0f, 0.0f),
+                glm::vec3(1.0f, 1.0f, 0.0f),
+                glm::vec3(1.0f, 0.0f, 0.0f)
+            }
+            , origin));
+            break;
+        case 1:
+            engine.selectNode(tetrisPiece(S_PIECE_TEXTURE_PATH,
+            {
+                glm::vec3(0.0f, 0.0f, 0.0f),
+                glm::vec3(-1.0f, 0.0f, 0.0f),
+                glm::vec3(0.0f, 1.0f, 0.0f),
+                glm::vec3(1.0f, 1.0f, 0.0f)
+            }
+            , origin));
+            break;
+        case 2:
+            engine.selectNode(tetrisPiece(Z_PIECE_TEXTURE_PATH,
+            {
+                glm::vec3(0.0f, 0.0f, 0.0f),
+                glm::vec3(1.0f, 0.0f, 0.0f),
+                glm::vec3(0.0f, 1.0f, 0.0f),
+                glm::vec3(-1.0f, 1.0f, 0.0f)
+            }
+            , origin));
+            break;
+        case 3:
+            engine.selectNode(tetrisPiece(L_PIECE_TEXTURE_PATH,
+            {
+                glm::vec3(0.0f, 0.0f, 0.0f),
+                glm::vec3(0.0f, 1.0f, 0.0f),
+                glm::vec3(0.0f, -1.0f, 0.0f),
+                glm::vec3(-1.0f, -1.0f, 0.0f)
+            }
+            , origin));
+            break;
+        case 4:
+            engine.selectNode(tetrisPiece(J_PIECE_TEXTURE_PATH,
+            {
+                glm::vec3(0.0f, 0.0f, 0.0f),
+                glm::vec3(0.0f, 1.0f, 0.0f),
+                glm::vec3(0.0f, -1.0f, 0.0f),
+                glm::vec3(1.0f, -1.0f, 0.0f)
+            }
+            , origin));
+            break;
+        case 5:
+            engine.selectNode(tetrisPiece(T_PIECE_TEXTURE_PATH,
+            {
+                glm::vec3(0.0f, 0.0f, 0.0f),
+                glm::vec3(1.0f, 0.0f, 0.0f),
+                glm::vec3(-1.0f, 0.0f, 0.0f),
+                glm::vec3(0.0f, -1.0f, 0.0f)
+            }
+            , origin));
+            break;
+        case 6:
+            engine.selectNode(tetrisPiece(I_PIECE_TEXTURE_PATH,
+            {
+                glm::vec3(0.0f, 0.0f, 0.0f),
+                glm::vec3(0.0f, 1.0f, 0.0f),
+                glm::vec3(0.0f, 2.0f, 0.0f),
+                glm::vec3(0.0f, -1.0f, 0.0f)
+            }
+            , origin));
+            break;
+    }
+
     engine.getSelectedSceneNodePtr()->subscribeToTransformEvent(onTetrominoTransform);
 }
 
 int main() 
 {
+    rng = RandomNumberGenerator(0,6);
     tetrisGrid = std::vector<std::vector<int>>(20, std::vector<int>(10, 0));
     tetrisGridSceneNodes = std::vector<std::vector<GtsSceneNode*>>(20, std::vector<GtsSceneNode*>(10, 0));
     engine = Gravitas();

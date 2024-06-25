@@ -9,8 +9,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Set output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+# Automatically collect all .cpp files in the directory
+file(GLOB SOURCES "*.cpp")
+
 # main target is just our small cpp file
-add_executable(main main.cpp)
+add_executable(main main.cpp ${SOURCES})
 add_dependencies(main Gravitas)
 
 # Include the graphics engine
