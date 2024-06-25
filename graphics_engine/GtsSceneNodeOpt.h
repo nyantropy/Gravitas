@@ -14,6 +14,8 @@ struct GtsSceneNodeOpt
     std::string identifier;
     std::string parentIdentifier;
 
+    bool needsActivation = true;
+
     glm::vec3 translationVector = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::vec3 rotationVector = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::vec3 scaleVector = glm::vec3(0.0f, 0.0f, 0.0f);

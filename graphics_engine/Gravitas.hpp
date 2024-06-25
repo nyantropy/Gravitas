@@ -195,6 +195,13 @@ public:
     {
         GtsSceneNode* node = new GtsSceneNode(options.objectPtr, options.animPtr, options.identifier);
 
+        if(options.needsActivation)
+        {
+            node->disableRendering();
+            node->disableAnimation();
+            node->disableUpdating();
+        }
+
         if(options.translationVector != glm::vec3(0.0f, 0.0f, 0.0f))
         {
             node->translate(options.translationVector);

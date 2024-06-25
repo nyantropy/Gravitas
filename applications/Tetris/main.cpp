@@ -59,9 +59,12 @@ void onKeyPressed(int key, int scancode, int action, int mods)
 
 void tetrisFrame(std::string texture_path)
 {
+    bool needsActivation = false;
+
     //create a root object at 0/0/0
     GtsSceneNodeOpt obj1;
     obj1.identifier = "tetrisframeroot";
+    obj1.needsActivation = needsActivation;
     engine.addNodeToScene(obj1);
 
     float lowerboundY = 0.0f;
@@ -81,6 +84,7 @@ void tetrisFrame(std::string texture_path)
                 object.objectPtr = engine.createObject(MODEL_PATH, texture_path);
                 object.translationVector = glm::vec3(x - round((upperboundX/2)), -1.0f + y, 0.0f);
                 object.parentIdentifier = "tetrisframeroot";
+                object.needsActivation = needsActivation;
                 engine.addNodeToScene(object);
             }
         }
@@ -91,12 +95,14 @@ std::string tetrisPiece(std::string texture_path, std::vector<glm::vec3> coords,
 {
     nodeId++;
     std::string identifier = std::to_string(nodeId);
+    bool needsActivation = true;
 
     //root node
     GtsSceneNodeOpt rootnode;
     rootnode.identifier = identifier;
     rootnode.translationVector = origin;
     rootnode.animPtr = new SlowFallAnimation();
+    rootnode.needsActivation = needsActivation;
     engine.addNodeToScene(rootnode);
 
     //a tetromino consists of 4 cubes
@@ -108,6 +114,7 @@ std::string tetrisPiece(std::string texture_path, std::vector<glm::vec3> coords,
         cube.translationVector = pos;
         cube.identifier = std::to_string(nodeId);
         cube.parentIdentifier = identifier;
+        cube.needsActivation = needsActivation;
         engine.addNodeToScene(cube);
     }
 
@@ -434,9 +441,21 @@ void nextTetromino()
             break;
     }
 
-    //std::cout << "before selecting scene ptr" << std::endl;
-    engine.getSelectedSceneNodePtr()->subscribeToTransformEvent(onTetrominoTransform);
-    //std::cout << "after selecting scene ptr" << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    GtsSceneNode* tetromino = engine.getSelectedSceneNodePtr();
+
+    for (auto cube : tetromino->getChildren())
+    {
+        cube->enableRendering();
+        cube->enableUpdating();
+    }
+
+    tetromino->enableAnimation();
+    tetromino->enableRendering();
+    tetromino->enableUpdating();
+
+    tetromino->subscribeToTransformEvent(onTetrominoTransform);
 }
 
 int main() 
