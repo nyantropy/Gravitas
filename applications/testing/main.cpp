@@ -157,7 +157,8 @@ void checkAndClearRowsReworked()
             tetrisGrid[rowToClear][col] = 0;
             GtsSceneNode* node = tetrisGridSceneNodes[rowToClear][col];
             node->disableRendering();
-            engine.removeNodeFromScene(node);
+            node->disableTransform();
+            //engine.removeNodeFromScene(node);
             tetrisGridSceneNodes[rowToClear][col] = nullptr;
         }
 
@@ -170,6 +171,7 @@ void checkAndClearRowsReworked()
                 std::swap(tetrisGrid[row][col], tetrisGrid[row + 1][col]);
                 std::swap(tetrisGridSceneNodes[row][col], tetrisGridSceneNodes[row + 1][col]);
 
+                //of course this does not work - we locally translate, this means it wont work - think about a workaround here
                 if(tetrisGridSceneNodes[row][col] != nullptr)
                 {
                     tetrisGridSceneNodes[row][col]->translate(glm::vec3(0.0f, -1.0f, 0.0f));
