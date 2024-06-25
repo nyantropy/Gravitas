@@ -43,6 +43,22 @@ public:
         }
     }
 
+    void splitUpNode(GtsSceneNode* node)
+    {
+        for(auto child : node->getChildren())
+        {
+            child->assimilateParentTransform();
+            nodes.push_back(child);
+        }
+
+        if(!node->hasRenderableObject())
+        {
+            removeNode(node);
+        }
+
+        std::cout << "Root nodes:" << countRootNodes() << std::endl;
+    }
+
     void addNodeToParent(GtsSceneNode* node, std::string parentIdentifier)
     {
         search(parentIdentifier)->addChild(node);
@@ -67,6 +83,10 @@ public:
     {
         for (auto node : nodes) 
         {
+            if(node == nullptr)
+            {
+                std::cout << "nullptr in update" << std::endl;
+            }
             node->update(glm::mat4(1.0f), camera, framesInFlight, deltaTime);
         }
     }
@@ -75,6 +95,10 @@ public:
     {
         for (auto node : nodes) 
         {
+            if(node == nullptr)
+            {
+                std::cout << "nullptr in draw" << std::endl;
+            }
             node->draw(commandBuffer, pipelineLayout, currentFrame);         
         }
     }

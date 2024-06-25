@@ -158,7 +158,7 @@ void checkAndClearRowsReworked()
             GtsSceneNode* node = tetrisGridSceneNodes[rowToClear][col];
             node->disableRendering();
             node->disableTransform();
-            //engine.removeNodeFromScene(node);
+            engine.removeNodeFromScene(node);
             tetrisGridSceneNodes[rowToClear][col] = nullptr;
         }
 
@@ -296,6 +296,7 @@ void postCollision(GtsSceneNode* tetromino)
     tetromino->disableAnimation();
     tetromino->undoLastTransform();
     updateTetrisGrid(tetromino);
+    engine.splitSceneNode(tetromino);
     checkAndClearRowsReworked();
     printTetrisGrid();
     printTetrisGridSceneNodes();
@@ -306,6 +307,8 @@ void onTetrominoTransform()
 {
     GtsSceneNode* tetromino = engine.getSelectedSceneNodePtr();
 
+    std::cout << "into transform" << std::endl;
+
     //bottom collision will always spawn a new tetromino
     if(checkCollisionWithBottom(tetromino))
     {
@@ -314,6 +317,8 @@ void onTetrominoTransform()
         return; 
     }
 
+    std::cout << "post bottom collision" << std::endl;
+
     //on wall collision, we undo the last transform
     if(checkCollisionWithWalls(tetromino))
     {
@@ -321,6 +326,8 @@ void onTetrominoTransform()
         tetromino->undoLastTransform();
         return;
     }
+
+    std::cout << "post wall collision" << std::endl;
 
     //colliding with the grid will also undo the last transformation
     if(checkCollisionWithGrid(tetromino))
@@ -342,11 +349,15 @@ void onTetrominoTransform()
     {
         gridCollisionCounter = 0;
     }
+
+    std::cout << "post grid collision" << std::endl;
 }
 
 void nextTetromino()
 {
     glm::vec3 origin = glm::vec3(0.0f, 12.0f, 0.0f);
+
+    std::cout << "next tetromino begin" << std::endl;
 
     switch(rng.next())
     {
@@ -422,7 +433,9 @@ void nextTetromino()
             break;
     }
 
+    std::cout << "before selecting scene ptr" << std::endl;
     engine.getSelectedSceneNodePtr()->subscribeToTransformEvent(onTetrominoTransform);
+    std::cout << "after selecting scene ptr" << std::endl;
 }
 
 int main() 
@@ -436,7 +449,7 @@ int main()
     tetrisFrame(FRAME_TEXTURE_PATH);
     nextTetromino();
     engine.subscribeOnKeyPressedEvent(onKeyPressed);
-    engine.startEncoder();
+    //engine.startEncoder();
     engine.run();
 
     return EXIT_SUCCESS;

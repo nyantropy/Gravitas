@@ -91,6 +91,11 @@ public:
         transformEvent.subscribe(f);
     }
 
+    std::string getIdentifier()
+    {
+        return identifier;
+    }
+
     void enableRendering()
     {
         isRendering = true;
@@ -197,6 +202,18 @@ public:
         children.push_back(child);
     }
 
+    void removeChild(GtsSceneNode* child)
+    {
+        child->parent = nullptr;
+        auto it = std::remove(children.begin(), children.end(), child);
+        children.erase(it, children.end());      
+    }
+
+    bool hasRenderableObject()
+    {
+        return renderableObject != nullptr;
+    }
+
     glm::mat4 getModelMatrix()
     {
         return translationMatrix * rotationMatrix * scaleMatrix;
@@ -237,6 +254,71 @@ public:
         }
         return gridCoordinates;
     }
+
+    void assimilateParentTransform() 
+    {
+        // Compute the global transformation matrix of the child
+        glm::mat4 globalTransform = glm::mat4(1.0f);
+        GtsSceneNode* currentNode = this;
+        while (currentNode) 
+        {
+            currentNode->updateMatrices();
+            globalTransform = currentNode->getModelMatrix() * globalTransform;
+            currentNode = currentNode->parent;
+        }
+
+        // Decompose the global transformation matrix to position, rotation, and scale
+        glm::vec3 globalPosition;
+        glm::quat globalRotation;
+        glm::vec3 globalScale;
+        glm::vec3 skew;
+        glm::vec4 perspective;
+        decompose(globalTransform, globalScale, globalRotation, globalPosition, skew, perspective);
+
+        // Update the child node's transformation
+        positionVector = globalPosition;
+        rotationVector = glm::eulerAngles(globalRotation);
+        scaleVector = globalScale;
+
+        if (parent) 
+        {
+            parent->removeChild(this);
+            parent = nullptr;
+        }
+
+        updateMatrices();
+    }
+
+    void decompose(const glm::mat4& matrix, glm::vec3& scale, glm::quat& rotation, glm::vec3& translation, glm::vec3& skew, glm::vec4& perspective)
+    {
+        // Extract translation
+        translation = glm::vec3(matrix[3]);
+
+        // Extract scale and shear
+        glm::mat3 rotScaleMatrix(
+            matrix[0][0], matrix[0][1], matrix[0][2],
+            matrix[1][0], matrix[1][1], matrix[1][2],
+            matrix[2][0], matrix[2][1], matrix[2][2]
+        );
+
+        scale = glm::vec3(
+            glm::length(rotScaleMatrix[0]),
+            glm::length(rotScaleMatrix[1]),
+            glm::length(rotScaleMatrix[2])
+        );
+
+        if (scale.x) rotScaleMatrix[0] /= scale.x;
+        if (scale.y) rotScaleMatrix[1] /= scale.y;
+        if (scale.z) rotScaleMatrix[2] /= scale.z;
+
+        // Extract rotation quaternion
+        rotation = glm::quat_cast(rotScaleMatrix);
+
+        // Extract skew and perspective (not used in this example)
+        skew = glm::vec3(0.0f);
+        perspective = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    }
+
 
     void update(const glm::mat4& parentTransform, GtsCamera& camera, int framesInFlight, float deltaTime) 
     {

@@ -153,6 +153,11 @@ public:
         return currentScene->search(identifier);
     }
 
+    void splitSceneNode(GtsSceneNode* node)
+    {
+        currentScene->splitUpNode(node);
+    }
+
     GtsRenderableObject* createObject(std::string model_path, std::string texture_path)
     {
         GtsRenderableObject* vobject = new GtsRenderableObject(vlogicaldevice, vphysicaldevice, vrenderer, model_path, texture_path, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
