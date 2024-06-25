@@ -21,6 +21,7 @@ void InputSenderThread::start()
     std::cout << "Starting Input Sender Thread!" << std::endl;
     this->running = true;
     inputThread = std::thread(&InputSenderThread::worker, this);
+    inputThread.detach();
 }
 
 void InputSenderThread::stop()

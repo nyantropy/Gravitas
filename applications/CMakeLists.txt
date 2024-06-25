@@ -1,2 +1,2 @@
-add_subdirectory(testing)
+add_subdirectory(Tetris)
 add_subdirectory(UDPReceiver)
