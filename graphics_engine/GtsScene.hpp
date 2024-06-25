@@ -61,7 +61,16 @@ public:
 
     void addNodeToParent(GtsSceneNode* node, std::string parentIdentifier)
     {
-        search(parentIdentifier)->addChild(node);
+        GtsSceneNode* result = search(parentIdentifier);
+        
+        if(result != nullptr)
+        {
+            result->addChild(node);
+        }
+        else
+        {
+            std::cout << "NULLPTR" << std::endl;
+        }
     }
 
     GtsSceneNode* search(std::string identifier)
@@ -83,11 +92,10 @@ public:
     {
         for (auto node : nodes) 
         {
-            if(node == nullptr)
+            if(node != nullptr)
             {
-                std::cout << "nullptr in update" << std::endl;
+                node->update(glm::mat4(1.0f), camera, framesInFlight, deltaTime);
             }
-            node->update(glm::mat4(1.0f), camera, framesInFlight, deltaTime);
         }
     }
 
@@ -95,11 +103,10 @@ public:
     {
         for (auto node : nodes) 
         {
-            if(node == nullptr)
+            if(node != nullptr)
             {
-                std::cout << "nullptr in draw" << std::endl;
-            }
-            node->draw(commandBuffer, pipelineLayout, currentFrame);         
+                node->draw(commandBuffer, pipelineLayout, currentFrame);  
+            }       
         }
     }
 

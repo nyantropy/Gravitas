@@ -8,6 +8,8 @@
 #include "VulkanLogicalDevice.hpp"
 #include "GtsRenderableObject.hpp"
 
+class GtsRenderableObject;
+
 class GTSDescriptorSetManager 
 {
     public:
@@ -19,6 +21,7 @@ class GTSDescriptorSetManager
 
 
         void allocateDescriptorSets(GtsRenderableObject* robject);
+        void freeDescriptorSets(GtsRenderableObject* robject);
         void updateDescriptorSets();
 
         VkDescriptorSetLayout& getDescriptorSetLayout();

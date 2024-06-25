@@ -160,8 +160,7 @@ public:
 
     GtsRenderableObject* createObject(std::string model_path, std::string texture_path)
     {
-        GtsRenderableObject* vobject = new GtsRenderableObject(vlogicaldevice, vphysicaldevice, vrenderer, model_path, texture_path, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
-        vdescriptorsetmanager->allocateDescriptorSets(vobject);
+        GtsRenderableObject* vobject = new GtsRenderableObject(vlogicaldevice, vphysicaldevice, vdescriptorsetmanager, vrenderer, model_path, texture_path, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
         return vobject;
     }
 
@@ -443,6 +442,8 @@ private:
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
+        std::cout << "before scene update" << std::endl;
+
         currentScene->update(*vcamera, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT, deltaTime);
         onSceneUpdatedEvent.notify();
 
@@ -471,6 +472,7 @@ private:
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 
+        std::cout << "before frame ended check" << std::endl;
         if (lastFrameTime >= frameInterval) 
         {
             onFrameEndedEvent.notify(deltaTime, imageIndex);

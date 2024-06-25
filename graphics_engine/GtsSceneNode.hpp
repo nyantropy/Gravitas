@@ -78,11 +78,22 @@ public:
 
     ~GtsSceneNode() 
     {
-        delete renderableObject;
-        delete animation;
+        if(renderableObject != nullptr)
+        {
+            delete renderableObject;
+        }
+
+        if(animation != nullptr)
+        {
+            delete animation;
+        }
+
         for (auto child : children) 
         {
-            delete child;
+            if(child != nullptr)
+            {
+                delete child;
+            }
         }
     }
 
@@ -332,13 +343,17 @@ public:
 
         glm::mat4 modelMatrix = parentTransform * translationMatrix * rotationMatrix * scaleMatrix;
 
-        if (renderableObject) {
+        if (renderableObject) 
+        {
             renderableObject->updateUniforms(modelMatrix, camera, framesInFlight);
         }
 
         for (auto child : children) 
         {
-            child->update(modelMatrix, camera, framesInFlight, deltaTime);
+            if(child != nullptr)
+            {
+                child->update(modelMatrix, camera, framesInFlight, deltaTime);
+            }
         }
     }
 
@@ -353,7 +368,10 @@ public:
 
         for (auto child : children) 
         {
-            child->draw(commandBuffer, pipelineLayout, currentFrame);
+            if(child != nullptr)
+            {
+                child->draw(commandBuffer, pipelineLayout, currentFrame);
+            }
         }
     }
 

@@ -30,6 +30,7 @@ class GtsFrameGrabber
         //a single class just for this function i guess, cause i cant pass an engine pointer apparently
         void getCurrentFrame(uint32_t imageIndex, uint8_t* bufferData)
         {
+            std::cout << "trying to rip a frame" << std::endl;
             //after submitting command buffer, we can pry an image from the swapchain, with a lot of effort that is
             VkImage srcImage = vswapchain->getSwapChainImages()[imageIndex];
             vrenderer->transitionImageLayout(vlogicaldevice, srcImage, vswapchain->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -42,6 +43,7 @@ class GtsFrameGrabber
             vkMapMemory(vlogicaldevice->getDevice(), stagingBufferMemory, 0, imageSize, 0, &data);
             memcpy(bufferData, data, (size_t)imageSize);
 
+            std::cout << "VVE codebase bit" << std::endl;
             //taken from the VVE codebase - i was wondering why the picture looked weird, well i guess the format was not super correct        
             for (uint32_t i = 0; i < vswapchain->getSwapChainExtent().width * vswapchain->getSwapChainExtent().height; i++)
             {
@@ -56,6 +58,7 @@ class GtsFrameGrabber
                 bufferData[4 * i + 3] = a;
             }
 
+            std::cout << "trying to free resources" << std::endl;
             vrenderer->transitionImageLayout(vlogicaldevice, srcImage, vswapchain->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
             vkUnmapMemory(vlogicaldevice->getDevice(), stagingBufferMemory);
             vkDestroyBuffer(vlogicaldevice->getDevice(), stagingBuffer, nullptr);

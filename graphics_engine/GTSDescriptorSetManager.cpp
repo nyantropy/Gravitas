@@ -78,6 +78,7 @@ void GTSDescriptorSetManager::createDescriptorPool()
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = static_cast<uint32_t>(frames_in_flight * 2 * objectcount);
+    poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
     if (vkCreateDescriptorPool(vlogicaldevice->getDevice(), &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) 
     {
@@ -133,3 +134,8 @@ void GTSDescriptorSetManager::allocateDescriptorSets(GtsRenderableObject* robjec
         vkUpdateDescriptorSets(vlogicaldevice->getDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }
 }
+
+void GTSDescriptorSetManager::freeDescriptorSets(GtsRenderableObject* robject)
+{
+    vkFreeDescriptorSets(vlogicaldevice->getDevice(), descriptorPool, static_cast<uint32_t>(robject->getDescriptorSets().size()), robject->getDescriptorSets().data());   
+} 

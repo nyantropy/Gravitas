@@ -96,6 +96,7 @@ class GtsEncoder
         
         void encodeAndWriteFrame(uint8_t *dataImage, uint32_t width, uint32_t height)
         {
+            std::cout << "inside encodeandwriteframe" << std::endl;
             FrameConverter image = FrameConverter(dataImage, width, height);
             this->allocateAVFrame(width, height);
             av_image_copy(frame->data, frame->linesize, image.dst_data, image.dst_linesize, AV_PIX_FMT_YUV420P, width, height);
@@ -149,6 +150,7 @@ class GtsEncoder
 
             while(reportListenerRunning)
             {
+                std::cout << "inside reportListenerFunction" << std::endl;
                 receivedBytes = receiver.receive(buffer, bufferSize, &packetTime);
 
                 if (receivedBytes > 0) 
@@ -188,6 +190,7 @@ class GtsEncoder
         {
             while (reportListenerRunning)
             {
+                std::cout << "inside sendPacketFunction" << std::endl;
                 std::unique_lock<std::mutex> lock(sendMutex);
                 sendCV.wait(lock, [this] { return !packetQueue.empty() || !reportListenerRunning; });
 
@@ -215,7 +218,7 @@ class GtsEncoder
 
         void onFrameEnded(int deltaTime, uint32_t imageIndex)
         {
-            //std::cout << "OnFrame ended event" << std::endl;
+            std::cout << "OnFrame ended event" << std::endl;
             uint32_t imageSize = 600 * 800 * 4;
 
             uint8_t *dataImage = new uint8_t[imageSize];

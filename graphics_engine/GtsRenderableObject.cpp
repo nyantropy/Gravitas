@@ -1,10 +1,11 @@
 #include "GtsRenderableObject.hpp"
 
-GtsRenderableObject::GtsRenderableObject(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice, VulkanRenderer* vrenderer,
+GtsRenderableObject::GtsRenderableObject(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice, GTSDescriptorSetManager* vdescriptorsetmanager, VulkanRenderer* vrenderer,
  std::string model_path, std::string texture_path, int frames_in_flight)
 {
     this->frames_in_flight = frames_in_flight;
     this->vlogicaldevice = vlogicaldevice;
+    this->vdescriptorsetmanager = vdescriptorsetmanager;
 
     //probably inefficient to load a model multiple times, but it should be fine for a small game
     GtsModelLoader::loadModel(model_path, vertices, indices);
@@ -12,10 +13,14 @@ GtsRenderableObject::GtsRenderableObject(VulkanLogicalDevice* vlogicaldevice, Vu
     GtsBufferService::createVertexBuffer(vlogicaldevice, vphysicaldevice, vertices, vertexBuffer, vertexBufferMemory);
     GtsBufferService::createIndexBuffer(vlogicaldevice, vphysicaldevice, indices, indexBuffer, indexBufferMemory);
     GtsBufferService::createUniformBuffers(vlogicaldevice, vphysicaldevice, uniformBuffers, uniformBuffersMemory, uniformBuffersMapped, frames_in_flight);
+    vdescriptorsetmanager->allocateDescriptorSets(this);
 }
 
 GtsRenderableObject::~GtsRenderableObject()
 {
+    std::cout << "destroying a renderable object" << std::endl;
+    vdescriptorsetmanager->freeDescriptorSets(this);
+    
     for (int i = 0; i < frames_in_flight; i++) 
     {
         //uniform buffers

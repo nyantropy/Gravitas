@@ -11,12 +11,16 @@
 #include "GtsBufferService.hpp"
 #include "VulkanTexture.hpp"
 #include "VulkanRenderer.hpp"
+#include "GTSDescriptorSetManager.hpp"
+
+class GTSDescriptorSetManager;
 
 class GtsRenderableObject
 {
     public:
         int frames_in_flight;
         VulkanLogicalDevice* vlogicaldevice;
+        GTSDescriptorSetManager* vdescriptorsetmanager;
 
         //every object has its vertex buffer
         std::vector<Vertex> vertices;
@@ -39,7 +43,7 @@ class GtsRenderableObject
         //an object also contains a texture, who would have thought
         VulkanTexture* objecttexture;
    
-        GtsRenderableObject(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice, VulkanRenderer* vrenderer,
+        GtsRenderableObject(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice, GTSDescriptorSetManager* vdescriptorsetmanager, VulkanRenderer* vrenderer,
          std::string model_path, std::string texture_path, int frames_in_flight);
 
         ~GtsRenderableObject();
