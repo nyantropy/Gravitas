@@ -46,8 +46,17 @@ file(GLOB GravitasSRC ./*.cpp ./*.c ./*.h)
 add_library(Gravitas STATIC ${GravitasSRC})
 add_dependencies(Gravitas GLFW)
 
+include_directories(
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/instance"
+)
+
+add_subdirectory(instance)
+
 # Set all the include directories for this target
 target_include_directories(Gravitas PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}"        # Include graphics_engine directory
+    "${CMAKE_CURRENT_SOURCE_DIR}/instance" # Include instance directory
     ${GLM_INCLUDE_DIR} 
     ${GLFW_INCLUDE_DIRS}
     ${GLFW_LIB_DIR}
@@ -63,8 +72,6 @@ target_link_libraries(Gravitas
     $<$<PLATFORM_ID:Windows>:${GLFW_LIB_DIR}/glfw3.lib> # Windows
     $<$<NOT:$<PLATFORM_ID:Windows>>:${GLFW_LIB_DIR}/libglfw3.a> # Linux
 )
-
-add_subdirectory(instance)
 
 # Output dirs
 set_target_properties(Gravitas PROPERTIES
