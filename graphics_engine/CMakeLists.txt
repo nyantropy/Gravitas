@@ -1,5 +1,3 @@
-# Parent CMakeLists.txt
-
 cmake_minimum_required(VERSION 3.5.0)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -35,39 +33,44 @@ get_filename_component(GLFW_ROOT_DIR "${SOURCE_DIR}/../.." ABSOLUTE)
 set(GLFW_INCLUDE_DIRS ${GLFW_ROOT_DIR}/include CACHE INTERNAL "")
 set(GLFW_LIB_DIR ${GLFW_ROOT_DIR}/lib CACHE INTERNAL "")
 
-# Include directory for stb_image.h, stb_image_write.h and tiny_obj_loader.h
-set(STB_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/external/stb CACHE INTERNAL "")
-
-# Include directory for glm
-set(GLM_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/external/glm/glm CACHE INTERNAL "")
-
 # Source files for the library are all .c .h .cpp files
 file(GLOB GravitasSRC ./*.cpp ./*.c ./*.h)
 add_library(Gravitas STATIC ${GravitasSRC})
 add_dependencies(Gravitas GLFW)
 
+#global include directories for way less overhead, dont know if thats a good approach but it works for me
 include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/instance"
+    "${CMAKE_CURRENT_SOURCE_DIR}/external"
+    "${CMAKE_CURRENT_SOURCE_DIR}/components/instance"
+    "${CMAKE_CURRENT_SOURCE_DIR}/surface"
+    "${CMAKE_CURRENT_SOURCE_DIR}/scenegraph"
+    "${CMAKE_CURRENT_SOURCE_DIR}/output"
 )
 
-add_subdirectory(instance)
+add_subdirectory(external)
+add_subdirectory(output)
+add_subdirectory(scenegraph)
+add_subdirectory(components)
+add_subdirectory(surface)
+
 
 # Set all the include directories for this target
 target_include_directories(Gravitas PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}"        # Include graphics_engine directory
-    "${CMAKE_CURRENT_SOURCE_DIR}/instance" # Include instance directory
-    ${GLM_INCLUDE_DIR} 
+    ${CMAKE_SOURCE_DIR}/graphics_engine
     ${GLFW_INCLUDE_DIRS}
     ${GLFW_LIB_DIR}
     ${Vulkan_INCLUDE_DIRS}
-    ${STB_INCLUDE_DIR}
 )
 
 # Link all the required libraries
 target_link_libraries(Gravitas 
     Vulkan::Vulkan
-    instance
+    components
+    surface
+    external
+    scenegraph
+    output
     PkgConfig::LIBAV
     $<$<PLATFORM_ID:Windows>:${GLFW_LIB_DIR}/glfw3.lib> # Windows
     $<$<NOT:$<PLATFORM_ID:Windows>>:${GLFW_LIB_DIR}/libglfw3.a> # Linux
