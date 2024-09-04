@@ -46,6 +46,7 @@ include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/surface"
     "${CMAKE_CURRENT_SOURCE_DIR}/scenegraph"
     "${CMAKE_CURRENT_SOURCE_DIR}/output"
+    "${CMAKE_CURRENT_SOURCE_DIR}/options"
 )
 
 add_subdirectory(external)
@@ -53,6 +54,7 @@ add_subdirectory(output)
 add_subdirectory(scenegraph)
 add_subdirectory(components)
 add_subdirectory(surface)
+add_subdirectory(options)
 
 
 # Set all the include directories for this target
@@ -71,6 +73,7 @@ target_link_libraries(Gravitas
     external
     scenegraph
     output
+    options
     PkgConfig::LIBAV
     $<$<PLATFORM_ID:Windows>:${GLFW_LIB_DIR}/glfw3.lib> # Windows
     $<$<NOT:$<PLATFORM_ID:Windows>>:${GLFW_LIB_DIR}/libglfw3.a> # Linux

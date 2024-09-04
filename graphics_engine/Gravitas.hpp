@@ -38,7 +38,7 @@ extern "C" {
 #include <optional>
 #include <set>
 
-#include "GravitasEngineConstants.h"
+#include "GraphicsConstants.h"
 #include "Vertex.h"
 #include "UniformBufferObject.h"
 
@@ -161,7 +161,7 @@ public:
 
     GtsRenderableObject* createObject(std::string model_path, std::string texture_path)
     {
-        GtsRenderableObject* vobject = new GtsRenderableObject(vlogicaldevice, vphysicaldevice, vdescriptorsetmanager, vrenderer, model_path, texture_path, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
+        GtsRenderableObject* vobject = new GtsRenderableObject(vlogicaldevice, vphysicaldevice, vdescriptorsetmanager, vrenderer, model_path, texture_path, GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
         return vobject;
     }
 
@@ -184,8 +184,8 @@ public:
         vrenderer = new VulkanRenderer(vlogicaldevice, vphysicaldevice, vswapchain);
         vrenderpass = new VulkanRenderPass();
         vrenderpass->init(vswapchain, vlogicaldevice, vrenderer);
-        vdescriptorsetmanager = new GTSDescriptorSetManager(vlogicaldevice, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
-        vpipeline = new VulkanPipeline(vlogicaldevice, vdescriptorsetmanager, vrenderpass, {GravitasEngineConstants::V_SHADER_PATH, GravitasEngineConstants::F_SHADER_PATH});
+        vdescriptorsetmanager = new GTSDescriptorSetManager(vlogicaldevice, GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
+        vpipeline = new VulkanPipeline(vlogicaldevice, vdescriptorsetmanager, vrenderpass, {GraphicsConstants::V_SHADER_PATH, GraphicsConstants::F_SHADER_PATH});
         vframebuffer = new GTSFramebufferManager(vlogicaldevice, vswapchain, vrenderer, vrenderpass);
         vcamera = new GtsCamera(vswapchain->getSwapChainExtent());
         createCommandBuffers();
@@ -296,7 +296,7 @@ private:
         delete vdescriptorsetmanager;
         delete vrenderpass;
         delete vrenderer;
-        for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) 
+        for (size_t i = 0; i < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; i++) 
         {
             vkDestroySemaphore(vlogicaldevice->getDevice(), renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(vlogicaldevice->getDevice(), imageAvailableSemaphores[i], nullptr);
@@ -342,7 +342,7 @@ private:
 
     void createCommandBuffers() 
     {
-        commandBuffers.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
+        commandBuffers.resize(GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
 
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -407,9 +407,9 @@ private:
     }
 
     void createSyncObjects() {
-        imageAvailableSemaphores.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
-        renderFinishedSemaphores.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
-        inFlightFences.resize(GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT);
+        imageAvailableSemaphores.resize(GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
+        renderFinishedSemaphores.resize(GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
+        inFlightFences.resize(GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
 
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -418,7 +418,7 @@ private:
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-        for (size_t i = 0; i < GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT; i++) {
+        for (size_t i = 0; i < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; i++) {
             if (vkCreateSemaphore(vlogicaldevice->getDevice(), &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
                 vkCreateSemaphore(vlogicaldevice->getDevice(), &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
                 vkCreateFence(vlogicaldevice->getDevice(), &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
@@ -457,7 +457,7 @@ private:
 
         std::cout << "before scene update" << std::endl;
 
-        currentScene->update(*vcamera, GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT, deltaTime);
+        currentScene->update(*vcamera, GraphicsConstants::MAX_FRAMES_IN_FLIGHT, deltaTime);
         onSceneUpdatedEvent.notify();
 
         vkResetFences(vlogicaldevice->getDevice(), 1, &inFlightFences[currentFrame]);
@@ -520,7 +520,7 @@ private:
             throw std::runtime_error("failed to present swap chain image!");
         }
 
-        currentFrame = (currentFrame + 1) % GravitasEngineConstants::MAX_FRAMES_IN_FLIGHT;
+        currentFrame = (currentFrame + 1) % GraphicsConstants::MAX_FRAMES_IN_FLIGHT;
     }
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) 

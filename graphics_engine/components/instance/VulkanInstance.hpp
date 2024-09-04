@@ -1,11 +1,14 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include <GLFW/glfw3.h>
+
+
 #include <array>
 #include <iostream>
 #include <vector>
 #include <cstring>
+
+#include "GraphicsConstants.h"
 
 class VulkanInstance 
 {
