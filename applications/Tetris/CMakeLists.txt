@@ -17,7 +17,7 @@ add_executable(main main.cpp ${SOURCES})
 add_dependencies(main Gravitas)
 
 # Include the graphics engine
-target_include_directories(main PRIVATE ${CMAKE_SOURCE_DIR}/graphics_engine)
+target_include_directories(main PRIVATE ${CMAKE_SOURCE_DIR}/engine/graphics_module)
 target_link_libraries(main PRIVATE Gravitas)
 
 # Set working directory for all platforms
