@@ -7,24 +7,25 @@
 #include <vector>
 #include <cstring>
 
-#include "GTSOutputWindow.hpp"
-
 class VulkanInstance 
 {
     public:
-        VulkanInstance(bool enableValidationLayers, GTSOutputWindow* vwindow);
+        VulkanInstance(bool enableValidationLayers, const std::vector<const char*>& extensions);
         ~VulkanInstance();
 
         VkInstance& getInstance();
-        const std::vector<const char*>& getValidationLayers();
+        const std::vector<const char*>& getValidationLayers() const;
 
     private:
-        void createInstance();
+        void createInstance(const std::vector<const char*>& extensions);
         bool checkValidationLayerSupport();
         void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
-        const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
 
         VkInstance instance;
         bool enableValidationLayers;
-        GTSOutputWindow* vwindow;
+        std::vector<const char*> validationLayers = {
+            "VK_LAYER_KHRONOS_validation"
+        };
+        VkDebugUtilsMessengerEXT debugMessenger;
 };
+

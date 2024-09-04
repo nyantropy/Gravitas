@@ -66,6 +66,7 @@ extern "C" {
 #include "GtsOnFrameEndedEvent.hpp"
 #include "GtsEncoder.hpp"
 #include "GtsFrameGrabber.hpp"
+#include "VulkanInstanceFactory.hpp"
 
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
@@ -170,7 +171,12 @@ public:
         vwindow->init(width, height, title, enableValidationLayers);
         vwindow->setOnWindowResizeCallback(std::bind(&Gravitas::OnFrameBufferResizeCallback, this, std::placeholders::_1, std::placeholders::_2));
         vwindow->setOnKeyPressedCallback(std::bind(&Gravitas::OnKeyPressedCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
-        vinstance = new VulkanInstance(enableValidationLayers, vwindow);
+
+        VulkanInstanceFactory factory;
+        factory.enableValidationLayers(true);
+        factory.enableSurfaceSupport(true);
+
+        vinstance = factory.createInstance(vwindow);
         vsurface = new GLFWWindowSurface(vwindow, vinstance);
         vphysicaldevice = new VulkanPhysicalDevice(vinstance, vsurface);
         vlogicaldevice = new VulkanLogicalDevice(vinstance, vphysicaldevice, enableValidationLayers);
