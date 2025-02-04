@@ -460,20 +460,20 @@ void nextTetromino()
 
 int main() 
 {
-    return EXIT_SUCCESS;
+    InputReceiverThread inputReceiver = InputReceiverThread(onKeyPressed);
+    inputReceiver.start(50000);
+    rng = RandomNumberGenerator(0,6);
+    tetrisGrid = std::vector<std::vector<int>>(20, std::vector<int>(10, 0));
+    tetrisGridSceneNodes = std::vector<std::vector<GtsSceneNode*>>(20, std::vector<GtsSceneNode*>(10, 0));
+    engine = Gravitas();
+    engine.init(600, 800, "Tetris", true);
+    engine.createEmptyScene();
+    tetrisFrame(FRAME_TEXTURE_PATH);
+    nextTetromino();
+    engine.subscribeOnKeyPressedEvent(onKeyPressed);
+    engine.startEncoder();
+    engine.run();
+    inputReceiver.stop();
 
-    // InputReceiverThread inputReceiver = InputReceiverThread(onKeyPressed);
-    // inputReceiver.start(50000);
-    // rng = RandomNumberGenerator(0,6);
-    // tetrisGrid = std::vector<std::vector<int>>(20, std::vector<int>(10, 0));
-    // tetrisGridSceneNodes = std::vector<std::vector<GtsSceneNode*>>(20, std::vector<GtsSceneNode*>(10, 0));
-    // engine = Gravitas();
-    // engine.init(600, 800, "Tetris", true);
-    // engine.createEmptyScene();
-    // tetrisFrame(FRAME_TEXTURE_PATH);
-    // nextTetromino();
-    // engine.subscribeOnKeyPressedEvent(onKeyPressed);
-    // engine.startEncoder();
-    // engine.run();
-    // inputReceiver.stop();
+    return EXIT_SUCCESS;
 }
