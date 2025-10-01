@@ -42,7 +42,6 @@ add_dependencies(Gravitas GLFW)
 include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/external"
-    "${CMAKE_CURRENT_SOURCE_DIR}/components/instance"
     "${CMAKE_CURRENT_SOURCE_DIR}/surface"
     "${CMAKE_CURRENT_SOURCE_DIR}/scenegraph"
     "${CMAKE_CURRENT_SOURCE_DIR}/output"
