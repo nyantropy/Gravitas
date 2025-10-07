@@ -34,6 +34,6 @@ The long-term aim is to evolve into a modular engine that supports:
     git clone git@github.com:nyantropy/Gravitas.git
     cd Gravitas
 
-2. Build Engine + Test Applications
+2. Build Engine and Test Applications
     ```bash
     ./build.sh
