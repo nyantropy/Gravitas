@@ -3,9 +3,7 @@
         {
             "name": "Linux",
             "includePath": [
-                "${workspaceFolder}/**",
-                "${workspaceFolder}/graphics_engine/instance",
-                "${workspaceFolder}/graphics_engine/instance/**"
+                "${workspaceFolder}/**"
             ],
             "defines": [],
             "cStandard": "c17",

@@ -9,23 +9,25 @@
 #include <cstring>
 
 #include "GraphicsConstants.h"
+#include "VulkanInstanceConfig.h"
 
 class VulkanInstance 
 {
     public:
-        VulkanInstance(bool enableValidationLayers, const std::vector<const char*>& extensions);
+        VulkanInstance(VulkanInstanceConfig config);
         ~VulkanInstance();
 
         VkInstance& getInstance();
         const std::vector<const char*>& getValidationLayers() const;
 
     private:
-        void createInstance(const std::vector<const char*>& extensions);
+        void createInstance();
         bool checkValidationLayerSupport();
         void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 
         VkInstance instance;
-        bool enableValidationLayers;
+        VulkanInstanceConfig config;
+
         std::vector<const char*> validationLayers = {
             "VK_LAYER_KHRONOS_validation"
         };

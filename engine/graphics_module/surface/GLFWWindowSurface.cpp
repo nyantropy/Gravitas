@@ -1,6 +1,6 @@
 #include "GLFWWindowSurface.hpp"
 
-GLFWWindowSurface::GLFWWindowSurface(GTSOutputWindow* vwindow, VulkanInstance* vinstance)
+GLFWWindowSurface::GLFWWindowSurface(OutputWindow* vwindow, VulkanInstance* vinstance)
 {
     this->window = static_cast<GLFWwindow*>(vwindow->getWindow());
     this->vinstance = vinstance;

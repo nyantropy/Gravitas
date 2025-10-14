@@ -42,7 +42,7 @@ extern "C" {
 #include "Vertex.h"
 #include "UniformBufferObject.h"
 
-#include "GTSGLFWOutputWindow.hpp"
+#include "GLFWOutputWindow.hpp"
 #include "GLFWWindowSurface.hpp"
 #include "VulkanPhysicalDevice.hpp"
 #include "VulkanLogicalDevice.hpp"
@@ -66,7 +66,8 @@ extern "C" {
 #include "GtsOnFrameEndedEvent.hpp"
 #include "GtsEncoder.hpp"
 #include "GtsFrameGrabber.hpp"
-#include "VulkanInstanceFactory.hpp"
+#include "VulkanInstanceConfig.h"
+#include "OutputWindowConfig.h"
 
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
@@ -93,7 +94,7 @@ const bool enableValidationLayers = true;
 class Gravitas 
 {
 public:
-    GTSOutputWindow* vwindow;
+    OutputWindow* vwindow;
     VulkanInstance* vinstance;
     WindowSurface* vsurface;
     VulkanPhysicalDevice* vphysicaldevice;
@@ -165,18 +166,37 @@ public:
         return vobject;
     }
 
-    void init(uint32_t width, uint32_t height, std::string title, bool enableValidationLayers)
+    void init(uint32_t width, uint32_t height, std::string title)
     {
-        vwindow = new GTSGLFWOutputWindow();
-        vwindow->init(width, height, title, enableValidationLayers);
+        // output window settings
+        OutputWindowConfig vOutputWindow;
+        vOutputWindow.enableValidationLayers = true;
+        vOutputWindow.width = width;
+        vOutputWindow.height = height;
+        vOutputWindow.title = title;
+
+        // setup an output window
+        vwindow = new GLFWOutputWindow(vOutputWindow);
         vwindow->setOnWindowResizeCallback(std::bind(&Gravitas::OnFrameBufferResizeCallback, this, std::placeholders::_1, std::placeholders::_2));
         vwindow->setOnKeyPressedCallback(std::bind(&Gravitas::OnKeyPressedCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
 
-        VulkanInstanceFactory factory;
-        factory.enableValidationLayers(true);
-        factory.enableSurfaceSupport(true);
+        // configure extensions
+        // need to rework this for the case of no window being present
+        std::vector<const char*> vinstanceext = vwindow->getRequiredExtensions();
+        if (enableValidationLayers) 
+        {
+            vinstanceext.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        }
 
-        vinstance = factory.createInstance(vwindow);
+        // make a new vulkan instance with the config
+        VulkanInstanceConfig vInstanceConfig;
+        vInstanceConfig.enableSurfaceSupport = true;
+        vInstanceConfig.enableValidationLayers = enableValidationLayers;
+        vInstanceConfig.extensions = vinstanceext;
+        vInstanceConfig.appname = "appname";
+        vinstance = new VulkanInstance(vInstanceConfig);
+
+
         vsurface = new GLFWWindowSurface(vwindow, vinstance);
         vphysicaldevice = new VulkanPhysicalDevice(vinstance, vsurface);
         vlogicaldevice = new VulkanLogicalDevice(vinstance, vphysicaldevice, enableValidationLayers);

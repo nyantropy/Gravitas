@@ -10,7 +10,7 @@
 
 #include "VulkanPhysicalDevice.hpp"
 #include "VulkanLogicalDevice.hpp"
-#include "GTSOutputWindow.hpp"
+#include "OutputWindow.hpp"
 #include "VulkanRenderer.hpp"
 #include "VulkanRenderPass.hpp"
 
@@ -26,7 +26,7 @@ class VulkanSwapChain
         VkExtent2D swapChainExtent;
         std::vector<VkImageView> swapChainImageViews;
 
-        GTSOutputWindow* vwindow;
+        OutputWindow* vwindow;
         WindowSurface* vsurface;
         VulkanLogicalDevice* vlogicaldevice;
         VulkanPhysicalDevice* vphysicaldevice;
@@ -42,7 +42,7 @@ class VulkanSwapChain
         void createFramebuffers();
 
     public:
-        VulkanSwapChain(GTSOutputWindow* vwindow, WindowSurface* vsurface, VulkanPhysicalDevice* vphysicaldevice,
+        VulkanSwapChain(OutputWindow* vwindow, WindowSurface* vsurface, VulkanPhysicalDevice* vphysicaldevice,
          VulkanLogicalDevice* vlogicaldevice);
         ~VulkanSwapChain();
 

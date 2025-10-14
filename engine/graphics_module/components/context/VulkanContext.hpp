@@ -8,13 +8,18 @@
 #include "VulkanInstance.hpp"
 #include "VulkanLogicalDevice.hpp"
 
-// make a class that acts as a vulkan context, so a big metaclass essentially
+// make a class that acts as a vulkan context, as a glue to hold it all together
 class VulkanContext {
 private:
     // using unique pointers here seems like a good idea, the context "owns" all of the puzzle pieces
     std::unique_ptr<VulkanInstance> vinstance;
     std::unique_ptr<VulkanPhysicalDevice> vphysicaldevice;
     std::unique_ptr<VulkanLogicalDevice> vlogicaldevice;
+
+    void initialize()
+    {
+        
+    }
 
 public:
     VulkanContext();

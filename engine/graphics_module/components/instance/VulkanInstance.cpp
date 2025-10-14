@@ -7,9 +7,9 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL instanceDebugCallback(VkDebugUtilsMessageS
     return VK_FALSE;
 }
 
-VulkanInstance::VulkanInstance(bool enableValidationLayers, const std::vector<const char*>& extensions): enableValidationLayers(enableValidationLayers)
+VulkanInstance::VulkanInstance(VulkanInstanceConfig config): config(config)
 {
-    createInstance(extensions);
+    this->createInstance();
 }
 
 VulkanInstance::~VulkanInstance() 
@@ -27,16 +27,16 @@ const std::vector<const char*>& VulkanInstance::getValidationLayers() const
     return validationLayers;
 }
 
-void VulkanInstance::createInstance(const std::vector<const char*>& extensions) 
+void VulkanInstance::createInstance() 
 {
-    if (enableValidationLayers && !checkValidationLayerSupport()) 
+    if (config.enableValidationLayers && !checkValidationLayerSupport()) 
     {
         throw std::runtime_error("validation layers requested, but not available!");
     }
 
     VkApplicationInfo appInfo{};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = "Hello Triangle";
+    appInfo.pApplicationName = config.appname.c_str();
     appInfo.applicationVersion = VK_MAKE_API_VERSION(1, 0, 0, 0);
     appInfo.pEngineName = GraphicsConstants::ENGINE_NAME;
     appInfo.engineVersion = GraphicsConstants::ENGINE_VERSION;
@@ -46,12 +46,12 @@ void VulkanInstance::createInstance(const std::vector<const char*>& extensions)
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
 
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-    createInfo.ppEnabledExtensionNames = extensions.data();
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(config.extensions.size());
+    createInfo.ppEnabledExtensionNames = config.extensions.data();
 
     VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
 
-    if (enableValidationLayers) 
+    if (config.enableValidationLayers) 
     {
         createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
         createInfo.ppEnabledLayerNames = validationLayers.data();

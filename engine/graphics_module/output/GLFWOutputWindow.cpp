@@ -1,11 +1,12 @@
-#include "GTSGLFWOutputWindow.hpp"
+#include "GLFWOutputWindow.hpp"
 
-GTSGLFWOutputWindow::GTSGLFWOutputWindow()
+GLFWOutputWindow::GLFWOutputWindow(OutputWindowConfig config): OutputWindow(config)
 {
     this->window = nullptr;
+    this->init();
 }
 
-GTSGLFWOutputWindow::~GTSGLFWOutputWindow()
+GLFWOutputWindow::~GLFWOutputWindow()
 {
     if(window)
     {
@@ -14,49 +15,47 @@ GTSGLFWOutputWindow::~GTSGLFWOutputWindow()
     }
 }
 
-void GTSGLFWOutputWindow::init(int width, int height, const std::string& title, bool enableValidationLayers) 
+void GLFWOutputWindow::init() 
 {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
+    window = glfwCreateWindow(config.width, config.height, config.title.c_str(), nullptr, nullptr);
     glfwSetWindowUserPointer(window, this);
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallbackStatic);
     glfwSetKeyCallback(window, onKeyPressedCallbackStatic);
-
-    this->enableValidationLayers = enableValidationLayers;
 }
 
-void GTSGLFWOutputWindow::setOnWindowResizeCallback(const std::function<void(int, int)>& callback) 
+void GLFWOutputWindow::setOnWindowResizeCallback(const std::function<void(int, int)>& callback) 
 {
     resizeCallback = callback;
 }
 
-void GTSGLFWOutputWindow::setOnKeyPressedCallback(const std::function<void(int, int, int, int)>& callback)
+void GLFWOutputWindow::setOnKeyPressedCallback(const std::function<void(int, int, int, int)>& callback)
 {
     onKeyPressedCallback = callback;
 }
 
-bool GTSGLFWOutputWindow::shouldClose() const 
+bool GLFWOutputWindow::shouldClose() const 
 {
     return glfwWindowShouldClose(window);
 }
 
-void GTSGLFWOutputWindow::pollEvents() 
+void GLFWOutputWindow::pollEvents() 
 {
     glfwPollEvents();
 }
 
-void GTSGLFWOutputWindow::getSize(int& width, int& height) const 
+void GLFWOutputWindow::getSize(int& width, int& height) const 
 {
     glfwGetFramebufferSize(window, &width, &height);
 }
 
-void* GTSGLFWOutputWindow::getWindow() const 
+void* GLFWOutputWindow::getWindow() const 
 {
     return window;
 }
 
-std::vector<const char*> GTSGLFWOutputWindow::getRequiredExtensions() const
+std::vector<const char*> GLFWOutputWindow::getRequiredExtensions() const
 {
     uint32_t glfwExtensionCount = 0;
     const char** glfwExtensions;
@@ -64,7 +63,7 @@ std::vector<const char*> GTSGLFWOutputWindow::getRequiredExtensions() const
 
     std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
 
-    if (enableValidationLayers) 
+    if (config.enableValidationLayers) 
     {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }

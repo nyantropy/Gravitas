@@ -1,10 +1,12 @@
 add_library(
     output
 
-    GTSGLFWOutputWindow.hpp
-    GTSGLFWOutputWindow.cpp
+    GLFWOutputWindow.hpp
+    GLFWOutputWindow.cpp
 
-    GTSOutputWindow.hpp
+    OutputWindow.hpp
+
+    OutputWindowConfig.h
 )
 
 target_link_libraries(output PUBLIC Gravitas)

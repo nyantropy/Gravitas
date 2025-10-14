@@ -3,15 +3,15 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 
-#include "GTSOutputWindow.hpp"
+#include "OutputWindow.hpp"
+#include "OutputWindowConfig.h"
 
-class GTSGLFWOutputWindow : public GTSOutputWindow 
+class GLFWOutputWindow : public OutputWindow 
 {
     public:
-        GTSGLFWOutputWindow();
-        ~GTSGLFWOutputWindow();
+        GLFWOutputWindow(OutputWindowConfig config);
+        ~GLFWOutputWindow();
 
-        void init(int width, int height, const std::string& title, bool enableValidationLayers) override;
         void setOnWindowResizeCallback(const std::function<void(int, int)>& callback) override;
         void setOnKeyPressedCallback(const std::function<void(int, int, int, int)>& callback) override;
         bool shouldClose() const override;
@@ -26,7 +26,7 @@ class GTSGLFWOutputWindow : public GTSOutputWindow
         //could expand this to account for more than one callback, but i dont think it needs to be done for now
         static void framebufferResizeCallbackStatic(GLFWwindow* window, int width, int height) 
         {
-            auto app = reinterpret_cast<GTSGLFWOutputWindow*>(glfwGetWindowUserPointer(window));
+            auto app = reinterpret_cast<GLFWOutputWindow*>(glfwGetWindowUserPointer(window));
             if (app->resizeCallback) 
             {
                 app->resizeCallback(width, height);
@@ -35,13 +35,14 @@ class GTSGLFWOutputWindow : public GTSOutputWindow
 
         static void onKeyPressedCallbackStatic(GLFWwindow* window, int key, int scancode, int action, int mods)
         {
-            auto app = reinterpret_cast<GTSGLFWOutputWindow*>(glfwGetWindowUserPointer(window));
+            auto app = reinterpret_cast<GLFWOutputWindow*>(glfwGetWindowUserPointer(window));
             if(app->onKeyPressedCallback)
             {
                 app->onKeyPressedCallback(key, scancode, action, mods);
             }
         }
 
+        void init() override;
+
         GLFWwindow* window;
-        bool enableValidationLayers;
 };

@@ -1,14 +1,14 @@
 #pragma once
 
 #include "WindowSurface.hpp"
-#include "GTSOutputWindow.hpp"
+#include "OutputWindow.hpp"
 #include <GLFW/glfw3.h>
 #include <stdexcept>
 
 class GLFWWindowSurface : public WindowSurface 
 {
     public:
-        GLFWWindowSurface(GTSOutputWindow* vwindow, VulkanInstance* vinstance);
+        GLFWWindowSurface(OutputWindow* vwindow, VulkanInstance* vinstance);
         ~GLFWWindowSurface();
         VkSurfaceKHR& getSurface() override;
 
