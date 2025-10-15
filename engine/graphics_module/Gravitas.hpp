@@ -1,9 +1,6 @@
 #ifndef GRAVITAS_HPP
 #define GRAVITAS_HPP
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_ENABLE_EXPERIMENTAL
@@ -42,8 +39,7 @@ extern "C" {
 #include "Vertex.h"
 #include "UniformBufferObject.h"
 
-#include "GLFWOutputWindow.hpp"
-#include "GLFWWindowSurface.hpp"
+
 #include "VulkanPhysicalDevice.hpp"
 #include "VulkanLogicalDevice.hpp"
 #include "VulkanSwapChain.hpp"
@@ -66,8 +62,22 @@ extern "C" {
 #include "GtsOnFrameEndedEvent.hpp"
 #include "GtsEncoder.hpp"
 #include "GtsFrameGrabber.hpp"
-#include "VulkanInstanceConfig.h"
+
+// Vulkan Context include
+#include "VulkanContext.hpp"
+#include "VulkanContextConfig.h"
+
+// output window includes
 #include "OutputWindowConfig.h"
+#include "GLFWOutputWindow.hpp"
+
+// vulkan instance includes
+#include "VulkanInstanceConfig.h"
+//#include "VulkanInstance.hpp"
+
+// window surface includes
+#include "WindowSurfaceConfig.h"
+#include "GLFWWindowSurface.hpp"
 
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
@@ -94,9 +104,12 @@ const bool enableValidationLayers = true;
 class Gravitas 
 {
 public:
-    OutputWindow* vwindow;
-    VulkanInstance* vinstance;
-    WindowSurface* vsurface;
+
+    std::unique_ptr<VulkanContext> vContext;
+    std::unique_ptr<OutputWindow> outputWindow;
+
+    //VulkanInstance* vContext.get()->getInstanceWrapper();
+    //WindowSurface* vContext.get()->getSurfaceWrapper();
     VulkanPhysicalDevice* vphysicaldevice;
     VulkanLogicalDevice* vlogicaldevice;
     VulkanSwapChain* vswapchain;
@@ -168,39 +181,32 @@ public:
 
     void init(uint32_t width, uint32_t height, std::string title)
     {
+
         // output window settings
-        OutputWindowConfig vOutputWindow;
-        vOutputWindow.enableValidationLayers = true;
-        vOutputWindow.width = width;
-        vOutputWindow.height = height;
-        vOutputWindow.title = title;
+        OutputWindowConfig owConfig;
+        owConfig.enableValidationLayers = true;
+        owConfig.width = width;
+        owConfig.height = height;
+        owConfig.title = title;
 
         // setup an output window
-        vwindow = new GLFWOutputWindow(vOutputWindow);
-        vwindow->setOnWindowResizeCallback(std::bind(&Gravitas::OnFrameBufferResizeCallback, this, std::placeholders::_1, std::placeholders::_2));
-        vwindow->setOnKeyPressedCallback(std::bind(&Gravitas::OnKeyPressedCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
+        outputWindow = std::make_unique<GLFWOutputWindow>(owConfig);
+        outputWindow->setOnWindowResizeCallback(
+        std::bind(&Gravitas::OnFrameBufferResizeCallback, this, std::placeholders::_1, std::placeholders::_2));
+        outputWindow->setOnKeyPressedCallback(
+        std::bind(&Gravitas::OnKeyPressedCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
 
-        // configure extensions
-        // need to rework this for the case of no window being present
-        std::vector<const char*> vinstanceext = vwindow->getRequiredExtensions();
-        if (enableValidationLayers) 
-        {
-            vinstanceext.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-        }
+        VulkanContextConfig vcConfig;
+        vcConfig.enableValidationLayers = enableValidationLayers;
+        vcConfig.vulkanInstanceExtensions = outputWindow->getRequiredExtensions();
+        vcConfig.outputWindowPtr = outputWindow.get();
 
-        // make a new vulkan instance with the config
-        VulkanInstanceConfig vInstanceConfig;
-        vInstanceConfig.enableSurfaceSupport = true;
-        vInstanceConfig.enableValidationLayers = enableValidationLayers;
-        vInstanceConfig.extensions = vinstanceext;
-        vInstanceConfig.appname = "appname";
-        vinstance = new VulkanInstance(vInstanceConfig);
+        vContext = std::make_unique<VulkanContext>(vcConfig);
 
 
-        vsurface = new GLFWWindowSurface(vwindow, vinstance);
-        vphysicaldevice = new VulkanPhysicalDevice(vinstance, vsurface);
-        vlogicaldevice = new VulkanLogicalDevice(vinstance, vphysicaldevice, enableValidationLayers);
-        vswapchain = new VulkanSwapChain(vwindow, vsurface, vphysicaldevice, vlogicaldevice);
+        vphysicaldevice = new VulkanPhysicalDevice(vContext.get()->getInstanceWrapper(), vContext.get()->getSurfaceWrapper());
+        vlogicaldevice = new VulkanLogicalDevice(vContext.get()->getInstanceWrapper(), vphysicaldevice, enableValidationLayers);
+        vswapchain = new VulkanSwapChain(outputWindow.get(), vContext.get()->getSurfaceWrapper(), vphysicaldevice, vlogicaldevice);
         vrenderer = new VulkanRenderer(vlogicaldevice, vphysicaldevice, vswapchain);
         vrenderpass = new VulkanRenderPass();
         vrenderpass->init(vswapchain, vlogicaldevice, vrenderer);
@@ -267,9 +273,9 @@ public:
 
     void run() 
     {
-        while (!vwindow->shouldClose())
+        while (!outputWindow->shouldClose())
         {
-            vwindow->pollEvents();
+            outputWindow->pollEvents();
 
             if(!currentScene->empty())
             {
@@ -325,21 +331,19 @@ private:
         delete vswapchain;
         delete vlogicaldevice;
         delete vphysicaldevice;
-        delete vsurface;
-        delete vinstance;
-        delete vwindow;
+        outputWindow.reset();
     }
 
     //we can do that once we figured out how to put everything into classes
     void recreateSwapChain() 
     {
         // int width = 0, height = 0;
-        // vwindow->getSize(width, height);
+        // outputWindow->getSize(width, height);
 
         // while (width == 0 || height == 0) 
         // {
-        //     vwindow->getSize(width, height);
-        //     vwindow->pollEvents();
+        //     outputWindow->getSize(width, height);
+        //     outputWindow->pollEvents();
         // }
 
         // std::cout << "swapchain recreated" << std::endl;
@@ -351,7 +355,7 @@ private:
         //cleanupSwapChain();
 
         //delete vswapchain;
-        //vswapchain = new VulkanSwapChain(vwindow, vsurface, vphysicaldevice, vlogicaldevice);
+        //vswapchain = new VulkanSwapChain(outputWindow, vContext.get()->getSurfaceWrapper(), vphysicaldevice, vlogicaldevice);
         //createDepthResources();
         //createFramebuffers();
     }

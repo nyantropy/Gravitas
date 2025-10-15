@@ -1,13 +1,17 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include "VulkanInstance.hpp"
+
+#include "WindowSurfaceConfig.h"
 
 class WindowSurface 
 {
     protected:
-        VkSurfaceKHR surface = nullptr;
-        VulkanInstance* vinstance = nullptr;
+        WindowSurfaceConfig config;
+        VkSurfaceKHR surface = VK_NULL_HANDLE;
+
+        explicit WindowSurface(const WindowSurfaceConfig& config): config(config) {};
+        virtual void init() = 0;
 
     public:
         virtual ~WindowSurface() = default;

@@ -3,6 +3,8 @@ add_library(
 
     VulkanContext.hpp
     VulkanContext.cpp
+
+    VulkanContextConfig.h
 )
 
 target_include_directories(context PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")

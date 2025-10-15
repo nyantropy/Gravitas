@@ -1,17 +1,21 @@
 #pragma once
 
-#include "WindowSurface.hpp"
-#include "OutputWindow.hpp"
+#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+
+#include <vulkan/vulkan.h>
 #include <stdexcept>
+
+#include "WindowSurface.hpp"
+#include "WindowSurfaceConfig.h"
 
 class GLFWWindowSurface : public WindowSurface 
 {
     public:
-        GLFWWindowSurface(OutputWindow* vwindow, VulkanInstance* vinstance);
+        GLFWWindowSurface(WindowSurfaceConfig config);
         ~GLFWWindowSurface();
         VkSurfaceKHR& getSurface() override;
 
     private:
-        GLFWwindow* window;
+        void init() override;
 };

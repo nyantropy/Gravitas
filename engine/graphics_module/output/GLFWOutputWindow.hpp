@@ -2,9 +2,14 @@
 
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
+#include <memory>
 
 #include "OutputWindow.hpp"
 #include "OutputWindowConfig.h"
+
+#include "WindowSurface.hpp"
+#include "GLFWWindowSurface.hpp"
+#include "WindowSurfaceConfig.h"
 
 class GLFWOutputWindow : public OutputWindow 
 {
@@ -19,6 +24,8 @@ class GLFWOutputWindow : public OutputWindow
         void getSize(int& width, int& height) const override;
         void* getWindow() const override;
         std::vector<const char*> getRequiredExtensions() const override;
+
+        std::unique_ptr<WindowSurface> createSurface(WindowSurfaceConfig config) const override;
 
     private:
         //this basically just takes the glfw specific event and directs it to whatever callback we have assigned via
@@ -43,6 +50,4 @@ class GLFWOutputWindow : public OutputWindow
         }
 
         void init() override;
-
-        GLFWwindow* window;
 };

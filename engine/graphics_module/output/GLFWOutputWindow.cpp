@@ -2,15 +2,14 @@
 
 GLFWOutputWindow::GLFWOutputWindow(OutputWindowConfig config): OutputWindow(config)
 {
-    this->window = nullptr;
     this->init();
 }
 
 GLFWOutputWindow::~GLFWOutputWindow()
 {
-    if(window)
+    if(static_cast<GLFWwindow*>(this->window))
     {
-        glfwDestroyWindow(window);
+        glfwDestroyWindow(static_cast<GLFWwindow*>(this->window));
         glfwTerminate();
     }
 }
@@ -19,10 +18,10 @@ void GLFWOutputWindow::init()
 {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    window = glfwCreateWindow(config.width, config.height, config.title.c_str(), nullptr, nullptr);
-    glfwSetWindowUserPointer(window, this);
-    glfwSetFramebufferSizeCallback(window, framebufferResizeCallbackStatic);
-    glfwSetKeyCallback(window, onKeyPressedCallbackStatic);
+    this->window = glfwCreateWindow(config.width, config.height, config.title.c_str(), nullptr, nullptr);
+    glfwSetWindowUserPointer(static_cast<GLFWwindow*>(this->window), this);
+    glfwSetFramebufferSizeCallback(static_cast<GLFWwindow*>(this->window), framebufferResizeCallbackStatic);
+    glfwSetKeyCallback(static_cast<GLFWwindow*>(this->window), onKeyPressedCallbackStatic);
 }
 
 void GLFWOutputWindow::setOnWindowResizeCallback(const std::function<void(int, int)>& callback) 
@@ -37,7 +36,7 @@ void GLFWOutputWindow::setOnKeyPressedCallback(const std::function<void(int, int
 
 bool GLFWOutputWindow::shouldClose() const 
 {
-    return glfwWindowShouldClose(window);
+    return glfwWindowShouldClose(static_cast<GLFWwindow*>(this->window));
 }
 
 void GLFWOutputWindow::pollEvents() 
@@ -47,12 +46,12 @@ void GLFWOutputWindow::pollEvents()
 
 void GLFWOutputWindow::getSize(int& width, int& height) const 
 {
-    glfwGetFramebufferSize(window, &width, &height);
+    glfwGetFramebufferSize(static_cast<GLFWwindow*>(this->window), &width, &height);
 }
 
 void* GLFWOutputWindow::getWindow() const 
 {
-    return window;
+    return static_cast<GLFWwindow*>(this->window);
 }
 
 std::vector<const char*> GLFWOutputWindow::getRequiredExtensions() const
@@ -69,4 +68,11 @@ std::vector<const char*> GLFWOutputWindow::getRequiredExtensions() const
     }
 
     return extensions;
+}
+
+// return a unique pointer with the glfw surface handle wrapper
+std::unique_ptr<WindowSurface> GLFWOutputWindow::createSurface(WindowSurfaceConfig config) const
+{
+    config.nativeWindow = this->window;
+    return std::make_unique<GLFWWindowSurface>(config);
 }

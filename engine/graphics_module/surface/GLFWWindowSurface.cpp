@@ -1,25 +1,28 @@
 #include "GLFWWindowSurface.hpp"
 
-GLFWWindowSurface::GLFWWindowSurface(OutputWindow* vwindow, VulkanInstance* vinstance)
+GLFWWindowSurface::GLFWWindowSurface(WindowSurfaceConfig config): WindowSurface(config)
 {
-    this->window = static_cast<GLFWwindow*>(vwindow->getWindow());
-    this->vinstance = vinstance;
+    this->init();
+    //this->window = static_cast<GLFWwindow*>(vwindow->getWindow());
 }
 
 GLFWWindowSurface::~GLFWWindowSurface()
 {
-    vkDestroySurfaceKHR(vinstance->getInstance(), surface, nullptr);
+    vkDestroySurfaceKHR(this->config.instance, surface, nullptr);
 }
 
-VkSurfaceKHR& GLFWWindowSurface::getSurface() 
+void GLFWWindowSurface::init()
 {
     if(surface == nullptr)
     {
-        if (glfwCreateWindowSurface(vinstance->getInstance(), window, nullptr, &surface) != VK_SUCCESS) 
+        if (glfwCreateWindowSurface(this->config.instance, static_cast<GLFWwindow*>(this->config.nativeWindow), nullptr, &surface) != VK_SUCCESS) 
         {
             throw std::runtime_error("failed to create window surface!");
         }
     }
+}
 
+VkSurfaceKHR& GLFWWindowSurface::getSurface() 
+{
     return surface;
 }
