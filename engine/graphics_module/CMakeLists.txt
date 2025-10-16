@@ -78,6 +78,7 @@ target_link_libraries(Gravitas
     $<$<NOT:$<PLATFORM_ID:Windows>>:${GLFW_LIB_DIR}/libglfw3.a> # Linux
 )
 
+
 # Output dirs
 set_target_properties(Gravitas PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib

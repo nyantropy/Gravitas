@@ -1,5 +1,4 @@
-#ifndef VULKAN_RENDERER_HPP
-#define VULKAN_RENDERER_HPP
+#pragma once
 
 #include <vulkan/vulkan.h>
 #include <vector>
@@ -8,8 +7,6 @@
 #include "VulkanPhysicalDevice.hpp"
 #include "VulkanSwapChain.hpp"
 #include "GtsBufferService.hpp"
-
-class VulkanSwapChain;
 
 class VulkanRenderer 
 {
@@ -40,5 +37,3 @@ class VulkanRenderer
         void createDepthResources();
         void cleanup();
 };
-
-#endif // VULKAN_RENDERER_HPP

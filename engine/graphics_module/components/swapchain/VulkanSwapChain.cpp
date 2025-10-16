@@ -1,11 +1,8 @@
 #include "VulkanSwapChain.hpp"
 
-VulkanSwapChain::VulkanSwapChain(OutputWindow* vwindow, VulkanSurface* vsurface, VulkanPhysicalDevice* vphysicaldevice, VulkanLogicalDevice* vlogicaldevice)
+VulkanSwapChain::VulkanSwapChain(VulkanSwapChainConfig config)
 {
-    this->vwindow = vwindow;
-    this->vsurface = vsurface;
-    this->vphysicaldevice = vphysicaldevice;
-    this->vlogicaldevice = vlogicaldevice;
+    this->config = config;
 
     createSwapChain();
     createImageViews();
@@ -15,10 +12,10 @@ VulkanSwapChain::~VulkanSwapChain()
 {
     for (auto imageView : swapChainImageViews) 
     {
-        vkDestroyImageView(vlogicaldevice->getDevice(), imageView, nullptr);
+        vkDestroyImageView(this->config.vkDevice, imageView, nullptr);
     }
 
-    vkDestroySwapchainKHR(vlogicaldevice->getDevice(), swapChain, nullptr); 
+    vkDestroySwapchainKHR(this->config.vkDevice, swapChain, nullptr); 
 }
 
 VkSwapchainKHR& VulkanSwapChain::getSwapChain()
@@ -48,7 +45,7 @@ std::vector<VkImageView>& VulkanSwapChain::getSwapChainImageViews()
 
 void VulkanSwapChain::createSwapChain() 
 {
-    SwapChainSupportDetails swapChainSupport = vphysicaldevice->getSwapChainSupportDetails();
+    SwapChainSupportDetails swapChainSupport = this->config.swapChainSupportDetails;
 
     VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
     VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
@@ -62,7 +59,7 @@ void VulkanSwapChain::createSwapChain()
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface = vsurface->getSurface();
+    createInfo.surface = this->config.vkSurface;
 
     createInfo.minImageCount = imageCount;
     createInfo.imageFormat = surfaceFormat.format;
@@ -71,7 +68,7 @@ void VulkanSwapChain::createSwapChain()
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
-    QueueFamilyIndices indices = vphysicaldevice->getQueueFamilyIndices();
+    QueueFamilyIndices indices = this->config.queueFamilyIndices;
     uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 
     if (indices.graphicsFamily != indices.presentFamily) 
@@ -90,14 +87,14 @@ void VulkanSwapChain::createSwapChain()
     createInfo.presentMode = presentMode;
     createInfo.clipped = VK_TRUE;
 
-    if (vkCreateSwapchainKHR(vlogicaldevice->getDevice(), &createInfo, nullptr, &swapChain) != VK_SUCCESS) 
+    if (vkCreateSwapchainKHR(this->config.vkDevice, &createInfo, nullptr, &swapChain) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to create swap chain!");
     }
 
-    vkGetSwapchainImagesKHR(vlogicaldevice->getDevice(), swapChain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(this->config.vkDevice, swapChain, &imageCount, nullptr);
     swapChainImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(vlogicaldevice->getDevice(), swapChain, &imageCount, swapChainImages.data());
+    vkGetSwapchainImagesKHR(this->config.vkDevice, swapChain, &imageCount, swapChainImages.data());
 
     swapChainImageFormat = surfaceFormat.format;
     swapChainExtent = extent;
@@ -138,7 +135,7 @@ VkExtent2D VulkanSwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& cap
     else 
     {
         int width, height;
-        vwindow->getSize(width, height);
+        config.outputWindowPtr->getSize(width, height);
 
         VkExtent2D actualExtent = 
         {
@@ -177,7 +174,7 @@ VkImageView VulkanSwapChain::createImageView(VkImage image, VkFormat format, VkI
     viewInfo.subresourceRange.layerCount = 1;
 
     VkImageView imageView;
-    if (vkCreateImageView(vlogicaldevice->getDevice(), &viewInfo, nullptr, &imageView) != VK_SUCCESS) 
+    if (vkCreateImageView(this->config.vkDevice, &viewInfo, nullptr, &imageView) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to create image view!");
     }

@@ -1,21 +1,14 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <limits>
 #include <algorithm>
+#include <stdexcept>
 
-#include "VulkanPhysicalDevice.hpp"
-#include "VulkanLogicalDevice.hpp"
-#include "OutputWindow.hpp"
-#include "VulkanRenderer.hpp"
-#include "VulkanRenderPass.hpp"
-
-class VulkanRenderer;
-class VulkanRenderPass;
+#include "VulkanSwapChainConfig.h"
+#include "SwapChainSupportDetails.h"
+#include "QueueFamilyIndices.h"
 
 class VulkanSwapChain
 {
@@ -25,13 +18,8 @@ class VulkanSwapChain
         VkFormat swapChainImageFormat;
         VkExtent2D swapChainExtent;
         std::vector<VkImageView> swapChainImageViews;
-
-        OutputWindow* vwindow;
-        VulkanSurface* vsurface;
-        VulkanLogicalDevice* vlogicaldevice;
-        VulkanPhysicalDevice* vphysicaldevice;
-        VulkanRenderer* vrenderer;
-        VulkanRenderPass* vrenderpass;        
+        
+        VulkanSwapChainConfig config;
 
         void createSwapChain();
         VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
@@ -42,8 +30,7 @@ class VulkanSwapChain
         void createFramebuffers();
 
     public:
-        VulkanSwapChain(OutputWindow* vwindow, VulkanSurface* vsurface, VulkanPhysicalDevice* vphysicaldevice,
-         VulkanLogicalDevice* vlogicaldevice);
+        VulkanSwapChain(VulkanSwapChainConfig config);
         ~VulkanSwapChain();
 
         VkSwapchainKHR& getSwapChain();

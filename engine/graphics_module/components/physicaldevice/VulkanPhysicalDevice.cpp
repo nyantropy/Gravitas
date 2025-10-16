@@ -25,9 +25,9 @@ SwapChainSupportDetails& VulkanPhysicalDevice::getSwapChainSupportDetails()
     return swapChainSupportDetails;
 }
 
-const std::vector<const char*>& VulkanPhysicalDevice::getDeviceExtensions()
+const std::vector<const char*>& VulkanPhysicalDevice::getPhysicalDeviceExtensions()
 {
-    return deviceExtensions;
+    return physicalDeviceExtensions;
 }
 
 void VulkanPhysicalDevice::pickPhysicalDevice() 
@@ -113,7 +113,7 @@ bool VulkanPhysicalDevice::checkDeviceExtensionSupport(VkPhysicalDevice device)
     std::vector<VkExtensionProperties> availableExtensions(extensionCount);
     vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
 
-    std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
+    std::set<std::string> requiredExtensions(physicalDeviceExtensions.begin(), physicalDeviceExtensions.end());
 
     for (const auto& extension : availableExtensions) 
     {

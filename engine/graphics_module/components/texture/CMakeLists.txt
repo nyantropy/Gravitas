@@ -7,4 +7,4 @@ add_library(
 
 target_include_directories(texture PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
-target_link_libraries(texture PUBLIC physicaldevice logicaldevice external)
+target_link_libraries(texture PUBLIC Gravitas physicaldevice logicaldevice external)

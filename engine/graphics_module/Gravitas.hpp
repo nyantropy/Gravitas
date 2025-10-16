@@ -39,8 +39,6 @@ extern "C" {
 #include "Vertex.h"
 #include "UniformBufferObject.h"
 
-
-#include "VulkanSwapChain.hpp"
 #include "VulkanRenderer.hpp"
 #include "VulkanRenderPass.hpp"
 #include "GTSDescriptorSetManager.hpp"
@@ -98,8 +96,6 @@ public:
     std::unique_ptr<VulkanContext> vContext;
     std::unique_ptr<OutputWindow> outputWindow;
 
-
-    VulkanSwapChain* vswapchain;
     VulkanRenderer* vrenderer;
     VulkanRenderPass* vrenderpass;
     GTSDescriptorSetManager* vdescriptorsetmanager;
@@ -190,14 +186,13 @@ public:
         vContext = std::make_unique<VulkanContext>(vcConfig);
 
 
-        vswapchain = new VulkanSwapChain(outputWindow.get(), vContext.get()->getSurfaceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vContext.get()->getLogicalDeviceWrapper());
-        vrenderer = new VulkanRenderer(vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vswapchain);
+        vrenderer = new VulkanRenderer(vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vContext.get()->getSwapChainWrapper());
         vrenderpass = new VulkanRenderPass();
-        vrenderpass->init(vswapchain, vContext.get()->getLogicalDeviceWrapper(), vrenderer);
+        vrenderpass->init(vContext.get()->getSwapChainWrapper(), vContext.get()->getLogicalDeviceWrapper(), vrenderer);
         vdescriptorsetmanager = new GTSDescriptorSetManager(vContext.get()->getLogicalDeviceWrapper(), GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
         vpipeline = new VulkanPipeline(vContext.get()->getLogicalDeviceWrapper(), vdescriptorsetmanager, vrenderpass, {GraphicsConstants::V_SHADER_PATH, GraphicsConstants::F_SHADER_PATH});
-        vframebuffer = new GTSFramebufferManager(vContext.get()->getLogicalDeviceWrapper(), vswapchain, vrenderer, vrenderpass);
-        vcamera = new GtsCamera(vswapchain->getSwapChainExtent());
+        vframebuffer = new GTSFramebufferManager(vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getSwapChainWrapper(), vrenderer, vrenderpass);
+        vcamera = new GtsCamera(vContext.get()->getSwapChainWrapper()->getSwapChainExtent());
         createCommandBuffers();
         createSyncObjects();
     }
@@ -250,7 +245,7 @@ public:
 
     void startEncoder()
     {
-        framegrabber = new GtsFrameGrabber(vswapchain, vrenderer, vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper());
+        framegrabber = new GtsFrameGrabber(vContext.get()->getSwapChainWrapper(), vrenderer, vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper());
         encoder = new GtsEncoder(framegrabber);
         onFrameEndedEvent.subscribe(std::bind(&GtsEncoder::onFrameEnded, encoder, std::placeholders::_1, std::placeholders::_2));
     }
@@ -312,7 +307,6 @@ private:
             vkDestroySemaphore(vContext.get()->getLogicalDeviceWrapper()->getDevice(), imageAvailableSemaphores[i], nullptr);
             vkDestroyFence(vContext.get()->getLogicalDeviceWrapper()->getDevice(), inFlightFences[i], nullptr);
         }
-        delete vswapchain;
         vContext.reset();
         outputWindow.reset();
     }
@@ -337,8 +331,8 @@ private:
 
         //cleanupSwapChain();
 
-        //delete vswapchain;
-        //vswapchain = new VulkanSwapChain(outputWindow, vContext.get()->getSurfaceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vContext.get()->getLogicalDeviceWrapper());
+        //delete vContext.get()->getSwapChainWrapper();
+        //vContext.get()->getSwapChainWrapper() = new VulkanSwapChain(outputWindow, vContext.get()->getSurfaceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vContext.get()->getLogicalDeviceWrapper());
         //createDepthResources();
         //createFramebuffers();
     }
@@ -375,7 +369,7 @@ private:
         renderPassInfo.renderPass = vrenderpass->getRenderPass();
         renderPassInfo.framebuffer = vframebuffer->getFramebuffers()[imageIndex];
         renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = vswapchain->getSwapChainExtent();
+        renderPassInfo.renderArea.extent = vContext.get()->getSwapChainWrapper()->getSwapChainExtent();
 
         std::array<VkClearValue, 2> clearValues{};
         clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
@@ -391,15 +385,15 @@ private:
             VkViewport viewport{};
             viewport.x = 0.0f;
             viewport.y = 0.0f;
-            viewport.width = (float) vswapchain->getSwapChainExtent().width;
-            viewport.height = (float) vswapchain->getSwapChainExtent().height;
+            viewport.width = (float) vContext.get()->getSwapChainWrapper()->getSwapChainExtent().width;
+            viewport.height = (float) vContext.get()->getSwapChainWrapper()->getSwapChainExtent().height;
             viewport.minDepth = 0.0f;
             viewport.maxDepth = 1.0f;
             vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
             VkRect2D scissor{};
             scissor.offset = {0, 0};
-            scissor.extent = vswapchain->getSwapChainExtent();
+            scissor.extent = vContext.get()->getSwapChainWrapper()->getSwapChainExtent();
             vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
             
@@ -451,7 +445,7 @@ private:
         vkWaitForFences(vContext.get()->getLogicalDeviceWrapper()->getDevice(), 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
-        VkResult result = vkAcquireNextImageKHR(vContext.get()->getLogicalDeviceWrapper()->getDevice(), vswapchain->getSwapChain(), UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR(vContext.get()->getLogicalDeviceWrapper()->getDevice(), vContext.get()->getSwapChainWrapper()->getSwapChain(), UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) 
         {
@@ -500,9 +494,9 @@ private:
             frameCounter++;
         }
 
-        // uint8_t* bufferData = new uint8_t[vswapchain->getSwapChainExtent().width * vswapchain->getSwapChainExtent().height * 4];
+        // uint8_t* bufferData = new uint8_t[vContext.get()->getSwapChainWrapper()->getSwapChainExtent().width * vContext.get()->getSwapChainWrapper()->getSwapChainExtent().height * 4];
         // getCurrentFrame(imageIndex, bufferData);
-        // encodeAndWriteFrame(bufferData, vswapchain->getSwapChainExtent().width, vswapchain->getSwapChainExtent().height);
+        // encodeAndWriteFrame(bufferData, vContext.get()->getSwapChainWrapper()->getSwapChainExtent().width, vContext.get()->getSwapChainWrapper()->getSwapChainExtent().height);
         // delete bufferData;
 
         VkPresentInfoKHR presentInfo{};
@@ -511,7 +505,7 @@ private:
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pWaitSemaphores = signalSemaphores;
 
-        VkSwapchainKHR swapChains[] = {vswapchain->getSwapChain()};
+        VkSwapchainKHR swapChains[] = {vContext.get()->getSwapChainWrapper()->getSwapChain()};
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapChains;
 

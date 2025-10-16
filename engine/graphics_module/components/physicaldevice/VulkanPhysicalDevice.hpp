@@ -21,7 +21,7 @@ class VulkanPhysicalDevice
         VkPhysicalDevice& getPhysicalDevice();
         QueueFamilyIndices& getQueueFamilyIndices();
         SwapChainSupportDetails& getSwapChainSupportDetails();
-        const std::vector<const char*>& getDeviceExtensions();
+        const std::vector<const char*>& getPhysicalDeviceExtensions();
 
         uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
@@ -39,6 +39,6 @@ class VulkanPhysicalDevice
         QueueFamilyIndices queueFamilyIndices;
         SwapChainSupportDetails swapChainSupportDetails;
         
-        //device extensions
-        const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+        // physical device extensions
+        const std::vector<const char*> physicalDeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 };
