@@ -8,14 +8,14 @@
 
 #include "QueueFamilyIndices.h"
 #include "SwapChainSupportDetails.h"
-#include "VulkanInstance.hpp"
-#include "VulkanSurface.hpp"
+
+#include "VulkanPhysicalDeviceConfig.h"
 
 class VulkanPhysicalDevice 
 {
     public:
         // Constructor and Destructor
-        VulkanPhysicalDevice(VulkanInstance* vinstance, VulkanSurface* vsurface);
+        VulkanPhysicalDevice(VulkanPhysicalDeviceConfig config);
         ~VulkanPhysicalDevice();
 
         VkPhysicalDevice& getPhysicalDevice();
@@ -32,11 +32,9 @@ class VulkanPhysicalDevice
         SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
         QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 
-        //pointers to relevant classes
-        VulkanInstance* vinstance;
-        VulkanSurface* vsurface;
+        VulkanPhysicalDeviceConfig config;
 
-        //the object we wrap
+        //the objects we wrap in this class
         VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
         QueueFamilyIndices queueFamilyIndices;
         SwapChainSupportDetails swapChainSupportDetails;

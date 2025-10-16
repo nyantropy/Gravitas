@@ -3,6 +3,8 @@
 #include <vulkan/vulkan.h>
 #include "VulkanPhysicalDevice.hpp"
 
+#include "VulkanInstance.hpp"
+
 
 class VulkanLogicalDevice
 {

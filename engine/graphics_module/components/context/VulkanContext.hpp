@@ -19,6 +19,12 @@
 #include "VulkanSurface.hpp"
 #include "GLFWVulkanSurface.hpp"
 
+// physical device includes
+#include "VulkanPhysicalDevice.hpp"
+#include "VulkanPhysicalDeviceConfig.h"
+
+
+
 // make a class that acts as a vulkan context, as a glue to hold it all together
 class VulkanContext 
 {
@@ -31,7 +37,7 @@ class VulkanContext
         std::unique_ptr<VulkanPhysicalDevice> vphysicaldevice;
         //std::unique_ptr<VulkanLogicalDevice> vlogicaldevice;
 
-        void init()
+        void setupVkInstance()
         {
             // configure extensions
             // need to rework this for the case of no window being present
@@ -47,13 +53,31 @@ class VulkanContext
             vInstanceConfig.extensions = this->config.vulkanInstanceExtensions;
             vInstanceConfig.appname = this->config.applicationName.c_str();
             vinstance = std::make_unique<VulkanInstance>(vInstanceConfig);
+        }
 
+        void setupVkSurface()
+        {
             // setup a new window surface with its dedicated config
             // this time we use polymorphism, so we only need to pass the instance we configured before, and let the window class do the
             // rest of the work
             VulkanSurfaceConfig wsConfig;
             wsConfig.instance = vinstance->getInstance();
             vsurface = this->config.outputWindowPtr->createSurface(wsConfig);
+        }
+
+        void setupVkPhysicalDevice()
+        {
+            VulkanPhysicalDeviceConfig physConfig;
+            physConfig.vkInstance = vinstance->getInstance();
+            physConfig.vkSurface = vsurface->getSurface();
+            vphysicaldevice = std::make_unique<VulkanPhysicalDevice>(physConfig);
+        }
+
+        void init()
+        {
+            setupVkInstance();
+            setupVkSurface();
+            setupVkPhysicalDevice();
         }
 
     public:
@@ -63,17 +87,12 @@ class VulkanContext
             this->init();
         }
 
+        // manual destructor to maintain correct order of destruction
         ~VulkanContext()
         {
-            if (vsurface)
-            {
-                vsurface.reset();  // destroys the WindowSurface
-            }
-
-            if (vinstance)
-            {
-                vinstance.reset(); // destroys the VulkanInstance
-            }
+            vphysicaldevice.reset();
+            vsurface.reset();
+            vinstance.reset();
         }
 
         // expose vulkan objects by simply accessing the getters from wrapper classes 
@@ -83,6 +102,7 @@ class VulkanContext
         // wont be used in practice, but its the glue that keeps the whole thing together for now :D
         VulkanInstance* getInstanceWrapper() { return vinstance.get(); }
         VulkanSurface* getSurfaceWrapper() { return vsurface.get(); }
+        VulkanPhysicalDevice* getPhysicalDeviceWrapper() { return vphysicaldevice.get(); }
         //VkPhysicalDevice& getPhysicalDevice() { return vphysicaldevice.get()->getPhysicalDevice(); }
         //QueueFamilyIndices& getQueueFamilyIndices() { return vphysicaldevice.get()->getQueueFamilyIndices(); }
         //SwapChainSupportDetails& getSwapChainSupportDetails() { return vphysicaldevice.get()->getSwapChainSupportDetails(); }

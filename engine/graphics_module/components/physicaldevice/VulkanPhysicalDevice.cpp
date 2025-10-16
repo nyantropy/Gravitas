@@ -1,9 +1,8 @@
 #include "VulkanPhysicalDevice.hpp"
 
-VulkanPhysicalDevice::VulkanPhysicalDevice(VulkanInstance* vinstance, VulkanSurface* vsurface)
+VulkanPhysicalDevice::VulkanPhysicalDevice(VulkanPhysicalDeviceConfig config)
 {
-    this->vinstance = vinstance;
-    this->vsurface = vsurface;
+    this->config = config;
     this->pickPhysicalDevice();
 }
 
@@ -34,7 +33,7 @@ const std::vector<const char*>& VulkanPhysicalDevice::getDeviceExtensions()
 void VulkanPhysicalDevice::pickPhysicalDevice() 
 {
     uint32_t deviceCount = 0;
-    vkEnumeratePhysicalDevices(vinstance->getInstance(), &deviceCount, nullptr);
+    vkEnumeratePhysicalDevices(this->config.vkInstance, &deviceCount, nullptr);
 
     if (deviceCount == 0) 
     {
@@ -42,7 +41,7 @@ void VulkanPhysicalDevice::pickPhysicalDevice()
     }
 
     std::vector<VkPhysicalDevice> devices(deviceCount);
-    vkEnumeratePhysicalDevices(vinstance->getInstance(), &deviceCount, devices.data());
+    vkEnumeratePhysicalDevices(this->config.vkInstance, &deviceCount, devices.data());
 
     for (const auto& device : devices) 
     {
@@ -83,24 +82,24 @@ SwapChainSupportDetails VulkanPhysicalDevice::querySwapChainSupport(VkPhysicalDe
 {
     SwapChainSupportDetails details;
 
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, vsurface->getSurface(), &details.capabilities);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, this->config.vkSurface, &details.capabilities);
 
     uint32_t formatCount;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, vsurface->getSurface(), &formatCount, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, this->config.vkSurface, &formatCount, nullptr);
 
     if (formatCount != 0) 
     {
         details.formats.resize(formatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, vsurface->getSurface(), &formatCount, details.formats.data());
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, this->config.vkSurface, &formatCount, details.formats.data());
     }
 
     uint32_t presentModeCount;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, vsurface->getSurface(), &presentModeCount, nullptr);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, this->config.vkSurface, &presentModeCount, nullptr);
 
     if (presentModeCount != 0) 
     {
         details.presentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, vsurface->getSurface(), &presentModeCount, details.presentModes.data());
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, this->config.vkSurface, &presentModeCount, details.presentModes.data());
     }
 
     return details;
@@ -143,7 +142,7 @@ QueueFamilyIndices VulkanPhysicalDevice::findQueueFamilies(VkPhysicalDevice devi
         }
 
         VkBool32 presentSupport = false;
-        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, vsurface->getSurface(), &presentSupport);
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, this->config.vkSurface, &presentSupport);
 
         if (presentSupport) 
         {

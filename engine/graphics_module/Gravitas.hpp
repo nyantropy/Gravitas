@@ -40,7 +40,6 @@ extern "C" {
 #include "UniformBufferObject.h"
 
 
-#include "VulkanPhysicalDevice.hpp"
 #include "VulkanLogicalDevice.hpp"
 #include "VulkanSwapChain.hpp"
 #include "VulkanRenderer.hpp"
@@ -100,9 +99,7 @@ public:
     std::unique_ptr<VulkanContext> vContext;
     std::unique_ptr<OutputWindow> outputWindow;
 
-    //VulkanInstance* vContext.get()->getInstanceWrapper();
-    //WindowSurface* vContext.get()->getSurfaceWrapper();
-    VulkanPhysicalDevice* vphysicaldevice;
+
     VulkanLogicalDevice* vlogicaldevice;
     VulkanSwapChain* vswapchain;
     VulkanRenderer* vrenderer;
@@ -167,7 +164,7 @@ public:
 
     GtsRenderableObject* createObject(std::string model_path, std::string texture_path)
     {
-        GtsRenderableObject* vobject = new GtsRenderableObject(vlogicaldevice, vphysicaldevice, vdescriptorsetmanager, vrenderer, model_path, texture_path, GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
+        GtsRenderableObject* vobject = new GtsRenderableObject(vlogicaldevice, vContext.get()->getPhysicalDeviceWrapper(), vdescriptorsetmanager, vrenderer, model_path, texture_path, GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
         return vobject;
     }
 
@@ -195,10 +192,9 @@ public:
         vContext = std::make_unique<VulkanContext>(vcConfig);
 
 
-        vphysicaldevice = new VulkanPhysicalDevice(vContext.get()->getInstanceWrapper(), vContext.get()->getSurfaceWrapper());
-        vlogicaldevice = new VulkanLogicalDevice(vContext.get()->getInstanceWrapper(), vphysicaldevice, enableValidationLayers);
-        vswapchain = new VulkanSwapChain(outputWindow.get(), vContext.get()->getSurfaceWrapper(), vphysicaldevice, vlogicaldevice);
-        vrenderer = new VulkanRenderer(vlogicaldevice, vphysicaldevice, vswapchain);
+        vlogicaldevice = new VulkanLogicalDevice(vContext.get()->getInstanceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), enableValidationLayers);
+        vswapchain = new VulkanSwapChain(outputWindow.get(), vContext.get()->getSurfaceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vlogicaldevice);
+        vrenderer = new VulkanRenderer(vlogicaldevice, vContext.get()->getPhysicalDeviceWrapper(), vswapchain);
         vrenderpass = new VulkanRenderPass();
         vrenderpass->init(vswapchain, vlogicaldevice, vrenderer);
         vdescriptorsetmanager = new GTSDescriptorSetManager(vlogicaldevice, GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
@@ -257,7 +253,7 @@ public:
 
     void startEncoder()
     {
-        framegrabber = new GtsFrameGrabber(vswapchain, vrenderer, vlogicaldevice, vphysicaldevice);
+        framegrabber = new GtsFrameGrabber(vswapchain, vrenderer, vlogicaldevice, vContext.get()->getPhysicalDeviceWrapper());
         encoder = new GtsEncoder(framegrabber);
         onFrameEndedEvent.subscribe(std::bind(&GtsEncoder::onFrameEnded, encoder, std::placeholders::_1, std::placeholders::_2));
     }
@@ -321,7 +317,7 @@ private:
         }
         delete vswapchain;
         delete vlogicaldevice;
-        delete vphysicaldevice;
+        delete vContext.get()->getPhysicalDeviceWrapper();
         outputWindow.reset();
     }
 
@@ -346,7 +342,7 @@ private:
         //cleanupSwapChain();
 
         //delete vswapchain;
-        //vswapchain = new VulkanSwapChain(outputWindow, vContext.get()->getSurfaceWrapper(), vphysicaldevice, vlogicaldevice);
+        //vswapchain = new VulkanSwapChain(outputWindow, vContext.get()->getSurfaceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vlogicaldevice);
         //createDepthResources();
         //createFramebuffers();
     }
