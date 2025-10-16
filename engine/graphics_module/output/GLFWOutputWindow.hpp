@@ -7,9 +7,9 @@
 #include "OutputWindow.hpp"
 #include "OutputWindowConfig.h"
 
-#include "WindowSurface.hpp"
-#include "GLFWWindowSurface.hpp"
-#include "WindowSurfaceConfig.h"
+#include "VulkanSurface.hpp"
+#include "GLFWVulkanSurface.hpp"
+#include "VulkanSurfaceConfig.h"
 
 class GLFWOutputWindow : public OutputWindow 
 {
@@ -25,7 +25,7 @@ class GLFWOutputWindow : public OutputWindow
         void* getWindow() const override;
         std::vector<const char*> getRequiredExtensions() const override;
 
-        std::unique_ptr<WindowSurface> createSurface(WindowSurfaceConfig config) const override;
+        std::unique_ptr<VulkanSurface> createSurface(VulkanSurfaceConfig config) const override;
 
     private:
         //this basically just takes the glfw specific event and directs it to whatever callback we have assigned via

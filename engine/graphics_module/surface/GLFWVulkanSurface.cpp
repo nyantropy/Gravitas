@@ -1,19 +1,19 @@
-#include "GLFWWindowSurface.hpp"
+#include "GLFWVulkanSurface.hpp"
 
-GLFWWindowSurface::GLFWWindowSurface(WindowSurfaceConfig config): WindowSurface(config)
+GLFWVulkanSurface::GLFWVulkanSurface(VulkanSurfaceConfig config): VulkanSurface(config)
 {
     this->init();
     //this->window = static_cast<GLFWwindow*>(vwindow->getWindow());
 }
 
-GLFWWindowSurface::~GLFWWindowSurface()
+GLFWVulkanSurface::~GLFWVulkanSurface()
 {
     vkDestroySurfaceKHR(this->config.instance, surface, nullptr);
 }
 
-void GLFWWindowSurface::init()
+void GLFWVulkanSurface::init()
 {
-    if(surface == nullptr)
+    if(surface == VK_NULL_HANDLE)
     {
         if (glfwCreateWindowSurface(this->config.instance, static_cast<GLFWwindow*>(this->config.nativeWindow), nullptr, &surface) != VK_SUCCESS) 
         {
@@ -22,7 +22,7 @@ void GLFWWindowSurface::init()
     }
 }
 
-VkSurfaceKHR& GLFWWindowSurface::getSurface() 
+VkSurfaceKHR& GLFWVulkanSurface::getSurface() 
 {
     return surface;
 }

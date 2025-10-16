@@ -71,14 +71,6 @@ extern "C" {
 #include "OutputWindowConfig.h"
 #include "GLFWOutputWindow.hpp"
 
-// vulkan instance includes
-#include "VulkanInstanceConfig.h"
-//#include "VulkanInstance.hpp"
-
-// window surface includes
-#include "WindowSurfaceConfig.h"
-#include "GLFWWindowSurface.hpp"
-
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
 #else
@@ -181,7 +173,6 @@ public:
 
     void init(uint32_t width, uint32_t height, std::string title)
     {
-
         // output window settings
         OutputWindowConfig owConfig;
         owConfig.enableValidationLayers = true;

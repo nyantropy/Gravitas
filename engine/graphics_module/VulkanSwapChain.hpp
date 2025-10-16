@@ -27,7 +27,7 @@ class VulkanSwapChain
         std::vector<VkImageView> swapChainImageViews;
 
         OutputWindow* vwindow;
-        WindowSurface* vsurface;
+        VulkanSurface* vsurface;
         VulkanLogicalDevice* vlogicaldevice;
         VulkanPhysicalDevice* vphysicaldevice;
         VulkanRenderer* vrenderer;
@@ -42,7 +42,7 @@ class VulkanSwapChain
         void createFramebuffers();
 
     public:
-        VulkanSwapChain(OutputWindow* vwindow, WindowSurface* vsurface, VulkanPhysicalDevice* vphysicaldevice,
+        VulkanSwapChain(OutputWindow* vwindow, VulkanSurface* vsurface, VulkanPhysicalDevice* vphysicaldevice,
          VulkanLogicalDevice* vlogicaldevice);
         ~VulkanSwapChain();
 

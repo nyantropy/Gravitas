@@ -1,6 +1,6 @@
 #include "VulkanSwapChain.hpp"
 
-VulkanSwapChain::VulkanSwapChain(OutputWindow* vwindow, WindowSurface* vsurface, VulkanPhysicalDevice* vphysicaldevice, VulkanLogicalDevice* vlogicaldevice)
+VulkanSwapChain::VulkanSwapChain(OutputWindow* vwindow, VulkanSurface* vsurface, VulkanPhysicalDevice* vphysicaldevice, VulkanLogicalDevice* vlogicaldevice)
 {
     this->vwindow = vwindow;
     this->vsurface = vsurface;

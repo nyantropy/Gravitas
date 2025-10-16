@@ -15,8 +15,9 @@
 #include "VulkanInstance.hpp"
 
 // window surface includes
-#include "WindowSurfaceConfig.h"
-#include "GLFWWindowSurface.hpp"
+#include "VulkanSurfaceConfig.h"
+#include "VulkanSurface.hpp"
+#include "GLFWVulkanSurface.hpp"
 
 // make a class that acts as a vulkan context, as a glue to hold it all together
 class VulkanContext 
@@ -26,8 +27,8 @@ class VulkanContext
 
         // using unique pointers here seems like a good idea, the context "owns" all of the puzzle pieces
         std::unique_ptr<VulkanInstance> vinstance;
-        std::unique_ptr<WindowSurface> vsurface;
-        //std::unique_ptr<VulkanPhysicalDevice> vphysicaldevice;
+        std::unique_ptr<VulkanSurface> vsurface;
+        std::unique_ptr<VulkanPhysicalDevice> vphysicaldevice;
         //std::unique_ptr<VulkanLogicalDevice> vlogicaldevice;
 
         void init()
@@ -50,7 +51,7 @@ class VulkanContext
             // setup a new window surface with its dedicated config
             // this time we use polymorphism, so we only need to pass the instance we configured before, and let the window class do the
             // rest of the work
-            WindowSurfaceConfig wsConfig;
+            VulkanSurfaceConfig wsConfig;
             wsConfig.instance = vinstance->getInstance();
             vsurface = this->config.outputWindowPtr->createSurface(wsConfig);
         }
@@ -81,7 +82,7 @@ class VulkanContext
 
         // wont be used in practice, but its the glue that keeps the whole thing together for now :D
         VulkanInstance* getInstanceWrapper() { return vinstance.get(); }
-        WindowSurface* getSurfaceWrapper() { return vsurface.get(); }
+        VulkanSurface* getSurfaceWrapper() { return vsurface.get(); }
         //VkPhysicalDevice& getPhysicalDevice() { return vphysicaldevice.get()->getPhysicalDevice(); }
         //QueueFamilyIndices& getQueueFamilyIndices() { return vphysicaldevice.get()->getQueueFamilyIndices(); }
         //SwapChainSupportDetails& getSwapChainSupportDetails() { return vphysicaldevice.get()->getSwapChainSupportDetails(); }

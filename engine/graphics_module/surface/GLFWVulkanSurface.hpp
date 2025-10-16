@@ -6,14 +6,14 @@
 #include <vulkan/vulkan.h>
 #include <stdexcept>
 
-#include "WindowSurface.hpp"
-#include "WindowSurfaceConfig.h"
+#include "VulkanSurface.hpp"
+#include "VulkanSurfaceConfig.h"
 
-class GLFWWindowSurface : public WindowSurface 
+class GLFWVulkanSurface : public VulkanSurface 
 {
     public:
-        GLFWWindowSurface(WindowSurfaceConfig config);
-        ~GLFWWindowSurface();
+        GLFWVulkanSurface(VulkanSurfaceConfig config);
+        ~GLFWVulkanSurface();
         VkSurfaceKHR& getSurface() override;
 
     private:

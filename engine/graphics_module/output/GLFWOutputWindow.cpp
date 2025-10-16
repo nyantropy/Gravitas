@@ -71,8 +71,8 @@ std::vector<const char*> GLFWOutputWindow::getRequiredExtensions() const
 }
 
 // return a unique pointer with the glfw surface handle wrapper
-std::unique_ptr<WindowSurface> GLFWOutputWindow::createSurface(WindowSurfaceConfig config) const
+std::unique_ptr<VulkanSurface> GLFWOutputWindow::createSurface(VulkanSurfaceConfig config) const
 {
     config.nativeWindow = this->window;
-    return std::make_unique<GLFWWindowSurface>(config);
+    return std::make_unique<GLFWVulkanSurface>(config);
 }

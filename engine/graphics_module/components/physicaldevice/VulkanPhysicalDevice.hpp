@@ -9,13 +9,13 @@
 #include "QueueFamilyIndices.h"
 #include "SwapChainSupportDetails.h"
 #include "VulkanInstance.hpp"
-#include "WindowSurface.hpp"
+#include "VulkanSurface.hpp"
 
 class VulkanPhysicalDevice 
 {
     public:
         // Constructor and Destructor
-        VulkanPhysicalDevice(VulkanInstance* vinstance, WindowSurface* vsurface);
+        VulkanPhysicalDevice(VulkanInstance* vinstance, VulkanSurface* vsurface);
         ~VulkanPhysicalDevice();
 
         VkPhysicalDevice& getPhysicalDevice();
@@ -34,7 +34,7 @@ class VulkanPhysicalDevice
 
         //pointers to relevant classes
         VulkanInstance* vinstance;
-        WindowSurface* vsurface;
+        VulkanSurface* vsurface;
 
         //the object we wrap
         VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;

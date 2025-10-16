@@ -1,6 +1,6 @@
 #include "VulkanPhysicalDevice.hpp"
 
-VulkanPhysicalDevice::VulkanPhysicalDevice(VulkanInstance* vinstance, WindowSurface* vsurface)
+VulkanPhysicalDevice::VulkanPhysicalDevice(VulkanInstance* vinstance, VulkanSurface* vsurface)
 {
     this->vinstance = vinstance;
     this->vsurface = vsurface;

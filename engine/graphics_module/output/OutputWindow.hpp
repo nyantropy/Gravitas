@@ -7,8 +7,8 @@
 #include <vulkan/vulkan.h>
 
 #include "OutputWindowConfig.h"
-#include "WindowSurfaceConfig.h"
-#include "WindowSurface.hpp"
+#include "VulkanSurfaceConfig.h"
+#include "VulkanSurface.hpp"
 
 class OutputWindow 
 {
@@ -37,5 +37,5 @@ class OutputWindow
         virtual std::vector<const char*> getRequiredExtensions() const = 0;
         
         // important factory pattern for easier surface creation and windowing extensions
-        virtual std::unique_ptr<WindowSurface> createSurface(WindowSurfaceConfig config) const = 0;
+        virtual std::unique_ptr<VulkanSurface> createSurface(VulkanSurfaceConfig config) const = 0;
 };
