@@ -8,14 +8,14 @@ GLFWVulkanSurface::GLFWVulkanSurface(VulkanSurfaceConfig config): VulkanSurface(
 
 GLFWVulkanSurface::~GLFWVulkanSurface()
 {
-    vkDestroySurfaceKHR(this->config.instance, surface, nullptr);
+    vkDestroySurfaceKHR(this->config.vkInstance, surface, nullptr);
 }
 
 void GLFWVulkanSurface::init()
 {
     if(surface == VK_NULL_HANDLE)
     {
-        if (glfwCreateWindowSurface(this->config.instance, static_cast<GLFWwindow*>(this->config.nativeWindow), nullptr, &surface) != VK_SUCCESS) 
+        if (glfwCreateWindowSurface(this->config.vkInstance, static_cast<GLFWwindow*>(this->config.nativeWindow), nullptr, &surface) != VK_SUCCESS) 
         {
             throw std::runtime_error("failed to create window surface!");
         }

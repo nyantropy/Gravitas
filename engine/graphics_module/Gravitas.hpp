@@ -40,7 +40,6 @@ extern "C" {
 #include "UniformBufferObject.h"
 
 
-#include "VulkanLogicalDevice.hpp"
 #include "VulkanSwapChain.hpp"
 #include "VulkanRenderer.hpp"
 #include "VulkanRenderPass.hpp"
@@ -100,7 +99,6 @@ public:
     std::unique_ptr<OutputWindow> outputWindow;
 
 
-    VulkanLogicalDevice* vlogicaldevice;
     VulkanSwapChain* vswapchain;
     VulkanRenderer* vrenderer;
     VulkanRenderPass* vrenderpass;
@@ -164,7 +162,7 @@ public:
 
     GtsRenderableObject* createObject(std::string model_path, std::string texture_path)
     {
-        GtsRenderableObject* vobject = new GtsRenderableObject(vlogicaldevice, vContext.get()->getPhysicalDeviceWrapper(), vdescriptorsetmanager, vrenderer, model_path, texture_path, GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
+        GtsRenderableObject* vobject = new GtsRenderableObject(vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vdescriptorsetmanager, vrenderer, model_path, texture_path, GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
         return vobject;
     }
 
@@ -192,14 +190,13 @@ public:
         vContext = std::make_unique<VulkanContext>(vcConfig);
 
 
-        vlogicaldevice = new VulkanLogicalDevice(vContext.get()->getInstanceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), enableValidationLayers);
-        vswapchain = new VulkanSwapChain(outputWindow.get(), vContext.get()->getSurfaceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vlogicaldevice);
-        vrenderer = new VulkanRenderer(vlogicaldevice, vContext.get()->getPhysicalDeviceWrapper(), vswapchain);
+        vswapchain = new VulkanSwapChain(outputWindow.get(), vContext.get()->getSurfaceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vContext.get()->getLogicalDeviceWrapper());
+        vrenderer = new VulkanRenderer(vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vswapchain);
         vrenderpass = new VulkanRenderPass();
-        vrenderpass->init(vswapchain, vlogicaldevice, vrenderer);
-        vdescriptorsetmanager = new GTSDescriptorSetManager(vlogicaldevice, GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
-        vpipeline = new VulkanPipeline(vlogicaldevice, vdescriptorsetmanager, vrenderpass, {GraphicsConstants::V_SHADER_PATH, GraphicsConstants::F_SHADER_PATH});
-        vframebuffer = new GTSFramebufferManager(vlogicaldevice, vswapchain, vrenderer, vrenderpass);
+        vrenderpass->init(vswapchain, vContext.get()->getLogicalDeviceWrapper(), vrenderer);
+        vdescriptorsetmanager = new GTSDescriptorSetManager(vContext.get()->getLogicalDeviceWrapper(), GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
+        vpipeline = new VulkanPipeline(vContext.get()->getLogicalDeviceWrapper(), vdescriptorsetmanager, vrenderpass, {GraphicsConstants::V_SHADER_PATH, GraphicsConstants::F_SHADER_PATH});
+        vframebuffer = new GTSFramebufferManager(vContext.get()->getLogicalDeviceWrapper(), vswapchain, vrenderer, vrenderpass);
         vcamera = new GtsCamera(vswapchain->getSwapChainExtent());
         createCommandBuffers();
         createSyncObjects();
@@ -253,7 +250,7 @@ public:
 
     void startEncoder()
     {
-        framegrabber = new GtsFrameGrabber(vswapchain, vrenderer, vlogicaldevice, vContext.get()->getPhysicalDeviceWrapper());
+        framegrabber = new GtsFrameGrabber(vswapchain, vrenderer, vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper());
         encoder = new GtsEncoder(framegrabber);
         onFrameEndedEvent.subscribe(std::bind(&GtsEncoder::onFrameEnded, encoder, std::placeholders::_1, std::placeholders::_2));
     }
@@ -270,7 +267,7 @@ public:
             }
         }
 
-        vkDeviceWaitIdle(vlogicaldevice->getDevice());
+        vkDeviceWaitIdle(vContext.get()->getLogicalDeviceWrapper()->getDevice());
 
         cleanup();
     }
@@ -311,13 +308,12 @@ private:
         delete vrenderer;
         for (size_t i = 0; i < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; i++) 
         {
-            vkDestroySemaphore(vlogicaldevice->getDevice(), renderFinishedSemaphores[i], nullptr);
-            vkDestroySemaphore(vlogicaldevice->getDevice(), imageAvailableSemaphores[i], nullptr);
-            vkDestroyFence(vlogicaldevice->getDevice(), inFlightFences[i], nullptr);
+            vkDestroySemaphore(vContext.get()->getLogicalDeviceWrapper()->getDevice(), renderFinishedSemaphores[i], nullptr);
+            vkDestroySemaphore(vContext.get()->getLogicalDeviceWrapper()->getDevice(), imageAvailableSemaphores[i], nullptr);
+            vkDestroyFence(vContext.get()->getLogicalDeviceWrapper()->getDevice(), inFlightFences[i], nullptr);
         }
         delete vswapchain;
-        delete vlogicaldevice;
-        delete vContext.get()->getPhysicalDeviceWrapper();
+        vContext.reset();
         outputWindow.reset();
     }
 
@@ -337,12 +333,12 @@ private:
         // std::cout << width << std::endl;
         // std::cout << height << std::endl;
 
-        // vkDeviceWaitIdle(vlogicaldevice->getDevice());
+        // vkDeviceWaitIdle(vContext.get()->getLogicalDeviceWrapper()->getDevice());
 
         //cleanupSwapChain();
 
         //delete vswapchain;
-        //vswapchain = new VulkanSwapChain(outputWindow, vContext.get()->getSurfaceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vlogicaldevice);
+        //vswapchain = new VulkanSwapChain(outputWindow, vContext.get()->getSurfaceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vContext.get()->getLogicalDeviceWrapper());
         //createDepthResources();
         //createFramebuffers();
     }
@@ -357,11 +353,11 @@ private:
 
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.commandPool = vlogicaldevice->getCommandPool();
+        allocInfo.commandPool = vContext.get()->getLogicalDeviceWrapper()->getCommandPool();
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         allocInfo.commandBufferCount = (uint32_t) commandBuffers.size();
 
-        if (vkAllocateCommandBuffers(vlogicaldevice->getDevice(), &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
+        if (vkAllocateCommandBuffers(vContext.get()->getLogicalDeviceWrapper()->getDevice(), &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
             throw std::runtime_error("failed to allocate command buffers!");
         }
     }
@@ -430,9 +426,9 @@ private:
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
         for (size_t i = 0; i < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; i++) {
-            if (vkCreateSemaphore(vlogicaldevice->getDevice(), &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-                vkCreateSemaphore(vlogicaldevice->getDevice(), &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-                vkCreateFence(vlogicaldevice->getDevice(), &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+            if (vkCreateSemaphore(vContext.get()->getLogicalDeviceWrapper()->getDevice(), &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
+                vkCreateSemaphore(vContext.get()->getLogicalDeviceWrapper()->getDevice(), &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
+                vkCreateFence(vContext.get()->getLogicalDeviceWrapper()->getDevice(), &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create synchronization objects for a frame!");
             }
         }
@@ -452,10 +448,10 @@ private:
         previousTime = currentTime;
         lastFrameTime += deltaTime;
 
-        vkWaitForFences(vlogicaldevice->getDevice(), 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+        vkWaitForFences(vContext.get()->getLogicalDeviceWrapper()->getDevice(), 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
-        VkResult result = vkAcquireNextImageKHR(vlogicaldevice->getDevice(), vswapchain->getSwapChain(), UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR(vContext.get()->getLogicalDeviceWrapper()->getDevice(), vswapchain->getSwapChain(), UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) 
         {
@@ -471,7 +467,7 @@ private:
         currentScene->update(*vcamera, GraphicsConstants::MAX_FRAMES_IN_FLIGHT, deltaTime);
         onSceneUpdatedEvent.notify();
 
-        vkResetFences(vlogicaldevice->getDevice(), 1, &inFlightFences[currentFrame]);
+        vkResetFences(vContext.get()->getLogicalDeviceWrapper()->getDevice(), 1, &inFlightFences[currentFrame]);
 
         vkResetCommandBuffer(commandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
         recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
@@ -492,7 +488,7 @@ private:
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(vlogicaldevice->getGraphicsQueue(), 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
+        if (vkQueueSubmit(vContext.get()->getLogicalDeviceWrapper()->getGraphicsQueue(), 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 
@@ -521,7 +517,7 @@ private:
 
         presentInfo.pImageIndices = &imageIndex;
 
-        result = vkQueuePresentKHR(vlogicaldevice->getPresentQueue(), &presentInfo);
+        result = vkQueuePresentKHR(vContext.get()->getLogicalDeviceWrapper()->getPresentQueue(), &presentInfo);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
             framebufferResized = false;

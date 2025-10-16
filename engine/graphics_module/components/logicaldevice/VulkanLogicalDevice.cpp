@@ -1,19 +1,26 @@
 #include "VulkanLogicalDevice.hpp"
 
-VulkanLogicalDevice::VulkanLogicalDevice(VulkanInstance* vinstance, VulkanPhysicalDevice* vphysicaldevice, bool enableValidationLayers)
+VulkanLogicalDevice::VulkanLogicalDevice(VulkanLogicalDeviceConfig config)
 {
-    this->vinstance = vinstance;
-    this->vphysicaldevice = vphysicaldevice;
-    this->enableValidationLayers = enableValidationLayers;
-
+    this->config = config;
     createLogicalDevice();
     createCommandPool();
 }
 
+// increased robustness of destructor here
 VulkanLogicalDevice::~VulkanLogicalDevice()
 {
-    vkDestroyCommandPool(device, commandPool, nullptr);
-    vkDestroyDevice(device, nullptr);
+    vkDeviceWaitIdle(device);
+
+    if (commandPool != VK_NULL_HANDLE) 
+    {
+        vkDestroyCommandPool(device, commandPool, nullptr);
+    }
+
+    if (device != VK_NULL_HANDLE) 
+    {
+        vkDestroyDevice(device, nullptr);
+    }
 }
 
 VkDevice& VulkanLogicalDevice::getDevice()
@@ -39,7 +46,7 @@ VkCommandPool& VulkanLogicalDevice::getCommandPool()
 
 void VulkanLogicalDevice::createLogicalDevice() 
 {
-    QueueFamilyIndices indices = vphysicaldevice->getQueueFamilyIndices();
+    QueueFamilyIndices indices = this->config.queueFamilyIndices;
 
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
     std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
@@ -66,20 +73,20 @@ void VulkanLogicalDevice::createLogicalDevice()
 
     createInfo.pEnabledFeatures = &deviceFeatures;
 
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(vphysicaldevice->getDeviceExtensions().size());
-    createInfo.ppEnabledExtensionNames = vphysicaldevice->getDeviceExtensions().data();
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(this->config.physicalDeviceExtensions.size());
+    createInfo.ppEnabledExtensionNames = this->config.physicalDeviceExtensions.data();
 
-    if (enableValidationLayers) 
+    if (this->config.enableValidationLayers) 
     {
-        createInfo.enabledLayerCount = static_cast<uint32_t>(vinstance->getValidationLayers().size());
-        createInfo.ppEnabledLayerNames = vinstance->getValidationLayers().data();
+        createInfo.enabledLayerCount = static_cast<uint32_t>(this->config.vkInstanceValidationLayers.size());
+        createInfo.ppEnabledLayerNames = this->config.vkInstanceValidationLayers.data();
     }
     else
     {
         createInfo.enabledLayerCount = 0;
     }
 
-    if (vkCreateDevice(vphysicaldevice->getPhysicalDevice(), &createInfo, nullptr, &device) != VK_SUCCESS) 
+    if (vkCreateDevice(this->config.vkPhysicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to create logical device!");
     }
@@ -90,7 +97,7 @@ void VulkanLogicalDevice::createLogicalDevice()
 
 void VulkanLogicalDevice::createCommandPool() 
 {
-    QueueFamilyIndices queueFamilyIndices = vphysicaldevice->getQueueFamilyIndices();
+    QueueFamilyIndices queueFamilyIndices = this->config.queueFamilyIndices;
 
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;

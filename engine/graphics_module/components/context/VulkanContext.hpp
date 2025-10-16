@@ -7,9 +7,6 @@
 // config of this class
 #include "VulkanContextConfig.h"
 
-// Output window
-#include "OutputWindow.hpp"
-
 // vulkan instance includes
 #include "VulkanInstanceConfig.h"
 #include "VulkanInstance.hpp"
@@ -23,6 +20,10 @@
 #include "VulkanPhysicalDevice.hpp"
 #include "VulkanPhysicalDeviceConfig.h"
 
+// logical device includes
+#include "VulkanLogicalDevice.hpp"
+#include "VulkanLogicalDeviceConfig.h"
+
 
 
 // make a class that acts as a vulkan context, as a glue to hold it all together
@@ -35,7 +36,7 @@ class VulkanContext
         std::unique_ptr<VulkanInstance> vinstance;
         std::unique_ptr<VulkanSurface> vsurface;
         std::unique_ptr<VulkanPhysicalDevice> vphysicaldevice;
-        //std::unique_ptr<VulkanLogicalDevice> vlogicaldevice;
+        std::unique_ptr<VulkanLogicalDevice> vlogicaldevice;
 
         void setupVkInstance()
         {
@@ -61,7 +62,7 @@ class VulkanContext
             // this time we use polymorphism, so we only need to pass the instance we configured before, and let the window class do the
             // rest of the work
             VulkanSurfaceConfig wsConfig;
-            wsConfig.instance = vinstance->getInstance();
+            wsConfig.vkInstance = vinstance->getInstance();
             vsurface = this->config.outputWindowPtr->createSurface(wsConfig);
         }
 
@@ -73,11 +74,31 @@ class VulkanContext
             vphysicaldevice = std::make_unique<VulkanPhysicalDevice>(physConfig);
         }
 
+        void setupVkLogicalDevice()
+        {
+            VulkanLogicalDeviceConfig vldConfig;
+
+            // first of all we need the instance, as for pretty much anything in the build order here
+            vldConfig.vkInstance = vinstance->getInstance();
+
+            // we need the physical device, as well as its extensions and the queue family indices
+            vldConfig.vkPhysicalDevice = vphysicaldevice->getPhysicalDevice();
+            vldConfig.physicalDeviceExtensions = vphysicaldevice->getDeviceExtensions();
+            vldConfig.queueFamilyIndices = vphysicaldevice->getQueueFamilyIndices();
+
+            // vk logical device also has validation layers
+            vldConfig.enableValidationLayers = this->config.enableValidationLayers;
+            vldConfig.vkInstanceValidationLayers = vinstance->getValidationLayers();
+
+            vlogicaldevice = std::make_unique<VulkanLogicalDevice>(vldConfig);
+        }
+
         void init()
         {
             setupVkInstance();
             setupVkSurface();
             setupVkPhysicalDevice();
+            setupVkLogicalDevice();
         }
 
     public:
@@ -90,20 +111,24 @@ class VulkanContext
         // manual destructor to maintain correct order of destruction
         ~VulkanContext()
         {
-            vphysicaldevice.reset();
-            vsurface.reset();
-            vinstance.reset();
+            // TODO FIX DESTRUCTION VALIDATION ERROR LATER
+            if(vlogicaldevice) vlogicaldevice.reset();
+            if(vphysicaldevice) vphysicaldevice.reset();
+            if(vsurface) vsurface.reset();
+            if(vinstance) vinstance.reset();
         }
 
         // expose vulkan objects by simply accessing the getters from wrapper classes 
         VkInstance& getInstance() { return vinstance.get()->getInstance(); }
         VkSurfaceKHR& getSurface() { return vsurface.get()->getSurface(); }
+        VkPhysicalDevice& getPhysicalDevice() { return vphysicaldevice.get()->getPhysicalDevice(); }
+        QueueFamilyIndices& getQueueFamilyIndices() { return vphysicaldevice.get()->getQueueFamilyIndices(); }
+        SwapChainSupportDetails& getSwapChainSupportDetails() { return vphysicaldevice.get()->getSwapChainSupportDetails(); }
 
         // wont be used in practice, but its the glue that keeps the whole thing together for now :D
         VulkanInstance* getInstanceWrapper() { return vinstance.get(); }
         VulkanSurface* getSurfaceWrapper() { return vsurface.get(); }
         VulkanPhysicalDevice* getPhysicalDeviceWrapper() { return vphysicaldevice.get(); }
-        //VkPhysicalDevice& getPhysicalDevice() { return vphysicaldevice.get()->getPhysicalDevice(); }
-        //QueueFamilyIndices& getQueueFamilyIndices() { return vphysicaldevice.get()->getQueueFamilyIndices(); }
-        //SwapChainSupportDetails& getSwapChainSupportDetails() { return vphysicaldevice.get()->getSwapChainSupportDetails(); }
+        VulkanLogicalDevice* getLogicalDeviceWrapper() { return vlogicaldevice.get(); }
+
 };

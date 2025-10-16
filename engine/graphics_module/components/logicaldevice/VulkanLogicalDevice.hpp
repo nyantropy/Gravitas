@@ -1,27 +1,27 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include "VulkanPhysicalDevice.hpp"
+#include <vector>
+#include <set>
+#include <stdexcept>
 
-#include "VulkanInstance.hpp"
-
+#include "VulkanLogicalDeviceConfig.h"
+#include "QueueFamilyIndices.h"
 
 class VulkanLogicalDevice
 {
     private:
-        VulkanInstance* vinstance;
-        VulkanPhysicalDevice* vphysicaldevice;
-        bool enableValidationLayers;
+        VkDevice device = VK_NULL_HANDLE;
+        VkQueue graphicsQueue = VK_NULL_HANDLE;
+        VkQueue presentQueue = VK_NULL_HANDLE;
+        VkCommandPool commandPool = VK_NULL_HANDLE;
 
-        VkDevice device;
-        VkQueue graphicsQueue;
-        VkQueue presentQueue;
-        VkCommandPool commandPool;
+        VulkanLogicalDeviceConfig config;
 
         void createLogicalDevice();
         void createCommandPool();
     public:
-        VulkanLogicalDevice(VulkanInstance* vinstance, VulkanPhysicalDevice* vphysicaldevice, bool enableValidationLayers);
+        VulkanLogicalDevice(VulkanLogicalDeviceConfig config);
         ~VulkanLogicalDevice();
         VkDevice& getDevice();
         VkQueue& getGraphicsQueue();
