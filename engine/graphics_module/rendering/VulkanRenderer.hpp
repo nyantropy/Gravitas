@@ -7,6 +7,7 @@
 #include "VulkanPhysicalDevice.hpp"
 #include "VulkanSwapChain.hpp"
 #include "GtsBufferService.hpp"
+#include "MemoryUtil.hpp"
 
 class VulkanRenderer 
 {

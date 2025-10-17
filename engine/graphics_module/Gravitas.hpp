@@ -182,7 +182,6 @@ public:
         vcConfig.enableValidationLayers = enableValidationLayers;
         vcConfig.vulkanInstanceExtensions = outputWindow->getRequiredExtensions();
         vcConfig.outputWindowPtr = outputWindow.get();
-
         vContext = std::make_unique<VulkanContext>(vcConfig);
 
 

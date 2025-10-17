@@ -7,6 +7,8 @@
 #include "Vertex.h"
 #include "UniformBufferObject.h"
 
+//#include "ImageUtil.hpp"
+
 class GtsBufferService
 {
     public:

@@ -45,7 +45,9 @@ include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/surface"
     "${CMAKE_CURRENT_SOURCE_DIR}/scenegraph"
     "${CMAKE_CURRENT_SOURCE_DIR}/output"
+    "${CMAKE_CURRENT_SOURCE_DIR}/rendering"
     "${CMAKE_CURRENT_SOURCE_DIR}/options"
+    "${CMAKE_CURRENT_SOURCE_DIR}/graphics_util"
 )
 
 add_subdirectory(external)
@@ -54,6 +56,8 @@ add_subdirectory(scenegraph)
 add_subdirectory(components)
 add_subdirectory(surface)
 add_subdirectory(options)
+add_subdirectory(rendering)
+add_subdirectory(graphics_util)
 
 
 # Set all the include directories for this target
@@ -68,6 +72,8 @@ target_include_directories(Gravitas PUBLIC
 target_link_libraries(Gravitas 
     Vulkan::Vulkan
     components
+    rendering
+    graphicsutil
     surface
     external
     scenegraph
