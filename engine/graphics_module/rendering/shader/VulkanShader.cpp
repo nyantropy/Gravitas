@@ -4,7 +4,8 @@ static std::vector<char> readFile(const std::string& filename)
 {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
-    if (!file.is_open()) {
+    if (!file.is_open()) 
+    {
         throw std::runtime_error("failed to open file!");
     }
 
@@ -19,16 +20,16 @@ static std::vector<char> readFile(const std::string& filename)
     return buffer;
 }
 
-VulkanShader::VulkanShader(VulkanLogicalDevice* vlogicaldevice, const std::string& shaderFile)
+VulkanShader::VulkanShader(VulkanShaderConfig& config)
 {
-    this->vlogicaldevice = vlogicaldevice;
-    const std::vector<char> code = readFile(shaderFile);
+    this->config = config;
+    const std::vector<char> code = readFile(config.shaderFile);
     createShaderModule(code);
 }
 
 VulkanShader::~VulkanShader()
 {
-    vkDestroyShaderModule(vlogicaldevice->getDevice(), shaderModule, nullptr);
+    vkDestroyShaderModule(config.vkDevice, shaderModule, nullptr);
 }
 
 VkShaderModule& VulkanShader::getShaderModule()
@@ -43,7 +44,7 @@ void VulkanShader::createShaderModule(const std::vector<char>& code)
     createInfo.codeSize = code.size();
     createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
-    if (vkCreateShaderModule(vlogicaldevice->getDevice(), &createInfo, nullptr, &shaderModule) != VK_SUCCESS) 
+    if (vkCreateShaderModule(config.vkDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to create shader module!");
     }

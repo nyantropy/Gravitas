@@ -9,4 +9,4 @@ add_library(
 )
 
 target_include_directories(instance PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(instance PUBLIC options)
+#target_link_libraries(instance PUBLIC options)

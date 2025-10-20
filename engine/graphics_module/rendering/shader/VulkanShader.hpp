@@ -4,13 +4,15 @@
 #include <vector>
 #include <stdexcept>
 #include <fstream>
+#include <iostream>
+#include <filesystem>
 
-#include "VulkanLogicalDevice.hpp"
+#include "VulkanShaderConfig.h"
 
 class VulkanShader 
 {
     public:
-        VulkanShader(VulkanLogicalDevice* vlogicaldevice, const std::string& shaderFile);
+        VulkanShader(VulkanShaderConfig& config);
         ~VulkanShader();
 
         VkShaderModule& getShaderModule();
@@ -19,7 +21,7 @@ class VulkanShader
     private:
         VkShaderModule shaderModule;
 
-        VulkanLogicalDevice* vlogicaldevice;
+        VulkanShaderConfig config;
 
         void createShaderModule(const std::vector<char>& code);
 };

@@ -28,8 +28,6 @@
 #include "VulkanSwapChain.hpp"
 #include "VulkanSwapChainConfig.h"
 
-
-
 // make a class that acts as a vulkan context, as a glue to hold it all together
 class VulkanContext 
 {
@@ -57,7 +55,7 @@ class VulkanContext
             vInstanceConfig.enableSurfaceSupport = true;
             vInstanceConfig.enableValidationLayers = this->config.enableValidationLayers;
             vInstanceConfig.extensions = this->config.vulkanInstanceExtensions;
-            vInstanceConfig.appname = this->config.applicationName.c_str();
+            vInstanceConfig.applicationName = this->config.applicationName.c_str();
             vinstance = std::make_unique<VulkanInstance>(vInstanceConfig);
         }
 

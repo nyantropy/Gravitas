@@ -73,6 +73,8 @@ extern "C" {
 #include "RendererConfig.h"
 #include "ForwardRenderer.hpp"
 
+#include "VulkanPipelineConfig.h"
+
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
 #else
@@ -120,14 +122,13 @@ public:
     GtsScene* currentScene;
     GtsSceneNode* selectedNode;
 
-    //GtsOnKeyPressedEvent onKeyPressedEvent;
     GtsOnSceneUpdatedEvent onSceneUpdatedEvent;
     GtsOnFrameEndedEvent onFrameEndedEvent;
 
     GtsFrameGrabber* framegrabber;
     GtsEncoder* encoder;
 
-    // window event propagation
+    // window event propagation, but a lot more simple than before
     GtsEvent<int, int>& onResize() { return windowManager->onResize(); }
     GtsEvent<int, int, int, int>& onKeyPressed() { return windowManager->onKeyPressed(); }
 
@@ -200,9 +201,16 @@ public:
         renderer = std::make_unique<ForwardRenderer>(rConfig);
 
         vdescriptorsetmanager = new GTSDescriptorSetManager(vContext.get()->getLogicalDeviceWrapper(), GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
-        vpipeline = new VulkanPipeline(vContext.get()->getLogicalDeviceWrapper(),
-        vdescriptorsetmanager, renderer->getRenderPassWrapper(),
-        {GraphicsConstants::V_SHADER_PATH, GraphicsConstants::F_SHADER_PATH});
+
+        // reworked pipeline
+        VulkanPipelineConfig vpConfig;
+        vpConfig.fragmentShaderPath = GraphicsConstants::F_SHADER_PATH;
+        vpConfig.vertexShaderPath = GraphicsConstants::V_SHADER_PATH;
+        vpConfig.vkDescriptorSetLayout = vdescriptorsetmanager->getDescriptorSetLayout();
+        vpConfig.vkDevice = vContext->getDevice();
+        vpConfig.vkRenderPass = renderer->getRenderPassWrapper()->getRenderPass();
+        vpipeline = new VulkanPipeline(vpConfig);
+
         vframebuffer = new GTSFramebufferManager(vContext.get()->getLogicalDeviceWrapper(),
         vContext.get()->getSwapChainWrapper(), 
         renderer->getRenderPassWrapper(), renderer->getAttachmentWrapper());

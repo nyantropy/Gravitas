@@ -1,22 +1,17 @@
 #include "VulkanPipeline.hpp"
 
-VulkanPipeline::VulkanPipeline(VulkanLogicalDevice* vlogicaldevice, GTSDescriptorSetManager* vdescriptorsetmanager,
-VulkanRenderPass* vrenderpass, std::vector<std::string> shaderPaths)
+VulkanPipeline::VulkanPipeline(VulkanPipelineConfig& config)
 {
-    this->vlogicaldevice = vlogicaldevice;
-    this->vdescriptorsetmanager = vdescriptorsetmanager;
-    this->vrenderpass = vrenderpass;
-
-    if(shaderPaths.size() == 2)
-    {
-        createGraphicsPipeline(shaderPaths.at(0), shaderPaths.at(1));
-    }
+    this->config = config;
+    createVertexShader();
+    createFragmentShader();
+    createGraphicsPipeline();
 }
 
 VulkanPipeline::~VulkanPipeline()
 {
-    vkDestroyPipeline(vlogicaldevice->getDevice(), graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(vlogicaldevice->getDevice(), pipelineLayout, nullptr);
+    vkDestroyPipeline(config.vkDevice, graphicsPipeline, nullptr);
+    vkDestroyPipelineLayout(config.vkDevice, pipelineLayout, nullptr);
 }
 
 VkPipelineLayout& VulkanPipeline::getPipelineLayout()
@@ -29,22 +24,37 @@ VkPipeline& VulkanPipeline::getPipeline()
     return graphicsPipeline;
 }
 
-
-void VulkanPipeline::createGraphicsPipeline(std::string vshaderpath, std::string fshaderpath) 
+// create the vertex shader
+void VulkanPipeline::createVertexShader()
 {
-    VulkanShader v_shader = VulkanShader(vlogicaldevice, vshaderpath);
-    VulkanShader f_shader = VulkanShader(vlogicaldevice, fshaderpath);
+    VulkanShaderConfig vsConfig;
+    vsConfig.shaderFile = config.vertexShaderPath;
+    vsConfig.vkDevice = config.vkDevice;
+    vertexShader = std::make_unique<VulkanShader>(vsConfig);
+}
 
+// create the fragment shader
+void VulkanPipeline::createFragmentShader()
+{
+    VulkanShaderConfig fsConfig;
+    fsConfig.shaderFile = config.fragmentShaderPath;
+    fsConfig.vkDevice = config.vkDevice;
+    fragmentShader = std::make_unique<VulkanShader>(fsConfig);
+}
+
+// build a graphics pipeline
+void VulkanPipeline::createGraphicsPipeline() 
+{
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertShaderStageInfo.module = v_shader.getShaderModule();
+    vertShaderStageInfo.module = vertexShader->getShaderModule();
     vertShaderStageInfo.pName = "main";
 
     VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
     fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragShaderStageInfo.module = f_shader.getShaderModule();
+    fragShaderStageInfo.module = fragmentShader->getShaderModule();
     fragShaderStageInfo.pName = "main";
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
@@ -120,9 +130,9 @@ void VulkanPipeline::createGraphicsPipeline(std::string vshaderpath, std::string
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &vdescriptorsetmanager->getDescriptorSetLayout();
+    pipelineLayoutInfo.pSetLayouts = &config.vkDescriptorSetLayout;
 
-    if (vkCreatePipelineLayout(vlogicaldevice->getDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) 
+    if (vkCreatePipelineLayout(config.vkDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to create pipeline layout!");
     }
@@ -140,11 +150,11 @@ void VulkanPipeline::createGraphicsPipeline(std::string vshaderpath, std::string
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.layout = pipelineLayout;
-    pipelineInfo.renderPass = vrenderpass->getRenderPass();
+    pipelineInfo.renderPass = config.vkRenderPass;
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-    if (vkCreateGraphicsPipelines(vlogicaldevice->getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) 
+    if (vkCreateGraphicsPipelines(config.vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to create graphics pipeline!");
     }

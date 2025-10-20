@@ -51,7 +51,7 @@ include_directories(
 
 add_subdirectory(external)
 add_subdirectory(scenegraph)
-add_subdirectory(components)
+add_subdirectory(vksetup)
 add_subdirectory(event)
 add_subdirectory(options)
 add_subdirectory(rendering)
@@ -70,7 +70,7 @@ target_include_directories(Gravitas PUBLIC
 # Link all the required libraries
 target_link_libraries(Gravitas 
     Vulkan::Vulkan
-    components
+    vksetup
     event
     rendering
     graphicsutil

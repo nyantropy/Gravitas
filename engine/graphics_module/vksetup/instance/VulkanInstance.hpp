@@ -8,7 +8,6 @@
 #include <vector>
 #include <cstring>
 
-#include "GraphicsConstants.h"
 #include "VulkanInstanceConfig.h"
 
 class VulkanInstance 

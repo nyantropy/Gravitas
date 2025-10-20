@@ -36,10 +36,10 @@ void VulkanInstance::createInstance()
 
     VkApplicationInfo appInfo{};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = config.appname.c_str();
+    appInfo.pApplicationName = config.applicationName.c_str();
     appInfo.applicationVersion = VK_MAKE_API_VERSION(1, 0, 0, 0);
-    appInfo.pEngineName = GraphicsConstants::ENGINE_NAME;
-    appInfo.engineVersion = GraphicsConstants::ENGINE_VERSION;
+    appInfo.pEngineName = config.engineName.c_str();
+    appInfo.engineVersion = config.engineVersion;
     appInfo.apiVersion = VK_API_VERSION_1_0;
 
     VkInstanceCreateInfo createInfo{};
