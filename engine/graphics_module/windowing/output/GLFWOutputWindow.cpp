@@ -24,16 +24,6 @@ void GLFWOutputWindow::init()
     glfwSetKeyCallback(static_cast<GLFWwindow*>(this->window), onKeyPressedCallbackStatic);
 }
 
-void GLFWOutputWindow::setOnWindowResizeCallback(const std::function<void(int, int)>& callback) 
-{
-    resizeCallback = callback;
-}
-
-void GLFWOutputWindow::setOnKeyPressedCallback(const std::function<void(int, int, int, int)>& callback)
-{
-    onKeyPressedCallback = callback;
-}
-
 bool GLFWOutputWindow::shouldClose() const 
 {
     return glfwWindowShouldClose(static_cast<GLFWwindow*>(this->window));

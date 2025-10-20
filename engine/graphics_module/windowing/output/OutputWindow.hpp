@@ -9,13 +9,11 @@
 #include "OutputWindowConfig.h"
 #include "VulkanSurfaceConfig.h"
 #include "VulkanSurface.hpp"
+#include "GtsEvent.hpp"
 
 class OutputWindow 
 {
     protected:
-        std::function<void(int, int)> resizeCallback;
-        std::function<void(int, int, int, int)> onKeyPressedCallback;
-
         explicit OutputWindow(const OutputWindowConfig& config): config(config) {};
         virtual void init() = 0;
 
@@ -25,9 +23,8 @@ class OutputWindow
     public:
         virtual ~OutputWindow() = default;
 
-        // two events: window resize and keys pressed
-        virtual void setOnWindowResizeCallback(const std::function<void(int, int)>& callback) = 0;
-        virtual void setOnKeyPressedCallback(const std::function<void(int, int, int, int)>& callback) = 0;
+        GtsEvent<int, int> onResize;
+        GtsEvent<int, int, int, int> onKeyPressed;
 
         // misc methods
         virtual bool shouldClose() const = 0;

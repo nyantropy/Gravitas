@@ -39,7 +39,6 @@ extern "C" {
 #include "Vertex.h"
 #include "UniformBufferObject.h"
 
-#include "VulkanRenderPass.hpp"
 #include "GTSDescriptorSetManager.hpp"
 #include "VulkanShader.hpp"
 #include "VulkanPipeline.hpp"
@@ -52,11 +51,14 @@ extern "C" {
 #include "GtsSceneNode.hpp"
 #include "GtsScene.hpp"
 #include "GtsSceneNodeOpt.h"
-#include "GtsOnKeyPressedEvent.hpp"
 #include "GtsOnSceneUpdatedEvent.hpp"
 #include "GtsOnFrameEndedEvent.hpp"
 #include "GtsEncoder.hpp"
 #include "GtsFrameGrabber.hpp"
+
+// window manager include
+#include "WindowManager.hpp"
+#include "WindowManagerConfig.h"
 
 // Vulkan Context include
 #include "VulkanContext.hpp"
@@ -100,18 +102,15 @@ public:
     // core components
     //---------------------------------------------
     // the output window, where frames are presented
-    std::unique_ptr<OutputWindow> outputWindow;
+    //std::unique_ptr<OutputWindow> windowManager->getOutputWindow();
+
+    std::unique_ptr<WindowManager> windowManager;
 
     // the vulkan context, containing all the major vulkan objects needed to actually produce something
     std::unique_ptr<VulkanContext> vContext;
 
     // the renderer, responsible for the core render loop
     std::unique_ptr<ForwardRenderer> renderer;
-
-    //VulkanRenderer* vrenderer;
-    //VulkanRenderPass* vrenderpass;
-
-
 
     GTSDescriptorSetManager* vdescriptorsetmanager;
     VulkanPipeline* vpipeline;
@@ -121,17 +120,16 @@ public:
     GtsScene* currentScene;
     GtsSceneNode* selectedNode;
 
-    GtsOnKeyPressedEvent onKeyPressedEvent;
+    //GtsOnKeyPressedEvent onKeyPressedEvent;
     GtsOnSceneUpdatedEvent onSceneUpdatedEvent;
     GtsOnFrameEndedEvent onFrameEndedEvent;
 
     GtsFrameGrabber* framegrabber;
     GtsEncoder* encoder;
 
-    void subscribeOnKeyPressedEvent(std::function<void(int key, int scancode, int action, int mods)> f)
-    {
-        onKeyPressedEvent.subscribe(f);
-    }
+    // window event propagation
+    GtsEvent<int, int>& onResize() { return windowManager->onResize(); }
+    GtsEvent<int, int, int, int>& onKeyPressed() { return windowManager->onKeyPressed(); }
 
     void subscribeOnSceneUpdatedEvent(std::function<void()> f)
     {
@@ -179,25 +177,18 @@ public:
 
     void init(uint32_t width, uint32_t height, std::string title)
     {
-        // output window settings
-        OutputWindowConfig owConfig;
-        owConfig.enableValidationLayers = true;
-        owConfig.width = width;
-        owConfig.height = height;
-        owConfig.title = title;
-
-        // setup an output window
-        outputWindow = std::make_unique<GLFWOutputWindow>(owConfig);
-        outputWindow->setOnWindowResizeCallback(
-        std::bind(&Gravitas::OnFrameBufferResizeCallback, this, std::placeholders::_1, std::placeholders::_2));
-        outputWindow->setOnKeyPressedCallback(
-        std::bind(&Gravitas::OnKeyPressedCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
+        // create a window manager to encapsulate the output window and its events
+        WindowManagerConfig wmConfig;
+        wmConfig.windowWidth = width;
+        wmConfig.windowHeight = height;
+        wmConfig.windowTitle = title;
+        windowManager = std::make_unique<WindowManager>(wmConfig);
 
         // create the vulkan context
         VulkanContextConfig vcConfig;
         vcConfig.enableValidationLayers = enableValidationLayers;
-        vcConfig.vulkanInstanceExtensions = outputWindow->getRequiredExtensions();
-        vcConfig.outputWindowPtr = outputWindow.get();
+        vcConfig.vulkanInstanceExtensions = windowManager->getOutputWindow()->getRequiredExtensions();
+        vcConfig.outputWindowPtr = windowManager->getOutputWindow();
         vContext = std::make_unique<VulkanContext>(vcConfig);
 
         // create the renderer
@@ -207,10 +198,6 @@ public:
         rConfig.vkExtent = vContext->getSwapChainExtent();
         rConfig.swapChainImageFormat = vContext->getSwapChainImageFormat();
         renderer = std::make_unique<ForwardRenderer>(rConfig);
-
-
-        
-        //vrenderer = new VulkanRenderer(vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vContext.get()->getSwapChainWrapper());
 
         vdescriptorsetmanager = new GTSDescriptorSetManager(vContext.get()->getLogicalDeviceWrapper(), GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
         vpipeline = new VulkanPipeline(vContext.get()->getLogicalDeviceWrapper(),
@@ -279,9 +266,9 @@ public:
 
     void run() 
     {
-        while (!outputWindow->shouldClose())
+        while (!windowManager->getOutputWindow()->shouldClose())
         {
-            outputWindow->pollEvents();
+            windowManager->getOutputWindow()->pollEvents();
 
             if(!currentScene->empty())
             {
@@ -309,11 +296,6 @@ private:
         framebufferResized = true;
     }
 
-    void OnKeyPressedCallback(int key, int scancode, int action, int mods)
-    {
-        onKeyPressedEvent.notify(key, scancode, action, mods);
-    }
-
     void cleanup() 
     {
         if(encoder != nullptr)
@@ -336,19 +318,19 @@ private:
         //delete vrenderer;
         renderer.reset();
         vContext.reset();
-        outputWindow.reset();
+        windowManager.reset();
     }
 
     //we can do that once we figured out how to put everything into classes
     void recreateSwapChain() 
     {
         // int width = 0, height = 0;
-        // outputWindow->getSize(width, height);
+        // windowManager->getOutputWindow()->getSize(width, height);
 
         // while (width == 0 || height == 0) 
         // {
-        //     outputWindow->getSize(width, height);
-        //     outputWindow->pollEvents();
+        //     windowManager->getOutputWindow()->getSize(width, height);
+        //     windowManager->getOutputWindow()->pollEvents();
         // }
 
         // std::cout << "swapchain recreated" << std::endl;
@@ -360,7 +342,7 @@ private:
         //cleanupSwapChain();
 
         //delete vContext.get()->getSwapChainWrapper();
-        //vContext.get()->getSwapChainWrapper() = new VulkanSwapChain(outputWindow, vContext.get()->getSurfaceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vContext.get()->getLogicalDeviceWrapper());
+        //vContext.get()->getSwapChainWrapper() = new VulkanSwapChain(windowManager->getOutputWindow(), vContext.get()->getSurfaceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vContext.get()->getLogicalDeviceWrapper());
         //createDepthResources();
         //createFramebuffers();
     }

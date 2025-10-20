@@ -44,20 +44,19 @@ include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/external"
     "${CMAKE_CURRENT_SOURCE_DIR}/surface"
     "${CMAKE_CURRENT_SOURCE_DIR}/scenegraph"
-    "${CMAKE_CURRENT_SOURCE_DIR}/output"
     "${CMAKE_CURRENT_SOURCE_DIR}/rendering"
     "${CMAKE_CURRENT_SOURCE_DIR}/options"
     "${CMAKE_CURRENT_SOURCE_DIR}/graphics_util"
 )
 
 add_subdirectory(external)
-add_subdirectory(output)
 add_subdirectory(scenegraph)
 add_subdirectory(components)
-add_subdirectory(surface)
+add_subdirectory(event)
 add_subdirectory(options)
 add_subdirectory(rendering)
 add_subdirectory(graphics_util)
+add_subdirectory(windowing)
 
 
 # Set all the include directories for this target
@@ -72,12 +71,12 @@ target_include_directories(Gravitas PUBLIC
 target_link_libraries(Gravitas 
     Vulkan::Vulkan
     components
+    event
     rendering
     graphicsutil
-    surface
+    windowing
     external
     scenegraph
-    output
     options
     PkgConfig::LIBAV
     $<$<PLATFORM_ID:Windows>:${GLFW_LIB_DIR}/glfw3.lib> # Windows

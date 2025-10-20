@@ -8,9 +8,8 @@ class Renderer
     protected:
         RendererConfig config;
         explicit Renderer(const RendererConfig& config): config(config) {};
+        virtual void createResources() = 0;
     public:
-        virtual ~Renderer() = default;
-
-        virtual void createResources() = 0;        
+        virtual ~Renderer() = default;        
         virtual void renderFrame() = 0;      
 };

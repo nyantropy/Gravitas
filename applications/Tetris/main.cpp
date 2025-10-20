@@ -470,7 +470,7 @@ int main()
     engine.createEmptyScene();
     tetrisFrame(FRAME_TEXTURE_PATH);
     nextTetromino();
-    engine.subscribeOnKeyPressedEvent(onKeyPressed);
+    engine.onKeyPressed().subscribe(onKeyPressed);
     //engine.startEncoder();
     engine.run();
     inputReceiver.stop();

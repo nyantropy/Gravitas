@@ -17,8 +17,6 @@ class GLFWOutputWindow : public OutputWindow
         GLFWOutputWindow(OutputWindowConfig config);
         ~GLFWOutputWindow();
 
-        void setOnWindowResizeCallback(const std::function<void(int, int)>& callback) override;
-        void setOnKeyPressedCallback(const std::function<void(int, int, int, int)>& callback) override;
         bool shouldClose() const override;
         void pollEvents() override;
         void getSize(int& width, int& height) const override;
@@ -34,20 +32,15 @@ class GLFWOutputWindow : public OutputWindow
         static void framebufferResizeCallbackStatic(GLFWwindow* window, int width, int height) 
         {
             auto app = reinterpret_cast<GLFWOutputWindow*>(glfwGetWindowUserPointer(window));
-            if (app->resizeCallback) 
-            {
-                app->resizeCallback(width, height);
-            }
+            if (app) app->onResize.notify(width, height);
         }
 
         static void onKeyPressedCallbackStatic(GLFWwindow* window, int key, int scancode, int action, int mods)
         {
             auto app = reinterpret_cast<GLFWOutputWindow*>(glfwGetWindowUserPointer(window));
-            if(app->onKeyPressedCallback)
-            {
-                app->onKeyPressedCallback(key, scancode, action, mods);
-            }
+            if (app) app->onKeyPressed.notify(key, scancode, action, mods);
         }
+
 
         void init() override;
 };
