@@ -42,7 +42,7 @@ extern "C" {
 #include "GTSDescriptorSetManager.hpp"
 #include "VulkanShader.hpp"
 #include "VulkanPipeline.hpp"
-#include "GTSFramebufferManager.hpp"
+//#include "GTSFramebufferManager.hpp"
 #include "GtsBufferService.hpp"
 #include "VulkanTexture.hpp"
 #include "GtsModelLoader.hpp"
@@ -74,6 +74,8 @@ extern "C" {
 #include "ForwardRenderer.hpp"
 
 #include "VulkanPipelineConfig.h"
+#include "VulkanFramebufferManager.hpp"
+#include "VulkanFramebufferManagerConfig.h"
 
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
@@ -116,7 +118,9 @@ public:
 
     GTSDescriptorSetManager* vdescriptorsetmanager;
     VulkanPipeline* vpipeline;
-    GTSFramebufferManager* vframebuffer;
+
+    VulkanFramebufferManager* vframebuffer;
+    //VulkanFramebufferSet* vframebuffer;
     GtsCamera* vcamera;
 
     GtsScene* currentScene;
@@ -211,9 +215,18 @@ public:
         vpConfig.vkRenderPass = renderer->getRenderPassWrapper()->getRenderPass();
         vpipeline = new VulkanPipeline(vpConfig);
 
-        vframebuffer = new GTSFramebufferManager(vContext.get()->getLogicalDeviceWrapper(),
-        vContext.get()->getSwapChainWrapper(), 
-        renderer->getRenderPassWrapper(), renderer->getAttachmentWrapper());
+        VulkanFramebufferManagerConfig fun;
+        fun.attachmentImageView = renderer->getAttachmentWrapper()->getImageView();
+        fun.swapchainImageViews = vContext->getSwapChainImageViews();
+        fun.vkDevice = vContext->getDevice();
+        fun.vkExtent = vContext->getSwapChainExtent();
+        fun.vkRenderpass = renderer->getRenderPassWrapper()->getRenderPass();
+
+        vframebuffer = new VulkanFramebufferManager(fun);
+
+        //vframebuffer = new VulkanFramebufferSet(vContext.get()->getLogicalDeviceWrapper(),
+        //vContext.get()->getSwapChainWrapper(), 
+        //renderer->getRenderPassWrapper(), renderer->getAttachmentWrapper());
         vcamera = new GtsCamera(vContext.get()->getSwapChainWrapper()->getSwapChainExtent());
         createCommandBuffers();
         createSyncObjects();
