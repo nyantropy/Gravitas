@@ -1,11 +1,11 @@
 #include "GTSFramebufferManager.hpp"
 
-GTSFramebufferManager::GTSFramebufferManager(VulkanLogicalDevice* vlogicaldevice, VulkanSwapChain* vswapchain, VulkanRenderer* vrenderer, VulkanRenderPass* vrenderpass)
+GTSFramebufferManager::GTSFramebufferManager(VulkanLogicalDevice* vlogicaldevice, VulkanSwapChain* vswapchain, VulkanRenderPass* vrenderpass, Attachment* att)
 {
     this->vlogicaldevice = vlogicaldevice;
     this->vswapchain = vswapchain;
-    this->vrenderer = vrenderer;
     this->vrenderpass = vrenderpass;
+    this->att = att;
 
     createFramebuffers();
 }
@@ -32,7 +32,7 @@ void GTSFramebufferManager::createFramebuffers()
         std::array<VkImageView, 2> attachments = 
         {
             vswapchain->getSwapChainImageViews()[i],
-            vrenderer->getDepthImageView()
+            att->getImageView()
         };
 
         VkFramebufferCreateInfo framebufferInfo{};

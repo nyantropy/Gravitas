@@ -7,13 +7,17 @@
 
 #include "VulkanLogicalDevice.hpp"
 #include "VulkanPhysicalDevice.hpp"
-#include "VulkanRenderer.hpp"
-#include "GtsBufferService.hpp"
+
+#include "VulkanTextureConfig.h"
+
+#include "ImageUtil.hpp"
+#include "MemoryUtil.hpp"
+#include "BufferUtil.hpp"
 
 class VulkanTexture
 {
     public:
-        VulkanTexture(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice, VulkanRenderer* vrenderer, const std::string texture_path);
+        VulkanTexture(VulkanTextureConfig config);
         ~VulkanTexture();
 
         VkImage& getTextureImage();
@@ -27,11 +31,7 @@ class VulkanTexture
         VkImageView textureImageView;
         VkSampler textureSampler;
 
-        std::string texture_path;
-
-        VulkanLogicalDevice* vlogicaldevice;
-        VulkanPhysicalDevice* vphysicaldevice;
-        VulkanRenderer* vrenderer;
+        VulkanTextureConfig config;
 
         void createTextureImageView();
         void createTextureImage();

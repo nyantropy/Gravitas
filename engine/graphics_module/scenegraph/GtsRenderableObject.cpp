@@ -1,6 +1,6 @@
 #include "GtsRenderableObject.hpp"
 
-GtsRenderableObject::GtsRenderableObject(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice, GTSDescriptorSetManager* vdescriptorsetmanager, VulkanRenderer* vrenderer,
+GtsRenderableObject::GtsRenderableObject(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice, GTSDescriptorSetManager* vdescriptorsetmanager,
  std::string model_path, std::string texture_path, int frames_in_flight)
 {
     this->frames_in_flight = frames_in_flight;
@@ -9,7 +9,16 @@ GtsRenderableObject::GtsRenderableObject(VulkanLogicalDevice* vlogicaldevice, Vu
 
     //probably inefficient to load a model multiple times, but it should be fine for a small game
     GtsModelLoader::loadModel(model_path, vertices, indices);
-    objecttexture = new VulkanTexture(vlogicaldevice, vphysicaldevice, vrenderer, texture_path);
+
+    VulkanTextureConfig vtConfig;
+    vtConfig.vkDevice = vlogicaldevice->getDevice();
+    vtConfig.vkCommandPool = vlogicaldevice->getCommandPool();
+    vtConfig.vkGraphicsQueue = vlogicaldevice->getGraphicsQueue();
+    vtConfig.vkPhysicalDevice = vphysicaldevice->getPhysicalDevice();
+    vtConfig.texture_path = texture_path;
+    objecttexture = new VulkanTexture(vtConfig);
+
+
     GtsBufferService::createVertexBuffer(vlogicaldevice, vphysicaldevice, vertices, vertexBuffer, vertexBufferMemory);
     GtsBufferService::createIndexBuffer(vlogicaldevice, vphysicaldevice, indices, indexBuffer, indexBufferMemory);
     GtsBufferService::createUniformBuffers(vlogicaldevice, vphysicaldevice, uniformBuffers, uniformBuffersMemory, uniformBuffersMapped, frames_in_flight);

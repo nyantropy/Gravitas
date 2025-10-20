@@ -39,7 +39,6 @@ extern "C" {
 #include "Vertex.h"
 #include "UniformBufferObject.h"
 
-#include "VulkanRenderer.hpp"
 #include "VulkanRenderPass.hpp"
 #include "GTSDescriptorSetManager.hpp"
 #include "VulkanShader.hpp"
@@ -67,6 +66,11 @@ extern "C" {
 #include "OutputWindowConfig.h"
 #include "GLFWOutputWindow.hpp"
 
+// renderer includes
+#include "Renderer.hpp"
+#include "RendererConfig.h"
+#include "ForwardRenderer.hpp"
+
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
 #else
@@ -93,11 +97,22 @@ class Gravitas
 {
 public:
 
-    std::unique_ptr<VulkanContext> vContext;
+    // core components
+    //---------------------------------------------
+    // the output window, where frames are presented
     std::unique_ptr<OutputWindow> outputWindow;
 
-    VulkanRenderer* vrenderer;
-    VulkanRenderPass* vrenderpass;
+    // the vulkan context, containing all the major vulkan objects needed to actually produce something
+    std::unique_ptr<VulkanContext> vContext;
+
+    // the renderer, responsible for the core render loop
+    std::unique_ptr<ForwardRenderer> renderer;
+
+    //VulkanRenderer* vrenderer;
+    //VulkanRenderPass* vrenderpass;
+
+
+
     GTSDescriptorSetManager* vdescriptorsetmanager;
     VulkanPipeline* vpipeline;
     GTSFramebufferManager* vframebuffer;
@@ -158,7 +173,7 @@ public:
 
     GtsRenderableObject* createObject(std::string model_path, std::string texture_path)
     {
-        GtsRenderableObject* vobject = new GtsRenderableObject(vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vdescriptorsetmanager, vrenderer, model_path, texture_path, GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
+        GtsRenderableObject* vobject = new GtsRenderableObject(vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vdescriptorsetmanager, model_path, texture_path, GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
         return vobject;
     }
 
@@ -178,19 +193,32 @@ public:
         outputWindow->setOnKeyPressedCallback(
         std::bind(&Gravitas::OnKeyPressedCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
 
+        // create the vulkan context
         VulkanContextConfig vcConfig;
         vcConfig.enableValidationLayers = enableValidationLayers;
         vcConfig.vulkanInstanceExtensions = outputWindow->getRequiredExtensions();
         vcConfig.outputWindowPtr = outputWindow.get();
         vContext = std::make_unique<VulkanContext>(vcConfig);
 
+        // create the renderer
+        RendererConfig rConfig;
+        rConfig.vkDevice = vContext->getDevice();
+        rConfig.vkPhysicalDevice = vContext->getPhysicalDevice();
+        rConfig.vkExtent = vContext->getSwapChainExtent();
+        rConfig.swapChainImageFormat = vContext->getSwapChainImageFormat();
+        renderer = std::make_unique<ForwardRenderer>(rConfig);
 
-        vrenderer = new VulkanRenderer(vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vContext.get()->getSwapChainWrapper());
-        vrenderpass = new VulkanRenderPass();
-        vrenderpass->init(vContext.get()->getSwapChainWrapper(), vContext.get()->getLogicalDeviceWrapper(), vrenderer);
+
+        
+        //vrenderer = new VulkanRenderer(vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vContext.get()->getSwapChainWrapper());
+
         vdescriptorsetmanager = new GTSDescriptorSetManager(vContext.get()->getLogicalDeviceWrapper(), GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
-        vpipeline = new VulkanPipeline(vContext.get()->getLogicalDeviceWrapper(), vdescriptorsetmanager, vrenderpass, {GraphicsConstants::V_SHADER_PATH, GraphicsConstants::F_SHADER_PATH});
-        vframebuffer = new GTSFramebufferManager(vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getSwapChainWrapper(), vrenderer, vrenderpass);
+        vpipeline = new VulkanPipeline(vContext.get()->getLogicalDeviceWrapper(),
+        vdescriptorsetmanager, renderer->getRenderPassWrapper(),
+        {GraphicsConstants::V_SHADER_PATH, GraphicsConstants::F_SHADER_PATH});
+        vframebuffer = new GTSFramebufferManager(vContext.get()->getLogicalDeviceWrapper(),
+        vContext.get()->getSwapChainWrapper(), 
+        renderer->getRenderPassWrapper(), renderer->getAttachmentWrapper());
         vcamera = new GtsCamera(vContext.get()->getSwapChainWrapper()->getSwapChainExtent());
         createCommandBuffers();
         createSyncObjects();
@@ -244,9 +272,9 @@ public:
 
     void startEncoder()
     {
-        framegrabber = new GtsFrameGrabber(vContext.get()->getSwapChainWrapper(), vrenderer, vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper());
-        encoder = new GtsEncoder(framegrabber);
-        onFrameEndedEvent.subscribe(std::bind(&GtsEncoder::onFrameEnded, encoder, std::placeholders::_1, std::placeholders::_2));
+        //framegrabber = new GtsFrameGrabber(vContext.get()->getSwapChainWrapper(), vrenderer, vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper());
+        //encoder = new GtsEncoder(framegrabber);
+        //onFrameEndedEvent.subscribe(std::bind(&GtsEncoder::onFrameEnded, encoder, std::placeholders::_1, std::placeholders::_2));
     }
 
     void run() 
@@ -298,14 +326,15 @@ private:
         delete vframebuffer;
         delete vpipeline;
         delete vdescriptorsetmanager;
-        delete vrenderpass;
-        delete vrenderer;
         for (size_t i = 0; i < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; i++) 
         {
             vkDestroySemaphore(vContext.get()->getLogicalDeviceWrapper()->getDevice(), renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(vContext.get()->getLogicalDeviceWrapper()->getDevice(), imageAvailableSemaphores[i], nullptr);
             vkDestroyFence(vContext.get()->getLogicalDeviceWrapper()->getDevice(), inFlightFences[i], nullptr);
         }
+
+        //delete vrenderer;
+        renderer.reset();
         vContext.reset();
         outputWindow.reset();
     }
@@ -365,7 +394,7 @@ private:
 
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        renderPassInfo.renderPass = vrenderpass->getRenderPass();
+        renderPassInfo.renderPass = renderer->getRenderPassWrapper()->getRenderPass();
         renderPassInfo.framebuffer = vframebuffer->getFramebuffers()[imageIndex];
         renderPassInfo.renderArea.offset = {0, 0};
         renderPassInfo.renderArea.extent = vContext.get()->getSwapChainWrapper()->getSwapChainExtent();

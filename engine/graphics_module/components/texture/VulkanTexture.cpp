@@ -1,11 +1,8 @@
 #include "VulkanTexture.hpp"
 
-VulkanTexture::VulkanTexture(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice, VulkanRenderer* vrenderer, const std::string texture_path)
+VulkanTexture::VulkanTexture(VulkanTextureConfig config)
 {
-    this->vlogicaldevice = vlogicaldevice;
-    this->vphysicaldevice = vphysicaldevice;
-    this->vrenderer = vrenderer;
-    this->texture_path = texture_path;
+    this->config = config;
 
     createTextureImage();
     createTextureImageView();
@@ -14,10 +11,10 @@ VulkanTexture::VulkanTexture(VulkanLogicalDevice* vlogicaldevice, VulkanPhysical
 
 VulkanTexture::~VulkanTexture()
 {
-    vkDestroyImageView(vlogicaldevice->getDevice(), textureImageView, nullptr);
-    vkDestroyImage(vlogicaldevice->getDevice(), textureImage, nullptr);
-    vkFreeMemory(vlogicaldevice->getDevice(), textureImageMemory, nullptr);
-    vkDestroySampler(vlogicaldevice->getDevice(), textureSampler, nullptr);
+    vkDestroyImageView(this->config.vkDevice, textureImageView, nullptr);
+    vkDestroyImage(this->config.vkDevice, textureImage, nullptr);
+    vkFreeMemory(this->config.vkDevice, textureImageMemory, nullptr);
+    vkDestroySampler(this->config.vkDevice, textureSampler, nullptr);
 }
 
 VkImage& VulkanTexture::getTextureImage()
@@ -56,7 +53,7 @@ void VulkanTexture::createTextureImageView()
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
 
-    if (vkCreateImageView(vlogicaldevice->getDevice(), &viewInfo, nullptr, &textureImageView) != VK_SUCCESS) 
+    if (vkCreateImageView(this->config.vkDevice, &viewInfo, nullptr, &textureImageView) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to create image view!");
     }
@@ -65,7 +62,7 @@ void VulkanTexture::createTextureImageView()
 void VulkanTexture::createTextureSampler() 
 {
     VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties(vphysicaldevice->getPhysicalDevice(), &properties);
+    vkGetPhysicalDeviceProperties(this->config.vkPhysicalDevice, &properties);
 
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -82,7 +79,7 @@ void VulkanTexture::createTextureSampler()
     samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
     samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
-    if (vkCreateSampler(vlogicaldevice->getDevice(), &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) 
+    if (vkCreateSampler(this->config.vkDevice, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to create texture sampler!");
     }
@@ -91,7 +88,7 @@ void VulkanTexture::createTextureSampler()
 void VulkanTexture::createTextureImage() 
 {
     int texWidth, texHeight, texChannels;
-    stbi_uc* pixels = stbi_load(texture_path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    stbi_uc* pixels = stbi_load(this->config.texture_path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
     VkDeviceSize imageSize = texWidth * texHeight * 4;
 
     if (!pixels) 
@@ -101,22 +98,33 @@ void VulkanTexture::createTextureImage()
 
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
-    GtsBufferService::createBuffer(vlogicaldevice, vphysicaldevice,
-        imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+    BufferUtil::createBuffer(this->config.vkDevice, this->config.vkPhysicalDevice, imageSize,
+    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+    stagingBuffer, stagingBufferMemory);
 
     void* data;
-    vkMapMemory(vlogicaldevice->getDevice(), stagingBufferMemory, 0, imageSize, 0, &data);
+    vkMapMemory(this->config.vkDevice, stagingBufferMemory, 0, imageSize, 0, &data);
         memcpy(data, pixels, static_cast<size_t>(imageSize));
-    vkUnmapMemory(vlogicaldevice->getDevice(), stagingBufferMemory);
+    vkUnmapMemory(this->config.vkDevice, stagingBufferMemory);
 
     stbi_image_free(pixels);
 
-    vrenderer->createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+    ImageUtil::createImage(this->config.vkDevice,
+    texWidth, texHeight,
+    VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
+    VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, textureImage);
 
-    vrenderer->transitionImageLayout(vlogicaldevice, textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        GtsBufferService::copyBufferToImage(vlogicaldevice, stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-    vrenderer->transitionImageLayout(vlogicaldevice, textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    MemoryUtil::allocateImageMemory(this->config.vkDevice, this->config.vkPhysicalDevice, textureImage,
+    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImageMemory);
 
-    vkDestroyBuffer(vlogicaldevice->getDevice(), stagingBuffer, nullptr);
-    vkFreeMemory(vlogicaldevice->getDevice(), stagingBufferMemory, nullptr);
+    ImageUtil::transitionImageLayout(this->config.vkDevice, config.vkCommandPool, config.vkGraphicsQueue, textureImage,
+    VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        BufferUtil::copyBufferToImage(config.vkDevice, config.vkCommandPool, config.vkGraphicsQueue,
+        stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+    ImageUtil::transitionImageLayout(this->config.vkDevice, config.vkCommandPool, config.vkGraphicsQueue, textureImage,
+    VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    vkDestroyBuffer(this->config.vkDevice, stagingBuffer, nullptr);
+    vkFreeMemory(this->config.vkDevice, stagingBufferMemory, nullptr);
 }

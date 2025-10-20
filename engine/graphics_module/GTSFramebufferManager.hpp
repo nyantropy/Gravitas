@@ -4,27 +4,26 @@
 #include <vector>
 #include <array>
 
-#include "VulkanRenderer.hpp"
 #include "VulkanRenderPass.hpp"
 #include "VulkanSwapChain.hpp"
 #include "VulkanLogicalDevice.hpp"
 
-class VulkanSwapChain;
-class VulkanRenderer;
+#include "Attachment.hpp"
+
 
 class GTSFramebufferManager
 {
     public:
-        GTSFramebufferManager(VulkanLogicalDevice* vlogicaldevice, VulkanSwapChain* vswapchain, VulkanRenderer* vrenderer, VulkanRenderPass* vrenderpass);
+        GTSFramebufferManager(VulkanLogicalDevice* vlogicaldevice, VulkanSwapChain* vswapchain, VulkanRenderPass* vrenderpass, Attachment* att);
         ~GTSFramebufferManager();
 
         std::vector<VkFramebuffer>& getFramebuffers();
 
     private:
         VulkanRenderPass* vrenderpass;
-        VulkanRenderer* vrenderer;
         VulkanSwapChain* vswapchain;
         VulkanLogicalDevice* vlogicaldevice;
+        Attachment* att;
 
         std::vector<VkFramebuffer> swapChainFramebuffers;
 

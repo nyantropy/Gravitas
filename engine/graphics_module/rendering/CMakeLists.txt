@@ -1,9 +1,6 @@
 add_library(
     rendering
 
-    VulkanRenderer.hpp
-    VulkanRenderer.cpp
-
     ForwardRenderer.hpp
     ForwardRenderer.cpp
 
@@ -12,8 +9,9 @@ add_library(
     RendererConfig.h
 )
 
-target_link_libraries(rendering PUBLIC Gravitas attachment)
+target_link_libraries(rendering PUBLIC Gravitas attachment renderpass)
 
 target_include_directories(rendering PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_subdirectory(attachment)
+add_subdirectory(renderpass)

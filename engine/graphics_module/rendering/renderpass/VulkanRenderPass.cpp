@@ -1,20 +1,13 @@
 #include "VulkanRenderPass.hpp"
-VulkanRenderPass::VulkanRenderPass()
-{    
+VulkanRenderPass::VulkanRenderPass(VulkanRenderPassConfig config)
+{
+    this->config = config;
+    createRenderPass();    
 }
 
 VulkanRenderPass::~VulkanRenderPass()
 {
-    vkDestroyRenderPass(vlogicaldevice->getDevice(), renderPass, nullptr);
-}
-
-void VulkanRenderPass::init(VulkanSwapChain* vswapchain, VulkanLogicalDevice* vlogicaldevice, VulkanRenderer* vrenderer)
-{
-    this->vswapchain = vswapchain;
-    this->vlogicaldevice = vlogicaldevice;
-    this->vrenderer = vrenderer;
-
-    createRenderPass();
+    vkDestroyRenderPass(this->config.vkDevice, renderPass, nullptr);
 }
 
 VkRenderPass& VulkanRenderPass::getRenderPass()
@@ -25,7 +18,7 @@ VkRenderPass& VulkanRenderPass::getRenderPass()
 void VulkanRenderPass::createRenderPass() 
 {
     VkAttachmentDescription colorAttachment{};
-    colorAttachment.format = vswapchain->getSwapChainImageFormat();
+    colorAttachment.format = this->config.colorFormat;
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -35,7 +28,7 @@ void VulkanRenderPass::createRenderPass()
     colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     VkAttachmentDescription depthAttachment{};
-    depthAttachment.format = vrenderer->findDepthFormat();
+    depthAttachment.format = this->config.depthFormat;
     depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -76,7 +69,7 @@ void VulkanRenderPass::createRenderPass()
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    if (vkCreateRenderPass(vlogicaldevice->getDevice(), &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) 
+    if (vkCreateRenderPass(this->config.vkDevice, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to create render pass!");
     }

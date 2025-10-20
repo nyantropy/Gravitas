@@ -5,24 +5,23 @@
 #include <cstdint>
 
 #include "VulkanSwapChain.hpp"
-#include "VulkanRenderer.hpp"
 #include "VulkanLogicalDevice.hpp"
 #include "VulkanPhysicalDevice.hpp"
+
+#include "ImageUtil.hpp"
 
 class GtsFrameGrabber
 {
     private:
         VulkanSwapChain* vswapchain;
-        VulkanRenderer* vrenderer;
         VulkanLogicalDevice* vlogicaldevice;
         VulkanPhysicalDevice* vphysicaldevice;
 
     public:
         GtsFrameGrabber();
-        GtsFrameGrabber(VulkanSwapChain* vswapchain, VulkanRenderer* vrenderer, VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice)
+        GtsFrameGrabber(VulkanSwapChain* vswapchain, VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice)
         {
             this->vswapchain = vswapchain;
-            this->vrenderer = vrenderer;
             this->vlogicaldevice = vlogicaldevice;
             this->vphysicaldevice = vphysicaldevice;
         }
@@ -33,7 +32,7 @@ class GtsFrameGrabber
             std::cout << "trying to rip a frame" << std::endl;
             //after submitting command buffer, we can pry an image from the swapchain, with a lot of effort that is
             VkImage srcImage = vswapchain->getSwapChainImages()[imageIndex];
-            vrenderer->transitionImageLayout(vlogicaldevice, srcImage, vswapchain->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+            ImageUtil::transitionImageLayout(vlogicaldevice->getDevice(), vlogicaldevice->getCommandPool(), vlogicaldevice->getGraphicsQueue(), srcImage, vswapchain->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
             VkDeviceSize imageSize = vswapchain->getSwapChainExtent().width * vswapchain->getSwapChainExtent().height * 4;
             VkBuffer stagingBuffer;
             VkDeviceMemory stagingBufferMemory;
@@ -59,7 +58,7 @@ class GtsFrameGrabber
             }
 
             std::cout << "trying to free resources" << std::endl;
-            vrenderer->transitionImageLayout(vlogicaldevice, srcImage, vswapchain->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+            ImageUtil::transitionImageLayout(vlogicaldevice->getDevice(), vlogicaldevice->getCommandPool(), vlogicaldevice->getGraphicsQueue(), srcImage, vswapchain->getSwapChainImageFormat(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
             vkUnmapMemory(vlogicaldevice->getDevice(), stagingBufferMemory);
             vkDestroyBuffer(vlogicaldevice->getDevice(), stagingBuffer, nullptr);
             vkFreeMemory(vlogicaldevice->getDevice(), stagingBufferMemory, nullptr);

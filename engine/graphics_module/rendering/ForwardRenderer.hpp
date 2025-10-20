@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <memory>
 #include <vulkan/vulkan.h>
 
 #include "Renderer.hpp"
@@ -9,16 +10,26 @@
 #include "Attachment.hpp"
 #include "AttachmentConfig.h"
 
+#include "VulkanRenderPass.hpp"
+#include "VulkanRenderPassConfig.h"
+
 #include "FormatUtil.hpp"
 
 class ForwardRenderer : Renderer
 {
+    private:
+        std::unique_ptr<Attachment> depthAttachment;
+        std::unique_ptr<VulkanRenderPass> vrenderpass;
     public:
-        Attachment att;
-
         ForwardRenderer(RendererConfig config) : Renderer(config)
         {
+            createResources();
+        }
 
+        ~ForwardRenderer()
+        {
+            if(vrenderpass) vrenderpass.reset();
+            if(depthAttachment) depthAttachment.reset();
         }
 
         void createResources() override
@@ -44,10 +55,30 @@ class ForwardRenderer : Renderer
             // specific for memory
             attachConfig.memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-            att = Attachment(attachConfig);
-        }         
+            // specific for the image view
+            attachConfig.imageAspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+            depthAttachment = std::make_unique<Attachment>(attachConfig);
+
+            VulkanRenderPassConfig vrpConfig;
+            vrpConfig.vkDevice = this->config.vkDevice;
+            
+            // use the depth format we found earlier
+            vrpConfig.depthFormat = depthFormat;
+
+            // we need to use the swapchainimageformat here
+            vrpConfig.colorFormat = this->config.swapChainImageFormat;
+
+            vrenderpass = std::make_unique<VulkanRenderPass>(vrpConfig);
+        }
+                 
         void renderFrame() override
         {
 
-        }      
+        }
+        
+        // filler getters, not to be used in the real program
+        Attachment* getAttachmentWrapper() { return depthAttachment.get(); }
+
+        VulkanRenderPass* getRenderPassWrapper() { return vrenderpass.get(); }
 };

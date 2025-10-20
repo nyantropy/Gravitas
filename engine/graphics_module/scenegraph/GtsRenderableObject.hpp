@@ -10,8 +10,9 @@
 #include "GtsModelLoader.hpp"
 #include "GtsBufferService.hpp"
 #include "VulkanTexture.hpp"
-#include "VulkanRenderer.hpp"
 #include "GTSDescriptorSetManager.hpp"
+
+#include "VulkanTextureConfig.h"
 
 class GTSDescriptorSetManager;
 
@@ -43,7 +44,7 @@ class GtsRenderableObject
         //an object also contains a texture, who would have thought
         VulkanTexture* objecttexture;
    
-        GtsRenderableObject(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice, GTSDescriptorSetManager* vdescriptorsetmanager, VulkanRenderer* vrenderer,
+        GtsRenderableObject(VulkanLogicalDevice* vlogicaldevice, VulkanPhysicalDevice* vphysicaldevice, GTSDescriptorSetManager* vdescriptorsetmanager,
          std::string model_path, std::string texture_path, int frames_in_flight);
 
         ~GtsRenderableObject();
