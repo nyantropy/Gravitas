@@ -57,11 +57,13 @@ add_subdirectory(options)
 add_subdirectory(rendering)
 add_subdirectory(graphics_util)
 add_subdirectory(windowing)
+add_subdirectory(gsystems)
+add_subdirectory(gcomponents)
 
 
 # Set all the include directories for this target
 target_include_directories(Gravitas PUBLIC
-    ${CMAKE_SOURCE_DIR}/graphics_engine
+    ${CMAKE_SOURCE_DIR}/graphics_module
     ${GLFW_INCLUDE_DIRS}
     ${GLFW_LIB_DIR}
     ${Vulkan_INCLUDE_DIRS}
@@ -78,6 +80,8 @@ target_link_libraries(Gravitas
     external
     scenegraph
     options
+    gsystems
+    gcomponents
     PkgConfig::LIBAV
     $<$<PLATFORM_ID:Windows>:${GLFW_LIB_DIR}/glfw3.lib> # Windows
     $<$<NOT:$<PLATFORM_ID:Windows>>:${GLFW_LIB_DIR}/libglfw3.a> # Linux

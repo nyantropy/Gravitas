@@ -1,5 +1,6 @@
 #pragma once
 #include <unordered_map>
+#include <vector>
 
 // each component can have its own storage
 template<typename Component>
@@ -24,6 +25,14 @@ class ComponentStorage
         void remove(Entity entity) 
         {
             components.erase(entity.id);
+        }
+
+        std::vector<Entity> getAllEntities() const 
+        {
+            std::vector<Entity> result;
+            for (auto& [id, comp] : components)
+                result.push_back(Entity{id});
+            return result;
         }
 
     private:

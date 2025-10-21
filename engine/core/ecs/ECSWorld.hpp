@@ -55,6 +55,19 @@ public:
             system->update(deltaTime, *this);
     }
 
+    template<typename... Components>
+    std::vector<Entity> getAllEntitiesWith() 
+    {
+        // get all entities for the first component type
+        auto& firstStorage = getStorage<typename std::tuple_element<0, std::tuple<Components...>>::type>();
+        std::vector<Entity> result = firstStorage.getAllEntities();
+
+        // for each remaining component type, filter entities that also have it
+        (filterEntitiesWith<Components>(result), ...);
+
+        return result;
+    }
+
 private:
     uint32_t nextEntityId = 0;
     std::vector<std::unique_ptr<System>> systems;

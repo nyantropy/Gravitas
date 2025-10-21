@@ -42,7 +42,7 @@ extern "C" {
 #include "GTSDescriptorSetManager.hpp"
 #include "VulkanShader.hpp"
 #include "VulkanPipeline.hpp"
-//#include "GTSFramebufferManager.hpp"
+
 #include "GtsBufferService.hpp"
 #include "VulkanTexture.hpp"
 #include "GtsModelLoader.hpp"
@@ -76,6 +76,9 @@ extern "C" {
 #include "VulkanPipelineConfig.h"
 #include "VulkanFramebufferManager.hpp"
 #include "VulkanFramebufferManagerConfig.h"
+
+#include "FrameSyncObjects.hpp"
+#include "FrameSyncObjectsConfig.h"
 
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
@@ -131,6 +134,8 @@ public:
 
     GtsFrameGrabber* framegrabber;
     GtsEncoder* encoder;
+
+    FrameSyncObjects* fso;
 
     // window event propagation, but a lot more simple than before
     GtsEvent<int, int>& onResize() { return windowManager->onResize(); }
@@ -215,21 +220,23 @@ public:
         vpConfig.vkRenderPass = renderer->getRenderPassWrapper()->getRenderPass();
         vpipeline = new VulkanPipeline(vpConfig);
 
-        VulkanFramebufferManagerConfig fun;
-        fun.attachmentImageView = renderer->getAttachmentWrapper()->getImageView();
-        fun.swapchainImageViews = vContext->getSwapChainImageViews();
-        fun.vkDevice = vContext->getDevice();
-        fun.vkExtent = vContext->getSwapChainExtent();
-        fun.vkRenderpass = renderer->getRenderPassWrapper()->getRenderPass();
+        // reworked vulkan frame buffer management
+        VulkanFramebufferManagerConfig vfmConfig;
+        vfmConfig.attachmentImageView = renderer->getAttachmentWrapper()->getImageView();
+        vfmConfig.swapchainImageViews = vContext->getSwapChainImageViews();
+        vfmConfig.vkDevice = vContext->getDevice();
+        vfmConfig.vkExtent = vContext->getSwapChainExtent();
+        vfmConfig.vkRenderpass = renderer->getRenderPassWrapper()->getRenderPass();
+        vframebuffer = new VulkanFramebufferManager(vfmConfig);
 
-        vframebuffer = new VulkanFramebufferManager(fun);
-
-        //vframebuffer = new VulkanFramebufferSet(vContext.get()->getLogicalDeviceWrapper(),
-        //vContext.get()->getSwapChainWrapper(), 
-        //renderer->getRenderPassWrapper(), renderer->getAttachmentWrapper());
         vcamera = new GtsCamera(vContext.get()->getSwapChainWrapper()->getSwapChainExtent());
         createCommandBuffers();
-        createSyncObjects();
+
+
+        FrameSyncObjectsConfig fsoConfig;
+        fsoConfig.vkDevice = vContext->getDevice();
+        fsoConfig.maxFramesInFlight = GraphicsConstants::MAX_FRAMES_IN_FLIGHT;
+        fso = new FrameSyncObjects(fsoConfig);
     }
 
     void createEmptyScene()
@@ -304,10 +311,6 @@ public:
 
 private:
     std::vector<VkCommandBuffer> commandBuffers;
-
-    std::vector<VkSemaphore> imageAvailableSemaphores;
-    std::vector<VkSemaphore> renderFinishedSemaphores;
-    std::vector<VkFence> inFlightFences;
     uint32_t currentFrame = 0;
 
     bool framebufferResized = false;
@@ -329,14 +332,8 @@ private:
         delete vframebuffer;
         delete vpipeline;
         delete vdescriptorsetmanager;
-        for (size_t i = 0; i < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; i++) 
-        {
-            vkDestroySemaphore(vContext.get()->getLogicalDeviceWrapper()->getDevice(), renderFinishedSemaphores[i], nullptr);
-            vkDestroySemaphore(vContext.get()->getLogicalDeviceWrapper()->getDevice(), imageAvailableSemaphores[i], nullptr);
-            vkDestroyFence(vContext.get()->getLogicalDeviceWrapper()->getDevice(), inFlightFences[i], nullptr);
-        }
 
-        //delete vrenderer;
+        delete fso;
         renderer.reset();
         vContext.reset();
         windowManager.reset();
@@ -367,10 +364,6 @@ private:
         //createDepthResources();
         //createFramebuffers();
     }
-
-    // bool hasStencilComponent(VkFormat format) {
-    //     return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
-    // }
 
     void createCommandBuffers() 
     {
@@ -438,27 +431,6 @@ private:
         }
     }
 
-    void createSyncObjects() {
-        imageAvailableSemaphores.resize(GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
-        renderFinishedSemaphores.resize(GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
-        inFlightFences.resize(GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
-
-        VkSemaphoreCreateInfo semaphoreInfo{};
-        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-        VkFenceCreateInfo fenceInfo{};
-        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-        for (size_t i = 0; i < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; i++) {
-            if (vkCreateSemaphore(vContext.get()->getLogicalDeviceWrapper()->getDevice(), &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-                vkCreateSemaphore(vContext.get()->getLogicalDeviceWrapper()->getDevice(), &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-                vkCreateFence(vContext.get()->getLogicalDeviceWrapper()->getDevice(), &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create synchronization objects for a frame!");
-            }
-        }
-    }
-
     float FPS = 30.0f;
     double frameInterval = 1.0 / FPS;
     double lastFrameTime = 0.0;
@@ -473,10 +445,14 @@ private:
         previousTime = currentTime;
         lastFrameTime += deltaTime;
 
-        vkWaitForFences(vContext.get()->getLogicalDeviceWrapper()->getDevice(), 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+        VkFence vkFence = fso->getInFlightFence(currentFrame);
+        vkWaitForFences(vContext.get()->getLogicalDeviceWrapper()->getDevice(), 1, &vkFence, VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
-        VkResult result = vkAcquireNextImageKHR(vContext.get()->getLogicalDeviceWrapper()->getDevice(), vContext.get()->getSwapChainWrapper()->getSwapChain(), UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR(vContext.get()->getLogicalDeviceWrapper()->getDevice(),
+        vContext.get()->getSwapChainWrapper()->getSwapChain(),
+        UINT64_MAX,
+        fso->getImageAvailableSemaphore(currentFrame), VK_NULL_HANDLE, &imageIndex);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) 
         {
@@ -492,7 +468,7 @@ private:
         currentScene->update(*vcamera, GraphicsConstants::MAX_FRAMES_IN_FLIGHT, deltaTime);
         onSceneUpdatedEvent.notify();
 
-        vkResetFences(vContext.get()->getLogicalDeviceWrapper()->getDevice(), 1, &inFlightFences[currentFrame]);
+        vkResetFences(vContext.get()->getLogicalDeviceWrapper()->getDevice(), 1, &vkFence);
 
         vkResetCommandBuffer(commandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
         recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
@@ -500,7 +476,7 @@ private:
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
+        VkSemaphore waitSemaphores[] = {fso->getImageAvailableSemaphore(currentFrame)};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
@@ -509,11 +485,11 @@ private:
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
 
-        VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[currentFrame]};
+        VkSemaphore signalSemaphores[] = {fso->getRenderFinishedSemaphore(currentFrame)};
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(vContext.get()->getLogicalDeviceWrapper()->getGraphicsQueue(), 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
+        if (vkQueueSubmit(vContext.get()->getLogicalDeviceWrapper()->getGraphicsQueue(), 1, &submitInfo, fso->getInFlightFence(currentFrame)) != VK_SUCCESS) {
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 

@@ -9,7 +9,7 @@ add_library(
     RendererConfig.h
 )
 
-target_link_libraries(rendering PUBLIC Gravitas attachment renderpass pipeline vkshader framebuffer)
+target_link_libraries(rendering PUBLIC Gravitas attachment renderpass pipeline vkshader framebuffer framesyncobjects)
 
 target_include_directories(rendering PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -18,3 +18,4 @@ add_subdirectory(renderpass)
 add_subdirectory(pipeline)
 add_subdirectory(shader)
 add_subdirectory(framebuffer)
+add_subdirectory(framesyncobjects)

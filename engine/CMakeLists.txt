@@ -1,3 +1,3 @@
-add_subdirectory(physics_module)
+add_subdirectory(physics)
 add_subdirectory(graphics_module)
-add_subdirectory(ecs_module)
+add_subdirectory(core)

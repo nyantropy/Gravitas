@@ -9,5 +9,4 @@ project(Gravitas VERSION 0.1.0 LANGUAGES C CXX)
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release")
 
 add_subdirectory(engine)
-
 add_subdirectory(applications)
