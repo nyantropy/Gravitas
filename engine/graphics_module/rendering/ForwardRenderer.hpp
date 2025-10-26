@@ -13,10 +13,8 @@
 #include "VulkanRenderPass.hpp"
 #include "VulkanRenderPassConfig.h"
 
-#include "DescriptorSetManager.hpp"
-#include "MeshManager.hpp"
-#include "UniformBufferManager.hpp"
-#include "TextureManager.hpp"
+#include "ResourceSystem.hpp"
+#include "RenderSystem.hpp"
 
 #include "GraphicsConstants.h"
 #include "FormatUtil.hpp"
@@ -27,12 +25,13 @@ class ForwardRenderer : Renderer
         // render structs
         std::unique_ptr<Attachment> depthAttachment;
         std::unique_ptr<VulkanRenderPass> vrenderpass;
+        std::unique_ptr<VulkanPipeline> vpipeline;
 
-        // render resource manager classes
-        std::unique_ptr<DescriptorSetManager> descriptorSetManager;
-        //std::unique_ptr<MeshManager> meshManager;
-        //std::unique_ptr<UniformBufferManager> uniformBufferManager;
-        //std::unique_ptr<TextureManager> textureManager;
+        // resource system of the renderer
+        std::unique_ptr<ResourceSystem> resourceSystem;
+
+        // render system of the renderer
+        //std::unique_ptr<RenderSystem> renderSystem;
 
         VkFormat findDepthFormat()
         {
@@ -67,37 +66,26 @@ class ForwardRenderer : Renderer
         void createRenderPass()
         {
             VulkanRenderPassConfig vrpConfig;
-            
-            // use the depth format we found earlier
             vrpConfig.depthFormat = findDepthFormat();
-
-            // we need to use the swapchainimageformat here
             vrpConfig.colorFormat = vcsheet::getSwapChainImageFormat();
-
             vrenderpass = std::make_unique<VulkanRenderPass>(vrpConfig);
         }
 
-        // create all the resource managers the renderer needs
-        void createResourceManagers()
+        void createPipeline()
         {
-            // first we have the descriptor set manager
-            descriptorSetManager = std::make_unique<DescriptorSetManager>(GraphicsConstants::MAX_FRAMES_IN_FLIGHT, 1000);
-            dssheet::SetManager(descriptorSetManager.get());
-            
-            // and then we also have mesh/texture and uniformbuffer managers, which have less overhead
-            //meshManager = std::make_unique<MeshManager>();
-            //uniformBufferManager = std::make_unique<UniformBufferManager>();
-            //textureManager = std::make_unique<TextureManager>();
+            VulkanPipelineConfig vpConfig;
+            vpConfig.fragmentShaderPath = GraphicsConstants::F_SHADER_PATH;
+            vpConfig.vertexShaderPath = GraphicsConstants::V_SHADER_PATH;
+            vpConfig.vkRenderPass = vrenderpass->getRenderPass();
+            vpipeline = std::make_unique<VulkanPipeline>(vpConfig);
         }
 
         void createResources() override
         {
             createDepthAttachment();
             createRenderPass();
-            createResourceManagers();
-            
-
-
+            resourceSystem = std::make_unique<ResourceSystem>();
+            createPipeline();
         }
     public:
         ForwardRenderer(RendererConfig config) : Renderer(config)
@@ -107,10 +95,7 @@ class ForwardRenderer : Renderer
 
         ~ForwardRenderer()
         {
-            //if(meshManager) meshManager.reset();
-            //if(uniformBufferManager) uniformBufferManager.reset();
-            //if(textureManager) textureManager.reset();
-            if(descriptorSetManager) descriptorSetManager.reset();
+            if(vpipeline) vpipeline.reset();
             if(vrenderpass) vrenderpass.reset();
             if(depthAttachment) depthAttachment.reset();
         }
@@ -125,4 +110,6 @@ class ForwardRenderer : Renderer
         // filler getters, not to be used in the real program
         Attachment* getAttachmentWrapper() { return depthAttachment.get(); }
         VulkanRenderPass* getRenderPassWrapper() { return vrenderpass.get(); }
+        ResourceSystem* getResourceSystem() { return resourceSystem.get(); }
+        VulkanPipeline* getPipeline() { return vpipeline.get(); }
 };

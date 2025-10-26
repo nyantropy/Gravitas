@@ -9,23 +9,23 @@
 #include "vcsheet.h"
 #include "dssheet.h"
 #include "BufferUtil.hpp"
-#include "Entity.h"
 #include "UniformBufferResource.h"
 #include "GraphicsConstants.h"
 #include "Types.h"
 
-// reminder: uniform buffers are once per entity, which is why we use the entities id to save them in the manager class
+// manages uniform buffer resources and descriptor sets per entity or object.
 class UniformBufferManager
 {
     private:
-        std::unordered_map<entity_id_type, std::unique_ptr<UniformBufferResource>> uboCache;
+        std::unordered_map<uniform_id_type, std::unique_ptr<UniformBufferResource>> idToUBO;
+        uniform_id_type nextID = 1; // 0 = invalid
 
     public:
-        UniformBufferManager(){}
+        UniformBufferManager() = default;
 
         ~UniformBufferManager()
         {
-            for (auto& [id, ubo] : uboCache)
+            for (auto& [id, ubo] : idToUBO)
             {
                 for (size_t i = 0; i < ubo->uniformBuffers.size(); i++)
                 {
@@ -35,30 +35,38 @@ class UniformBufferManager
                         vkFreeMemory(vcsheet::getDevice(), ubo->uniformBuffersMemory[i], nullptr);
                 }
             }
-            
-            uboCache.clear();
+
+            idToUBO.clear();
         }
 
-        // create a uniform buffer resource for a specific entity (based on id)
-        // if the vulkan context and descriptor set manager are not initialized when calling this, it will sigsegv
-        UniformBufferResource& createUniformBufferResource(entity_id_type id)
+        // creates a new uniform buffer resource and returns its unique ID
+        uniform_id_type createUniformBuffer()
         {
-            if (uboCache.find(id) != uboCache.end())
-                return *uboCache[id];
+            auto ubo = std::make_unique<UniformBufferResource>();
 
-            // create a uniform buffer resource
-            std::unique_ptr<UniformBufferResource> ubo = std::make_unique<UniformBufferResource>();
+            BufferUtil::createUniformBuffers(
+                vcsheet::getDevice(),
+                vcsheet::getPhysicalDevice(),
+                ubo->uniformBuffers,
+                ubo->uniformBuffersMemory,
+                ubo->uniformBuffersMapped,
+                GraphicsConstants::MAX_FRAMES_IN_FLIGHT
+            );
 
-            // create the uniform buffers using a utility class
-            BufferUtil::createUniformBuffers(vcsheet::getDevice(), vcsheet::getPhysicalDevice(),
-            ubo->uniformBuffers, ubo->uniformBuffersMemory, ubo->uniformBuffersMapped,
-            GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
+            ubo->descriptorSets = dssheet::getManager()
+                .allocateForUniformBuffer(ubo->uniformBuffers, sizeof(UniformBufferObject));
 
-            // let the descriptor set manager allocate appropriate descriptor sets
-            ubo->descriptorSets = dssheet::getManager().allocateForUniformBuffer(ubo->uniformBuffers, sizeof(UniformBufferObject));
+            uniform_id_type id = nextID++;
+            idToUBO[id] = std::move(ubo);
 
-            UniformBufferResource& ref = *ubo;
-            uboCache[id] = std::move(ubo);
-            return ref;
+            return id;
+        }
+
+        UniformBufferResource* getUniformBuffer(uniform_id_type id)
+        {
+            auto it = idToUBO.find(id);
+            if (it != idToUBO.end())
+                return it->second.get();
+            return nullptr;
         }
 };

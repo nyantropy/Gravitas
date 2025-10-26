@@ -19,11 +19,11 @@ public:
     {
         const VkDeviceSize offsets[] = { 0 };
 
-        for (Entity e : world.getAllEntitiesWith<MeshComponent, MaterialComponent, TransformComponent, UniformBufferComponent>())
+        for (Entity e : world.getAllEntitiesWith<MeshComponent, MaterialComponent, UniformBufferComponent>())
         {
+            // get the three components that matter for rendering
             auto& meshComp = world.getComponent<MeshComponent>(e);
             auto& matComp = world.getComponent<MaterialComponent>(e);
-            auto& transformComp = world.getComponent<TransformComponent>(e);
             auto& uboComp = world.getComponent<UniformBufferComponent>(e); 
 
             vkCmdBindVertexBuffers(cmd, 0, 1, &resources.getMesh(meshComp.meshID)->vertexBuffer, offsets);
@@ -31,8 +31,8 @@ public:
 
             std::array<VkDescriptorSet, 2> descriptorSets = 
             {
-                uboComp.ubPtr->descriptorSets[frameIndex],
-                matComp.texturePtr->descriptorSets[frameIndex]         
+                resources.getUniformBuffer(uboComp.uniformID)->descriptorSets[frameIndex],
+                resources.getTexture(matComp.textureID)->descriptorSets[frameIndex]         
             };
 
             vkCmdBindDescriptorSets(

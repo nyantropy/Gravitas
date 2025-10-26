@@ -9,6 +9,5 @@
 // and of course a ptr to the resource for convenience
 struct UniformBufferComponent 
 {
-    entity_id_type ubKey;
-    UniformBufferResource* ubPtr;
+    uniform_id_type uniformID;
 };

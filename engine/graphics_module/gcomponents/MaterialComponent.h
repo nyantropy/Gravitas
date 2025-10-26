@@ -5,10 +5,10 @@
 #include <vector>
 
 #include "TextureResource.h"
+#include "Types.h"
 
 // material, which only contains a texture for now, behaves similarly to a mesh, with the path being a key to the texture
 struct MaterialComponent 
 {
-    std::string textureKey;
-    TextureResource* texturePtr;
+    texture_id_type textureID;
 };

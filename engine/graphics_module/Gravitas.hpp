@@ -39,7 +39,6 @@ extern "C" {
 #include "Vertex.h"
 #include "UniformBufferObject.h"
 
-#include "GTSDescriptorSetManager.hpp"
 #include "VulkanShader.hpp"
 #include "VulkanPipeline.hpp"
 
@@ -47,10 +46,7 @@ extern "C" {
 #include "VulkanTexture.hpp"
 #include "GtsModelLoader.hpp"
 #include "GtsCamera.hpp"
-#include "GtsRenderableObject.hpp"
-#include "GtsSceneNode.hpp"
-#include "GtsScene.hpp"
-#include "GtsSceneNodeOpt.h"
+
 #include "GtsOnSceneUpdatedEvent.hpp"
 #include "GtsOnFrameEndedEvent.hpp"
 #include "GtsEncoder.hpp"
@@ -139,13 +135,8 @@ public:
     // the renderer, responsible for the core render loop
     std::unique_ptr<ForwardRenderer> renderer;
 
-    VulkanPipeline* vpipeline;
-
     VulkanFramebufferManager* vframebuffer;
     GtsCamera* vcamera;
-
-    GtsScene* currentScene;
-    GtsSceneNode* selectedNode;
 
     GtsOnSceneUpdatedEvent onSceneUpdatedEvent;
     GtsOnFrameEndedEvent onFrameEndedEvent;
@@ -158,10 +149,6 @@ public:
 
     ECSWorld* ecsWorld;
 
-    UniformBufferManager* uniformBufferManager;
-    TextureManager* textureManager;
-
-    ResourceSystem* resourceSystem;
     RenderSystem* renderSystem;
 
     // window event propagation, but a lot more simple than before
@@ -204,13 +191,6 @@ public:
         RendererConfig rConfig;
         renderer = std::make_unique<ForwardRenderer>(rConfig);
 
-        // reworked pipeline
-        VulkanPipelineConfig vpConfig;
-        vpConfig.fragmentShaderPath = GraphicsConstants::F_SHADER_PATH;
-        vpConfig.vertexShaderPath = GraphicsConstants::V_SHADER_PATH;
-        vpConfig.vkRenderPass = renderer->getRenderPassWrapper()->getRenderPass();
-        vpipeline = new VulkanPipeline(vpConfig);
-
         // reworked vulkan frame buffer management
         VulkanFramebufferManagerConfig vfmConfig;
         vfmConfig.attachmentImageView = renderer->getAttachmentWrapper()->getImageView();
@@ -225,9 +205,6 @@ public:
 
         fso = new FrameSyncObjects();
 
-        uniformBufferManager = new UniformBufferManager();
-        textureManager = new TextureManager();
-        resourceSystem = new ResourceSystem();
         renderSystem = new RenderSystem();
         ecsWorld = new ECSWorld();
     }
@@ -235,19 +212,13 @@ public:
     void cleanup() 
     {
         delete ecsWorld;
-        delete resourceSystem;
         delete renderSystem;
-        delete textureManager;
-        delete uniformBufferManager;
 
 
         delete fso;
 
-
-        delete currentScene;
         delete vcamera;
         delete vframebuffer;
-        delete vpipeline;
 
         renderer.reset();
         vContext.reset();
@@ -261,19 +232,17 @@ public:
 
         //and add a mesh component to it
         MeshComponent mc;
-        mc.meshID = resourceSystem->requestMesh("resources/models/cube.obj");
+        mc.meshID = renderer->getResourceSystem()->requestMesh("resources/models/cube.obj");
         ecsWorld->addComponent<MeshComponent>(cube, mc);
 
         //now we can try adding a uniform buffer component as well
         UniformBufferComponent ubc;
-        ubc.ubKey = cube.id;
-        ubc.ubPtr = &uniformBufferManager->createUniformBufferResource(ubc.ubKey);
+        ubc.uniformID = renderer->getResourceSystem()->requestUniformBuffer();
         ecsWorld->addComponent<UniformBufferComponent>(cube, ubc);
 
         //finally, we can try adding a material component
         MaterialComponent matc;
-        matc.textureKey = "resources/textures/green_texture.png";
-        matc.texturePtr = &textureManager->loadTexture(matc.textureKey);
+        matc.textureID = renderer->getResourceSystem()->requestTexture("resources/textures/green_texture.png");
         ecsWorld->addComponent<MaterialComponent>(cube, matc);
 
         // and a transform component 
@@ -300,7 +269,6 @@ public:
 
 private:
     std::vector<VkCommandBuffer> commandBuffers;
-    // In your renderer header/class members:
     std::vector<VkFence> imagesInFlight; // size = swapchain image count
 
     uint32_t currentFrame = 0;
@@ -353,7 +321,8 @@ private:
         }
     }
 
-    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) 
+    {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
@@ -377,7 +346,7 @@ private:
 
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vpipeline->getPipeline());
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer->getPipeline()->getPipeline());
 
             VkViewport viewport{};
             viewport.x = 0.0f;
@@ -394,7 +363,7 @@ private:
             vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
             
-            renderSystem->update(*ecsWorld, *resourceSystem, commandBuffer, vpipeline->getPipelineLayout(), currentFrame);
+            renderSystem->update(*ecsWorld, *renderer->getResourceSystem(), commandBuffer, renderer->getPipeline()->getPipelineLayout(), currentFrame);
 
         vkCmdEndRenderPass(commandBuffer);
 
@@ -461,7 +430,7 @@ private:
             ubo.view = vcamera->getViewMatrix();
             ubo.proj = vcamera->getProjectionMatrix();
 
-            memcpy(uboComp.ubPtr->uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
+            memcpy(renderer->getResourceSystem()->getUniformBuffer(uboComp.uniformID)->uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
         }
 
         // Reset this frame's fence before submitting
