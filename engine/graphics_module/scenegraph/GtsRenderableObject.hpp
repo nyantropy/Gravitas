@@ -12,8 +12,6 @@
 #include "VulkanTexture.hpp"
 #include "GTSDescriptorSetManager.hpp"
 
-#include "VulkanTextureConfig.h"
-
 class GTSDescriptorSetManager;
 
 class GtsRenderableObject

@@ -1,7 +1,9 @@
 #pragma once
 #include <cstdint>
 
+#include "Types.h"
+
 struct Entity 
 {
-    uint32_t id;
+    entity_id_type id;
 };

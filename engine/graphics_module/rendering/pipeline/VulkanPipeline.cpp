@@ -10,8 +10,8 @@ VulkanPipeline::VulkanPipeline(VulkanPipelineConfig& config)
 
 VulkanPipeline::~VulkanPipeline()
 {
-    vkDestroyPipeline(config.vkDevice, graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(config.vkDevice, pipelineLayout, nullptr);
+    vkDestroyPipeline(vcsheet::getDevice(), graphicsPipeline, nullptr);
+    vkDestroyPipelineLayout(vcsheet::getDevice(), pipelineLayout, nullptr);
 }
 
 VkPipelineLayout& VulkanPipeline::getPipelineLayout()
@@ -29,7 +29,7 @@ void VulkanPipeline::createVertexShader()
 {
     VulkanShaderConfig vsConfig;
     vsConfig.shaderFile = config.vertexShaderPath;
-    vsConfig.vkDevice = config.vkDevice;
+    vsConfig.vkDevice = vcsheet::getDevice();
     vertexShader = std::make_unique<VulkanShader>(vsConfig);
 }
 
@@ -38,7 +38,7 @@ void VulkanPipeline::createFragmentShader()
 {
     VulkanShaderConfig fsConfig;
     fsConfig.shaderFile = config.fragmentShaderPath;
-    fsConfig.vkDevice = config.vkDevice;
+    fsConfig.vkDevice = vcsheet::getDevice();
     fragmentShader = std::make_unique<VulkanShader>(fsConfig);
 }
 
@@ -127,12 +127,14 @@ void VulkanPipeline::createGraphicsPipeline()
     dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
     dynamicState.pDynamicStates = dynamicStates.data();
 
+    // this makes it so vulkan will expect 2 descriptor sets, set 0 for the UBO and set 1 for the texture
+    auto setLayouts = dssheet::getDescriptorSetLayouts();
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &config.vkDescriptorSetLayout;
+    pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(setLayouts.size());
+    pipelineLayoutInfo.pSetLayouts = setLayouts.data();
 
-    if (vkCreatePipelineLayout(config.vkDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) 
+    if (vkCreatePipelineLayout(vcsheet::getDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to create pipeline layout!");
     }
@@ -154,7 +156,7 @@ void VulkanPipeline::createGraphicsPipeline()
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-    if (vkCreateGraphicsPipelines(config.vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) 
+    if (vkCreateGraphicsPipelines(vcsheet::getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to create graphics pipeline!");
     }

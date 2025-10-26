@@ -12,6 +12,9 @@
 
 #include "VulkanPipelineConfig.h"
 
+#include "dssheet.h"
+#include "vcsheet.h"
+
 class VulkanPipeline
 {
     public:

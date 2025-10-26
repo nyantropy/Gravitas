@@ -10,13 +10,7 @@ GtsRenderableObject::GtsRenderableObject(VulkanLogicalDevice* vlogicaldevice, Vu
     //probably inefficient to load a model multiple times, but it should be fine for a small game
     GtsModelLoader::loadModel(model_path, vertices, indices);
 
-    VulkanTextureConfig vtConfig;
-    vtConfig.vkDevice = vlogicaldevice->getDevice();
-    vtConfig.vkCommandPool = vlogicaldevice->getCommandPool();
-    vtConfig.vkGraphicsQueue = vlogicaldevice->getGraphicsQueue();
-    vtConfig.vkPhysicalDevice = vphysicaldevice->getPhysicalDevice();
-    vtConfig.texture_path = texture_path;
-    objecttexture = new VulkanTexture(vtConfig);
+    objecttexture = new VulkanTexture(texture_path);
 
 
     GtsBufferService::createVertexBuffer(vlogicaldevice, vphysicaldevice, vertices, vertexBuffer, vertexBufferMemory);
@@ -27,7 +21,6 @@ GtsRenderableObject::GtsRenderableObject(VulkanLogicalDevice* vlogicaldevice, Vu
 
 GtsRenderableObject::~GtsRenderableObject()
 {
-    std::cout << "destroying a renderable object" << std::endl;
     vdescriptorsetmanager->freeDescriptorSets(this);
     
     for (int i = 0; i < frames_in_flight; i++) 
@@ -83,7 +76,6 @@ void GtsRenderableObject::draw(VkCommandBuffer& commandBuffer, VkPipelineLayout&
 
 void GtsRenderableObject::updateUniforms(const glm::mat4& modelMatrix, GtsCamera& camera, int frames_in_flight)
 {
-    //std::cout << "Updating Uniforms!" << std::endl;
     UniformBufferObject ubo{};
     ubo.view = camera.getViewMatrix();
     ubo.proj = camera.getProjectionMatrix();

@@ -1,17 +1,12 @@
 #pragma once
 
-#include <vector>
-#include <vulkan/vulkan.h>
+#include <string>
 
-#include "Vertex.h"
+#include "MeshResource.h"
 
+// a mesh component contains the key to the mesh, which is the path, as well as a ptr to its mesh resource
 struct MeshComponent 
 {
-    std::vector<Vertex> vertices;
-    VkBuffer vertexBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
-
-    std::vector<uint32_t> indices;
-    VkBuffer indexBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory indexMemory = VK_NULL_HANDLE;
+    std::string meshKey;
+    MeshResource* meshPtr = nullptr;
 };

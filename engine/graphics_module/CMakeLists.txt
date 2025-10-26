@@ -59,6 +59,8 @@ add_subdirectory(graphics_util)
 add_subdirectory(windowing)
 add_subdirectory(gsystems)
 add_subdirectory(gcomponents)
+add_subdirectory(renderresource)
+
 
 
 # Set all the include directories for this target
@@ -73,6 +75,7 @@ target_include_directories(Gravitas PUBLIC
 target_link_libraries(Gravitas 
     Vulkan::Vulkan
     vksetup
+    renderresource
     event
     rendering
     graphicsutil

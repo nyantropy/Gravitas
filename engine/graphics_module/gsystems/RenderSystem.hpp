@@ -1,30 +1,58 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include <array>
 
 #include "ECSWorld.hpp"
+#include "MeshComponent.h"
 #include "MaterialComponent.h"
 #include "TransformComponent.h"
-#include "MeshComponent.h"
+#include "UniformBufferComponent.h"
 
-class RenderSystem 
+// the overall workflow is very much functional, but texture loading is currently bugged because descriptorsets are not being done correctly
+// currently dont really know what the problem is tbh
+class RenderSystem
 {
 public:
-    void update(ECSWorld& world, VkCommandBuffer cmd, VkPipelineLayout layout, uint32_t frameIndex) 
+    void update(ECSWorld& world, VkCommandBuffer cmd, VkPipelineLayout pipelineLayout, uint32_t frameIndex)
     {
-        // we dont need an offset for the vertex buffer
-        VkDeviceSize offsets[] = {0};
+        const VkDeviceSize offsets[] = { 0 };
 
-        for (Entity e : world.getAllEntitiesWith<MeshComponent, MaterialComponent, TransformComponent>()) 
+        for (Entity e : world.getAllEntitiesWith<MeshComponent, MaterialComponent, TransformComponent, UniformBufferComponent>())
         {
-            auto& mesh = world.getComponent<MeshComponent>(e);
-            auto& mat = world.getComponent<MaterialComponent>(e);
-            auto& transform = world.getComponent<TransformComponent>(e);
+            auto& meshComp = world.getComponent<MeshComponent>(e);
+            auto& matComp = world.getComponent<MaterialComponent>(e);
+            auto& transformComp = world.getComponent<TransformComponent>(e);
+            auto& uboComp = world.getComponent<UniformBufferComponent>(e);
 
-            vkCmdBindVertexBuffers(cmd, 0, 1, &mesh.vertexBuffer, offsets);
-            vkCmdBindIndexBuffer(cmd, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &mat.descriptorSets[frameIndex], 0, nullptr);
-            vkCmdDrawIndexed(cmd, static_cast<uint32_t>(mesh.indices.size()), 1, 0, 0, 0);
+            vkCmdBindVertexBuffers(cmd, 0, 1, &meshComp.meshPtr->vertexBuffer, offsets);
+            vkCmdBindIndexBuffer(cmd, meshComp.meshPtr->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+            std::array<VkDescriptorSet, 2> descriptorSets = 
+            {
+                uboComp.ubPtr->descriptorSets[frameIndex],
+                matComp.texturePtr->descriptorSets[frameIndex]         
+            };
+
+            vkCmdBindDescriptorSets(
+                cmd,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                pipelineLayout,
+                0, // firstSet = 0 → because our layouts are set=0 (UBO), set=1 (texture)
+                static_cast<uint32_t>(descriptorSets.size()),
+                descriptorSets.data(),
+                0,
+                nullptr
+            );
+
+            vkCmdDrawIndexed(
+                cmd,
+                static_cast<uint32_t>(meshComp.meshPtr->indices.size()),
+                1,  // instance count
+                0,  // first index
+                0,  // vertex offset
+                0   // first instance
+            );
         }
     }
 };

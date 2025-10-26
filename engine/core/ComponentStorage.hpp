@@ -2,9 +2,11 @@
 #include <unordered_map>
 #include <vector>
 
+#include "IComponentStorage.h"
+
 // each component can have its own storage
 template<typename Component>
-class ComponentStorage 
+class ComponentStorage : public IComponentStorage
 {
     public:
         void add(Entity entity, const Component& component) 

@@ -1,16 +1,7 @@
-add_library(
-    rendering
-
-    ForwardRenderer.hpp
-    ForwardRenderer.cpp
-
-    Renderer.hpp
-
-    RendererConfig.h
-)
+file(GLOB CURRENT_DIR_SRC ./*.hpp ./*.cpp ./*.c ./*.h)
+add_library(rendering ${CURRENT_DIR_SRC})
 
 target_link_libraries(rendering PUBLIC Gravitas attachment renderpass pipeline vkshader framebuffer framesyncobjects)
-
 target_include_directories(rendering PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_subdirectory(attachment)

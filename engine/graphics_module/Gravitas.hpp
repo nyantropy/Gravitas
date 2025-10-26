@@ -80,6 +80,25 @@ extern "C" {
 #include "FrameSyncObjects.hpp"
 #include "FrameSyncObjectsConfig.h"
 
+#include "ECSWorld.hpp"
+#include "vcsheet.h"
+
+#include "Entity.h"
+#include "MeshComponent.h"
+#include "MeshManager.hpp"
+
+#include "UniformBufferComponent.h"
+#include "UniformBufferManager.hpp"
+
+#include "DescriptorSetManager.hpp"
+#include "dssheet.h"
+
+#include "TextureManager.hpp"
+#include "MaterialComponent.h"
+
+#include "RenderSystem.hpp"
+#include "TransformComponent.h"
+
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
 #else
@@ -119,11 +138,9 @@ public:
     // the renderer, responsible for the core render loop
     std::unique_ptr<ForwardRenderer> renderer;
 
-    GTSDescriptorSetManager* vdescriptorsetmanager;
     VulkanPipeline* vpipeline;
 
     VulkanFramebufferManager* vframebuffer;
-    //VulkanFramebufferSet* vframebuffer;
     GtsCamera* vcamera;
 
     GtsScene* currentScene;
@@ -136,6 +153,15 @@ public:
     GtsEncoder* encoder;
 
     FrameSyncObjects* fso;
+
+    ECSWorld* ecsWorld;
+
+    MeshManager* meshManager;
+    UniformBufferManager* uniformBufferManager;
+    DescriptorSetManager* descriptorSetManager;
+    TextureManager* textureManager;
+    
+    RenderSystem* renderSystem;
 
     // window event propagation, but a lot more simple than before
     GtsEvent<int, int>& onResize() { return windowManager->onResize(); }
@@ -179,12 +205,6 @@ public:
         currentScene->splitUpNode(node);
     }
 
-    GtsRenderableObject* createObject(std::string model_path, std::string texture_path)
-    {
-        GtsRenderableObject* vobject = new GtsRenderableObject(vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper(), vdescriptorsetmanager, model_path, texture_path, GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
-        return vobject;
-    }
-
     void init(uint32_t width, uint32_t height, std::string title)
     {
         // create a window manager to encapsulate the output window and its events
@@ -194,12 +214,13 @@ public:
         wmConfig.windowTitle = title;
         windowManager = std::make_unique<WindowManager>(wmConfig);
 
-        // create the vulkan context
+        // create the vulkan context, and set it as the active context for global access
         VulkanContextConfig vcConfig;
         vcConfig.enableValidationLayers = enableValidationLayers;
         vcConfig.vulkanInstanceExtensions = windowManager->getOutputWindow()->getRequiredExtensions();
         vcConfig.outputWindowPtr = windowManager->getOutputWindow();
         vContext = std::make_unique<VulkanContext>(vcConfig);
+        vcsheet::SetContext(vContext.get());
 
         // create the renderer
         RendererConfig rConfig;
@@ -209,14 +230,13 @@ public:
         rConfig.swapChainImageFormat = vContext->getSwapChainImageFormat();
         renderer = std::make_unique<ForwardRenderer>(rConfig);
 
-        vdescriptorsetmanager = new GTSDescriptorSetManager(vContext.get()->getLogicalDeviceWrapper(), GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
+        descriptorSetManager = new DescriptorSetManager(GraphicsConstants::MAX_FRAMES_IN_FLIGHT, 1000);
+        dssheet::SetManager(descriptorSetManager);
 
         // reworked pipeline
         VulkanPipelineConfig vpConfig;
         vpConfig.fragmentShaderPath = GraphicsConstants::F_SHADER_PATH;
         vpConfig.vertexShaderPath = GraphicsConstants::V_SHADER_PATH;
-        vpConfig.vkDescriptorSetLayout = vdescriptorsetmanager->getDescriptorSetLayout();
-        vpConfig.vkDevice = vContext->getDevice();
         vpConfig.vkRenderPass = renderer->getRenderPassWrapper()->getRenderPass();
         vpipeline = new VulkanPipeline(vpConfig);
 
@@ -232,64 +252,69 @@ public:
         vcamera = new GtsCamera(vContext.get()->getSwapChainWrapper()->getSwapChainExtent());
         createCommandBuffers();
 
-
         FrameSyncObjectsConfig fsoConfig;
         fsoConfig.vkDevice = vContext->getDevice();
         fsoConfig.maxFramesInFlight = GraphicsConstants::MAX_FRAMES_IN_FLIGHT;
         fso = new FrameSyncObjects(fsoConfig);
+
+        meshManager = new MeshManager();
+        uniformBufferManager = new UniformBufferManager();
+        textureManager = new TextureManager();
+        renderSystem = new RenderSystem();
+        ecsWorld = new ECSWorld();
+    }
+
+    void cleanup() 
+    {
+        delete ecsWorld;
+        delete renderSystem;
+        delete textureManager;
+        delete uniformBufferManager;
+        delete meshManager;
+
+        delete fso;
+
+
+        delete currentScene;
+        delete vcamera;
+        delete vframebuffer;
+        delete vpipeline;
+
+        delete descriptorSetManager;
+
+        renderer.reset();
+        vContext.reset();
+        windowManager.reset();
     }
 
     void createEmptyScene()
     {
-        currentScene = new GtsScene();
-    }
+        //lets make a cube
+        Entity cube = ecsWorld->createEntity();
 
-    void addNodeToScene(GtsSceneNodeOpt options)
-    {
-        GtsSceneNode* node = new GtsSceneNode(options.objectPtr, options.animPtr, options.identifier);
+        //and add a mesh component to it
+        MeshComponent mc;
+        mc.meshKey = "resources/models/cube.obj";
+        mc.meshPtr = &meshManager->loadMesh(mc.meshKey);
+        ecsWorld->addComponent<MeshComponent>(cube, mc);
 
-        if(options.needsActivation)
-        {
-            node->disableRendering();
-            node->disableAnimation();
-            node->disableUpdating();
-        }
+        //now we can try adding a uniform buffer component as well
+        UniformBufferComponent ubc;
+        ubc.ubKey = cube.id;
+        ubc.ubPtr = &uniformBufferManager->createUniformBufferResource(ubc.ubKey);
+        ecsWorld->addComponent<UniformBufferComponent>(cube, ubc);
 
-        if(options.translationVector != glm::vec3(0.0f, 0.0f, 0.0f))
-        {
-            node->translate(options.translationVector);
-        }
+        //finally, we can try adding a material component
+        MaterialComponent matc;
+        matc.textureKey = "resources/textures/green_texture.png";
+        matc.texturePtr = &textureManager->loadTexture(matc.textureKey);
+        ecsWorld->addComponent<MaterialComponent>(cube, matc);
 
-        if(options.rotationVector != glm::vec3(0.0f, 0.0f, 0.0f))
-        {
-            node->rotate(options.rotationVector);
-        }
+        // and a transform component 
+        TransformComponent tc;
+        ecsWorld->addComponent<TransformComponent>(cube, tc);
 
-        if(options.scaleVector != glm::vec3(0.0f, 0.0f, 0.0f))
-        {
-            node->scale(options.scaleVector);
-        }
-
-        if(options.parentIdentifier.empty())
-        {
-            currentScene->addNode(node);
-        }
-        else
-        {
-            currentScene->addNodeToParent(node, options.parentIdentifier);
-        }
-    }
-
-    void removeNodeFromScene(GtsSceneNode* node)
-    {
-        currentScene->removeNode(node);
-    }
-
-    void startEncoder()
-    {
-        //framegrabber = new GtsFrameGrabber(vContext.get()->getSwapChainWrapper(), vrenderer, vContext.get()->getLogicalDeviceWrapper(), vContext.get()->getPhysicalDeviceWrapper());
-        //encoder = new GtsEncoder(framegrabber);
-        //onFrameEndedEvent.subscribe(std::bind(&GtsEncoder::onFrameEnded, encoder, std::placeholders::_1, std::placeholders::_2));
+        std::cout << "No execution problems!" << std::endl;
     }
 
     void run() 
@@ -298,10 +323,8 @@ public:
         {
             windowManager->getOutputWindow()->pollEvents();
 
-            if(!currentScene->empty())
-            {
-                drawFrame();
-            }
+            drawFrame();
+
         }
 
         vkDeviceWaitIdle(vContext.get()->getLogicalDeviceWrapper()->getDevice());
@@ -318,25 +341,6 @@ private:
     void OnFrameBufferResizeCallback(int width, int height) 
     {
         framebufferResized = true;
-    }
-
-    void cleanup() 
-    {
-        if(encoder != nullptr)
-        {
-            delete encoder;
-        }
-
-        delete currentScene;
-        delete vcamera;
-        delete vframebuffer;
-        delete vpipeline;
-        delete vdescriptorsetmanager;
-
-        delete fso;
-        renderer.reset();
-        vContext.reset();
-        windowManager.reset();
     }
 
     //we can do that once we figured out how to put everything into classes
@@ -421,8 +425,7 @@ private:
             vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
             
-            //call draw for all objects here :)
-            currentScene->render(commandBuffer, vpipeline->getPipelineLayout(), currentFrame);
+            renderSystem->update(*ecsWorld, commandBuffer, vpipeline->getPipelineLayout(), currentFrame);
 
         vkCmdEndRenderPass(commandBuffer);
 
@@ -463,10 +466,23 @@ private:
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
-        std::cout << "before scene update" << std::endl;
+        for (Entity e : ecsWorld->getAllEntitiesWith<UniformBufferComponent, TransformComponent>())
+        {
+            auto& uboComp = ecsWorld->getComponent<UniformBufferComponent>(e);
+            auto& transform = ecsWorld->getComponent<TransformComponent>(e);
 
-        currentScene->update(*vcamera, GraphicsConstants::MAX_FRAMES_IN_FLIGHT, deltaTime);
-        onSceneUpdatedEvent.notify();
+            UniformBufferObject ubo{};
+            ubo.model = transform.getModelMatrix();
+            ubo.view = vcamera->getViewMatrix();
+            ubo.proj = vcamera->getProjectionMatrix();
+
+            for(int i = 0; i < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; i++)
+            {
+                memcpy(uboComp.ubPtr->uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
+            }
+        }
+        //currentScene->update(*vcamera, GraphicsConstants::MAX_FRAMES_IN_FLIGHT, deltaTime);
+        //onSceneUpdatedEvent.notify();
 
         vkResetFences(vContext.get()->getLogicalDeviceWrapper()->getDevice(), 1, &vkFence);
 
@@ -493,7 +509,7 @@ private:
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 
-        std::cout << "before frame ended check" << std::endl;
+        //std::cout << "before frame ended check" << std::endl;
         if (lastFrameTime >= frameInterval) 
         {
             onFrameEndedEvent.notify(deltaTime, imageIndex);

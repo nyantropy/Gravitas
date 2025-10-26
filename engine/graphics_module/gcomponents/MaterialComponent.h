@@ -4,11 +4,11 @@
 #include <string>
 #include <vector>
 
-#include "VulkanTexture.hpp"
+#include "TextureResource.h"
 
+// material, which only contains a texture for now, behaves similarly to a mesh, with the path being a key to the texture
 struct MaterialComponent 
 {
-    std::string texturePath;
-    VulkanTexture* texture = nullptr;
-    std::vector<VkDescriptorSet> descriptorSets;
+    std::string textureKey;
+    TextureResource* texturePtr;
 };
