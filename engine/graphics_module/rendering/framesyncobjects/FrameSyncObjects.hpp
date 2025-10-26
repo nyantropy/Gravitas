@@ -3,31 +3,25 @@
 #include <stdexcept>
 #include <vector>
 
-#include "FrameSyncObjectsConfig.h"
+#include "vcsheet.h"
+#include "GraphicsConstants.h"
 
+// manages VkSemaphore and VkFence objects to ensure a clean rendering process
 class FrameSyncObjects
 {
-public:
-    explicit FrameSyncObjects(const FrameSyncObjectsConfig& config);
-    ~FrameSyncObjects();
+    public:
+        FrameSyncObjects();
+        ~FrameSyncObjects();
 
-    FrameSyncObjects(const FrameSyncObjects&) = delete;
-    FrameSyncObjects& operator=(const FrameSyncObjects&) = delete;
+        VkSemaphore getImageAvailableSemaphore(size_t frameIndex) const { return imageAvailableSemaphores[frameIndex]; }
+        VkSemaphore getRenderFinishedSemaphore(size_t imageIndex) const { return renderFinishedSemaphores[imageIndex]; }
+        VkFence getInFlightFence(size_t frameIndex) const { return inFlightFences[frameIndex]; }
+        uint32_t getFrameCount() const { return static_cast<uint32_t>(imageAvailableSemaphores.size()); }
 
-    FrameSyncObjects(FrameSyncObjects&&) noexcept = default;
-    FrameSyncObjects& operator=(FrameSyncObjects&&) noexcept = default;
+    private:
+        void createSyncObjects();
 
-    VkSemaphore getImageAvailableSemaphore(size_t frameIndex) const { return imageAvailableSemaphores[frameIndex]; }
-    VkSemaphore getRenderFinishedSemaphore(size_t frameIndex) const { return renderFinishedSemaphores[frameIndex]; }
-    VkFence getInFlightFence(size_t frameIndex) const { return inFlightFences[frameIndex]; }
-
-    uint32_t getFrameCount() const { return static_cast<uint32_t>(imageAvailableSemaphores.size()); }
-
-private:
-    void createSyncObjects();
-
-    FrameSyncObjectsConfig config;
-    std::vector<VkSemaphore> imageAvailableSemaphores;
-    std::vector<VkSemaphore> renderFinishedSemaphores;
-    std::vector<VkFence> inFlightFences;
+        std::vector<VkSemaphore> imageAvailableSemaphores;   // per-frame
+        std::vector<VkSemaphore> renderFinishedSemaphores;   // per-swapchain-image
+        std::vector<VkFence> inFlightFences;                // per-frame
 };

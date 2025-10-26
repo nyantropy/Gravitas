@@ -1,31 +1,38 @@
 #include "FrameSyncObjects.hpp"
 
-FrameSyncObjects::FrameSyncObjects(const FrameSyncObjectsConfig& config)
-    : config(config)
+FrameSyncObjects::FrameSyncObjects()
 {
     createSyncObjects();
 }
 
 FrameSyncObjects::~FrameSyncObjects()
 {
-    for (size_t i = 0; i < config.maxFramesInFlight; i++) 
+    for (VkFence fence : inFlightFences) 
     {
-        if (inFlightFences[i] != VK_NULL_HANDLE)
-            vkDestroyFence(config.vkDevice, inFlightFences[i], nullptr);
+        if (fence != VK_NULL_HANDLE)
+            vkDestroyFence(vcsheet::getDevice(), fence, nullptr);
+    }
 
-        if (renderFinishedSemaphores[i] != VK_NULL_HANDLE)
-            vkDestroySemaphore(config.vkDevice, renderFinishedSemaphores[i], nullptr);
+    for (VkSemaphore sem : imageAvailableSemaphores) 
+    {
+        if (sem != VK_NULL_HANDLE)
+            vkDestroySemaphore(vcsheet::getDevice(), sem, nullptr);
+    }
 
-        if (imageAvailableSemaphores[i] != VK_NULL_HANDLE)
-            vkDestroySemaphore(config.vkDevice, imageAvailableSemaphores[i], nullptr);
+    for (VkSemaphore sem : renderFinishedSemaphores) 
+    {
+        if (sem != VK_NULL_HANDLE)
+            vkDestroySemaphore(vcsheet::getDevice(), sem, nullptr);
     }
 }
 
 void FrameSyncObjects::createSyncObjects()
 {
-    imageAvailableSemaphores.resize(config.maxFramesInFlight);
-    renderFinishedSemaphores.resize(config.maxFramesInFlight);
-    inFlightFences.resize(config.maxFramesInFlight);
+    size_t swapchainImageCount = vcsheet::getSwapChainImages().size();
+
+    imageAvailableSemaphores.resize(GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
+    renderFinishedSemaphores.resize(swapchainImageCount);
+    inFlightFences.resize(GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
 
     VkSemaphoreCreateInfo semaphoreInfo{};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -34,13 +41,22 @@ void FrameSyncObjects::createSyncObjects()
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    for (size_t i = 0; i < config.maxFramesInFlight; i++) 
+    // create per-frame semaphores & fences
+    for (size_t i = 0; i < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; i++) 
     {
-        if (vkCreateSemaphore(config.vkDevice, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(config.vkDevice, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-            vkCreateFence(config.vkDevice, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) 
+        if (vkCreateSemaphore(vcsheet::getDevice(), &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
+            vkCreateFence(vcsheet::getDevice(), &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
         {
-            throw std::runtime_error("failed to create synchronization objects for a frame!");
+            throw std::runtime_error("failed to create per-frame sync objects!");
+        }
+    }
+
+    // create per-swapchain-image render-finished semaphores
+    for (size_t i = 0; i < swapchainImageCount; i++) 
+    {
+        if (vkCreateSemaphore(vcsheet::getDevice(), &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create per-swapchain-image renderFinishedSemaphore!");
         }
     }
 }

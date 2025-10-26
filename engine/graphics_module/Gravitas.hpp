@@ -78,7 +78,6 @@ extern "C" {
 #include "VulkanFramebufferManagerConfig.h"
 
 #include "FrameSyncObjects.hpp"
-#include "FrameSyncObjectsConfig.h"
 
 #include "ECSWorld.hpp"
 #include "vcsheet.h"
@@ -154,6 +153,7 @@ public:
 
     FrameSyncObjects* fso;
 
+
     ECSWorld* ecsWorld;
 
     MeshManager* meshManager;
@@ -177,34 +177,6 @@ public:
         onFrameEndedEvent.subscribe(f);
     }
 
-    //select a node in the engine based on its identifier
-    bool selectNode(std::string identifier)
-    {
-        selectedNode = currentScene->search(identifier);
-
-        if(selectedNode == nullptr)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    GtsSceneNode* getSelectedSceneNodePtr()
-    {
-        return selectedNode;
-    }
-
-    GtsSceneNode* getSceneNodePtr(std::string identifier)
-    {
-        return currentScene->search(identifier);
-    }
-
-    void splitSceneNode(GtsSceneNode* node)
-    {
-        currentScene->splitUpNode(node);
-    }
-
     void init(uint32_t width, uint32_t height, std::string title)
     {
         // create a window manager to encapsulate the output window and its events
@@ -221,6 +193,11 @@ public:
         vcConfig.outputWindowPtr = windowManager->getOutputWindow();
         vContext = std::make_unique<VulkanContext>(vcConfig);
         vcsheet::SetContext(vContext.get());
+
+        // After creating swapchain and obtaining imageCount:
+        uint32_t swapchainImageCount = vContext->getSwapChainWrapper()->getSwapChainImages().size();
+        imagesInFlight.assign(swapchainImageCount, VK_NULL_HANDLE);
+
 
         // create the renderer
         RendererConfig rConfig;
@@ -252,10 +229,7 @@ public:
         vcamera = new GtsCamera(vContext.get()->getSwapChainWrapper()->getSwapChainExtent());
         createCommandBuffers();
 
-        FrameSyncObjectsConfig fsoConfig;
-        fsoConfig.vkDevice = vContext->getDevice();
-        fsoConfig.maxFramesInFlight = GraphicsConstants::MAX_FRAMES_IN_FLIGHT;
-        fso = new FrameSyncObjects(fsoConfig);
+        fso = new FrameSyncObjects();
 
         meshManager = new MeshManager();
         uniformBufferManager = new UniformBufferManager();
@@ -334,6 +308,9 @@ public:
 
 private:
     std::vector<VkCommandBuffer> commandBuffers;
+    // In your renderer header/class members:
+    std::vector<VkFence> imagesInFlight; // size = swapchain image count
+
     uint32_t currentFrame = 0;
 
     bool framebufferResized = false;
@@ -439,61 +416,75 @@ private:
     double lastFrameTime = 0.0;
     int frameCounter = 0;
 
-    void drawFrame() 
+    void drawFrame()
     {
-        //correct delta time calculations this time around
         static auto previousTime = std::chrono::high_resolution_clock::now();
         auto currentTime = std::chrono::high_resolution_clock::now();
         float deltaTime = std::chrono::duration<float>(currentTime - previousTime).count();
         previousTime = currentTime;
         lastFrameTime += deltaTime;
 
-        VkFence vkFence = fso->getInFlightFence(currentFrame);
-        vkWaitForFences(vContext.get()->getLogicalDeviceWrapper()->getDevice(), 1, &vkFence, VK_TRUE, UINT64_MAX);
+        VkDevice device = vContext.get()->getLogicalDeviceWrapper()->getDevice();
+        VkFence currentFence = fso->getInFlightFence(currentFrame);
 
+        // Wait for this frame's fence
+        vkWaitForFences(device, 1, &currentFence, VK_TRUE, UINT64_MAX);
+
+        // Acquire swapchain image
         uint32_t imageIndex;
-        VkResult result = vkAcquireNextImageKHR(vContext.get()->getLogicalDeviceWrapper()->getDevice(),
-        vContext.get()->getSwapChainWrapper()->getSwapChain(),
-        UINT64_MAX,
-        fso->getImageAvailableSemaphore(currentFrame), VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR(device,
+                                                vContext.get()->getSwapChainWrapper()->getSwapChain(),
+                                                UINT64_MAX,
+                                                fso->getImageAvailableSemaphore(currentFrame),
+                                                VK_NULL_HANDLE,
+                                                &imageIndex);
 
-        if (result == VK_ERROR_OUT_OF_DATE_KHR) 
-        {
+        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
             recreateSwapChain();
             return;
-        } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) 
-        {
+        } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
             throw std::runtime_error("failed to acquire swap chain image!");
         }
 
-        for (Entity e : ecsWorld->getAllEntitiesWith<UniformBufferComponent, TransformComponent>())
-        {
+        // Wait on previous fence if this image is already in flight
+        if (imagesInFlight.size() > imageIndex && imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
+            vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+        }
+
+        static float rotationAngle = 0.0f;
+        rotationAngle += deltaTime * glm::radians(45.0f); // rotate 45 degrees per second
+
+        // Update uniform buffers
+        for (Entity e : ecsWorld->getAllEntitiesWith<UniformBufferComponent, TransformComponent>()) {
             auto& uboComp = ecsWorld->getComponent<UniformBufferComponent>(e);
             auto& transform = ecsWorld->getComponent<TransformComponent>(e);
 
             UniformBufferObject ubo{};
-            ubo.model = transform.getModelMatrix();
+            glm::mat4 model = transform.getModelMatrix();
+
+            // Apply additional rotation around Y-axis
+            model = glm::rotate(model, rotationAngle, glm::vec3(0.0f, 1.0f, 0.0f));
+
+            ubo.model = model;
             ubo.view = vcamera->getViewMatrix();
             ubo.proj = vcamera->getProjectionMatrix();
 
-            for(int i = 0; i < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; i++)
-            {
-                memcpy(uboComp.ubPtr->uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
-            }
+            memcpy(uboComp.ubPtr->uniformBuffersMapped[currentFrame], &ubo, sizeof(ubo));
         }
-        //currentScene->update(*vcamera, GraphicsConstants::MAX_FRAMES_IN_FLIGHT, deltaTime);
-        //onSceneUpdatedEvent.notify();
 
-        vkResetFences(vContext.get()->getLogicalDeviceWrapper()->getDevice(), 1, &vkFence);
+        // Reset this frame's fence before submitting
+        vkResetFences(device, 1, &currentFence);
 
-        vkResetCommandBuffer(commandBuffers[currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
+        // Reset & record command buffer
+        vkResetCommandBuffer(commandBuffers[currentFrame], 0);
         recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
 
+        // Submit command buffer
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = {fso->getImageAvailableSemaphore(currentFrame)};
-        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        VkSemaphore waitSemaphores[] = { fso->getImageAvailableSemaphore(currentFrame) };
+        VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
@@ -501,44 +492,43 @@ private:
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
 
-        VkSemaphore signalSemaphores[] = {fso->getRenderFinishedSemaphore(currentFrame)};
+        // --- use per-swapchain-image semaphore ---
+        VkSemaphore signalSemaphores[] = { fso->getRenderFinishedSemaphore(imageIndex) };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(vContext.get()->getLogicalDeviceWrapper()->getGraphicsQueue(), 1, &submitInfo, fso->getInFlightFence(currentFrame)) != VK_SUCCESS) {
+        if (vkQueueSubmit(vContext.get()->getLogicalDeviceWrapper()->getGraphicsQueue(),
+                        1, &submitInfo, currentFence) != VK_SUCCESS) {
             throw std::runtime_error("failed to submit draw command buffer!");
         }
 
-        //std::cout << "before frame ended check" << std::endl;
-        if (lastFrameTime >= frameInterval) 
-        {
+        // Mark this image as in-flight on this fence
+        if (imagesInFlight.size() > imageIndex) {
+            imagesInFlight[imageIndex] = currentFence;
+        }
+
+        // Optional frame-end event
+        if (lastFrameTime >= frameInterval) {
             onFrameEndedEvent.notify(deltaTime, imageIndex);
             lastFrameTime -= frameInterval;
             frameCounter++;
         }
 
-        // uint8_t* bufferData = new uint8_t[vContext.get()->getSwapChainWrapper()->getSwapChainExtent().width * vContext.get()->getSwapChainWrapper()->getSwapChainExtent().height * 4];
-        // getCurrentFrame(imageIndex, bufferData);
-        // encodeAndWriteFrame(bufferData, vContext.get()->getSwapChainWrapper()->getSwapChainExtent().width, vContext.get()->getSwapChainWrapper()->getSwapChainExtent().height);
-        // delete bufferData;
-
+        // Present
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pWaitSemaphores = signalSemaphores;
 
-        VkSwapchainKHR swapChains[] = {vContext.get()->getSwapChainWrapper()->getSwapChain()};
+        VkSwapchainKHR swapChains[] = { vContext.get()->getSwapChainWrapper()->getSwapChain() };
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapChains;
-
         presentInfo.pImageIndices = &imageIndex;
 
         result = vkQueuePresentKHR(vContext.get()->getLogicalDeviceWrapper()->getPresentQueue(), &presentInfo);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
             framebufferResized = false;
-            std::cout << "FrameBuffer was resized! recreating swapchain" << std::endl;
             recreateSwapChain();
         } else if (result != VK_SUCCESS) {
             throw std::runtime_error("failed to present swap chain image!");
@@ -546,6 +536,8 @@ private:
 
         currentFrame = (currentFrame + 1) % GraphicsConstants::MAX_FRAMES_IN_FLIGHT;
     }
+
+
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) 
     {
