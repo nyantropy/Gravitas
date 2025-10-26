@@ -11,7 +11,14 @@
 // same principle as the mesh manager, just a simple resource management class
 class TextureManager
 {
+    private:
+        std::unordered_map<std::string, std::unique_ptr<TextureResource>> textures;
+
     public:
+        TextureManager(){}
+
+        // similarly to the mesh manager, we can initialize this without any problems, but if this function is called
+        // before the context or the descriptor set manager exist, the program will sigsegv
         TextureResource& loadTexture(const std::string& path)
         {
             auto it = textures.find(path);
@@ -29,7 +36,4 @@ class TextureManager
             textures[path] = std::move(resource);
             return ref;
         }
-
-    private:
-        std::unordered_map<std::string, std::unique_ptr<TextureResource>> textures;
 };

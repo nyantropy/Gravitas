@@ -158,7 +158,6 @@ public:
 
     MeshManager* meshManager;
     UniformBufferManager* uniformBufferManager;
-    DescriptorSetManager* descriptorSetManager;
     TextureManager* textureManager;
     
     RenderSystem* renderSystem;
@@ -201,14 +200,7 @@ public:
 
         // create the renderer
         RendererConfig rConfig;
-        rConfig.vkDevice = vContext->getDevice();
-        rConfig.vkPhysicalDevice = vContext->getPhysicalDevice();
-        rConfig.vkExtent = vContext->getSwapChainExtent();
-        rConfig.swapChainImageFormat = vContext->getSwapChainImageFormat();
         renderer = std::make_unique<ForwardRenderer>(rConfig);
-
-        descriptorSetManager = new DescriptorSetManager(GraphicsConstants::MAX_FRAMES_IN_FLIGHT, 1000);
-        dssheet::SetManager(descriptorSetManager);
 
         // reworked pipeline
         VulkanPipelineConfig vpConfig;
@@ -253,8 +245,6 @@ public:
         delete vcamera;
         delete vframebuffer;
         delete vpipeline;
-
-        delete descriptorSetManager;
 
         renderer.reset();
         vContext.reset();

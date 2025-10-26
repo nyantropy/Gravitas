@@ -13,13 +13,26 @@
 #include "VulkanRenderPass.hpp"
 #include "VulkanRenderPassConfig.h"
 
+#include "DescriptorSetManager.hpp"
+#include "MeshManager.hpp"
+#include "UniformBufferManager.hpp"
+#include "TextureManager.hpp"
+
+#include "GraphicsConstants.h"
 #include "FormatUtil.hpp"
 
 class ForwardRenderer : Renderer
 {
     private:
+        // render structs
         std::unique_ptr<Attachment> depthAttachment;
         std::unique_ptr<VulkanRenderPass> vrenderpass;
+
+        // render resource manager classes
+        std::unique_ptr<DescriptorSetManager> descriptorSetManager;
+        //std::unique_ptr<MeshManager> meshManager;
+        //std::unique_ptr<UniformBufferManager> uniformBufferManager;
+        //std::unique_ptr<TextureManager> textureManager;
 
         VkFormat findDepthFormat()
         {
@@ -28,7 +41,7 @@ class ForwardRenderer : Renderer
             VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
             VkFormatFeatureFlags features = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
-            VkFormat depthFormat = FormatUtil::findSupportedFormat(config.vkPhysicalDevice, candidates, tiling, features);
+            VkFormat depthFormat = FormatUtil::findSupportedFormat(vcsheet::getPhysicalDevice(), candidates, tiling, features);
 
             return depthFormat;
         }
@@ -36,11 +49,6 @@ class ForwardRenderer : Renderer
         void createDepthAttachment()
         {
             AttachmentConfig attachConfig;
-            // raw vulkan objects
-            attachConfig.vkDevice = this->config.vkDevice;
-            attachConfig.vkPhysicalDevice = this->config.vkPhysicalDevice;
-            attachConfig.vkExtent = this->config.vkExtent;
-
             // specific for image
             attachConfig.format = findDepthFormat();
             attachConfig.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -59,21 +67,34 @@ class ForwardRenderer : Renderer
         void createRenderPass()
         {
             VulkanRenderPassConfig vrpConfig;
-            vrpConfig.vkDevice = this->config.vkDevice;
             
             // use the depth format we found earlier
             vrpConfig.depthFormat = findDepthFormat();
 
             // we need to use the swapchainimageformat here
-            vrpConfig.colorFormat = this->config.swapChainImageFormat;
+            vrpConfig.colorFormat = vcsheet::getSwapChainImageFormat();
 
             vrenderpass = std::make_unique<VulkanRenderPass>(vrpConfig);
+        }
+
+        // create all the resource managers the renderer needs
+        void createResourceManagers()
+        {
+            // first we have the descriptor set manager
+            descriptorSetManager = std::make_unique<DescriptorSetManager>(GraphicsConstants::MAX_FRAMES_IN_FLIGHT, 1000);
+            dssheet::SetManager(descriptorSetManager.get());
+            
+            // and then we also have mesh/texture and uniformbuffer managers, which have less overhead
+            //meshManager = std::make_unique<MeshManager>();
+            //uniformBufferManager = std::make_unique<UniformBufferManager>();
+            //textureManager = std::make_unique<TextureManager>();
         }
 
         void createResources() override
         {
             createDepthAttachment();
             createRenderPass();
+            createResourceManagers();
             
 
 
@@ -86,6 +107,10 @@ class ForwardRenderer : Renderer
 
         ~ForwardRenderer()
         {
+            //if(meshManager) meshManager.reset();
+            //if(uniformBufferManager) uniformBufferManager.reset();
+            //if(textureManager) textureManager.reset();
+            if(descriptorSetManager) descriptorSetManager.reset();
             if(vrenderpass) vrenderpass.reset();
             if(depthAttachment) depthAttachment.reset();
         }
@@ -99,6 +124,5 @@ class ForwardRenderer : Renderer
         
         // filler getters, not to be used in the real program
         Attachment* getAttachmentWrapper() { return depthAttachment.get(); }
-
         VulkanRenderPass* getRenderPassWrapper() { return vrenderpass.get(); }
 };

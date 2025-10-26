@@ -1,11 +1,5 @@
-add_library(
-    attachment
-
-    Attachment.hpp
-    Attachment.cpp
-
-    AttachmentConfig.h
-)
+file(GLOB CURRENT_DIR_SRC ./*.hpp ./*.cpp ./*.c ./*.h)
+add_library(attachment ${CURRENT_DIR_SRC})
 
 target_link_libraries(attachment PUBLIC rendering)
 

@@ -17,16 +17,30 @@
 // reminder: uniform buffers are once per entity, which is why we use the entities id to save them in the manager class
 class UniformBufferManager
 {
+    private:
+        std::unordered_map<entity_id_type, std::unique_ptr<UniformBufferResource>> uboCache;
+
     public:
-        UniformBufferManager()
-        {}
+        UniformBufferManager(){}
 
         ~UniformBufferManager()
         {
-            cleanup();
+            for (auto& [id, ubo] : uboCache)
+            {
+                for (size_t i = 0; i < ubo->uniformBuffers.size(); i++)
+                {
+                    if (ubo->uniformBuffers[i] != VK_NULL_HANDLE)
+                        vkDestroyBuffer(vcsheet::getDevice(), ubo->uniformBuffers[i], nullptr);
+                    if (ubo->uniformBuffersMemory[i] != VK_NULL_HANDLE)
+                        vkFreeMemory(vcsheet::getDevice(), ubo->uniformBuffersMemory[i], nullptr);
+                }
+            }
+            
+            uboCache.clear();
         }
 
         // create a uniform buffer resource for a specific entity (based on id)
+        // if the vulkan context and descriptor set manager are not initialized when calling this, it will sigsegv
         UniformBufferResource& createUniformBufferResource(entity_id_type id)
         {
             if (uboCache.find(id) != uboCache.end())
@@ -47,30 +61,4 @@ class UniformBufferManager
             uboCache[id] = std::move(ubo);
             return ref;
         }
-
-        UniformBufferResource* getUniformBufferResource(entity_id_type id)
-        {
-            auto it = uboCache.find(id);
-            if (it != uboCache.end())
-                return it->second.get();
-            return nullptr;
-        }
-
-        void cleanup()
-        {
-            for (auto& [id, ubo] : uboCache)
-            {
-                for (size_t i = 0; i < ubo->uniformBuffers.size(); i++)
-                {
-                    if (ubo->uniformBuffers[i] != VK_NULL_HANDLE)
-                        vkDestroyBuffer(vcsheet::getDevice(), ubo->uniformBuffers[i], nullptr);
-                    if (ubo->uniformBuffersMemory[i] != VK_NULL_HANDLE)
-                        vkFreeMemory(vcsheet::getDevice(), ubo->uniformBuffersMemory[i], nullptr);
-                }
-            }
-            uboCache.clear();
-        }
-
-    private:
-        std::unordered_map<entity_id_type, std::unique_ptr<UniformBufferResource>> uboCache;
 };

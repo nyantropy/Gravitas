@@ -1,4 +1,5 @@
 #include "VulkanRenderPass.hpp"
+
 VulkanRenderPass::VulkanRenderPass(VulkanRenderPassConfig config)
 {
     this->config = config;
@@ -7,7 +8,7 @@ VulkanRenderPass::VulkanRenderPass(VulkanRenderPassConfig config)
 
 VulkanRenderPass::~VulkanRenderPass()
 {
-    vkDestroyRenderPass(this->config.vkDevice, renderPass, nullptr);
+    vkDestroyRenderPass(vcsheet::getDevice(), renderPass, nullptr);
 }
 
 VkRenderPass& VulkanRenderPass::getRenderPass()
@@ -69,7 +70,7 @@ void VulkanRenderPass::createRenderPass()
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    if (vkCreateRenderPass(this->config.vkDevice, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) 
+    if (vkCreateRenderPass(vcsheet::getDevice(), &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to create render pass!");
     }
