@@ -3,10 +3,10 @@
 #include <string>
 
 #include "MeshResource.h"
+#include "Types.h"
 
-// a mesh component contains the key to the mesh, which is the path, as well as a ptr to its mesh resource
+// a mesh component now only contains the id of whichever mesh it currently uses
 struct MeshComponent 
 {
-    std::string meshKey;
-    MeshResource* meshPtr = nullptr;
+    mesh_id_type meshID;
 };

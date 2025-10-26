@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.h>
 #include <array>
 
+#include "ResourceSystem.hpp"
 #include "ECSWorld.hpp"
 #include "MeshComponent.h"
 #include "MaterialComponent.h"
@@ -14,7 +15,7 @@
 class RenderSystem
 {
 public:
-    void update(ECSWorld& world, VkCommandBuffer cmd, VkPipelineLayout pipelineLayout, uint32_t frameIndex)
+    void update(ECSWorld& world, ResourceSystem& resources, VkCommandBuffer cmd, VkPipelineLayout pipelineLayout, uint32_t frameIndex)
     {
         const VkDeviceSize offsets[] = { 0 };
 
@@ -23,10 +24,10 @@ public:
             auto& meshComp = world.getComponent<MeshComponent>(e);
             auto& matComp = world.getComponent<MaterialComponent>(e);
             auto& transformComp = world.getComponent<TransformComponent>(e);
-            auto& uboComp = world.getComponent<UniformBufferComponent>(e);
+            auto& uboComp = world.getComponent<UniformBufferComponent>(e); 
 
-            vkCmdBindVertexBuffers(cmd, 0, 1, &meshComp.meshPtr->vertexBuffer, offsets);
-            vkCmdBindIndexBuffer(cmd, meshComp.meshPtr->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindVertexBuffers(cmd, 0, 1, &resources.getMesh(meshComp.meshID)->vertexBuffer, offsets);
+            vkCmdBindIndexBuffer(cmd, resources.getMesh(meshComp.meshID)->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
             std::array<VkDescriptorSet, 2> descriptorSets = 
             {
@@ -47,7 +48,7 @@ public:
 
             vkCmdDrawIndexed(
                 cmd,
-                static_cast<uint32_t>(meshComp.meshPtr->indices.size()),
+                static_cast<uint32_t>(resources.getMesh(meshComp.meshID)->indices.size()),
                 1,  // instance count
                 0,  // first index
                 0,  // vertex offset

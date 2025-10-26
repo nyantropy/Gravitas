@@ -98,6 +98,8 @@ extern "C" {
 #include "RenderSystem.hpp"
 #include "TransformComponent.h"
 
+#include "ResourceSystem.hpp"
+
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
 #else
@@ -156,10 +158,10 @@ public:
 
     ECSWorld* ecsWorld;
 
-    MeshManager* meshManager;
     UniformBufferManager* uniformBufferManager;
     TextureManager* textureManager;
-    
+
+    ResourceSystem* resourceSystem;
     RenderSystem* renderSystem;
 
     // window event propagation, but a lot more simple than before
@@ -223,9 +225,9 @@ public:
 
         fso = new FrameSyncObjects();
 
-        meshManager = new MeshManager();
         uniformBufferManager = new UniformBufferManager();
         textureManager = new TextureManager();
+        resourceSystem = new ResourceSystem();
         renderSystem = new RenderSystem();
         ecsWorld = new ECSWorld();
     }
@@ -233,10 +235,11 @@ public:
     void cleanup() 
     {
         delete ecsWorld;
+        delete resourceSystem;
         delete renderSystem;
         delete textureManager;
         delete uniformBufferManager;
-        delete meshManager;
+
 
         delete fso;
 
@@ -258,8 +261,7 @@ public:
 
         //and add a mesh component to it
         MeshComponent mc;
-        mc.meshKey = "resources/models/cube.obj";
-        mc.meshPtr = &meshManager->loadMesh(mc.meshKey);
+        mc.meshID = resourceSystem->requestMesh("resources/models/cube.obj");
         ecsWorld->addComponent<MeshComponent>(cube, mc);
 
         //now we can try adding a uniform buffer component as well
@@ -392,7 +394,7 @@ private:
             vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
             
-            renderSystem->update(*ecsWorld, commandBuffer, vpipeline->getPipelineLayout(), currentFrame);
+            renderSystem->update(*ecsWorld, *resourceSystem, commandBuffer, vpipeline->getPipelineLayout(), currentFrame);
 
         vkCmdEndRenderPass(commandBuffer);
 
