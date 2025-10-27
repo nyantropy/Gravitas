@@ -1,10 +1,10 @@
 #include "VulkanFramebufferSet.hpp"
 
-VulkanFramebufferSet::VulkanFramebufferSet(const VulkanFramebufferConfig& config)
+VulkanFramebufferSet::VulkanFramebufferSet(const VulkanFramebufferSetConfig& config)
 {
     this->config = config;
 
-    if (config.device == VK_NULL_HANDLE)
+    if (vcsheet::getDevice() == VK_NULL_HANDLE)
         throw std::runtime_error("VulkanFramebufferSet: invalid VkDevice in config.");
     if (config.renderPass == VK_NULL_HANDLE)
         throw std::runtime_error("VulkanFramebufferSet: invalid VkRenderPass in config.");
@@ -16,33 +16,16 @@ VulkanFramebufferSet::VulkanFramebufferSet(const VulkanFramebufferConfig& config
 
 VulkanFramebufferSet::~VulkanFramebufferSet()
 {
-    destroyFramebuffers();
-}
+    if (vcsheet::getDevice() == VK_NULL_HANDLE)
+        return;
 
-VulkanFramebufferSet::VulkanFramebufferSet(VulkanFramebufferSet&& other) noexcept
-{
-    config.device = other.config.device;
-    framebuffers = std::move(other.framebuffers);
-    config = std::move(other.config);
-
-    other.config.device = VK_NULL_HANDLE;
-    other.framebuffers.clear();
-}
-
-VulkanFramebufferSet& VulkanFramebufferSet::operator=(VulkanFramebufferSet&& other) noexcept
-{
-    if (this != &other)
+    for (auto fb : framebuffers)
     {
-        destroyFramebuffers();
-
-        config.device = other.config.device;
-        framebuffers = std::move(other.framebuffers);
-        config = std::move(other.config);
-
-        other.config.device = VK_NULL_HANDLE;
-        other.framebuffers.clear();
+        if (fb != VK_NULL_HANDLE)
+            vkDestroyFramebuffer(vcsheet::getDevice(), fb, nullptr);
     }
-    return *this;
+
+    framebuffers.clear();
 }
 
 void VulkanFramebufferSet::createFramebuffers()
@@ -67,23 +50,9 @@ void VulkanFramebufferSet::createFramebuffers()
         framebufferInfo.height = config.height;
         framebufferInfo.layers = config.layers;
 
-        if (vkCreateFramebuffer(config.device, &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS)
+        if (vkCreateFramebuffer(vcsheet::getDevice(), &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS)
         {
             throw std::runtime_error("VulkanFramebufferSet: failed to create framebuffer.");
         }
     }
-}
-
-void VulkanFramebufferSet::destroyFramebuffers()
-{
-    if (config.device == VK_NULL_HANDLE)
-        return;
-
-    for (auto fb : framebuffers)
-    {
-        if (fb != VK_NULL_HANDLE)
-            vkDestroyFramebuffer(config.device, fb, nullptr);
-    }
-
-    framebuffers.clear();
 }

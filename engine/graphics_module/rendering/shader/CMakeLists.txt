@@ -1,11 +1,5 @@
-add_library(
-    vkshader
-
-    VulkanShader.hpp
-    VulkanShader.cpp
-
-    VulkanShaderConfig.h
-)
+file(GLOB CURRENT_DIR_SRC ./*.hpp ./*.cpp ./*.c ./*.h)
+add_library(vkshader ${CURRENT_DIR_SRC})
 
 target_link_libraries(vkshader PUBLIC rendering)
 

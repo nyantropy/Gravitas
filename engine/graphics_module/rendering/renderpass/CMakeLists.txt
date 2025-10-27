@@ -1,11 +1,5 @@
-add_library(
-    renderpass
-
-    VulkanRenderPass.hpp
-    VulkanRenderPass.cpp
-
-    VulkanRenderPassConfig.h
-)
+file(GLOB CURRENT_DIR_SRC ./*.hpp ./*.cpp ./*.c ./*.h)
+add_library(renderpass ${CURRENT_DIR_SRC})
 
 target_link_libraries(renderpass PUBLIC rendering)
 

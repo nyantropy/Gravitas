@@ -4,6 +4,7 @@
 #include <typeindex>
 #include <typeinfo>
 #include <vector>
+#include <algorithm>
 
 #include "Entity.h"
 #include "ComponentStorage.hpp"

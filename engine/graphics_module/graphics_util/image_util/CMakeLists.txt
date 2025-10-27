@@ -1,9 +1,5 @@
-add_library(
-    imageutil
-
-    ImageUtil.hpp
-    ImageUtil.cpp
-)
+file(GLOB CURRENT_DIR_SRC ./*.hpp ./*.cpp ./*.c ./*.h)
+add_library(imageutil ${CURRENT_DIR_SRC})
 
 target_link_libraries(imageutil PUBLIC graphicsutil)
 

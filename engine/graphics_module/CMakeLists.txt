@@ -18,13 +18,11 @@ pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
 )
 
 # Source files for the library are all .c .h .cpp files
-file(GLOB GravitasSRC ./*.cpp ./*.c ./*.h)
-add_library(Gravitas STATIC ${GravitasSRC})
+file(GLOB graphicsSRC ./*.cpp ./*.c ./*.h)
+add_library(graphics STATIC ${graphicsSRC})
 
 add_subdirectory(external)
 add_subdirectory(vksetup)
-add_subdirectory(event)
-add_subdirectory(options)
 add_subdirectory(rendering)
 add_subdirectory(graphics_util)
 add_subdirectory(windowing)
@@ -35,22 +33,22 @@ add_subdirectory(renderresource)
 
 
 # Set all the include directories for this target
-target_include_directories(Gravitas PUBLIC
+target_include_directories(graphics PUBLIC
     ${CMAKE_SOURCE_DIR}/graphics_module
     ${Vulkan_INCLUDE_DIRS}
 )
 
 # Link all the required libraries
-target_link_libraries(Gravitas 
+target_link_libraries(graphics 
     Vulkan::Vulkan
     vksetup
     renderresource
     event
+    core
     rendering
     graphicsutil
     windowing
     external
-    options
     gsystems
     gcomponents
     PkgConfig::LIBAV
@@ -58,7 +56,7 @@ target_link_libraries(Gravitas
 
 
 # Output dirs
-set_target_properties(Gravitas PROPERTIES
+set_target_properties(graphics PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
 )

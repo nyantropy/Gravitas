@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 #set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
 
-project(Gravitas VERSION 0.1.0 LANGUAGES C CXX)
+project(GravitasEngine VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release")
 

@@ -2,14 +2,13 @@
 #include <filesystem>
 #include <vector>
 
-#include "GravitasInclude.h"
+#include "GravitasEngine.hpp"
 
 int main() 
 {
-    Gravitas engine = Gravitas();
-    engine.init(800, 800, "Test");
-    engine.createEmptyScene();
-    engine.run();
+    GravitasEngine engine = GravitasEngine();
+    engine.start();
+    engine.stop();
 
     return EXIT_SUCCESS;
 }

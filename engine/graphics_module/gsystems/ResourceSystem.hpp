@@ -1,12 +1,13 @@
 #pragma once
 #include <string>
 
+#include "IResourceProvider.hpp"
 #include "MeshManager.hpp"
 #include "TextureManager.hpp"
 #include "UniformBufferManager.hpp"
 #include "Types.h"
 
-class ResourceSystem
+class ResourceSystem : public IResourceProvider
 {
     private:
         // all of our resource managers
@@ -35,7 +36,7 @@ class ResourceSystem
         }
 
         // Mesh Management
-        mesh_id_type requestMesh(const std::string& path)
+        mesh_id_type requestMesh(const std::string& path) override
         {
             return meshManager->loadMesh(path); // lazy load
         }
@@ -46,7 +47,7 @@ class ResourceSystem
         }
 
         // Texture Management
-        texture_id_type requestTexture(const std::string& path)
+        texture_id_type requestTexture(const std::string& path) override
         {
             return textureManager->loadTexture(path);
         }
@@ -57,7 +58,7 @@ class ResourceSystem
         }
 
         // UniformBuffer Management
-        uniform_id_type requestUniformBuffer()
+        uniform_id_type requestUniformBuffer() override
         {
             return uniformBufferManager->createUniformBuffer();
         }

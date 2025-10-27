@@ -14,11 +14,11 @@ file(GLOB SOURCES ./*.cpp ./*.c ./*.h)
 
 # main target is just our small cpp file
 add_executable(main main.cpp ${SOURCES})
-add_dependencies(main Gravitas)
+add_dependencies(main GravitasEngine)
 
 # Include the graphics engine
 target_include_directories(main PRIVATE ${CMAKE_SOURCE_DIR}/engine/graphics_module)
-target_link_libraries(main PRIVATE Gravitas)
+target_link_libraries(main PRIVATE GravitasEngine)
 
 # Set working directory for all platforms
 set_target_properties(main PROPERTIES

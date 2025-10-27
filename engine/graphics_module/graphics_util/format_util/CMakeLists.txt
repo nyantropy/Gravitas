@@ -1,9 +1,5 @@
-add_library(
-    formatutil
-
-    FormatUtil.hpp
-    FormatUtil.cpp
-)
+file(GLOB CURRENT_DIR_SRC ./*.hpp ./*.cpp ./*.c ./*.h)
+add_library(formatutil ${CURRENT_DIR_SRC})
 
 target_link_libraries(formatutil PUBLIC graphicsutil)
 
