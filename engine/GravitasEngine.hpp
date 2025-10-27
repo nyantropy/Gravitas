@@ -106,5 +106,24 @@ class GravitasEngine
             // and a transform component 
             TransformComponent tc;
             ecsWorld->addComponent<TransformComponent>(cube, tc);
+
+            // a second cube, woooh
+            Entity cube2 = ecsWorld->createEntity();
+
+            MeshComponent mc2;
+            mc2.meshID = graphics->getResourceProvider()->requestMesh("resources/models/cube.obj");
+            ecsWorld->addComponent<MeshComponent>(cube2, mc2);
+
+            UniformBufferComponent ubc2;
+            ubc2.uniformID = graphics->getResourceProvider()->requestUniformBuffer();
+            ecsWorld->addComponent<UniformBufferComponent>(cube2, ubc2);
+
+            MaterialComponent matc2;
+            matc2.textureID = graphics->getResourceProvider()->requestTexture("resources/textures/blue_texture.png");
+            ecsWorld->addComponent<MaterialComponent>(cube2, matc2);
+
+            TransformComponent tc2;
+            tc2.position = glm::vec3(2.0f, 2.0f, 2.0f);
+            ecsWorld->addComponent<TransformComponent>(cube2, tc2);
         }
 };

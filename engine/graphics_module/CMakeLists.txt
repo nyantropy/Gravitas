@@ -6,16 +6,16 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 # Find Vulkan on the system
 find_package(Vulkan REQUIRED)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
-    libavdevice
-    libavfilter
-    libavformat
-    libavcodec
-    libswresample
-    libswscale
-    libavutil
-)
+#find_package(PkgConfig REQUIRED)
+#pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
+#    libavdevice
+#    libavfilter
+#    libavformat
+#    libavcodec
+#    libswresample
+#    libswscale
+#    libavutil
+#)
 
 # Source files for the library are all .c .h .cpp files
 file(GLOB graphicsSRC ./*.cpp ./*.c ./*.h)
@@ -51,7 +51,7 @@ target_link_libraries(graphics
     external
     gsystems
     gcomponents
-    PkgConfig::LIBAV
+#    PkgConfig::LIBAV
 )
 
 
