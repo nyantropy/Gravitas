@@ -8,13 +8,13 @@
 
 #include "Entity.h"
 #include "ComponentStorage.hpp"
-#include "System.hpp"
+#include "ECSSystem.hpp"
 
 class ECSWorld 
 {
     private:
         uint32_t nextEntityId = 0;
-        std::vector<std::unique_ptr<System>> systems;
+        std::vector<std::unique_ptr<ECSSystem>> systems;
 
         template<typename Component>
         ComponentStorage<Component>& getStorage() const 
@@ -81,10 +81,10 @@ class ECSWorld
             return ref;
         }
 
-        void update(float deltaTime) 
+        void update(float dt) 
         {
             for (auto& system : systems)
-                system->update(deltaTime, *this);
+                system->update(*this, dt);
         }
 
         template<typename... Components>

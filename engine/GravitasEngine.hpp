@@ -7,6 +7,9 @@
 #include "Graphics.hpp"
 #include "RenderSystem.hpp"
 
+#include "CameraComponent.h"
+#include "CameraSystem.hpp"
+
 class GravitasEngine 
 {
     private:
@@ -17,6 +20,17 @@ class GravitasEngine
         // graphics module related structures
         std::unique_ptr<Graphics> graphics;
         std::unique_ptr<RenderSystem> renderSystem;
+
+        void createSystems()
+        {
+            // make a render system
+            renderSystem = std::make_unique<RenderSystem>();
+
+            // add the camera system to the ecs world
+            ecsWorld->addSystem<CameraSystem>();
+
+
+        }
     public:
         GravitasEngine()
         {
@@ -30,7 +44,7 @@ class GravitasEngine
             config.outputWindowTitle = "Engine Test";
             graphics = std::make_unique<Graphics>(config);
 
-            renderSystem = std::make_unique<RenderSystem>();
+            createSystems();
             createEmptyScene();
         }
 
@@ -74,7 +88,7 @@ class GravitasEngine
         // update call
         void update(float dt)
         {
-
+            ecsWorld->update(dt);
         }
 
         // render call
@@ -125,5 +139,15 @@ class GravitasEngine
             TransformComponent tc2;
             tc2.position = glm::vec3(2.0f, 2.0f, 2.0f);
             ecsWorld->addComponent<TransformComponent>(cube2, tc2);
+
+            //lets also add a camera :D
+            Entity camera = ecsWorld->createEntity();
+            CameraComponent cc;
+            ecsWorld->addComponent(camera, cc);
+
+            TransformComponent ct;
+            ct.position = glm::vec3(0.0f, 0.0f, 10.0f);
+            ecsWorld->addComponent(camera, ct);
+
         }
 };

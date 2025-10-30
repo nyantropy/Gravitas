@@ -13,6 +13,9 @@
 #include "VulkanRenderPass.hpp"
 #include "VulkanRenderPassConfig.h"
 
+#include "VulkanPipelineConfig.h"
+#include "VulkanPipeline.hpp"
+
 #include "ResourceSystem.hpp"
 #include "RenderSystem.hpp"
 
@@ -25,6 +28,8 @@
 #include "FrameManager.hpp"
 
 #include "GtsEvent.hpp"
+
+#include "CameraComponent.h"
 
 class ForwardRenderer : Renderer
 {
@@ -208,7 +213,7 @@ class ForwardRenderer : Renderer
             if(depthAttachment) depthAttachment.reset();
         }
               
-        void renderFrame(float dt, const std::vector<RenderCommand>& renderList, GtsCamera& vcamera, ECSWorld& ecsWorld) override
+        void renderFrame(float dt, const std::vector<RenderCommand>& renderList, ECSWorld& ecsWorld) override
         {
             lastFrameTime += dt;
 
@@ -241,6 +246,13 @@ class ForwardRenderer : Renderer
                 vkWaitForFences(vcsheet::getDevice(), 1, &imageFence, VK_TRUE, UINT64_MAX);
             }
 
+            // get camera entity
+            Entity camera;
+            for (Entity e : ecsWorld.getAllEntitiesWith<CameraComponent, TransformComponent>())
+            {
+                camera = e;
+            }
+
             // CONTINUE HERE - THROW THIS INTO AN UPDATE SYSTEM 
             // Update uniform buffers
             static float rotationAngle = 0.0f;
@@ -251,12 +263,15 @@ class ForwardRenderer : Renderer
                 auto& uboComp = ecsWorld.getComponent<UniformBufferComponent>(e);
                 auto& transform = ecsWorld.getComponent<TransformComponent>(e);
 
+                auto& camComp = ecsWorld.getComponent<CameraComponent>(camera);
+                auto& camTransformComp = ecsWorld.getComponent<TransformComponent>(camera);
+
                 UniformBufferObject ubo{};
                 glm::mat4 model = transform.getModelMatrix();
                 model = glm::rotate(model, rotationAngle, glm::vec3(0.0f, 1.0f, 0.0f));
                 ubo.model = model;
-                ubo.view = vcamera.getViewMatrix();
-                ubo.proj = vcamera.getProjectionMatrix();
+                ubo.view = camComp.view;
+                ubo.proj = camComp.projection;
 
                 memcpy(resourceSystem->getUniformBuffer(uboComp.uniformID)->uniformBuffersMapped[currentFrame],
                     &ubo, sizeof(ubo));

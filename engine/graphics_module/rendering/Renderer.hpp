@@ -3,7 +3,6 @@
 // for now we will focus on the simplest rendering technique: forward rendering
 #include "RendererConfig.h"
 #include "RenderCommand.h"
-#include "GtsCamera.hpp"
 #include "ECSWorld.hpp"
 
 class Renderer 
@@ -14,5 +13,5 @@ class Renderer
         virtual void createResources() = 0;
     public:
         virtual ~Renderer() = default;        
-        virtual void renderFrame(float dt, const std::vector<RenderCommand>& renderList, GtsCamera& vcamera, ECSWorld& ecsWorld) = 0;      
+        virtual void renderFrame(float dt, const std::vector<RenderCommand>& renderList, ECSWorld& ecsWorld) = 0;      
 };

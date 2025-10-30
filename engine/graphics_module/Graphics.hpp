@@ -20,30 +20,7 @@ extern "C" {
     #include <libavutil/timestamp.h>
 }
 
-#include <iostream>
-#include <fstream>
-#include <stdexcept>
-#include <algorithm>
-#include <chrono>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
-#include <cstdint>
-#include <limits>
-#include <array>
-#include <optional>
-#include <set>
-
 #include "GraphicsConstants.h"
-#include "Vertex.h"
-#include "UniformBufferObject.h"
-
-#include "VulkanShader.hpp"
-#include "VulkanPipeline.hpp"
-
-#include "VulkanTexture.hpp"
-#include "GtsModelLoader.hpp"
-#include "GtsCamera.hpp"
 
 // window manager include
 #include "WindowManager.hpp"
@@ -62,8 +39,6 @@ extern "C" {
 #include "RendererConfig.h"
 #include "ForwardRenderer.hpp"
 
-#include "VulkanPipelineConfig.h"
-
 #include "ECSWorld.hpp"
 #include "vcsheet.h"
 
@@ -74,10 +49,6 @@ extern "C" {
 #include "UniformBufferComponent.h"
 #include "UniformBufferManager.hpp"
 
-#include "DescriptorSetManager.hpp"
-#include "dssheet.h"
-
-#include "TextureManager.hpp"
 #include "MaterialComponent.h"
 
 #include "RenderSystem.hpp"
@@ -123,11 +94,6 @@ public:
     // the renderer, responsible for the core drawframe function
     std::unique_ptr<ForwardRenderer> renderer;
 
-    // the render system, responsible for creating rendercommands, which will be issued to the renderer
-    std::unique_ptr<RenderSystem> renderSystem;
-
-    GtsCamera* vcamera;
-
     // window event propagation, but a lot more simple than before
     GtsEvent<int, int>& onResize() { return windowManager->onResize(); }
     GtsEvent<int, int, int, int>& onKeyPressed() { return windowManager->onKeyPressed(); }
@@ -141,8 +107,6 @@ public:
         createWindow();
         createContext();
         createRenderer();
-        vcamera = new GtsCamera(vContext.get()->getSwapChainWrapper()->getSwapChainExtent());
-        renderSystem = std::make_unique<RenderSystem>();
     }
 
     // create a new output window wrapped in a window manager
@@ -175,8 +139,6 @@ public:
 
     void cleanup() 
     {
-        renderSystem.reset();
-        delete vcamera;
         renderer.reset();
         vContext.reset();
         windowManager.reset();
@@ -187,7 +149,7 @@ public:
     void renderFrame(float dt, const std::vector<RenderCommand> renderList, ECSWorld& ecsWorld) 
     {
         windowManager->getOutputWindow()->pollEvents();
-        renderer->renderFrame(dt, renderList, *vcamera, ecsWorld);
+        renderer->renderFrame(dt, renderList, ecsWorld);
     }
 
     void shutdown()
