@@ -246,35 +246,13 @@ class ForwardRenderer : Renderer
                 vkWaitForFences(vcsheet::getDevice(), 1, &imageFence, VK_TRUE, UINT64_MAX);
             }
 
-            // get camera entity
-            Entity camera;
-            for (Entity e : ecsWorld.getAllEntitiesWith<CameraComponent, TransformComponent>())
-            {
-                camera = e;
-            }
-
-            // CONTINUE HERE - THROW THIS INTO AN UPDATE SYSTEM 
-            // Update uniform buffers
-            static float rotationAngle = 0.0f;
-            rotationAngle += dt * glm::radians(45.0f);
-
             for (Entity e : ecsWorld.getAllEntitiesWith<UniformBufferComponent, TransformComponent>()) 
             {
                 auto& uboComp = ecsWorld.getComponent<UniformBufferComponent>(e);
                 auto& transform = ecsWorld.getComponent<TransformComponent>(e);
 
-                auto& camComp = ecsWorld.getComponent<CameraComponent>(camera);
-                auto& camTransformComp = ecsWorld.getComponent<TransformComponent>(camera);
-
-                UniformBufferObject ubo{};
-                glm::mat4 model = transform.getModelMatrix();
-                model = glm::rotate(model, rotationAngle, glm::vec3(0.0f, 1.0f, 0.0f));
-                ubo.model = model;
-                ubo.view = camComp.view;
-                ubo.proj = camComp.projection;
-
                 memcpy(resourceSystem->getUniformBuffer(uboComp.uniformID)->uniformBuffersMapped[currentFrame],
-                    &ubo, sizeof(ubo));
+                    &uboComp.uniformBufferObject, sizeof(uboComp.uniformBufferObject));
             }
 
             // Reset & record command buffer

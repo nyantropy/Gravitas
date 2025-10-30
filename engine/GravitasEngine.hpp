@@ -10,6 +10,9 @@
 #include "CameraComponent.h"
 #include "CameraSystem.hpp"
 
+#include "TransformAnimationSystem.hpp"
+#include "UniformDataSystem.hpp"
+
 class GravitasEngine 
 {
     private:
@@ -28,6 +31,13 @@ class GravitasEngine
 
             // add the camera system to the ecs world
             ecsWorld->addSystem<CameraSystem>();
+
+            // add the rotation system to the ecs world for testing
+            ecsWorld->addSystem<TransformAnimationSystem>();
+
+            // this system will update the uniform buffer object
+            ecsWorld->addSystem<UniformDataSystem>();
+
 
 
         }
