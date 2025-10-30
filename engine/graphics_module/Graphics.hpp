@@ -146,10 +146,10 @@ public:
 
     // whenever the graphics module renders a frame, we poll the window events, and direct
     // the draw call to the renderer
-    void renderFrame(float dt, const std::vector<RenderCommand> renderList, ECSWorld& ecsWorld) 
+    void renderFrame(float dt, const std::vector<RenderCommand> renderList) 
     {
         windowManager->getOutputWindow()->pollEvents();
-        renderer->renderFrame(dt, renderList, ecsWorld);
+        renderer->renderFrame(dt, renderList);
     }
 
     void shutdown()

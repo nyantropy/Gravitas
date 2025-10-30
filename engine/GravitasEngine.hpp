@@ -104,7 +104,7 @@ class GravitasEngine
         // render call
         void render(float dt)
         {
-            graphics->renderFrame(dt, renderSystem->buildRenderList(*ecsWorld.get()), *ecsWorld.get());  
+            graphics->renderFrame(dt, renderSystem->buildRenderList(*ecsWorld.get()));  
         }
 
         void createEmptyScene()

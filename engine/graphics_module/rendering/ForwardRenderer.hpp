@@ -213,7 +213,7 @@ class ForwardRenderer : Renderer
             if(depthAttachment) depthAttachment.reset();
         }
               
-        void renderFrame(float dt, const std::vector<RenderCommand>& renderList, ECSWorld& ecsWorld) override
+        void renderFrame(float dt, const std::vector<RenderCommand>& renderList) override
         {
             lastFrameTime += dt;
 
@@ -246,13 +246,11 @@ class ForwardRenderer : Renderer
                 vkWaitForFences(vcsheet::getDevice(), 1, &imageFence, VK_TRUE, UINT64_MAX);
             }
 
-            for (Entity e : ecsWorld.getAllEntitiesWith<UniformBufferComponent, TransformComponent>()) 
+            // uniform updates are a lot more simple now
+            for (const auto& cmdData : renderList)
             {
-                auto& uboComp = ecsWorld.getComponent<UniformBufferComponent>(e);
-                auto& transform = ecsWorld.getComponent<TransformComponent>(e);
-
-                memcpy(resourceSystem->getUniformBuffer(uboComp.uniformID)->uniformBuffersMapped[currentFrame],
-                    &uboComp.uniformBufferObject, sizeof(uboComp.uniformBufferObject));
+                memcpy(resourceSystem->getUniformBuffer(cmdData.uniformID)->uniformBuffersMapped[currentFrame],
+                    cmdData.uboPtr, sizeof(*cmdData.uboPtr));
             }
 
             // Reset & record command buffer

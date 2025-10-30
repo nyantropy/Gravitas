@@ -29,7 +29,8 @@ class RenderSystem
                 cmds.push_back({
                     meshComp.meshID,
                     matComp.textureID,
-                    uboComp.uniformID
+                    uboComp.uniformID,
+                    &uboComp.uniformBufferObject
                 });
             }
             return cmds;
