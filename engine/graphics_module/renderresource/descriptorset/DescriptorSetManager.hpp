@@ -49,7 +49,8 @@ class DescriptorSetManager
             if (vkAllocateDescriptorSets(vcsheet::getDevice(), &allocInfo, descriptorSets.data()) != VK_SUCCESS)
                 throw std::runtime_error("Failed to allocate UBO descriptor sets!");
 
-            for (size_t i = 0; i < framesInFlight; i++) {
+            for (size_t i = 0; i < framesInFlight; i++) 
+            {
                 VkDescriptorBufferInfo bufferInfo{};
                 bufferInfo.buffer = uniformBuffers[i];
                 bufferInfo.offset = 0;
@@ -84,7 +85,8 @@ class DescriptorSetManager
             if (vkAllocateDescriptorSets(vcsheet::getDevice(), &allocInfo, descriptorSets.data()) != VK_SUCCESS)
                 throw std::runtime_error("Failed to allocate texture descriptor sets!");
 
-            for (size_t i = 0; i < framesInFlight; i++) {
+            for (size_t i = 0; i < framesInFlight; i++) 
+            {
                 VkDescriptorImageInfo imageInfo{};
                 imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                 imageInfo.imageView = imageView;

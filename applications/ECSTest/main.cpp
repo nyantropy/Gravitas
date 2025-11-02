@@ -7,6 +7,7 @@
 int main() 
 {
     GravitasEngine engine = GravitasEngine();
+    engine.createDebugScene();
     engine.start();
     engine.stop();
 
