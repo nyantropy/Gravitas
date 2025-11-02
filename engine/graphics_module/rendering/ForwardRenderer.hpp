@@ -29,8 +29,6 @@
 
 #include "GtsEvent.hpp"
 
-#include "CameraComponent.h"
-
 class ForwardRenderer : Renderer
 {
     private:

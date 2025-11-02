@@ -7,9 +7,6 @@
 #include "Graphics.hpp"
 #include "RenderSystem.hpp"
 
-#include "CameraComponent.h"
-#include "CameraSystem.hpp"
-
 #include "TransformAnimationSystem.hpp"
 #include "UniformDataSystem.hpp"
 

@@ -27,7 +27,6 @@ add_subdirectory(rendering)
 add_subdirectory(graphics_util)
 add_subdirectory(windowing)
 add_subdirectory(gsystems)
-add_subdirectory(gcomponents)
 add_subdirectory(renderresource)
 
 
@@ -50,7 +49,7 @@ target_link_libraries(graphics
     windowing
     external
     gsystems
-    gcomponents
+    components
 #    PkgConfig::LIBAV
 )
 

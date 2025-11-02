@@ -1,24 +1,24 @@
 #pragma once
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm.hpp>
-#include <gtc/matrix_transform.hpp>
-#include <gtx/hash.hpp>
+// #define GLM_FORCE_RADIANS
+// #define GLM_FORCE_DEPTH_ZERO_TO_ONE
+// #define GLM_ENABLE_EXPERIMENTAL
+// #include <glm.hpp>
+// #include <gtc/matrix_transform.hpp>
+// #include <gtx/hash.hpp>
 
-extern "C" {
-    #ifdef HAVE_AV_CONFIG_H
-    #undef HAVE_AV_CONFIG_H
-    #endif
+// extern "C" {
+//     #ifdef HAVE_AV_CONFIG_H
+//     #undef HAVE_AV_CONFIG_H
+//     #endif
 
-    #include <libavutil/imgutils.h>
-    #include <libavcodec/avcodec.h>
-    #include <libswscale/swscale.h>
-    #include <libavformat/avformat.h>
-    #include <libavutil/opt.h>
-    #include <libavutil/timestamp.h>
-}
+//     #include <libavutil/imgutils.h>
+//     #include <libavcodec/avcodec.h>
+//     #include <libswscale/swscale.h>
+//     #include <libavformat/avformat.h>
+//     #include <libavutil/opt.h>
+//     #include <libavutil/timestamp.h>
+// }
 
 #include "GraphicsConstants.h"
 
