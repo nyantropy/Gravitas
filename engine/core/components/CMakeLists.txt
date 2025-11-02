@@ -6,3 +6,4 @@ target_link_libraries(components PUBLIC graphics texture mesh)
 
 add_subdirectory(camera)
 add_subdirectory(animation)
+add_subdirectory(script)
