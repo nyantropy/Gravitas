@@ -148,8 +148,12 @@ public:
     // the draw call to the renderer
     void renderFrame(float dt, const std::vector<RenderCommand> renderList) 
     {
-        windowManager->getOutputWindow()->pollEvents();
         renderer->renderFrame(dt, renderList);
+    }
+
+    void pollWindowEvents()
+    {
+        windowManager->getOutputWindow()->pollEvents();
     }
 
     void shutdown()

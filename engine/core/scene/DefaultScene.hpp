@@ -14,35 +14,39 @@
 #include "UniformDataSystem.hpp"
 #include "TransformAnimationSystem.hpp"
 
+#include "gtsinput.h"
+
 // a run of the mill default scene in the engine, for testing purposes
 class DefaultScene : public GtsScene
 {
+    private:
+        Entity controlledCube;
     public:
         // adds a simple rotating cube at the world center
         void firstCube(IResourceProvider& resource)
         {
-            Entity cube = ecsWorld.createEntity();
+            controlledCube = ecsWorld.createEntity();
 
             MeshComponent mc;
             mc.meshID = resource.requestMesh("resources/models/cube.obj");
-            ecsWorld.addComponent<MeshComponent>(cube, mc);
+            ecsWorld.addComponent<MeshComponent>(controlledCube, mc);
 
             UniformBufferComponent ubc;
             ubc.uniformID = resource.requestUniformBuffer();
-            ecsWorld.addComponent<UniformBufferComponent>(cube, ubc);
+            ecsWorld.addComponent<UniformBufferComponent>(controlledCube, ubc);
 
             MaterialComponent matc;
             matc.textureID = resource.requestTexture("resources/textures/green_texture.png");
-            ecsWorld.addComponent<MaterialComponent>(cube, matc);
+            ecsWorld.addComponent<MaterialComponent>(controlledCube, matc);
 
             TransformComponent tc;
-            ecsWorld.addComponent<TransformComponent>(cube, tc);
+            ecsWorld.addComponent<TransformComponent>(controlledCube, tc);
 
             AnimationComponent anim;
             anim.enableMode(AnimationMode::Rotate);
             anim.rotationAxis = glm::vec3(0.5f, 1.0f, 0.2f);
             anim.rotationSpeed = glm::radians(90.0f);
-            ecsWorld.addComponent<AnimationComponent>(cube, anim);
+            ecsWorld.addComponent<AnimationComponent>(controlledCube, anim);
         }
 
         // add a second cube, that both translates and rotates
@@ -140,5 +144,21 @@ class DefaultScene : public GtsScene
         void onUpdate(float dt) override
         {
             ecsWorld.update(dt);
+
+            // if (gtsinput::isKeyPressed(GtsKey::W)) 
+            // {
+            //     std::cout << "W pressed once!\n";
+            // }
+
+            // if (gtsinput::isKeyDown(GtsKey::W)) 
+            // {
+            //     std::cout << "W is being held\n";
+            // }
+
+            // if (gtsinput::isKeyReleased(GtsKey::W)) 
+            // {
+            //     std::cout << "W released\n";
+            // }
         }
+
 };
