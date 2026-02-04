@@ -16,8 +16,8 @@
 #include "VulkanPipelineConfig.h"
 #include "VulkanPipeline.hpp"
 
-#include "ResourceSystem.hpp"
-#include "RenderSystem.hpp"
+#include "RenderResourceManager.hpp"
+#include "RenderCommandExtractor.hpp"
 
 #include "FramebufferManager.hpp"
 #include "FramebufferManagerConfig.h"
@@ -40,7 +40,7 @@ class ForwardRenderer : Renderer
         std::unique_ptr<FrameManager> frameManager;
 
         // resource system of the renderer
-        std::unique_ptr<ResourceSystem> resourceSystem;
+        std::unique_ptr<RenderResourceManager> resourceSystem;
 
         // misc variables we need for the draw loop
         float FPS = 30.0f;
@@ -111,7 +111,7 @@ class ForwardRenderer : Renderer
         {
             createDepthAttachment();
             createRenderPass();
-            resourceSystem = std::make_unique<ResourceSystem>();
+            resourceSystem = std::make_unique<RenderResourceManager>();
             createPipeline();
             createFrameBuffers();
             frameManager = std::make_unique<FrameManager>();
@@ -318,7 +318,7 @@ class ForwardRenderer : Renderer
         // filler getters, not to be used in the real program
         Attachment* getAttachmentWrapper() { return depthAttachment.get(); }
         VulkanRenderPass* getRenderPassWrapper() { return vrenderpass.get(); }
-        ResourceSystem* getResourceSystem() { return resourceSystem.get(); }
+        RenderResourceManager* getResourceSystem() { return resourceSystem.get(); }
         VulkanPipeline* getPipeline() { return vpipeline.get(); }
         FramebufferManager* getFrameBufferManager() { return frameBufferManager.get(); }
 

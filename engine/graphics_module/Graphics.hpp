@@ -51,10 +51,9 @@
 
 #include "MaterialComponent.h"
 
-#include "RenderSystem.hpp"
+#include "RenderCommandExtractor.hpp"
 #include "TransformComponent.h"
 
-#include "ResourceSystem.hpp"
 #include "GraphicsConfig.h"
 
 #include "GravitasEngine.hpp"

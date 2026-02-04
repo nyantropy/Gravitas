@@ -5,7 +5,7 @@
 #include "ECSWorld.hpp"
 #include "Timer.hpp"
 #include "Graphics.hpp"
-#include "RenderSystem.hpp"
+#include "RenderCommandExtractor.hpp"
 
 #include "SceneManager.hpp"
 #include "DefaultScene.hpp"
@@ -24,7 +24,7 @@ class GravitasEngine
 
         // graphics module related structures
         std::unique_ptr<Graphics> graphics;
-        std::unique_ptr<RenderSystem> renderSystem;
+        std::unique_ptr<RenderCommandExtractor> renderSystem;
 
         // the scene manager
         // the whole world is a stage after all
@@ -33,7 +33,7 @@ class GravitasEngine
         // its only a render system now, maybe this will move later
         void createSystems()
         {
-            renderSystem = std::make_unique<RenderSystem>();
+            renderSystem = std::make_unique<RenderCommandExtractor>();
         }
 
         // create Manager classes
@@ -119,6 +119,6 @@ class GravitasEngine
         // render call
         void render(float dt)
         {
-            graphics->renderFrame(dt, renderSystem->buildRenderList(sceneManager->getActiveScene()->getWorld()));  
+            graphics->renderFrame(dt, renderSystem->extractRenderList(sceneManager->getActiveScene()->getWorld()));  
         }
 };

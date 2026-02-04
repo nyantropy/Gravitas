@@ -26,7 +26,6 @@ add_subdirectory(vksetup)
 add_subdirectory(rendering)
 add_subdirectory(graphics_util)
 add_subdirectory(windowing)
-add_subdirectory(gsystems)
 add_subdirectory(renderresource)
 
 
@@ -48,7 +47,6 @@ target_link_libraries(graphics
     graphicsutil
     windowing
     external
-    gsystems
     components
 #    PkgConfig::LIBAV
 )

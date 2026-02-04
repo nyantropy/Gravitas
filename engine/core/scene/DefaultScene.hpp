@@ -11,6 +11,8 @@
 #include "AnimationComponent.h"
 
 #include "CameraSystem.hpp"
+#include "CameraControlSystem.hpp"
+
 #include "UniformDataSystem.hpp"
 #include "TransformAnimationSystem.hpp"
 
@@ -125,6 +127,7 @@ class DefaultScene : public GtsScene
         // no camera system would mean no picture after all :(
         void addSystems()
         {
+            ecsWorld.addSystem<CameraControlSystem>();
             ecsWorld.addSystem<CameraSystem>();
             ecsWorld.addSystem<TransformAnimationSystem>();
             ecsWorld.addSystem<UniformDataSystem>();
@@ -145,10 +148,10 @@ class DefaultScene : public GtsScene
         {
             ecsWorld.update(dt);
 
-            // if (gtsinput::isKeyPressed(GtsKey::W)) 
-            // {
-            //     std::cout << "W pressed once!\n";
-            // }
+            if (gtsinput::isKeyPressed(GtsKey::W)) 
+            {
+                std::cout << "W pressed once!\n";
+            }
 
             // if (gtsinput::isKeyDown(GtsKey::W)) 
             // {

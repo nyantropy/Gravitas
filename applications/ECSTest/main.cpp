@@ -1,6 +1,7 @@
 #include <iostream>
 #include <filesystem>
 #include <vector>
+#include <iostream>
 
 #include "GravitasEngine.hpp"
 
@@ -9,7 +10,6 @@ int main()
     GravitasEngine engine = GravitasEngine();
     engine.createDebugScene();
     engine.start();
-    engine.stop();
 
     return EXIT_SUCCESS;
 }
