@@ -24,16 +24,27 @@ class GravitasEngine
 
         // graphics module related structures
         std::unique_ptr<Graphics> graphics;
-        std::unique_ptr<RenderCommandExtractor> renderSystem;
+
+        // used to extract all render commands from the currently active ecs world
+        std::unique_ptr<RenderCommandExtractor> renderCommandExtractor;
 
         // the scene manager
         // the whole world is a stage after all
         std::unique_ptr<SceneManager> sceneManager;
 
-        // its only a render system now, maybe this will move later
-        void createSystems()
+        // the scene context
+        SceneContext sceneContext;
+
+        void createSceneContext()
         {
-            renderSystem = std::make_unique<RenderCommandExtractor>();
+            sceneContext.resources = graphics->getResourceProvider();
+            sceneContext.input = inputManager.get();
+        }
+
+        // its only a render system now, maybe this will move later
+        void createECSExtractors()
+        {
+            renderCommandExtractor = std::make_unique<RenderCommandExtractor>();
         }
 
         // create Manager classes
@@ -58,14 +69,15 @@ class GravitasEngine
         {
             createManagers();
             createGraphicsModule();
-            createSystems();
+            createECSExtractors();
+            createSceneContext();
         }
 
         ~GravitasEngine()
         {
             if(inputManager) inputManager.reset();
             if(sceneManager) sceneManager.reset();
-            if(renderSystem) renderSystem.reset();
+            if(renderCommandExtractor) renderCommandExtractor.reset();
             if(graphics) graphics.reset();
             if(timer) timer.reset();
         }
@@ -79,7 +91,7 @@ class GravitasEngine
         {
             sceneManager->registerScene("default", std::make_unique<DefaultScene>());
             sceneManager->setActiveScene("default");
-            sceneManager->getActiveScene()->onLoad(*graphics->getResourceProvider());
+            sceneManager->getActiveScene()->onLoad(sceneContext);
         }
 
         void start()
@@ -113,12 +125,12 @@ class GravitasEngine
         // update call
         void update(float dt)
         {
-            sceneManager->getActiveScene()->onUpdate(dt);
+            sceneManager->getActiveScene()->onUpdate(sceneContext, dt);
         }
 
         // render call
         void render(float dt)
         {
-            graphics->renderFrame(dt, renderSystem->extractRenderList(sceneManager->getActiveScene()->getWorld()));  
+            graphics->renderFrame(dt, renderCommandExtractor->extractRenderList(sceneManager->getActiveScene()->getWorld()));  
         }
 };

@@ -4,6 +4,7 @@
 #include "GtsKey.h"
 
 // expose input manager in a global manner, to make things easier
+// currently not used, but i will leave it here for now in case i need to rethink my architecture
 namespace gtsinput
 {
     inline InputManager* glbInput = nullptr;

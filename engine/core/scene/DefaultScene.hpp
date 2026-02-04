@@ -16,6 +16,8 @@
 #include "UniformDataSystem.hpp"
 #include "TransformAnimationSystem.hpp"
 
+#include "SceneContext.h"
+
 #include "gtsinput.h"
 
 // a run of the mill default scene in the engine, for testing purposes
@@ -134,34 +136,24 @@ class DefaultScene : public GtsScene
         }
 
         // load in whatever we put into the scene
-        void onLoad(IResourceProvider& resource)
+        void onLoad(SceneContext& ctx) override
         {
-            firstCube(resource);
-            secondCube(resource);
-            thirdCube(resource);
-            mainCamera(resource);
+            firstCube(*ctx.resources);
+            secondCube(*ctx.resources);
+            thirdCube(*ctx.resources);
+            mainCamera(*ctx.resources);
             addSystems();
         }
 
         // update call delegation
-        void onUpdate(float dt) override
+        void onUpdate(SceneContext& ctx, float dt) override
         {
             ecsWorld.update(dt);
 
-            if (gtsinput::isKeyPressed(GtsKey::W)) 
+            if (ctx.input->isKeyPressed(GtsKey::W)) 
             {
                 std::cout << "W pressed once!\n";
             }
-
-            // if (gtsinput::isKeyDown(GtsKey::W)) 
-            // {
-            //     std::cout << "W is being held\n";
-            // }
-
-            // if (gtsinput::isKeyReleased(GtsKey::W)) 
-            // {
-            //     std::cout << "W released\n";
-            // }
         }
 
 };

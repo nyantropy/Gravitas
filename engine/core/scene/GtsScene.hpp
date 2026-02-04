@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ECSWorld.hpp"
-#include "IResourceProvider.hpp"
+#include "SceneContext.h"
 
 // core idea: override this class in whatever application you are making, and create your own scene using entities and components
 class GtsScene 
@@ -12,10 +12,10 @@ class GtsScene
         virtual ~GtsScene() = default;
 
         // call this once whenever the scene is loaded
-        virtual void onLoad(IResourceProvider& resource) = 0;
+        virtual void onLoad(SceneContext& ctx) = 0;
 
         // call this every time the scene is updated
-        virtual void onUpdate(float dt) = 0;
+        virtual void onUpdate(SceneContext& ctx, float dt) = 0;
 
         ECSWorld& getWorld() 
         {
