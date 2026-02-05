@@ -15,7 +15,7 @@ class GtsScene
         virtual void onLoad(SceneContext& ctx) = 0;
 
         // call this every time the scene is updated
-        virtual void onUpdate(SceneContext& ctx, float dt) = 0;
+        virtual void onUpdate(SceneContext& ctx) = 0;
 
         ECSWorld& getWorld() 
         {

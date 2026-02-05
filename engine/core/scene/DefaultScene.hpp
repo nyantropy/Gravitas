@@ -146,13 +146,20 @@ class DefaultScene : public GtsScene
         }
 
         // update call delegation
-        void onUpdate(SceneContext& ctx, float dt) override
+        void onUpdate(SceneContext& ctx) override
         {
-            ecsWorld.update(dt);
+            ecsWorld.update(ctx.time->deltaTime);
 
-            if (ctx.input->isKeyPressed(GtsKey::W)) 
+            if (ctx.input->isKeyPressed(GtsKey::X)) 
             {
-                std::cout << "W pressed once!\n";
+                std::cout << "X pressed" << std::endl;
+                ctx.engineCommands->requestPause();
+            }
+
+            if (ctx.input->isKeyPressed(GtsKey::Y)) 
+            {
+                std::cout << "Y pressed" << std::endl;
+                ctx.engineCommands->requestResume();
             }
         }
 

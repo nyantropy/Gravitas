@@ -4,6 +4,7 @@
 
 #include "ECSWorld.hpp"
 #include "Timer.hpp"
+#include "TimeContext.h"
 #include "Graphics.hpp"
 #include "RenderCommandExtractor.hpp"
 
@@ -12,6 +13,9 @@
 
 #include "InputManager.hpp"
 #include "gtsinput.h"
+
+#include "GtsCommand.h"
+#include "GtsCommandBuffer.h"
 
 class GravitasEngine 
 {
@@ -32,13 +36,23 @@ class GravitasEngine
         // the whole world is a stage after all
         std::unique_ptr<SceneManager> sceneManager;
 
-        // the scene context
+        // the scene context and the time context should both be members of the engine, as they get updated
+        // constantly and need to not run out of scope
         SceneContext sceneContext;
+        TimeContext timeContext;
+
+        // the engine also has its own command buffer, which can be filled by lower level architectures, and will lead
+        // to the engine executing pre defined functions like pausing, or changing the scene, etc..
+        GtsCommandBuffer engineCommands;
+
+        bool simulationPaused = false;
 
         void createSceneContext()
         {
             sceneContext.resources = graphics->getResourceProvider();
             sceneContext.input = inputManager.get();
+            sceneContext.time = &timeContext;
+            sceneContext.engineCommands = &engineCommands;
         }
 
         // its only a render system now, maybe this will move later
@@ -102,35 +116,60 @@ class GravitasEngine
             while(graphics->isWindowOpen())
             {
                 // tick the engine timer
-                float dt = timer->tick();
+                float realDt = timer->tick();
+
+                // update the context(s)
+                timeContext.unscaledDeltaTime = realDt;
+                timeContext.deltaTime = simulationPaused ? 0.0f : realDt * timeContext.timeScale;
+                timeContext.frame = timer->getFrameCount();
 
                 // let the input manager catch the window keydown event
                 inputManager->beginFrame();
                 graphics->pollWindowEvents();
 
                 // update scene and entities, render frame
-                update(dt);
-                render(dt);
+                // and also apply engine commands, if there are any in the queue
+                update();
+                render(realDt);
+                applyCommands();
             }
 
             // shutdown graphics module after we close the window
             graphics->shutdown();
         }
 
-        void stop()
-        {
-
-        }
-
         // update call
-        void update(float dt)
+        void update()
         {
-            sceneManager->getActiveScene()->onUpdate(sceneContext, dt);
+            sceneManager->getActiveScene()->onUpdate(sceneContext);
         }
 
         // render call
         void render(float dt)
         {
             graphics->renderFrame(dt, renderCommandExtractor->extractRenderList(sceneManager->getActiveScene()->getWorld()));  
+        }
+
+        void applyCommands()
+        {
+            for (auto& cmd : engineCommands.commands)
+            {
+                switch (cmd.type)
+                {
+                    case GtsCommand::Type::Pause:
+                        simulationPaused = true;
+                        std::cout << "Paused" << std::endl;
+                        break;
+                    case GtsCommand::Type::Resume:
+                        simulationPaused = false;
+                        std::cout << "Resumed" << std::endl;
+                        break;
+                    case GtsCommand::Type::LoadScene:
+                        sceneManager->setActiveScene(cmd.stringArg);
+                        break;
+                }
+            }
+
+            engineCommands.commands.clear();
         }
 };
