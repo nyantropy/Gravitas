@@ -12,7 +12,6 @@
 #include "DefaultScene.hpp"
 
 #include "InputManager.hpp"
-#include "gtsinput.h"
 
 #include "GtsCommand.h"
 #include "GtsCommandBuffer.h"
@@ -150,6 +149,7 @@ class GravitasEngine
             graphics->renderFrame(dt, renderCommandExtractor->extractRenderList(sceneManager->getActiveScene()->getWorld()));  
         }
 
+        // command callback from lower level architectures
         void applyCommands()
         {
             for (auto& cmd : engineCommands.commands)

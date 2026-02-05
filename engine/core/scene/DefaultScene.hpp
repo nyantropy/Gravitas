@@ -148,8 +148,10 @@ class DefaultScene : public GtsScene
         // update call delegation
         void onUpdate(SceneContext& ctx) override
         {
-            ecsWorld.updateSimulation(ctx.time->deltaTime);
+            // first the controllers, then the simulation
             ecsWorld.updateControllers(ctx);
+            ecsWorld.updateSimulation(ctx.time->deltaTime);
+            
 
             if (ctx.input->isKeyPressed(GtsKey::X)) 
             {

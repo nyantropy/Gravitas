@@ -32,7 +32,7 @@ add_subdirectory(renderresource)
 
 # Set all the include directories for this target
 target_include_directories(graphics PUBLIC
-    ${CMAKE_SOURCE_DIR}/graphics_module
+    ${CMAKE_CURRENT_SOURCE_DIR}
     ${Vulkan_INCLUDE_DIRS}
 )
 

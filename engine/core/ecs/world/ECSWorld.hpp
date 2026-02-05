@@ -15,6 +15,12 @@
 #include "ECSControllerSystem.hpp"
 #include "SceneContext.h"
 
+// now updated to suit both simulation and controller systems
+// simulation systems may only depend on dt
+// controller systems have more power given through the scene context and a way to send commands back to the engine
+
+// component storages still work the same way, an entity can have multiple different components attached to it, and may be filtered by looking for
+// those components
 class ECSWorld
 {
     private:
@@ -80,10 +86,6 @@ class ECSWorld
             getStorage<Component>().remove(entity);
         }
 
-        // -------------------------
-        // system registration
-        // -------------------------
-
         template<typename SystemType, typename... Args>
         SystemType& addSimulationSystem(Args&&... args)
         {
@@ -107,10 +109,6 @@ class ECSWorld
             controllerSystems.push_back(std::move(system));
             return ref;
         }
-
-        // -------------------------
-        // update entry points
-        // -------------------------
 
         void updateSimulation(float dt)
         {
