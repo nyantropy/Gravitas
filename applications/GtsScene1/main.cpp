@@ -5,6 +5,7 @@
 
 #include "GravitasEngine.hpp"
 
+// creates a simple debug test scene
 int main() 
 {
     GravitasEngine engine = GravitasEngine();

@@ -1,1 +1,1 @@
-add_subdirectory(ECSTest)
+add_subdirectory(GtsScene1)
