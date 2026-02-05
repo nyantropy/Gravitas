@@ -129,10 +129,10 @@ class DefaultScene : public GtsScene
         // no camera system would mean no picture after all :(
         void addSystems()
         {
-            ecsWorld.addSystem<CameraControlSystem>();
-            ecsWorld.addSystem<CameraSystem>();
-            ecsWorld.addSystem<TransformAnimationSystem>();
-            ecsWorld.addSystem<UniformDataSystem>();
+            ecsWorld.addControllerSystem<CameraControlSystem>();
+            ecsWorld.addSimulationSystem<CameraSystem>();
+            ecsWorld.addSimulationSystem<TransformAnimationSystem>();
+            ecsWorld.addSimulationSystem<UniformDataSystem>();
         }
 
         // load in whatever we put into the scene
@@ -148,7 +148,8 @@ class DefaultScene : public GtsScene
         // update call delegation
         void onUpdate(SceneContext& ctx) override
         {
-            ecsWorld.update(ctx.time->deltaTime);
+            ecsWorld.updateSimulation(ctx.time->deltaTime);
+            ecsWorld.updateControllers(ctx);
 
             if (ctx.input->isKeyPressed(GtsKey::X)) 
             {
