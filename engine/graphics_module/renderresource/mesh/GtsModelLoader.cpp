@@ -9,7 +9,7 @@ void GtsModelLoader::loadModel(std::string model_path, std::vector<Vertex>& vert
 
     if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, model_path.c_str())) 
     {
-        throw std::runtime_error(warn + err);
+        throw std::runtime_error(warn + err + "Path: " + model_path.c_str());
     }
 
     std::unordered_map<Vertex, uint32_t> uniqueVertices{};

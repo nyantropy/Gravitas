@@ -6,7 +6,13 @@ static std::vector<char> readFile(const std::string& filename)
 
     if (!file.is_open()) 
     {
-        throw std::runtime_error("failed to open file!");
+        std::ostringstream oss;
+        oss << "failed to open file!\n"
+            << "  Requested path: " << filename << "\n"
+            << "  Current working directory: " 
+            << std::filesystem::current_path();
+
+        throw std::runtime_error(oss.str());
     }
 
     size_t fileSize = (size_t) file.tellg();

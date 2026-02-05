@@ -18,7 +18,7 @@
 
 #include "SceneContext.h"
 
-#include "gtsinput.h"
+#include "GraphicsConstants.h"
 
 // a run of the mill default scene in the engine, for testing purposes
 class DefaultScene : public GtsScene
@@ -32,7 +32,7 @@ class DefaultScene : public GtsScene
             controlledCube = ecsWorld.createEntity();
 
             MeshComponent mc;
-            mc.meshID = resource.requestMesh("resources/models/cube.obj");
+            mc.meshID = resource.requestMesh(GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj");
             ecsWorld.addComponent<MeshComponent>(controlledCube, mc);
 
             UniformBufferComponent ubc;
@@ -40,7 +40,7 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent<UniformBufferComponent>(controlledCube, ubc);
 
             MaterialComponent matc;
-            matc.textureID = resource.requestTexture("resources/textures/green_texture.png");
+            matc.textureID = resource.requestTexture(GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png");
             ecsWorld.addComponent<MaterialComponent>(controlledCube, matc);
 
             TransformComponent tc;
@@ -59,7 +59,7 @@ class DefaultScene : public GtsScene
             Entity cube2 = ecsWorld.createEntity();
 
             MeshComponent mc2;
-            mc2.meshID = resource.requestMesh("resources/models/cube.obj");
+            mc2.meshID = resource.requestMesh(GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj");
             ecsWorld.addComponent<MeshComponent>(cube2, mc2);
 
             UniformBufferComponent ubc2;
@@ -67,7 +67,7 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent<UniformBufferComponent>(cube2, ubc2);
 
             MaterialComponent matc2;
-            matc2.textureID = resource.requestTexture("resources/textures/blue_texture.png");
+            matc2.textureID = resource.requestTexture(GraphicsConstants::ENGINE_RESOURCES + "/textures/blue_texture.png");
             ecsWorld.addComponent<MaterialComponent>(cube2, matc2);
 
             TransformComponent tc2;
@@ -91,7 +91,7 @@ class DefaultScene : public GtsScene
             Entity cube2 = ecsWorld.createEntity();
 
             MeshComponent mc2;
-            mc2.meshID = resource.requestMesh("resources/models/cube.obj");
+            mc2.meshID = resource.requestMesh(GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj");
             ecsWorld.addComponent<MeshComponent>(cube2, mc2);
 
             UniformBufferComponent ubc2;
@@ -99,7 +99,7 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent<UniformBufferComponent>(cube2, ubc2);
 
             MaterialComponent matc2;
-            matc2.textureID = resource.requestTexture("resources/textures/purple_texture.png");
+            matc2.textureID = resource.requestTexture(GraphicsConstants::ENGINE_RESOURCES + "/textures/purple_texture.png");
             ecsWorld.addComponent<MaterialComponent>(cube2, matc2);
 
             TransformComponent tc2;

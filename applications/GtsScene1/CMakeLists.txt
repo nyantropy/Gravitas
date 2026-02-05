@@ -10,13 +10,13 @@ file(GLOB APP_SOURCES CONFIGURE_DEPENDS
     *.c
 )
 
-add_executable(main ${APP_SOURCES})
-target_link_libraries(main PRIVATE GravitasEngine)
+add_executable(GtsScene1 ${APP_SOURCES})
+target_link_libraries(GtsScene1 PRIVATE GravitasEngine)
 
-set_target_properties(main PROPERTIES
+set_target_properties(GtsScene1 PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
 if (WIN32)
-    set_target_properties(main PROPERTIES OUTPUT_NAME "main.exe")
+    set_target_properties(GtsScene1 PROPERTIES OUTPUT_NAME "GtsScene1.exe")
 endif()
