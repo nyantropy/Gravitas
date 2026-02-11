@@ -24,7 +24,7 @@ class ComponentStorage : public IComponentStorage
             return components.at(entity.id);
         }
 
-        void remove(Entity entity) 
+        void remove(Entity entity) override
         {
             components.erase(entity.id);
         }

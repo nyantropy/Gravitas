@@ -100,6 +100,17 @@ class GravitasEngine
             return timer.get();
         }
 
+        void registerScene(std::string name, std::unique_ptr<GtsScene> scene)
+        {
+            sceneManager->registerScene(name, std::move(scene));
+        }
+
+        void setActiveScene(std::string name)
+        {
+            sceneManager->setActiveScene(name);
+            sceneManager->getActiveScene()->onLoad(sceneContext);
+        }
+
         void createDebugScene()
         {
             sceneManager->registerScene("default", std::make_unique<DefaultScene>());

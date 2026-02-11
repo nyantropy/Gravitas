@@ -4,7 +4,6 @@
 
 #include <iostream>
 
-
 // manage inputs on a frame/tick basis instead of an event basis
 class InputManager
 {
@@ -24,12 +23,14 @@ class InputManager
                 currentState[idx] = pressed;
         }
 
-    public:
+        // only the main engine can signal the start of a new frame
+        friend class GravitasEngine;
         void beginFrame()
         {
             previousState = currentState;
         }
 
+    public:
         // check if a key is currently being held down
         bool isKeyDown(GtsKey key) const
         {

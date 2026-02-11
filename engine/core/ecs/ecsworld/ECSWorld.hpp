@@ -62,6 +62,12 @@ class ECSWorld
             return Entity{ nextEntityId++ };
         }
 
+        void destroyEntity(Entity e)
+        {
+            for (auto& [type, storage] : storages)
+                storage->remove(e);
+        }
+
         template<typename Component>
         void addComponent(Entity entity, const Component& component)
         {
@@ -110,6 +116,24 @@ class ECSWorld
             return ref;
         }
 
+        template<typename... Components, typename Func>
+        void forEach(Func&& fn)
+        {
+            static_assert(sizeof...(Components) > 0);
+
+            using First = typename std::tuple_element<0, std::tuple<Components...>>::type;
+
+            auto& firstStorage = getStorage<First>();
+
+            for (Entity e : firstStorage.getAllEntities())
+            {
+                if (!(hasComponent<Components>(e) && ...))
+                    continue;
+
+                fn(e, getComponent<Components>(e)...);
+            }
+        }
+
         void updateSimulation(float dt)
         {
             for (auto& system : simulationSystems)
@@ -133,5 +157,5 @@ class ECSWorld
             (filterEntitiesWith<Components>(result), ...);
 
             return result;
-        }
+        }     
 };

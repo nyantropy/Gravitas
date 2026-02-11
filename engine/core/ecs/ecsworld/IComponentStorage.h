@@ -4,4 +4,5 @@
 struct IComponentStorage 
 {
     virtual ~IComponentStorage() = default;
+    virtual void remove(Entity entity) = 0;
 };

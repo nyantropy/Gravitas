@@ -1,8 +1,22 @@
-file(GLOB CURRENT_DIR_SRC ./*.hpp ./*.cpp ./*.c ./*.h)
-add_library(core ${CURRENT_DIR_SRC})
+add_library(core INTERFACE)
 
-target_include_directories(core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(core PUBLIC graphics)
+target_link_libraries(core
+    INTERFACE
+        ecs
+        options
+        event
+        scene
+        input
+        rng
+        time
+        gtscommand
+)
+
+target_include_directories(core
+    INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 
 add_subdirectory(ecs)
 add_subdirectory(options)
