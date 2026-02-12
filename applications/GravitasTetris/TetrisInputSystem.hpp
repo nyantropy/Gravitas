@@ -17,13 +17,13 @@ class TetrisInputSystem : public ECSControllerSystem
         {
             input.clear();
 
-            if (ctx.input->isKeyPressed(GtsKey::A))
+            if (ctx.input->isKeyDown(GtsKey::A))
                 input.moveLeft = true;
 
-            if (ctx.input->isKeyPressed(GtsKey::D))
+            if (ctx.input->isKeyDown(GtsKey::D))
                 input.moveRight = true;
 
-            if (ctx.input->isKeyPressed(GtsKey::W))
+            if (ctx.input->isKeyDown(GtsKey::W))
                 input.rotate = true;
 
             if (ctx.input->isKeyDown(GtsKey::S))

@@ -34,6 +34,13 @@ class TetrisGameSystem : public ECSSimulationSystem
         float fallTimer = 0.0f;
         float fallInterval = 0.7f;
 
+        float moveTimer = 0.0f;
+        float moveInterval = 0.08f;
+
+        float rotateTimer = 0.0f;
+        float rotateInterval = 0.15f;
+
+
     public:
         TetrisGameSystem(TetrisInputState& in)
             : input(in)
@@ -45,12 +52,14 @@ class TetrisGameSystem : public ECSSimulationSystem
         {
             rebuildGrid(world);
 
-            // hacky solution, always checking for first update is dumb, but it works so ill leave it for now
             if (firstUpdate)
             {
                 spawnPiece(world);
                 firstUpdate = false;
             }
+
+            moveTimer   += dt;
+            rotateTimer += dt;
 
             handleInput(world);
 
@@ -62,6 +71,7 @@ class TetrisGameSystem : public ECSSimulationSystem
                 fallTimer = 0.0f;
             }
         }
+
 
     private:
         // the grid serves as a cache and as a way to track when a line clear occurs
@@ -83,23 +93,48 @@ class TetrisGameSystem : public ECSSimulationSystem
         // input handling is simple, we have a separate system that catches whatever keys are pressed, and this simply executes the right move
         void handleInput(ECSWorld& world)
         {
-            if (input.moveLeft)  tryMove(world, { -1, 0 });
-            if (input.moveRight) tryMove(world, {  1, 0 });
-            if (input.rotate)    tryRotate(world);
+            if (input.moveLeft && moveTimer >= moveInterval)
+            {
+                tryMove(world, { -1, 0 });
+                moveTimer = 0.0f;
+            }
+
+            if (input.moveRight && moveTimer >= moveInterval)
+            {
+                tryMove(world, { 1, 0 });
+                moveTimer = 0.0f;
+            }
+
+            if (input.rotate && rotateTimer >= rotateInterval)
+            {
+                tryRotate(world);
+                rotateTimer = 0.0f;
+            }
         }
 
+
+        // improved to not hardcap the y coordinate when moving/rotating, increasing the fluidity of gameplay
         bool testPosition(ECSWorld& world, glm::ivec2 newPivot, int newRot) const
         {
             auto& shape = TetrominoShapes[(int)active.type][newRot];
+
             for (int i = 0; i < 4; ++i)
             {
                 int x = newPivot.x + shape.blocks[i].x;
                 int y = newPivot.y + shape.blocks[i].y;
-                if (!grid.inBounds(x, y) || grid.occupied(x, y))
+
+                // still clamp left / right / bottom
+                if (x < 0 || x >= grid.width || y < 0)
+                    return false;
+
+                // only test occupancy if the block is actually inside the grid vertically
+                if (y < grid.height && grid.occupied(x, y))
                     return false;
             }
+
             return true;
         }
+
 
         void applyToActiveBlocks(ECSWorld& world)
         {
@@ -202,14 +237,32 @@ class TetrisGameSystem : public ECSSimulationSystem
             active.rotation = 0;
             active.pivot = { grid.width / 2, grid.height - 1 };
 
+            // NEW: game over check
+            if (!testPosition(world, active.pivot, active.rotation))
+            {
+                // wipe the whole grid
+                std::vector<Entity> all;
+
+                world.forEach<TetrisBlockComponent>([&](Entity e, TetrisBlockComponent&)
+                {
+                    all.push_back(e);
+                });
+
+                for (Entity e : all)
+                    world.destroyEntity(e);
+
+                rebuildGrid(world);
+            }
+
             auto& shape = TetrominoShapes[(int)active.type][0];
             for (int i = 0; i < 4; ++i)
             {
                 Entity e = world.createEntity();
-                world.addComponent(e, TetrisBlockComponent{ 0, 0, true });
+                world.addComponent(e, TetrisBlockComponent{ 0, 0, true, active.type });
                 active.blocks[i] = e;
             }
 
             applyToActiveBlocks(world);
         }
+
 };

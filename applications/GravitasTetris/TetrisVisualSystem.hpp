@@ -8,6 +8,8 @@
 #include "MaterialComponent.h"
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
+#include "TetrominoType.hpp"
+#include <string>
 
 // the visual system is much more lightweight than the logical system, its responsibility lies only in making new tetris blocks renderable
 // and adjusting the transformation coordinate inside the transform component
@@ -25,7 +27,7 @@ class TetrisVisualSystem : public ECSControllerSystem
                     world.addComponent(e, TransformComponent{});
                     world.addComponent(e, MeshComponent{ ctx.resources->requestMesh(GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj") });
                     world.addComponent(e, UniformBufferComponent{ ctx.resources->requestUniformBuffer() });
-                    world.addComponent(e, MaterialComponent{ ctx.resources->requestTexture(GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png") });
+                    addMaterialComponent(world, ctx, block, e);
                 }
 
                 // apply block position to transform
@@ -34,5 +36,39 @@ class TetrisVisualSystem : public ECSControllerSystem
                 tr.position.y = float(block.y);
                 tr.position.z = 0.0f;
             });
+        }
+
+        void addMaterialComponent(ECSWorld& world, SceneContext& ctx, TetrisBlockComponent& block, Entity& e)
+        {
+            std::string path = "";
+            switch(block.type)
+            {
+                case TetrominoType::I:
+                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/cyan_texture.png";
+                    break;
+                case TetrominoType::J:
+                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png";
+                    break;
+                case TetrominoType::L:
+                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/yellow_texture.png";
+                    break;
+                case TetrominoType::O:
+                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/red_texture.png";
+                    break;
+                case TetrominoType::S:
+                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/purple_texture.png";
+                    break;
+                case TetrominoType::T:
+                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/orange_texture.png";
+                    break;
+                case TetrominoType::Z:
+                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/blue_texture.png";
+                    break;
+                default:
+                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png";
+                    break;
+            }
+
+            world.addComponent(e, MaterialComponent{ ctx.resources->requestTexture(path) });
         }
 };
