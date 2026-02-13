@@ -1,7 +1,7 @@
 #pragma once
 
 // the struct which determines what action happens whenever a user presses a button - further functionality can be added here
-struct TetrisInputState
+struct TetrisInputComponent
 {
     bool moveLeft  = false;
     bool moveRight = false;
@@ -13,3 +13,4 @@ struct TetrisInputState
         moveLeft = moveRight = rotate = softDrop = false;
     }
 };
+

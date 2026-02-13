@@ -1,21 +1,17 @@
 #pragma once
 #include "ECSControllerSystem.hpp"
-#include "TetrisInputState.hpp"
+#include "TetrisInputComponent.hpp"
 #include "GtsKey.h"
 
 // the system that handles all input for the tetris game
 class TetrisInputSystem : public ECSControllerSystem
 {
-    private:
-        TetrisInputState& input;
-
     public:
-        TetrisInputSystem(TetrisInputState& in)
-            : input(in) {}
+        TetrisInputSystem() {}
 
         void update(ECSWorld& world, SceneContext& ctx) override
         {
-            input.clear();
+            auto& input = world.getSingleton<TetrisInputComponent>();
 
             if (ctx.input->isKeyDown(GtsKey::A))
                 input.moveLeft = true;

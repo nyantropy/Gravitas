@@ -13,7 +13,7 @@
 #include "TetrisGrid.hpp"
 #include "TetrominoType.hpp"
 #include "TetrominoShape.hpp"
-#include "TetrisInputState.hpp"
+#include "TetrisInputComponent.hpp"
 #include "ActiveTetromino.hpp"
 #include "Entity.h"
 #include "TetrisBlockComponent.hpp"
@@ -29,7 +29,6 @@ class TetrisGameSystem : public ECSSimulationSystem
 
         TetrisGrid grid;
         ActiveTetromino active;
-        TetrisInputState& input;
 
         float fallTimer = 0.0f;
         float fallInterval = 0.7f;
@@ -42,10 +41,7 @@ class TetrisGameSystem : public ECSSimulationSystem
 
 
     public:
-        TetrisGameSystem(TetrisInputState& in)
-            : input(in)
-        {
-        }
+        TetrisGameSystem() {}
 
         // update tick, this is where all the magic happens
         void update(ECSWorld& world, float dt) override
@@ -63,6 +59,8 @@ class TetrisGameSystem : public ECSSimulationSystem
 
             handleInput(world);
 
+            auto& input = world.getSingleton<TetrisInputComponent>();
+
             fallTimer += dt;
             float interval = input.softDrop ? 0.05f : fallInterval;
             if (fallTimer >= interval)
@@ -70,6 +68,8 @@ class TetrisGameSystem : public ECSSimulationSystem
                 tryMove(world, { 0, -1 });
                 fallTimer = 0.0f;
             }
+
+            input.clear();
         }
 
 
@@ -93,6 +93,8 @@ class TetrisGameSystem : public ECSSimulationSystem
         // input handling is simple, we have a separate system that catches whatever keys are pressed, and this simply executes the right move
         void handleInput(ECSWorld& world)
         {
+            auto& input = world.getSingleton<TetrisInputComponent>();
+
             if (input.moveLeft && moveTimer >= moveInterval)
             {
                 tryMove(world, { -1, 0 });
@@ -225,9 +227,7 @@ class TetrisGameSystem : public ECSSimulationSystem
 
                 y--;
                 rebuildGrid(world);
-            }
-            
-            
+            }         
         }
 
         // spawn a new, random tetris piece at the top of the grid
@@ -264,5 +264,4 @@ class TetrisGameSystem : public ECSSimulationSystem
 
             applyToActiveBlocks(world);
         }
-
 };

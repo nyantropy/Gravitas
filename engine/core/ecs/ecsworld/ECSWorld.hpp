@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <tuple>
 #include <type_traits>
+#include <cassert>
 
 #include "Entity.h"
 #include "ComponentStorage.hpp"
@@ -157,5 +158,66 @@ class ECSWorld
             (filterEntitiesWith<Components>(result), ...);
 
             return result;
-        }     
+        }
+        
+        // ------------------------------------------------------------
+        // singleton helpers
+        // a singleton is just a component type that is guaranteed
+        // to exist on exactly one entity
+        // this whole feature is a bit experimental, but the bottom line is that not all components
+        // need to exist on multiple entities - singletons should be used to share data between different systems
+        // as an ecs friendly approach
+
+        template<typename Component>
+        bool hasAny() const
+        {
+            auto& storage = getStorage<Component>();
+            return !storage.getAllEntities().empty();
+        }
+
+        template<typename Component>
+        Entity getSingletonEntity() const
+        {
+            auto& storage = getStorage<Component>();
+            auto entities = storage.getAllEntities();
+
+            // must exist
+            assert(!entities.empty() && "Singleton component does not exist");
+
+            // must be unique
+            assert(entities.size() == 1 && "More than one singleton component exists");
+
+            return entities[0];
+        }
+
+        template<typename Component>
+        Component& getSingleton()
+        {
+            Entity e = getSingletonEntity<Component>();
+            return getComponent<Component>(e);
+        }
+
+        template<typename Component>
+        const Component& getSingleton() const
+        {
+            Entity e = getSingletonEntity<Component>();
+            return getStorage<Component>().get(e);
+        }
+
+        // convenience helper for scene/world setup
+        // creates the singleton component on a new entity
+        // and enforces that only one exists
+        template<typename Component, typename... Args>
+        Component& createSingleton(Args&&... args)
+        {
+            // make sure we do not accidentally create more than one
+            assert(!hasAny<Component>() && "Singleton component already exists");
+
+            Entity e = createEntity();
+            getStorage<Component>().add(e, Component{ std::forward<Args>(args)... });
+            return getComponent<Component>(e);
+        }
+
+        // ------------------------------------------------------------
+
 };

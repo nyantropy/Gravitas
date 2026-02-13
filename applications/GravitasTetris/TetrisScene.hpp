@@ -3,7 +3,7 @@
 #include "GtsScene.hpp"
 #include "ECSWorld.hpp"
 
-#include "TetrisInputState.hpp"
+#include "TetrisInputComponent.hpp"
 #include "TetrisInputSystem.hpp"
 #include "TetrisGameSystem.hpp"
 #include "TetrisVisualSystem.hpp"
@@ -23,8 +23,6 @@
 // the central scene for the game, most delegation logic happens here
 class TetrisScene : public GtsScene
 {
-    TetrisInputState inputState;
-
     // spawns a single cube with a given texture at a given coordinate
     Entity spawnCube(IResourceProvider& resource, const std::string& texturePath, const glm::vec3& position)
     {
@@ -101,6 +99,12 @@ class TetrisScene : public GtsScene
         ecsWorld.addComponent(camera, ct);
     }
 
+    // add data driven components, like the input component, and later a scoreboard component
+    void addSingletonComponents()
+    {
+        ecsWorld.createSingleton<TetrisInputComponent>();
+    }
+
 public:
     // load in whatever we put into the scene
     void onLoad(SceneContext& ctx) override
@@ -108,8 +112,10 @@ public:
         buildTetrisFrame(*ctx.resources);
         mainCamera(*ctx.resources);
 
-        ecsWorld.addControllerSystem<TetrisInputSystem>(inputState);
-        ecsWorld.addSimulationSystem<TetrisGameSystem>(inputState);
+        addSingletonComponents();
+
+        ecsWorld.addControllerSystem<TetrisInputSystem>();
+        ecsWorld.addSimulationSystem<TetrisGameSystem>();
         ecsWorld.addControllerSystem<TetrisVisualSystem>();
         ecsWorld.addSimulationSystem<TetrisCameraSystem>();
         ecsWorld.addSimulationSystem<UniformDataSystem>();
