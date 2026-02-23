@@ -5,7 +5,6 @@
 #include <stdexcept>
 
 #include "Vertex.h"
-#include "UniformBufferObject.h"
 
 #include "MemoryUtil.hpp"
 
@@ -59,19 +58,17 @@ class BufferUtil
         }
 
         static void createUniformBuffers(VkDevice& device, VkPhysicalDevice& physicalDevice, std::vector<VkBuffer>& uniformBuffers, std::vector<VkDeviceMemory>& uniformBuffersMemory,
-        std::vector<void*>& uniformBuffersMapped, int frames_in_flight)
+        std::vector<void*>& uniformBuffersMapped, int frames_in_flight, VkDeviceSize size)
         {
-            VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-
             uniformBuffers.resize(frames_in_flight);
             uniformBuffersMemory.resize(frames_in_flight);
             uniformBuffersMapped.resize(frames_in_flight);
 
             for (size_t i = 0; i < frames_in_flight; i++) 
             {
-                createBuffer(device, physicalDevice, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
+                createBuffer(device, physicalDevice, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
 
-                vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
+                vkMapMemory(device, uniformBuffersMemory[i], 0, size, 0, &uniformBuffersMapped[i]);
             }
         } 
 

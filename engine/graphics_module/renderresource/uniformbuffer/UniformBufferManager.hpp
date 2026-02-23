@@ -50,7 +50,8 @@ class UniformBufferManager
                 ubo->uniformBuffers,
                 ubo->uniformBuffersMemory,
                 ubo->uniformBuffersMapped,
-                GraphicsConstants::MAX_FRAMES_IN_FLIGHT
+                GraphicsConstants::MAX_FRAMES_IN_FLIGHT,
+                size
             );
 
             ubo->descriptorSets = dssheet::getManager()
@@ -62,6 +63,7 @@ class UniformBufferManager
             return id;
         }
 
+        // return a uniformbufferresource pointer according to the specified id
         UniformBufferResource* getUniformBuffer(uniform_id_type id)
         {
             auto it = idToUBO.find(id);
