@@ -1,14 +1,13 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
-#include <array>
+#include <vector>
 
-#include "RenderResourceManager.hpp"
 #include "ECSWorld.hpp"
 #include "MeshComponent.h"
 #include "MaterialComponent.h"
-#include "TransformComponent.h"
-#include "UniformBufferComponent.h"
+#include "CameraComponent.h"
+#include "ObjectGpuComponent.h"
+#include "CameraGpuComponent.h"
 
 #include "RenderCommand.h"
 
@@ -19,18 +18,36 @@ class RenderCommandExtractor
         // entirely data based approach
         std::vector<RenderCommand> extractRenderList(ECSWorld& world) 
         {
+            // find the active camera's GPU component
+            uniform_id_type cameraUniformID = 0;
+            CameraUBO* cameraUboPtr = nullptr;
+
+            for (Entity e : world.getAllEntitiesWith<CameraComponent, CameraGpuComponent>())
+            {
+                auto& camComp = world.getComponent<CameraComponent>(e);
+                if (!camComp.active)
+                    continue;
+
+                auto& camGpu = world.getComponent<CameraGpuComponent>(e);
+                cameraUniformID = camGpu.buffer;
+                cameraUboPtr = &camGpu.ubo;
+                break;
+            }
+
             std::vector<RenderCommand> cmds;
-            for (Entity e : world.getAllEntitiesWith<MeshComponent, MaterialComponent, UniformBufferComponent>()) 
+            for (Entity e : world.getAllEntitiesWith<MeshComponent, MaterialComponent, ObjectGpuComponent>()) 
             {
                 auto& meshComp = world.getComponent<MeshComponent>(e);
-                auto& matComp = world.getComponent<MaterialComponent>(e);
-                auto& uboComp = world.getComponent<UniformBufferComponent>(e);
+                auto& matComp  = world.getComponent<MaterialComponent>(e);
+                auto& objGpu   = world.getComponent<ObjectGpuComponent>(e);
 
                 cmds.push_back({
                     meshComp.meshID,
                     matComp.textureID,
-                    uboComp.uniformID,
-                    &uboComp.uniformBufferObject
+                    objGpu.buffer,
+                    cameraUniformID,
+                    &objGpu.ubo,
+                    cameraUboPtr
                 });
             }
             return cmds;

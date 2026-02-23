@@ -39,8 +39,8 @@ class UniformBufferManager
             idToUBO.clear();
         }
 
-        // creates a new uniform buffer resource and returns its unique ID
-        uniform_id_type createUniformBuffer()
+        // creates a new uniform buffer resource of the given byte size and returns its unique ID
+        uniform_id_type createUniformBuffer(VkDeviceSize size)
         {
             auto ubo = std::make_unique<UniformBufferResource>();
 
@@ -54,7 +54,7 @@ class UniformBufferManager
             );
 
             ubo->descriptorSets = dssheet::getManager()
-                .allocateForUniformBuffer(ubo->uniformBuffers, sizeof(UniformBufferObject));
+                .allocateForUniformBuffer(ubo->uniformBuffers, size);
 
             uniform_id_type id = nextID++;
             idToUBO[id] = std::move(ubo);

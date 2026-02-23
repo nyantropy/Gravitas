@@ -163,15 +163,18 @@ class ForwardRenderer : Renderer
 
                 for (const auto& cmdData : renderList)
                 {
-                    MeshResource* mesh = resourceSystem->getMesh(cmdData.meshID);
-                    TextureResource* tex = resourceSystem->getTexture(cmdData.textureID);
-                    UniformBufferResource* ubo = resourceSystem->getUniformBuffer(cmdData.uniformID);
+                    MeshResource* mesh      = resourceSystem->getMesh(cmdData.meshID);
+                    TextureResource* tex    = resourceSystem->getTexture(cmdData.textureID);
+                    UniformBufferResource* cameraUbo = resourceSystem->getUniformBuffer(cmdData.cameraUniformID);
+                    UniformBufferResource* objectUbo = resourceSystem->getUniformBuffer(cmdData.objectUniformID);
 
                     vkCmdBindVertexBuffers(commandBuffer, 0, 1, &mesh->vertexBuffer, offsets);
                     vkCmdBindIndexBuffer(commandBuffer, mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-                    std::array<VkDescriptorSet, 2> descriptorSets = {
-                        ubo->descriptorSets[currentFrame],
+                    // set 0 = camera UBO, set 1 = object UBO, set 2 = texture sampler
+                    std::array<VkDescriptorSet, 3> descriptorSets = {
+                        cameraUbo->descriptorSets[currentFrame],
+                        objectUbo->descriptorSets[currentFrame],
                         tex->descriptorSets[currentFrame]
                     };
 
@@ -244,11 +247,19 @@ class ForwardRenderer : Renderer
                 vkWaitForFences(vcsheet::getDevice(), 1, &imageFence, VK_TRUE, UINT64_MAX);
             }
 
-            // uniform updates are a lot more simple now
+            // upload camera UBO once per frame (shared across all draw commands)
+            uniform_id_type lastCameraID = 0;
             for (const auto& cmdData : renderList)
             {
-                memcpy(resourceSystem->getUniformBuffer(cmdData.uniformID)->uniformBuffersMapped[currentFrame],
-                    cmdData.uboPtr, sizeof(*cmdData.uboPtr));
+                if (cmdData.cameraUniformID != lastCameraID && cmdData.cameraUboPtr != nullptr)
+                {
+                    memcpy(resourceSystem->getUniformBuffer(cmdData.cameraUniformID)->uniformBuffersMapped[currentFrame],
+                        cmdData.cameraUboPtr, sizeof(CameraUBO));
+                    lastCameraID = cmdData.cameraUniformID;
+                }
+
+                memcpy(resourceSystem->getUniformBuffer(cmdData.objectUniformID)->uniformBuffersMapped[currentFrame],
+                    cmdData.objectUboPtr, sizeof(ObjectUBO));
             }
 
             // Reset & record command buffer

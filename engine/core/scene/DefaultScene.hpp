@@ -4,7 +4,8 @@
 #include "GtsScene.hpp"
 
 #include "MeshComponent.h"
-#include "UniformBufferComponent.h"
+#include "ObjectGpuComponent.h"
+#include "CameraGpuComponent.h"
 #include "MaterialComponent.h"
 #include "TransformComponent.h"
 #include "CameraComponent.h"
@@ -13,7 +14,6 @@
 #include "CameraSystem.hpp"
 #include "CameraControlSystem.hpp"
 
-#include "UniformDataSystem.hpp"
 #include "TransformAnimationSystem.hpp"
 
 #include "SceneContext.h"
@@ -35,9 +35,10 @@ class DefaultScene : public GtsScene
             mc.meshID = resource.requestMesh(GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj");
             ecsWorld.addComponent<MeshComponent>(controlledCube, mc);
 
-            UniformBufferComponent ubc;
-            ubc.uniformID = resource.requestUniformBuffer();
-            ecsWorld.addComponent<UniformBufferComponent>(controlledCube, ubc);
+            ObjectGpuComponent ogc;
+            ogc.buffer = resource.requestUniformBuffer(sizeof(ObjectUBO));
+            ogc.dirty = true;
+            ecsWorld.addComponent<ObjectGpuComponent>(controlledCube, ogc);
 
             MaterialComponent matc;
             matc.textureID = resource.requestTexture(GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png");
@@ -62,9 +63,10 @@ class DefaultScene : public GtsScene
             mc2.meshID = resource.requestMesh(GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj");
             ecsWorld.addComponent<MeshComponent>(cube2, mc2);
 
-            UniformBufferComponent ubc2;
-            ubc2.uniformID = resource.requestUniformBuffer();
-            ecsWorld.addComponent<UniformBufferComponent>(cube2, ubc2);
+            ObjectGpuComponent ogc2;
+            ogc2.buffer = resource.requestUniformBuffer(sizeof(ObjectUBO));
+            ogc2.dirty = true;
+            ecsWorld.addComponent<ObjectGpuComponent>(cube2, ogc2);
 
             MaterialComponent matc2;
             matc2.textureID = resource.requestTexture(GraphicsConstants::ENGINE_RESOURCES + "/textures/blue_texture.png");
@@ -94,9 +96,10 @@ class DefaultScene : public GtsScene
             mc2.meshID = resource.requestMesh(GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj");
             ecsWorld.addComponent<MeshComponent>(cube2, mc2);
 
-            UniformBufferComponent ubc2;
-            ubc2.uniformID = resource.requestUniformBuffer();
-            ecsWorld.addComponent<UniformBufferComponent>(cube2, ubc2);
+            ObjectGpuComponent ogc2;
+            ogc2.buffer = resource.requestUniformBuffer(sizeof(ObjectUBO));
+            ogc2.dirty = true;
+            ecsWorld.addComponent<ObjectGpuComponent>(cube2, ogc2);
 
             MaterialComponent matc2;
             matc2.textureID = resource.requestTexture(GraphicsConstants::ENGINE_RESOURCES + "/textures/purple_texture.png");
@@ -117,8 +120,15 @@ class DefaultScene : public GtsScene
         void mainCamera(IResourceProvider& resource)
         {
             Entity camera = ecsWorld.createEntity();
+
             CameraComponent cc;
+            cc.active = true;
             ecsWorld.addComponent(camera, cc);
+
+            CameraGpuComponent cgc;
+            cgc.buffer = resource.requestUniformBuffer(sizeof(CameraUBO));
+            cgc.dirty = true;
+            ecsWorld.addComponent(camera, cgc);
 
             TransformComponent ct;
             ct.position = glm::vec3(0.0f, 0.0f, 10.0f);
@@ -129,10 +139,10 @@ class DefaultScene : public GtsScene
         // no camera system would mean no picture after all :(
         void addSystems()
         {
+            installRendererFeature();
             ecsWorld.addControllerSystem<CameraControlSystem>();
             ecsWorld.addSimulationSystem<CameraSystem>();
             ecsWorld.addSimulationSystem<TransformAnimationSystem>();
-            ecsWorld.addSimulationSystem<UniformDataSystem>();
         }
 
         // load in whatever we put into the scene

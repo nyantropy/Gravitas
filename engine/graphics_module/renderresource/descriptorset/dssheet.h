@@ -18,7 +18,7 @@ namespace dssheet
         return *glbDSManager;
     }
 
-    inline const std::array<VkDescriptorSetLayout, 2>& getDescriptorSetLayouts()
+    inline const std::array<VkDescriptorSetLayout, 3>& getDescriptorSetLayouts()
     {
         return glbDSManager->getDescriptorSetLayouts();
     }

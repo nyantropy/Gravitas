@@ -1,17 +1,19 @@
 #pragma once
 
 #include "Types.h"
-#include "UniformBufferObject.h"
+#include "ObjectUBO.h"
+#include "CameraUBO.h"
 
 // the render command will be consumed by the renderer to output a frame
 struct RenderCommand 
 {
-    // it needs the ids of mesh, texture and the uniform resource
+    // ids of the mesh, texture, and the two separate uniform buffer resources
     mesh_id_type meshID;
     texture_id_type textureID;
-    uniform_id_type uniformID;
+    uniform_id_type objectUniformID;
+    uniform_id_type cameraUniformID;
 
-    // as well as a ptr to the actual uniform buffer object, which will be owned by the component
-    // this struct basically serves as a "bridge" between ecs and the rendering system
-    UniformBufferObject* uboPtr;
+    // typed pointers to the CPU-side UBO data, owned by their respective components
+    ObjectUBO* objectUboPtr;
+    CameraUBO* cameraUboPtr;
 };

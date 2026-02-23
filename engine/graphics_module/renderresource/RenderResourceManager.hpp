@@ -58,9 +58,9 @@ class RenderResourceManager : public IResourceProvider
         }
 
         // UniformBuffer Management
-        uniform_id_type requestUniformBuffer() override
+        uniform_id_type requestUniformBuffer(size_t size) override
         {
-            return uniformBufferManager->createUniformBuffer();
+            return uniformBufferManager->createUniformBuffer(static_cast<VkDeviceSize>(size));
         }
 
         UniformBufferResource* getUniformBuffer(uniform_id_type id)

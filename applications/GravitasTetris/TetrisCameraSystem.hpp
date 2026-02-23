@@ -2,6 +2,7 @@
 #include "ECSSimulationSystem.hpp"
 #include "ECSWorld.hpp"
 #include "CameraComponent.h"
+#include "CameraGpuComponent.h"
 #include "TransformComponent.h"
 #include <gtc/matrix_transform.hpp>
 
@@ -11,9 +12,10 @@ class TetrisCameraSystem : public ECSSimulationSystem
     public:
         void update(ECSWorld& world, float dt) override
         {
-            for (Entity e : world.getAllEntitiesWith<CameraComponent, TransformComponent>())
+            for (Entity e : world.getAllEntitiesWith<CameraComponent, CameraGpuComponent, TransformComponent>())
             {
                 auto& cam = world.getComponent<CameraComponent>(e);
+                auto& gpu = world.getComponent<CameraGpuComponent>(e);
                 auto& transform = world.getComponent<TransformComponent>(e);
 
                 float gridWidth  = 10.0f;
@@ -37,6 +39,9 @@ class TetrisCameraSystem : public ECSSimulationSystem
 
                 cam.projection = glm::perspective(cam.fov, cam.aspectRatio, cam.nearClip, cam.farClip);
                 cam.projection[1][1] *= -1;
+
+                // mark dirty so CameraGpuDataSystem picks up the new matrices
+                gpu.dirty = true;
             }
         }
 };

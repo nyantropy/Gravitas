@@ -7,7 +7,10 @@
 
 #include "vcsheet.h"
 
-// creates 2 different descriptor sets, one for the uniform buffer object, and one for the texture sampler, both of which are used in our simple shaders
+// creates 3 descriptor set layouts:
+//   set 0 = camera UBO (view, proj)   - VERTEX
+//   set 1 = object UBO (model)        - VERTEX
+//   set 2 = texture sampler           - FRAGMENT
 // this class will sigsegv if the vulkan context is not created before instantiating it
 class DescriptorSetManager 
 {
@@ -33,12 +36,13 @@ class DescriptorSetManager
                     vkDestroyDescriptorSetLayout(device, layout, nullptr);
         }
 
-        const std::array<VkDescriptorSetLayout, 2>& getDescriptorSetLayouts() const { return descriptorSetLayouts; }
+        const std::array<VkDescriptorSetLayout, 3>& getDescriptorSetLayouts() const { return descriptorSetLayouts; }
 
         std::vector<VkDescriptorSet> allocateForUniformBuffer(const std::vector<VkBuffer>& uniformBuffers, VkDeviceSize range)
         {
             std::vector<VkDescriptorSet> descriptorSets(framesInFlight);
 
+            // layouts[0] and [1] share the same spec - use either for UBO allocation
             std::vector<VkDescriptorSetLayout> layouts(framesInFlight, descriptorSetLayouts[0]);
             VkDescriptorSetAllocateInfo allocInfo{};
             allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -75,7 +79,7 @@ class DescriptorSetManager
         {
             std::vector<VkDescriptorSet> descriptorSets(framesInFlight);
 
-            std::vector<VkDescriptorSetLayout> layouts(framesInFlight, descriptorSetLayouts[1]);
+            std::vector<VkDescriptorSetLayout> layouts(framesInFlight, descriptorSetLayouts[2]);
             VkDescriptorSetAllocateInfo allocInfo{};
             allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
             allocInfo.descriptorPool = samplerDescriptorPool;
@@ -95,7 +99,7 @@ class DescriptorSetManager
                 VkWriteDescriptorSet write{};
                 write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
                 write.dstSet = descriptorSets[i];
-                write.dstBinding = 1;
+                write.dstBinding = 0;
                 write.dstArrayElement = 0;
                 write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
                 write.descriptorCount = 1;
@@ -111,13 +115,15 @@ class DescriptorSetManager
         uint32_t framesInFlight;
         uint32_t objectCount;
 
-        std::array<VkDescriptorSetLayout, 2> descriptorSetLayouts{};
+        // [0] = camera UBO layout, [1] = object UBO layout, [2] = sampler layout
+        // [0] and [1] are separate Vulkan objects with identical specs (binding=0, UNIFORM_BUFFER)
+        std::array<VkDescriptorSetLayout, 3> descriptorSetLayouts{};
         VkDescriptorPool uboDescriptorPool = VK_NULL_HANDLE;
         VkDescriptorPool samplerDescriptorPool = VK_NULL_HANDLE;
 
         void createDescriptorSetLayouts()
         {
-            // UBO layout (set = 0)
+            // UBO binding spec (shared by set 0 and set 1)
             VkDescriptorSetLayoutBinding uboBinding{};
             uboBinding.binding = 0;
             uboBinding.descriptorCount = 1;
@@ -130,12 +136,17 @@ class DescriptorSetManager
             uboLayoutInfo.bindingCount = 1;
             uboLayoutInfo.pBindings = &uboBinding;
 
+            // set 0: camera UBO layout
             if (vkCreateDescriptorSetLayout(vcsheet::getDevice(), &uboLayoutInfo, nullptr, &descriptorSetLayouts[0]) != VK_SUCCESS)
-                throw std::runtime_error("Failed to create UBO descriptor set layout!");
+                throw std::runtime_error("Failed to create camera UBO descriptor set layout!");
 
-            // Texture layout (set = 1)
+            // set 1: object UBO layout (identical spec, separate Vulkan object)
+            if (vkCreateDescriptorSetLayout(vcsheet::getDevice(), &uboLayoutInfo, nullptr, &descriptorSetLayouts[1]) != VK_SUCCESS)
+                throw std::runtime_error("Failed to create object UBO descriptor set layout!");
+
+            // set 2: texture sampler layout
             VkDescriptorSetLayoutBinding samplerBinding{};
-            samplerBinding.binding = 1; // important! resets per set
+            samplerBinding.binding = 0;
             samplerBinding.descriptorCount = 1;
             samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             samplerBinding.pImmutableSamplers = nullptr;
@@ -146,13 +157,13 @@ class DescriptorSetManager
             samplerLayoutInfo.bindingCount = 1;
             samplerLayoutInfo.pBindings = &samplerBinding;
 
-            if (vkCreateDescriptorSetLayout(vcsheet::getDevice(), &samplerLayoutInfo, nullptr, &descriptorSetLayouts[1]) != VK_SUCCESS)
+            if (vkCreateDescriptorSetLayout(vcsheet::getDevice(), &samplerLayoutInfo, nullptr, &descriptorSetLayouts[2]) != VK_SUCCESS)
                 throw std::runtime_error("Failed to create texture descriptor set layout!");
         }
 
         void createDescriptorPools()
         {
-            // UBO pool
+            // UBO pool: covers both camera and object UBO allocations
             VkDescriptorPoolSize uboPoolSize{};
             uboPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             uboPoolSize.descriptorCount = framesInFlight * objectCount;

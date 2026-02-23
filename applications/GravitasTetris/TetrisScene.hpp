@@ -9,10 +9,10 @@
 #include "TetrisVisualSystem.hpp"
 
 #include "TetrisCameraSystem.hpp"
-#include "UniformDataSystem.hpp"
 
 #include "MeshComponent.h"
-#include "UniformBufferComponent.h"
+#include "ObjectGpuComponent.h"
+#include "CameraGpuComponent.h"
 #include "MaterialComponent.h"
 #include "TransformComponent.h"
 #include "CameraComponent.h"
@@ -33,9 +33,10 @@ class TetrisScene : public GtsScene
             GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj");
         ecsWorld.addComponent<MeshComponent>(e, mc);
 
-        UniformBufferComponent ubc;
-        ubc.uniformID = resource.requestUniformBuffer();
-        ecsWorld.addComponent<UniformBufferComponent>(e, ubc);
+        ObjectGpuComponent ogc;
+        ogc.buffer = resource.requestUniformBuffer(sizeof(ObjectUBO));
+        ogc.dirty = true;
+        ecsWorld.addComponent<ObjectGpuComponent>(e, ogc);
 
         MaterialComponent matc;
         matc.textureID = resource.requestTexture(texturePath);
@@ -91,8 +92,15 @@ class TetrisScene : public GtsScene
     void mainCamera(IResourceProvider& resource)
     {
         Entity camera = ecsWorld.createEntity();
+
         CameraComponent cc;
+        cc.active = true;
         ecsWorld.addComponent(camera, cc);
+
+        CameraGpuComponent cgc;
+        cgc.buffer = resource.requestUniformBuffer(sizeof(CameraUBO));
+        cgc.dirty = true;
+        ecsWorld.addComponent(camera, cgc);
 
         TransformComponent ct;
         ct.position = glm::vec3(0.0f, 0.0f, 10.0f);
@@ -113,12 +121,12 @@ public:
         mainCamera(*ctx.resources);
 
         addSingletonComponents();
+        installRendererFeature();
 
         ecsWorld.addControllerSystem<TetrisInputSystem>();
         ecsWorld.addSimulationSystem<TetrisGameSystem>();
         ecsWorld.addControllerSystem<TetrisVisualSystem>();
         ecsWorld.addSimulationSystem<TetrisCameraSystem>();
-        ecsWorld.addSimulationSystem<UniformDataSystem>();
     }
 
     void onUpdate(SceneContext& ctx) override

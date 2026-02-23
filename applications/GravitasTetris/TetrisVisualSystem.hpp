@@ -4,7 +4,7 @@
 #include "TetrisBlockComponent.hpp"
 #include "TransformComponent.h"
 #include "MeshComponent.h"
-#include "UniformBufferComponent.h"
+#include "ObjectGpuComponent.h"
 #include "MaterialComponent.h"
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
@@ -26,7 +26,12 @@ class TetrisVisualSystem : public ECSControllerSystem
                 {
                     world.addComponent(e, TransformComponent{});
                     world.addComponent(e, MeshComponent{ ctx.resources->requestMesh(GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj") });
-                    world.addComponent(e, UniformBufferComponent{ ctx.resources->requestUniformBuffer() });
+
+                    ObjectGpuComponent ogc;
+                    ogc.buffer = ctx.resources->requestUniformBuffer(sizeof(ObjectUBO));
+                    ogc.dirty = true;
+                    world.addComponent(e, ogc);
+
                     addMaterialComponent(world, ctx, block, e);
                 }
 
@@ -35,6 +40,9 @@ class TetrisVisualSystem : public ECSControllerSystem
                 tr.position.x = float(block.x);
                 tr.position.y = float(block.y);
                 tr.position.z = 0.0f;
+
+                // mark dirty so ObjectGpuDataSystem uploads the updated model matrix
+                world.getComponent<ObjectGpuComponent>(e).dirty = true;
             });
         }
 
