@@ -34,7 +34,7 @@ class TetrisScene : public GtsScene
         ecsWorld.addComponent<MeshComponent>(e, mc);
 
         ObjectGpuComponent ogc;
-        ogc.buffer = resource.requestUniformBuffer(sizeof(ObjectUBO));
+        ogc.objectSSBOIndex = resource.requestObjectSlot();
         ogc.dirty = true;
         ecsWorld.addComponent<ObjectGpuComponent>(e, ogc);
 

@@ -117,37 +117,35 @@ class ForwardRenderer : Renderer
             frameManager = std::make_unique<FrameManager>();
         }
 
-        void recordCommandBuffer(const std::vector<RenderCommand>& renderList, VkCommandBuffer commandBuffer, uint32_t imageIndex) 
+        void recordCommandBuffer(const std::vector<RenderCommand>& renderList, VkCommandBuffer commandBuffer, uint32_t imageIndex)
         {
             VkCommandBufferBeginInfo beginInfo{};
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-            if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) 
-            {
+            if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
                 throw std::runtime_error("failed to begin recording command buffer!");
-            }
 
             VkRenderPassBeginInfo renderPassInfo{};
-            renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-            renderPassInfo.renderPass = vrenderpass->getRenderPass();
-            renderPassInfo.framebuffer = frameBufferManager->getFramebuffers()[imageIndex];
+            renderPassInfo.sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            renderPassInfo.renderPass        = vrenderpass->getRenderPass();
+            renderPassInfo.framebuffer       = frameBufferManager->getFramebuffers()[imageIndex];
             renderPassInfo.renderArea.offset = {0, 0};
             renderPassInfo.renderArea.extent = vcsheet::getSwapChainExtent();
 
             std::array<VkClearValue, 2> clearValues{};
-            clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+            clearValues[0].color        = {{0.0f, 0.0f, 0.0f, 1.0f}};
             clearValues[1].depthStencil = {1.0f, 0};
 
             renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-            renderPassInfo.pClearValues = clearValues.data();
+            renderPassInfo.pClearValues    = clearValues.data();
 
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
                 VkViewport viewport{};
-                viewport.x = 0.0f;
-                viewport.y = 0.0f;
-                viewport.width = (float) vcsheet::getSwapChainExtent().width;
-                viewport.height = (float) vcsheet::getSwapChainExtent().height;
+                viewport.x        = 0.0f;
+                viewport.y        = 0.0f;
+                viewport.width    = static_cast<float>(vcsheet::getSwapChainExtent().width);
+                viewport.height   = static_cast<float>(vcsheet::getSwapChainExtent().height);
                 viewport.minDepth = 0.0f;
                 viewport.maxDepth = 1.0f;
                 vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
@@ -159,28 +157,39 @@ class ForwardRenderer : Renderer
 
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vpipeline->getPipeline());
 
+                // --- Bind set 0 (camera UBO) and set 1 (object SSBO) once for all draws ---
+                if (!renderList.empty() && renderList[0].cameraUniformID != 0)
+                {
+                    UniformBufferResource* cameraUbo = resourceSystem->getUniformBuffer(renderList[0].cameraUniformID);
+                    VkDescriptorSet globalSets[2] = {
+                        cameraUbo->descriptorSets[currentFrame],
+                        resourceSystem->getObjectSSBODescriptorSet(currentFrame)
+                    };
+                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                            vpipeline->getPipelineLayout(),
+                                            0, 2, globalSets,
+                                            0, nullptr);
+                }
+
                 const VkDeviceSize offsets[] = { 0 };
 
                 for (const auto& cmdData : renderList)
                 {
-                    MeshResource* mesh      = resourceSystem->getMesh(cmdData.meshID);
-                    TextureResource* tex    = resourceSystem->getTexture(cmdData.textureID);
-                    UniformBufferResource* cameraUbo = resourceSystem->getUniformBuffer(cmdData.cameraUniformID);
-                    UniformBufferResource* objectUbo = resourceSystem->getUniformBuffer(cmdData.objectUniformID);
+                    MeshResource*    mesh = resourceSystem->getMesh(cmdData.meshID);
+                    TextureResource* tex  = resourceSystem->getTexture(cmdData.textureID);
 
                     vkCmdBindVertexBuffers(commandBuffer, 0, 1, &mesh->vertexBuffer, offsets);
                     vkCmdBindIndexBuffer(commandBuffer, mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-                    // set 0 = camera UBO, set 1 = object UBO, set 2 = texture sampler
-                    std::array<VkDescriptorSet, 3> descriptorSets = {
-                        cameraUbo->descriptorSets[currentFrame],
-                        objectUbo->descriptorSets[currentFrame],
-                        tex->descriptorSets[currentFrame]
-                    };
+                    // Push the object's SSBO slot index so the vertex shader can index into the buffer.
+                    uint32_t objectIndex = cmdData.objectSSBOIndex;
+                    vkCmdPushConstants(commandBuffer, vpipeline->getPipelineLayout(),
+                                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &objectIndex);
 
+                    // Bind set 2 (texture sampler) — changes per draw
                     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                             vpipeline->getPipelineLayout(),
-                                            0, descriptorSets.size(), descriptorSets.data(),
+                                            2, 1, &tex->descriptorSets[currentFrame],
                                             0, nullptr);
 
                     vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->indices.size()), 1, 0, 0, 0);
@@ -188,10 +197,8 @@ class ForwardRenderer : Renderer
 
             vkCmdEndRenderPass(commandBuffer);
 
-            if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) 
-            {
+            if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
                 throw std::runtime_error("failed to record command buffer!");
-            }
         }
 
         
@@ -247,19 +254,24 @@ class ForwardRenderer : Renderer
                 vkWaitForFences(vcsheet::getDevice(), 1, &imageFence, VK_TRUE, UINT64_MAX);
             }
 
-            // upload camera UBO once per frame (shared across all draw commands)
+            // Upload camera UBO once per frame (shared across all draw commands).
             uniform_id_type lastCameraID = 0;
             for (const auto& cmdData : renderList)
             {
                 if (cmdData.cameraUniformID != lastCameraID && cmdData.cameraUboPtr != nullptr)
                 {
                     memcpy(resourceSystem->getUniformBuffer(cmdData.cameraUniformID)->uniformBuffersMapped[currentFrame],
-                        cmdData.cameraUboPtr, sizeof(CameraUBO));
+                           cmdData.cameraUboPtr, sizeof(CameraUBO));
                     lastCameraID = cmdData.cameraUniformID;
                 }
+                break; // single camera; no need to iterate further
+            }
 
-                memcpy(resourceSystem->getUniformBuffer(cmdData.objectUniformID)->uniformBuffersMapped[currentFrame],
-                    cmdData.objectUboPtr, sizeof(ObjectUBO));
+            // Write each object's data into its SSBO slot for this frame.
+            for (const auto& cmdData : renderList)
+            {
+                if (cmdData.objectUboPtr)
+                    resourceSystem->writeObjectSlot(currentFrame, cmdData.objectSSBOIndex, *cmdData.objectUboPtr);
             }
 
             // Reset & record command buffer

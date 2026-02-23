@@ -1,11 +1,11 @@
 #pragma once
 
-#include "Types.h"
+#include <cstdint>
 #include "ObjectUBO.h"
 
 struct ObjectGpuComponent
 {
-    uniform_id_type buffer;
+    uint32_t objectSSBOIndex;
     ObjectUBO ubo;
     bool dirty;
 };

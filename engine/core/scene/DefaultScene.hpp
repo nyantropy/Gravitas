@@ -36,7 +36,7 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent<MeshComponent>(controlledCube, mc);
 
             ObjectGpuComponent ogc;
-            ogc.buffer = resource.requestUniformBuffer(sizeof(ObjectUBO));
+            ogc.objectSSBOIndex = resource.requestObjectSlot();
             ogc.dirty = true;
             ecsWorld.addComponent<ObjectGpuComponent>(controlledCube, ogc);
 
@@ -64,7 +64,7 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent<MeshComponent>(cube2, mc2);
 
             ObjectGpuComponent ogc2;
-            ogc2.buffer = resource.requestUniformBuffer(sizeof(ObjectUBO));
+            ogc2.objectSSBOIndex = resource.requestObjectSlot();
             ogc2.dirty = true;
             ecsWorld.addComponent<ObjectGpuComponent>(cube2, ogc2);
 
@@ -97,7 +97,7 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent<MeshComponent>(cube2, mc2);
 
             ObjectGpuComponent ogc2;
-            ogc2.buffer = resource.requestUniformBuffer(sizeof(ObjectUBO));
+            ogc2.objectSSBOIndex = resource.requestObjectSlot();
             ogc2.dirty = true;
             ecsWorld.addComponent<ObjectGpuComponent>(cube2, ogc2);
 

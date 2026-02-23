@@ -28,7 +28,7 @@ class TetrisVisualSystem : public ECSControllerSystem
                     world.addComponent(e, MeshComponent{ ctx.resources->requestMesh(GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj") });
 
                     ObjectGpuComponent ogc;
-                    ogc.buffer = ctx.resources->requestUniformBuffer(sizeof(ObjectUBO));
+                    ogc.objectSSBOIndex = ctx.resources->requestObjectSlot();
                     ogc.dirty = true;
                     world.addComponent(e, ogc);
 

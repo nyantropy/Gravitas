@@ -44,7 +44,7 @@ class RenderCommandExtractor
                 cmds.push_back({
                     meshComp.meshID,
                     matComp.textureID,
-                    objGpu.buffer,
+                    objGpu.objectSSBOIndex,
                     cameraUniformID,
                     &objGpu.ubo,
                     cameraUboPtr

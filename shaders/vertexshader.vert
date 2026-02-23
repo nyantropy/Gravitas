@@ -12,12 +12,20 @@ layout(set = 0, binding = 0) uniform CameraUBO {
     mat4 proj;
 } cam;
 
-layout(set = 1, binding = 0) uniform ObjectUBO {
+struct ObjectData {
     mat4 model;
-} obj;
+};
+
+layout(set = 1, binding = 0) readonly buffer ObjectSSBO {
+    ObjectData objects[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint objectIndex;
+} pc;
 
 void main() {
-    gl_Position = cam.proj * cam.view * obj.model * vec4(inPosition, 1.0);
+    gl_Position = cam.proj * cam.view * objects[pc.objectIndex].model * vec4(inPosition, 1.0);
     fragTexCoord = inTexCoord;
     fragColor = inColor;
 }
