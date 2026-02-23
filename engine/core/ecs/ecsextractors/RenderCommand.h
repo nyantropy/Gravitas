@@ -10,7 +10,7 @@ struct RenderCommand
     mesh_id_type    meshID;
     texture_id_type textureID;
     uint32_t        objectSSBOIndex; // slot in the shared object SSBO
-    uniform_id_type cameraUniformID;
+    view_id_type    cameraViewID;
 
     // typed pointers to the CPU-side UBO data, owned by their respective components
     ObjectUBO* objectUboPtr;

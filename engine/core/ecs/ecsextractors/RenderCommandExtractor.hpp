@@ -19,7 +19,7 @@ class RenderCommandExtractor
         std::vector<RenderCommand> extractRenderList(ECSWorld& world) 
         {
             // find the active camera's GPU component
-            uniform_id_type cameraUniformID = 0;
+            view_id_type cameraViewID = 0;
             CameraUBO* cameraUboPtr = nullptr;
 
             for (Entity e : world.getAllEntitiesWith<CameraComponent, CameraGpuComponent>())
@@ -29,13 +29,13 @@ class RenderCommandExtractor
                     continue;
 
                 auto& camGpu = world.getComponent<CameraGpuComponent>(e);
-                cameraUniformID = camGpu.buffer;
+                cameraViewID = camGpu.viewID;
                 cameraUboPtr = &camGpu.ubo;
                 break;
             }
 
             std::vector<RenderCommand> cmds;
-            for (Entity e : world.getAllEntitiesWith<MeshComponent, MaterialComponent, ObjectGpuComponent>()) 
+            for (Entity e : world.getAllEntitiesWith<MeshComponent, MaterialComponent, ObjectGpuComponent>())
             {
                 auto& meshComp = world.getComponent<MeshComponent>(e);
                 auto& matComp  = world.getComponent<MaterialComponent>(e);
@@ -45,7 +45,7 @@ class RenderCommandExtractor
                     meshComp.meshID,
                     matComp.textureID,
                     objGpu.objectSSBOIndex,
-                    cameraUniformID,
+                    cameraViewID,
                     &objGpu.ubo,
                     cameraUboPtr
                 });

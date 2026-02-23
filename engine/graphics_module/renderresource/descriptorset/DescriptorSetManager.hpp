@@ -159,7 +159,7 @@ class DescriptorSetManager
         // [0] = camera UBO layout, [1] = object SSBO layout, [2] = sampler layout
         std::array<VkDescriptorSetLayout, 3> descriptorSetLayouts{};
 
-        VkDescriptorPool uboDescriptorPool     = VK_NULL_HANDLE; // camera UBOs — fixed: framesInFlight sets
+        VkDescriptorPool uboDescriptorPool     = VK_NULL_HANDLE; // camera UBOs — fixed: MAX_VIEWS * framesInFlight sets
         VkDescriptorPool ssboDescriptorPool    = VK_NULL_HANDLE; // object SSBO — fixed: framesInFlight sets
         VkDescriptorPool samplerDescriptorPool = VK_NULL_HANDLE; // textures — scales with unique texture count
 
@@ -216,17 +216,19 @@ class DescriptorSetManager
 
         void createDescriptorPools()
         {
-            // Camera UBO pool — fixed: one set per frame in flight
+            constexpr uint32_t MAX_VIEWS = 8; // max simultaneous render views (cameras)
+
+            // Camera UBO pool — fixed: MAX_VIEWS sets per frame in flight
             {
                 VkDescriptorPoolSize poolSize{};
                 poolSize.type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-                poolSize.descriptorCount = framesInFlight;
+                poolSize.descriptorCount = framesInFlight * MAX_VIEWS;
 
                 VkDescriptorPoolCreateInfo poolInfo{};
                 poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
                 poolInfo.poolSizeCount = 1;
                 poolInfo.pPoolSizes    = &poolSize;
-                poolInfo.maxSets       = framesInFlight;
+                poolInfo.maxSets       = framesInFlight * MAX_VIEWS;
 
                 if (vkCreateDescriptorPool(vcsheet::getDevice(), &poolInfo, nullptr, &uboDescriptorPool) != VK_SUCCESS)
                     throw std::runtime_error("Failed to create camera UBO descriptor pool!");

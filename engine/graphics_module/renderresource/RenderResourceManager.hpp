@@ -4,7 +4,7 @@
 #include "IResourceProvider.hpp"
 #include "MeshManager.hpp"
 #include "TextureManager.hpp"
-#include "UniformBufferManager.hpp"
+#include "CameraBufferManager.hpp"
 #include "ObjectSSBOManager.hpp"
 #include "Types.h"
 
@@ -13,7 +13,7 @@ class RenderResourceManager : public IResourceProvider
     private:
         std::unique_ptr<DescriptorSetManager>  descriptorSetManager;
         std::unique_ptr<MeshManager>           meshManager;
-        std::unique_ptr<UniformBufferManager>  uniformBufferManager;
+        std::unique_ptr<CameraBufferManager>   cameraBufferManager;
         std::unique_ptr<TextureManager>        textureManager;
         std::unique_ptr<ObjectSSBOManager>     objectSSBOManager;
 
@@ -26,7 +26,7 @@ class RenderResourceManager : public IResourceProvider
             dssheet::SetManager(descriptorSetManager.get());
 
             meshManager          = std::make_unique<MeshManager>();
-            uniformBufferManager = std::make_unique<UniformBufferManager>();
+            cameraBufferManager  = std::make_unique<CameraBufferManager>();
             textureManager       = std::make_unique<TextureManager>();
 
             // ObjectSSBOManager allocates SSBO buffers and their descriptor sets;
@@ -38,10 +38,10 @@ class RenderResourceManager : public IResourceProvider
         {
             // Destroy in reverse-construction order; descriptorSetManager last
             // so the pool stays alive while other managers free their sets.
-            if (objectSSBOManager)    objectSSBOManager.reset();
-            if (textureManager)       textureManager.reset();
-            if (uniformBufferManager) uniformBufferManager.reset();
-            if (meshManager)          meshManager.reset();
+            if (objectSSBOManager)   objectSSBOManager.reset();
+            if (textureManager)      textureManager.reset();
+            if (cameraBufferManager) cameraBufferManager.reset();
+            if (meshManager)         meshManager.reset();
             if (descriptorSetManager) descriptorSetManager.reset();
         }
 
@@ -67,15 +67,20 @@ class RenderResourceManager : public IResourceProvider
             return textureManager->getTexture(id);
         }
 
-        // --- Camera UBO (still per-camera, per-frame-in-flight) ---
-        uniform_id_type requestUniformBuffer(size_t size) override
+        // --- Camera / render-view buffer management ---
+        view_id_type requestCameraBuffer() override
         {
-            return uniformBufferManager->createUniformBuffer(static_cast<VkDeviceSize>(size));
+            return cameraBufferManager->createView();
         }
 
-        UniformBufferResource* getUniformBuffer(uniform_id_type id)
+        void releaseCameraBuffer(view_id_type id) override
         {
-            return uniformBufferManager->getUniformBuffer(id);
+            cameraBufferManager->destroyView(id);
+        }
+
+        CameraBufferResource* getCameraView(view_id_type id)
+        {
+            return cameraBufferManager->getView(id);
         }
 
         // --- Object SSBO slot management ---

@@ -158,11 +158,11 @@ class ForwardRenderer : Renderer
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vpipeline->getPipeline());
 
                 // --- Bind set 0 (camera UBO) and set 1 (object SSBO) once for all draws ---
-                if (!renderList.empty() && renderList[0].cameraUniformID != 0)
+                if (!renderList.empty() && renderList[0].cameraViewID != 0)
                 {
-                    UniformBufferResource* cameraUbo = resourceSystem->getUniformBuffer(renderList[0].cameraUniformID);
+                    CameraBufferResource* cameraView = resourceSystem->getCameraView(renderList[0].cameraViewID);
                     VkDescriptorSet globalSets[2] = {
-                        cameraUbo->descriptorSets[currentFrame],
+                        cameraView->descriptorSets[currentFrame],
                         resourceSystem->getObjectSSBODescriptorSet(currentFrame)
                     };
                     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -255,14 +255,14 @@ class ForwardRenderer : Renderer
             }
 
             // Upload camera UBO once per frame (shared across all draw commands).
-            uniform_id_type lastCameraID = 0;
+            view_id_type lastCameraViewID = 0;
             for (const auto& cmdData : renderList)
             {
-                if (cmdData.cameraUniformID != lastCameraID && cmdData.cameraUboPtr != nullptr)
+                if (cmdData.cameraViewID != lastCameraViewID && cmdData.cameraUboPtr != nullptr)
                 {
-                    memcpy(resourceSystem->getUniformBuffer(cmdData.cameraUniformID)->uniformBuffersMapped[currentFrame],
+                    memcpy(resourceSystem->getCameraView(cmdData.cameraViewID)->uniformBuffersMapped[currentFrame],
                            cmdData.cameraUboPtr, sizeof(CameraUBO));
-                    lastCameraID = cmdData.cameraUniformID;
+                    lastCameraViewID = cmdData.cameraViewID;
                 }
                 break; // single camera; no need to iterate further
             }

@@ -5,7 +5,7 @@
 
 struct CameraGpuComponent
 {
-    uniform_id_type buffer;
+    view_id_type viewID;
     CameraUBO ubo;
     bool dirty;
 };

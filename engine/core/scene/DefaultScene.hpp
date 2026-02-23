@@ -126,7 +126,7 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent(camera, cc);
 
             CameraGpuComponent cgc;
-            cgc.buffer = resource.requestUniformBuffer(sizeof(CameraUBO));
+            cgc.viewID = resource.requestCameraBuffer();
             cgc.dirty = true;
             ecsWorld.addComponent(camera, cgc);
 

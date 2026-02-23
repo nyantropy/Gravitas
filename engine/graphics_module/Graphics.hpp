@@ -46,8 +46,6 @@
 #include "MeshComponent.h"
 #include "MeshManager.hpp"
 
-#include "UniformBufferManager.hpp"
-
 #include "MaterialComponent.h"
 
 #include "RenderCommandExtractor.hpp"
