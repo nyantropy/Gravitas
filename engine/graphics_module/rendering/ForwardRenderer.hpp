@@ -18,6 +18,7 @@
 
 #include "RenderResourceManager.hpp"
 #include "RenderCommandExtractor.hpp"
+#include "ObjectUBO.h"
 
 #include "FramebufferManager.hpp"
 #include "FramebufferManagerConfig.h"
@@ -182,9 +183,9 @@ class ForwardRenderer : Renderer
                     vkCmdBindIndexBuffer(commandBuffer, mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
                     // Push the object's SSBO slot index so the vertex shader can index into the buffer.
-                    uint32_t objectIndex = cmdData.objectSSBOIndex;
+                    ssbo_id_type objectIndex = cmdData.objectSSBOSlot;
                     vkCmdPushConstants(commandBuffer, vpipeline->getPipelineLayout(),
-                                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &objectIndex);
+                                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ssbo_id_type), &objectIndex);
 
                     // Bind set 2 (texture sampler) — changes per draw
                     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -267,11 +268,13 @@ class ForwardRenderer : Renderer
                 break; // single camera; no need to iterate further
             }
 
-            // Write each object's data into its SSBO slot for this frame.
+            // Write each object's model matrix into its SSBO slot for this frame.
+            // The renderer owns the ObjectUBO packing; the ECS only supplies a plain glm::mat4.
             for (const auto& cmdData : renderList)
             {
-                if (cmdData.objectUboPtr)
-                    resourceSystem->writeObjectSlot(currentFrame, cmdData.objectSSBOIndex, *cmdData.objectUboPtr);
+                ObjectUBO ubo;
+                ubo.model = cmdData.modelMatrix;
+                resourceSystem->writeObjectSlot(currentFrame, cmdData.objectSSBOSlot, ubo);
             }
 
             // Reset & record command buffer

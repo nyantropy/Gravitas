@@ -43,10 +43,7 @@
 #include "vcsheet.h"
 
 #include "Entity.h"
-#include "MeshComponent.h"
 #include "MeshManager.hpp"
-
-#include "MaterialComponent.h"
 
 #include "RenderCommandExtractor.hpp"
 #include "TransformComponent.h"

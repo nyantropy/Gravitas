@@ -3,12 +3,10 @@
 #include "IResourceProvider.hpp"
 #include "GtsScene.hpp"
 
-#include "MeshComponent.h"
-#include "ObjectGpuComponent.h"
-#include "CameraGpuComponent.h"
-#include "MaterialComponent.h"
+#include "RenderDescriptionComponent.h"
 #include "TransformComponent.h"
 #include "CameraComponent.h"
+#include "CameraGpuComponent.h"
 #include "AnimationComponent.h"
 
 #include "CameraSystem.hpp"
@@ -27,22 +25,14 @@ class DefaultScene : public GtsScene
         Entity controlledCube;
     public:
         // adds a simple rotating cube at the world center
-        void firstCube(IResourceProvider& resource)
+        void firstCube()
         {
             controlledCube = ecsWorld.createEntity();
 
-            MeshComponent mc;
-            mc.meshID = resource.requestMesh(GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj");
-            ecsWorld.addComponent<MeshComponent>(controlledCube, mc);
-
-            ObjectGpuComponent ogc;
-            ogc.objectSSBOIndex = resource.requestObjectSlot();
-            ogc.dirty = true;
-            ecsWorld.addComponent<ObjectGpuComponent>(controlledCube, ogc);
-
-            MaterialComponent matc;
-            matc.textureID = resource.requestTexture(GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png");
-            ecsWorld.addComponent<MaterialComponent>(controlledCube, matc);
+            RenderDescriptionComponent desc;
+            desc.meshPath    = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+            desc.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png";
+            ecsWorld.addComponent<RenderDescriptionComponent>(controlledCube, desc);
 
             TransformComponent tc;
             ecsWorld.addComponent<TransformComponent>(controlledCube, tc);
@@ -55,22 +45,14 @@ class DefaultScene : public GtsScene
         }
 
         // add a second cube, that both translates and rotates
-        void secondCube(IResourceProvider& resource)
+        void secondCube()
         {
             Entity cube2 = ecsWorld.createEntity();
 
-            MeshComponent mc2;
-            mc2.meshID = resource.requestMesh(GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj");
-            ecsWorld.addComponent<MeshComponent>(cube2, mc2);
-
-            ObjectGpuComponent ogc2;
-            ogc2.objectSSBOIndex = resource.requestObjectSlot();
-            ogc2.dirty = true;
-            ecsWorld.addComponent<ObjectGpuComponent>(cube2, ogc2);
-
-            MaterialComponent matc2;
-            matc2.textureID = resource.requestTexture(GraphicsConstants::ENGINE_RESOURCES + "/textures/blue_texture.png");
-            ecsWorld.addComponent<MaterialComponent>(cube2, matc2);
+            RenderDescriptionComponent desc;
+            desc.meshPath    = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+            desc.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/blue_texture.png";
+            ecsWorld.addComponent<RenderDescriptionComponent>(cube2, desc);
 
             TransformComponent tc2;
             tc2.position = glm::vec3(2.0f, 2.0f, 2.0f);
@@ -88,35 +70,27 @@ class DefaultScene : public GtsScene
         }
 
         // a third cube that scales
-        void thirdCube(IResourceProvider& resource)
+        void thirdCube()
         {
-            Entity cube2 = ecsWorld.createEntity();
+            Entity cube3 = ecsWorld.createEntity();
 
-            MeshComponent mc2;
-            mc2.meshID = resource.requestMesh(GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj");
-            ecsWorld.addComponent<MeshComponent>(cube2, mc2);
+            RenderDescriptionComponent desc;
+            desc.meshPath    = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+            desc.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/purple_texture.png";
+            ecsWorld.addComponent<RenderDescriptionComponent>(cube3, desc);
 
-            ObjectGpuComponent ogc2;
-            ogc2.objectSSBOIndex = resource.requestObjectSlot();
-            ogc2.dirty = true;
-            ecsWorld.addComponent<ObjectGpuComponent>(cube2, ogc2);
+            TransformComponent tc3;
+            tc3.position = glm::vec3(-2.0f, -2.0f, -2.0f);
+            ecsWorld.addComponent<TransformComponent>(cube3, tc3);
 
-            MaterialComponent matc2;
-            matc2.textureID = resource.requestTexture(GraphicsConstants::ENGINE_RESOURCES + "/textures/purple_texture.png");
-            ecsWorld.addComponent<MaterialComponent>(cube2, matc2);
-
-            TransformComponent tc2;
-            tc2.position = glm::vec3(-2.0f, -2.0f, -2.0f);
-            ecsWorld.addComponent<TransformComponent>(cube2, tc2);
-
-            AnimationComponent anim2;
-            anim2.enableMode(AnimationMode::Scale);
-            anim2.scaleAmplitude = glm::vec3(0.5f, 0.5f, 0.5f);
-            anim2.scaleSpeed = 2.0f;
-            ecsWorld.addComponent<AnimationComponent>(cube2, anim2);
+            AnimationComponent anim3;
+            anim3.enableMode(AnimationMode::Scale);
+            anim3.scaleAmplitude = glm::vec3(0.5f, 0.5f, 0.5f);
+            anim3.scaleSpeed = 2.0f;
+            ecsWorld.addComponent<AnimationComponent>(cube3, anim3);
         }
 
-        // add a main camera
+        // add a main camera — camera buffer allocation stays in scene setup
         void mainCamera(IResourceProvider& resource)
         {
             Entity camera = ecsWorld.createEntity();
@@ -135,8 +109,6 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent(camera, ct);
         }
 
-        // add relevant systems to operate on our entities
-        // no camera system would mean no picture after all :(
         void addSystems()
         {
             installRendererFeature();
@@ -145,31 +117,27 @@ class DefaultScene : public GtsScene
             ecsWorld.addSimulationSystem<TransformAnimationSystem>();
         }
 
-        // load in whatever we put into the scene
         void onLoad(SceneContext& ctx) override
         {
-            firstCube(*ctx.resources);
-            secondCube(*ctx.resources);
-            thirdCube(*ctx.resources);
+            firstCube();
+            secondCube();
+            thirdCube();
             mainCamera(*ctx.resources);
             addSystems();
         }
 
-        // update call delegation
         void onUpdate(SceneContext& ctx) override
         {
-            // first the controllers, then the simulation
             ecsWorld.updateControllers(ctx);
             ecsWorld.updateSimulation(ctx.time->deltaTime);
-            
 
-            if (ctx.input->isKeyPressed(GtsKey::X)) 
+            if (ctx.input->isKeyPressed(GtsKey::X))
             {
                 std::cout << "X pressed" << std::endl;
                 ctx.engineCommands->requestPause();
             }
 
-            if (ctx.input->isKeyPressed(GtsKey::Y)) 
+            if (ctx.input->isKeyPressed(GtsKey::Y))
             {
                 std::cout << "Y pressed" << std::endl;
                 ctx.engineCommands->requestResume();

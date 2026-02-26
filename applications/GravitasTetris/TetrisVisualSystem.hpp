@@ -3,80 +3,61 @@
 #include "ECSControllerSystem.hpp"
 #include "TetrisBlockComponent.hpp"
 #include "TransformComponent.h"
-#include "MeshComponent.h"
-#include "ObjectGpuComponent.h"
-#include "MaterialComponent.h"
+#include "RenderDescriptionComponent.h"
+#include "RenderableComponent.h"
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
 #include "TetrominoType.hpp"
+#include "GraphicsConstants.h"
 #include <string>
 
-// the visual system is much more lightweight than the logical system, its responsibility lies only in making new tetris blocks renderable
-// and adjusting the transformation coordinate inside the transform component
+// Visual system: owns only the gameplay-level description of what a block looks like.
+// Attaches RenderDescriptionComponent (paths only) and keeps TransformComponent in sync
+// with block grid coordinates.  No resource manager calls; all GPU binding is handled
+// by RenderBindingSystem.
 class TetrisVisualSystem : public ECSControllerSystem
 {
     public:
-        void update(ECSWorld& world, SceneContext& ctx) override
+        void update(ECSWorld& world, SceneContext&) override
         {
-            // update all blocks, active or static
             world.forEach<TetrisBlockComponent>([&](Entity e, TetrisBlockComponent& block)
             {
-                // ensure render components exist
+                // on first encounter: attach description and transform
                 if (!world.hasComponent<TransformComponent>(e))
                 {
                     world.addComponent(e, TransformComponent{});
-                    world.addComponent(e, MeshComponent{ ctx.resources->requestMesh(GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj") });
 
-                    ObjectGpuComponent ogc;
-                    ogc.objectSSBOIndex = ctx.resources->requestObjectSlot();
-                    ogc.dirty = true;
-                    world.addComponent(e, ogc);
-
-                    addMaterialComponent(world, ctx, block, e);
+                    RenderDescriptionComponent desc;
+                    desc.meshPath    = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+                    desc.texturePath = texturePath(block);
+                    world.addComponent(e, desc);
                 }
 
-                // apply block position to transform
+                // keep the block's grid position reflected in the transform
                 auto& tr = world.getComponent<TransformComponent>(e);
                 tr.position.x = float(block.x);
                 tr.position.y = float(block.y);
                 tr.position.z = 0.0f;
 
-                // mark dirty so ObjectGpuDataSystem uploads the updated model matrix
-                world.getComponent<ObjectGpuComponent>(e).dirty = true;
+                // flag the renderer-side component dirty so the model matrix is re-uploaded
+                if (world.hasComponent<RenderableComponent>(e))
+                    world.getComponent<RenderableComponent>(e).dirty = true;
             });
         }
 
-        void addMaterialComponent(ECSWorld& world, SceneContext& ctx, TetrisBlockComponent& block, Entity& e)
+    private:
+        std::string texturePath(const TetrisBlockComponent& block)
         {
-            std::string path = "";
             switch(block.type)
             {
-                case TetrominoType::I:
-                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/cyan_texture.png";
-                    break;
-                case TetrominoType::J:
-                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png";
-                    break;
-                case TetrominoType::L:
-                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/yellow_texture.png";
-                    break;
-                case TetrominoType::O:
-                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/red_texture.png";
-                    break;
-                case TetrominoType::S:
-                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/purple_texture.png";
-                    break;
-                case TetrominoType::T:
-                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/orange_texture.png";
-                    break;
-                case TetrominoType::Z:
-                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/blue_texture.png";
-                    break;
-                default:
-                    path = GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png";
-                    break;
+                case TetrominoType::I: return GraphicsConstants::ENGINE_RESOURCES + "/textures/cyan_texture.png";
+                case TetrominoType::J: return GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png";
+                case TetrominoType::L: return GraphicsConstants::ENGINE_RESOURCES + "/textures/yellow_texture.png";
+                case TetrominoType::O: return GraphicsConstants::ENGINE_RESOURCES + "/textures/red_texture.png";
+                case TetrominoType::S: return GraphicsConstants::ENGINE_RESOURCES + "/textures/purple_texture.png";
+                case TetrominoType::T: return GraphicsConstants::ENGINE_RESOURCES + "/textures/orange_texture.png";
+                case TetrominoType::Z: return GraphicsConstants::ENGINE_RESOURCES + "/textures/blue_texture.png";
+                default:               return GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png";
             }
-
-            world.addComponent(e, MaterialComponent{ ctx.resources->requestTexture(path) });
         }
 };

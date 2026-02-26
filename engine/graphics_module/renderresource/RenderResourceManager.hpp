@@ -84,17 +84,17 @@ class RenderResourceManager : public IResourceProvider
         }
 
         // --- Object SSBO slot management ---
-        uint32_t requestObjectSlot() override
+        ssbo_id_type requestObjectSlot() override
         {
             return objectSSBOManager->requestSlot();
         }
 
-        void releaseObjectSlot(uint32_t slot) override
+        void releaseObjectSlot(ssbo_id_type slot) override
         {
             objectSSBOManager->releaseSlot(slot);
         }
 
-        void writeObjectSlot(uint32_t frameIndex, uint32_t slot, const ObjectUBO& data)
+        void writeObjectSlot(uint32_t frameIndex, ssbo_id_type slot, const ObjectUBO& data)
         {
             objectSSBOManager->writeSlot(frameIndex, slot, data);
         }

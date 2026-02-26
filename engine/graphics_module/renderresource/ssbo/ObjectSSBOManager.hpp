@@ -11,6 +11,7 @@
 #include "BufferUtil.hpp"
 #include "ObjectUBO.h"
 #include "GraphicsConstants.h"
+#include "Types.h"
 
 // Manages a single large SSBO holding all per-object data.
 // Objects are addressed by a slot index allocated via a free-list.
@@ -65,11 +66,11 @@ class ObjectSSBOManager
         }
 
         // Returns a free slot index for a new object.
-        uint32_t requestSlot()
+        ssbo_id_type requestSlot()
         {
             if (!freeList.empty())
             {
-                uint32_t slot = freeList.back();
+                ssbo_id_type slot = freeList.back();
                 freeList.pop_back();
                 return slot;
             }
@@ -79,13 +80,13 @@ class ObjectSSBOManager
         }
 
         // Returns a slot to the free-list for future reuse.
-        void releaseSlot(uint32_t slot)
+        void releaseSlot(ssbo_id_type slot)
         {
             freeList.push_back(slot);
         }
 
         // Writes one object's data into the given frame's SSBO at the given slot.
-        void writeSlot(uint32_t frameIndex, uint32_t slot, const ObjectUBO& data)
+        void writeSlot(uint32_t frameIndex, ssbo_id_type slot, const ObjectUBO& data)
         {
             ObjectUBO* base = reinterpret_cast<ObjectUBO*>(ssboMapped[frameIndex]);
             base[slot] = data;
@@ -103,6 +104,6 @@ class ObjectSSBOManager
         std::vector<void*>           ssboMapped;
         std::vector<VkDescriptorSet> descriptorSets;
 
-        std::vector<uint32_t> freeList;
-        uint32_t              nextSlot = 0;
+        std::vector<ssbo_id_type> freeList;
+        ssbo_id_type              nextSlot = 0;
 };

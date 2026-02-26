@@ -10,37 +10,26 @@
 
 #include "TetrisCameraSystem.hpp"
 
-#include "MeshComponent.h"
-#include "ObjectGpuComponent.h"
-#include "CameraGpuComponent.h"
-#include "MaterialComponent.h"
+#include "RenderDescriptionComponent.h"
 #include "TransformComponent.h"
 #include "CameraComponent.h"
-#include "AnimationComponent.h"
+#include "CameraGpuComponent.h"
 
 #include "GraphicsConstants.h"
 
 // the central scene for the game, most delegation logic happens here
 class TetrisScene : public GtsScene
 {
-    // spawns a single cube with a given texture at a given coordinate
-    Entity spawnCube(IResourceProvider& resource, const std::string& texturePath, const glm::vec3& position)
+    // spawns a single cube with a given texture at a given coordinate.
+    // Only sets logical description and position — no GPU resource calls.
+    Entity spawnCube(const std::string& texturePath, const glm::vec3& position)
     {
         Entity e = ecsWorld.createEntity();
 
-        MeshComponent mc;
-        mc.meshID = resource.requestMesh(
-            GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj");
-        ecsWorld.addComponent<MeshComponent>(e, mc);
-
-        ObjectGpuComponent ogc;
-        ogc.objectSSBOIndex = resource.requestObjectSlot();
-        ogc.dirty = true;
-        ecsWorld.addComponent<ObjectGpuComponent>(e, ogc);
-
-        MaterialComponent matc;
-        matc.textureID = resource.requestTexture(texturePath);
-        ecsWorld.addComponent<MaterialComponent>(e, matc);
+        RenderDescriptionComponent desc;
+        desc.meshPath    = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+        desc.texturePath = texturePath;
+        ecsWorld.addComponent<RenderDescriptionComponent>(e, desc);
 
         TransformComponent tc;
         tc.position = position;
@@ -50,7 +39,7 @@ class TetrisScene : public GtsScene
     }
 
     // spawn cubes as a frame around the game field
-    void buildTetrisFrame(IResourceProvider& resource)
+    void buildTetrisFrame()
     {
         constexpr int fieldWidth  = 10;
         constexpr int fieldHeight = 20;
@@ -59,36 +48,18 @@ class TetrisScene : public GtsScene
 
         // left wall
         for (int y = 0; y < fieldHeight; ++y)
-        {
-            spawnCube(
-                resource,
-                frameTexture,
-                glm::vec3(-1.0f, (float)y, 0.0f)
-            );
-        }
+            spawnCube(frameTexture, glm::vec3(-1.0f, (float)y, 0.0f));
 
         // right wall
         for (int y = 0; y < fieldHeight; ++y)
-        {
-            spawnCube(
-                resource,
-                frameTexture,
-                glm::vec3((float)fieldWidth, (float)y, 0.0f)
-            );
-        }
+            spawnCube(frameTexture, glm::vec3((float)fieldWidth, (float)y, 0.0f));
 
         // bottom wall
         for (int x = -1; x <= fieldWidth; ++x)
-        {
-            spawnCube(
-                resource,
-                frameTexture,
-                glm::vec3((float)x, -1.0f, 0.0f)
-            );
-        }
+            spawnCube(frameTexture, glm::vec3((float)x, -1.0f, 0.0f));
     }
 
-    // add a main camera
+    // add a main camera — camera buffer allocation stays in scene setup
     void mainCamera(IResourceProvider& resource)
     {
         Entity camera = ecsWorld.createEntity();
@@ -107,17 +78,15 @@ class TetrisScene : public GtsScene
         ecsWorld.addComponent(camera, ct);
     }
 
-    // add data driven components, like the input component, and later a scoreboard component
     void addSingletonComponents()
     {
         ecsWorld.createSingleton<TetrisInputComponent>();
     }
 
 public:
-    // load in whatever we put into the scene
     void onLoad(SceneContext& ctx) override
     {
-        buildTetrisFrame(*ctx.resources);
+        buildTetrisFrame();
         mainCamera(*ctx.resources);
 
         addSingletonComponents();

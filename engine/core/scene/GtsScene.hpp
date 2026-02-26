@@ -4,10 +4,11 @@
 #include "SceneContext.h"
 
 #include "CameraGpuDataSystem.hpp"
-#include "ObjectGpuDataSystem.hpp"
+#include "RenderableTransformSystem.hpp"
+#include "RenderBindingSystem.hpp"
 
 // core idea: override this class in whatever application you are making, and create your own scene using entities and components
-class GtsScene 
+class GtsScene
 {
     protected:
         ECSWorld ecsWorld;
@@ -20,7 +21,7 @@ class GtsScene
         // call this every time the scene is updated
         virtual void onUpdate(SceneContext& ctx) = 0;
 
-        ECSWorld& getWorld() 
+        ECSWorld& getWorld()
         {
             return ecsWorld;
         }
@@ -29,6 +30,7 @@ class GtsScene
         inline void installRendererFeature()
         {
             ecsWorld.addSimulationSystem<CameraGpuDataSystem>();
-            ecsWorld.addSimulationSystem<ObjectGpuDataSystem>();
+            ecsWorld.addSimulationSystem<RenderableTransformSystem>();
+            ecsWorld.addControllerSystem<RenderBindingSystem>();
         }
 };

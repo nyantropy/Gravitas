@@ -18,6 +18,6 @@ class IResourceProvider
         // Object SSBO slot allocation.
         // requestObjectSlot returns a stable index valid for the lifetime of the object.
         // releaseObjectSlot returns the index to the free-list for future reuse.
-        virtual uint32_t requestObjectSlot() = 0;
-        virtual void     releaseObjectSlot(uint32_t slot) = 0;
+        virtual ssbo_id_type requestObjectSlot() = 0;
+        virtual void         releaseObjectSlot(ssbo_id_type slot) = 0;
 };
