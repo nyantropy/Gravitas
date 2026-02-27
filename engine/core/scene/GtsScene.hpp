@@ -7,6 +7,7 @@
 #include "CameraGpuSystem.hpp"
 #include "RenderBindingSystem.hpp"
 #include "CameraBindingSystem.hpp"
+#include "RenderResourceClearSystem.hpp"
 
 
 // core idea: override this class in whatever application you are making, and create your own scene using entities and components
@@ -35,5 +36,6 @@ class GtsScene
             ecsWorld.addSimulationSystem<CameraGpuSystem>();
             ecsWorld.addControllerSystem<RenderBindingSystem>();
             ecsWorld.addControllerSystem<CameraBindingSystem>();
+            ecsWorld.addControllerSystem<RenderResourceClearSystem>();
         }
 };

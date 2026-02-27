@@ -17,6 +17,7 @@
 #include "ActiveTetromino.hpp"
 #include "Entity.h"
 #include "TetrisBlockComponent.hpp"
+#include "RenderResourceClearComponent.h"
 
 // the logical core of the tetris game
 // it operates on the ecs, but only ever works on the TetrisBlockComponent class to adjust values, which will correctly reflect the
@@ -31,7 +32,7 @@ class TetrisGameSystem : public ECSSimulationSystem
         ActiveTetromino active;
 
         float fallTimer = 0.0f;
-        float fallInterval = 0.7f;
+        float fallInterval = 0.01f;
 
         float moveTimer = 0.0f;
         float moveInterval = 0.08f;
@@ -215,7 +216,8 @@ class TetrisGameSystem : public ECSSimulationSystem
                 int destroy = 1;
                 for (Entity e : toDestroy)
                 {
-                    world.destroyEntity(e);
+                    world.addComponent(e, RenderResourceClearComponent{});
+                    world.removeComponent<TetrisBlockComponent>(e);
                     destroy++;
                 }
 
@@ -249,7 +251,10 @@ class TetrisGameSystem : public ECSSimulationSystem
                 });
 
                 for (Entity e : all)
-                    world.destroyEntity(e);
+                {
+                    world.addComponent(e, RenderResourceClearComponent{});
+                    world.removeComponent<TetrisBlockComponent>(e);
+                }
 
                 rebuildGrid(world);
             }
