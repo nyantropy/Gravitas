@@ -10,9 +10,9 @@
 #include "TetrisCameraSystem.hpp"
 
 #include "RenderDescriptionComponent.h"
-#include "TransformComponent.h"
+#include "CameraDescriptionComponent.h"
 #include "CameraOverrideComponent.h"
-#include "CameraGpuComponent.h"
+#include "TransformComponent.h"
 
 #include "GraphicsConstants.h"
 
@@ -54,29 +54,21 @@ class TetrisScene : public GtsScene
             spawnCube(frameTexture, glm::vec3((float)x, -1.0f, 0.0f));
     }
 
-    // Camera entity for the Tetris view.
-    // Uses the override path: TetrisCameraSystem writes the orthographic matrices
-    // directly into CameraGpuComponent each frame.  No CameraDescriptionComponent
-    // is needed — CameraGpuSystem will never touch this entity.
-    // void mainCamera()
-    // {
-    //     Entity camera = ecsWorld.createEntity();
-    //     ecsWorld.addComponent(camera, CameraOverrideComponent{});
-    //     ecsWorld.addComponent(camera, CameraGpuComponent{});
-    // }
-
     void mainCamera()
     {
         Entity camera = ecsWorld.createEntity();
 
         CameraDescriptionComponent desc;
-        desc.active = true;
-        desc.target = glm::vec3(5.0f, 5.0f, 0.0f);
+        desc.active      = true;
+        desc.fov         = glm::radians(60.0f);
+        desc.aspectRatio = 800.0f / 800.0f;
+        desc.nearClip    = 1.0f;
+        desc.farClip     = 1000.0f;
         ecsWorld.addComponent(camera, desc);
 
-        TransformComponent ct;
-        ct.position = glm::vec3(0.0f, 0.0f, 20.0f);
-        ecsWorld.addComponent(camera, ct);
+        ecsWorld.addComponent(camera, TransformComponent{});
+
+        ecsWorld.addComponent(camera, CameraOverrideComponent{});
     }
 
     void addSingletonComponents()
@@ -91,17 +83,16 @@ public:
         mainCamera();
 
         addSingletonComponents();
-
-        // TetrisCameraSystem must be registered before installRendererFeature so it
-        // executes before CameraGpuSystem in the simulation pipeline, ensuring the
-        // orthographic matrices are ready before CameraGpuSystem's pass.
-        //ecsWorld.addSimulationSystem<TetrisCameraSystem>();
-
         installRendererFeature();
 
         ecsWorld.addControllerSystem<TetrisInputSystem>();
         ecsWorld.addSimulationSystem<TetrisGameSystem>();
         ecsWorld.addControllerSystem<TetrisVisualSystem>();
+
+        // Registered after TetrisGameSystem so it runs on fully updated game state.
+        // CameraBindingSystem is a controller and always follows all simulation,
+        // so the perspective matrices are guaranteed to be ready before GPU upload.
+        ecsWorld.addSimulationSystem<TetrisCameraSystem>();
     }
 
     void onUpdate(SceneContext& ctx) override

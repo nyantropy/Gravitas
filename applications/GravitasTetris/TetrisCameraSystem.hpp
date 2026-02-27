@@ -4,53 +4,54 @@
 #include <gtc/matrix_transform.hpp>
 
 #include "ECSSimulationSystem.hpp"
-#include "CameraOverrideComponent.h"
+#include "CameraDescriptionComponent.h"
 #include "CameraGpuComponent.h"
+#include "CameraOverrideComponent.h"
 
-// Custom camera system for the Tetris scene.
-//
-// Operates exclusively on entities carrying CameraOverrideComponent —
-// CameraGpuSystem will not touch these.  Writes a 2D orthographic
-// projection and a flat look-at view directly into CameraGpuComponent.
-//
-// Must be registered before installRendererFeature() so it runs ahead of
-// CameraGpuSystem in the simulation pipeline.
+// a telephoto camera system, aimed to replicate the same effect as in the game Tetris Effect Connect
 class TetrisCameraSystem : public ECSSimulationSystem
 {
     public:
         void update(ECSWorld& world, float) override
         {
-            world.forEach<CameraOverrideComponent, CameraGpuComponent>(
-                [](Entity, CameraOverrideComponent&, CameraGpuComponent& gpu)
+            world.forEach<CameraDescriptionComponent, CameraOverrideComponent>(
+                [&](Entity e, CameraDescriptionComponent& desc, CameraOverrideComponent&)
                 {
+                    if (!world.hasComponent<CameraGpuComponent>(e))
+                        world.addComponent(e, CameraGpuComponent{});
+
+                    auto& gpu = world.getComponent<CameraGpuComponent>(e);
+
                     constexpr float gridWidth  = 10.0f;
                     constexpr float gridHeight = 20.0f;
-                    constexpr float margin     = 1.5f;
 
-                    // Center of the play field
-                    const float cx = gridWidth  * 0.5f;
-                    const float cy = gridHeight * 0.5f;
+                    // --- Telephoto parameters (key to Tetris Effect look)
+                    const float distance = 180.0f;                 // much farther
+                    const float fov      = glm::radians(7.0f);     // very narrow FOV
 
-                    // Half-extents including margin
-                    const float halfW = cx + margin;
-                    const float halfH = cy + margin;
+                    const glm::vec3 boardCenter =
+                        glm::vec3(gridWidth * 0.5f, gridHeight * 0.5f, 0.0f);
 
-                    // Flat 2D view — camera sits directly in front of the field at z=1
-                    gpu.viewMatrix = glm::lookAt(
-                        glm::vec3(cx, cy, 1.0f),   // eye
-                        glm::vec3(cx, cy, 0.0f),   // center
-                        glm::vec3(0.0f, 1.0f, 0.0f) // up
-                    );
+                    const glm::vec3 forward = glm::vec3(0.0f, 0.0f, -1.0f);
+                    const glm::vec3 up      = glm::vec3(0.0f, 1.0f,  0.0f);
 
-                    // Symmetric orthographic projection centred on the field
-                    gpu.projMatrix = glm::ortho(
-                        cx - halfW, cx + halfW,   // left,   right
-                        cy - halfH, cy + halfH,   // bottom, top
-                        0.1f,       100.0f         // near,   far
-                    );
-                    gpu.projMatrix[1][1] *= -1;   // Vulkan Y-flip
+                    const glm::vec3 position =
+                        boardCenter - forward * distance;
 
-                    gpu.active = true;
+                    gpu.viewMatrix =
+                        glm::lookAt(position, boardCenter, up);
+
+                    gpu.projMatrix =
+                        glm::perspective(
+                            fov,
+                            desc.aspectRatio,
+                            desc.nearClip,
+                            desc.farClip
+                        );
+
+                    gpu.projMatrix[1][1] *= -1.0f;
+
+                    gpu.active = desc.active;
                     gpu.dirty  = true;
                 }
             );
