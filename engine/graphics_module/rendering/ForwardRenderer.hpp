@@ -255,19 +255,6 @@ class ForwardRenderer : Renderer
                 vkWaitForFences(vcsheet::getDevice(), 1, &imageFence, VK_TRUE, UINT64_MAX);
             }
 
-            // Upload camera UBO once per frame (shared across all draw commands).
-            view_id_type lastCameraViewID = 0;
-            for (const auto& cmdData : renderList)
-            {
-                if (cmdData.cameraViewID != lastCameraViewID && cmdData.cameraUboPtr != nullptr)
-                {
-                    memcpy(resourceSystem->getCameraView(cmdData.cameraViewID)->uniformBuffersMapped[currentFrame],
-                           cmdData.cameraUboPtr, sizeof(CameraUBO));
-                    lastCameraViewID = cmdData.cameraViewID;
-                }
-                break; // single camera; no need to iterate further
-            }
-
             // Write each object's model matrix into its SSBO slot for this frame.
             // The renderer owns the ObjectUBO packing; the ECS only supplies a plain glm::mat4.
             for (const auto& cmdData : renderList)

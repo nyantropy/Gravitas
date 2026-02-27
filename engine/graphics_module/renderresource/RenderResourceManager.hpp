@@ -78,6 +78,22 @@ class RenderResourceManager : public IResourceProvider
             cameraBufferManager->destroyView(id);
         }
 
+        // Writes view/proj to every frames-in-flight UBO slot for this view.
+        // Called by CameraBindingSystem; the renderer only needs to bind the
+        // descriptor set — it no longer owns the camera UBO upload.
+        void uploadCameraView(view_id_type id, const glm::mat4& view, const glm::mat4& proj) override
+        {
+            CameraBufferResource* res = cameraBufferManager->getView(id);
+            if (!res) return;
+
+            CameraUBO ubo;
+            ubo.view = view;
+            ubo.proj = proj;
+
+            for (void* mapped : res->uniformBuffersMapped)
+                memcpy(mapped, &ubo, sizeof(CameraUBO));
+        }
+
         CameraBufferResource* getCameraView(view_id_type id)
         {
             return cameraBufferManager->getView(id);

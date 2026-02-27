@@ -4,7 +4,7 @@
 #include "TetrisBlockComponent.hpp"
 #include "TransformComponent.h"
 #include "RenderDescriptionComponent.h"
-#include "RenderableComponent.h"
+#include "RenderGpuComponent.h"
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
 #include "TetrominoType.hpp"
@@ -40,8 +40,8 @@ class TetrisVisualSystem : public ECSControllerSystem
                 tr.position.z = 0.0f;
 
                 // flag the renderer-side component dirty so the model matrix is re-uploaded
-                if (world.hasComponent<RenderableComponent>(e))
-                    world.getComponent<RenderableComponent>(e).dirty = true;
+                if (world.hasComponent<RenderGpuComponent>(e))
+                    world.getComponent<RenderGpuComponent>(e).dirty = true;
             });
         }
 

@@ -1,47 +1,58 @@
 #pragma once
-#include "ECSSimulationSystem.hpp"
-#include "ECSWorld.hpp"
-#include "CameraComponent.h"
-#include "CameraGpuComponent.h"
-#include "TransformComponent.h"
+
+#include <glm.hpp>
 #include <gtc/matrix_transform.hpp>
 
-// an attempt to get a flat 2d view with glm::ortho was made, but it didnt work, so this needs further work
+#include "ECSSimulationSystem.hpp"
+#include "CameraOverrideComponent.h"
+#include "CameraGpuComponent.h"
+
+// Custom camera system for the Tetris scene.
+//
+// Operates exclusively on entities carrying CameraOverrideComponent —
+// CameraGpuSystem will not touch these.  Writes a 2D orthographic
+// projection and a flat look-at view directly into CameraGpuComponent.
+//
+// Must be registered before installRendererFeature() so it runs ahead of
+// CameraGpuSystem in the simulation pipeline.
 class TetrisCameraSystem : public ECSSimulationSystem
 {
     public:
-        void update(ECSWorld& world, float dt) override
+        void update(ECSWorld& world, float) override
         {
-            for (Entity e : world.getAllEntitiesWith<CameraComponent, CameraGpuComponent, TransformComponent>())
-            {
-                auto& cam = world.getComponent<CameraComponent>(e);
-                auto& gpu = world.getComponent<CameraGpuComponent>(e);
-                auto& transform = world.getComponent<TransformComponent>(e);
+            world.forEach<CameraOverrideComponent, CameraGpuComponent>(
+                [](Entity, CameraOverrideComponent&, CameraGpuComponent& gpu)
+                {
+                    constexpr float gridWidth  = 10.0f;
+                    constexpr float gridHeight = 20.0f;
+                    constexpr float margin     = 1.5f;
 
-                float gridWidth  = 10.0f;
-                float gridHeight = 20.0f;
-                float zDistance  = 30.0f;
+                    // Center of the play field
+                    const float cx = gridWidth  * 0.5f;
+                    const float cy = gridHeight * 0.5f;
 
-                transform.position = glm::vec3(gridWidth / 2.0f, gridHeight / 2.0f, zDistance);
-                cam.target          = glm::vec3(gridWidth / 2.0f, gridHeight / 2.0f, 0.0f);
-                cam.up              = glm::vec3(0.0f, 1.0f, 0.0f);
+                    // Half-extents including margin
+                    const float halfW = cx + margin;
+                    const float halfH = cy + margin;
 
-                cam.view = glm::lookAt(
-                    transform.position,
-                    cam.target,
-                    cam.up
-                );
+                    // Flat 2D view — camera sits directly in front of the field at z=1
+                    gpu.viewMatrix = glm::lookAt(
+                        glm::vec3(cx, cy, 1.0f),   // eye
+                        glm::vec3(cx, cy, 0.0f),   // center
+                        glm::vec3(0.0f, 1.0f, 0.0f) // up
+                    );
 
-                cam.fov = glm::radians(45.0f);
-                cam.aspectRatio = 800.0f / 800.0f;
-                cam.nearClip = 0.1f;
-                cam.farClip  = 1000.0f;
+                    // Symmetric orthographic projection centred on the field
+                    gpu.projMatrix = glm::ortho(
+                        cx - halfW, cx + halfW,   // left,   right
+                        cy - halfH, cy + halfH,   // bottom, top
+                        0.1f,       100.0f         // near,   far
+                    );
+                    gpu.projMatrix[1][1] *= -1;   // Vulkan Y-flip
 
-                cam.projection = glm::perspective(cam.fov, cam.aspectRatio, cam.nearClip, cam.farClip);
-                cam.projection[1][1] *= -1;
-
-                // mark dirty so CameraGpuDataSystem picks up the new matrices
-                gpu.dirty = true;
-            }
+                    gpu.active = true;
+                    gpu.dirty  = true;
+                }
+            );
         }
 };

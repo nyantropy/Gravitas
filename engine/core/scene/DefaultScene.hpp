@@ -1,21 +1,16 @@
 #pragma once
 #include "ECSWorld.hpp"
-#include "IResourceProvider.hpp"
 #include "GtsScene.hpp"
 
 #include "RenderDescriptionComponent.h"
+#include "CameraDescriptionComponent.h"
 #include "TransformComponent.h"
-#include "CameraComponent.h"
-#include "CameraGpuComponent.h"
 #include "AnimationComponent.h"
 
-#include "CameraSystem.hpp"
 #include "CameraControlSystem.hpp"
-
 #include "TransformAnimationSystem.hpp"
 
 #include "SceneContext.h"
-
 #include "GraphicsConstants.h"
 
 // a run of the mill default scene in the engine, for testing purposes
@@ -24,7 +19,6 @@ class DefaultScene : public GtsScene
     private:
         Entity controlledCube;
     public:
-        // adds a simple rotating cube at the world center
         void firstCube()
         {
             controlledCube = ecsWorld.createEntity();
@@ -44,7 +38,6 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent<AnimationComponent>(controlledCube, anim);
         }
 
-        // add a second cube, that both translates and rotates
         void secondCube()
         {
             Entity cube2 = ecsWorld.createEntity();
@@ -69,7 +62,6 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent<AnimationComponent>(cube2, anim2);
         }
 
-        // a third cube that scales
         void thirdCube()
         {
             Entity cube3 = ecsWorld.createEntity();
@@ -90,19 +82,14 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent<AnimationComponent>(cube3, anim3);
         }
 
-        // add a main camera — camera buffer allocation stays in scene setup
-        void mainCamera(IResourceProvider& resource)
+        // gameplay-only camera setup — no GPU resource calls
+        void mainCamera()
         {
             Entity camera = ecsWorld.createEntity();
 
-            CameraComponent cc;
-            cc.active = true;
-            ecsWorld.addComponent(camera, cc);
-
-            CameraGpuComponent cgc;
-            cgc.viewID = resource.requestCameraBuffer();
-            cgc.dirty = true;
-            ecsWorld.addComponent(camera, cgc);
+            CameraDescriptionComponent desc;
+            desc.active = true;
+            ecsWorld.addComponent(camera, desc);
 
             TransformComponent ct;
             ct.position = glm::vec3(0.0f, 0.0f, 10.0f);
@@ -113,7 +100,6 @@ class DefaultScene : public GtsScene
         {
             installRendererFeature();
             ecsWorld.addControllerSystem<CameraControlSystem>();
-            ecsWorld.addSimulationSystem<CameraSystem>();
             ecsWorld.addSimulationSystem<TransformAnimationSystem>();
         }
 
@@ -122,7 +108,7 @@ class DefaultScene : public GtsScene
             firstCube();
             secondCube();
             thirdCube();
-            mainCamera(*ctx.resources);
+            mainCamera();
             addSystems();
         }
 

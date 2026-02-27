@@ -2,17 +2,17 @@
 
 #include "ECSControllerSystem.hpp"
 #include "RenderDescriptionComponent.h"
-#include "RenderableComponent.h"
+#include "RenderGpuComponent.h"
 
 // The exclusive broker between gameplay intent and renderer resources.
 // Reads RenderDescriptionComponent and is the only system permitted to call
 // ctx.resources->requestMesh / requestTexture / requestObjectSlot.
 //
 // Responsibilities:
-//   - Creates RenderableComponent on entities that have a description but no binding yet
+//   - Creates RenderGpuComponent on entities that have a description but no binding yet
 //   - Allocates an SSBO slot on first bind
 //   - Resolves mesh/texture paths to GPU IDs on first bind and whenever the paths change
-//   - Sets dirty = true so RenderableTransformSystem re-uploads the model matrix
+//   - Sets dirty = true so RenderGpuSystem re-uploads the model matrix
 class RenderBindingSystem : public ECSControllerSystem
 {
     public:
@@ -21,10 +21,10 @@ class RenderBindingSystem : public ECSControllerSystem
             world.forEach<RenderDescriptionComponent>([&](Entity e, RenderDescriptionComponent& desc)
             {
                 // Ensure the internal binding component exists
-                if (!world.hasComponent<RenderableComponent>(e))
-                    world.addComponent(e, RenderableComponent{});
+                if (!world.hasComponent<RenderGpuComponent>(e))
+                    world.addComponent(e, RenderGpuComponent{});
 
-                auto& rc = world.getComponent<RenderableComponent>(e);
+                auto& rc = world.getComponent<RenderGpuComponent>(e);
 
                 // Allocate a GPU slot the first time this entity is seen
                 if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)

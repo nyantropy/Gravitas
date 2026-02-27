@@ -8,7 +8,7 @@
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
 
-#include "CameraComponent.h"
+#include "CameraDescriptionComponent.h"
 #include "TransformComponent.h"
 
 // a basic camera control system that allows zooming in/out, as well as orbiting around the scene
@@ -23,7 +23,7 @@ class CameraControlSystem : public ECSControllerSystem
             // use the unscaled delta time here, so we can still move the camera even if we pause the scene
             const float dt = ctx.time->unscaledDeltaTime;
 
-            for (Entity e : world.getAllEntitiesWith<CameraComponent, TransformComponent>())
+            for (Entity e : world.getAllEntitiesWith<CameraDescriptionComponent, TransformComponent>())
             {
                 auto& transform = world.getComponent<TransformComponent>(e);
 

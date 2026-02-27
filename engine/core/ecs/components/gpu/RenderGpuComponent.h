@@ -15,8 +15,8 @@ constexpr ssbo_id_type RENDERABLE_SLOT_UNALLOCATED = std::numeric_limits<ssbo_id
 //
 // boundMeshPath / boundTexturePath : the paths used to resolve the current resource IDs.
 //   Compared against RenderDescriptionComponent each frame to detect when a rebind is needed.
-// modelMatrix    : kept current by RenderableTransformSystem when dirty == true.
-struct RenderableComponent
+// modelMatrix    : kept current by RenderGpuSystem when dirty == true.
+struct RenderGpuComponent
 {
     mesh_id_type    meshID         = 0;
     texture_id_type textureID      = 0;

@@ -3,12 +3,12 @@
 #include <glm.hpp>
 
 #include "Types.h"
-#include "CameraUBO.h"
 
 // Consumed by the renderer to produce one frame.
-// objectSSBOSlot : index into the shared object SSBO; assigned by RenderBindingSystem.
-// modelMatrix    : CPU-side model matrix; the renderer packs this into ObjectUBO before writing.
-// cameraUboPtr   : pointer into CameraGpuComponent::ubo; renderer uploads it to the camera UBO.
+// All fields are value copies — no raw pointers into ECS component memory.
+// objectSSBOSlot  : SSBO slot index assigned by RenderBindingSystem
+// modelMatrix     : packed into ObjectUBO by the renderer
+// viewMatrix/proj : packed into CameraUBO by the renderer (mirrors the object side)
 struct RenderCommand
 {
     mesh_id_type    meshID;
@@ -16,6 +16,7 @@ struct RenderCommand
     ssbo_id_type    objectSSBOSlot;
     view_id_type    cameraViewID;
 
-    glm::mat4  modelMatrix;  // value copy — no raw pointer into ECS component memory
-    CameraUBO* cameraUboPtr; // camera side; owned by CameraGpuComponent
+    glm::mat4 modelMatrix;
+    glm::mat4 viewMatrix;
+    glm::mat4 projMatrix;
 };
