@@ -10,6 +10,9 @@
 #include "TetrisGameSystem.hpp"
 #include "TetrisVisualSystem.hpp"
 #include "TetrisCameraSystem.hpp"
+#include "TetrisScoreComponent.hpp"
+#include "TetrisScoreSystem.hpp"
+#include "ScoreDisplayComponent.hpp"
 
 #include "RenderDescriptionComponent.h"
 #include "CameraDescriptionComponent.h"
@@ -131,6 +134,7 @@ class TetrisScene : public GtsScene
         text.scale = 1.0f;
         text.dirty = true;
         ecsWorld.addComponent(scoreEntity, text);
+        ecsWorld.addComponent(scoreEntity, ScoreDisplayComponent{});
     }
 
     void mainCamera()
@@ -153,6 +157,7 @@ class TetrisScene : public GtsScene
     void addSingletonComponents()
     {
         ecsWorld.createSingleton<TetrisInputComponent>();
+        ecsWorld.createSingleton<TetrisScoreComponent>();
     }
 
 public:
@@ -179,6 +184,7 @@ public:
 
         ecsWorld.addControllerSystem<TetrisInputSystem>();
         ecsWorld.addSimulationSystem<TetrisGameSystem>();
+        ecsWorld.addSimulationSystem<TetrisScoreSystem>(); // runs after game system to drain events same tick
         ecsWorld.addControllerSystem<TetrisVisualSystem>();
 
         // Registered after TetrisGameSystem so it runs on fully updated game state.

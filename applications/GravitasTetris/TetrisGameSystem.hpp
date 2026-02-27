@@ -18,6 +18,7 @@
 #include "Entity.h"
 #include "TetrisBlockComponent.hpp"
 #include "RenderResourceClearComponent.h"
+#include "TetrisScoreComponent.hpp"
 
 // the logical core of the tetris game
 // it operates on the ecs, but only ever works on the TetrisBlockComponent class to adjust values, which will correctly reflect the
@@ -32,7 +33,7 @@ class TetrisGameSystem : public ECSSimulationSystem
         ActiveTetromino active;
 
         float fallTimer = 0.0f;
-        float fallInterval = 0.01f;
+        float fallInterval = 0.4f;
 
         float moveTimer = 0.0f;
         float moveInterval = 0.08f;
@@ -196,6 +197,8 @@ class TetrisGameSystem : public ECSSimulationSystem
         // try to clear lines, only actually deletes anything when a row is full of blocks
         void clearLines(ECSWorld& world)
         {
+            int linesCleared = 0;
+
             for (int y = 0; y < grid.height; ++y)
             {
                 bool full = true;
@@ -204,6 +207,8 @@ class TetrisGameSystem : public ECSSimulationSystem
                         full = false;
 
                 if (!full) continue;
+
+                linesCleared++;
 
                 std::vector<Entity> toDestroy;
                 for (int x = 0; x < grid.width; ++x)
@@ -229,7 +234,13 @@ class TetrisGameSystem : public ECSSimulationSystem
 
                 y--;
                 rebuildGrid(world);
-            }         
+            }
+
+            if (linesCleared > 0)
+            {
+                auto& sc = world.getSingleton<TetrisScoreComponent>();
+                sc.pendingEvents.push_back({ ScoringEventType::LinesCleared, linesCleared });
+            }
         }
 
         // spawn a new, random tetris piece at the top of the grid
@@ -239,12 +250,13 @@ class TetrisGameSystem : public ECSSimulationSystem
             active.rotation = 0;
             active.pivot = { grid.width / 2, grid.height - 1 };
 
-            // NEW: game over check
+            // game over check: spawn position occupied → wipe the board and reset score
             if (!testPosition(world, active.pivot, active.rotation))
             {
-                // wipe the whole grid
-                std::vector<Entity> all;
+                auto& sc = world.getSingleton<TetrisScoreComponent>();
+                sc.pendingEvents.push_back({ ScoringEventType::GameOver });
 
+                std::vector<Entity> all;
                 world.forEach<TetrisBlockComponent>([&](Entity e, TetrisBlockComponent&)
                 {
                     all.push_back(e);
