@@ -9,7 +9,6 @@
 #include "RenderCommandExtractor.hpp"
 
 #include "SceneManager.hpp"
-#include "DefaultScene.hpp"
 
 #include "InputManager.hpp"
 
@@ -108,13 +107,6 @@ class GravitasEngine
         void setActiveScene(std::string name)
         {
             sceneManager->setActiveScene(name);
-            sceneManager->getActiveScene()->onLoad(sceneContext);
-        }
-
-        void createDebugScene()
-        {
-            sceneManager->registerScene("default", std::make_unique<DefaultScene>());
-            sceneManager->setActiveScene("default");
             sceneManager->getActiveScene()->onLoad(sceneContext);
         }
 

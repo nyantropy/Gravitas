@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 file(GLOB APP_SOURCES CONFIGURE_DEPENDS
     *.cpp
     *.c
+    *.hpp
 )
 
 add_executable(GtsScene1 ${APP_SOURCES})

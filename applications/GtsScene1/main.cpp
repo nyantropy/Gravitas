@@ -1,15 +1,15 @@
 #include <iostream>
 #include <filesystem>
 #include <vector>
-#include <iostream>
 
 #include "GravitasEngine.hpp"
+#include "DefaultScene.hpp"
 
-// creates a simple debug test scene
-int main() 
+int main()
 {
     GravitasEngine engine = GravitasEngine();
-    engine.createDebugScene();
+    engine.registerScene("default", std::make_unique<DefaultScene>());
+    engine.setActiveScene("default");
     engine.start();
 
     return EXIT_SUCCESS;

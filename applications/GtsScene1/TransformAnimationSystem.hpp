@@ -6,6 +6,7 @@
 #include "TransformComponent.h"
 #include "AnimationComponent.h"
 #include "AnimationMode.h"
+#include "RenderGpuComponent.h"
 
 // adjusted to operate on individual entities instead of globally,
 // likely needs further expansion in the future, but for simple transformations, this works well enough
@@ -52,7 +53,10 @@ class TransformAnimationSystem : public ECSSimulationSystem
                     float factor = 1.0f + std::sin(anim.time * anim.scaleSpeed);
                     transform.scale = anim.initialScale + anim.scaleAmplitude * factor;
                 }
+
+                // Signal to RenderGpuSystem that the transform changed this frame
+                if (world.hasComponent<RenderGpuComponent>(e))
+                    world.getComponent<RenderGpuComponent>(e).dirty = true;
             }
         }
 };
-

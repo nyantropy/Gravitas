@@ -37,7 +37,7 @@ class CameraControlSystem : public ECSControllerSystem
                 {
                     dir /= dist;
                 }
-                    
+
 
                 if (ctx.input->isKeyDown(GtsKey::W))
                 {
