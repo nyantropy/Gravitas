@@ -56,6 +56,13 @@ class RenderResourceManager : public IResourceProvider
             return meshManager->getMesh(id);
         }
 
+        mesh_id_type uploadProceduralMesh(mesh_id_type                 existingId,
+                                          const std::vector<Vertex>&   vertices,
+                                          const std::vector<uint32_t>& indices) override
+        {
+            return meshManager->uploadProceduralMesh(existingId, vertices, indices);
+        }
+
         // --- Texture ---
         texture_id_type requestTexture(const std::string& path) override
         {

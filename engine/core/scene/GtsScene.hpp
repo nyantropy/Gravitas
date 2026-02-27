@@ -8,6 +8,8 @@
 #include "RenderBindingSystem.hpp"
 #include "CameraBindingSystem.hpp"
 #include "RenderResourceClearSystem.hpp"
+#include "TextBuildSystem.hpp"
+#include "TextBindingSystem.hpp"
 
 
 // core idea: override this class in whatever application you are making, and create your own scene using entities and components
@@ -34,8 +36,10 @@ class GtsScene
         {
             ecsWorld.addSimulationSystem<RenderGpuSystem>();
             ecsWorld.addSimulationSystem<CameraGpuSystem>();
+            ecsWorld.addSimulationSystem<TextBuildSystem>();
             ecsWorld.addControllerSystem<RenderBindingSystem>();
             ecsWorld.addControllerSystem<CameraBindingSystem>();
             ecsWorld.addControllerSystem<RenderResourceClearSystem>();
+            ecsWorld.addControllerSystem<TextBindingSystem>();
         }
 };
