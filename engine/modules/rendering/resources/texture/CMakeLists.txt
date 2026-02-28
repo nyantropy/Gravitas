@@ -1,5 +1,4 @@
-file(GLOB CURRENT_DIR_SRC ./*.hpp ./*.cpp ./*.c ./*.h)
-add_library(texture ${CURRENT_DIR_SRC})
+add_library(texture INTERFACE)
 
-target_include_directories(texture PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(texture PUBLIC graphics physicaldevice logicaldevice external descriptorset)
+target_include_directories(texture INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(texture INTERFACE vulkantexture descriptorset)
