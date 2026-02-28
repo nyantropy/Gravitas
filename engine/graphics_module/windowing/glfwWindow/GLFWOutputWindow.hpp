@@ -11,7 +11,6 @@
 #include "GLFWVulkanSurface.hpp"
 #include "VulkanSurfaceConfig.h"
 #include "GLFWKeyTranslator.hpp"
-#include "gtsinput.h"
 
 class GLFWOutputWindow : public OutputWindow 
 {

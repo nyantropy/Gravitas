@@ -1,6 +1,6 @@
 #pragma once
 #include "IResourceProvider.hpp"
-#include "InputManager.hpp"
+#include "IInputSource.hpp"
 #include "InputActionManager.hpp"
 #include "GtsAction.h"
 #include "TimeContext.h"
@@ -10,8 +10,8 @@
 struct SceneContext
 {
     IResourceProvider*              resources;
-    InputManager*                   input;    // raw key states — use for low-level or legacy queries
-    InputActionManager<GtsAction>*  actions;  // engine-level semantic actions — preferred for game systems
+    IInputSource*                   inputSource;  // abstract device layer — for updating local action managers
+    InputActionManager<GtsAction>*  actions;      // engine-level semantic actions
     const TimeContext*              time;
     GtsCommandBuffer*               engineCommands;
 };

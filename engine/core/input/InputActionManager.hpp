@@ -4,7 +4,7 @@
 #include <vector>
 #include <algorithm>
 
-#include "InputManager.hpp"
+#include "IInputSource.hpp"
 #include "GtsKey.h"
 
 // Generic action-to-key mapping layer.
@@ -73,7 +73,7 @@ public:
     // ── per-frame update ──────────────────────────────────────────────
 
     // Call once per frame after InputManager::beginFrame() + event poll.
-    void update(const InputManager& input)
+    void update(const IInputSource& input)
     {
         previousState = currentState;
 

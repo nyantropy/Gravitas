@@ -51,7 +51,7 @@ class GravitasEngine
         void createSceneContext()
         {
             sceneContext.resources      = graphics->getResourceProvider();
-            sceneContext.input          = inputManager.get();
+            sceneContext.inputSource    = inputManager.get();
             sceneContext.actions        = actionManager.get();
             sceneContext.time           = &timeContext;
             sceneContext.engineCommands = &engineCommands;
@@ -69,10 +69,9 @@ class GravitasEngine
             sceneManager  = std::make_unique<SceneManager>();
             inputManager  = std::make_unique<InputManager>();
             actionManager = std::make_unique<InputActionManager<GtsAction>>();
-            gtsinput::SetInputManager(inputManager.get());
         }
 
-        // create the Graphics class
+        // create the Graphics class and wire the InputManager into the window
         void createGraphicsModule()
         {
             GraphicsConfig config;
@@ -80,6 +79,7 @@ class GravitasEngine
             config.outputWindowWidth = 800;
             config.outputWindowTitle = "Engine Test";
             graphics = std::make_unique<Graphics>(config);
+            graphics->windowManager->getOutputWindow()->setInputManager(inputManager.get());
         }
     public:
         GravitasEngine()

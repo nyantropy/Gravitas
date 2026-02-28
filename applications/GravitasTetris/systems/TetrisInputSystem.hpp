@@ -29,7 +29,7 @@ public:
 
     void update(ECSWorld& world, SceneContext& ctx) override
     {
-        actionManager.update(*ctx.input);
+        actionManager.update(*ctx.inputSource);
 
         auto& input = world.getSingleton<TetrisInputComponent>();
 

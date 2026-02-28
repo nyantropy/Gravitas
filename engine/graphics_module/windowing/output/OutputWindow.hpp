@@ -11,9 +11,9 @@
 #include "VulkanSurface.hpp"
 #include "GtsEvent.hpp"
 #include "GtsKeyTranslator.hpp"
-#include "gtsinput.h"
+#include "InputManager.hpp"
 
-class OutputWindow 
+class OutputWindow
 {
     protected:
         explicit OutputWindow(const OutputWindowConfig& config): config(config) {};
@@ -23,14 +23,20 @@ class OutputWindow
         void* window;
         std::unique_ptr<GtsKeyTranslator> keyTranslator;
 
-        // process the key event here as a friend of the input manager
+        // Set by GravitasEngine after both the window and InputManager are created.
+        InputManager* inputManager = nullptr;
+
+        // Deliver a raw key event to the InputManager (valid because OutputWindow
+        // is declared a friend inside InputManager).
         void processKeyEvent(GtsKey gtskey, bool pressed)
         {
-            gtsinput::getInputManager()->onKeyEvent(gtskey, pressed);
+            if (inputManager)
+                inputManager->onKeyEvent(gtskey, pressed);
         }
 
-        
     public:
+        void setInputManager(InputManager* mgr) { inputManager = mgr; }
+
         virtual ~OutputWindow() = default;
 
         GtsEvent<int, int> onResize;
