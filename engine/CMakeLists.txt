@@ -10,6 +10,5 @@ target_compile_definitions(GravitasEngine INTERFACE
 )
 
 add_subdirectory(physics)
-add_subdirectory(graphics_module)
 add_subdirectory(core)
 add_subdirectory(modules)
