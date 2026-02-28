@@ -1,4 +1,5 @@
 #pragma once
+
 #include "ECSWorld.hpp"
 #include "GtsScene.hpp"
 
@@ -12,6 +13,8 @@
 
 #include "SceneContext.h"
 #include "GraphicsConstants.h"
+#include "GtsAction.h"
+#include "GtsKey.h"
 
 // a run of the mill default scene in the engine, for testing purposes
 class DefaultScene : public GtsScene
@@ -103,6 +106,14 @@ class DefaultScene : public GtsScene
             ecsWorld.addSimulationSystem<TransformAnimationSystem>();
         }
 
+        // Bindings for actions that DefaultScene owns (pause / resume).
+        // Camera bindings are handled by CameraControlSystem itself.
+        void bindSceneActions(SceneContext& ctx)
+        {
+            ctx.actions->bind(GtsAction::Pause,  GtsKey::X);
+            ctx.actions->bind(GtsAction::Resume, GtsKey::Y);
+        }
+
         void onLoad(SceneContext& ctx) override
         {
             firstCube();
@@ -110,6 +121,7 @@ class DefaultScene : public GtsScene
             thirdCube();
             mainCamera();
             addSystems();
+            bindSceneActions(ctx);
         }
 
         void onUpdate(SceneContext& ctx) override
@@ -117,17 +129,16 @@ class DefaultScene : public GtsScene
             ecsWorld.updateControllers(ctx);
             ecsWorld.updateSimulation(ctx.time->deltaTime);
 
-            if (ctx.input->isKeyPressed(GtsKey::X))
+            if (ctx.actions->isActionPressed(GtsAction::Pause))
             {
                 std::cout << "X pressed" << std::endl;
                 ctx.engineCommands->requestPause();
             }
 
-            if (ctx.input->isKeyPressed(GtsKey::Y))
+            if (ctx.actions->isActionPressed(GtsAction::Resume))
             {
                 std::cout << "Y pressed" << std::endl;
                 ctx.engineCommands->requestResume();
             }
         }
-
 };

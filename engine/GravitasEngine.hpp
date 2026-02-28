@@ -11,6 +11,8 @@
 #include "SceneManager.hpp"
 
 #include "InputManager.hpp"
+#include "InputActionManager.hpp"
+#include "GtsAction.h"
 
 #include "GtsCommand.h"
 #include "GtsCommandBuffer.h"
@@ -21,8 +23,9 @@ class GravitasEngine
         // a global engine timer
         std::unique_ptr<Timer> timer;
 
-        // the global input manager
-        std::unique_ptr<InputManager> inputManager;
+        // the global input manager and its action abstraction layer
+        std::unique_ptr<InputManager>                inputManager;
+        std::unique_ptr<InputActionManager<GtsAction>> actionManager;
 
         // graphics module related structures
         std::unique_ptr<Graphics> graphics;
@@ -47,9 +50,10 @@ class GravitasEngine
 
         void createSceneContext()
         {
-            sceneContext.resources = graphics->getResourceProvider();
-            sceneContext.input = inputManager.get();
-            sceneContext.time = &timeContext;
+            sceneContext.resources      = graphics->getResourceProvider();
+            sceneContext.input          = inputManager.get();
+            sceneContext.actions        = actionManager.get();
+            sceneContext.time           = &timeContext;
             sceneContext.engineCommands = &engineCommands;
         }
 
@@ -62,8 +66,9 @@ class GravitasEngine
         // create Manager classes
         void createManagers()
         {
-            sceneManager = std::make_unique<SceneManager>();
-            inputManager = std::make_unique<InputManager>();
+            sceneManager  = std::make_unique<SceneManager>();
+            inputManager  = std::make_unique<InputManager>();
+            actionManager = std::make_unique<InputActionManager<GtsAction>>();
             gtsinput::SetInputManager(inputManager.get());
         }
 
@@ -125,9 +130,10 @@ class GravitasEngine
                 timeContext.deltaTime = simulationPaused ? 0.0f : realDt * timeContext.timeScale;
                 timeContext.frame = timer->getFrameCount();
 
-                // let the input manager catch the window keydown event
+                // snapshot previous frame, poll OS events, then derive action states
                 inputManager->beginFrame();
                 graphics->pollWindowEvents();
+                actionManager->update(*inputManager);
 
                 // update scene and entities, render frame
                 // and also apply engine commands, if there are any in the queue

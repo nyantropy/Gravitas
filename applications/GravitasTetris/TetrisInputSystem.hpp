@@ -1,28 +1,48 @@
 #pragma once
-#include "ECSControllerSystem.hpp"
-#include "TetrisInputComponent.hpp"
-#include "GtsKey.h"
 
-// the system that handles all input for the tetris game
+#include "ECSControllerSystem.hpp"
+#include "InputActionManager.hpp"
+#include "TetrisInputComponent.hpp"
+#include "TetrisAction.h"
+
+// Translates raw key presses into the abstract TetrisInputComponent state.
+// Maintains its own InputActionManager<TetrisAction> so tetris-specific
+// bindings stay local to this project and never touch the engine-level
+// GtsAction enum.
 class TetrisInputSystem : public ECSControllerSystem
 {
-    public:
-        TetrisInputSystem() {}
+    InputActionManager<TetrisAction> actionManager;
 
-        void update(ECSWorld& world, SceneContext& ctx) override
-        {
-            auto& input = world.getSingleton<TetrisInputComponent>();
+    void initBindings()
+    {
+        actionManager.bind(TetrisAction::MoveLeft,    GtsKey::A);
+        actionManager.bind(TetrisAction::MoveRight,   GtsKey::D);
+        actionManager.bind(TetrisAction::RotatePiece, GtsKey::W);
+        actionManager.bind(TetrisAction::SoftDrop,    GtsKey::S);
+    }
 
-            if (ctx.input->isKeyDown(GtsKey::A))
-                input.moveLeft = true;
+public:
+    TetrisInputSystem()
+    {
+        initBindings();
+    }
 
-            if (ctx.input->isKeyDown(GtsKey::D))
-                input.moveRight = true;
+    void update(ECSWorld& world, SceneContext& ctx) override
+    {
+        actionManager.update(*ctx.input);
 
-            if (ctx.input->isKeyDown(GtsKey::W))
-                input.rotate = true;
+        auto& input = world.getSingleton<TetrisInputComponent>();
 
-            if (ctx.input->isKeyDown(GtsKey::S))
-                input.softDrop = true;
-        }
+        if (actionManager.isActionActive(TetrisAction::MoveLeft))
+            input.moveLeft = true;
+
+        if (actionManager.isActionActive(TetrisAction::MoveRight))
+            input.moveRight = true;
+
+        if (actionManager.isActionActive(TetrisAction::RotatePiece))
+            input.rotate = true;
+
+        if (actionManager.isActionActive(TetrisAction::SoftDrop))
+            input.softDrop = true;
+    }
 };
