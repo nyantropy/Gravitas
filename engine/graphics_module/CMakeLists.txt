@@ -37,7 +37,7 @@ target_include_directories(graphics PUBLIC
 )
 
 # Link all the required libraries
-target_link_libraries(graphics 
+target_link_libraries(graphics
     Vulkan::Vulkan
     vksetup
     renderresource
@@ -47,7 +47,6 @@ target_link_libraries(graphics
     graphicsutil
     windowing
     external
-    components
 #    PkgConfig::LIBAV
 )
 

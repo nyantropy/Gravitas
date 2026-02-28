@@ -1,0 +1,10 @@
+add_library(modules INTERFACE)
+target_link_libraries(modules INTERFACE ecsrendering ecscamera ecstransform ecstext ecsanimation ecsscript ecshierarchy)
+
+add_subdirectory(transform)
+add_subdirectory(animation)
+add_subdirectory(script)
+add_subdirectory(hierarchy)
+add_subdirectory(camera)
+add_subdirectory(rendering)
+add_subdirectory(text)
