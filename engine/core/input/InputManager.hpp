@@ -9,9 +9,7 @@
 class InputManager : public IInputSource
 {
     private:
-        // needs further work to support all keyboard keys, but i am too lazy to translate most of these rn so
-        // it is a TODO for the future
-        static constexpr size_t KEY_COUNT = 7;
+        static constexpr size_t KEY_COUNT = static_cast<size_t>(GtsKey::COUNT);
         std::array<bool, KEY_COUNT> currentState{};
         std::array<bool, KEY_COUNT> previousState{};
 

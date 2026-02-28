@@ -49,8 +49,8 @@ class GLFWOutputWindow : public OutputWindow
                 return;
             }
 
-            // send the translated key into the input manager (new approach)
-            GtsKey gtskey = app->getKeyTranslatorPtr()->fromPlatformKey(key);
+            // translate the layout-independent scancode to a GtsKey
+            GtsKey gtskey = app->getKeyTranslatorPtr()->fromPlatformScancode(scancode);
             app->processKeyEvent(gtskey, action != GLFW_RELEASE);
 
             // notify our own event (old approach)
