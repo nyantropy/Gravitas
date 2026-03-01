@@ -69,6 +69,11 @@ class RenderResourceManager : public IResourceProvider
             return textureManager->loadTexture(path);
         }
 
+        texture_id_type requestPixelTexture(const std::string& path) override
+        {
+            return textureManager->loadTexture(path, true);
+        }
+
         TextureResource* getTexture(texture_id_type id)
         {
             return textureManager->getTexture(id);

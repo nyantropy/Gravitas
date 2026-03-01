@@ -1,6 +1,7 @@
 #include "VulkanTexture.hpp"
 
-VulkanTexture::VulkanTexture(const std::string path)
+VulkanTexture::VulkanTexture(const std::string path, bool nearestFilter)
+    : nearestFilter(nearestFilter)
 {
     createTextureImage(path);
     createTextureImageView();
@@ -57,27 +58,31 @@ void VulkanTexture::createTextureImageView()
     }
 }
 
-void VulkanTexture::createTextureSampler() 
+void VulkanTexture::createTextureSampler()
 {
     VkPhysicalDeviceProperties properties{};
     vkGetPhysicalDeviceProperties(vcsheet::getPhysicalDevice(), &properties);
 
+    const VkFilter            filter      = nearestFilter ? VK_FILTER_NEAREST            : VK_FILTER_LINEAR;
+    const VkSamplerMipmapMode mipmapMode  = nearestFilter ? VK_SAMPLER_MIPMAP_MODE_NEAREST : VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    const VkSamplerAddressMode addrMode   = nearestFilter ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = VK_FILTER_LINEAR;
-    samplerInfo.minFilter = VK_FILTER_LINEAR;
-    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.anisotropyEnable = VK_TRUE;
-    samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+    samplerInfo.magFilter = filter;
+    samplerInfo.minFilter = filter;
+    samplerInfo.addressModeU = addrMode;
+    samplerInfo.addressModeV = addrMode;
+    samplerInfo.addressModeW = addrMode;
+    samplerInfo.anisotropyEnable = nearestFilter ? VK_FALSE : VK_TRUE;
+    samplerInfo.maxAnisotropy = nearestFilter ? 1.0f : properties.limits.maxSamplerAnisotropy;
     samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
     samplerInfo.compareEnable = VK_FALSE;
     samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo.mipmapMode = mipmapMode;
 
-    if (vkCreateSampler(vcsheet::getDevice(), &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) 
+    if (vkCreateSampler(vcsheet::getDevice(), &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create texture sampler!");
     }
@@ -89,9 +94,29 @@ void VulkanTexture::createTextureImage(const std::string path)
     stbi_uc* pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
     VkDeviceSize imageSize = texWidth * texHeight * 4;
 
-    if (!pixels) 
+    if (!pixels)
     {
         throw std::runtime_error("failed to load texture image!");
+    }
+
+    // Grayscale font-atlas post-processing:
+    // stbi_load expands a 1-channel (grayscale) PNG to RGBA with A=255 always.
+    // The fragment shader discards on color.a < 0.1, so without this step the
+    // black background would render as opaque black rather than transparent.
+    // Solution: use the luminance value as alpha and set RGB to white so the
+    // sampled colour is always white with variable opacity (black → transparent,
+    // white → opaque white).  Only applied to pixel textures from a grayscale source.
+    if (nearestFilter && texChannels == 1)
+    {
+        stbi_uc* p = pixels;
+        for (int i = 0; i < texWidth * texHeight; ++i, p += 4)
+        {
+            const stbi_uc lum = p[0]; // R == G == B == original gray value
+            p[0] = 255;
+            p[1] = 255;
+            p[2] = 255;
+            p[3] = lum;  // alpha = luminance: black → 0 (transparent), white → 255
+        }
     }
 
     VkBuffer stagingBuffer;

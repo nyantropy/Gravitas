@@ -14,6 +14,10 @@ class IResourceProvider
         virtual mesh_id_type    requestMesh(const std::string& path) = 0;
         virtual texture_id_type requestTexture(const std::string& path) = 0;
 
+        // Like requestTexture but forces NEAREST-neighbor sampling and no anisotropy.
+        // Use for pixel-art or bitmap-font atlases that must render crisp.
+        virtual texture_id_type requestPixelTexture(const std::string& path) = 0;
+
         // Camera / render-view buffer allocation.
         // Each call creates framesInFlight UBOs + descriptor sets for one render view.
         virtual view_id_type requestCameraBuffer() = 0;
