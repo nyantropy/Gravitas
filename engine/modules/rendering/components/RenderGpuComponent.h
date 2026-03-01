@@ -16,6 +16,10 @@ constexpr ssbo_id_type RENDERABLE_SLOT_UNALLOCATED = std::numeric_limits<ssbo_id
 // boundMeshPath / boundTexturePath : the paths used to resolve the current resource IDs.
 //   Compared against RenderDescriptionComponent each frame to detect when a rebind is needed.
 // modelMatrix    : kept current by RenderGpuSystem when dirty == true.
+// readyToRender  : starts false; set true by RenderGpuSystem the first time it writes a
+//   valid model matrix from TransformComponent.  RenderCommandExtractor skips any entity
+//   where this is still false, preventing the one-frame glitch where a newly created entity
+//   is drawn at the origin before RenderGpuSystem has had a chance to compute its matrix.
 struct RenderGpuComponent
 {
     mesh_id_type    meshID         = 0;
@@ -23,6 +27,7 @@ struct RenderGpuComponent
     ssbo_id_type    objectSSBOSlot = RENDERABLE_SLOT_UNALLOCATED;
     glm::mat4       modelMatrix    = glm::mat4(1.0f);
     bool            dirty          = true;
+    bool            readyToRender  = false;
     float           alpha          = 1.0f;  // synced from RenderDescriptionComponent by RenderBindingSystem
 
     std::string boundMeshPath;

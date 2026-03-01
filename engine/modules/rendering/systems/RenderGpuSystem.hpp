@@ -16,8 +16,9 @@ class RenderGpuSystem : public ECSSimulationSystem
                 if (!rc.dirty)
                     return;
 
-                rc.modelMatrix = tc.getModelMatrix();
-                rc.dirty = false;
+                rc.modelMatrix    = tc.getModelMatrix();
+                rc.dirty          = false;
+                rc.readyToRender  = true;
             });
         }
 };

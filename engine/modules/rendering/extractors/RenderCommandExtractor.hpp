@@ -47,6 +47,9 @@ public:
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
                 continue; // slot not yet assigned by RenderBindingSystem — skip this frame
 
+            if (!rc.readyToRender)
+                continue; // model matrix not yet computed by RenderGpuSystem — skip this frame
+
             cmds.push_back({
                 rc.meshID,
                 rc.textureID,
