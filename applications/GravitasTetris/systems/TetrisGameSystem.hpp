@@ -49,6 +49,58 @@ class TetrisGameSystem : public ECSSimulationSystem
         std::vector<std::array<Entity, 4>>  previewBlocks;
         std::array<Entity, 4>               ghostBlocks;
 
+        // ---------------------------------------------------------------
+        // SRS wall-kick tables (y-UP coordinate system).
+        // Each table is indexed by [from_rotation][kick_attempt].
+        // Kick attempt 0 is always {0,0} (plain rotation, no offset).
+        // ---------------------------------------------------------------
+        struct KickOffset { int x; int y; };
+
+        // JLSTZ + O pieces — CW rotation (from_rot → (from_rot+1)%4)
+        static constexpr KickOffset KICKS_JLSTZ_CW[4][5] = {{
+            { 0, 0}, {-1, 0}, {-1,-1}, { 0, 2}, {-1, 2}   // 0→1
+        },{
+            { 0, 0}, { 1, 0}, { 1, 1}, { 0,-2}, { 1,-2}   // 1→2
+        },{
+            { 0, 0}, { 1, 0}, { 1,-1}, { 0, 2}, { 1, 2}   // 2→3
+        },{
+            { 0, 0}, {-1, 0}, {-1, 1}, { 0,-2}, {-1,-2}   // 3→0
+        }};
+
+        // JLSTZ + O pieces — CCW rotation (from_rot → (from_rot-1+4)%4)
+        // = negated CW kicks of the target rotation state
+        static constexpr KickOffset KICKS_JLSTZ_CCW[4][5] = {{
+            { 0, 0}, { 1, 0}, { 1,-1}, { 0, 2}, { 1, 2}   // 0→3
+        },{
+            { 0, 0}, { 1, 0}, { 1, 1}, { 0,-2}, { 1,-2}   // 1→0
+        },{
+            { 0, 0}, {-1, 0}, {-1,-1}, { 0, 2}, {-1, 2}   // 2→1
+        },{
+            { 0, 0}, {-1, 0}, {-1, 1}, { 0,-2}, {-1,-2}   // 3→2
+        }};
+
+        // I piece — CW rotation
+        static constexpr KickOffset KICKS_I_CW[4][5] = {{
+            { 0, 0}, {-2, 0}, { 1, 0}, {-2, 1}, { 1,-2}   // 0→1
+        },{
+            { 0, 0}, {-1, 0}, { 2, 0}, {-1,-2}, { 2, 1}   // 1→2
+        },{
+            { 0, 0}, { 2, 0}, {-1, 0}, { 2,-1}, {-1, 2}   // 2→3
+        },{
+            { 0, 0}, { 1, 0}, {-2, 0}, { 1, 2}, {-2,-1}   // 3→0
+        }};
+
+        // I piece — CCW rotation
+        static constexpr KickOffset KICKS_I_CCW[4][5] = {{
+            { 0, 0}, {-1, 0}, { 2, 0}, {-1,-2}, { 2, 1}   // 0→3
+        },{
+            { 0, 0}, { 2, 0}, {-1, 0}, { 2,-1}, {-1, 2}   // 1→0
+        },{
+            { 0, 0}, { 1, 0}, {-2, 0}, { 1, 2}, {-2,-1}   // 2→1
+        },{
+            { 0, 0}, {-2, 0}, { 1, 0}, {-2, 1}, { 1,-2}   // 3→2
+        }};
+
     public:
         // Number of upcoming pieces shown in the queue. Set to 0 to disable.
         static constexpr int QUEUE_SIZE = 4;
@@ -110,6 +162,13 @@ class TetrisGameSystem : public ECSSimulationSystem
         {
             auto& input = world.getSingleton<TetrisInputComponent>();
 
+            // Hard drop: single-shot, resets fall timer internally
+            if (input.hardDrop)
+            {
+                hardDrop(world);
+                return;   // skip movement/rotation processing this frame
+            }
+
             if (input.moveLeft && moveTimer >= moveInterval)
             {
                 tryMove(world, { -1, 0 });
@@ -122,10 +181,19 @@ class TetrisGameSystem : public ECSSimulationSystem
                 moveTimer = 0.0f;
             }
 
-            if (input.rotate && rotateTimer >= rotateInterval)
+            // CW and CCW share the same debounce timer; CW takes precedence if both held
+            if (rotateTimer >= rotateInterval)
             {
-                tryRotate(world);
-                rotateTimer = 0.0f;
+                if (input.rotateCW)
+                {
+                    tryRotate(world, +1);
+                    rotateTimer = 0.0f;
+                }
+                else if (input.rotateCCW)
+                {
+                    tryRotate(world, -1);
+                    rotateTimer = 0.0f;
+                }
             }
         }
 
@@ -186,15 +254,33 @@ class TetrisGameSystem : public ECSSimulationSystem
             }
         }
 
-        // try to rotate the active piece
-        void tryRotate(ECSWorld& world)
+        // Attempt to rotate the active piece with SRS wall kicks.
+        // direction: +1 = clockwise, -1 = counter-clockwise.
+        // Tries up to 5 kick offsets per rotation; applies the first that fits.
+        void tryRotate(ECSWorld& world, int direction)
         {
-            int newRot = (active.rotation + 1) % 4;
-            if (!testPosition(world, active.pivot, newRot))
-                return;
+            const int fromRot = active.rotation;
+            const int toRot   = (fromRot + direction + 4) % 4;
 
-            active.rotation = newRot;
-            applyToActiveBlocks(world);
+            // Select kick table for this piece type and direction
+            const KickOffset (*kicks)[5] =
+                (active.type == TetrominoType::I)
+                    ? (direction > 0 ? KICKS_I_CW    : KICKS_I_CCW)
+                    : (direction > 0 ? KICKS_JLSTZ_CW : KICKS_JLSTZ_CCW);
+
+            for (int k = 0; k < 5; ++k)
+            {
+                glm::ivec2 candidate = active.pivot + glm::ivec2(kicks[fromRot][k].x,
+                                                                  kicks[fromRot][k].y);
+                if (testPosition(world, candidate, toRot))
+                {
+                    active.pivot    = candidate;
+                    active.rotation = toRot;
+                    applyToActiveBlocks(world);
+                    return;
+                }
+            }
+            // All 5 kick positions blocked — rotation silently fails
         }
 
         // lock the active piece on the grid
@@ -205,6 +291,25 @@ class TetrisGameSystem : public ECSSimulationSystem
                 auto& b = world.getComponent<TetrisBlockComponent>(active.blocks[i]);
                 b.active = false;
             }
+        }
+
+        // Instantly drop the active piece to its lowest valid position, then lock it.
+        // Resets the fall timer so the next piece doesn't immediately drop.
+        void hardDrop(ECSWorld& world)
+        {
+            // Slide the pivot down as far as testPosition allows (same algorithm as ghost)
+            while (testPosition(world, { active.pivot.x, active.pivot.y - 1 }, active.rotation))
+                active.pivot.y -= 1;
+
+            applyToActiveBlocks(world);
+
+            lockPiece(world);
+            rebuildGrid(world);
+            clearLines(world);
+            rebuildGrid(world);
+            spawnPiece(world);
+
+            fallTimer = 0.0f;   // prevent immediate gravity tick on the new piece
         }
 
         // try to clear lines, only actually deletes anything when a row is full of blocks

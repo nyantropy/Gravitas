@@ -8,8 +8,10 @@ enum class TetrisAction
 {
     MoveLeft = 0,
     MoveRight,
-    RotatePiece,
-    SoftDrop,
+    RotateCW,    // E  — clockwise rotation
+    RotateCCW,   // Q  — counter-clockwise rotation
+    HardDrop,    // Space — instant drop
+    SoftDrop,    // S  — accelerated drop
 
     // sentinel — always keep last
     ACTION_COUNT

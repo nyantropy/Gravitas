@@ -15,10 +15,12 @@ class TetrisInputSystem : public ECSControllerSystem
 
     void initBindings()
     {
-        actionManager.bind(TetrisAction::MoveLeft,    GtsKey::A);
-        actionManager.bind(TetrisAction::MoveRight,   GtsKey::D);
-        actionManager.bind(TetrisAction::RotatePiece, GtsKey::W);
-        actionManager.bind(TetrisAction::SoftDrop,    GtsKey::S);
+        actionManager.bind(TetrisAction::MoveLeft,  GtsKey::A);
+        actionManager.bind(TetrisAction::MoveRight, GtsKey::D);
+        actionManager.bind(TetrisAction::RotateCW,  GtsKey::E);
+        actionManager.bind(TetrisAction::RotateCCW, GtsKey::Q);
+        actionManager.bind(TetrisAction::HardDrop,  GtsKey::Space);
+        actionManager.bind(TetrisAction::SoftDrop,  GtsKey::S);
     }
 
 public:
@@ -39,8 +41,16 @@ public:
         if (actionManager.isActionActive(TetrisAction::MoveRight))
             input.moveRight = true;
 
-        if (actionManager.isActionActive(TetrisAction::RotatePiece))
-            input.rotate = true;
+        // Rotation: held + timer-debounced in TetrisGameSystem for key-repeat feel
+        if (actionManager.isActionActive(TetrisAction::RotateCW))
+            input.rotateCW = true;
+
+        if (actionManager.isActionActive(TetrisAction::RotateCCW))
+            input.rotateCCW = true;
+
+        // Hard drop: single-shot on first press frame only (no repeat while held)
+        if (actionManager.isActionPressed(TetrisAction::HardDrop))
+            input.hardDrop = true;
 
         if (actionManager.isActionActive(TetrisAction::SoftDrop))
             input.softDrop = true;
