@@ -8,6 +8,8 @@
 #include <random>
 #include <glm.hpp>
 #include <vector>
+#include <deque>
+#include <array>
 
 #include "ECSSimulationSystem.hpp"
 #include "TetrisGrid.hpp"
@@ -17,6 +19,7 @@
 #include "ActiveTetromino.hpp"
 #include "Entity.h"
 #include "TetrisBlockComponent.hpp"
+#include "NextPieceBlockComponent.hpp"
 #include "RenderResourceClearComponent.h"
 #include "TetrisScoreComponent.hpp"
 
@@ -41,8 +44,13 @@ class TetrisGameSystem : public ECSSimulationSystem
         float rotateTimer = 0.0f;
         float rotateInterval = 0.15f;
 
+        std::deque<TetrominoType>           nextQueue;
+        std::vector<std::array<Entity, 4>>  previewBlocks;
 
     public:
+        // Number of upcoming pieces shown in the queue. Set to 0 to disable.
+        static constexpr int QUEUE_SIZE = 4;
+
         TetrisGameSystem() {}
 
         // update tick, this is where all the magic happens
@@ -52,6 +60,7 @@ class TetrisGameSystem : public ECSSimulationSystem
 
             if (firstUpdate)
             {
+                initQueue(world);
                 spawnPiece(world);
                 firstUpdate = false;
             }
@@ -226,6 +235,7 @@ class TetrisGameSystem : public ECSSimulationSystem
                     destroy++;
                 }
 
+                // preview blocks have active=true so the !b.active guard already skips them
                 world.forEach<TetrisBlockComponent>([&](Entity e, TetrisBlockComponent& b)
                 {
                     if (!b.active && b.y > y)
@@ -243,12 +253,95 @@ class TetrisGameSystem : public ECSSimulationSystem
             }
         }
 
-        // spawn a new, random tetris piece at the top of the grid
+        // fill the next-piece queue and create preview entities for each slot
+        void initQueue(ECSWorld& world)
+        {
+            if (QUEUE_SIZE <= 0) return;
+
+            nextQueue.clear();
+            previewBlocks.resize(QUEUE_SIZE);
+
+            for (int i = 0; i < QUEUE_SIZE; ++i)
+            {
+                TetrominoType t = (TetrominoType)(rand() % 7);
+                nextQueue.push_back(t);
+
+                for (int j = 0; j < 4; ++j)
+                {
+                    Entity e = world.createEntity();
+                    world.addComponent(e, TetrisBlockComponent{ 0, 0, true, t });
+                    world.addComponent(e, NextPieceBlockComponent{});
+                    previewBlocks[i][j] = e;
+                }
+            }
+
+            updatePreviews(world);
+        }
+
+        // reposition preview block entities to match the current queue state
+        void updatePreviews(ECSWorld& world)
+        {
+            if (QUEUE_SIZE <= 0) return;
+
+            for (int i = 0; i < (int)previewBlocks.size(); ++i)
+            {
+                TetrominoType t   = nextQueue[i];
+                glm::ivec2 pivot  = { 13, 12 - i * 3 };
+                auto& shape       = TetrominoShapes[(int)t][0];
+
+                for (int j = 0; j < 4; ++j)
+                {
+                    auto& b = world.getComponent<TetrisBlockComponent>(previewBlocks[i][j]);
+                    glm::ivec2 p = pivot + shape.blocks[j];
+                    b.x = p.x;
+                    b.y = p.y;
+                }
+            }
+        }
+
+        // spawn a new tetris piece at the top of the grid (popped from the next queue)
         void spawnPiece(ECSWorld& world)
         {
-            active.type = (TetrominoType)(rand() % 7);
+            TetrominoType nextType;
+
+            if (QUEUE_SIZE > 0 && !nextQueue.empty())
+            {
+                // consume the front of the queue
+                nextType = nextQueue.front();
+                nextQueue.pop_front();
+
+                // release the front preview slot's entities
+                for (int j = 0; j < 4; ++j)
+                {
+                    world.addComponent(previewBlocks[0][j], RenderResourceClearComponent{});
+                    world.removeComponent<TetrisBlockComponent>(previewBlocks[0][j]);
+                }
+                previewBlocks.erase(previewBlocks.begin());
+
+                // push a new random type onto the back of the queue
+                TetrominoType newT = (TetrominoType)(rand() % 7);
+                nextQueue.push_back(newT);
+
+                std::array<Entity, 4> newSlot;
+                for (int j = 0; j < 4; ++j)
+                {
+                    Entity e = world.createEntity();
+                    world.addComponent(e, TetrisBlockComponent{ 0, 0, true, newT });
+                    world.addComponent(e, NextPieceBlockComponent{});
+                    newSlot[j] = e;
+                }
+                previewBlocks.push_back(newSlot);
+
+                updatePreviews(world);
+            }
+            else
+            {
+                nextType = (TetrominoType)(rand() % 7);
+            }
+
+            active.type     = nextType;
             active.rotation = 0;
-            active.pivot = { grid.width / 2, grid.height - 1 };
+            active.pivot    = { grid.width / 2, grid.height - 1 };
 
             // game over check: spawn position occupied → wipe the board and reset score
             if (!testPosition(world, active.pivot, active.rotation))
@@ -259,7 +352,8 @@ class TetrisGameSystem : public ECSSimulationSystem
                 std::vector<Entity> all;
                 world.forEach<TetrisBlockComponent>([&](Entity e, TetrisBlockComponent&)
                 {
-                    all.push_back(e);
+                    if (!world.hasComponent<NextPieceBlockComponent>(e))
+                        all.push_back(e);
                 });
 
                 for (Entity e : all)

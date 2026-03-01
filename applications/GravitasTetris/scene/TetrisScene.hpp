@@ -63,6 +63,25 @@ class TetrisScene : public GtsScene
             spawnCube(frameTexture, glm::vec3((float)x, -1.0f, 0.0f));
     }
 
+    void buildNextLabel()
+    {
+        if (TetrisGameSystem::QUEUE_SIZE <= 0)
+            return;
+
+        Entity e = ecsWorld.createEntity();
+
+        TransformComponent tc;
+        tc.position = glm::vec3(11.5f, 14.5f, 0.0f);
+        ecsWorld.addComponent(e, tc);
+
+        TextComponent text;
+        text.text  = "NEXT";
+        text.font  = &scoreFont;
+        text.scale = 1.0f;
+        text.dirty = true;
+        ecsWorld.addComponent(e, text);
+    }
+
     void buildScoreboard(SceneContext& ctx)
     {
         const std::string atlasPath =
@@ -156,6 +175,7 @@ public:
         buildTetrisFrame();
         mainCamera();
         buildScoreboard(ctx);
+        buildNextLabel();
 
         addSingletonComponents();
         installRendererFeature();
