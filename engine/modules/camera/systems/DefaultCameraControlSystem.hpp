@@ -10,13 +10,14 @@
 #include "GtsKey.h"
 
 #include "CameraDescriptionComponent.h"
-#include "CameraOverrideComponent.h"
+#include "CameraControlOverrideComponent.h"
 #include "TransformComponent.h"
 
 // Baseline orbit camera installed automatically by installRendererFeature().
 // Binds arrow keys to zoom/orbit on first update.
-// Skips any camera entity marked with CameraOverrideComponent so that
-// custom camera systems (e.g. TetrisCameraSystem) retain full control.
+// Skips any camera entity marked with CameraControlOverrideComponent so that
+// application-specific control systems (e.g. TetrisCameraControlSystem) take over.
+// Note: CameraOverrideComponent (GPU matrix ownership) is orthogonal and not checked here.
 class DefaultCameraControlSystem : public ECSControllerSystem
 {
     bool defaultsBound = false;
@@ -46,7 +47,7 @@ public:
 
         for (Entity e : world.getAllEntitiesWith<CameraDescriptionComponent, TransformComponent>())
         {
-            if (world.hasComponent<CameraOverrideComponent>(e))
+            if (world.hasComponent<CameraControlOverrideComponent>(e))
                 continue;
 
             auto& transform = world.getComponent<TransformComponent>(e);

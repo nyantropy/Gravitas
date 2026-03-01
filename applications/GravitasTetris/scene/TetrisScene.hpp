@@ -12,6 +12,8 @@
 #include "TetrisGameSystem.hpp"
 #include "TetrisVisualSystem.hpp"
 #include "TetrisCameraSystem.hpp"
+#include "TetrisCameraControlSystem.hpp"
+#include "TetrisCameraControlComponent.hpp"
 #include "TetrisScoreComponent.hpp"
 #include "TetrisScoreSystem.hpp"
 #include "ScoreDisplayComponent.hpp"
@@ -19,6 +21,7 @@
 #include "RenderDescriptionComponent.h"
 #include "CameraDescriptionComponent.h"
 #include "CameraOverrideComponent.h"
+#include "CameraControlOverrideComponent.h"
 #include "TransformComponent.h"
 #include "TextComponent.h"
 
@@ -151,6 +154,8 @@ class TetrisScene : public GtsScene
 
         ecsWorld.addComponent(camera, TransformComponent{});
         ecsWorld.addComponent(camera, CameraOverrideComponent{});
+        ecsWorld.addComponent(camera, CameraControlOverrideComponent{});
+        ecsWorld.addComponent(camera, TetrisCameraControlComponent{});
     }
 
     void addSingletonComponents()
@@ -181,6 +186,7 @@ public:
         installRendererFeature();
 
         ecsWorld.addControllerSystem<TetrisInputSystem>();
+        ecsWorld.addControllerSystem<TetrisCameraControlSystem>();
         ecsWorld.addSimulationSystem<TetrisGameSystem>();
         ecsWorld.addSimulationSystem<TetrisScoreSystem>();
         ecsWorld.addControllerSystem<TetrisVisualSystem>();
