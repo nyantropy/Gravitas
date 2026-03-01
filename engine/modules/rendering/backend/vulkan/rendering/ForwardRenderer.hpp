@@ -182,10 +182,11 @@ class ForwardRenderer : Renderer
                     vkCmdBindVertexBuffers(commandBuffer, 0, 1, &mesh->vertexBuffer, offsets);
                     vkCmdBindIndexBuffer(commandBuffer, mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-                    // Push the object's SSBO slot index so the vertex shader can index into the buffer.
-                    ssbo_id_type objectIndex = cmdData.objectSSBOSlot;
+                    // Push objectIndex (vertex) + alpha (fragment) as a single 8-byte block.
+                    struct { uint32_t objectIndex; float alpha; } pc { cmdData.objectSSBOSlot, cmdData.alpha };
                     vkCmdPushConstants(commandBuffer, vpipeline->getPipelineLayout(),
-                                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ssbo_id_type), &objectIndex);
+                                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                                       0, sizeof(pc), &pc);
 
                     // Bind set 2 (texture sampler) — changes per draw
                     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,

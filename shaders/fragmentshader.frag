@@ -5,9 +5,14 @@ layout(location = 0) out vec4 outColor;
 
 layout(set = 2, binding = 0) uniform sampler2D texSampler;
 
+layout(push_constant) uniform PushConstants {
+    uint  objectIndex;
+    float alpha;
+} pc;
+
 void main() {
     vec4 color = texture(texSampler, fragTexCoord);
     if (color.a < 0.1)
         discard;
-    outColor = color;
+    outColor = vec4(color.rgb, color.a * pc.alpha);
 }

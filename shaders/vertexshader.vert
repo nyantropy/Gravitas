@@ -21,7 +21,8 @@ layout(set = 1, binding = 0) readonly buffer ObjectSSBO {
 };
 
 layout(push_constant) uniform PushConstants {
-    uint objectIndex;
+    uint  objectIndex;
+    float alpha;
 } pc;
 
 void main() {

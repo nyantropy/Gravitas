@@ -19,4 +19,5 @@ struct RenderCommand
     glm::mat4 modelMatrix;
     glm::mat4 viewMatrix;
     glm::mat4 projMatrix;
+    float     alpha = 1.0f;  // pushed to fragment shader; opaque objects use 1.0
 };

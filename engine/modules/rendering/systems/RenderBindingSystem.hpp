@@ -45,6 +45,9 @@ class RenderBindingSystem : public ECSControllerSystem
                     rc.boundTexturePath = desc.texturePath;
                     rc.dirty            = true;
                 }
+
+                // Sync alpha (cheap float copy; no GPU resource involved)
+                rc.alpha = desc.alpha;
             });
         }
 };

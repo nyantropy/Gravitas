@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <algorithm>
 
 #include "ECSWorld.hpp"
 #include "RenderGpuComponent.h"
@@ -53,9 +54,14 @@ public:
                 cameraViewID,
                 rc.modelMatrix,
                 viewMatrix,
-                projMatrix
+                projMatrix,
+                rc.alpha
             });
         }
+
+        // Opaque commands first so transparent geometry blends correctly against rendered geometry
+        std::stable_partition(cmds.begin(), cmds.end(),
+            [](const RenderCommand& cmd) { return cmd.alpha >= 1.0f; });
 
         return cmds;
     }

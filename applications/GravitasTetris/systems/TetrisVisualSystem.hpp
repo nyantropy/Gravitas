@@ -2,6 +2,7 @@
 
 #include "ECSControllerSystem.hpp"
 #include "TetrisBlockComponent.hpp"
+#include "GhostBlockComponent.hpp"
 #include "TransformComponent.h"
 #include "RenderDescriptionComponent.h"
 #include "RenderGpuComponent.h"
@@ -18,10 +19,14 @@
 class TetrisVisualSystem : public ECSControllerSystem
 {
     public:
+        static constexpr float GHOST_ALPHA = 0.25f;
+
         void update(ECSWorld& world, SceneContext&) override
         {
             world.forEach<TetrisBlockComponent>([&](Entity e, TetrisBlockComponent& block)
             {
+                const bool isGhost = world.hasComponent<GhostBlockComponent>(e);
+
                 // on first encounter: attach description and transform
                 if (!world.hasComponent<TransformComponent>(e))
                 {
@@ -30,7 +35,15 @@ class TetrisVisualSystem : public ECSControllerSystem
                     RenderDescriptionComponent desc;
                     desc.meshPath    = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
                     desc.texturePath = texturePath(block);
+                    if (isGhost) desc.alpha = GHOST_ALPHA;
                     world.addComponent(e, desc);
+                }
+                else if (isGhost)
+                {
+                    // Ghost blocks change type each time a new piece spawns; keep texture in sync.
+                    // RenderBindingSystem detects the path change and rebinds the texture.
+                    auto& desc       = world.getComponent<RenderDescriptionComponent>(e);
+                    desc.texturePath = texturePath(block);
                 }
 
                 // keep the block's grid position reflected in the transform

@@ -20,6 +20,7 @@
 #include "Entity.h"
 #include "TetrisBlockComponent.hpp"
 #include "NextPieceBlockComponent.hpp"
+#include "GhostBlockComponent.hpp"
 #include "RenderResourceClearComponent.h"
 #include "TetrisScoreComponent.hpp"
 
@@ -46,6 +47,7 @@ class TetrisGameSystem : public ECSSimulationSystem
 
         std::deque<TetrominoType>           nextQueue;
         std::vector<std::array<Entity, 4>>  previewBlocks;
+        std::array<Entity, 4>               ghostBlocks;
 
     public:
         // Number of upcoming pieces shown in the queue. Set to 0 to disable.
@@ -62,6 +64,7 @@ class TetrisGameSystem : public ECSSimulationSystem
             {
                 initQueue(world);
                 spawnPiece(world);
+                initGhost(world);   // must come after spawnPiece so active.type is set
                 firstUpdate = false;
             }
 
@@ -81,6 +84,7 @@ class TetrisGameSystem : public ECSSimulationSystem
             }
 
             input.clear();
+            updateGhost(world);
         }
 
 
@@ -299,6 +303,38 @@ class TetrisGameSystem : public ECSSimulationSystem
             }
         }
 
+        // create the 4 persistent ghost block entities; must be called after the first spawnPiece
+        void initGhost(ECSWorld& world)
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                Entity e = world.createEntity();
+                world.addComponent(e, TetrisBlockComponent{ 0, 0, true, active.type });
+                world.addComponent(e, GhostBlockComponent{});
+                ghostBlocks[i] = e;
+            }
+            updateGhost(world);
+        }
+
+        // cast the active piece straight down to find its landing row, then reposition ghost blocks
+        void updateGhost(ECSWorld& world)
+        {
+            // find the lowest valid pivot by stepping down one row at a time
+            glm::ivec2 ghostPivot = active.pivot;
+            while (testPosition(world, { ghostPivot.x, ghostPivot.y - 1 }, active.rotation))
+                ghostPivot.y -= 1;
+
+            auto& shape = TetrominoShapes[(int)active.type][active.rotation];
+            for (int i = 0; i < 4; ++i)
+            {
+                auto& b      = world.getComponent<TetrisBlockComponent>(ghostBlocks[i]);
+                glm::ivec2 p = ghostPivot + shape.blocks[i];
+                b.x          = p.x;
+                b.y          = p.y;
+                b.type       = active.type;   // kept in sync so TetrisVisualSystem can update texture
+            }
+        }
+
         // spawn a new tetris piece at the top of the grid (popped from the next queue)
         void spawnPiece(ECSWorld& world)
         {
@@ -352,7 +388,8 @@ class TetrisGameSystem : public ECSSimulationSystem
                 std::vector<Entity> all;
                 world.forEach<TetrisBlockComponent>([&](Entity e, TetrisBlockComponent&)
                 {
-                    if (!world.hasComponent<NextPieceBlockComponent>(e))
+                    if (!world.hasComponent<NextPieceBlockComponent>(e) &&
+                        !world.hasComponent<GhostBlockComponent>(e))
                         all.push_back(e);
                 });
 

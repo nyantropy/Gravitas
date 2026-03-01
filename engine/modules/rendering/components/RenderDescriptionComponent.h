@@ -9,4 +9,5 @@ struct RenderDescriptionComponent
 {
     std::string meshPath;
     std::string texturePath;
+    float       alpha = 1.0f;  // 1.0 = fully opaque; < 1.0 for transparent rendering (e.g. ghost blocks)
 };

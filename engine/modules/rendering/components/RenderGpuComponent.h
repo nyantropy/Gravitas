@@ -23,6 +23,7 @@ struct RenderGpuComponent
     ssbo_id_type    objectSSBOSlot = RENDERABLE_SLOT_UNALLOCATED;
     glm::mat4       modelMatrix    = glm::mat4(1.0f);
     bool            dirty          = true;
+    float           alpha          = 1.0f;  // synced from RenderDescriptionComponent by RenderBindingSystem
 
     std::string boundMeshPath;
     std::string boundTexturePath;
