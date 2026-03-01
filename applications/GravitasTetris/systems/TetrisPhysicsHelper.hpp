@@ -4,6 +4,7 @@
 #include "TetrominoShape.hpp"
 #include "TetrominoType.hpp"
 #include "TetrisBlockComponent.hpp"
+#include "ActiveTetromino.hpp"
 #include "ECSWorld.hpp"
 #include <glm.hpp>
 
@@ -41,4 +42,14 @@ inline void rebuildGrid(ECSWorld& world, TetrisGrid& grid)
         if (!b.active)
             grid.at(b.x, b.y) = e;
     });
+}
+
+// Casts a piece straight down from its current pivot to find the lowest valid row.
+// Used by both hard drop (to snap the piece down) and ghost block projection.
+inline glm::ivec2 computeDropPivot(const TetrisGrid& grid, const ActiveTetromino& active)
+{
+    glm::ivec2 dropPivot = active.pivot;
+    while (testPosition(grid, active.type, { dropPivot.x, dropPivot.y - 1 }, active.rotation))
+        dropPivot.y -= 1;
+    return dropPivot;
 }

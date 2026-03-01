@@ -24,31 +24,39 @@
 #include "RenderResourceClearComponent.h"
 #include "TetrisScoreComponent.hpp"
 
-#include "TetrisPhysicsHelper.hpp"
-#include "WallKickHelper.hpp"
-#include "GhostHelper.hpp"
-#include "LineClearHelper.hpp"
+#include "TetrisTimers.hpp"
+#include "TetrisPhysicsHelper.hpp" 
+#include "WallKickHelper.hpp"        
+#include "GhostHelper.hpp"           
+#include "LineClearHelper.hpp"       
+#include "PreviewQueueHelper.hpp"    
 
-// The logical core of the Tetris game.
-// Orchestrates ECS state each tick by delegating feature logic to helper functions.
-// Grid collision (testPosition, rebuildGrid), rotation (tryWallKick), ghost projection
-// (updateGhostBlocks), and line clearing (clearLines) all live in their own headers.
+// Orchestrates all Tetris game logic each simulation tick.
+// Feature logic is fully delegated to the helpers above; this class owns
+// only ECS state (active piece, grid cache, queue, timers) and sequences them.
 class TetrisGameSystem : public ECSSimulationSystem
 {
     private:
-        bool firstUpdate = true;
-
-        TetrisGrid     grid;
+        bool            firstUpdate = true;
+        TetrisGrid      grid;
         ActiveTetromino active;
+        TickTimers      timers;
 
-        float fallTimer    = 0.0f;
-        float fallInterval = 0.4f;
+        // Timing constants
+        static constexpr float FALL_INTERVAL     = 0.4f;
+        static constexpr float SOFTDROP_INTERVAL = 0.05f;
+        static constexpr float MOVE_INTERVAL     = 0.08f;
+        static constexpr float ROTATE_INTERVAL   = 0.15f;
+        static constexpr float LOCK_DELAY        = 0.5f;
 
-        float moveTimer    = 0.0f;
-        float moveInterval = 0.08f;
+        // Lock delay: accumulated while the piece rests on the ground.
+        // Resets to zero on any successful lateral move, rotation, or downward step.
+        // When it reaches LOCK_DELAY the piece is locked in place.
+        float lockDelay = 0.0f;
 
-        float rotateTimer    = 0.0f;
-        float rotateInterval = 0.15f;
+        // Dirty flag: set true whenever locked blocks or cleared rows change the grid.
+        // Only then is the grid cache rebuilt at the start of the next frame.
+        bool gridDirty = true;
 
         std::deque<TetrominoType>           nextQueue;
         std::vector<std::array<Entity, 4>>  previewBlocks;
@@ -62,29 +70,59 @@ class TetrisGameSystem : public ECSSimulationSystem
 
         void update(ECSWorld& world, float dt) override
         {
-            rebuildGrid(world, grid);
+            // Grid is rebuilt only when a mutation (lock / clear / spawn) has marked it dirty.
+            if (gridDirty)
+            {
+                rebuildGrid(world, grid);
+                gridDirty = false;
+            }
 
             if (firstUpdate)
             {
                 initQueue(world);
                 spawnPiece(world);
-                initGhost(world);   // must come after spawnPiece so active.type is set
+                initGhost(world);   // must follow spawnPiece so active.type is set
                 firstUpdate = false;
             }
 
-            moveTimer   += dt;
-            rotateTimer += dt;
-
+            timers.advance(dt);
             handleInput(world);
 
+            // Gravity: try to fall one row; reset lock delay on success.
             auto& input = world.getSingleton<TetrisInputComponent>();
-
-            fallTimer += dt;
-            float interval = input.softDrop ? 0.05f : fallInterval;
-            if (fallTimer >= interval)
+            float fallInterval = input.softDrop ? SOFTDROP_INTERVAL : FALL_INTERVAL;
+            if (TickTimers::ready(timers.fall, fallInterval))
             {
-                tryMove(world, { 0, -1 });
-                fallTimer = 0.0f;
+                if (tryMove(world, { 0, -1 }))
+                    lockDelay = 0.0f;
+            }
+
+            // Lock delay: accumulate while grounded; lock when the window expires.
+            // Soft drop bypasses the window entirely — holding S locks the piece
+            // on the first frame it touches the ground, matching the fast-drop feel.
+            // If the piece moves off the ground (e.g. after a rotation kick) the
+            // accumulator is reset so the full window restarts.
+            const bool grounded = !testPosition(
+                grid, active.type,
+                { active.pivot.x, active.pivot.y - 1 },
+                active.rotation);
+
+            if (grounded)
+            {
+                if (input.softDrop)
+                {
+                    doLock(world);
+                }
+                else
+                {
+                    lockDelay += dt;
+                    if (lockDelay >= LOCK_DELAY)
+                        doLock(world);
+                }
+            }
+            else
+            {
+                lockDelay = 0.0f;
             }
 
             input.clear();
@@ -97,47 +135,49 @@ class TetrisGameSystem : public ECSSimulationSystem
         {
             auto& input = world.getSingleton<TetrisInputComponent>();
 
-            // Hard drop: single-shot, resets fall timer internally
+            // Hard drop: bypasses lock delay and locks immediately.
             if (input.hardDrop)
             {
                 hardDrop(world);
-                return;   // skip movement/rotation processing this frame
+                return;
             }
 
-            if (input.moveLeft && moveTimer >= moveInterval)
+            // Lateral movement: reset lock delay on any successful shift.
+            if (input.moveLeft && TickTimers::ready(timers.move, MOVE_INTERVAL))
             {
-                tryMove(world, { -1, 0 });
-                moveTimer = 0.0f;
+                if (tryMove(world, { -1, 0 }))
+                    lockDelay = 0.0f;
             }
 
-            if (input.moveRight && moveTimer >= moveInterval)
+            if (input.moveRight && TickTimers::ready(timers.move, MOVE_INTERVAL))
             {
-                tryMove(world, { 1, 0 });
-                moveTimer = 0.0f;
+                if (tryMove(world, { 1, 0 }))
+                    lockDelay = 0.0f;
             }
 
-            // CW and CCW share the same debounce timer; CW takes precedence if both held
-            if (rotateTimer >= rotateInterval)
+            // Rotation: uses TickTimers::ready for API consistency with movement.
+            // CW takes precedence when both are held.  The timer only resets when
+            // an input is actually present — idle frames leave it accumulated so the
+            // next keypress fires immediately (same feel as the raw-compare approach).
+            // A successful rotation also resets the lock delay.
+            if (input.rotateCW && TickTimers::ready(timers.rotate, ROTATE_INTERVAL))
             {
-                if (input.rotateCW)
+                if (auto result = tryWallKick(grid, active, +1))
                 {
-                    if (auto result = tryWallKick(grid, active, +1))
-                    {
-                        active.pivot    = result->pivot;
-                        active.rotation = result->rotation;
-                        applyToActiveBlocks(world);
-                    }
-                    rotateTimer = 0.0f;
+                    active.pivot    = result->pivot;
+                    active.rotation = result->rotation;
+                    applyToActiveBlocks(world);
+                    lockDelay = 0.0f;
                 }
-                else if (input.rotateCCW)
+            }
+            else if (input.rotateCCW && TickTimers::ready(timers.rotate, ROTATE_INTERVAL))
+            {
+                if (auto result = tryWallKick(grid, active, -1))
                 {
-                    if (auto result = tryWallKick(grid, active, -1))
-                    {
-                        active.pivot    = result->pivot;
-                        active.rotation = result->rotation;
-                        applyToActiveBlocks(world);
-                    }
-                    rotateTimer = 0.0f;
+                    active.pivot    = result->pivot;
+                    active.rotation = result->rotation;
+                    applyToActiveBlocks(world);
+                    lockDelay = 0.0f;
                 }
             }
         }
@@ -154,54 +194,55 @@ class TetrisGameSystem : public ECSSimulationSystem
             }
         }
 
-        void tryMove(ECSWorld& world, glm::ivec2 delta)
+        // Attempts to move the active piece by delta.
+        // Returns true on success (pivot updated, blocks repositioned).
+        // Never locks — locking is handled by doLock() via the lock delay system.
+        bool tryMove(ECSWorld& world, glm::ivec2 delta)
         {
             glm::ivec2 newPivot = active.pivot + delta;
             if (testPosition(grid, active.type, newPivot, active.rotation))
             {
                 active.pivot = newPivot;
                 applyToActiveBlocks(world);
-                return;
+                return true;
             }
-
-            if (delta.y == -1)
-            {
-                lockPiece(world);
-                rebuildGrid(world, grid);
-                clearLines(world, grid);
-                rebuildGrid(world, grid);
-                spawnPiece(world);
-            }
+            return false;
         }
 
         void lockPiece(ECSWorld& world)
         {
             for (int i = 0; i < 4; ++i)
-            {
-                auto& b = world.getComponent<TetrisBlockComponent>(active.blocks[i]);
-                b.active = false;
-            }
+                world.getComponent<TetrisBlockComponent>(active.blocks[i]).active = false;
+            gridDirty = true;   // locked blocks now part of the grid state
         }
 
+        // Locks the active piece, clears lines, and spawns the next piece.
+        // Called by the lock delay system (normal lock) and hardDrop.
+        void doLock(ECSWorld& world)
+        {
+            lockPiece(world);
+            rebuildGrid(world, grid);   // must be current before clearLines scans rows
+            clearLines(world, grid);    // clears full rows; internal rebuilds per row
+            rebuildGrid(world, grid);   // final sync after all row removals
+            spawnPiece(world);          // resets lockDelay and marks gridDirty
+        }
+
+        // Snaps the piece to its lowest valid row immediately, then delegates to doLock.
+        // Resets buffered move/rotate timers so the new piece cannot inherit held-key state.
         void hardDrop(ECSWorld& world)
         {
-            while (testPosition(grid, active.type, { active.pivot.x, active.pivot.y - 1 }, active.rotation))
-                active.pivot.y -= 1;
-
+            active.pivot = computeDropPivot(grid, active);
             applyToActiveBlocks(world);
 
-            lockPiece(world);
-            rebuildGrid(world, grid);
-            clearLines(world, grid);
-            rebuildGrid(world, grid);
-            spawnPiece(world);
+            doLock(world);
 
-            fallTimer = 0.0f;   // prevent immediate gravity tick on the new piece
+            timers.fall   = 0.0f;   // prevent immediate gravity tick on new piece
+            timers.move   = 0.0f;   // clear buffered lateral movement
+            timers.rotate = 0.0f;   // clear buffered rotation
         }
 
-        // ---------------------------------------------------------------
-        // Queue management
-        // ---------------------------------------------------------------
+        // Computes the on-screen pivot for preview slot i (above the play field).
+        static glm::ivec2 previewPivot(int i) { return { 13, 12 - i * 3 }; }
 
         void initQueue(ECSWorld& world)
         {
@@ -214,19 +255,13 @@ class TetrisGameSystem : public ECSSimulationSystem
             {
                 TetrominoType t = (TetrominoType)(rand() % 7);
                 nextQueue.push_back(t);
-
-                for (int j = 0; j < 4; ++j)
-                {
-                    Entity e = world.createEntity();
-                    world.addComponent(e, TetrisBlockComponent{ 0, 0, true, t });
-                    world.addComponent(e, NextPieceBlockComponent{});
-                    previewBlocks[i][j] = e;
-                }
+                previewBlocks[i] = spawnPreviewPiece(world, t, previewPivot(i));
             }
-
-            updatePreviews(world);
+            // spawnPreviewPiece already positions blocks; no updatePreviews needed here
         }
 
+        // Repositions all existing preview entities to match the current queue order.
+        // Called each time the queue shifts so all slots slide up by one.
         void updatePreviews(ECSWorld& world)
         {
             if (QUEUE_SIZE <= 0) return;
@@ -234,7 +269,7 @@ class TetrisGameSystem : public ECSSimulationSystem
             for (int i = 0; i < (int)previewBlocks.size(); ++i)
             {
                 TetrominoType t  = nextQueue[i];
-                glm::ivec2 pivot = { 13, 12 - i * 3 };
+                glm::ivec2 pivot = previewPivot(i);
                 auto& shape      = TetrominoShapes[(int)t][0];
 
                 for (int j = 0; j < 4; ++j)
@@ -246,10 +281,6 @@ class TetrisGameSystem : public ECSSimulationSystem
                 }
             }
         }
-
-        // ---------------------------------------------------------------
-        // Ghost block management
-        // ---------------------------------------------------------------
 
         void initGhost(ECSWorld& world)
         {
@@ -263,9 +294,11 @@ class TetrisGameSystem : public ECSSimulationSystem
             updateGhostBlocks(world, grid, active, ghostBlocks);
         }
 
-        // ---------------------------------------------------------------
-        // Spawning
-        // ---------------------------------------------------------------
+        bool isGameOver() const
+        {
+            glm::ivec2 entryPivot = { active.pivot.x, active.pivot.y - 1 };
+            return !testPosition(grid, active.type, entryPivot, active.rotation);
+        }
 
         void spawnPiece(ECSWorld& world)
         {
@@ -273,11 +306,11 @@ class TetrisGameSystem : public ECSSimulationSystem
 
             if (QUEUE_SIZE > 0 && !nextQueue.empty())
             {
-                // consume the front of the queue
+                // Consume the front of the queue
                 nextType = nextQueue.front();
                 nextQueue.pop_front();
 
-                // release the front preview slot's entities
+                // Release the front preview slot's entities
                 for (int j = 0; j < 4; ++j)
                 {
                     world.addComponent(previewBlocks[0][j], RenderResourceClearComponent{});
@@ -285,19 +318,10 @@ class TetrisGameSystem : public ECSSimulationSystem
                 }
                 previewBlocks.erase(previewBlocks.begin());
 
-                // push a new random type onto the back of the queue
+                // Push a new random type onto the back of the queue
                 TetrominoType newT = (TetrominoType)(rand() % 7);
                 nextQueue.push_back(newT);
-
-                std::array<Entity, 4> newSlot;
-                for (int j = 0; j < 4; ++j)
-                {
-                    Entity e = world.createEntity();
-                    world.addComponent(e, TetrisBlockComponent{ 0, 0, true, newT });
-                    world.addComponent(e, NextPieceBlockComponent{});
-                    newSlot[j] = e;
-                }
-                previewBlocks.push_back(newSlot);
+                previewBlocks.push_back(spawnPreviewPiece(world, newT, previewPivot(QUEUE_SIZE - 1)));
 
                 updatePreviews(world);
             }
@@ -308,10 +332,12 @@ class TetrisGameSystem : public ECSSimulationSystem
 
             active.type     = nextType;
             active.rotation = 0;
-            active.pivot    = { grid.width / 2, grid.height - 1 };
+            // Spawn one row above the visible grid so pieces can rotate freely at the top
+            // without being artificially clipped. testPosition allows y >= grid.height.
+            active.pivot    = { grid.width / 2, grid.height };
 
-            // game over check: spawn position occupied → wipe the board and reset score
-            if (!testPosition(grid, active.type, active.pivot, active.rotation))
+            // Game over: the piece cannot enter the visible playfield.
+            if (isGameOver())
             {
                 auto& sc = world.getSingleton<TetrisScoreComponent>();
                 sc.pendingEvents.push_back({ ScoringEventType::GameOver });
@@ -330,10 +356,9 @@ class TetrisGameSystem : public ECSSimulationSystem
                     world.removeComponent<TetrisBlockComponent>(e);
                 }
 
-                rebuildGrid(world, grid);
+                rebuildGrid(world, grid);   // wipe is an immediate mutation
             }
 
-            auto& shape = TetrominoShapes[(int)active.type][0];
             for (int i = 0; i < 4; ++i)
             {
                 Entity e = world.createEntity();
@@ -342,5 +367,10 @@ class TetrisGameSystem : public ECSSimulationSystem
             }
 
             applyToActiveBlocks(world);
+
+            // New active blocks change visible state; mark the grid dirty and ensure
+            // the lock delay window starts clean for the freshly spawned piece.
+            gridDirty = true;
+            lockDelay = 0.0f;
         }
 };
