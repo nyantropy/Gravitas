@@ -10,6 +10,7 @@
 #include "RenderResourceClearSystem.hpp"
 #include "TextBuildSystem.hpp"
 #include "TextBindingSystem.hpp"
+#include "DefaultCameraControlSystem.hpp"
 
 
 // core idea: override this class in whatever application you are making, and create your own scene using entities and components
@@ -41,5 +42,6 @@ class GtsScene
             ecsWorld.addControllerSystem<CameraBindingSystem>();
             ecsWorld.addControllerSystem<RenderResourceClearSystem>();
             ecsWorld.addControllerSystem<TextBindingSystem>();
+            ecsWorld.addControllerSystem<DefaultCameraControlSystem>();
         }
 };

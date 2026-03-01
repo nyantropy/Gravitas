@@ -48,6 +48,11 @@ class GravitasEngine
 
         bool simulationPaused = false;
 
+        void bindDefaultActions()
+        {
+            actionManager->bind(GtsAction::TogglePause, GtsKey::X);
+        }
+
         void createSceneContext()
         {
             sceneContext.resources      = graphics->getResourceProvider();
@@ -88,6 +93,7 @@ class GravitasEngine
             createGraphicsModule();
             createECSExtractors();
             createSceneContext();
+            bindDefaultActions();
         }
 
         ~GravitasEngine()
@@ -135,6 +141,10 @@ class GravitasEngine
                 graphics->pollWindowEvents();
                 actionManager->update(*inputManager);
 
+                // engine-level action handling (runs regardless of which scene is active)
+                if (actionManager->isActionPressed(GtsAction::TogglePause))
+                    simulationPaused = !simulationPaused;
+
                 // update scene and entities, render frame
                 // and also apply engine commands, if there are any in the queue
                 update();
@@ -165,13 +175,9 @@ class GravitasEngine
             {
                 switch (cmd.type)
                 {
-                    case GtsCommand::Type::Pause:
-                        simulationPaused = true;
-                        std::cout << "Paused" << std::endl;
-                        break;
-                    case GtsCommand::Type::Resume:
-                        simulationPaused = false;
-                        std::cout << "Resumed" << std::endl;
+                    case GtsCommand::Type::TogglePause:
+                        simulationPaused = !simulationPaused;
+                        std::cout << (simulationPaused ? "Paused" : "Resumed") << std::endl;
                         break;
                     case GtsCommand::Type::LoadScene:
                         sceneManager->setActiveScene(cmd.stringArg);

@@ -8,13 +8,10 @@
 #include "TransformComponent.h"
 #include "AnimationComponent.h"
 
-#include "CameraControlSystem.hpp"
 #include "TransformAnimationSystem.hpp"
 
 #include "SceneContext.h"
 #include "GraphicsConstants.h"
-#include "GtsAction.h"
-#include "GtsKey.h"
 
 // a run of the mill default scene in the engine, for testing purposes
 class DefaultScene : public GtsScene
@@ -102,16 +99,7 @@ class DefaultScene : public GtsScene
         void addSystems()
         {
             installRendererFeature();
-            ecsWorld.addControllerSystem<CameraControlSystem>();
             ecsWorld.addSimulationSystem<TransformAnimationSystem>();
-        }
-
-        // Bindings for actions that DefaultScene owns (pause / resume).
-        // Camera bindings are handled by CameraControlSystem itself.
-        void bindSceneActions(SceneContext& ctx)
-        {
-            ctx.actions->bind(GtsAction::Pause,  GtsKey::X);
-            ctx.actions->bind(GtsAction::Resume, GtsKey::Y);
         }
 
         void onLoad(SceneContext& ctx) override
@@ -121,24 +109,11 @@ class DefaultScene : public GtsScene
             thirdCube();
             mainCamera();
             addSystems();
-            bindSceneActions(ctx);
         }
 
         void onUpdate(SceneContext& ctx) override
         {
             ecsWorld.updateControllers(ctx);
             ecsWorld.updateSimulation(ctx.time->deltaTime);
-
-            if (ctx.actions->isActionPressed(GtsAction::Pause))
-            {
-                std::cout << "X pressed" << std::endl;
-                ctx.engineCommands->requestPause();
-            }
-
-            if (ctx.actions->isActionPressed(GtsAction::Resume))
-            {
-                std::cout << "Y pressed" << std::endl;
-                ctx.engineCommands->requestResume();
-            }
         }
 };

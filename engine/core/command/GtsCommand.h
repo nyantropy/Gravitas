@@ -6,8 +6,7 @@ struct GtsCommand
 {
     enum class Type
     {
-        Pause,
-        Resume,
+        TogglePause,
         LoadScene,
         Quit
     };

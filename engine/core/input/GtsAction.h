@@ -12,8 +12,7 @@ enum class GtsAction
     OrbitRight,
 
     // ─── engine / UI ───────────────────────────────────────────────────
-    Pause,
-    Resume,
+    TogglePause,
 
     // sentinel — always keep last
     ACTION_COUNT

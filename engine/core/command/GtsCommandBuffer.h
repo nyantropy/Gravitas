@@ -6,14 +6,9 @@
 
 struct GtsCommandBuffer
 {
-    void requestPause()
+    void requestTogglePause()
     {
-        commands.push_back({GtsCommand::Type::Pause});
-    }
-
-    void requestResume()
-    {
-        commands.push_back({GtsCommand::Type::Resume});
+        commands.push_back({GtsCommand::Type::TogglePause});
     }
 
     void requestLoadScene(const std::string& name)

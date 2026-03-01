@@ -10,23 +10,23 @@
 #include "GtsKey.h"
 
 #include "CameraDescriptionComponent.h"
+#include "CameraOverrideComponent.h"
 #include "TransformComponent.h"
 
-// Camera control system.
-// Default bindings (W/S = zoom, A/D = orbit) are registered automatically
-// on the first update call, so no scene-side setup is required.
-// Override bindings via ctx.actions->clearBindings() + bind() after onLoad
-// if the application needs different keys.
-class CameraControlSystem : public ECSControllerSystem
+// Baseline orbit camera installed automatically by installRendererFeature().
+// Binds arrow keys to zoom/orbit on first update.
+// Skips any camera entity marked with CameraOverrideComponent so that
+// custom camera systems (e.g. TetrisCameraSystem) retain full control.
+class DefaultCameraControlSystem : public ECSControllerSystem
 {
     bool defaultsBound = false;
 
     void bindDefaults(SceneContext& ctx)
     {
-        ctx.actions->bind(GtsAction::ZoomIn,     GtsKey::W);
-        ctx.actions->bind(GtsAction::ZoomOut,    GtsKey::S);
-        ctx.actions->bind(GtsAction::OrbitLeft,  GtsKey::A);
-        ctx.actions->bind(GtsAction::OrbitRight, GtsKey::D);
+        ctx.actions->bind(GtsAction::ZoomIn,     GtsKey::ArrowUp);
+        ctx.actions->bind(GtsAction::ZoomOut,    GtsKey::ArrowDown);
+        ctx.actions->bind(GtsAction::OrbitLeft,  GtsKey::ArrowLeft);
+        ctx.actions->bind(GtsAction::OrbitRight, GtsKey::ArrowRight);
     }
 
 public:
@@ -46,6 +46,9 @@ public:
 
         for (Entity e : world.getAllEntitiesWith<CameraDescriptionComponent, TransformComponent>())
         {
+            if (world.hasComponent<CameraOverrideComponent>(e))
+                continue;
+
             auto& transform = world.getComponent<TransformComponent>(e);
 
             glm::vec3 pos = transform.position;
