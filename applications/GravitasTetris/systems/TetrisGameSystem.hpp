@@ -24,12 +24,15 @@
 #include "RenderResourceClearComponent.h"
 #include "TetrisScoreComponent.hpp"
 
+#include "HeldPieceBlockComponent.hpp"
+
 #include "TetrisTimers.hpp"
-#include "TetrisPhysicsHelper.hpp" 
-#include "WallKickHelper.hpp"        
-#include "GhostHelper.hpp"           
-#include "LineClearHelper.hpp"       
-#include "PreviewQueueHelper.hpp"    
+#include "TetrisPhysicsHelper.hpp"
+#include "WallKickHelper.hpp"
+#include "GhostHelper.hpp"
+#include "LineClearHelper.hpp"
+#include "PreviewQueueHelper.hpp"
+#include "HoldHelper.hpp"
 
 // Orchestrates all Tetris game logic each simulation tick.
 // Feature logic is fully delegated to the helpers above; this class owns
@@ -62,6 +65,9 @@ class TetrisGameSystem : public ECSSimulationSystem
         std::vector<std::array<Entity, 4>>  previewBlocks;
         std::array<Entity, 4>               ghostBlocks;
 
+        HoldState             holdState;
+        std::array<Entity, 4> holdDisplayBlocks;
+
     public:
         // Number of upcoming pieces shown in the queue.  Set to 0 to disable.
         static constexpr int QUEUE_SIZE = 4;
@@ -81,7 +87,8 @@ class TetrisGameSystem : public ECSSimulationSystem
             {
                 initQueue(world);
                 spawnPiece(world);
-                initGhost(world);   // must follow spawnPiece so active.type is set
+                initGhost(world);        // must follow spawnPiece so active.type is set
+                initHoldDisplay(world);  // persistent hold entities; invisible until first hold
                 firstUpdate = false;
             }
 
@@ -139,6 +146,15 @@ class TetrisGameSystem : public ECSSimulationSystem
             if (input.hardDrop)
             {
                 hardDrop(world);
+                return;
+            }
+
+            // Hold: store current piece; swap if hold slot is occupied.
+            // Single-shot (isActionPressed), so return early to avoid processing
+            // other inputs on the same frame as the piece swap.
+            if (input.hold)
+            {
+                doHold(world);
                 return;
             }
 
@@ -300,8 +316,91 @@ class TetrisGameSystem : public ECSSimulationSystem
             return !testPosition(grid, active.type, entryPivot, active.rotation);
         }
 
+        // Creates the four persistent held-piece display entities; initially hidden off-screen.
+        void initHoldDisplay(ECSWorld& world)
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                Entity e = world.createEntity();
+                world.addComponent(e, TetrisBlockComponent{ -100, -100, true, TetrominoType::I });
+                world.addComponent(e, HeldPieceBlockComponent{});
+                holdDisplayBlocks[i] = e;
+            }
+        }
+
+        // Attempts to hold the current active piece.
+        // On first hold: stores the piece and spawns the next from the queue.
+        // On subsequent holds: swaps the active piece with the stored one.
+        // Silently ignored when hold was already used this turn.
+        void doHold(ECSWorld& world)
+        {
+            HoldResult result = tryHold(holdState, active.type);
+            if (!result.performed) return;
+
+            // Remove current active block entities — the piece is being held, not locked.
+            for (int i = 0; i < 4; ++i)
+            {
+                world.addComponent(active.blocks[i], RenderResourceClearComponent{});
+                world.removeComponent<TetrisBlockComponent>(active.blocks[i]);
+            }
+
+            if (result.hasSwappedIn)
+            {
+                // Place the previously-held piece as the new active piece.
+                // Rotation resets to 0 and pivot resets to the standard spawn position.
+                active.type     = result.newActiveType;
+                active.rotation = 0;
+                active.pivot    = { grid.width / 2, grid.height };
+
+                if (isGameOver())
+                {
+                    auto& sc = world.getSingleton<TetrisScoreComponent>();
+                    sc.pendingEvents.push_back({ ScoringEventType::GameOver });
+
+                    std::vector<Entity> toWipe;
+                    world.forEach<TetrisBlockComponent>([&](Entity e, TetrisBlockComponent&)
+                    {
+                        if (!world.hasComponent<NextPieceBlockComponent>(e) &&
+                            !world.hasComponent<GhostBlockComponent>(e)    &&
+                            !world.hasComponent<HeldPieceBlockComponent>(e))
+                            toWipe.push_back(e);
+                    });
+                    for (Entity e : toWipe)
+                    {
+                        world.addComponent(e, RenderResourceClearComponent{});
+                        world.removeComponent<TetrisBlockComponent>(e);
+                    }
+                    rebuildGrid(world, grid);
+                }
+
+                for (int i = 0; i < 4; ++i)
+                {
+                    Entity e = world.createEntity();
+                    world.addComponent(e, TetrisBlockComponent{ 0, 0, true, active.type });
+                    active.blocks[i] = e;
+                }
+                applyToActiveBlocks(world);
+
+                gridDirty = true;
+                lockDelay = 0.0f;
+            }
+            else
+            {
+                // Hold slot was empty: spawn the next piece from the queue.
+                // spawnPiece handles queue management, entity creation, and game-over check.
+                spawnPiece(world);
+            }
+
+            timers.fall   = 0.0f;
+            timers.move   = 0.0f;
+            timers.rotate = 0.0f;
+            updateHoldDisplay(world, holdState, holdDisplayBlocks);
+        }
+
         void spawnPiece(ECSWorld& world)
         {
+            resetHoldTurn(holdState);   // new piece: hold is available again
+
             TetrominoType nextType;
 
             if (QUEUE_SIZE > 0 && !nextQueue.empty())
@@ -346,7 +445,8 @@ class TetrisGameSystem : public ECSSimulationSystem
                 world.forEach<TetrisBlockComponent>([&](Entity e, TetrisBlockComponent&)
                 {
                     if (!world.hasComponent<NextPieceBlockComponent>(e) &&
-                        !world.hasComponent<GhostBlockComponent>(e))
+                        !world.hasComponent<GhostBlockComponent>(e)    &&
+                        !world.hasComponent<HeldPieceBlockComponent>(e))
                         all.push_back(e);
                 });
 

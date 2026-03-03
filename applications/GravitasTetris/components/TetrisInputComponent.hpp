@@ -9,9 +9,10 @@ struct TetrisInputComponent
     bool rotateCCW = false;   // Q
     bool hardDrop  = false;   // Space
     bool softDrop  = false;   // S
+    bool hold      = false;   // R
 
     void clear()
     {
-        moveLeft = moveRight = rotateCW = rotateCCW = hardDrop = softDrop = false;
+        moveLeft = moveRight = rotateCW = rotateCCW = hardDrop = softDrop = hold = false;
     }
 };

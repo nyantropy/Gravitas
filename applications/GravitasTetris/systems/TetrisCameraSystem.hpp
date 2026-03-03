@@ -23,8 +23,9 @@ class TetrisCameraSystem : public ECSSimulationSystem
     static constexpr float GRID_HEIGHT      = 20.0f;
     static constexpr float FOV              = glm::radians(7.0f);
 
-    // Shift the framing target to the right so the scoreboard stays visible.
-    static constexpr float FRAMING_OFFSET_X = 4.0f;
+    // Shift the framing target so both the left hold slot and right scoreboard/
+    // preview queue stay in frame.  Reduced from 4.0 to 2.0 to balance sidebars.
+    static constexpr float FRAMING_OFFSET_X = 2.0f;
 
     public:
         void update(ECSWorld& world, float) override

@@ -21,6 +21,7 @@ class TetrisInputSystem : public ECSControllerSystem
         actionManager.bind(TetrisAction::RotateCCW, GtsKey::Q);
         actionManager.bind(TetrisAction::HardDrop,  GtsKey::Space);
         actionManager.bind(TetrisAction::SoftDrop,  GtsKey::S);
+        actionManager.bind(TetrisAction::Hold,      GtsKey::R);
     }
 
 public:
@@ -54,5 +55,9 @@ public:
 
         if (actionManager.isActionActive(TetrisAction::SoftDrop))
             input.softDrop = true;
+
+        // Hold: single-shot on first press frame only (no repeat while held)
+        if (actionManager.isActionPressed(TetrisAction::Hold))
+            input.hold = true;
     }
 };

@@ -3,6 +3,7 @@
 #include "ECSControllerSystem.hpp"
 #include "TetrisBlockComponent.hpp"
 #include "GhostBlockComponent.hpp"
+#include "HeldPieceBlockComponent.hpp"
 #include "TransformComponent.h"
 #include "RenderDescriptionComponent.h"
 #include "RenderGpuComponent.h"
@@ -26,6 +27,7 @@ class TetrisVisualSystem : public ECSControllerSystem
             world.forEach<TetrisBlockComponent>([&](Entity e, TetrisBlockComponent& block)
             {
                 const bool isGhost = world.hasComponent<GhostBlockComponent>(e);
+                const bool isHeld  = world.hasComponent<HeldPieceBlockComponent>(e);
 
                 // on first encounter: attach description and transform
                 if (!world.hasComponent<TransformComponent>(e))
@@ -38,10 +40,11 @@ class TetrisVisualSystem : public ECSControllerSystem
                     if (isGhost) desc.alpha = GHOST_ALPHA;
                     world.addComponent(e, desc);
                 }
-                else if (isGhost)
+                else if (isGhost || isHeld)
                 {
-                    // Ghost blocks change type each time a new piece spawns; keep texture in sync.
-                    // RenderBindingSystem detects the path change and rebinds the texture.
+                    // Ghost and held blocks can change type (ghost: new piece spawns;
+                    // held: piece swapped).  Keep texture in sync each frame so
+                    // RenderBindingSystem detects the path change and rebinds.
                     auto& desc       = world.getComponent<RenderDescriptionComponent>(e);
                     desc.texturePath = texturePath(block);
                 }

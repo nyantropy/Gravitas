@@ -12,6 +12,7 @@ enum class TetrisAction
     RotateCCW,   // Q  — counter-clockwise rotation
     HardDrop,    // Space — instant drop
     SoftDrop,    // S  — accelerated drop
+    Hold,        // R  — hold current piece
 
     // sentinel — always keep last
     ACTION_COUNT
