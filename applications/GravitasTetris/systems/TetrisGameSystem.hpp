@@ -33,6 +33,7 @@
 #include "LineClearHelper.hpp"
 #include "PreviewQueueHelper.hpp"
 #include "HoldHelper.hpp"
+#include "SpeedHelper.hpp"
 
 // Orchestrates all Tetris game logic each simulation tick.
 // Feature logic is fully delegated to the helpers above; this class owns
@@ -46,7 +47,8 @@ class TetrisGameSystem : public ECSSimulationSystem
         TickTimers      timers;
 
         // Timing constants
-        static constexpr float FALL_INTERVAL     = 0.4f;
+        // Fall interval is now dynamic (speed level from SpeedHelper); only the
+        // soft-drop and input debounce intervals are fixed.
         static constexpr float SOFTDROP_INTERVAL = 0.05f;
         static constexpr float MOVE_INTERVAL     = 0.08f;
         static constexpr float ROTATE_INTERVAL   = 0.15f;
@@ -96,8 +98,10 @@ class TetrisGameSystem : public ECSSimulationSystem
             handleInput(world);
 
             // Gravity: try to fall one row; reset lock delay on success.
+            // Fall speed scales with the current score via SpeedHelper.
             auto& input = world.getSingleton<TetrisInputComponent>();
-            float fallInterval = input.softDrop ? SOFTDROP_INTERVAL : FALL_INTERVAL;
+            const float baseFall   = computeSpeedLevel(world.getSingleton<TetrisScoreComponent>().score).fallInterval;
+            float fallInterval = input.softDrop ? SOFTDROP_INTERVAL : baseFall;
             if (TickTimers::ready(timers.fall, fallInterval))
             {
                 if (tryMove(world, { 0, -1 }))
@@ -257,8 +261,9 @@ class TetrisGameSystem : public ECSSimulationSystem
             timers.rotate = 0.0f;   // clear buffered rotation
         }
 
-        // Computes the on-screen pivot for preview slot i (above the play field).
-        static glm::ivec2 previewPivot(int i) { return { 13, 12 - i * 3 }; }
+        // Computes the on-screen pivot for preview slot i (right sidebar).
+        // Slots occupy y=16..7 so the stats panel fits below them.
+        static glm::ivec2 previewPivot(int i) { return { 13, 16 - i * 3 }; }
 
         void initQueue(ECSWorld& world)
         {

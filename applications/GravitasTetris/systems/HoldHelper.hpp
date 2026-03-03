@@ -60,7 +60,8 @@ inline void resetHoldTurn(HoldState& state)
 }
 
 // Fixed screen-space pivot for the held-piece preview (left sidebar).
-static constexpr glm::ivec2 HOLD_DISPLAY_PIVOT = { -3, 16 };
+// Shifted left to ensure no block ever touches or overlaps the playfield border.
+static constexpr glm::ivec2 HOLD_DISPLAY_PIVOT = { -5, 14 };
 
 // Repositions the four persistent hold-display ECS entities to reflect the current
 // hold state.  When no piece is held the blocks are moved off-screen (-100, -100).

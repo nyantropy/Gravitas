@@ -30,7 +30,6 @@
 class TetrisScene : public GtsScene
 {
     BitmapFont scoreFont;
-    Entity     scoreEntity = Entity{ UINT32_MAX };
 
     Entity spawnCube(const std::string& texturePath, const glm::vec3& position)
     {
@@ -74,7 +73,7 @@ class TetrisScene : public GtsScene
         Entity e = ecsWorld.createEntity();
 
         TransformComponent tc;
-        tc.position = glm::vec3(11.5f, 14.5f, 0.0f);
+        tc.position = glm::vec3(11.0f, 19.0f, 0.0f);
         ecsWorld.addComponent(e, tc);
 
         TextComponent text;
@@ -90,7 +89,8 @@ class TetrisScene : public GtsScene
         Entity e = ecsWorld.createEntity();
 
         TransformComponent tc;
-        tc.position = glm::vec3(-4.0f, 17.5f, 0.0f);
+        // Centered over the hold display pivot (-5, 14); shifted well clear of the left wall.
+        tc.position = glm::vec3(-5.5f, 16.5f, 0.0f);
         ecsWorld.addComponent(e, tc);
 
         TextComponent text;
@@ -141,19 +141,21 @@ class TetrisScene : public GtsScene
             };
         }
 
-        scoreEntity = ecsWorld.createEntity();
+        // Stats panel: sits below the NEXT preview queue in the right sidebar.
+        // Small scale (0.6) so all 8 lines (4 label+value pairs) fit in the visible area.
+        Entity statsEntity = ecsWorld.createEntity();
 
         TransformComponent tc;
-        tc.position = glm::vec3(11.5f, 18.0f, 0.0f);
-        ecsWorld.addComponent(scoreEntity, tc);
+        tc.position = glm::vec3(10.5f, 6.0f, 0.0f);
+        ecsWorld.addComponent(statsEntity, tc);
 
         TextComponent text;
-        text.text  = "SCORE\n00000000";
+        text.text  = "SPEED LV\n1\nLINES\n0000\nSCORE\n00000000\nBEST\n00000000";
         text.font  = &scoreFont;
-        text.scale = 1.0f;
+        text.scale = 0.6f;
         text.dirty = true;
-        ecsWorld.addComponent(scoreEntity, text);
-        ecsWorld.addComponent(scoreEntity, ScoreDisplayComponent{});
+        ecsWorld.addComponent(statsEntity, text);
+        ecsWorld.addComponent(statsEntity, ScoreDisplayComponent{});
     }
 
     void mainCamera()
@@ -181,16 +183,6 @@ class TetrisScene : public GtsScene
     }
 
 public:
-    void updateScoreDisplay(int score)
-    {
-        char buf[9];
-        std::snprintf(buf, sizeof(buf), "%08d", score);
-
-        auto& text = ecsWorld.getComponent<TextComponent>(scoreEntity);
-        text.text  = "SCORE\n" + std::string(buf);
-        text.dirty = true;
-    }
-
     void onLoad(SceneContext& ctx) override
     {
         buildTetrisFrame();
