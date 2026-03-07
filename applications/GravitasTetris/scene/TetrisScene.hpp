@@ -237,7 +237,7 @@ class TetrisScene : public GtsScene
             ecsWorld.addComponent(leftStats, tc);
 
             TextComponent text;
-            text.text  = "SPEED LV\n1\nLINES\n0000";
+            text.text  = "LEVEL\n1\nLINES\n0000";
             text.font  = &scoreFont;
             text.scale = 0.6f;
             text.dirty = true;

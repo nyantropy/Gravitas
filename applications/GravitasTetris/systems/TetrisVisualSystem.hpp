@@ -4,6 +4,7 @@
 #include "TetrisBlockComponent.hpp"
 #include "GhostBlockComponent.hpp"
 #include "HeldPieceBlockComponent.hpp"
+#include "NextPieceBlockComponent.hpp"
 #include "TransformComponent.h"
 #include "RenderDescriptionComponent.h"
 #include "RenderGpuComponent.h"
@@ -28,6 +29,7 @@ class TetrisVisualSystem : public ECSControllerSystem
             {
                 const bool isGhost = world.hasComponent<GhostBlockComponent>(e);
                 const bool isHeld  = world.hasComponent<HeldPieceBlockComponent>(e);
+                const bool isNext  = world.hasComponent<NextPieceBlockComponent>(e);
 
                 // on first encounter: attach description and transform
                 if (!world.hasComponent<TransformComponent>(e))
@@ -40,7 +42,7 @@ class TetrisVisualSystem : public ECSControllerSystem
                     if (isGhost) desc.alpha = GHOST_ALPHA;
                     world.addComponent(e, desc);
                 }
-                else if (isGhost || isHeld)
+                else if (isGhost || isHeld || isNext)
                 {
                     // Ghost and held blocks can change type (ghost: new piece spawns;
                     // held: piece swapped).  Keep texture in sync each frame so
@@ -61,6 +63,14 @@ class TetrisVisualSystem : public ECSControllerSystem
                     tr.position.x = float(block.x) + co.x;
                     tr.position.y = float(block.y) + co.y;
                 }
+                else if (isNext)
+                {
+                    // Preview blocks are in local space relative to the next anchor.
+                    // Center each piece horizontally under the NEXT label (anchor local x = 0).
+                    glm::vec2 co = previewCenteringOffset(block.type);
+                    tr.position.x = float(block.x) + co.x;
+                    tr.position.y = float(block.y);
+                }
                 else
                 {
                     tr.position.x = float(block.x);
@@ -75,22 +85,40 @@ class TetrisVisualSystem : public ECSControllerSystem
         }
 
     private:
-        // Returns the float offset (in hold-anchor local space) that moves the
-        // rotation-0 bounding box of the given piece type to the center of the hold
-        // box.  The hold box interior local center is (0.5, 0.5).
-        //
-        // Derivation (rotation 0, blocks placed at shape.x / shape.y):
-        //   I  — x:[-1..2] (center 0.5), y:[0]   (center  0) → shift (   0, +0.5)
-        //   O  — x:[0..1]  (center 0.5), y:[0..1] (center 0.5) → shift (   0,    0)  [centered]
-        //   T/S/Z/J/L — x:[-1..1] (center 0), y:[0..1] (center 0.5) → shift (+0.5,    0)
-        static glm::vec2 holdCenteringOffset(TetrominoType type)
+        // Returns the x-center of a piece type's rotation-0 bounding box.
+        // Shared by holdCenteringOffset and previewCenteringOffset.
+        //   I  — x:[-1..2] → center 0.5
+        //   O  — x:[0..1]  → center 0.5
+        //   T/S/Z/J/L — x:[-1..1] → center 0.0
+        static float pieceXCenter(TetrominoType type)
         {
             switch (type)
             {
-                case TetrominoType::I: return { 0.0f, 0.5f };
-                case TetrominoType::O: return { 0.0f, 0.0f };
-                default:               return { 0.5f, 0.0f };
+                case TetrominoType::I:
+                case TetrominoType::O: return 0.5f;
+                default:               return 0.0f;
             }
+        }
+
+        // Returns the float offset (in hold-anchor local space) that moves the
+        // rotation-0 bounding box of the given piece type to the center of the hold
+        // box.  The hold box interior local center is (0.5, 0.5).
+        //   I  — y:[0]   (center 0) → shift (0,    +0.5)
+        //   O  — y:[0..1](center 0.5) → shift (0,    0)   [already centered]
+        //   T/S/Z/J/L — y:[0..1](center 0.5) → shift (+0.5, 0)
+        static glm::vec2 holdCenteringOffset(TetrominoType type)
+        {
+            const float xShift = 0.5f - pieceXCenter(type);
+            const float yShift = (type == TetrominoType::I) ? 0.5f : 0.0f;
+            return { xShift, yShift };
+        }
+
+        // Returns the float x offset (in next-anchor local space) that horizontally
+        // centers the rotation-0 bounding box under the NEXT label.
+        // The anchor local center x is 0.0 (NEXT label spans [-2, 2], center = 0).
+        static glm::vec2 previewCenteringOffset(TetrominoType type)
+        {
+            return { 0.0f - pieceXCenter(type), 0.0f };
         }
 
         std::string texturePath(const TetrisBlockComponent& block)

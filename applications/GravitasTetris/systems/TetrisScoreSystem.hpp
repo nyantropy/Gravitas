@@ -71,7 +71,7 @@ class TetrisScoreSystem : public ECSSimulationSystem
             std::snprintf(bestBuf,  sizeof(bestBuf),   "%08d", sc.highScore);
 
             const std::string leftText =
-                std::string("SPEED LV\n") + lvlBuf  + "\n" +
+                std::string("LEVEL\n") + lvlBuf  + "\n" +
                 std::string("LINES\n")    + linesBuf;
 
             const std::string rightText =
