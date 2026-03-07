@@ -59,7 +59,7 @@ class TetrisScoreSystem : public ECSSimulationSystem
             if (!statsChanged)
                 return;
 
-            const int speedLevel = computeSpeedLevel(sc.score).level;
+            const int speedLevel = SpeedHelper::computeSpeedLevel(sc.score).level;
 
             char lvlBuf[8];
             char linesBuf[8];

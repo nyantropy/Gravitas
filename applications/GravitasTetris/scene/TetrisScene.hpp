@@ -299,8 +299,8 @@ public:
         {
             TransformComponent tc;
             tc.position = glm::vec3(
-                float(HOLD_DISPLAY_PIVOT.x),
-                float(HOLD_DISPLAY_PIVOT.y),
+                float(HoldController::HOLD_DISPLAY_PIVOT.x),
+                float(HoldController::HOLD_DISPLAY_PIVOT.y),
                 0.0f);
             ecsWorld.addComponent(holdGroupAnchor, tc);
         }
