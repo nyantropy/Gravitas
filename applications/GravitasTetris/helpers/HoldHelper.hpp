@@ -69,6 +69,11 @@ static constexpr glm::ivec2 HOLD_DISPLAY_PIVOT = { -5, 16 };
 // Repositions the four persistent hold-display ECS entities to reflect the current
 // hold state.  When no piece is held the blocks are moved off-screen (-100, -100).
 // Always uses rotation 0, matching modern Tetris convention.
+//
+// Block positions are LOCAL to the hold group anchor (which sits at HOLD_DISPLAY_PIVOT
+// in world space).  TetrisVisualSystem writes these values as the entity's local
+// TransformComponent position; the hierarchy system then applies the anchor's world
+// transform, yielding the correct final screen position.
 inline void updateHoldDisplay(
     ECSWorld&                     world,
     const HoldState&              state,
@@ -79,6 +84,7 @@ inline void updateHoldDisplay(
         for (int i = 0; i < 4; ++i)
         {
             auto& b = world.getComponent<TetrisBlockComponent>(holdBlocks[i]);
+            // Local off-screen — anchor at HOLD_DISPLAY_PIVOT keeps world pos far off screen
             b.x = -100;
             b.y = -100;
         }
@@ -88,10 +94,10 @@ inline void updateHoldDisplay(
     auto& shape = TetrominoShapes[(int)state.heldType][0];
     for (int i = 0; i < 4; ++i)
     {
-        auto& b      = world.getComponent<TetrisBlockComponent>(holdBlocks[i]);
-        glm::ivec2 p = HOLD_DISPLAY_PIVOT + shape.blocks[i];
-        b.x   = p.x;
-        b.y   = p.y;
+        auto& b = world.getComponent<TetrisBlockComponent>(holdBlocks[i]);
+        // Local offset from anchor — no HOLD_DISPLAY_PIVOT addition; anchor provides it
+        b.x   = shape.blocks[i].x;
+        b.y   = shape.blocks[i].y;
         b.type = state.heldType;
     }
 }

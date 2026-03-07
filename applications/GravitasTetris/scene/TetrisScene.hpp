@@ -19,12 +19,13 @@
 #include "ScoreDisplayComponent.hpp"
 
 #include "RenderDescriptionComponent.h"
-#include "RenderGpuComponent.h"            
+#include "RenderGpuComponent.h"
 #include "CameraDescriptionComponent.h"
 #include "CameraOverrideComponent.h"
 #include "CameraControlOverrideComponent.h"
 #include "TransformComponent.h"
 #include "TextComponent.h"
+#include "HierarchyHelper.h"
 
 #include "Vertex.h"
 #include "GraphicsConstants.h"
@@ -33,9 +34,13 @@ class TetrisScene : public GtsScene
 {
     BitmapFont scoreFont;
 
-    void spawnProceduralMeshEntity(SceneContext& ctx,
-                                   std::vector<Vertex>&   verts,
-                                   std::vector<uint32_t>& idxs)
+    // anchor entities for ui elements
+    Entity holdGroupAnchor;
+    Entity nextGroupAnchor;
+
+    Entity spawnProceduralMeshEntity(SceneContext& ctx,
+                                     std::vector<Vertex>&   verts,
+                                     std::vector<uint32_t>& idxs)
     {
         const std::string greyTex =
             GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png";
@@ -57,6 +62,8 @@ class TetrisScene : public GtsScene
         rc.dirty          = true;
         rc.readyToRender  = false;
         ecsWorld.addComponent(e, rc);
+
+        return e;
     }
 
     void buildTetrisFrameMesh(SceneContext& ctx)
@@ -96,11 +103,15 @@ class TetrisScene : public GtsScene
         spawnProceduralMeshEntity(ctx, verts, idxs);
     }
 
-    void buildHoldBoxMesh(SceneContext& ctx)
+    Entity buildHoldBoxMesh(SceneContext& ctx)
     {
-        // Box corners — line centers (T = half-thickness of each line strip)
-        constexpr float BOX_L = -6.5f;  // left side x
-        constexpr float BOX_R = -2.5f;  // right side x — fits I piece right block at -3 + 0.5 pad
+        // Box corners — line centers (T = half-thickness of each line strip).
+        // Width is sized to give the I piece (4 cells wide) 0.5-unit padding on each
+        // side, matching the 0.5-unit top/bottom padding already present for 2-tall pieces.
+        //   I-piece local x-extents (anchor at -5): [-1.5, 2.5]  →  box local [-2, 3]
+        //   which translates to world BOX_L = -7, BOX_R = -2.
+        constexpr float BOX_L = -7.0f;  // left side x  (was -6.5; widened for I-piece padding)
+        constexpr float BOX_R = -2.0f;  // right side x (was -2.5; widened for I-piece padding)
         constexpr float BOX_B = 15.0f;  // bottom y — 0.5 below piece bottom at 15.5
         constexpr float BOX_T = 18.0f;  // top y    — 0.5 above standard piece top at 17.5
         constexpr float T     =  0.06f; // same half-thickness as playfield frame
@@ -131,18 +142,17 @@ class TetrisScene : public GtsScene
         // Top — horizontal strip spanning box width
         addQuad(BOX_L - T, BOX_T - T, BOX_R + T, BOX_T + T);
 
-        spawnProceduralMeshEntity(ctx, verts, idxs);
+        return spawnProceduralMeshEntity(ctx, verts, idxs);
     }
 
-    void buildNextLabel()
+    Entity buildNextLabel()
     {
-        if (TetrisGameSystem::QUEUE_SIZE <= 0)
-            return;
-
         Entity e = ecsWorld.createEntity();
 
         TransformComponent tc;
-        tc.position = glm::vec3(11.0f, 19.0f, 0.0f);
+        // Local offset from nextGroupAnchor at (13, 16, 0):
+        // old world (11, 19, 0) − anchor (13, 16, 0) = (−2, 3, 0)
+        tc.position = glm::vec3(-2.0f, 3.0f, 0.0f);
         ecsWorld.addComponent(e, tc);
 
         TextComponent text;
@@ -151,14 +161,16 @@ class TetrisScene : public GtsScene
         text.scale = 1.0f;
         text.dirty = true;
         ecsWorld.addComponent(e, text);
+
+        return e;
     }
 
-    void buildHoldLabel()
+    Entity buildHoldLabel()
     {
         Entity e = ecsWorld.createEntity();
 
         TransformComponent tc;
-        tc.position = glm::vec3(-5.5f, 19.0f, 0.0f);
+        tc.position = glm::vec3(-1.5f, 3.0f, 0.0f);
         ecsWorld.addComponent(e, tc);
 
         TextComponent text;
@@ -167,6 +179,8 @@ class TetrisScene : public GtsScene
         text.scale = 1.0f;
         text.dirty = true;
         ecsWorld.addComponent(e, text);
+
+        return e;
     }
 
     void buildScoreboard(SceneContext& ctx)
@@ -277,19 +291,66 @@ class TetrisScene : public GtsScene
 public:
     void onLoad(SceneContext& ctx) override
     {
+        // ── Invisible anchor for the Hold UI group ────────────────────────────
+        // World position matches HOLD_DISPLAY_PIVOT so child local offsets are
+        // relative to that point.  Move holdGroupAnchor to reposition the whole
+        // Hold UI: box outline, held piece blocks, and label.
+        holdGroupAnchor = ecsWorld.createEntity();
+        {
+            TransformComponent tc;
+            tc.position = glm::vec3(
+                float(HOLD_DISPLAY_PIVOT.x),
+                float(HOLD_DISPLAY_PIVOT.y),
+                0.0f);
+            ecsWorld.addComponent(holdGroupAnchor, tc);
+        }
+
+        // ── Invisible anchor for the Next UI group ────────────────────────────
+        // World position matches NEXT_DISPLAY_PIVOT (first preview slot origin).
+        // Move nextGroupAnchor to reposition the whole Next UI: label and all
+        // preview piece slots.
+        nextGroupAnchor = ecsWorld.createEntity();
+        {
+            TransformComponent tc;
+            tc.position = glm::vec3(
+                float(TetrisGameSystem::NEXT_DISPLAY_PIVOT.x),
+                float(TetrisGameSystem::NEXT_DISPLAY_PIVOT.y),
+                0.0f);
+            ecsWorld.addComponent(nextGroupAnchor, tc);
+        }
+
         buildTetrisFrameMesh(ctx);
-        buildHoldBoxMesh(ctx);      
+
+        // Hold box outline — local offset converts world (0,0,0) to be relative
+        // to holdGroupAnchor at (−5, 16, 0): local = (5, −16, 0).
+        // Verify: anchor (−5,16) + local (5,−16) = world (0, 0) ✓
+        Entity holdBoxEntity = buildHoldBoxMesh(ctx);
+        ecsWorld.getComponent<TransformComponent>(holdBoxEntity).position = { 5.0f, -16.0f, 0.0f };
+        setParent(ecsWorld, holdBoxEntity, holdGroupAnchor);
+
         mainCamera();
         buildScoreboard(ctx);
-        buildNextLabel();
-        buildHoldLabel();
+
+        // NEXT label — local offset: world (11,19) − anchor (13,16) = (−2, 3)
+        if (TetrisGameSystem::QUEUE_SIZE > 0)
+        {
+            Entity nextLabelEntity = buildNextLabel();
+            setParent(ecsWorld, nextLabelEntity, nextGroupAnchor);
+        }
+
+        // HOLD label — local offset: world (−5.5,19) − anchor (−5,16) = (−0.5, 3)
+        {
+            Entity holdLabelEntity = buildHoldLabel();
+            setParent(ecsWorld, holdLabelEntity, holdGroupAnchor);
+        }
 
         addSingletonComponents();
         installRendererFeature();
 
         ecsWorld.addControllerSystem<TetrisInputSystem>();
         ecsWorld.addControllerSystem<TetrisCameraControlSystem>();
-        ecsWorld.addSimulationSystem<TetrisGameSystem>();
+        // Pass anchors so TetrisGameSystem can parent hold and preview blocks at runtime.
+        ecsWorld.addSimulationSystem<TetrisGameSystem>(holdGroupAnchor, nextGroupAnchor);
         ecsWorld.addSimulationSystem<TetrisScoreSystem>();
         ecsWorld.addControllerSystem<TetrisVisualSystem>();
         ecsWorld.addSimulationSystem<TetrisCameraSystem>();

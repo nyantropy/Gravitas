@@ -51,8 +51,21 @@ class TetrisVisualSystem : public ECSControllerSystem
 
                 // keep the block's grid position reflected in the transform
                 auto& tr = world.getComponent<TransformComponent>(e);
-                tr.position.x = float(block.x);
-                tr.position.y = float(block.y);
+                if (isHeld)
+                {
+                    // Held blocks are in local space relative to the hold anchor.
+                    // Different piece types have different bounding-box centers so we
+                    // apply a per-type sub-cell offset to visually center each piece
+                    // inside the hold box (whose local center is at (0.5, 0.5)).
+                    glm::vec2 co = holdCenteringOffset(block.type);
+                    tr.position.x = float(block.x) + co.x;
+                    tr.position.y = float(block.y) + co.y;
+                }
+                else
+                {
+                    tr.position.x = float(block.x);
+                    tr.position.y = float(block.y);
+                }
                 tr.position.z = 0.0f;
 
                 // flag the renderer-side component dirty so the model matrix is re-uploaded
@@ -62,6 +75,24 @@ class TetrisVisualSystem : public ECSControllerSystem
         }
 
     private:
+        // Returns the float offset (in hold-anchor local space) that moves the
+        // rotation-0 bounding box of the given piece type to the center of the hold
+        // box.  The hold box interior local center is (0.5, 0.5).
+        //
+        // Derivation (rotation 0, blocks placed at shape.x / shape.y):
+        //   I  — x:[-1..2] (center 0.5), y:[0]   (center  0) → shift (   0, +0.5)
+        //   O  — x:[0..1]  (center 0.5), y:[0..1] (center 0.5) → shift (   0,    0)  [centered]
+        //   T/S/Z/J/L — x:[-1..1] (center 0), y:[0..1] (center 0.5) → shift (+0.5,    0)
+        static glm::vec2 holdCenteringOffset(TetrominoType type)
+        {
+            switch (type)
+            {
+                case TetrominoType::I: return { 0.0f, 0.5f };
+                case TetrominoType::O: return { 0.0f, 0.0f };
+                default:               return { 0.5f, 0.0f };
+            }
+        }
+
         std::string texturePath(const TetrisBlockComponent& block)
         {
             switch(block.type)

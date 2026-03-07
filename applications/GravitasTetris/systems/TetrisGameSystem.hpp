@@ -34,6 +34,7 @@
 #include "PreviewQueueHelper.hpp"
 #include "HoldHelper.hpp"
 #include "SpeedHelper.hpp"
+#include "HierarchyHelper.h"
 
 // Orchestrates all Tetris game logic each simulation tick.
 // Feature logic is fully delegated to the helpers above; this class owns
@@ -70,11 +71,20 @@ class TetrisGameSystem : public ECSSimulationSystem
         HoldState             holdState;
         std::array<Entity, 4> holdDisplayBlocks;
 
+        // Anchors for the Hold and Next UI groups (set from TetrisScene at construction).
+        Entity holdAnchor;
+        Entity nextAnchor;
+
     public:
         // Number of upcoming pieces shown in the queue.  Set to 0 to disable.
         static constexpr int QUEUE_SIZE = 4;
 
-        TetrisGameSystem() {}
+        // World-space position of the Next UI anchor (first preview slot origin).
+        // Used by TetrisScene to place the nextGroupAnchor entity.
+        static constexpr glm::ivec2 NEXT_DISPLAY_PIVOT = { 13, 16 };
+
+        TetrisGameSystem(Entity holdAnchor, Entity nextAnchor)
+            : holdAnchor(holdAnchor), nextAnchor(nextAnchor) {}
 
         void update(ECSWorld& world, float dt) override
         {
@@ -261,9 +271,9 @@ class TetrisGameSystem : public ECSSimulationSystem
             timers.rotate = 0.0f;   // clear buffered rotation
         }
 
-        // Computes the on-screen pivot for preview slot i (right sidebar).
-        // Slots occupy y=16..7 so the stats panel fits below them.
-        static glm::ivec2 previewPivot(int i) { return { 13, 16 - i * 3 }; }
+        // Returns the LOCAL pivot for preview slot i, relative to nextAnchor at NEXT_DISPLAY_PIVOT.
+        // Slot 0 is at the anchor origin; each subsequent slot is 3 units lower.
+        static glm::ivec2 previewPivot(int i) { return { 0, -i * 3 }; }
 
         void initQueue(ECSWorld& world)
         {
@@ -277,6 +287,8 @@ class TetrisGameSystem : public ECSSimulationSystem
                 TetrominoType t = (TetrominoType)(rand() % 7);
                 nextQueue.push_back(t);
                 previewBlocks[i] = spawnPreviewPiece(world, t, previewPivot(i));
+                for (int j = 0; j < 4; ++j)
+                    setParent(world, previewBlocks[i][j], nextAnchor);
             }
             // spawnPreviewPiece already positions blocks; no updatePreviews needed here
         }
@@ -322,14 +334,18 @@ class TetrisGameSystem : public ECSSimulationSystem
         }
 
         // Creates the four persistent held-piece display entities; initially hidden off-screen.
+        // Each block is parented to holdAnchor so the whole group moves with that anchor.
         void initHoldDisplay(ECSWorld& world)
         {
             for (int i = 0; i < 4; ++i)
             {
                 Entity e = world.createEntity();
+                // Initial position is local-space off-screen; anchor at HOLD_DISPLAY_PIVOT
+                // places world position at approximately (-105, -84) — safely invisible.
                 world.addComponent(e, TetrisBlockComponent{ -100, -100, true, TetrominoType::I });
                 world.addComponent(e, HeldPieceBlockComponent{});
                 holdDisplayBlocks[i] = e;
+                setParent(world, e, holdAnchor);
             }
         }
 
@@ -426,6 +442,8 @@ class TetrisGameSystem : public ECSSimulationSystem
                 TetrominoType newT = (TetrominoType)(rand() % 7);
                 nextQueue.push_back(newT);
                 previewBlocks.push_back(spawnPreviewPiece(world, newT, previewPivot(QUEUE_SIZE - 1)));
+                for (int j = 0; j < 4; ++j)
+                    setParent(world, previewBlocks.back()[j], nextAnchor);
 
                 updatePreviews(world);
             }
