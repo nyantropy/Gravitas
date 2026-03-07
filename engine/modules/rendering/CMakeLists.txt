@@ -67,4 +67,4 @@ target_include_directories(ecsrendering PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/systems"
     "${CMAKE_CURRENT_SOURCE_DIR}/extractors"
 )
-target_link_libraries(ecsrendering PUBLIC ecsworld ecstransform ecscamera graphics)
+target_link_libraries(ecsrendering PUBLIC ecsworld ecstransform ecscamera graphics ecshierarchy)
