@@ -12,4 +12,5 @@ struct OutputWindowConfig
     bool enableValidationLayers = false;
     bool borderlessFullscreen   = false;
     bool vsync                  = true;
+    int  monitorIndex           = 0;    // 0 = primary, 1 = second monitor, etc.
 };

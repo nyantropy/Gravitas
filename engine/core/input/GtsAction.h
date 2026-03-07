@@ -13,6 +13,7 @@ enum class GtsAction
 
     // ─── engine / UI ───────────────────────────────────────────────────
     TogglePause,
+    CloseApplication,
 
     // sentinel — always keep last
     ACTION_COUNT

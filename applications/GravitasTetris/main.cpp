@@ -15,6 +15,7 @@ int main()
     config.graphics.window.title                = "GravitasTetris";
     config.graphics.window.borderlessFullscreen = true;
     config.graphics.window.vsync                = true;
+    config.graphics.window.monitorIndex         = 0;
 
     GravitasEngine engine(config);
     engine.registerScene("tetris", std::make_unique<TetrisScene>());

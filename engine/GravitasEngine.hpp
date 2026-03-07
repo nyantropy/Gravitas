@@ -61,7 +61,8 @@ class GravitasEngine
 
         void bindDefaultActions()
         {
-            actionManager->bind(GtsAction::TogglePause, GtsKey::X);
+            actionManager->bind(GtsAction::TogglePause,       GtsKey::X);
+            actionManager->bind(GtsAction::CloseApplication,  GtsKey::Escape);
         }
 
         void createSceneContext()
@@ -148,6 +149,9 @@ class GravitasEngine
 
                 // engine-level action handling — pause toggle runs before deltaTime is
                 // computed so that the simulation sees dt=0 on the exact pause frame.
+                if (actionManager->isActionPressed(GtsAction::CloseApplication))
+                    break;
+
                 if (actionManager->isActionPressed(GtsAction::TogglePause))
                     simulationPaused = !simulationPaused;
 

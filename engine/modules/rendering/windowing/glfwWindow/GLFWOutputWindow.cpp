@@ -1,4 +1,5 @@
 #include "GLFWOutputWindow.hpp"
+#include <algorithm>
 
 GLFWOutputWindow::GLFWOutputWindow(OutputWindowConfig config): OutputWindow(config)
 {
@@ -22,7 +23,9 @@ void GLFWOutputWindow::init()
 
     if (config.borderlessFullscreen)
     {
-        GLFWmonitor*       monitor = glfwGetPrimaryMonitor();
+        int           monitorCount = 0;
+        GLFWmonitor** monitors     = glfwGetMonitors(&monitorCount);
+        GLFWmonitor*  monitor      = monitors[std::clamp(config.monitorIndex, 0, monitorCount - 1)];
         const GLFWvidmode* mode    = glfwGetVideoMode(monitor);
         glfwWindowHint(GLFW_RED_BITS,     mode->redBits);
         glfwWindowHint(GLFW_GREEN_BITS,   mode->greenBits);
