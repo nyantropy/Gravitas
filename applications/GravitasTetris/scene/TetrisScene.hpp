@@ -19,50 +19,119 @@
 #include "ScoreDisplayComponent.hpp"
 
 #include "RenderDescriptionComponent.h"
+#include "RenderGpuComponent.h"            
 #include "CameraDescriptionComponent.h"
 #include "CameraOverrideComponent.h"
 #include "CameraControlOverrideComponent.h"
 #include "TransformComponent.h"
 #include "TextComponent.h"
 
+#include "Vertex.h"
 #include "GraphicsConstants.h"
 
 class TetrisScene : public GtsScene
 {
     BitmapFont scoreFont;
 
-    Entity spawnCube(const std::string& texturePath, const glm::vec3& position)
+    void spawnProceduralMeshEntity(SceneContext& ctx,
+                                   std::vector<Vertex>&   verts,
+                                   std::vector<uint32_t>& idxs)
     {
-        Entity e = ecsWorld.createEntity();
-
-        RenderDescriptionComponent desc;
-        desc.meshPath    = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
-        desc.texturePath = texturePath;
-        ecsWorld.addComponent<RenderDescriptionComponent>(e, desc);
-
-        TransformComponent tc;
-        tc.position = position;
-        ecsWorld.addComponent<TransformComponent>(e, tc);
-
-        return e;
-    }
-
-    void buildTetrisFrame()
-    {
-        constexpr int fieldWidth  = 10;
-        constexpr int fieldHeight = 20;
-
-        const std::string frameTexture =
+        const std::string greyTex =
             GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png";
 
-        for (int y = 0; y < fieldHeight; ++y)
-            spawnCube(frameTexture, glm::vec3(-1.0f, (float)y, 0.0f));
+        mesh_id_type    meshID = ctx.resources->uploadProceduralMesh(0, verts, idxs);
+        texture_id_type texID  = ctx.resources->requestTexture(greyTex);
+        ssbo_id_type    slot   = ctx.resources->requestObjectSlot();
 
-        for (int y = 0; y < fieldHeight; ++y)
-            spawnCube(frameTexture, glm::vec3((float)fieldWidth, (float)y, 0.0f));
+        Entity e = ecsWorld.createEntity();
 
-        for (int x = -1; x <= fieldWidth; ++x)
-            spawnCube(frameTexture, glm::vec3((float)x, -1.0f, 0.0f));
+        TransformComponent tc;
+        tc.position = {0.0f, 0.0f, 0.0f};
+        ecsWorld.addComponent(e, tc);
+
+        RenderGpuComponent rc{};
+        rc.meshID         = meshID;
+        rc.textureID      = texID;
+        rc.objectSSBOSlot = slot;
+        rc.dirty          = true;
+        rc.readyToRender  = false;
+        ecsWorld.addComponent(e, rc);
+    }
+
+    void buildTetrisFrameMesh(SceneContext& ctx)
+    {
+        // Inner edges of the former cube walls (cubes were unit-cubes centered on
+        // integer positions, so x=-1 spanned x=-1.5..-0.5, giving inner edge -0.5).
+        constexpr float LEFT_X  = -0.5f;   // inner edge of left wall
+        constexpr float RIGHT_X =  9.5f;   // inner edge of right wall
+        constexpr float BOT_Y   = -0.5f;   // inner edge of floor
+        constexpr float TOP_Y   = 19.5f;   // top of play area (no top wall in original)
+        constexpr float T       =  0.06f;  // line half-thickness → total width 0.12 units
+        constexpr float Z       =  0.0f;
+
+        const glm::vec3 white = {1.0f, 1.0f, 1.0f};
+
+        std::vector<Vertex>   verts;
+        std::vector<uint32_t> idxs;
+
+        auto addQuad = [&](float x0, float y0, float x1, float y1)
+        {
+            uint32_t base = static_cast<uint32_t>(verts.size());
+            verts.push_back({{x0, y0, Z}, white, {0.0f, 1.0f}});
+            verts.push_back({{x1, y0, Z}, white, {1.0f, 1.0f}});
+            verts.push_back({{x1, y1, Z}, white, {1.0f, 0.0f}});
+            verts.push_back({{x0, y1, Z}, white, {0.0f, 0.0f}});
+            idxs.push_back(base + 0); idxs.push_back(base + 1); idxs.push_back(base + 2);
+            idxs.push_back(base + 0); idxs.push_back(base + 2); idxs.push_back(base + 3);
+        };
+
+        // Left wall: vertical strip at x = LEFT_X
+        addQuad(LEFT_X - T, BOT_Y - T, LEFT_X + T, TOP_Y);
+        // Right wall: vertical strip at x = RIGHT_X
+        addQuad(RIGHT_X - T, BOT_Y - T, RIGHT_X + T, TOP_Y);
+        // Floor: horizontal strip at y = BOT_Y, spans full width to cover corners
+        addQuad(LEFT_X - T, BOT_Y - T, RIGHT_X + T, BOT_Y + T);
+
+        spawnProceduralMeshEntity(ctx, verts, idxs);
+    }
+
+    void buildHoldBoxMesh(SceneContext& ctx)
+    {
+        // Box corners — line centers (T = half-thickness of each line strip)
+        constexpr float BOX_L = -6.5f;  // left side x
+        constexpr float BOX_R = -2.5f;  // right side x — fits I piece right block at -3 + 0.5 pad
+        constexpr float BOX_B = 15.0f;  // bottom y — 0.5 below piece bottom at 15.5
+        constexpr float BOX_T = 18.0f;  // top y    — 0.5 above standard piece top at 17.5
+        constexpr float T     =  0.06f; // same half-thickness as playfield frame
+        constexpr float Z     =  0.0f;
+
+        const glm::vec3 white = {1.0f, 1.0f, 1.0f};
+
+        std::vector<Vertex>   verts;
+        std::vector<uint32_t> idxs;
+
+        auto addQuad = [&](float x0, float y0, float x1, float y1)
+        {
+            uint32_t base = static_cast<uint32_t>(verts.size());
+            verts.push_back({{x0, y0, Z}, white, {0.0f, 1.0f}});
+            verts.push_back({{x1, y0, Z}, white, {1.0f, 1.0f}});
+            verts.push_back({{x1, y1, Z}, white, {1.0f, 0.0f}});
+            verts.push_back({{x0, y1, Z}, white, {0.0f, 0.0f}});
+            idxs.push_back(base + 0); idxs.push_back(base + 1); idxs.push_back(base + 2);
+            idxs.push_back(base + 0); idxs.push_back(base + 2); idxs.push_back(base + 3);
+        };
+
+        // Left side — vertical strip, full box height (corners absorbed by horizontal strips)
+        addQuad(BOX_L - T, BOX_B - T, BOX_L + T, BOX_T + T);
+        // Right side — vertical strip
+        addQuad(BOX_R - T, BOX_B - T, BOX_R + T, BOX_T + T);
+        // Bottom — horizontal strip spanning box width
+        addQuad(BOX_L - T, BOX_B - T, BOX_R + T, BOX_B + T);
+        // Top — horizontal strip spanning box width
+        addQuad(BOX_L - T, BOX_T - T, BOX_R + T, BOX_T + T);
+
+        spawnProceduralMeshEntity(ctx, verts, idxs);
     }
 
     void buildNextLabel()
@@ -89,8 +158,7 @@ class TetrisScene : public GtsScene
         Entity e = ecsWorld.createEntity();
 
         TransformComponent tc;
-        // Centered over the hold display pivot (-5, 14); shifted well clear of the left wall.
-        tc.position = glm::vec3(-5.5f, 16.5f, 0.0f);
+        tc.position = glm::vec3(-5.5f, 19.0f, 0.0f);
         ecsWorld.addComponent(e, tc);
 
         TextComponent text;
@@ -141,21 +209,45 @@ class TetrisScene : public GtsScene
             };
         }
 
-        // Stats panel: sits below the NEXT preview queue in the right sidebar.
-        // Small scale (0.6) so all 8 lines (4 label+value pairs) fit in the visible area.
-        Entity statsEntity = ecsWorld.createEntity();
+        // Left sidebar: SPEED LV and LINES displayed below the HOLD piece preview.
+        // AGENT CHANGE: y moved from 10.5→4.5 to share the same baseline as the right
+        // stats panel (SCORE + BEST), creating a balanced horizontal band at the bottom.
+        // With HOLD_DISPLAY_PIVOT y=16 the hold box bottom is at y=15.0, leaving
+        // intentional white space between it and the stats — mirroring the right side
+        // where four NEXT preview slots fill the equivalent vertical span.
+        {
+            Entity leftStats = ecsWorld.createEntity();
 
-        TransformComponent tc;
-        tc.position = glm::vec3(10.5f, 6.0f, 0.0f);
-        ecsWorld.addComponent(statsEntity, tc);
+            TransformComponent tc;
+            tc.position = glm::vec3(-5.5f, 4.5f, 0.0f);   // AGENT CHANGE: aligned with right stats at y=4.5
+            ecsWorld.addComponent(leftStats, tc);
 
-        TextComponent text;
-        text.text  = "SPEED LV\n1\nLINES\n0000\nSCORE\n00000000\nBEST\n00000000";
-        text.font  = &scoreFont;
-        text.scale = 0.6f;
-        text.dirty = true;
-        ecsWorld.addComponent(statsEntity, text);
-        ecsWorld.addComponent(statsEntity, ScoreDisplayComponent{});
+            TextComponent text;
+            text.text  = "SPEED LV\n1\nLINES\n0000";
+            text.font  = &scoreFont;
+            text.scale = 0.6f;
+            text.dirty = true;
+            ecsWorld.addComponent(leftStats, text);
+            ecsWorld.addComponent(leftStats, ScoreDisplayComponent{0});  // id=0: left panel
+        }
+
+        // Right sidebar: SCORE and BEST displayed below the NEXT preview queue.
+        // The lowest preview piece centers at y=7; this panel sits below it at y=4.5.
+        {
+            Entity rightStats = ecsWorld.createEntity();
+
+            TransformComponent tc;
+            tc.position = glm::vec3(11.0f, 4.5f, 0.0f);
+            ecsWorld.addComponent(rightStats, tc);
+
+            TextComponent text;
+            text.text  = "SCORE\n00000000\nBEST\n00000000";
+            text.font  = &scoreFont;
+            text.scale = 0.6f;
+            text.dirty = true;
+            ecsWorld.addComponent(rightStats, text);
+            ecsWorld.addComponent(rightStats, ScoreDisplayComponent{1});  // id=1: right panel
+        }
     }
 
     void mainCamera()
@@ -185,7 +277,8 @@ class TetrisScene : public GtsScene
 public:
     void onLoad(SceneContext& ctx) override
     {
-        buildTetrisFrame();
+        buildTetrisFrameMesh(ctx);
+        buildHoldBoxMesh(ctx);      
         mainCamera();
         buildScoreboard(ctx);
         buildNextLabel();

@@ -13,11 +13,9 @@
 // Drains the pending-events inbox each tick, updates all stats, then rewrites
 // the text on every entity carrying a ScoreDisplayComponent.
 //
-// Stats written to the display (8 lines, label + value pairs):
-//   SPEED LV / {level}    — current speed level from SpeedHelper
-//   LINES    / {lines}    — total lines cleared this run; reset on game over
-//   SCORE    / {score}    — current score; reset on game over
-//   BEST     / {hiScore}  — session high score; never reset
+// Panel routing via ScoreDisplayComponent::id:
+//   id == 0  (left sidebar) : SPEED LV / {level}  and  LINES / {lines}
+//   id == 1  (right sidebar): SCORE / {score}      and  BEST  / {hiScore}
 class TetrisScoreSystem : public ECSSimulationSystem
 {
     private:
@@ -72,17 +70,29 @@ class TetrisScoreSystem : public ECSSimulationSystem
             std::snprintf(scoreBuf, sizeof(scoreBuf),  "%08d", sc.score);
             std::snprintf(bestBuf,  sizeof(bestBuf),   "%08d", sc.highScore);
 
-            const std::string newText =
-                std::string("SPEED LV\n") + lvlBuf    + "\n" +
-                std::string("LINES\n")    + linesBuf   + "\n" +
-                std::string("SCORE\n")    + scoreBuf   + "\n" +
-                std::string("BEST\n")     + bestBuf;
+            const std::string leftText =
+                std::string("SPEED LV\n") + lvlBuf  + "\n" +
+                std::string("LINES\n")    + linesBuf;
+
+            const std::string rightText =
+                std::string("SCORE\n") + scoreBuf + "\n" +
+                std::string("BEST\n")  + bestBuf;
 
             world.forEach<ScoreDisplayComponent, TextComponent>(
-                [&](Entity, ScoreDisplayComponent&, TextComponent& text)
+                [&](Entity, ScoreDisplayComponent& sdc, TextComponent& text)
                 {
-                    text.text  = newText;
-                    text.dirty = true;
+                    if (sdc.id == 0)
+                    {
+                        // Left panel: SPEED LV and LINES
+                        text.text  = leftText;
+                        text.dirty = true;
+                    }
+                    else
+                    {
+                        // Right panel: SCORE and BEST
+                        text.text  = rightText;
+                        text.dirty = true;
+                    }
                 });
         }
 };
