@@ -13,6 +13,6 @@ struct CameraDescriptionComponent
     float fov             = glm::radians(60.0f);
     float nearClip        = 0.1f;
     float farClip         = 1000.0f;
-    float aspectRatio     = 800.0f / 800.0f;
+    float aspectRatio     = 1.0f;
     bool  active          = false;
 };

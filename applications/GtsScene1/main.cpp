@@ -3,11 +3,19 @@
 #include <vector>
 
 #include "GravitasEngine.hpp"
+#include "EngineConfig.h"
 #include "DefaultScene.hpp"
 
 int main()
 {
-    GravitasEngine engine = GravitasEngine();
+    EngineConfig config;
+    config.graphics.window.width                = 800;
+    config.graphics.window.height               = 800;
+    config.graphics.window.title                = "GtsScene1";
+    config.graphics.window.borderlessFullscreen = false;
+    config.graphics.window.vsync                = true;
+
+    GravitasEngine engine(config);
     engine.registerScene("default", std::make_unique<DefaultScene>());
     engine.setActiveScene("default");
     engine.start();

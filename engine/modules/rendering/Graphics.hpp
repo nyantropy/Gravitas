@@ -106,9 +106,11 @@ public:
     void createWindow()
     {
         WindowManagerConfig wmConfig;
-        wmConfig.windowWidth = config.outputWindowWidth;
-        wmConfig.windowHeight = config.outputWindowHeight;
-        wmConfig.windowTitle = config.outputWindowTitle;
+        wmConfig.windowWidth            = config.window.width;
+        wmConfig.windowHeight           = config.window.height;
+        wmConfig.windowTitle            = config.window.title;
+        wmConfig.enableValidationLayers = config.window.enableValidationLayers;
+        wmConfig.borderlessFullscreen   = config.window.borderlessFullscreen;
         windowManager = std::make_unique<WindowManager>(wmConfig);
     }
 

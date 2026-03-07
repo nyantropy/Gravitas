@@ -15,9 +15,10 @@ class WindowManager
         {
             OutputWindowConfig owConfig;
             owConfig.enableValidationLayers = config.enableValidationLayers;
-            owConfig.width = config.windowWidth;
-            owConfig.height = config.windowHeight;
-            owConfig.title = config.windowTitle;
+            owConfig.width                  = config.windowWidth;
+            owConfig.height                 = config.windowHeight;
+            owConfig.title                  = config.windowTitle;
+            owConfig.borderlessFullscreen   = config.borderlessFullscreen;
             outputWindow = std::make_unique<GLFWOutputWindow>(owConfig);
         }
 

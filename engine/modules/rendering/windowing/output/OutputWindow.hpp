@@ -49,7 +49,19 @@ class OutputWindow
         virtual void* getWindow() const = 0;
         virtual GtsKeyTranslator* getKeyTranslatorPtr() const = 0;
         virtual std::vector<const char*> getRequiredExtensions() const = 0;
-        
+
+        float getAspectRatio() const
+        {
+            int w = 0, h = 0;
+            getSize(w, h);
+            return h > 0 ? float(w) / float(h) : 1.0f;
+        }
+
+        // Borderless fullscreen toggle — saves and restores windowed state.
+        // No-op default allows platforms that don't support fullscreen to compile.
+        virtual void setFullscreen() {}
+        virtual void setWindowed()   {}
+
         // important factory pattern for easier surface creation and windowing extensions
         virtual std::unique_ptr<VulkanSurface> createSurface(VulkanSurfaceConfig config) const = 0;
 };

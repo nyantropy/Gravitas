@@ -27,8 +27,14 @@ class GLFWOutputWindow : public OutputWindow
         GtsKeyTranslator* getKeyTranslatorPtr() const override;
         std::unique_ptr<VulkanSurface> createSurface(VulkanSurfaceConfig config) const override;
 
+        void setFullscreen() override;
+        void setWindowed()   override;
+
     private:
         void init() override;
+
+        // saved windowed state for restoring after fullscreen
+        int savedX = 0, savedY = 0, savedW = 0, savedH = 0;
 
         //this basically just takes the glfw specific event and directs it to whatever callback we have assigned via
         //setOnWindowResizeCallback()

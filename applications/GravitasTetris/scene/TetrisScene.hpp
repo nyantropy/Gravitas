@@ -264,14 +264,14 @@ class TetrisScene : public GtsScene
         }
     }
 
-    void mainCamera()
+    void mainCamera(float aspectRatio)
     {
         Entity camera = ecsWorld.createEntity();
 
         CameraDescriptionComponent desc;
         desc.active      = true;
         desc.fov         = glm::radians(60.0f);
-        desc.aspectRatio = 800.0f / 800.0f;
+        desc.aspectRatio = aspectRatio;
         desc.nearClip    = 1.0f;
         desc.farClip     = 1000.0f;
         ecsWorld.addComponent(camera, desc);
@@ -328,7 +328,7 @@ public:
         ecsWorld.getComponent<TransformComponent>(holdBoxEntity).position = { 5.0f, -16.0f, 0.0f };
         setParent(ecsWorld, holdBoxEntity, holdGroupAnchor);
 
-        mainCamera();
+        mainCamera(ctx.windowAspectRatio);
         buildScoreboard(ctx);
 
         // NEXT label — local offset: world (11,19) − anchor (13,16) = (−2, 3)

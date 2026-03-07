@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "EngineConfig.h"
 #include "ECSWorld.hpp"
 #include "Timer.hpp"
 #include "TimeContext.h"
@@ -18,9 +19,11 @@
 #include "GtsCommand.h"
 #include "GtsCommandBuffer.h"
 
-class GravitasEngine 
+class GravitasEngine
 {
     private:
+        EngineConfig engineConfig;
+
         // a global engine timer
         std::unique_ptr<Timer> timer;
 
@@ -63,11 +66,12 @@ class GravitasEngine
 
         void createSceneContext()
         {
-            sceneContext.resources      = graphics->getResourceProvider();
-            sceneContext.inputSource    = &filteredInputSource;   // pause-gated
-            sceneContext.actions        = actionManager.get();    // always live
-            sceneContext.time           = &timeContext;
-            sceneContext.engineCommands = &engineCommands;
+            sceneContext.resources         = graphics->getResourceProvider();
+            sceneContext.inputSource       = &filteredInputSource;   // pause-gated
+            sceneContext.actions           = actionManager.get();    // always live
+            sceneContext.time              = &timeContext;
+            sceneContext.engineCommands    = &engineCommands;
+            sceneContext.windowAspectRatio = graphics->windowManager->getOutputWindow()->getAspectRatio();
         }
 
         // its only a render system now, maybe this will move later
@@ -88,15 +92,11 @@ class GravitasEngine
         // create the Graphics class and wire the InputManager into the window
         void createGraphicsModule()
         {
-            GraphicsConfig config;
-            config.outputWindowHeight = 800;
-            config.outputWindowWidth = 800;
-            config.outputWindowTitle = "Engine Test";
-            graphics = std::make_unique<Graphics>(config);
+            graphics = std::make_unique<Graphics>(engineConfig.graphics);
             graphics->windowManager->getOutputWindow()->setInputManager(inputManager.get());
         }
     public:
-        GravitasEngine()
+        explicit GravitasEngine(EngineConfig config = EngineConfig{}) : engineConfig(std::move(config))
         {
             createManagers();
             createGraphicsModule();

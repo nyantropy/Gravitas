@@ -15,14 +15,48 @@ GLFWOutputWindow::~GLFWOutputWindow()
     }
 }
 
-void GLFWOutputWindow::init() 
+void GLFWOutputWindow::init()
 {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    this->window = glfwCreateWindow(config.width, config.height, config.title.c_str(), nullptr, nullptr);
+
+    if (config.borderlessFullscreen)
+    {
+        GLFWmonitor*       monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* mode    = glfwGetVideoMode(monitor);
+        glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+        this->window = glfwCreateWindow(mode->width, mode->height, config.title.c_str(), nullptr, nullptr);
+        glfwSetWindowPos(static_cast<GLFWwindow*>(this->window), 0, 0);
+    }
+    else
+    {
+        this->window = glfwCreateWindow(config.width, config.height, config.title.c_str(), nullptr, nullptr);
+    }
+
     glfwSetWindowUserPointer(static_cast<GLFWwindow*>(this->window), this);
     glfwSetFramebufferSizeCallback(static_cast<GLFWwindow*>(this->window), framebufferResizeCallbackStatic);
     glfwSetKeyCallback(static_cast<GLFWwindow*>(this->window), onKeyPressedCallbackStatic);
+}
+
+void GLFWOutputWindow::setFullscreen()
+{
+    GLFWwindow* gw = static_cast<GLFWwindow*>(this->window);
+    glfwGetWindowPos(gw, &savedX, &savedY);
+    glfwGetWindowSize(gw, &savedW, &savedH);
+
+    GLFWmonitor*       monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode* mode    = glfwGetVideoMode(monitor);
+    glfwSetWindowAttrib(gw, GLFW_DECORATED, GLFW_FALSE);
+    glfwSetWindowPos(gw, 0, 0);
+    glfwSetWindowSize(gw, mode->width, mode->height);
+}
+
+void GLFWOutputWindow::setWindowed()
+{
+    GLFWwindow* gw = static_cast<GLFWwindow*>(this->window);
+    glfwSetWindowAttrib(gw, GLFW_DECORATED, GLFW_TRUE);
+    glfwSetWindowPos(gw, savedX, savedY);
+    glfwSetWindowSize(gw, savedW, savedH);
 }
 
 bool GLFWOutputWindow::shouldClose() const 

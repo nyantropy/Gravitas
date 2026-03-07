@@ -10,8 +10,9 @@
 struct SceneContext
 {
     IResourceProvider*              resources;
-    IInputSource*                   inputSource;  // abstract device layer — for updating local action managers
-    InputActionManager<GtsAction>*  actions;      // engine-level semantic actions
+    IInputSource*                   inputSource;       // abstract device layer — for updating local action managers
+    InputActionManager<GtsAction>*  actions;           // engine-level semantic actions
     const TimeContext*              time;
     GtsCommandBuffer*               engineCommands;
+    float                           windowAspectRatio = 1.0f;
 };

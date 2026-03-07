@@ -3,11 +3,13 @@
 #include <string>
 
 // configuration settings for the OutputWindow wrapper object
-struct OutputWindowConfig 
+struct OutputWindowConfig
 {
-    int width;
-    int height;
-    std::string title;
-    
-    bool enableValidationLayers;
+    int width  = 1920;
+    int height = 1080;
+    std::string title = "Gravitas";
+
+    bool enableValidationLayers = false;
+    bool borderlessFullscreen   = false;
+    bool vsync                  = true;
 };
