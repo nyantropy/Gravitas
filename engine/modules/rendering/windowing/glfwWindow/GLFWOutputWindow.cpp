@@ -81,12 +81,7 @@ void GLFWOutputWindow::getSize(int& width, int& height) const
     glfwGetFramebufferSize(static_cast<GLFWwindow*>(this->window), &width, &height);
 }
 
-void* GLFWOutputWindow::getWindow() const 
+void* GLFWOutputWindow::getWindow() const
 {
     return static_cast<GLFWwindow*>(this->window);
-}
-
-GtsKeyTranslator* GLFWOutputWindow::getKeyTranslatorPtr() const
-{
-    return keyTranslator.get();
 }

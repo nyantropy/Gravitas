@@ -10,6 +10,7 @@
 int main()
 {
     EngineConfig config;
+    config.graphics.backend                     = GraphicsBackend::Vulkan;
     config.graphics.window.width                = 1920;
     config.graphics.window.height               = 1080;
     config.graphics.window.title                = "GravitasTetris";

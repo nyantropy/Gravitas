@@ -9,6 +9,7 @@
 int main()
 {
     EngineConfig config;
+    config.graphics.backend                     = GraphicsBackend::Vulkan;
     config.graphics.window.width                = 800;
     config.graphics.window.height               = 800;
     config.graphics.window.title                = "GtsScene1";

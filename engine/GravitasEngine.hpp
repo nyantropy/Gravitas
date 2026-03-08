@@ -6,7 +6,8 @@
 #include "ECSWorld.hpp"
 #include "Timer.hpp"
 #include "TimeContext.h"
-#include "Graphics.hpp"
+#include "IGtsGraphicsModule.hpp"
+#include "VulkanGraphics.hpp"
 #include "RenderCommandExtractor.hpp"
 
 #include "SceneManager.hpp"
@@ -39,7 +40,7 @@ class GravitasEngine
         PauseFilteredInputSource filteredInputSource;
 
         // graphics module related structures
-        std::unique_ptr<Graphics> graphics;
+        std::unique_ptr<IGtsGraphicsModule> graphics;
 
         // used to extract all render commands from the currently active ecs world
         std::unique_ptr<RenderCommandExtractor> renderCommandExtractor;
@@ -72,7 +73,7 @@ class GravitasEngine
             sceneContext.actions           = actionManager.get();    // always live
             sceneContext.time              = &timeContext;
             sceneContext.engineCommands    = &engineCommands;
-            sceneContext.windowAspectRatio = graphics->windowManager->getOutputWindow()->getAspectRatio();
+            sceneContext.windowAspectRatio = graphics->getAspectRatio();
         }
 
         // its only a render system now, maybe this will move later
@@ -90,11 +91,20 @@ class GravitasEngine
             filteredInputSource.setSource(*inputManager);
         }
 
-        // create the Graphics class and wire the InputManager into the window
+        // create the graphics module and wire key events into the input manager via subscription
         void createGraphicsModule()
         {
-            graphics = std::make_unique<Graphics>(engineConfig.graphics);
-            graphics->windowManager->getOutputWindow()->setInputManager(inputManager.get());
+            switch (engineConfig.graphics.backend)
+            {
+                case GraphicsBackend::Vulkan:
+                    graphics = std::make_unique<VulkanGraphics>(engineConfig.graphics);
+                    break;
+            }
+
+            graphics->onKeyPressed().subscribe([this](const GtsKeyEvent& e)
+            {
+                inputManager->onKeyEvent(e.key, e.pressed);
+            });
         }
     public:
         explicit GravitasEngine(EngineConfig config = EngineConfig{}) : engineConfig(std::move(config))
@@ -182,7 +192,7 @@ class GravitasEngine
         // render call
         void render(float dt)
         {
-            graphics->renderFrame(dt, renderCommandExtractor->extractRenderList(sceneManager->getActiveScene()->getWorld()));  
+            graphics->renderFrame(dt, renderCommandExtractor->extractRenderList(sceneManager->getActiveScene()->getWorld()));
         }
 
         // command callback from lower level architectures

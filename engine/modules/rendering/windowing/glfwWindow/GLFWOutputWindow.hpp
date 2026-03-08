@@ -17,8 +17,6 @@ class GLFWOutputWindow : public OutputWindow
         void getSize(int& width, int& height) const override;
         void* getWindow() const override;
 
-        GtsKeyTranslator* getKeyTranslatorPtr() const override;
-
         void setFullscreen() override;
         void setWindowed()   override;
 
@@ -40,18 +38,10 @@ class GLFWOutputWindow : public OutputWindow
         static void onKeyPressedCallbackStatic(GLFWwindow* window, int key, int scancode, int action, int mods)
         {
             auto app = reinterpret_cast<GLFWOutputWindow*>(glfwGetWindowUserPointer(window));
+            if (!app) return;
 
-            // if the window does not exist, simply return
-            if (!app)
-            {
-                return;
-            }
-
-            // translate the layout-independent scancode to a GtsKey
-            GtsKey gtskey = app->getKeyTranslatorPtr()->fromPlatformScancode(scancode);
-            app->processKeyEvent(gtskey, action != GLFW_RELEASE);
-
-            // notify our own event (old approach)
-            app->onKeyPressed.notify(key, scancode, action, mods);
+            GtsKey gtsKey = app->keyTranslator->fromPlatformScancode(scancode);
+            bool   pressed = !app->keyTranslator->isReleaseAction(action);
+            app->onKeyPressed.notify(GtsKeyEvent{gtsKey, pressed});
         }
 };

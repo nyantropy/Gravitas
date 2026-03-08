@@ -1,25 +1,5 @@
 #pragma once
 
-// #define GLM_FORCE_RADIANS
-// #define GLM_FORCE_DEPTH_ZERO_TO_ONE
-// #define GLM_ENABLE_EXPERIMENTAL
-// #include <glm.hpp>
-// #include <gtc/matrix_transform.hpp>
-// #include <gtx/hash.hpp>
-
-// extern "C" {
-//     #ifdef HAVE_AV_CONFIG_H
-//     #undef HAVE_AV_CONFIG_H
-//     #endif
-
-//     #include <libavutil/imgutils.h>
-//     #include <libavcodec/avcodec.h>
-//     #include <libswscale/swscale.h>
-//     #include <libavformat/avformat.h>
-//     #include <libavutil/opt.h>
-//     #include <libavutil/timestamp.h>
-// }
-
 #include "GraphicsConstants.h"
 
 // window manager include
@@ -49,8 +29,7 @@
 #include "TransformComponent.h"
 
 #include "GraphicsConfig.h"
-
-#include "GravitasEngine.hpp"
+#include "IGtsGraphicsModule.hpp"
 
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
@@ -58,23 +37,7 @@ const bool enableValidationLayers = false;
 const bool enableValidationLayers = true;
 #endif
 
-// VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
-//     auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-//     if (func != nullptr) {
-//         return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
-//     } else {
-//         return VK_ERROR_EXTENSION_NOT_PRESENT;
-//     }
-// }
-
-// void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
-//     auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-//     if (func != nullptr) {
-//         func(instance, debugMessenger, pAllocator);
-//     }
-// }
-
-class Graphics 
+class VulkanGraphics : public IGtsGraphicsModule
 {
 public:
     GraphicsConfig config;
@@ -88,14 +51,14 @@ public:
     std::unique_ptr<ForwardRenderer> renderer;
 
     // window event propagation, but a lot more simple than before
-    GtsEvent<int, int>& onResize() { return windowManager->onResize(); }
-    GtsEvent<int, int, int, int>& onKeyPressed() { return windowManager->onKeyPressed(); }
+    GtsEvent<int, int>& onResize() override { return windowManager->onResize(); }
+    GtsEvent<GtsKeyEvent>& onKeyPressed() override { return windowManager->onKeyPressed(); }
 
     // renderer event propagation
-    GtsEvent<int, uint32_t>& onFrameEnded() { return renderer->onFrameEnded; }
+    GtsEvent<int, uint32_t>& onFrameEnded() override { return renderer->onFrameEnded; }
 
 
-    Graphics(const GraphicsConfig& config): config(config)
+    VulkanGraphics(const GraphicsConfig& config): config(config)
     {
         createWindow();
         createContext();
@@ -106,6 +69,7 @@ public:
     void createWindow()
     {
         WindowManagerConfig wmConfig;
+        wmConfig.windowBackend          = WindowBackend::GLFW;
         wmConfig.windowWidth            = config.window.width;
         wmConfig.windowHeight           = config.window.height;
         wmConfig.windowTitle            = config.window.title;
@@ -135,7 +99,7 @@ public:
         renderer = std::make_unique<ForwardRenderer>(rConfig);
     }
 
-    void cleanup() 
+    void cleanup()
     {
         renderer.reset();
         vContext.reset();
@@ -144,34 +108,39 @@ public:
 
     // whenever the graphics module renders a frame, we poll the window events, and direct
     // the draw call to the renderer
-    void renderFrame(float dt, const std::vector<RenderCommand> renderList) 
+    void renderFrame(float dt, const std::vector<RenderCommand>& renderList) override
     {
         renderer->renderFrame(dt, renderList);
     }
 
-    void pollWindowEvents()
+    void pollWindowEvents() override
     {
         windowManager->getOutputWindow()->pollEvents();
     }
 
-    void shutdown()
+    void shutdown() override
     {
         vkDeviceWaitIdle(vcsheet::getDevice());
         cleanup();
     }
 
-    bool isWindowOpen()
+    bool isWindowOpen() const override
     {
         return !windowManager->getOutputWindow()->shouldClose();
     }
 
-    IResourceProvider* getResourceProvider()
+    float getAspectRatio() const override
+    {
+        return windowManager->getOutputWindow()->getAspectRatio();
+    }
+
+    IResourceProvider* getResourceProvider() override
     {
         return renderer->getResourceSystem();
     }
 
 private:
-    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) 
+    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
     {
         std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
 

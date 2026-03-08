@@ -13,8 +13,6 @@ class InputManager : public IInputSource
         std::array<bool, KEY_COUNT> currentState{};
         std::array<bool, KEY_COUNT> previousState{};
 
-        // Output windows can call the onKeyEvent
-        friend class OutputWindow;
         void onKeyEvent(GtsKey key, bool pressed)
         {
             size_t idx = static_cast<size_t>(key);

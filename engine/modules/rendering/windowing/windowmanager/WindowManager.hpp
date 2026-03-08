@@ -10,7 +10,6 @@ class WindowManager
         WindowManagerConfig config;
         std::unique_ptr<OutputWindow> outputWindow;
 
-        // simply creates our glfw window for now, a very simple wrap to make the base code more readable, and more easily handle resource encapsulation and destruction
         void createWindow()
         {
             OutputWindowConfig owConfig;
@@ -19,7 +18,13 @@ class WindowManager
             owConfig.height                 = config.windowHeight;
             owConfig.title                  = config.windowTitle;
             owConfig.borderlessFullscreen   = config.borderlessFullscreen;
-            outputWindow = std::make_unique<GLFWOutputWindow>(owConfig);
+
+            switch (config.windowBackend)
+            {
+                case WindowBackend::GLFW:
+                    outputWindow = std::make_unique<GLFWOutputWindow>(owConfig);
+                    break;
+            }
         }
 
 
@@ -35,11 +40,11 @@ class WindowManager
             if (outputWindow) outputWindow.reset();
         }
 
-        OutputWindow* getOutputWindow()
+        OutputWindow* getOutputWindow() const
         {
             return outputWindow.get();
         }
 
         GtsEvent<int, int>& onResize() { return outputWindow->onResize; }
-        GtsEvent<int, int, int, int>& onKeyPressed() { return outputWindow->onKeyPressed; }
+        GtsEvent<GtsKeyEvent>& onKeyPressed() { return outputWindow->onKeyPressed; }
 };

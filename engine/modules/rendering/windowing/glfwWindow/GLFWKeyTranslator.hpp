@@ -112,4 +112,9 @@ public:
             return -1;
         return keyToScancode[idx];
     }
+
+    bool isReleaseAction(int platformAction) const override
+    {
+        return platformAction == GLFW_RELEASE;
+    }
 };

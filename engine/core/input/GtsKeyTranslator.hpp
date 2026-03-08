@@ -18,4 +18,8 @@ public:
     // Returns -1 for GtsKey::Unknown or any key that has no platform mapping.
     // Useful for displaying bindings or future rebinding UI.
     virtual int toPlatformScancode(GtsKey key) const = 0;
+
+    // Returns true if the platform action value represents a key release.
+    // Hides the platform-specific constant (e.g. GLFW_RELEASE) from engine code.
+    virtual bool isReleaseAction(int platformAction) const = 0;
 };
