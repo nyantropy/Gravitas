@@ -11,9 +11,21 @@
 class IResourceProvider
 {
     public:
-        virtual mesh_id_type    requestMesh(const std::string& path) = 0;
-        virtual texture_id_type requestTexture(const std::string& path) = 0;
+        // request a mesh id from the resource provider
+        virtual mesh_id_type requestMesh(const std::string& path) = 0;
 
+        // Procedural mesh upload for CPU-generated geometry (e.g., text quads).
+        // If existingId == 0 a new mesh is allocated and its ID is returned.
+        // If existingId != 0 the existing GPU buffers are replaced with the new
+        // geometry; the same ID is returned.  The caller (a ControllerSystem) is
+        // responsible for storing the returned ID and passing it on subsequent
+        // calls to update the same mesh.
+        virtual mesh_id_type uploadProceduralMesh(mesh_id_type                  existingId,
+                                                  const std::vector<Vertex>&    vertices,
+                                                  const std::vector<uint32_t>&  indices) = 0;
+
+        // request a texture from the resource provider, no nearest neighbor
+        virtual texture_id_type requestTexture(const std::string& path) = 0;
         // Like requestTexture but forces NEAREST-neighbor sampling and no anisotropy.
         // Use for pixel-art or bitmap-font atlases that must render crisp.
         virtual texture_id_type requestPixelTexture(const std::string& path) = 0;
@@ -33,14 +45,4 @@ class IResourceProvider
         // releaseObjectSlot returns the index to the free-list for future reuse.
         virtual ssbo_id_type requestObjectSlot() = 0;
         virtual void         releaseObjectSlot(ssbo_id_type slot) = 0;
-
-        // Procedural mesh upload for CPU-generated geometry (e.g., text quads).
-        // If existingId == 0 a new mesh is allocated and its ID is returned.
-        // If existingId != 0 the existing GPU buffers are replaced with the new
-        // geometry; the same ID is returned.  The caller (a ControllerSystem) is
-        // responsible for storing the returned ID and passing it on subsequent
-        // calls to update the same mesh.
-        virtual mesh_id_type uploadProceduralMesh(mesh_id_type                  existingId,
-                                                  const std::vector<Vertex>&    vertices,
-                                                  const std::vector<uint32_t>&  indices) = 0;
 };

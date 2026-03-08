@@ -20,6 +20,7 @@ add_subdirectory(backend/vulkan/vksetup)
 add_subdirectory(backend/vulkan/rendering)
 add_subdirectory(backend/vulkan/util)
 add_subdirectory(backend/vulkan/texture)
+add_subdirectory(backend/vulkan/resources)
 add_subdirectory(windowing)
 add_subdirectory(resources)
 
