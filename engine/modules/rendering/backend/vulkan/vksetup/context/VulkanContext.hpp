@@ -12,7 +12,6 @@
 #include "VulkanInstance.hpp"
 
 // window surface includes
-#include "VulkanSurfaceConfig.h"
 #include "VulkanSurface.hpp"
 #include "GLFWVulkanSurface.hpp"
 
@@ -61,12 +60,11 @@ class VulkanContext
 
         void setupVkSurface()
         {
-            // setup a new window surface with its dedicated config
-            // this time we use polymorphism, so we only need to pass the instance we configured before, and let the window class do the
-            // rest of the work
-            VulkanSurfaceConfig wsConfig;
-            wsConfig.vkInstance = this->getInstance();
-            vsurface = this->config.outputWindowPtr->createSurface(wsConfig);
+            GLFWwindow* nativeHandle = static_cast<GLFWwindow*>(this->config.outputWindowPtr->getWindow());
+            VulkanSurfaceConfig surfConfig;
+            surfConfig.vkInstance   = this->getInstance();
+            surfConfig.nativeWindow = nativeHandle;
+            vsurface = std::make_unique<GLFWVulkanSurface>(surfConfig);
         }
 
         void setupVkPhysicalDevice()

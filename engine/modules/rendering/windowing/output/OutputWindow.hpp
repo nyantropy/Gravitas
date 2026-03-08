@@ -4,11 +4,7 @@
 #include <string>
 #include <memory>
 
-#include <vulkan/vulkan.h>
-
 #include "OutputWindowConfig.h"
-#include "VulkanSurfaceConfig.h"
-#include "VulkanSurface.hpp"
 #include "GtsEvent.hpp"
 #include "GtsKeyTranslator.hpp"
 #include "InputManager.hpp"
@@ -48,7 +44,6 @@ class OutputWindow
         virtual void getSize(int& width, int& height) const = 0;
         virtual void* getWindow() const = 0;
         virtual GtsKeyTranslator* getKeyTranslatorPtr() const = 0;
-        virtual std::vector<const char*> getRequiredExtensions() const = 0;
 
         float getAspectRatio() const
         {
@@ -61,7 +56,4 @@ class OutputWindow
         // No-op default allows platforms that don't support fullscreen to compile.
         virtual void setFullscreen() {}
         virtual void setWindowed()   {}
-
-        // important factory pattern for easier surface creation and windowing extensions
-        virtual std::unique_ptr<VulkanSurface> createSurface(VulkanSurfaceConfig config) const = 0;
 };

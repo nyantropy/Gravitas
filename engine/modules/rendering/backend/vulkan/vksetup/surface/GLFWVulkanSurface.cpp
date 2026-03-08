@@ -15,14 +15,14 @@ void GLFWVulkanSurface::init()
 {
     if(surface == VK_NULL_HANDLE)
     {
-        if (glfwCreateWindowSurface(this->config.vkInstance, static_cast<GLFWwindow*>(this->config.nativeWindow), nullptr, &surface) != VK_SUCCESS) 
+        if (glfwCreateWindowSurface(this->config.vkInstance, static_cast<GLFWwindow*>(this->config.nativeWindow), nullptr, &surface) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create window surface!");
         }
     }
 }
 
-VkSurfaceKHR& GLFWVulkanSurface::getSurface() 
+VkSurfaceKHR& GLFWVulkanSurface::getSurface()
 {
     return surface;
 }

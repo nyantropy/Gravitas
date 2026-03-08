@@ -117,10 +117,13 @@ public:
     // create a concrete Vulkan Context object, accessible with an accessheet on a global basis
     void createContext()
     {
+        uint32_t glfwExtensionCount = 0;
+        const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
         VulkanContextConfig vcConfig;
-        vcConfig.enableValidationLayers = enableValidationLayers;
-        vcConfig.vulkanInstanceExtensions = windowManager->getOutputWindow()->getRequiredExtensions();
-        vcConfig.outputWindowPtr = windowManager->getOutputWindow();
+        vcConfig.enableValidationLayers   = enableValidationLayers;
+        vcConfig.vulkanInstanceExtensions = std::vector<const char*>(glfwExtensions, glfwExtensions + glfwExtensionCount);
+        vcConfig.outputWindowPtr          = windowManager->getOutputWindow();
         vContext = std::make_unique<VulkanContext>(vcConfig);
         vcsheet::SetContext(vContext.get());
     }

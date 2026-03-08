@@ -9,7 +9,7 @@
 #include "VulkanSurface.hpp"
 #include "VulkanSurfaceConfig.h"
 
-class GLFWVulkanSurface : public VulkanSurface 
+class GLFWVulkanSurface : public VulkanSurface
 {
     public:
         GLFWVulkanSurface(VulkanSurfaceConfig config);

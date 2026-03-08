@@ -1,5 +1,7 @@
 #pragma once
 
+// Intentional: VK_MAKE_API_VERSION is required to encode the Vulkan version field.
+// This struct is Vulkan-specific configuration used only by the graphics backend.
 #include <vulkan/vulkan.h>
 
 #include <cstdint>

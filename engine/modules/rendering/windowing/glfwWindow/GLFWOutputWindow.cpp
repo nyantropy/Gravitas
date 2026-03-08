@@ -1,4 +1,5 @@
 #include "GLFWOutputWindow.hpp"
+
 #include <algorithm>
 
 GLFWOutputWindow::GLFWOutputWindow(OutputWindowConfig config): OutputWindow(config)
@@ -88,27 +89,4 @@ void* GLFWOutputWindow::getWindow() const
 GtsKeyTranslator* GLFWOutputWindow::getKeyTranslatorPtr() const
 {
     return keyTranslator.get();
-}
-
-std::vector<const char*> GLFWOutputWindow::getRequiredExtensions() const
-{
-    uint32_t glfwExtensionCount = 0;
-    const char** glfwExtensions;
-    glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-    std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-
-    if (config.enableValidationLayers) 
-    {
-        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    }
-
-    return extensions;
-}
-
-// return a unique pointer with the glfw surface handle wrapper
-std::unique_ptr<VulkanSurface> GLFWOutputWindow::createSurface(VulkanSurfaceConfig config) const
-{
-    config.nativeWindow = this->window;
-    return std::make_unique<GLFWVulkanSurface>(config);
 }

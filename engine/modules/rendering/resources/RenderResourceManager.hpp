@@ -11,11 +11,11 @@
 class RenderResourceManager : public IResourceProvider
 {
     private:
-        std::unique_ptr<DescriptorSetManager>  descriptorSetManager;
-        std::unique_ptr<MeshManager>           meshManager;
-        std::unique_ptr<CameraBufferManager>   cameraBufferManager;
-        std::unique_ptr<TextureManager>        textureManager;
-        std::unique_ptr<ObjectSSBOManager>     objectSSBOManager;
+        std::unique_ptr<DescriptorSetManager>     descriptorSetManager;
+        std::unique_ptr<MeshManager>              meshManager;
+        std::unique_ptr<CameraBufferManager>      cameraBufferManager;
+        std::unique_ptr<TextureManager>           textureManager;
+        std::unique_ptr<ObjectSSBOManager>        objectSSBOManager;
 
     public:
         RenderResourceManager()
@@ -91,21 +91,14 @@ class RenderResourceManager : public IResourceProvider
         }
 
         // Writes view/proj to every frames-in-flight UBO slot for this view.
-        // Called by CameraBindingSystem; the renderer only needs to bind the
-        // descriptor set — it no longer owns the camera UBO upload.
+        // Called by CameraBindingSystem.
         void uploadCameraView(view_id_type id, const glm::mat4& view, const glm::mat4& proj) override
         {
-            CameraBufferResource* res = cameraBufferManager->getView(id);
-            if (!res) return;
-
-            CameraUBO ubo;
-            ubo.view = view;
-            ubo.proj = proj;
-
-            for (void* mapped : res->uniformBuffersMapped)
-                memcpy(mapped, &ubo, sizeof(CameraUBO));
+            cameraBufferManager->uploadView(id, view, proj);
         }
 
+        // Backend-only: returns raw GPU resource for descriptor-set binding.
+        // Called only from ForwardRenderer (backend), which holds RenderResourceManager*.
         CameraBufferResource* getCameraView(view_id_type id)
         {
             return cameraBufferManager->getView(id);

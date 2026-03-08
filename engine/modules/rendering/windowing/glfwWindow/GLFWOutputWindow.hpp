@@ -1,18 +1,12 @@
 #pragma once
 
 #include <GLFW/glfw3.h>
-#include <vulkan/vulkan.h>
-#include <memory>
 
 #include "OutputWindow.hpp"
 #include "OutputWindowConfig.h"
-
-#include "VulkanSurface.hpp"
-#include "GLFWVulkanSurface.hpp"
-#include "VulkanSurfaceConfig.h"
 #include "GLFWKeyTranslator.hpp"
 
-class GLFWOutputWindow : public OutputWindow 
+class GLFWOutputWindow : public OutputWindow
 {
     public:
         GLFWOutputWindow(OutputWindowConfig config);
@@ -22,10 +16,8 @@ class GLFWOutputWindow : public OutputWindow
         void pollEvents() override;
         void getSize(int& width, int& height) const override;
         void* getWindow() const override;
-        std::vector<const char*> getRequiredExtensions() const override;
 
         GtsKeyTranslator* getKeyTranslatorPtr() const override;
-        std::unique_ptr<VulkanSurface> createSurface(VulkanSurfaceConfig config) const override;
 
         void setFullscreen() override;
         void setWindowed()   override;

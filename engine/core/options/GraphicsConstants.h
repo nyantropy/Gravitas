@@ -3,8 +3,6 @@
 #include <cstdint>
 #include <string>
 
-#include <vulkan/vulkan.h>
-
 // needed to make intellisense shut up, we get the engine root from cmake, since that seems like a cleaner way
 #ifndef GRAVITAS_ENGINE_ROOT
 #define GRAVITAS_ENGINE_ROOT

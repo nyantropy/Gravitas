@@ -4,7 +4,7 @@
 
 #include "VulkanSurfaceConfig.h"
 
-class VulkanSurface 
+class VulkanSurface
 {
     protected:
         VulkanSurfaceConfig config;

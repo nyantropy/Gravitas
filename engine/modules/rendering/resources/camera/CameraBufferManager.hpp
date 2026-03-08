@@ -93,6 +93,20 @@ class CameraBufferManager
             return (it != idToView.end()) ? it->second.get() : nullptr;
         }
 
+        // Writes view/proj matrices to every UBO slot for this render view.
+        void uploadView(view_id_type id, const glm::mat4& view, const glm::mat4& proj)
+        {
+            CameraBufferResource* res = getView(id);
+            if (!res) return;
+
+            CameraUBO ubo;
+            ubo.view = view;
+            ubo.proj = proj;
+
+            for (void* mapped : res->uniformBuffersMapped)
+                memcpy(mapped, &ubo, sizeof(CameraUBO));
+        }
+
     private:
         std::unordered_map<view_id_type, std::unique_ptr<CameraBufferResource>> idToView;
         view_id_type nextID = 1; // 0 = invalid
