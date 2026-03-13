@@ -19,6 +19,7 @@ target_include_directories(GravitasTetris PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/helpers"
     "${CMAKE_CURRENT_SOURCE_DIR}/struct"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ai"
 )
 target_link_libraries(GravitasTetris PRIVATE GravitasEngine)
 

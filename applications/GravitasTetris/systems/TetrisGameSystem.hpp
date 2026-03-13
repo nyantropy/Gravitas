@@ -43,6 +43,20 @@ class TetrisGameSystem : public ECSSimulationSystem
         static constexpr int        QUEUE_SIZE         = PieceQueueController::QUEUE_SIZE;
         static constexpr glm::ivec2 NEXT_DISPLAY_PIVOT = PieceQueueController::NEXT_DISPLAY_PIVOT;
 
+        // Read-only accessors for external systems (e.g. AI).
+        const TetrisGrid& getBoardGrid()        const { return board.getGrid(); }
+        TetrominoType     getActivePieceType()  const { return piece.active.type; }
+        int               getActivePiecePivotX() const { return piece.active.pivot.x; }
+        int               getActivePiecePivotY() const { return piece.active.pivot.y; }
+        int               getActivePieceRotation() const { return piece.active.rotation; }
+        bool              hasNextPiece()        const { return queue.hasQueue(); }
+        TetrominoType     getNextPieceType()    const { return queue.front(); }
+        bool              hasNextNextPiece()    const { return queue.hasSecond(); }
+        TetrominoType     getNextNextPieceType() const { return queue.second(); }
+        bool              hasHeldPiece()        const { return hold.hasHeld(); }
+        TetrominoType     getHeldPieceType()    const { return hold.heldType(); }
+        bool              isHoldAvailable()     const { return hold.isAvailable(); }
+
         TetrisGameSystem(Entity holdAnchor, Entity nextAnchor)
             : hold(holdAnchor), queue(nextAnchor) {}
 

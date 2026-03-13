@@ -38,8 +38,10 @@ struct PieceQueueController
         }
     }
 
-    bool          hasQueue() const { return QUEUE_SIZE > 0 && !nextQueue.empty(); }
-    TetrominoType front()    const { return nextQueue.front(); }
+    bool          hasQueue()  const { return QUEUE_SIZE > 0 && !nextQueue.empty(); }
+    TetrominoType front()     const { return nextQueue.front(); }
+    bool          hasSecond() const { return QUEUE_SIZE >= 2 && nextQueue.size() >= 2; }
+    TetrominoType second()    const { return nextQueue[1]; }
 
     // Pops the front piece (destroys its entities), pushes a new random piece,
     // slides all previews up one slot, and returns the consumed type.

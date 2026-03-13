@@ -61,6 +61,10 @@ struct HoldController
     // Resets the per-piece hold guard so the next piece can use hold.
     void resetTurn() { state.usedThisTurn = false; }
 
+    bool          hasHeld()     const { return state.hasHeld; }
+    TetrominoType heldType()    const { return state.heldType; }
+    bool          isAvailable() const { return !state.usedThisTurn; }
+
     // Repositions the display blocks to reflect the current hold state.
     void refreshDisplay(ECSWorld& world)
     {

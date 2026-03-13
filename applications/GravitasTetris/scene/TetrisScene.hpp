@@ -29,6 +29,7 @@
 
 #include "Vertex.h"
 #include "GraphicsConstants.h"
+#include "AiRegistration.h"
 
 class TetrisScene : public GtsScene
 {
@@ -348,9 +349,12 @@ public:
         installRendererFeature();
 
         ecsWorld.addControllerSystem<TetrisInputSystem>();
+        // Register TetrisGameSystem before the AI so we can pass a direct reference.
+        // Simulation-phase order is unchanged: TetrisGameSystem remains first.
+        TetrisGameSystem& gameSystem =
+            ecsWorld.addSimulationSystem<TetrisGameSystem>(holdGroupAnchor, nextGroupAnchor);
+        RegisterAi(ecsWorld, gameSystem);
         ecsWorld.addControllerSystem<TetrisCameraControlSystem>();
-        // Pass anchors so TetrisGameSystem can parent hold and preview blocks at runtime.
-        ecsWorld.addSimulationSystem<TetrisGameSystem>(holdGroupAnchor, nextGroupAnchor);
         ecsWorld.addSimulationSystem<TetrisScoreSystem>();
         ecsWorld.addControllerSystem<TetrisVisualSystem>();
         ecsWorld.addSimulationSystem<TetrisCameraSystem>();
