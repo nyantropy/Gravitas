@@ -74,7 +74,7 @@ public:
         wmConfig.windowHeight           = config.window.height;
         wmConfig.windowTitle            = config.window.title;
         wmConfig.enableValidationLayers = config.window.enableValidationLayers;
-        wmConfig.borderlessFullscreen   = config.window.borderlessFullscreen;
+        wmConfig.windowMode             = config.window.windowMode;
         windowManager = std::make_unique<WindowManager>(wmConfig);
     }
 

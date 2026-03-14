@@ -41,6 +41,7 @@ class OutputWindow
 
         // Borderless fullscreen toggle — saves and restores windowed state.
         // No-op default allows platforms that don't support fullscreen to compile.
-        virtual void setFullscreen() {}
-        virtual void setWindowed()   {}
+        virtual void setWindowed()             {}
+        virtual void setBorderlessFullscreen() {}
+        virtual void setFullscreen()           {}
 };

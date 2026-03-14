@@ -13,7 +13,7 @@ int main()
     config.graphics.window.width                = 800;
     config.graphics.window.height               = 800;
     config.graphics.window.title                = "GtsScene1";
-    config.graphics.window.borderlessFullscreen = false;
+    config.graphics.window.windowMode           = WindowMode::Windowed;
     config.graphics.window.vsync                = true;
 
     GravitasEngine engine(config);

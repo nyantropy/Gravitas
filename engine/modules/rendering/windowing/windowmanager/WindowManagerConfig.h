@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include "WindowBackend.h"
+#include "OutputWindowConfig.h"
 
 struct WindowManagerConfig
 {
@@ -11,5 +12,5 @@ struct WindowManagerConfig
     uint32_t    windowHeight            = 1080;
     std::string windowTitle             = "Gravitas";
     bool        enableValidationLayers  = false;
-    bool        borderlessFullscreen    = false;
+    WindowMode  windowMode              = WindowMode::Windowed;
 };

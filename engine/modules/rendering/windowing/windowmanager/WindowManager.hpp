@@ -17,7 +17,7 @@ class WindowManager
             owConfig.width                  = config.windowWidth;
             owConfig.height                 = config.windowHeight;
             owConfig.title                  = config.windowTitle;
-            owConfig.borderlessFullscreen   = config.borderlessFullscreen;
+            owConfig.windowMode             = config.windowMode;
 
             switch (config.windowBackend)
             {

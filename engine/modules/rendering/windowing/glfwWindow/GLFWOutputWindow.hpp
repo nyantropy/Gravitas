@@ -17,8 +17,9 @@ class GLFWOutputWindow : public OutputWindow
         void getSize(int& width, int& height) const override;
         void* getWindow() const override;
 
-        void setFullscreen() override;
-        void setWindowed()   override;
+        void setWindowed()             override;
+        void setBorderlessFullscreen() override;
+        void setFullscreen()           override;
 
     private:
         void init() override;

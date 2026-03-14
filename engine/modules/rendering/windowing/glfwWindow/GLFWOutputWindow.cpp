@@ -1,7 +1,5 @@
 #include "GLFWOutputWindow.hpp"
 
-#include <algorithm>
-
 GLFWOutputWindow::GLFWOutputWindow(OutputWindowConfig config): OutputWindow(config)
 {
     this->init();
@@ -21,49 +19,58 @@ void GLFWOutputWindow::init()
 {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-    if (config.borderlessFullscreen)
-    {
-        int           monitorCount = 0;
-        GLFWmonitor** monitors     = glfwGetMonitors(&monitorCount);
-        GLFWmonitor*  monitor      = monitors[std::clamp(config.monitorIndex, 0, monitorCount - 1)];
-        const GLFWvidmode* mode    = glfwGetVideoMode(monitor);
-        glfwWindowHint(GLFW_RED_BITS,     mode->redBits);
-        glfwWindowHint(GLFW_GREEN_BITS,   mode->greenBits);
-        glfwWindowHint(GLFW_BLUE_BITS,    mode->blueBits);
-        glfwWindowHint(GLFW_REFRESH_RATE, mode->refreshRate);
-        glfwWindowHint(GLFW_DECORATED,    GLFW_FALSE);
-        this->window = glfwCreateWindow(mode->width, mode->height, config.title.c_str(), monitor, nullptr);
-    }
-    else
-    {
-        this->window = glfwCreateWindow(config.width, config.height, config.title.c_str(), nullptr, nullptr);
-    }
+    this->window = glfwCreateWindow(
+        config.width, config.height, config.title.c_str(), nullptr, nullptr);
 
     glfwSetWindowUserPointer(static_cast<GLFWwindow*>(this->window), this);
     glfwSetFramebufferSizeCallback(static_cast<GLFWwindow*>(this->window), framebufferResizeCallbackStatic);
     glfwSetKeyCallback(static_cast<GLFWwindow*>(this->window), onKeyPressedCallbackStatic);
-}
 
-void GLFWOutputWindow::setFullscreen()
-{
-    GLFWwindow* gw = static_cast<GLFWwindow*>(this->window);
-    glfwGetWindowPos(gw, &savedX, &savedY);
-    glfwGetWindowSize(gw, &savedW, &savedH);
-
-    GLFWmonitor*       monitor = glfwGetPrimaryMonitor();
-    const GLFWvidmode* mode    = glfwGetVideoMode(monitor);
-    glfwSetWindowAttrib(gw, GLFW_DECORATED, GLFW_FALSE);
-    glfwSetWindowPos(gw, 0, 0);
-    glfwSetWindowSize(gw, mode->width, mode->height);
+    switch (config.windowMode)
+    {
+        case WindowMode::BorderlessFullscreen: setBorderlessFullscreen(); break;
+        case WindowMode::Fullscreen:           setFullscreen();           break;
+        case WindowMode::Windowed:             setWindowed();             break;
+    }
 }
 
 void GLFWOutputWindow::setWindowed()
 {
     GLFWwindow* gw = static_cast<GLFWwindow*>(this->window);
     glfwSetWindowAttrib(gw, GLFW_DECORATED, GLFW_TRUE);
-    glfwSetWindowPos(gw, savedX, savedY);
-    glfwSetWindowSize(gw, savedW, savedH);
+    glfwSetWindowAttrib(gw, GLFW_RESIZABLE, GLFW_TRUE);
+    glfwSetWindowMonitor(gw, nullptr, savedX, savedY, config.width, config.height, 0);
+    config.windowMode = WindowMode::Windowed;
+}
+
+void GLFWOutputWindow::setBorderlessFullscreen()
+{
+    GLFWwindow*        gw      = static_cast<GLFWwindow*>(this->window);
+    GLFWmonitor*       monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode* mode    = glfwGetVideoMode(monitor);
+    if (config.windowMode == WindowMode::Windowed)
+    {
+        glfwGetWindowPos(gw, &savedX, &savedY);
+        glfwGetWindowSize(gw, &savedW, &savedH);
+    }
+    glfwSetWindowAttrib(gw, GLFW_DECORATED,    GLFW_FALSE);
+    glfwSetWindowAttrib(gw, GLFW_AUTO_ICONIFY, GLFW_FALSE);
+    glfwSetWindowMonitor(gw, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+    config.windowMode = WindowMode::BorderlessFullscreen;
+}
+
+void GLFWOutputWindow::setFullscreen()
+{
+    GLFWwindow*        gw      = static_cast<GLFWwindow*>(this->window);
+    GLFWmonitor*       monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode* mode    = glfwGetVideoMode(monitor);
+    if (config.windowMode == WindowMode::Windowed)
+    {
+        glfwGetWindowPos(gw, &savedX, &savedY);
+        glfwGetWindowSize(gw, &savedW, &savedH);
+    }
+    glfwSetWindowMonitor(gw, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+    config.windowMode = WindowMode::Fullscreen;
 }
 
 bool GLFWOutputWindow::shouldClose() const 
