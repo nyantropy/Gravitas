@@ -11,6 +11,7 @@
 #include "GtsGameLoop.h"
 
 #include "RenderCommandExtractor.hpp"
+#include "UICommandExtractor.hpp"
 #include "SceneManager.hpp"
 
 #include "GtsCommand.h"
@@ -32,6 +33,9 @@ class GravitasEngine
 
         // used to extract all render commands from the currently active ecs world
         std::unique_ptr<RenderCommandExtractor> renderCommandExtractor;
+
+        // extracts UI text commands for the overlay pass
+        std::unique_ptr<UICommandExtractor> uiCommandExtractor;
 
         // the scene manager
         // the whole world is a stage after all
@@ -61,14 +65,17 @@ class GravitasEngine
         void createECSExtractors()
         {
             renderCommandExtractor = std::make_unique<RenderCommandExtractor>(engineConfig.frustumCullingEnabled);
+            uiCommandExtractor     = std::make_unique<UICommandExtractor>();
         }
 
         // render call
         void render(float dt)
         {
+            auto& world = sceneManager->getActiveScene()->getWorld();
             platform.getGraphics()->renderFrame(
                 dt,
-                renderCommandExtractor->extractRenderList(sceneManager->getActiveScene()->getWorld()));
+                renderCommandExtractor->extractRenderList(world),
+                uiCommandExtractor->extract(world));
         }
 
         // command callback from lower level architectures

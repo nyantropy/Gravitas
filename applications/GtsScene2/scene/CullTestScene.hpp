@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdio>
+#include <cstring>
 
 #include "GtsScene.hpp"
 #include "ECSWorld.hpp"
@@ -16,6 +17,10 @@
 #include "GraphicsConstants.h"
 #include "GtsKey.h"
 
+#include "BitmapFont.h"
+#include "BitmapFontLoader.h"
+#include "UITextComponent.h"
+
 #include "FreeFlyCamera.hpp"
 
 // Frustum culling test scene.
@@ -30,6 +35,9 @@ class CullTestScene : public GtsScene
 {
     static constexpr int   GRID_DIM     = 20;           // cubes per axis
     static constexpr float GRID_SPACING = 3.0f;         // world units between cube centres
+
+    BitmapFont overlayFont;
+    Entity     overlayEntity{};
 
     void spawnGrid()
     {
@@ -90,6 +98,26 @@ public:
         // FreeFlyCamera must run before CameraBindingSystem (installed by installRendererFeature)
         ecsWorld.addControllerSystem<FreeFlyCamera>();
         installRendererFeature();
+
+        const std::string atlasPath =
+            GraphicsConstants::ENGINE_RESOURCES + "/fonts/retrofont.png";
+        overlayFont = BitmapFontLoader::load(
+            ctx.resources, atlasPath,
+            /*atlasW=*/64, /*atlasH=*/40,
+            /*cellW=*/8,   /*cellH=*/8,  /*cols=*/8,
+            /*charOrder=*/"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+            /*lineHeight=*/1.2f,
+            /*pixelSampling=*/true);
+
+        overlayEntity = ecsWorld.createEntity();
+        UITextComponent ui;
+        ui.font    = &overlayFont;
+        ui.x       = 0.01f;
+        ui.y       = 0.01f;
+        ui.scale   = 0.04f;
+        ui.text    = "INITIALISING";
+        ui.visible = true;
+        ecsWorld.addComponent(overlayEntity, ui);
     }
 
     void onUpdateSimulation(SceneContext& ctx) override
@@ -122,12 +150,13 @@ public:
                 printf("\n[FRUSTUM] Frustum LIVE\n");
         }
 
-        // Live status line — updates in place on one terminal line
-        printf("\rCulling: %-3s | Frustum: %-6s | Visible: %3d / %3d   ",
+        char buf[128];
+        snprintf(buf, sizeof(buf),
+            "CULLING %s\nFRUSTUM %s\nVISIBLE %d / %d",
             extractor->isFrustumCullingEnabled() ? "ON" : "OFF",
-            extractor->isFrustumFrozen()     ? "FROZEN" : "LIVE",
+            extractor->isFrustumFrozen()         ? "FROZEN" : "LIVE",
             extractor->getLastVisibleRenderables(),
             extractor->getLastTotalRenderables());
-        fflush(stdout);
+        ecsWorld.getComponent<UITextComponent>(overlayEntity).text = buf;
     }
 };

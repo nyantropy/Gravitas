@@ -25,7 +25,8 @@
 #include "CameraOverrideComponent.h"
 #include "CameraControlOverrideComponent.h"
 #include "TransformComponent.h"
-#include "TextComponent.h"
+#include "QuadTextComponent.h"
+#include "BitmapFontLoader.h"
 #include "HierarchyHelper.h"
 
 #include "Vertex.h"
@@ -157,7 +158,7 @@ class TetrisScene : public GtsScene
         tc.position = glm::vec3(-2.0f, 3.0f, 0.0f);
         ecsWorld.addComponent(e, tc);
 
-        TextComponent text;
+        QuadTextComponent text;
         text.text  = "NEXT";
         text.font  = &scoreFont;
         text.scale = 1.0f;
@@ -175,7 +176,7 @@ class TetrisScene : public GtsScene
         tc.position = glm::vec3(-1.5f, 3.0f, 0.0f);
         ecsWorld.addComponent(e, tc);
 
-        TextComponent text;
+        QuadTextComponent text;
         text.text  = "HOLD";
         text.font  = &scoreFont;
         text.scale = 1.0f;
@@ -190,40 +191,13 @@ class TetrisScene : public GtsScene
         const std::string atlasPath =
             GraphicsConstants::ENGINE_RESOURCES + "/fonts/retrofont.png";
 
-        scoreFont.atlasTexture = ctx.resources->requestPixelTexture(atlasPath);
-        scoreFont.lineHeight   = 1.2f;
-
-        constexpr int ATLAS_W = 64;
-        constexpr int ATLAS_H = 40;
-
-        constexpr int CELL_W = 8;
-        constexpr int CELL_H = 8;
-        constexpr int COLS   = 8;
-
-        constexpr char charOrder[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        constexpr int  charCount   = sizeof(charOrder) - 1;
-
-        constexpr float fW = float(ATLAS_W);
-        constexpr float fH = float(ATLAS_H);
-
-        for (int i = 0; i < charCount; ++i)
-        {
-            const int col = i % COLS;
-            const int row = i / COLS;
-
-            const int ax0 = col * CELL_W;
-            const int ay0 = row * CELL_H;
-            const int ax1 = ax0 + CELL_W - 1;
-            const int ay1 = ay0 + CELL_H - 1;
-
-            scoreFont.glyphs[charOrder[i]] = GlyphInfo{
-                .uvMin   = { ax0 / fW,        ay0 / fH },
-                .uvMax   = { (ax1 + 1) / fW, (ay1 + 1) / fH },
-                .size    = { 1.0f, 1.0f },
-                .bearing = { 0.0f, 1.0f },
-                .advance = 1.0f
-            };
-        }
+        scoreFont = BitmapFontLoader::load(
+            ctx.resources, atlasPath,
+            /*atlasW=*/64, /*atlasH=*/40,
+            /*cellW=*/8,   /*cellH=*/8,  /*cols=*/8,
+            /*charOrder=*/"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+            /*lineHeight=*/1.2f,
+            /*pixelSampling=*/true);
 
         // Left sidebar: SPEED LV and LINES displayed below the HOLD piece preview.
         // AGENT CHANGE: y moved from 10.5→4.5 to share the same baseline as the right
@@ -238,7 +212,7 @@ class TetrisScene : public GtsScene
             tc.position = glm::vec3(-5.5f, 4.5f, 0.0f);   // AGENT CHANGE: aligned with right stats at y=4.5
             ecsWorld.addComponent(leftStats, tc);
 
-            TextComponent text;
+            QuadTextComponent text;
             text.text  = "LEVEL\n1\nLINES\n0000";
             text.font  = &scoreFont;
             text.scale = 0.6f;
@@ -256,7 +230,7 @@ class TetrisScene : public GtsScene
             tc.position = glm::vec3(11.0f, 4.5f, 0.0f);
             ecsWorld.addComponent(rightStats, tc);
 
-            TextComponent text;
+            QuadTextComponent text;
             text.text  = "SCORE\n00000000\nBEST\n00000000";
             text.font  = &scoreFont;
             text.scale = 0.6f;

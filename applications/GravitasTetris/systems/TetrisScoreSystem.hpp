@@ -7,7 +7,7 @@
 #include "ECSSimulationSystem.hpp"
 #include "TetrisScoreComponent.hpp"
 #include "ScoreDisplayComponent.hpp"
-#include "TextComponent.h"
+#include "QuadTextComponent.h"
 #include "SpeedHelper.hpp"
 
 // Drains the pending-events inbox each tick, updates all stats, then rewrites
@@ -78,8 +78,8 @@ class TetrisScoreSystem : public ECSSimulationSystem
                 std::string("SCORE\n") + scoreBuf + "\n" +
                 std::string("BEST\n")  + bestBuf;
 
-            world.forEach<ScoreDisplayComponent, TextComponent>(
-                [&](Entity, ScoreDisplayComponent& sdc, TextComponent& text)
+            world.forEach<ScoreDisplayComponent, QuadTextComponent>(
+                [&](Entity, ScoreDisplayComponent& sdc, QuadTextComponent& text)
                 {
                     if (sdc.id == 0)
                     {

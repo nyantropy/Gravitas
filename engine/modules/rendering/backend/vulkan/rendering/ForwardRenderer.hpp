@@ -30,6 +30,9 @@
 
 #include "GtsEvent.hpp"
 
+#include "VulkanUiRenderer.hpp"
+#include <UICommand.h>
+
 class ForwardRenderer : Renderer
 {
     private:
@@ -42,6 +45,9 @@ class ForwardRenderer : Renderer
 
         // resource system of the renderer
         std::unique_ptr<RenderResourceManager> resourceSystem;
+
+        // UI overlay renderer (declared after resourceSystem so it is destroyed first)
+        std::unique_ptr<VulkanUiRenderer> uiRenderer;
 
         // misc variables we need for the draw loop
         float FPS = 30.0f;
@@ -115,10 +121,13 @@ class ForwardRenderer : Renderer
             resourceSystem = std::make_unique<RenderResourceManager>();
             createPipeline();
             createFrameBuffers();
-            frameManager = std::make_unique<FrameManager>();
+            frameManager  = std::make_unique<FrameManager>();
+            uiRenderer    = std::make_unique<VulkanUiRenderer>();
         }
 
-        void recordCommandBuffer(const std::vector<RenderCommand>& renderList, VkCommandBuffer commandBuffer, uint32_t imageIndex)
+        void recordCommandBuffer(const std::vector<RenderCommand>& renderList,
+                                 const std::vector<UICommandList>& uiLists,
+                                 VkCommandBuffer commandBuffer, uint32_t imageIndex)
         {
             VkCommandBufferBeginInfo beginInfo{};
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -199,6 +208,9 @@ class ForwardRenderer : Renderer
 
             vkCmdEndRenderPass(commandBuffer);
 
+            // UI overlay pass — composites text on top of the 3D scene.
+            uiRenderer->record(commandBuffer, imageIndex, currentFrame, uiLists, resourceSystem.get());
+
             if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
                 throw std::runtime_error("failed to record command buffer!");
         }
@@ -223,7 +235,8 @@ class ForwardRenderer : Renderer
             if(depthAttachment) depthAttachment.reset();
         }
               
-        void renderFrame(float dt, const std::vector<RenderCommand>& renderList) override
+        void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
+                         const std::vector<UICommandList>& uiLists) override
         {
             lastFrameTime += dt;
 
@@ -268,7 +281,7 @@ class ForwardRenderer : Renderer
             // Reset & record command buffer
             vkResetFences(vcsheet::getDevice(), 1, &frame.inFlightFence);
             vkResetCommandBuffer(frame.commandBuffer, 0);
-            recordCommandBuffer(renderList, frame.commandBuffer, imageIndex);
+            recordCommandBuffer(renderList, uiLists, frame.commandBuffer, imageIndex);
 
             // Submit command buffer
             VkSubmitInfo submitInfo{};

@@ -5,6 +5,7 @@
 #include "GtsEvent.hpp"
 #include "GtsKeyEvent.h"
 #include "RenderCommand.h"
+#include "UICommand.h"
 #include "IResourceProvider.hpp"
 
 // Engine-facing interface for the graphics module.
@@ -14,7 +15,8 @@ class IGtsGraphicsModule
 public:
     virtual ~IGtsGraphicsModule() = default;
 
-    virtual void renderFrame(float dt, const std::vector<RenderCommand>& renderList) = 0;
+    virtual void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
+                             const std::vector<UICommandList>& uiLists) = 0;
     virtual void pollWindowEvents() = 0;
     virtual void shutdown() = 0;
     virtual bool isWindowOpen() const = 0;

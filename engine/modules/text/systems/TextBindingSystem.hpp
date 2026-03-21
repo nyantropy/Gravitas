@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ECSControllerSystem.hpp"
-#include "TextComponent.h"
+#include "QuadTextComponent.h"
 #include "TextMeshComponent.h"
 #include "RenderGpuComponent.h"
 #include "TransformComponent.h"
@@ -26,8 +26,8 @@ class TextBindingSystem : public ECSControllerSystem
     public:
         void update(ECSWorld& world, SceneContext& ctx) override
         {
-            world.forEach<TextComponent, TextMeshComponent>(
-                [&](Entity e, TextComponent& text, TextMeshComponent& tm)
+            world.forEach<QuadTextComponent, TextMeshComponent>(
+                [&](Entity e, QuadTextComponent& text, TextMeshComponent& tm)
             {
                 if (!text.font)
                     return;

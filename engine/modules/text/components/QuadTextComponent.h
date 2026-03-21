@@ -17,7 +17,7 @@
 //   - TextBindingSystem (ControllerSystem) uploads the geometry to GPU and
 //     feeds the atlas texture into RenderGpuComponent for the normal pipeline.
 //   - Set dirty = true whenever text or font changes.
-struct TextComponent
+struct QuadTextComponent
 {
     std::string  text;
     BitmapFont*  font  = nullptr;
