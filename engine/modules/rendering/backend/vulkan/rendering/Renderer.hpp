@@ -5,6 +5,7 @@
 #include "RendererConfig.h"
 #include "RenderCommand.h"
 #include <UICommand.h>
+#include "GtsFrameStats.h"
 
 class Renderer
 {
@@ -15,5 +16,7 @@ class Renderer
     public:
         virtual ~Renderer() = default;
         virtual void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
-                                 const std::vector<UICommandList>& uiLists) = 0;
+                                 const std::vector<UICommandList>& uiLists,
+                                 const GtsFrameStats& stats) = 0;
+        virtual void toggleDebugOverlay() = 0;
 };

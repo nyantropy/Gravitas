@@ -22,6 +22,7 @@
 #include "GtsEvent.hpp"
 
 #include <UICommand.h>
+#include "GtsFrameStats.h"
 
 #include "GtsFrameGraph.h"
 #include "SceneRenderStage.h"
@@ -34,6 +35,13 @@ class ForwardRenderer : Renderer
         std::unique_ptr<Attachment>            depthAttachment;
         std::unique_ptr<RenderResourceManager> resourceSystem;
         std::unique_ptr<FrameManager>          frameManager;
+
+        // Per-frame stats — populated in renderFrame, provided to the blackboard.
+        GtsFrameStats frameStats;
+
+        // Raw pointers into the frame graph — set during buildFrameGraph().
+        SceneRenderStage* sceneStage = nullptr;
+        UiRenderStage*    uiStage    = nullptr;
 
         // Depth format — resolved once in createDepthAttachment(), reused by
         // buildFrameGraph() and SceneRenderStage.
@@ -104,16 +112,20 @@ class ForwardRenderer : Renderer
                 VK_IMAGE_ASPECT_DEPTH_BIT,
                 VK_IMAGE_LAYOUT_UNDEFINED);
 
-            frameGraph.addStage(std::make_unique<SceneRenderStage>(
+            auto ownedScene = std::make_unique<SceneRenderStage>(
                 resourceSystem.get(),
                 depthAttachment->getImageView(),
                 depthFormat,
                 swapchainHandle0,
-                depthHandle));
+                depthHandle);
+            sceneStage = ownedScene.get();
+            frameGraph.addStage(std::move(ownedScene));
 
-            frameGraph.addStage(std::make_unique<UiRenderStage>(
+            auto ownedUi = std::make_unique<UiRenderStage>(
                 resourceSystem.get(),
-                swapchainHandle0));
+                swapchainHandle0);
+            uiStage = ownedUi.get();
+            frameGraph.addStage(std::move(ownedUi));
 
             frameGraph.compile();
         }
@@ -138,7 +150,12 @@ class ForwardRenderer : Renderer
 
             frameGraph.provideData(&renderList);
             frameGraph.provideData(&uiLists);
+            frameGraph.provideData(&frameStats);
             frameGraph.execute(commandBuffer, imageIndex, currentFrame);
+
+            // Triangle count is written by SceneRenderStage during execute — read it back.
+            if (sceneStage)
+                frameStats.triangleCount = sceneStage->getLastTriangleCount();
 
             if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
                 throw std::runtime_error("failed to record command buffer!");
@@ -162,9 +179,20 @@ class ForwardRenderer : Renderer
             if (depthAttachment) depthAttachment.reset();
         }
 
-        void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
-                         const std::vector<UICommandList>& uiLists) override
+        void toggleDebugOverlay() override
         {
+            if (uiStage)
+                uiStage->getDebugOverlay().setEnabled(!uiStage->getDebugOverlay().isEnabled());
+        }
+
+        void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
+                         const std::vector<UICommandList>& uiLists,
+                         const GtsFrameStats& stats) override
+        {
+            // Store the pre-populated stats from the engine; triangleCount is
+            // filled in after frameGraph.execute() inside recordCommandBuffer.
+            frameStats = stats;
+
             lastFrameTime += dt;
 
             FrameResources& frame = frameManager->getFrame(currentFrame);

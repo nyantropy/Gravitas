@@ -7,6 +7,7 @@
 #include "RenderCommand.h"
 #include "UICommand.h"
 #include "IResourceProvider.hpp"
+#include "GtsFrameStats.h"
 
 // Engine-facing interface for the graphics module.
 // Zero Vulkan, zero GLFW — only engine-facing types.
@@ -16,7 +17,9 @@ public:
     virtual ~IGtsGraphicsModule() = default;
 
     virtual void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
-                             const std::vector<UICommandList>& uiLists) = 0;
+                             const std::vector<UICommandList>& uiLists,
+                             const GtsFrameStats& stats) = 0;
+    virtual void toggleDebugOverlay() = 0;
     virtual void pollWindowEvents() = 0;
     virtual void shutdown() = 0;
     virtual bool isWindowOpen() const = 0;

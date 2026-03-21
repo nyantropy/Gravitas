@@ -16,5 +16,8 @@ struct EngineConfig
     // Set to false to disable culling globally (useful for debugging).
     bool frustumCullingEnabled = true;
 
+    // Whether the F3 debug overlay is visible by default on startup.
+    bool debugOverlayEnabledByDefault = false;
+
     // Extend here later: audio config, input config, physics config, etc.
 };

@@ -70,6 +70,11 @@ class GtsPlatform
             return graphics.get();
         }
 
+        void toggleDebugOverlay()
+        {
+            graphics->toggleDebugOverlay();
+        }
+
         // Gates all key queries through the filtered input source to false
         // while the simulation is paused.
         void setSimulationPaused(bool paused)
@@ -96,11 +101,15 @@ class GtsPlatform
             {
                 inputManager->onKeyEvent(e.key, e.pressed);
             });
+
+            if (config.debugOverlayEnabledByDefault)
+                graphics->toggleDebugOverlay();
         }
 
         void bindDefaultActions()
         {
-            actionManager->bind(GtsAction::TogglePause,      GtsKey::X);
-            actionManager->bind(GtsAction::CloseApplication, GtsKey::Escape);
+            actionManager->bind(GtsAction::TogglePause,       GtsKey::X);
+            actionManager->bind(GtsAction::CloseApplication,  GtsKey::Escape);
+            actionManager->bind(GtsAction::DebugLayerToggle,  GtsKey::F3);
         }
 };

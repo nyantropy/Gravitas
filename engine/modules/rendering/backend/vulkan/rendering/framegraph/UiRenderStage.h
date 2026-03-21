@@ -24,6 +24,8 @@
 #include "dssheet.h"
 #include "vcsheet.h"
 #include <UICommand.h>
+#include "GtsFrameStats.h"
+#include "GtsDebugOverlay.h"
 
 // UI overlay render stage.
 // Owns its render pass, pipeline, framebuffers, and dynamic vertex/index buffers.
@@ -87,6 +89,8 @@ public:
         framebuffers = std::make_unique<VulkanFramebufferSet>(fbConfig);
 
         createDynamicBuffers();
+
+        debugOverlay.init(resources);
     }
 
     ~UiRenderStage()
@@ -110,6 +114,7 @@ public:
     void declareResources(GtsFrameGraph& graph) override
     {
         graph.requestData<std::vector<UICommandList>>(this);
+        graph.requestData<GtsFrameStats>(this);
 
         // Read dependency on the swapchain — creates the scene→UI ordering edge.
         graph.declareRead(this, swapchainHandle,
@@ -127,7 +132,15 @@ public:
     void record(VkCommandBuffer cmd, GtsFrameGraph& graph,
                 uint32_t imageIndex, uint32_t currentFrame) override
     {
-        const auto& uiLists = graph.getData<std::vector<UICommandList>>();
+        // Get ECS UI batch and frame stats from blackboard.
+        const auto& uiListsFromBlackboard = graph.getData<std::vector<UICommandList>>();
+        const auto& stats                 = graph.getData<GtsFrameStats>();
+
+        // Build the full batch (game UI + optional debug overlay) as a mutable copy.
+        std::vector<UICommandList> uiLists = uiListsFromBlackboard;
+
+        if (debugOverlay.isEnabled())
+            debugOverlay.appendToBatch(uiLists, stats);
 
         if (uiLists.empty())
             return;
@@ -221,12 +234,16 @@ public:
         vkCmdEndRenderPass(cmd);
     }
 
+    GtsDebugOverlay& getDebugOverlay() { return debugOverlay; }
+
 private:
     std::unique_ptr<VulkanRenderPass>     renderPass;
     std::unique_ptr<VulkanPipeline>       pipeline;
     std::unique_ptr<VulkanFramebufferSet> framebuffers;
     RenderResourceManager*                resources;
     GtsResourceHandle                     swapchainHandle;
+
+    GtsDebugOverlay                       debugOverlay;
 
     // Dynamic buffers — host-visible, persistently mapped, resized on demand.
     VkBuffer       vertexBuffer = VK_NULL_HANDLE;

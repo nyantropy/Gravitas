@@ -16,7 +16,6 @@
 #include "CameraOverrideComponent.h"
 #include "GraphicsConstants.h"
 #include "GtsKey.h"
-
 #include "BitmapFont.h"
 #include "BitmapFontLoader.h"
 #include "UITextComponent.h"
@@ -38,6 +37,7 @@ class CullTestScene : public GtsScene
 
     BitmapFont overlayFont;
     Entity     overlayEntity{};
+    bool       overlayReady = false;
 
     void spawnGrid()
     {
@@ -95,29 +95,28 @@ public:
         spawnGrid();
         spawnCamera(ctx.windowAspectRatio);
 
+        // Load font and create overlay entity for culling/frustum state text.
+        overlayFont = BitmapFontLoader::load(
+            ctx.resources,
+            GraphicsConstants::ENGINE_RESOURCES + "/fonts/retrofont.png",
+            64, 40, 8, 8, 8,
+            "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+            1.2f, true);
+
+        overlayEntity = ecsWorld.createEntity();
+        UITextComponent tc;
+        tc.font    = &overlayFont;
+        tc.x       = 0.01f;
+        tc.y       = 0.01f;
+        tc.scale   = 0.03f;
+        tc.text    = "CULLING ON\nFRUSTUM LIVE";
+        tc.visible = true;
+        ecsWorld.addComponent(overlayEntity, tc);
+        overlayReady = true;
+
         // FreeFlyCamera must run before CameraBindingSystem (installed by installRendererFeature)
         ecsWorld.addControllerSystem<FreeFlyCamera>();
         installRendererFeature();
-
-        const std::string atlasPath =
-            GraphicsConstants::ENGINE_RESOURCES + "/fonts/retrofont.png";
-        overlayFont = BitmapFontLoader::load(
-            ctx.resources, atlasPath,
-            /*atlasW=*/64, /*atlasH=*/40,
-            /*cellW=*/8,   /*cellH=*/8,  /*cols=*/8,
-            /*charOrder=*/"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-            /*lineHeight=*/1.2f,
-            /*pixelSampling=*/true);
-
-        overlayEntity = ecsWorld.createEntity();
-        UITextComponent ui;
-        ui.font    = &overlayFont;
-        ui.x       = 0.01f;
-        ui.y       = 0.01f;
-        ui.scale   = 0.04f;
-        ui.text    = "INITIALISING";
-        ui.visible = true;
-        ecsWorld.addComponent(overlayEntity, ui);
     }
 
     void onUpdateSimulation(SceneContext& ctx) override
@@ -150,13 +149,15 @@ public:
                 printf("\n[FRUSTUM] Frustum LIVE\n");
         }
 
-        char buf[128];
-        snprintf(buf, sizeof(buf),
-            "CULLING %s\nFRUSTUM %s\nVISIBLE %d / %d",
-            extractor->isFrustumCullingEnabled() ? "ON" : "OFF",
-            extractor->isFrustumFrozen()         ? "FROZEN" : "LIVE",
-            extractor->getLastVisibleRenderables(),
-            extractor->getLastTotalRenderables());
-        ecsWorld.getComponent<UITextComponent>(overlayEntity).text = buf;
+        // Update overlay text with current culling / frustum state.
+        if (overlayReady)
+        {
+            char buf[64];
+            snprintf(buf, sizeof(buf), "CULLING %s\nFRUSTUM %s",
+                extractor->isFrustumCullingEnabled() ? "ON" : "OFF",
+                extractor->isFrustumFrozen()         ? "FROZEN" : "LIVE");
+            ecsWorld.getComponent<UITextComponent>(overlayEntity).text = buf;
+        }
+
     }
 };

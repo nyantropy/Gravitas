@@ -124,10 +124,13 @@ public:
 
         const VkDeviceSize offsets[] = { 0 };
 
+        uint32_t triangles = 0;
         for (const auto& cmdData : renderList)
         {
             MeshResource*    mesh = resources->getMesh(cmdData.meshID);
             TextureResource* tex  = resources->getTexture(cmdData.textureID);
+
+            triangles += static_cast<uint32_t>(mesh->indices.size()) / 3;
 
             vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vertexBuffer, offsets);
             vkCmdBindIndexBuffer(cmd, mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
@@ -147,8 +150,12 @@ public:
             vkCmdDrawIndexed(cmd, static_cast<uint32_t>(mesh->indices.size()), 1, 0, 0, 0);
         }
 
+        lastTriangleCount = triangles;
+
         vkCmdEndRenderPass(cmd);
     }
+
+    uint32_t getLastTriangleCount() const { return lastTriangleCount; }
 
 private:
     std::unique_ptr<VulkanRenderPass>   renderPass;
@@ -157,5 +164,6 @@ private:
     RenderResourceManager*              resources;
     GtsResourceHandle                   swapchainHandle;
     GtsResourceHandle                   depthHandle;
+    uint32_t                            lastTriangleCount = 0;
 
 };

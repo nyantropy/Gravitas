@@ -16,6 +16,7 @@
 
 #include "GtsCommand.h"
 #include "GtsCommandBuffer.h"
+#include "GtsFrameStats.h"
 
 class GravitasEngine
 {
@@ -72,10 +73,18 @@ class GravitasEngine
         void render(float dt)
         {
             auto& world = sceneManager->getActiveScene()->getWorld();
-            platform.getGraphics()->renderFrame(
-                dt,
-                renderCommandExtractor->extractRenderList(world),
-                uiCommandExtractor->extract(world));
+
+            auto renderList = renderCommandExtractor->extractRenderList(world);
+            auto uiLists    = uiCommandExtractor->extract(world);
+
+            GtsFrameStats stats;
+            stats.fps            = (dt > 0.0f) ? 1.0f / dt : 0.0f;
+            stats.frameTimeMs    = dt * 1000.0f;
+            stats.visibleObjects = static_cast<uint32_t>(renderCommandExtractor->getLastVisibleRenderables());
+            stats.totalObjects   = static_cast<uint32_t>(renderCommandExtractor->getLastTotalRenderables());
+            // triangleCount is filled in by SceneRenderStage during execute
+
+            platform.getGraphics()->renderFrame(dt, renderList, uiLists, stats);
         }
 
         // command callback from lower level architectures
@@ -145,6 +154,8 @@ class GravitasEngine
                 if (actions->isActionPressed(GtsAction::CloseApplication)) break;
                 if (actions->isActionPressed(GtsAction::TogglePause))
                     gameLoop.paused = !gameLoop.paused;
+                if (actions->isActionPressed(GtsAction::DebugLayerToggle))
+                    platform.toggleDebugOverlay();
 
                 platform.setSimulationPaused(gameLoop.paused);
 
