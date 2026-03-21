@@ -2,6 +2,7 @@
 
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
+#include "GtsSceneTransitionData.h"
 
 #include "RenderGpuSystem.hpp"
 #include "CameraGpuSystem.hpp"
@@ -22,7 +23,8 @@ class GtsScene
         virtual ~GtsScene() = default;
 
         // call this once whenever the scene is loaded
-        virtual void onLoad(SceneContext& ctx) = 0;
+        virtual void onLoad(SceneContext& ctx,
+                            const GtsSceneTransitionData* data = nullptr) = 0;
 
         // call this every time the scene is updated
         virtual void onUpdate(SceneContext& ctx) = 0;

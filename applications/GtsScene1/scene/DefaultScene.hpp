@@ -102,7 +102,8 @@ class DefaultScene : public GtsScene
             ecsWorld.addSimulationSystem<TransformAnimationSystem>();
         }
 
-        void onLoad(SceneContext& ctx) override
+        void onLoad(SceneContext& ctx,
+                    const GtsSceneTransitionData* data = nullptr) override
         {
             firstCube();
             secondCube();

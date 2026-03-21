@@ -138,7 +138,7 @@ class GravitasEngine
         void setActiveScene(std::string name)
         {
             sceneManager->setActiveScene(name);
-            sceneManager->getActiveScene()->onLoad(sceneContext);
+            sceneManager->getActiveScene()->onLoad(sceneContext, nullptr);
         }
 
         void start()

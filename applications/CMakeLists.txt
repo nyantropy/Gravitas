@@ -1,2 +1,3 @@
 add_subdirectory(GtsScene1)
 add_subdirectory(GravitasTetris)
+add_subdirectory(DungeonCrawler)

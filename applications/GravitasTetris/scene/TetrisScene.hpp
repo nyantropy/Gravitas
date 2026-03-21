@@ -290,7 +290,8 @@ class TetrisScene : public GtsScene
     }
 
 public:
-    void onLoad(SceneContext& ctx) override
+    void onLoad(SceneContext& ctx,
+                const GtsSceneTransitionData* data = nullptr) override
     {
         // ── Invisible anchor for the Hold UI group ────────────────────────────
         // World position matches HOLD_DISPLAY_PIVOT so child local offsets are
