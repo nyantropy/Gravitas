@@ -10,6 +10,7 @@
 #include "TetrisInputComponent.hpp"
 #include "TetrisInputSystem.hpp"
 #include "TetrisGameSystem.hpp"
+#include "TetrisBlockInitSystem.hpp"
 #include "TetrisVisualSystem.hpp"
 #include "TetrisCameraSystem.hpp"
 #include "TetrisCameraControlSystem.hpp"
@@ -347,6 +348,25 @@ public:
         }
 
         addSingletonComponents();
+
+        // Registration order is critical for correctness:
+        //
+        // 1. TetrisBlockInitSystem — runs first; attaches TransformComponent and
+        //    RenderDescriptionComponent to any newly spawned block entity. Newly
+        //    spawned entities have only TetrisBlockComponent; without this system
+        //    running before RenderBindingSystem, the binding system would skip
+        //    them on their first frame and produce a one-frame texture flash.
+        //
+        // 2. TetrisVisualSystem — runs second; keeps texture paths and transform
+        //    positions in sync for ghost, held, and next-preview blocks. It can
+        //    assume all components are already attached.
+        //
+        // 3. installRendererFeature — registers RenderBindingSystem (and others).
+        //    By the time it runs, both visual systems have already written the
+        //    correct desc.texturePath, so binding always sees the right state.
+        ecsWorld.addControllerSystem<TetrisBlockInitSystem>();
+        ecsWorld.addControllerSystem<TetrisVisualSystem>();
+
         installRendererFeature();
 
         ecsWorld.addControllerSystem<TetrisInputSystem>();
@@ -357,7 +377,6 @@ public:
         RegisterAi(ecsWorld, gameSystem);
         ecsWorld.addControllerSystem<TetrisCameraControlSystem>();
         ecsWorld.addSimulationSystem<TetrisScoreSystem>();
-        ecsWorld.addControllerSystem<TetrisVisualSystem>();
         ecsWorld.addSimulationSystem<TetrisCameraSystem>();
     }
 

@@ -31,24 +31,24 @@ class TetrisVisualSystem : public ECSControllerSystem
                 const bool isHeld  = world.hasComponent<HeldPieceBlockComponent>(e);
                 const bool isNext  = world.hasComponent<NextPieceBlockComponent>(e);
 
-                // on first encounter: attach description and transform
-                if (!world.hasComponent<TransformComponent>(e))
+                // TetrisBlockInitSystem guarantees TransformComponent and
+                // RenderDescriptionComponent are attached before this system runs.
+                // Keep texture in sync for blocks whose type can change at runtime.
+                if (isGhost || isHeld || isNext)
                 {
-                    world.addComponent(e, TransformComponent{});
+                    auto& desc          = world.getComponent<RenderDescriptionComponent>(e);
+                    std::string newPath = texturePath(block);
 
-                    RenderDescriptionComponent desc;
-                    desc.meshPath    = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
-                    desc.texturePath = texturePath(block);
-                    if (isGhost) desc.alpha = GHOST_ALPHA;
-                    world.addComponent(e, desc);
-                }
-                else if (isGhost || isHeld || isNext)
-                {
-                    // Ghost and held blocks can change type (ghost: new piece spawns;
-                    // held: piece swapped).  Keep texture in sync each frame so
-                    // RenderBindingSystem detects the path change and rebinds.
-                    auto& desc       = world.getComponent<RenderDescriptionComponent>(e);
-                    desc.texturePath = texturePath(block);
+                    if (newPath != desc.texturePath)
+                    {
+                        // Type changed this frame — hide for one frame while RenderBindingSystem
+                        // rebinds the texture. RenderGpuSystem will restore readyToRender = true
+                        // on the next simulation tick after processing the dirty flag.
+                        desc.texturePath = newPath;
+
+                        if (world.hasComponent<RenderGpuComponent>(e))
+                            world.getComponent<RenderGpuComponent>(e).readyToRender = false;
+                    }
                 }
 
                 // keep the block's grid position reflected in the transform
