@@ -3,6 +3,7 @@
 #include <vector>
 #include <stdexcept>
 #include <cstring>
+#include <memory>
 
 #include <vulkan/vulkan.h>
 #include "GlmConfig.h"
@@ -11,11 +12,17 @@
 #include "dssheet.h"
 #include "BufferUtil.hpp"
 #include "MemoryUtil.hpp"
-#include "VulkanShader.hpp"
 #include "RenderResourceManager.hpp"
 #include <UICommand.h>         // in engine/modules/rendering/extractors/ via include path
 #include "GraphicsConstants.h"
 #include "UIGlyphVertexDescription.h"
+
+#include "VulkanRenderPass.hpp"
+#include "VulkanRenderPassConfig.h"
+#include "VulkanPipeline.hpp"
+#include "VulkanPipelineConfig.h"
+#include "VulkanFramebufferSet.hpp"
+#include "VulkanFramebufferSetConfig.h"
 
 // Records the UI overlay render pass into an existing command buffer.
 // Owned by ForwardRenderer.  Call record() between vkCmdEndRenderPass (main)
@@ -29,10 +36,53 @@ class VulkanUiRenderer
 public:
     VulkanUiRenderer()
     {
-        createRenderPass();
-        createPipelineLayout();
-        createPipeline();
-        createFramebuffers();
+        // ── Render pass ───────────────────────────────────────────────────
+        VulkanRenderPassConfig rpConfig;
+        rpConfig.colorFormat        = vcsheet::getSwapChainImageFormat();
+        rpConfig.colorLoadOp        = VK_ATTACHMENT_LOAD_OP_LOAD;
+        rpConfig.colorInitialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        rpConfig.hasDepthAttachment = false;
+        uiRenderPass = std::make_unique<VulkanRenderPass>(rpConfig);
+
+        // ── Pipeline ──────────────────────────────────────────────────────
+        VulkanPipelineConfig pConfig;
+        pConfig.vertexShaderPath   = GraphicsConstants::UI_V_SHADER_PATH;
+        pConfig.fragmentShaderPath = GraphicsConstants::UI_F_SHADER_PATH;
+        pConfig.vkRenderPass       = uiRenderPass->getRenderPass();
+        {
+            auto b = UIGlyphVertexDescription::getBindingDescription();
+            auto a = UIGlyphVertexDescription::getAttributeDescriptions();
+            pConfig.vertexBinding    = b;
+            pConfig.vertexAttributes = std::vector<VkVertexInputAttributeDescription>(a.begin(), a.end());
+        }
+        pConfig.depthTestEnable      = false;
+        pConfig.depthWriteEnable     = false;
+        pConfig.blendEnable          = true;
+        pConfig.srcColorBlendFactor  = VK_BLEND_FACTOR_SRC_ALPHA;
+        pConfig.dstColorBlendFactor  = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        pConfig.colorBlendOp         = VK_BLEND_OP_ADD;
+        pConfig.srcAlphaBlendFactor  = VK_BLEND_FACTOR_ONE;
+        pConfig.dstAlphaBlendFactor  = VK_BLEND_FACTOR_ZERO;
+        pConfig.alphaBlendOp         = VK_BLEND_OP_ADD;
+        pConfig.pushConstantSize     = sizeof(glm::mat4);
+        pConfig.pushConstantStages   = VK_SHADER_STAGE_VERTEX_BIT;
+        pConfig.descriptorSetLayouts = { dssheet::getDescriptorSetLayouts()[2] };
+        uiPipeline = std::make_unique<VulkanPipeline>(pConfig);
+
+        // ── Framebuffers ──────────────────────────────────────────────────
+        const auto& imageViews = vcsheet::getSwapChainImageViews();
+        const auto  extent     = vcsheet::getSwapChainExtent();
+
+        VulkanFramebufferSetConfig fbConfig;
+        fbConfig.renderPass = uiRenderPass->getRenderPass();
+        fbConfig.width      = extent.width;
+        fbConfig.height     = extent.height;
+        fbConfig.layers     = 1;
+        fbConfig.attachmentsPerFramebuffer.resize(imageViews.size());
+        for (size_t i = 0; i < imageViews.size(); ++i)
+            fbConfig.attachmentsPerFramebuffer[i] = { imageViews[i] };
+        uiFramebuffers = std::make_unique<VulkanFramebufferSet>(fbConfig);
+
         createDynamicBuffers();
     }
 
@@ -52,26 +102,15 @@ public:
             vkDestroyBuffer(dev, indexBuffer, nullptr);
             vkFreeMemory(dev, indexMemory, nullptr);
         }
-
-        for (auto fb : framebuffers)
-            if (fb != VK_NULL_HANDLE)
-                vkDestroyFramebuffer(dev, fb, nullptr);
-
-        if (pipeline != VK_NULL_HANDLE)
-            vkDestroyPipeline(dev, pipeline, nullptr);
-        if (pipelineLayout != VK_NULL_HANDLE)
-            vkDestroyPipelineLayout(dev, pipelineLayout, nullptr);
-        if (renderPass != VK_NULL_HANDLE)
-            vkDestroyRenderPass(dev, renderPass, nullptr);
     }
 
     // Records the UI pass into cmd for the given swapchain imageIndex.
     // resources is used to resolve textureID → VkDescriptorSet.
-    void record(VkCommandBuffer          cmd,
-                uint32_t                 imageIndex,
-                uint32_t                 currentFrame,
+    void record(VkCommandBuffer                   cmd,
+                uint32_t                          imageIndex,
+                uint32_t                          currentFrame,
                 const std::vector<UICommandList>& uiLists,
-                RenderResourceManager*   resources)
+                RenderResourceManager*            resources)
     {
         if (uiLists.empty())
             return;
@@ -84,8 +123,6 @@ public:
             totalVerts   += static_cast<uint32_t>(list.vertices.size());
             totalIndices += static_cast<uint32_t>(list.indices.size());
         }
-
-        printf("UI: lists=%zu totalVerts=%u\n", uiLists.size(), totalVerts);
 
         if (totalVerts == 0)
             return;
@@ -111,8 +148,8 @@ public:
         // Begin UI render pass.
         VkRenderPassBeginInfo rpInfo{};
         rpInfo.sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        rpInfo.renderPass        = renderPass;
-        rpInfo.framebuffer       = framebuffers[imageIndex];
+        rpInfo.renderPass        = uiRenderPass->getRenderPass();
+        rpInfo.framebuffer       = uiFramebuffers->getFramebuffers()[imageIndex];
         rpInfo.renderArea.offset = {0, 0};
         rpInfo.renderArea.extent = vcsheet::getSwapChainExtent();
         rpInfo.clearValueCount   = 0;
@@ -121,10 +158,12 @@ public:
         vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
         VkViewport vp{};
-        vp.x = 0.0f; vp.y = 0.0f;
-        vp.width  = static_cast<float>(vcsheet::getSwapChainExtent().width);
-        vp.height = static_cast<float>(vcsheet::getSwapChainExtent().height);
-        vp.minDepth = 0.0f; vp.maxDepth = 1.0f;
+        vp.x        = 0.0f;
+        vp.y        = 0.0f;
+        vp.width    = static_cast<float>(vcsheet::getSwapChainExtent().width);
+        vp.height   = static_cast<float>(vcsheet::getSwapChainExtent().height);
+        vp.minDepth = 0.0f;
+        vp.maxDepth = 1.0f;
         vkCmdSetViewport(cmd, 0, 1, &vp);
 
         VkRect2D scissor{};
@@ -132,13 +171,11 @@ public:
         scissor.extent = vcsheet::getSwapChainExtent();
         vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, uiPipeline->getPipeline());
 
-        // Ortho proj: [0..1] screen-space, Y-down for Vulkan.
-        // glm::ortho(left, right, bottom, top) — then Vulkan Y-flip.
+        // DONT EVER CHANGE THIS, WE HAVE TO FLIP TOP AND BOT BECAUSE OF GLM SETTINGS, SO DONT CHANGE THIS
         glm::mat4 proj = glm::ortho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f);
-        //proj[1][1] *= -1.0f;
-        vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
+        vkCmdPushConstants(cmd, uiPipeline->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT,
                            0, sizeof(glm::mat4), &proj);
 
         const VkDeviceSize offsets[] = {0};
@@ -146,14 +183,14 @@ public:
         vkCmdBindIndexBuffer(cmd, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
         // One draw call per atlas.
-        uint32_t indexBase  = 0;
+        uint32_t indexBase = 0;
         for (const auto& list : uiLists)
         {
             TextureResource* tex = resources->getTexture(list.textureID);
             if (!tex) { indexBase += static_cast<uint32_t>(list.indices.size()); continue; }
 
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    pipelineLayout, 0, 1,
+                                    uiPipeline->getPipelineLayout(), 0, 1,
                                     &tex->descriptorSets[currentFrame],
                                     0, nullptr);
 
@@ -168,12 +205,11 @@ public:
     }
 
 private:
-    VkRenderPass   renderPass     = VK_NULL_HANDLE;
-    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-    VkPipeline     pipeline       = VK_NULL_HANDLE;
+    std::unique_ptr<VulkanRenderPass>     uiRenderPass;
+    std::unique_ptr<VulkanPipeline>       uiPipeline;
+    std::unique_ptr<VulkanFramebufferSet> uiFramebuffers;
 
-    std::vector<VkFramebuffer> framebuffers;
-
+    // Dynamic buffers — no wrapper, managed directly.
     VkBuffer       vertexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
     void*          vertexMapped = nullptr;
@@ -184,198 +220,8 @@ private:
     void*          indexMapped  = nullptr;
     uint32_t       indexCap     = 0;
 
-    // Minimum initial capacity.
     static constexpr uint32_t INITIAL_VERTEX_CAP = 4096;
     static constexpr uint32_t INITIAL_INDEX_CAP  = 8192;
-
-    void createRenderPass()
-    {
-        // Color-only pass: load existing 3D scene, composite UI on top.
-        VkAttachmentDescription colorAtt{};
-        colorAtt.format         = vcsheet::getSwapChainImageFormat();
-        colorAtt.samples        = VK_SAMPLE_COUNT_1_BIT;
-        colorAtt.loadOp         = VK_ATTACHMENT_LOAD_OP_LOAD;
-        colorAtt.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-        colorAtt.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        colorAtt.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        colorAtt.initialLayout  = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        colorAtt.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-        VkAttachmentReference colorRef{};
-        colorRef.attachment = 0;
-        colorRef.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-        VkSubpassDescription subpass{};
-        subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        subpass.colorAttachmentCount = 1;
-        subpass.pColorAttachments    = &colorRef;
-
-        VkSubpassDependency dep{};
-        dep.srcSubpass    = VK_SUBPASS_EXTERNAL;
-        dep.dstSubpass    = 0;
-        dep.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dep.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        dep.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-        VkRenderPassCreateInfo rpInfo{};
-        rpInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        rpInfo.attachmentCount = 1;
-        rpInfo.pAttachments    = &colorAtt;
-        rpInfo.subpassCount    = 1;
-        rpInfo.pSubpasses      = &subpass;
-        rpInfo.dependencyCount = 1;
-        rpInfo.pDependencies   = &dep;
-
-        if (vkCreateRenderPass(vcsheet::getDevice(), &rpInfo, nullptr, &renderPass) != VK_SUCCESS)
-            throw std::runtime_error("VulkanUiRenderer: failed to create UI render pass");
-    }
-
-    void createPipelineLayout()
-    {
-        // set 0 = combined image sampler (reuse existing layout from dssheet[2])
-        VkDescriptorSetLayout samplerLayout = dssheet::getDescriptorSetLayouts()[2];
-
-        // push constant: mat4 (64 bytes) — ortho projection, vertex stage only
-        VkPushConstantRange pc{};
-        pc.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        pc.offset     = 0;
-        pc.size       = sizeof(glm::mat4);
-
-        VkPipelineLayoutCreateInfo info{};
-        info.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        info.setLayoutCount         = 1;
-        info.pSetLayouts            = &samplerLayout;
-        info.pushConstantRangeCount = 1;
-        info.pPushConstantRanges    = &pc;
-
-        if (vkCreatePipelineLayout(vcsheet::getDevice(), &info, nullptr, &pipelineLayout) != VK_SUCCESS)
-            throw std::runtime_error("VulkanUiRenderer: failed to create pipeline layout");
-    }
-
-    void createPipeline()
-    {
-        VulkanShaderConfig vsCfg;
-        vsCfg.shaderFile = GraphicsConstants::UI_V_SHADER_PATH;
-        vsCfg.vkDevice   = vcsheet::getDevice();
-        VulkanShader vertShader(vsCfg);
-
-        VulkanShaderConfig fsCfg;
-        fsCfg.shaderFile = GraphicsConstants::UI_F_SHADER_PATH;
-        fsCfg.vkDevice   = vcsheet::getDevice();
-        VulkanShader fragShader(fsCfg);
-
-        VkPipelineShaderStageCreateInfo stages[2]{};
-        stages[0].sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        stages[0].stage  = VK_SHADER_STAGE_VERTEX_BIT;
-        stages[0].module = vertShader.getShaderModule();
-        stages[0].pName  = "main";
-        stages[1].sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        stages[1].stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
-        stages[1].module = fragShader.getShaderModule();
-        stages[1].pName  = "main";
-
-        auto binding    = UIGlyphVertexDescription::getBindingDescription();
-        auto attributes = UIGlyphVertexDescription::getAttributeDescriptions();
-
-        VkPipelineVertexInputStateCreateInfo vertexInput{};
-        vertexInput.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vertexInput.vertexBindingDescriptionCount   = 1;
-        vertexInput.pVertexBindingDescriptions      = &binding;
-        vertexInput.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributes.size());
-        vertexInput.pVertexAttributeDescriptions    = attributes.data();
-
-        VkPipelineInputAssemblyStateCreateInfo assembly{};
-        assembly.sType    = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-
-        VkPipelineViewportStateCreateInfo viewportState{};
-        viewportState.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-        viewportState.viewportCount = 1;
-        viewportState.scissorCount  = 1;
-
-        VkPipelineRasterizationStateCreateInfo raster{};
-        raster.sType       = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        raster.polygonMode = VK_POLYGON_MODE_FILL;
-        raster.cullMode    = VK_CULL_MODE_NONE;
-        raster.frontFace   = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-        raster.lineWidth   = 1.0f;
-
-        VkPipelineMultisampleStateCreateInfo ms{};
-        ms.sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
-        // Alpha blending for glyph transparency.
-        VkPipelineColorBlendAttachmentState blend{};
-        blend.blendEnable         = VK_TRUE;
-        blend.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-        blend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-        blend.colorBlendOp        = VK_BLEND_OP_ADD;
-        blend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        blend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-        blend.alphaBlendOp        = VK_BLEND_OP_ADD;
-        blend.colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                    VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-
-        VkPipelineColorBlendStateCreateInfo blending{};
-        blending.sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        blending.attachmentCount = 1;
-        blending.pAttachments    = &blend;
-
-        // No depth test — UI always draws on top.
-        VkPipelineDepthStencilStateCreateInfo depthStencil{};
-        depthStencil.sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depthStencil.depthTestEnable  = VK_FALSE;
-        depthStencil.depthWriteEnable = VK_FALSE;
-
-        std::vector<VkDynamicState> dynStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
-        VkPipelineDynamicStateCreateInfo dynState{};
-        dynState.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-        dynState.dynamicStateCount = static_cast<uint32_t>(dynStates.size());
-        dynState.pDynamicStates    = dynStates.data();
-
-        VkGraphicsPipelineCreateInfo pipeInfo{};
-        pipeInfo.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        pipeInfo.stageCount          = 2;
-        pipeInfo.pStages             = stages;
-        pipeInfo.pVertexInputState   = &vertexInput;
-        pipeInfo.pInputAssemblyState = &assembly;
-        pipeInfo.pViewportState      = &viewportState;
-        pipeInfo.pRasterizationState = &raster;
-        pipeInfo.pMultisampleState   = &ms;
-        pipeInfo.pDepthStencilState  = &depthStencil;
-        pipeInfo.pColorBlendState    = &blending;
-        pipeInfo.pDynamicState       = &dynState;
-        pipeInfo.layout              = pipelineLayout;
-        pipeInfo.renderPass          = renderPass;
-        pipeInfo.subpass             = 0;
-
-        if (vkCreateGraphicsPipelines(vcsheet::getDevice(), VK_NULL_HANDLE, 1, &pipeInfo,
-                                      nullptr, &pipeline) != VK_SUCCESS)
-            throw std::runtime_error("VulkanUiRenderer: failed to create UI pipeline");
-    }
-
-    void createFramebuffers()
-    {
-        const auto& imageViews = vcsheet::getSwapChainImageViews();
-        const auto  extent     = vcsheet::getSwapChainExtent();
-
-        framebuffers.resize(imageViews.size());
-        for (size_t i = 0; i < imageViews.size(); ++i)
-        {
-            VkFramebufferCreateInfo fbInfo{};
-            fbInfo.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            fbInfo.renderPass      = renderPass;
-            fbInfo.attachmentCount = 1;
-            fbInfo.pAttachments    = &imageViews[i];
-            fbInfo.width           = extent.width;
-            fbInfo.height          = extent.height;
-            fbInfo.layers          = 1;
-
-            if (vkCreateFramebuffer(vcsheet::getDevice(), &fbInfo, nullptr, &framebuffers[i]) != VK_SUCCESS)
-                throw std::runtime_error("VulkanUiRenderer: failed to create framebuffer");
-        }
-    }
 
     void createDynamicBuffers()
     {

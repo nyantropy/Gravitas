@@ -62,13 +62,10 @@ void VulkanPipeline::createGraphicsPipeline()
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-    auto bindingDescription = Vertex::getBindingDescription();
-    auto attributeDescriptions = Vertex::getAttributeDescriptions();
-
-    vertexInputInfo.vertexBindingDescriptionCount = 1;
-    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+    vertexInputInfo.vertexBindingDescriptionCount   = 1;
+    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(config.vertexAttributes.size());
+    vertexInputInfo.pVertexBindingDescriptions      = &config.vertexBinding;
+    vertexInputInfo.pVertexAttributeDescriptions    = config.vertexAttributes.data();
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -97,21 +94,21 @@ void VulkanPipeline::createGraphicsPipeline()
 
     VkPipelineDepthStencilStateCreateInfo depthStencil{};
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depthStencil.depthTestEnable = VK_TRUE;
-    depthStencil.depthWriteEnable = VK_TRUE;
+    depthStencil.depthTestEnable  = config.depthTestEnable  ? VK_TRUE : VK_FALSE;
+    depthStencil.depthWriteEnable = config.depthWriteEnable ? VK_TRUE : VK_FALSE;
     depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
     depthStencil.depthBoundsTestEnable = VK_FALSE;
     depthStencil.stencilTestEnable = VK_FALSE;
 
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
     colorBlendAttachment.colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment.blendEnable         = VK_TRUE;
-    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    colorBlendAttachment.colorBlendOp        = VK_BLEND_OP_ADD;
-    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    colorBlendAttachment.alphaBlendOp        = VK_BLEND_OP_ADD;
+    colorBlendAttachment.blendEnable         = config.blendEnable ? VK_TRUE : VK_FALSE;
+    colorBlendAttachment.srcColorBlendFactor = config.srcColorBlendFactor;
+    colorBlendAttachment.dstColorBlendFactor = config.dstColorBlendFactor;
+    colorBlendAttachment.colorBlendOp        = config.colorBlendOp;
+    colorBlendAttachment.srcAlphaBlendFactor = config.srcAlphaBlendFactor;
+    colorBlendAttachment.dstAlphaBlendFactor = config.dstAlphaBlendFactor;
+    colorBlendAttachment.alphaBlendOp        = config.alphaBlendOp;
 
     VkPipelineColorBlendStateCreateInfo colorBlending{};
     colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -133,21 +130,32 @@ void VulkanPipeline::createGraphicsPipeline()
     dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
     dynamicState.pDynamicStates = dynamicStates.data();
 
-    // set 0 = camera UBO, set 1 = object SSBO, set 2 = texture sampler
-    auto setLayouts = dssheet::getDescriptorSetLayouts();
+    // Descriptor set layouts: use config override if provided, else global dssheet layouts.
+    auto dsheetsLayouts = dssheet::getDescriptorSetLayouts();
+    const std::vector<VkDescriptorSetLayout>* setLayoutsPtr = nullptr;
+    std::vector<VkDescriptorSetLayout> dsheetsVec;
+    if (!config.descriptorSetLayouts.empty())
+    {
+        setLayoutsPtr = &config.descriptorSetLayouts;
+    }
+    else
+    {
+        dsheetsVec = std::vector<VkDescriptorSetLayout>(dsheetsLayouts.begin(), dsheetsLayouts.end());
+        setLayoutsPtr = &dsheetsVec;
+    }
 
-    // push constant: objectIndex (uint32) + alpha (float) = 8 bytes, visible to both stages
+    // Push constants: omit if size == 0.
     VkPushConstantRange pushConstantRange{};
-    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.stageFlags = config.pushConstantStages;
     pushConstantRange.offset     = 0;
-    pushConstantRange.size       = sizeof(uint32_t) + sizeof(float);
+    pushConstantRange.size       = config.pushConstantSize;
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount         = static_cast<uint32_t>(setLayouts.size());
-    pipelineLayoutInfo.pSetLayouts            = setLayouts.data();
-    pipelineLayoutInfo.pushConstantRangeCount = 1;
-    pipelineLayoutInfo.pPushConstantRanges    = &pushConstantRange;
+    pipelineLayoutInfo.setLayoutCount         = static_cast<uint32_t>(setLayoutsPtr->size());
+    pipelineLayoutInfo.pSetLayouts            = setLayoutsPtr->data();
+    pipelineLayoutInfo.pushConstantRangeCount = (config.pushConstantSize > 0) ? 1 : 0;
+    pipelineLayoutInfo.pPushConstantRanges    = (config.pushConstantSize > 0) ? &pushConstantRange : nullptr;
 
     if (vkCreatePipelineLayout(vcsheet::getDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
     {
