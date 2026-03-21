@@ -92,6 +92,13 @@ public:
 
     // ── Compile ───────────────────────────────────────────────────────────
 
+    // Frees transient resources and destroys all stages.
+    ~GtsFrameGraph()
+    {
+        freeTransientResources();
+        stages.clear();
+    }
+
     // Must be called once after all stages and resources are registered.
     // Calls declareResources() on every stage, topologically sorts by
     // resource dependency, determines barrier insertion points, and

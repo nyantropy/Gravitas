@@ -1,38 +1,59 @@
 #pragma once
 
 #include <array>
+#include <memory>
 #include <vector>
 #include <vulkan/vulkan.h>
 
 #include "GtsFrameGraph.h"
 #include "GtsRenderStage.h"
 #include "VulkanRenderPass.hpp"
+#include "VulkanRenderPassConfig.h"
 #include "VulkanPipeline.hpp"
+#include "VulkanPipelineConfig.h"
 #include "FramebufferManager.hpp"
+#include "FramebufferManagerConfig.h"
 #include "RenderResourceManager.hpp"
 #include "RenderCommand.h"
 #include "ObjectUBO.h"
+#include "GraphicsConstants.h"
 #include "vcsheet.h"
 
 // Main 3D scene render stage.
-// Encapsulates the scene render pass and all per-object draw calls.
+// Owns its render pass, pipeline, and framebuffers.
+// Borrows RenderResourceManager from ForwardRenderer (shared across stages).
 class SceneRenderStage : public GtsRenderStage
 {
 public:
-    SceneRenderStage(VulkanRenderPass*      renderPass,
-                     VulkanPipeline*        pipeline,
-                     FramebufferManager*    framebuffers,
-                     RenderResourceManager* resources,
+    SceneRenderStage(RenderResourceManager* resources,
+                     VkImageView            depthImageView,
+                     VkFormat               depthFormat,
                      GtsResourceHandle      swapchainHandle,
                      GtsResourceHandle      depthHandle)
         : GtsRenderStage("SceneRenderStage")
-        , renderPass(renderPass)
-        , pipeline(pipeline)
-        , framebuffers(framebuffers)
         , resources(resources)
         , swapchainHandle(swapchainHandle)
         , depthHandle(depthHandle)
-    {}
+    {
+        // Render pass
+        VulkanRenderPassConfig rpConfig;
+        rpConfig.colorFormat = vcsheet::getSwapChainImageFormat();
+        rpConfig.depthFormat = depthFormat;
+        renderPass = std::make_unique<VulkanRenderPass>(rpConfig);
+
+        // Pipeline
+        VulkanPipelineConfig pConfig;
+        pConfig.vertexShaderPath   = GraphicsConstants::V_SHADER_PATH;
+        pConfig.fragmentShaderPath = GraphicsConstants::F_SHADER_PATH;
+        pConfig.vkRenderPass       = renderPass->getRenderPass();
+        pipeline = std::make_unique<VulkanPipeline>(pConfig);
+
+        // Framebuffers (color + depth)
+        FramebufferManagerConfig fbConfig;
+        fbConfig.attachmentImageView = depthImageView;
+        fbConfig.vkRenderpass        = renderPass->getRenderPass();
+        framebuffers = std::make_unique<FramebufferManager>(fbConfig);
+    }
 
     void declareResources(GtsFrameGraph& graph) override
     {
@@ -130,10 +151,11 @@ public:
     }
 
 private:
-    VulkanRenderPass*      renderPass;
-    VulkanPipeline*        pipeline;
-    FramebufferManager*    framebuffers;
-    RenderResourceManager* resources;
-    GtsResourceHandle      swapchainHandle;
-    GtsResourceHandle      depthHandle;
+    std::unique_ptr<VulkanRenderPass>   renderPass;
+    std::unique_ptr<VulkanPipeline>     pipeline;
+    std::unique_ptr<FramebufferManager> framebuffers;
+    RenderResourceManager*              resources;
+    GtsResourceHandle                   swapchainHandle;
+    GtsResourceHandle                   depthHandle;
+
 };

@@ -10,18 +10,9 @@
 #include "Attachment.hpp"
 #include "AttachmentConfig.h"
 
-#include "VulkanRenderPass.hpp"
-#include "VulkanRenderPassConfig.h"
-
-#include "VulkanPipelineConfig.h"
-#include "VulkanPipeline.hpp"
-
 #include "RenderResourceManager.hpp"
 #include "RenderCommandExtractor.hpp"
 #include "ObjectUBO.h"
-
-#include "FramebufferManager.hpp"
-#include "FramebufferManagerConfig.h"
 
 #include "GraphicsConstants.h"
 #include "FormatUtil.hpp"
@@ -30,7 +21,6 @@
 
 #include "GtsEvent.hpp"
 
-#include "VulkanUiRenderer.hpp"
 #include <UICommand.h>
 
 #include "GtsFrameGraph.h"
@@ -40,20 +30,17 @@
 class ForwardRenderer : Renderer
 {
     private:
-        // render structs
-        std::unique_ptr<Attachment> depthAttachment;
-        std::unique_ptr<VulkanRenderPass> vrenderpass;
-        std::unique_ptr<VulkanPipeline> vpipeline;
-        std::unique_ptr<FramebufferManager> frameBufferManager;
-        std::unique_ptr<FrameManager> frameManager;
-
-        // resource system of the renderer
+        // Frame-level resources shared across all stages.
+        std::unique_ptr<Attachment>            depthAttachment;
         std::unique_ptr<RenderResourceManager> resourceSystem;
+        std::unique_ptr<FrameManager>          frameManager;
 
-        // UI overlay renderer (declared after resourceSystem so it is destroyed first)
-        std::unique_ptr<VulkanUiRenderer> uiRenderer;
+        // Depth format — resolved once in createDepthAttachment(), reused by
+        // buildFrameGraph() and SceneRenderStage.
+        VkFormat depthFormat = VK_FORMAT_UNDEFINED;
 
         // Frame graph — built once in createResources(), executed every frame.
+        // Declared last so it destructs first (stages reference depthAttachment).
         GtsFrameGraph frameGraph;
 
         // misc variables we need for the draw loop
@@ -68,57 +55,23 @@ class ForwardRenderer : Renderer
 
         VkFormat findDepthFormat()
         {
-            // we can use these variables to find a depth format
             std::vector<VkFormat> candidates = {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT};
             VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
             VkFormatFeatureFlags features = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
-            VkFormat depthFormat = FormatUtil::findSupportedFormat(vcsheet::getPhysicalDevice(), candidates, tiling, features);
-
-            return depthFormat;
+            return FormatUtil::findSupportedFormat(vcsheet::getPhysicalDevice(), candidates, tiling, features);
         }
 
         void createDepthAttachment()
         {
+            depthFormat = findDepthFormat();
             AttachmentConfig attachConfig;
-            // specific for image
-            attachConfig.format = findDepthFormat();
+            attachConfig.format = depthFormat;
             attachConfig.tiling = VK_IMAGE_TILING_OPTIMAL;
             attachConfig.imageUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-
-            // specific for memory
             attachConfig.memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-
-            // specific for the image view
             attachConfig.imageAspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
-
-            // create a simple depth attachment
             depthAttachment = std::make_unique<Attachment>(attachConfig);
-        }
-
-        void createRenderPass()
-        {
-            VulkanRenderPassConfig vrpConfig;
-            vrpConfig.depthFormat = findDepthFormat();
-            vrpConfig.colorFormat = vcsheet::getSwapChainImageFormat();
-            vrenderpass = std::make_unique<VulkanRenderPass>(vrpConfig);
-        }
-
-        void createPipeline()
-        {
-            VulkanPipelineConfig vpConfig;
-            vpConfig.fragmentShaderPath = GraphicsConstants::F_SHADER_PATH;
-            vpConfig.vertexShaderPath = GraphicsConstants::V_SHADER_PATH;
-            vpConfig.vkRenderPass = vrenderpass->getRenderPass();
-            vpipeline = std::make_unique<VulkanPipeline>(vpConfig);
-        }
-
-        void createFrameBuffers()
-        {
-            FramebufferManagerConfig vfmConfig;
-            vfmConfig.attachmentImageView = depthAttachment->getImageView();
-            vfmConfig.vkRenderpass = vrenderpass->getRenderPass();
-            frameBufferManager = std::make_unique<FramebufferManager>(vfmConfig);
         }
 
         void buildFrameGraph()
@@ -146,18 +99,20 @@ class ForwardRenderer : Renderer
                 "depth",
                 depthAttachment->getImage(),
                 depthAttachment->getImageView(),
-                findDepthFormat(), extent,
+                depthFormat, extent,
                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                 VK_IMAGE_ASPECT_DEPTH_BIT,
                 VK_IMAGE_LAYOUT_UNDEFINED);
 
             frameGraph.addStage(std::make_unique<SceneRenderStage>(
-                vrenderpass.get(), vpipeline.get(),
-                frameBufferManager.get(), resourceSystem.get(),
-                swapchainHandle0, depthHandle));
+                resourceSystem.get(),
+                depthAttachment->getImageView(),
+                depthFormat,
+                swapchainHandle0,
+                depthHandle));
 
             frameGraph.addStage(std::make_unique<UiRenderStage>(
-                uiRenderer.get(), resourceSystem.get(),
+                resourceSystem.get(),
                 swapchainHandle0));
 
             frameGraph.compile();
@@ -166,12 +121,8 @@ class ForwardRenderer : Renderer
         void createResources() override
         {
             createDepthAttachment();
-            createRenderPass();
             resourceSystem = std::make_unique<RenderResourceManager>();
-            createPipeline();
-            createFrameBuffers();
-            frameManager  = std::make_unique<FrameManager>();
-            uiRenderer    = std::make_unique<VulkanUiRenderer>();
+            frameManager   = std::make_unique<FrameManager>();
             buildFrameGraph();
         }
 
@@ -193,7 +144,7 @@ class ForwardRenderer : Renderer
                 throw std::runtime_error("failed to record command buffer!");
         }
 
-        
+
     public:
         // render events
         GtsEvent<int, uint32_t> onFrameEnded;
@@ -206,13 +157,11 @@ class ForwardRenderer : Renderer
 
         ~ForwardRenderer()
         {
-            if(frameManager) frameManager.reset();
-            if(frameBufferManager) frameBufferManager.reset();
-            if(vpipeline) vpipeline.reset();
-            if(vrenderpass) vrenderpass.reset();
-            if(depthAttachment) depthAttachment.reset();
+            if (frameManager)    frameManager.reset();
+            if (resourceSystem)  resourceSystem.reset();
+            if (depthAttachment) depthAttachment.reset();
         }
-              
+
         void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
                          const std::vector<UICommandList>& uiLists) override
         {
@@ -233,16 +182,16 @@ class ForwardRenderer : Renderer
                                                     &imageIndex);
 
             if (result == VK_ERROR_OUT_OF_DATE_KHR)
-            { 
+            {
                 //recreateSwapChain();
-                return; 
+                return;
             }
 
             if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
                 throw std::runtime_error("failed to acquire swap chain image!");
 
             VkFence imageFence = frameManager->getImageFence(imageIndex);
-            if (frameManager->getImagesInFlightCount() > imageIndex && imageFence != VK_NULL_HANDLE) 
+            if (frameManager->getImagesInFlightCount() > imageIndex && imageFence != VK_NULL_HANDLE)
             {
                 vkWaitForFences(vcsheet::getDevice(), 1, &imageFence, VK_TRUE, UINT64_MAX);
             }
@@ -282,13 +231,13 @@ class ForwardRenderer : Renderer
                 throw std::runtime_error("failed to submit draw command buffer!");
             }
 
-            if (frameManager->getImagesInFlightCount() > imageIndex) 
+            if (frameManager->getImagesInFlightCount() > imageIndex)
             {
                 frameManager->setImageFence(imageIndex, frame.inFlightFence);
             }
 
             // fire the on frame ended event, currently non functional
-            if (lastFrameTime >= frameInterval) 
+            if (lastFrameTime >= frameInterval)
             {
                 onFrameEnded.notify(dt, imageIndex);
                 lastFrameTime -= frameInterval;
@@ -307,7 +256,7 @@ class ForwardRenderer : Renderer
 
             result = vkQueuePresentKHR(vcsheet::getPresentQueue(), &presentInfo);
 
-            if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) 
+            if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
             {
                 framebufferResized = false;
                 //recreateSwapChain();
@@ -319,13 +268,8 @@ class ForwardRenderer : Renderer
 
             currentFrame = (currentFrame + 1) % GraphicsConstants::MAX_FRAMES_IN_FLIGHT;
         }
-        
+
         // filler getters, not to be used in the real program
         Attachment* getAttachmentWrapper() { return depthAttachment.get(); }
-        VulkanRenderPass* getRenderPassWrapper() { return vrenderpass.get(); }
         RenderResourceManager* getResourceSystem() { return resourceSystem.get(); }
-        VulkanPipeline* getPipeline() { return vpipeline.get(); }
-        FramebufferManager* getFrameBufferManager() { return frameBufferManager.get(); }
-
-        //IResourceProvider* getResourceProvider() { return resourceSystem.get(); }
 };
