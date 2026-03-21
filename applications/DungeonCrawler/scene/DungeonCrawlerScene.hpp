@@ -7,6 +7,7 @@
 #include "RenderDescriptionComponent.h"
 #include "CameraDescriptionComponent.h"
 #include "TransformComponent.h"
+#include "BoundsComponent.h"
 
 #include "SceneContext.h"
 #include "GraphicsConstants.h"
@@ -26,6 +27,7 @@ class DungeonCrawlerScene : public GtsScene
 
             TransformComponent tc;
             ecsWorld.addComponent<TransformComponent>(cube, tc);
+            ecsWorld.addComponent<BoundsComponent>(cube, BoundsComponent{});
 
             Entity camera = ecsWorld.createEntity();
 

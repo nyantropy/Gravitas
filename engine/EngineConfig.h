@@ -11,5 +11,10 @@ struct EngineConfig
     // Default: 20 ticks/sec (one tick = 0.05 s of game time).
     int simulationTickRate = 20;
 
+    // Enable frustum culling in RenderCommandExtractor.
+    // Entities without a BoundsComponent are never culled regardless of this flag.
+    // Set to false to disable culling globally (useful for debugging).
+    bool frustumCullingEnabled = true;
+
     // Extend here later: audio config, input config, physics config, etc.
 };

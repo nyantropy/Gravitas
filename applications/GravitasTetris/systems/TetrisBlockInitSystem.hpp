@@ -8,6 +8,7 @@
 #include "RenderDescriptionComponent.h"
 #include "TetrominoType.hpp"
 #include "GraphicsConstants.h"
+#include "BoundsComponent.h"
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
 
@@ -35,6 +36,7 @@ public:
             const bool isGhost = world.hasComponent<GhostBlockComponent>(e);
 
             world.addComponent(e, TransformComponent{});
+            world.addComponent(e, BoundsComponent{});  // unit cube local bounds for frustum culling
 
             RenderDescriptionComponent desc;
             desc.meshPath    = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";

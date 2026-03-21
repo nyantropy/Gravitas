@@ -54,12 +54,13 @@ class GravitasEngine
             sceneContext.time              = &timeContext;
             sceneContext.engineCommands    = &engineCommands;
             sceneContext.windowAspectRatio = platform.getAspectRatio();
+            sceneContext.extractor         = renderCommandExtractor.get();
         }
 
         // its only a render system now, maybe this will move later
         void createECSExtractors()
         {
-            renderCommandExtractor = std::make_unique<RenderCommandExtractor>();
+            renderCommandExtractor = std::make_unique<RenderCommandExtractor>(engineConfig.frustumCullingEnabled);
         }
 
         // render call
