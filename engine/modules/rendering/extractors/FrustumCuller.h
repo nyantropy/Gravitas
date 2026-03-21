@@ -1,5 +1,5 @@
 #pragma once
-#include <glm.hpp>
+#include "GlmConfig.h"
 #include <array>
 
 // Extracts the 6 view-frustum planes from a view-projection matrix and tests

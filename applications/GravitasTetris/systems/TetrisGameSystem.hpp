@@ -6,7 +6,7 @@
 #endif
 
 #include <cstdlib>
-#include <glm.hpp>
+#include "GlmConfig.h"
 
 #include "ECSSimulationSystem.hpp"
 #include "TetrisInputComponent.hpp"

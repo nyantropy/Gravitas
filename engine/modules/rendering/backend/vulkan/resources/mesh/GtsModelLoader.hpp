@@ -4,12 +4,7 @@
 #include <unordered_map>
 #include <stdexcept>
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm.hpp>
-#include <gtc/matrix_transform.hpp>
-#include <gtx/hash.hpp>
+#include "GlmConfig.h"
 
 #include <tiny_obj_loader.h>
 

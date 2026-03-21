@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glm.hpp>
+#include "GlmConfig.h"
 
 // just default transform as standard values
 struct TransformComponent 

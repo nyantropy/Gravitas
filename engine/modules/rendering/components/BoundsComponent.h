@@ -1,5 +1,5 @@
 #pragma once
-#include <glm.hpp>
+#include "GlmConfig.h"
 
 // Local-space axis-aligned bounding box for frustum culling.
 // min and max are in the entity's local coordinate space.

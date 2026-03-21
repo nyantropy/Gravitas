@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <limits>
 #include <string>
-#include <glm.hpp>
+#include "GlmConfig.h"
 
 #include "Types.h"
 

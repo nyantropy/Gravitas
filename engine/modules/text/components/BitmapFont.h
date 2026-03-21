@@ -2,7 +2,7 @@
 
 #include <unordered_map>
 
-#include <glm.hpp>
+#include "GlmConfig.h"
 
 #include "Types.h"
 

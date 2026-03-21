@@ -2,7 +2,7 @@
 
 #include "TetrominoType.hpp"
 #include "Entity.h"
-#include <glm.hpp>
+#include "GlmConfig.h"
 #include <array>
 
 // represents the active tetromino on the grid as a cache object, the actual data is inside the ecs

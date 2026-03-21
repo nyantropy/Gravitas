@@ -8,7 +8,7 @@
 #include "ECSWorld.hpp"
 #include "Entity.h"
 #include <array>
-#include <glm.hpp>
+#include "GlmConfig.h"
 
 // Owns the hold slot state and the four persistent hold-display ECS entities.
 struct HoldController

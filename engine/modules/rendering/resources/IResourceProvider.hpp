@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include <glm.hpp>
+#include "GlmConfig.h"
 
 #include "Types.h"
 #include "Vertex.h"

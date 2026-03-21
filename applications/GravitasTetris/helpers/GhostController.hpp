@@ -9,7 +9,7 @@
 #include "ECSWorld.hpp"
 #include "Entity.h"
 #include <array>
-#include <glm.hpp>
+#include "GlmConfig.h"
 
 // Owns the four ghost-block ECS entities and keeps them projected to the
 // piece's landing row every frame.

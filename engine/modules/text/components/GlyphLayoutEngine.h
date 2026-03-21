@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glm.hpp>
+#include "GlmConfig.h"
 
 #include "QuadTextComponent.h"
 #include "TextMeshComponent.h"

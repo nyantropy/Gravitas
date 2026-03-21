@@ -5,8 +5,7 @@
 #include <cstring>
 
 #include <vulkan/vulkan.h>
-#include <glm.hpp>
-#include <gtc/matrix_transform.hpp>
+#include "GlmConfig.h"
 
 #include "vcsheet.h"
 #include "dssheet.h"
@@ -137,8 +136,8 @@ public:
 
         // Ortho proj: [0..1] screen-space, Y-down for Vulkan.
         // glm::ortho(left, right, bottom, top) — then Vulkan Y-flip.
-        glm::mat4 proj = glm::ortho(0.0f, 1.0f, 1.0f, 0.0f, -1.0f, 1.0f);
-        // no proj[1][1] *= -1.0f
+        glm::mat4 proj = glm::ortho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f);
+        //proj[1][1] *= -1.0f;
         vkCmdPushConstants(cmd, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
                            0, sizeof(glm::mat4), &proj);
 

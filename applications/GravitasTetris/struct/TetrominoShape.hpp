@@ -1,7 +1,7 @@
 #pragma once
 
 #include <array>
-#include <glm.hpp>
+#include "GlmConfig.h"
 
 // defines a tetromino shape in blocks
 struct TetrominoShape

@@ -2,7 +2,7 @@
 
 
 #include <vulkan/vulkan.h>
-#include <glm.hpp>
+#include "GlmConfig.h"
 #include <array>
 
 struct Vertex 

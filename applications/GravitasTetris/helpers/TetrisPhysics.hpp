@@ -4,7 +4,7 @@
 #include "TetrominoShape.hpp"
 #include "TetrominoType.hpp"
 #include "ActiveTetromino.hpp"
-#include <glm.hpp>
+#include "GlmConfig.h"
 
 // Pure physics algorithms shared across multiple controllers.
 namespace TetrisPhysics

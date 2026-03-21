@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include <glm.hpp>
+#include "GlmConfig.h"
 
 #include "Types.h"
 

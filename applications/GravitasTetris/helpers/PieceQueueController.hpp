@@ -12,7 +12,7 @@
 #include <vector>
 #include <array>
 #include <cstdlib>
-#include <glm.hpp>
+#include "GlmConfig.h"
 
 // Owns the upcoming-piece queue and the preview ECS entities shown in the sidebar.
 struct PieceQueueController

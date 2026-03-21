@@ -1,8 +1,7 @@
 #pragma once
 
 #include <cmath>
-#include <glm.hpp>
-#include <gtc/matrix_transform.hpp>
+#include "GlmConfig.h"
 
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"

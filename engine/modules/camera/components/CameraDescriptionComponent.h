@@ -1,7 +1,6 @@
 #pragma once
 
-#include <glm.hpp>
-#include <gtc/matrix_transform.hpp>
+#include "GlmConfig.h"
 
 // Gameplay-facing camera description.  Contains only camera intent —
 // no GPU handles, no pre-computed matrices.

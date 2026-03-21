@@ -2,7 +2,7 @@
 
 #include <array>
 #include <vulkan/vulkan.h>
-#include <glm.hpp>
+#include "GlmConfig.h"
 
 // Vulkan vertex input descriptions for the UI glyph vertex format.
 //   layout(location = 0) in vec2 inPos;  — offset  0, 8 bytes

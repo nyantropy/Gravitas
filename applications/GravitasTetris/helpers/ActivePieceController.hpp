@@ -9,7 +9,7 @@
 #include "TetrisPhysics.hpp"
 #include "ECSWorld.hpp"
 #include <optional>
-#include <glm.hpp>
+#include "GlmConfig.h"
 
 // Owns the active falling piece and all single-piece mutations:
 // movement, rotation (SRS wall-kick), hard-drop snap, locking, and spawning.
