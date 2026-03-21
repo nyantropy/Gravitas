@@ -26,8 +26,13 @@ class GtsScene
         virtual void onLoad(SceneContext& ctx,
                             const GtsSceneTransitionData* data = nullptr) = 0;
 
-        // call this every time the scene is updated
-        virtual void onUpdate(SceneContext& ctx) = 0;
+        // Called once per simulation tick at the fixed tick rate.
+        // Game logic, AI, movement, and turn processing go here.
+        virtual void onUpdateSimulation(SceneContext& ctx) = 0;
+
+        // Called once per rendered frame regardless of tick rate.
+        // Input processing, visual updates, and rendering prep go here.
+        virtual void onUpdateControllers(SceneContext& ctx) {}
 
         ECSWorld& getWorld()
         {

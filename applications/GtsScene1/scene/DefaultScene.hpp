@@ -112,9 +112,13 @@ class DefaultScene : public GtsScene
             addSystems();
         }
 
-        void onUpdate(SceneContext& ctx) override
+        void onUpdateSimulation(SceneContext& ctx) override
+        {
+            ecsWorld.updateSimulation(ctx.time->deltaTime);
+        }
+
+        void onUpdateControllers(SceneContext& ctx) override
         {
             ecsWorld.updateControllers(ctx);
-            ecsWorld.updateSimulation(ctx.time->deltaTime);
         }
 };

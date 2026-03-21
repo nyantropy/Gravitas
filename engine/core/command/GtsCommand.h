@@ -8,6 +8,7 @@ struct GtsCommand
     {
         TogglePause,
         LoadScene,
+        ChangeScene,
         Quit
     };
 

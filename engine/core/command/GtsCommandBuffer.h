@@ -19,5 +19,13 @@ struct GtsCommandBuffer
         commands.push_back(cmd);
     }
 
+    void requestChangeScene(const std::string& name)
+    {
+        GtsCommand cmd;
+        cmd.type = GtsCommand::Type::ChangeScene;
+        cmd.stringArg = name;
+        commands.push_back(cmd);
+    }
+
     std::vector<GtsCommand> commands;
 };

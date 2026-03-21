@@ -17,6 +17,8 @@ int main()
     config.graphics.window.windowMode           = WindowMode::BorderlessFullscreen;
     config.graphics.window.vsync                = true;
 
+    config.simulationTickRate = 5.0f;
+
     GravitasEngine engine(config);
     engine.registerScene("tetris", std::make_unique<TetrisScene>());
     engine.setActiveScene("tetris");

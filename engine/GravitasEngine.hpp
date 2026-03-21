@@ -1,21 +1,17 @@
 #pragma once
 
 #include <memory>
+#include <iostream>
 
 #include "EngineConfig.h"
-#include "ECSWorld.hpp"
 #include "Timer.hpp"
 #include "TimeContext.h"
-#include "IGtsGraphicsModule.hpp"
-#include "VulkanGraphics.hpp"
+
+#include "GtsPlatform.h"
+#include "GtsGameLoop.h"
+
 #include "RenderCommandExtractor.hpp"
-
 #include "SceneManager.hpp"
-
-#include "InputManager.hpp"
-#include "InputActionManager.hpp"
-#include "PauseFilteredInputSource.hpp"
-#include "GtsAction.h"
 
 #include "GtsCommand.h"
 #include "GtsCommandBuffer.h"
@@ -25,22 +21,14 @@ class GravitasEngine
     private:
         EngineConfig engineConfig;
 
+        // OS-facing subsystems: graphics, windowing, input
+        GtsPlatform platform;
+
+        // Fixed-timestep accumulator
+        GtsGameLoop gameLoop;
+
         // a global engine timer
         std::unique_ptr<Timer> timer;
-
-        // the global input manager and its action abstraction layer
-        std::unique_ptr<InputManager>                  inputManager;
-        std::unique_ptr<InputActionManager<GtsAction>> actionManager;
-
-        // Wraps inputManager and gates all key queries to false while the simulation
-        // is paused.  Exposed as sceneContext.inputSource so simulation-coupled
-        // controller systems (e.g. TetrisInputSystem) see no input during pause.
-        // ctx.actions (engine's InputActionManager) is updated from the raw inputManager
-        // directly, so camera and UI systems are unaffected.
-        PauseFilteredInputSource filteredInputSource;
-
-        // graphics module related structures
-        std::unique_ptr<IGtsGraphicsModule> graphics;
 
         // used to extract all render commands from the currently active ecs world
         std::unique_ptr<RenderCommandExtractor> renderCommandExtractor;
@@ -52,28 +40,20 @@ class GravitasEngine
         // the scene context and the time context should both be members of the engine, as they get updated
         // constantly and need to not run out of scope
         SceneContext sceneContext;
-        TimeContext timeContext;
+        TimeContext  timeContext;
 
         // the engine also has its own command buffer, which can be filled by lower level architectures, and will lead
         // to the engine executing pre defined functions like pausing, or changing the scene, etc..
         GtsCommandBuffer engineCommands;
 
-        bool simulationPaused = false;
-
-        void bindDefaultActions()
-        {
-            actionManager->bind(GtsAction::TogglePause,       GtsKey::X);
-            actionManager->bind(GtsAction::CloseApplication,  GtsKey::Escape);
-        }
-
         void createSceneContext()
         {
-            sceneContext.resources         = graphics->getResourceProvider();
-            sceneContext.inputSource       = &filteredInputSource;   // pause-gated
-            sceneContext.actions           = actionManager.get();    // always live
+            sceneContext.resources         = platform.getResourceProvider();
+            sceneContext.inputSource       = platform.getInputSource();   // pause-gated
+            sceneContext.actions           = platform.getActionManager(); // always live
             sceneContext.time              = &timeContext;
             sceneContext.engineCommands    = &engineCommands;
-            sceneContext.windowAspectRatio = graphics->getAspectRatio();
+            sceneContext.windowAspectRatio = platform.getAspectRatio();
         }
 
         // its only a render system now, maybe this will move later
@@ -82,53 +62,50 @@ class GravitasEngine
             renderCommandExtractor = std::make_unique<RenderCommandExtractor>();
         }
 
-        // create Manager classes
-        void createManagers()
+        // render call
+        void render(float dt)
         {
-            sceneManager  = std::make_unique<SceneManager>();
-            inputManager  = std::make_unique<InputManager>();
-            actionManager = std::make_unique<InputActionManager<GtsAction>>();
-            filteredInputSource.setSource(*inputManager);
+            platform.getGraphics()->renderFrame(
+                dt,
+                renderCommandExtractor->extractRenderList(sceneManager->getActiveScene()->getWorld()));
         }
 
-        // create the graphics module and wire key events into the input manager via subscription
-        void createGraphicsModule()
+        // command callback from lower level architectures
+        void applyCommands()
         {
-            switch (engineConfig.graphics.backend)
+            for (auto& cmd : engineCommands.commands)
             {
-                case GraphicsBackend::Vulkan:
-                    graphics = std::make_unique<VulkanGraphics>(engineConfig.graphics);
-                    break;
+                switch (cmd.type)
+                {
+                    case GtsCommand::Type::TogglePause:
+                        gameLoop.paused = !gameLoop.paused;
+                        std::cout << (gameLoop.paused ? "Paused" : "Resumed") << std::endl;
+                        break;
+                    case GtsCommand::Type::LoadScene:
+                    case GtsCommand::Type::ChangeScene:
+                        sceneManager->setActiveScene(cmd.stringArg);
+                        sceneManager->getActiveScene()->onLoad(sceneContext, nullptr);
+                        break;
+                    case GtsCommand::Type::Quit:
+                        break;
+                }
             }
 
-            graphics->onKeyPressed().subscribe([this](const GtsKeyEvent& e)
-            {
-                inputManager->onKeyEvent(e.key, e.pressed);
-            });
+            engineCommands.commands.clear();
         }
+
     public:
-        explicit GravitasEngine(EngineConfig config = EngineConfig{}) : engineConfig(std::move(config))
+        explicit GravitasEngine(EngineConfig config = EngineConfig{})
+            : engineConfig(std::move(config))
+            , platform(engineConfig)
         {
-            createManagers();
-            createGraphicsModule();
+            gameLoop.init(engineConfig);
+            sceneManager = std::make_unique<SceneManager>();
             createECSExtractors();
             createSceneContext();
-            bindDefaultActions();
         }
 
-        ~GravitasEngine()
-        {
-            if(inputManager) inputManager.reset();
-            if(sceneManager) sceneManager.reset();
-            if(renderCommandExtractor) renderCommandExtractor.reset();
-            if(graphics) graphics.reset();
-            if(timer) timer.reset();
-        }
-
-        Timer* getTimer()
-        {
-            return timer.get();
-        }
+        ~GravitasEngine() = default;
 
         void registerScene(std::string name, std::unique_ptr<GtsScene> scene)
         {
@@ -146,72 +123,38 @@ class GravitasEngine
             timer = std::make_unique<Timer>();
 
             // order in the function calls matters a lot, especially for the input system!!!
-            while(graphics->isWindowOpen())
+            while (platform.isWindowOpen())
             {
                 // tick the engine timer
                 float realDt = timer->tick();
                 timeContext.unscaledDeltaTime = realDt;
 
                 // snapshot previous frame, poll OS events, then derive action states
-                inputManager->beginFrame();
-                graphics->pollWindowEvents();
-                actionManager->update(*inputManager);
+                platform.beginFrame();
 
-                // engine-level action handling — pause toggle runs before deltaTime is
-                // computed so that the simulation sees dt=0 on the exact pause frame.
-                if (actionManager->isActionPressed(GtsAction::CloseApplication))
-                    break;
+                // engine-level actions (pause, quit) — run before tick advance.
+                auto* actions = platform.getActionManager();
+                if (actions->isActionPressed(GtsAction::CloseApplication)) break;
+                if (actions->isActionPressed(GtsAction::TogglePause))
+                    gameLoop.paused = !gameLoop.paused;
 
-                if (actionManager->isActionPressed(GtsAction::TogglePause))
-                    simulationPaused = !simulationPaused;
+                platform.setSimulationPaused(gameLoop.paused);
 
-                // deltaTime uses the updated simulationPaused state.
-                // The filtered input source is also updated so that simulation-coupled
-                // controller systems see no input while the simulation is paused.
-                timeContext.deltaTime = simulationPaused ? 0.0f : realDt * timeContext.timeScale;
-                timeContext.frame = timer->getFrameCount();
-                filteredInputSource.setSimulationPaused(simulationPaused);
+                // fixed timestep simulation ticks
+                int ticks             = gameLoop.advance(realDt);
+                timeContext.deltaTime = gameLoop.simulationDt();
+                timeContext.frame     = timer->getFrameCount();
 
-                // update scene and entities, render frame
-                // and also apply engine commands, if there are any in the queue
-                update();
+                for (int i = 0; i < ticks; ++i)
+                    sceneManager->getActiveScene()->onUpdateSimulation(sceneContext);
+
+                // controller systems and rendering run every frame
+                sceneManager->getActiveScene()->onUpdateControllers(sceneContext);
                 render(realDt);
                 applyCommands();
             }
 
             // shutdown graphics module after we close the window
-            graphics->shutdown();
-        }
-
-        // update call
-        void update()
-        {
-            sceneManager->getActiveScene()->onUpdate(sceneContext);
-        }
-
-        // render call
-        void render(float dt)
-        {
-            graphics->renderFrame(dt, renderCommandExtractor->extractRenderList(sceneManager->getActiveScene()->getWorld()));
-        }
-
-        // command callback from lower level architectures
-        void applyCommands()
-        {
-            for (auto& cmd : engineCommands.commands)
-            {
-                switch (cmd.type)
-                {
-                    case GtsCommand::Type::TogglePause:
-                        simulationPaused = !simulationPaused;
-                        std::cout << (simulationPaused ? "Paused" : "Resumed") << std::endl;
-                        break;
-                    case GtsCommand::Type::LoadScene:
-                        sceneManager->setActiveScene(cmd.stringArg);
-                        break;
-                }
-            }
-
-            engineCommands.commands.clear();
+            platform.shutdown();
         }
 };

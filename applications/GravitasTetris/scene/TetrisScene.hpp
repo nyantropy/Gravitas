@@ -361,9 +361,13 @@ public:
         ecsWorld.addSimulationSystem<TetrisCameraSystem>();
     }
 
-    void onUpdate(SceneContext& ctx) override
+    void onUpdateSimulation(SceneContext& ctx) override
     {
         ecsWorld.updateSimulation(ctx.time->deltaTime);
+    }
+
+    void onUpdateControllers(SceneContext& ctx) override
+    {
         ecsWorld.updateControllers(ctx);
     }
 };

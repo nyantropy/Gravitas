@@ -20,8 +20,8 @@ class InputManager : public IInputSource
                 currentState[idx] = pressed;
         }
 
-        // only the main engine can signal the start of a new frame
-        friend class GravitasEngine;
+        // only the platform layer can signal the start of a new frame
+        friend class GtsPlatform;
         void beginFrame()
         {
             previousState = currentState;
