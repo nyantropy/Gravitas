@@ -33,6 +33,10 @@
 #include "VulkanUiRenderer.hpp"
 #include <UICommand.h>
 
+#include "GtsFrameGraph.h"
+#include "SceneRenderStage.h"
+#include "UiRenderStage.h"
+
 class ForwardRenderer : Renderer
 {
     private:
@@ -48,6 +52,9 @@ class ForwardRenderer : Renderer
 
         // UI overlay renderer (declared after resourceSystem so it is destroyed first)
         std::unique_ptr<VulkanUiRenderer> uiRenderer;
+
+        // Frame graph — built once in createResources(), executed every frame.
+        GtsFrameGraph frameGraph;
 
         // misc variables we need for the draw loop
         float FPS = 30.0f;
@@ -114,6 +121,48 @@ class ForwardRenderer : Renderer
             frameBufferManager = std::make_unique<FramebufferManager>(vfmConfig);
         }
 
+        void buildFrameGraph()
+        {
+            const auto& images     = vcsheet::getSwapChainImages();
+            const auto& imageViews = vcsheet::getSwapChainImageViews();
+            const auto  format     = vcsheet::getSwapChainImageFormat();
+            const auto  extent     = vcsheet::getSwapChainExtent();
+
+            GtsResourceHandle swapchainHandle0 = GTS_INVALID_RESOURCE;
+            for (uint32_t i = 0; i < static_cast<uint32_t>(images.size()); ++i)
+            {
+                GtsResourceHandle h = frameGraph.importResource(
+                    "swapchain_" + std::to_string(i),
+                    images[i], imageViews[i],
+                    format, extent,
+                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                    VK_IMAGE_ASPECT_COLOR_BIT,
+                    VK_IMAGE_LAYOUT_UNDEFINED);
+                frameGraph.registerSwapchainHandle(i, h);
+                if (i == 0) swapchainHandle0 = h;
+            }
+
+            GtsResourceHandle depthHandle = frameGraph.importResource(
+                "depth",
+                depthAttachment->getImage(),
+                depthAttachment->getImageView(),
+                findDepthFormat(), extent,
+                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                VK_IMAGE_ASPECT_DEPTH_BIT,
+                VK_IMAGE_LAYOUT_UNDEFINED);
+
+            frameGraph.addStage(std::make_unique<SceneRenderStage>(
+                vrenderpass.get(), vpipeline.get(),
+                frameBufferManager.get(), resourceSystem.get(),
+                swapchainHandle0, depthHandle));
+
+            frameGraph.addStage(std::make_unique<UiRenderStage>(
+                uiRenderer.get(), resourceSystem.get(),
+                swapchainHandle0));
+
+            frameGraph.compile();
+        }
+
         void createResources() override
         {
             createDepthAttachment();
@@ -123,6 +172,7 @@ class ForwardRenderer : Renderer
             createFrameBuffers();
             frameManager  = std::make_unique<FrameManager>();
             uiRenderer    = std::make_unique<VulkanUiRenderer>();
+            buildFrameGraph();
         }
 
         void recordCommandBuffer(const std::vector<RenderCommand>& renderList,
@@ -135,81 +185,9 @@ class ForwardRenderer : Renderer
             if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
                 throw std::runtime_error("failed to begin recording command buffer!");
 
-            VkRenderPassBeginInfo renderPassInfo{};
-            renderPassInfo.sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-            renderPassInfo.renderPass        = vrenderpass->getRenderPass();
-            renderPassInfo.framebuffer       = frameBufferManager->getFramebuffers()[imageIndex];
-            renderPassInfo.renderArea.offset = {0, 0};
-            renderPassInfo.renderArea.extent = vcsheet::getSwapChainExtent();
-
-            std::array<VkClearValue, 2> clearValues{};
-            clearValues[0].color        = {{0.0f, 0.0f, 0.0f, 1.0f}};
-            clearValues[1].depthStencil = {1.0f, 0};
-
-            renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-            renderPassInfo.pClearValues    = clearValues.data();
-
-            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-                VkViewport viewport{};
-                viewport.x        = 0.0f;
-                viewport.y        = 0.0f;
-                viewport.width    = static_cast<float>(vcsheet::getSwapChainExtent().width);
-                viewport.height   = static_cast<float>(vcsheet::getSwapChainExtent().height);
-                viewport.minDepth = 0.0f;
-                viewport.maxDepth = 1.0f;
-                vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-                VkRect2D scissor{};
-                scissor.offset = {0, 0};
-                scissor.extent = vcsheet::getSwapChainExtent();
-                vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vpipeline->getPipeline());
-
-                // --- Bind set 0 (camera UBO) and set 1 (object SSBO) once for all draws ---
-                if (!renderList.empty() && renderList[0].cameraViewID != 0)
-                {
-                    CameraBufferResource* cameraView = resourceSystem->getCameraView(renderList[0].cameraViewID);
-                    VkDescriptorSet globalSets[2] = {
-                        cameraView->descriptorSets[currentFrame],
-                        resourceSystem->getObjectSSBODescriptorSet(currentFrame)
-                    };
-                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                            vpipeline->getPipelineLayout(),
-                                            0, 2, globalSets,
-                                            0, nullptr);
-                }
-
-                const VkDeviceSize offsets[] = { 0 };
-
-                for (const auto& cmdData : renderList)
-                {
-                    MeshResource*    mesh = resourceSystem->getMesh(cmdData.meshID);
-                    TextureResource* tex  = resourceSystem->getTexture(cmdData.textureID);
-
-                    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &mesh->vertexBuffer, offsets);
-                    vkCmdBindIndexBuffer(commandBuffer, mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-                    // Push objectIndex (vertex) + alpha (fragment) as a single 8-byte block.
-                    struct { uint32_t objectIndex; float alpha; } pc { cmdData.objectSSBOSlot, cmdData.alpha };
-                    vkCmdPushConstants(commandBuffer, vpipeline->getPipelineLayout(),
-                                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                                       0, sizeof(pc), &pc);
-
-                    // Bind set 2 (texture sampler) — changes per draw
-                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                            vpipeline->getPipelineLayout(),
-                                            2, 1, &tex->descriptorSets[currentFrame],
-                                            0, nullptr);
-
-                    vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->indices.size()), 1, 0, 0, 0);
-                }
-
-            vkCmdEndRenderPass(commandBuffer);
-
-            // UI overlay pass — composites text on top of the 3D scene.
-            uiRenderer->record(commandBuffer, imageIndex, currentFrame, uiLists, resourceSystem.get());
+            frameGraph.provideData(&renderList);
+            frameGraph.provideData(&uiLists);
+            frameGraph.execute(commandBuffer, imageIndex, currentFrame);
 
             if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
                 throw std::runtime_error("failed to record command buffer!");

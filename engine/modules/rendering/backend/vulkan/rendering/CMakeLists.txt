@@ -1,7 +1,7 @@
 file(GLOB CURRENT_DIR_SRC ./*.hpp ./*.cpp ./*.c ./*.h)
 add_library(rendering ${CURRENT_DIR_SRC})
 
-target_link_libraries(rendering PUBLIC graphics attachment renderpass pipeline vkshader framebuffer framemanager options ecsrendering)
+target_link_libraries(rendering PUBLIC graphics attachment renderpass pipeline vkshader framebuffer framemanager options ecsrendering framegraph)
 target_link_libraries(rendering INTERFACE vkui)
 target_include_directories(rendering PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -12,3 +12,4 @@ add_subdirectory(shader)
 add_subdirectory(framebuffer)
 add_subdirectory(framemanager)
 add_subdirectory(ui)
+add_subdirectory(framegraph)
