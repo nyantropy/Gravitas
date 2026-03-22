@@ -21,13 +21,11 @@
 
 #include "GtsEvent.hpp"
 
-#include <TextCommand.h>
 #include <UiCommand.h>
 #include "GtsFrameStats.h"
 
 #include "GtsFrameGraph.h"
 #include "SceneRenderStage.h"
-#include "TextRenderStage.h"
 #include "UiRenderStage.h"
 
 class ForwardRenderer : Renderer
@@ -43,7 +41,6 @@ class ForwardRenderer : Renderer
 
         // Raw pointers into the frame graph — set during buildFrameGraph().
         SceneRenderStage* sceneStage = nullptr;
-        TextRenderStage*  textStage  = nullptr;
         UiRenderStage*    uiStage    = nullptr;
 
         // Depth format — resolved once in createDepthAttachment(), reused by
@@ -124,12 +121,6 @@ class ForwardRenderer : Renderer
             sceneStage = ownedScene.get();
             frameGraph.addStage(std::move(ownedScene));
 
-            auto ownedText = std::make_unique<TextRenderStage>(
-                resourceSystem.get(),
-                swapchainHandle0);
-            textStage = ownedText.get();
-            frameGraph.addStage(std::move(ownedText));
-
             auto ownedUi = std::make_unique<UiRenderStage>(
                 resourceSystem.get(),
                 swapchainHandle0);
@@ -148,7 +139,6 @@ class ForwardRenderer : Renderer
         }
 
         void recordCommandBuffer(const std::vector<RenderCommand>& renderList,
-                                 const std::vector<TextCommandList>& uiLists,
                                  const UiCommandBuffer& uiBuffer,
                                  VkCommandBuffer commandBuffer, uint32_t imageIndex)
         {
@@ -159,7 +149,6 @@ class ForwardRenderer : Renderer
                 throw std::runtime_error("failed to begin recording command buffer!");
 
             frameGraph.provideData(&renderList);
-            frameGraph.provideData(&uiLists);
             frameGraph.provideData(&uiBuffer);
             frameGraph.provideData(&frameStats);
             frameGraph.execute(commandBuffer, imageIndex, currentFrame);
@@ -167,7 +156,6 @@ class ForwardRenderer : Renderer
             // Triangle count is written by SceneRenderStage during execute — read it back.
             if (sceneStage)
                 frameStats.triangleCount = sceneStage->getLastTriangleCount();
-                //std::cout << sceneStage->getLastTriangleCount() << std::endl;
 
             if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
                 throw std::runtime_error("failed to record command buffer!");
@@ -191,14 +179,9 @@ class ForwardRenderer : Renderer
             if (depthAttachment) depthAttachment.reset();
         }
 
-        void toggleDebugOverlay() override
-        {
-            if (textStage)
-                textStage->getDebugOverlay().setEnabled(!textStage->getDebugOverlay().isEnabled());
-        }
+        void toggleDebugOverlay() override {}
 
         void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
-                         const std::vector<TextCommandList>& uiLists,
                          const UiCommandBuffer& uiBuffer,
                          const GtsFrameStats& stats) override
         {
@@ -251,7 +234,7 @@ class ForwardRenderer : Renderer
             // Reset & record command buffer
             vkResetFences(vcsheet::getDevice(), 1, &frame.inFlightFence);
             vkResetCommandBuffer(frame.commandBuffer, 0);
-            recordCommandBuffer(renderList, uiLists, uiBuffer, frame.commandBuffer, imageIndex);
+            recordCommandBuffer(renderList, uiBuffer, frame.commandBuffer, imageIndex);
 
             // Submit command buffer
             VkSubmitInfo submitInfo{};

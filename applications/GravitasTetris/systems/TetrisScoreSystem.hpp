@@ -91,6 +91,7 @@ class TetrisScoreSystem : public ECSSimulationSystem
                         // Right panel: SCORE and BEST
                         text.text  = rightText;
                     }
+                    text.dirty = true;
                 });
         }
 };

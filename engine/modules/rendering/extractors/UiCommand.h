@@ -61,6 +61,21 @@ struct UiCommandBuffer
         commands.push_back({UiDrawType::TexturedQuad, texID, idxBase, 6});
     }
 
+    // Helper: append a batch of glyph quads sharing one atlas texture.
+    void addGlyphBatch(const std::vector<UiVertex>& glyphVerts,
+                       const std::vector<uint32_t>& glyphIndices,
+                       texture_id_type atlasTexture)
+    {
+        if (glyphVerts.empty()) return;
+        uint32_t vertBase = static_cast<uint32_t>(vertices.size());
+        uint32_t idxBase  = static_cast<uint32_t>(indices.size());
+        vertices.insert(vertices.end(), glyphVerts.begin(), glyphVerts.end());
+        for (uint32_t idx : glyphIndices)
+            indices.push_back(vertBase + idx);
+        commands.push_back({UiDrawType::TexturedQuad, atlasTexture, idxBase,
+                            static_cast<uint32_t>(glyphIndices.size())});
+    }
+
     // Helper: append a solid color quad.
     void addColoredQuad(float x, float y, float w, float h, glm::vec4 color)
     {

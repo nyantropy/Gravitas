@@ -7,11 +7,10 @@
 
 #include "WorldTextComponent.h"
 #include "BitmapFont.h"
-#include "TextCommand.h"
 #include "Vertex.h"
 
 // Converts a WorldTextComponent's string into flat world-space quad geometry
-// stored in caller-owned vertex and index vectors.  Used by WorldTextCommandExtractor.
+// stored in caller-owned vertex and index vectors.  Used by WorldTextBindingSystem.
 //
 // Coordinate convention (world-space, entity local XY plane):
 //   X increases rightward, Y increases upward.
@@ -77,84 +76,5 @@ namespace GlyphLayoutEngine
 
             cursorX += g.advance * scale;
         }
-    }
-
-    // Append quads for text into cmd, starting at (x, y) with scale.
-    // '\n' advances y by font.lineHeight * scale and resets x.
-    // Unknown characters advance cursor by half a line height without emitting quads.
-    inline void appendText(TextCommandList&   cmd,
-                           const BitmapFont&  font,
-                           const std::string& text,
-                           float              x,
-                           float              y,
-                           float              scale,
-                           glm::vec4          color = {1.0f, 1.0f, 1.0f, 1.0f})
-    {
-        float cursorX = x;
-        float cursorY = y;
-
-        for (char ch : text)
-        {
-            if (ch == '\n')
-            {
-                cursorX  = x;
-                cursorY += font.lineHeight * scale;
-                continue;
-            }
-
-            auto it = font.glyphs.find(ch);
-            if (it == font.glyphs.end())
-            {
-                cursorX += font.lineHeight * 0.5f * scale;
-                continue;
-            }
-
-            const GlyphInfo& g = it->second;
-
-            if (ch != ' ')
-            {
-                float x0 = cursorX + g.bearing.x * scale;
-                float y0 = cursorY - (g.bearing.y - g.size.y) * scale;
-                float x1 = x0 + g.size.x * scale;
-                float y1 = y0 + g.size.y * scale;
-
-                auto base = static_cast<uint32_t>(cmd.vertices.size());
-
-                cmd.vertices.push_back({{x0, y0}, {g.uvMin.x, g.uvMin.y}, color}); // TL
-                cmd.vertices.push_back({{x1, y0}, {g.uvMax.x, g.uvMin.y}, color}); // TR
-                cmd.vertices.push_back({{x0, y1}, {g.uvMin.x, g.uvMax.y}, color}); // BL
-                cmd.vertices.push_back({{x1, y1}, {g.uvMax.x, g.uvMax.y}, color}); // BR
-
-                // Two CCW triangles (TL→BL→TR, TR→BL→BR) — cull mode NONE.
-                cmd.indices.push_back(base + 0);
-                cmd.indices.push_back(base + 2);
-                cmd.indices.push_back(base + 1);
-                cmd.indices.push_back(base + 1);
-                cmd.indices.push_back(base + 2);
-                cmd.indices.push_back(base + 3);
-            }
-
-            cursorX += g.advance * scale;
-        }
-    }
-
-    // Find or create the TextCommandList matching font.atlasTexture in batches,
-    // then call appendText into it.
-    inline void appendTextToBatch(std::vector<TextCommandList>& batches,
-                                   const BitmapFont&             font,
-                                   const std::string&            text,
-                                   float x, float y, float scale,
-                                   glm::vec4 color = {1.0f, 1.0f, 1.0f, 1.0f})
-    {
-        TextCommandList* cmd = nullptr;
-        for (auto& b : batches)
-            if (b.textureID == font.atlasTexture) { cmd = &b; break; }
-        if (!cmd)
-        {
-            batches.push_back({});
-            cmd = &batches.back();
-            cmd->textureID = font.atlasTexture;
-        }
-        appendText(*cmd, font, text, x, y, scale, color);
     }
 }

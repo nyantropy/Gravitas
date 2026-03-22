@@ -25,11 +25,11 @@
 #include <UiCommand.h>
 
 // UI primitive render stage.
-// Renders textured quads (images, sprites) and colored quads over the 3D scene
-// and text layers.  Receives a UiCommandBuffer from the blackboard — populated
-// by UiCommandExtractor from UiImageComponent entities.
+// Renders textured quads (images, sprites, glyphs) and colored quads over the 3D scene.
+// Receives a UiCommandBuffer from the blackboard — populated by UiCommandExtractor from
+// UiImageComponent and UITextComponent entities, plus the optional debug overlay.
 //
-// Composites over the scene and text by reading the swapchain in PRESENT_SRC_KHR
+// Composites over the scene by reading the swapchain in PRESENT_SRC_KHR
 // and writing it back to the same layout.
 class UiRenderStage : public GtsRenderStage
 {
@@ -97,8 +97,8 @@ public:
     {
         graph.requestData<UiCommandBuffer>(this);
 
-        // Write-after-write serialization already orders UiRenderStage after
-        // TextRenderStage — no explicit read declaration needed here.
+        // Write-after-write serialization orders UiRenderStage after
+        // SceneRenderStage — no explicit read declaration needed here.
         graph.declareWrite(this, swapchainHandle,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,

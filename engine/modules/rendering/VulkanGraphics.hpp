@@ -109,11 +109,10 @@ public:
     // whenever the graphics module renders a frame, we poll the window events, and direct
     // the draw call to the renderer
     void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
-                     const std::vector<TextCommandList>& uiLists,
                      const UiCommandBuffer& uiBuffer,
                      const GtsFrameStats& stats) override
     {
-        renderer->renderFrame(dt, renderList, uiLists, uiBuffer, stats);
+        renderer->renderFrame(dt, renderList, uiBuffer, stats);
     }
 
     void toggleDebugOverlay() override

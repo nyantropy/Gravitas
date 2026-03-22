@@ -12,8 +12,6 @@
 
 #include "GtsExtractorContext.h"
 #include "RenderCommandExtractor.hpp"
-#include "UITextCommandExtractor.hpp"
-#include "WorldTextCommandExtractor.hpp"
 #include "UiCommandExtractor.hpp"
 #include "SceneManager.hpp"
 
@@ -38,14 +36,8 @@ class GravitasEngine
         // used to extract all render commands from the currently active ecs world
         std::unique_ptr<RenderCommandExtractor> renderCommandExtractor;
 
-        // extracts UI text commands for the overlay pass
-        std::unique_ptr<UITextCommandExtractor> uiCommandExtractor;
-
-        // extracts world-space text from WorldTextComponent entities
-        std::unique_ptr<WorldTextCommandExtractor> worldTextExtractor;
-
-        // extracts UI image/primitive commands for the UI stage
-        std::unique_ptr<UiCommandExtractor> uiPrimitiveExtractor;
+        // extracts UI image/primitive commands and screen-space text for the UI stage
+        std::unique_ptr<UiCommandExtractor> uiCommandExtractor;
 
         // the scene manager
         // the whole world is a stage after all
@@ -75,42 +67,14 @@ class GravitasEngine
         void createECSExtractors()
         {
             renderCommandExtractor = std::make_unique<RenderCommandExtractor>(engineConfig.frustumCullingEnabled);
-            uiCommandExtractor     = std::make_unique<UITextCommandExtractor>();
-            worldTextExtractor     = std::make_unique<WorldTextCommandExtractor>();
-            uiPrimitiveExtractor   = std::make_unique<UiCommandExtractor>();
+            uiCommandExtractor     = std::make_unique<UiCommandExtractor>();
+            uiCommandExtractor->init(platform.getResourceProvider());
         }
 
         // render call
         void render(float dt)
         {
             auto& world = sceneManager->getActiveScene()->getWorld();
-
-            GtsExtractorContext extractCtx{world, sceneContext.windowAspectRatio};
-
-            auto renderList     = renderCommandExtractor->extract(extractCtx);
-            auto uiLists        = uiCommandExtractor->extract(extractCtx);
-            auto worldTextLists = worldTextExtractor->extract(extractCtx);
-            auto uiBuffer       = uiPrimitiveExtractor->extract(extractCtx);
-
-            // Merge world-space text batches into the screen-space UI batches.
-            for (auto& wt : worldTextLists)
-            {
-                bool found = false;
-                for (auto& ui : uiLists)
-                {
-                    if (ui.textureID == wt.textureID)
-                    {
-                        uint32_t base = static_cast<uint32_t>(ui.vertices.size());
-                        ui.vertices.insert(ui.vertices.end(), wt.vertices.begin(), wt.vertices.end());
-                        for (uint32_t idx : wt.indices)
-                            ui.indices.push_back(base + idx);
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                    uiLists.push_back(std::move(wt));
-            }
 
             GtsFrameStats stats;
             stats.fps            = (dt > 0.0f) ? 1.0f / dt : 0.0f;
@@ -119,7 +83,12 @@ class GravitasEngine
             stats.totalObjects   = static_cast<uint32_t>(renderCommandExtractor->getLastTotalRenderables());
             // triangleCount is filled in by SceneRenderStage during execute
 
-            platform.getGraphics()->renderFrame(dt, renderList, uiLists, uiBuffer, stats);
+            GtsExtractorContext extractCtx{world, sceneContext.windowAspectRatio, &stats};
+
+            auto renderList = renderCommandExtractor->extract(extractCtx);
+            auto uiBuffer   = uiCommandExtractor->extract(extractCtx);
+
+            platform.getGraphics()->renderFrame(dt, renderList, uiBuffer, stats);
         }
 
         // command callback from lower level architectures
@@ -190,7 +159,7 @@ class GravitasEngine
                 if (actions->isActionPressed(GtsAction::TogglePause))
                     gameLoop.paused = !gameLoop.paused;
                 if (actions->isActionPressed(GtsAction::DebugLayerToggle))
-                    platform.toggleDebugOverlay();
+                    uiCommandExtractor->getDebugOverlay().toggle();
 
                 platform.setSimulationPaused(gameLoop.paused);
 

@@ -8,7 +8,7 @@
 
 // UV rectangle + layout metrics for a single glyph in a bitmap atlas.
 // All size/bearing/advance values are in pixels (atlas space); scale is
-// applied later by WorldTextCommandExtractor when generating world-space quads.
+// applied later by WorldTextBindingSystem when generating world-space quads.
 struct GlyphInfo
 {
     glm::vec2 uvMin;     // top-left UV in the atlas  [0..1]

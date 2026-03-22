@@ -12,13 +12,13 @@
 // Never create one entity per character.
 //
 // Workflow:
-//   - Set text/font/scale.
-//   - WorldTextCommandExtractor reads this component every frame, generates
-//     glyph quads in local space, and transforms them to screen space via
-//     the entity's world transform and the active camera's view-projection matrix.
+//   - Set text/font/scale.  Set dirty=true whenever text or scale changes.
+//   - WorldTextBindingSystem uploads glyph quads as a procedural mesh each frame
+//     when dirty is true, then clears the flag.
 struct WorldTextComponent
 {
     std::string  text;
     BitmapFont*  font  = nullptr;
     float        scale = 1.0f;
+    bool         dirty = true;
 };
