@@ -23,11 +23,14 @@
 #include "vcsheet.h"
 #include "VulkanDynamicBuffer.h"
 #include <UiCommand.h>
+#include "GtsDebugOverlay.h"
+#include "GtsFrameStats.h"
 
 // UI primitive render stage.
 // Renders textured quads (images, sprites, glyphs) and colored quads over the 3D scene.
 // Receives a UiCommandBuffer from the blackboard — populated by UiCommandExtractor from
-// UiImageComponent and UITextComponent entities, plus the optional debug overlay.
+// UiImageComponent and UITextComponent entities.  The debug overlay is appended here
+// directly from the GtsFrameStats pointer before upload.
 //
 // Composites over the scene by reading the swapchain in PRESENT_SRC_KHR
 // and writing it back to the same layout.
@@ -35,10 +38,13 @@ class UiRenderStage : public GtsRenderStage
 {
 public:
     UiRenderStage(RenderResourceManager* resources,
-                  GtsResourceHandle      swapchainHandle)
+                  GtsResourceHandle      swapchainHandle,
+                  GtsFrameStats*         frameStats,
+                  bool                   debugEnabledByDefault)
         : GtsRenderStage("UiRenderStage")
         , resources(resources)
         , swapchainHandle(swapchainHandle)
+        , frameStats(frameStats)
     {
         // Render pass — LOAD_OP_LOAD, no depth, composites onto the text layer.
         VulkanRenderPassConfig rpConfig;
@@ -91,7 +97,12 @@ public:
         // when useTexture == 0.0, but Vulkan requires a valid descriptor set).
         fallbackTextureID = resources->requestTexture(
             GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png");
+
+        debugOverlay.init(resources);
+        debugOverlay.setEnabled(debugEnabledByDefault);
     }
+
+    GtsDebugOverlay& getDebugOverlay() { return debugOverlay; }
 
     void declareResources(GtsFrameGraph& graph) override
     {
@@ -108,7 +119,11 @@ public:
     void record(VkCommandBuffer cmd, GtsFrameGraph& graph,
                 uint32_t imageIndex, uint32_t currentFrame) override
     {
-        const auto& uiBuffer = graph.getData<UiCommandBuffer>();
+        UiCommandBuffer uiBuffer = graph.getData<UiCommandBuffer>();
+
+        if (debugOverlay.isEnabled() && frameStats)
+            debugOverlay.appendToBuffer(uiBuffer, *frameStats);
+
         if (uiBuffer.empty())
             return;
 
@@ -198,6 +213,8 @@ private:
     RenderResourceManager*                resources;
     GtsResourceHandle                     swapchainHandle;
     texture_id_type                       fallbackTextureID = 0;
+    GtsFrameStats*                        frameStats        = nullptr;
+    GtsDebugOverlay                       debugOverlay;
 
     // Dynamic buffers — host-visible, persistently mapped, resized on demand.
     static constexpr uint32_t INITIAL_VERTEX_CAP = 1024;

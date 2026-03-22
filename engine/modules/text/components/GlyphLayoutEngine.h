@@ -8,6 +8,7 @@
 #include "WorldTextComponent.h"
 #include "BitmapFont.h"
 #include "Vertex.h"
+#include "UiCommand.h"
 
 // Converts a WorldTextComponent's string into flat world-space quad geometry
 // stored in caller-owned vertex and index vectors.  Used by WorldTextBindingSystem.
@@ -76,5 +77,68 @@ namespace GlyphLayoutEngine
 
             cursorX += g.advance * scale;
         }
+    }
+
+    // Builds screen-space glyph quads for UI rendering and appends them to buffer.
+    // (x, y) = top-left of text in normalized viewport coords [0..1], Y-down.
+    // scale  = size multiplier applied to glyph metrics.
+    // color  = per-vertex RGBA tint (default white, fully opaque).
+    inline void appendUiText(UiCommandBuffer& buffer,
+                             const BitmapFont& font,
+                             const std::string& text,
+                             float x, float y, float scale,
+                             glm::vec4 color = {1.0f, 1.0f, 1.0f, 1.0f})
+    {
+        std::vector<UiVertex>   verts;
+        std::vector<uint32_t>   indices;
+
+        float cursorX = x;
+        float cursorY = y;
+
+        for (char ch : text)
+        {
+            if (ch == '\n')
+            {
+                cursorX  = x;
+                cursorY += font.lineHeight * scale;
+                continue;
+            }
+
+            auto it = font.glyphs.find(ch);
+            if (it == font.glyphs.end())
+            {
+                cursorX += font.lineHeight * 0.5f * scale;
+                continue;
+            }
+
+            const GlyphInfo& g = it->second;
+
+            if (ch != ' ')
+            {
+                float x0 = cursorX + g.bearing.x * scale;
+                float y0 = cursorY - (g.bearing.y - g.size.y) * scale;
+                float x1 = x0 + g.size.x * scale;
+                float y1 = y0 + g.size.y * scale;
+
+                auto base = static_cast<uint32_t>(verts.size());
+
+                verts.push_back({{x0, y0}, {g.uvMin.x, g.uvMin.y}, color}); // TL
+                verts.push_back({{x1, y0}, {g.uvMax.x, g.uvMin.y}, color}); // TR
+                verts.push_back({{x0, y1}, {g.uvMin.x, g.uvMax.y}, color}); // BL
+                verts.push_back({{x1, y1}, {g.uvMax.x, g.uvMax.y}, color}); // BR
+
+                // Two CCW triangles (TL→BL→TR, TR→BL→BR) — cull mode NONE.
+                indices.push_back(base + 0);
+                indices.push_back(base + 2);
+                indices.push_back(base + 1);
+                indices.push_back(base + 1);
+                indices.push_back(base + 2);
+                indices.push_back(base + 3);
+            }
+
+            cursorX += g.advance * scale;
+        }
+
+        buffer.addGlyphBatch(verts, indices, font.atlasTexture);
     }
 }

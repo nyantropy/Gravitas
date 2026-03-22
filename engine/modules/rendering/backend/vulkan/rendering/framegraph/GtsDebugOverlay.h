@@ -11,6 +11,7 @@
 #include "UiCommand.h"
 #include "IResourceProvider.hpp"
 #include "GraphicsConstants.h"
+#include "GlyphLayoutEngine.h"
 
 // Self-contained debug overlay module owned by UiCommandExtractor.
 // Appends debug stat glyph quads to a UiCommandBuffer when enabled.
@@ -95,55 +96,6 @@ private:
                     float x, float y,
                     glm::vec4 color = {1.0f, 1.0f, 1.0f, 1.0f}) const
     {
-        std::vector<UiVertex>   verts;
-        std::vector<uint32_t>   indices;
-
-        float cursorX = x;
-        float cursorY = y;
-
-        for (char ch : text)
-        {
-            if (ch == '\n')
-            {
-                cursorX  = x;
-                cursorY += font.lineHeight * FONT_SCALE;
-                continue;
-            }
-
-            auto it = font.glyphs.find(ch);
-            if (it == font.glyphs.end())
-            {
-                cursorX += font.lineHeight * 0.5f * FONT_SCALE;
-                continue;
-            }
-
-            const GlyphInfo& g = it->second;
-
-            if (ch != ' ')
-            {
-                float x0 = cursorX + g.bearing.x * FONT_SCALE;
-                float y0 = cursorY - (g.bearing.y - g.size.y) * FONT_SCALE;
-                float x1 = x0 + g.size.x * FONT_SCALE;
-                float y1 = y0 + g.size.y * FONT_SCALE;
-
-                auto base = static_cast<uint32_t>(verts.size());
-
-                verts.push_back({{x0, y0}, {g.uvMin.x, g.uvMin.y}, color}); // TL
-                verts.push_back({{x1, y0}, {g.uvMax.x, g.uvMin.y}, color}); // TR
-                verts.push_back({{x0, y1}, {g.uvMin.x, g.uvMax.y}, color}); // BL
-                verts.push_back({{x1, y1}, {g.uvMax.x, g.uvMax.y}, color}); // BR
-
-                indices.push_back(base + 0);
-                indices.push_back(base + 2);
-                indices.push_back(base + 1);
-                indices.push_back(base + 1);
-                indices.push_back(base + 2);
-                indices.push_back(base + 3);
-            }
-
-            cursorX += g.advance * FONT_SCALE;
-        }
-
-        buffer.addGlyphBatch(verts, indices, font.atlasTexture);
+        GlyphLayoutEngine::appendUiText(buffer, font, text, x, y, FONT_SCALE, color);
     }
 };

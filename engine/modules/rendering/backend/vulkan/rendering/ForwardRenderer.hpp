@@ -123,7 +123,9 @@ class ForwardRenderer : Renderer
 
             auto ownedUi = std::make_unique<UiRenderStage>(
                 resourceSystem.get(),
-                swapchainHandle0);
+                swapchainHandle0,
+                &frameStats,
+                false);
             uiStage = ownedUi.get();
             frameGraph.addStage(std::move(ownedUi));
 
@@ -179,7 +181,11 @@ class ForwardRenderer : Renderer
             if (depthAttachment) depthAttachment.reset();
         }
 
-        void toggleDebugOverlay() override {}
+        void toggleDebugOverlay() override
+        {
+            if (uiStage)
+                uiStage->getDebugOverlay().toggle();
+        }
 
         void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
                          const UiCommandBuffer& uiBuffer,

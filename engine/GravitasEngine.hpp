@@ -68,7 +68,6 @@ class GravitasEngine
         {
             renderCommandExtractor = std::make_unique<RenderCommandExtractor>(engineConfig.frustumCullingEnabled);
             uiCommandExtractor     = std::make_unique<UiCommandExtractor>();
-            uiCommandExtractor->init(platform.getResourceProvider());
         }
 
         // render call
@@ -83,7 +82,7 @@ class GravitasEngine
             stats.totalObjects   = static_cast<uint32_t>(renderCommandExtractor->getLastTotalRenderables());
             // triangleCount is filled in by SceneRenderStage during execute
 
-            GtsExtractorContext extractCtx{world, sceneContext.windowAspectRatio, &stats};
+            GtsExtractorContext extractCtx{world, sceneContext.windowAspectRatio};
 
             auto renderList = renderCommandExtractor->extract(extractCtx);
             auto uiBuffer   = uiCommandExtractor->extract(extractCtx);
@@ -159,7 +158,7 @@ class GravitasEngine
                 if (actions->isActionPressed(GtsAction::TogglePause))
                     gameLoop.paused = !gameLoop.paused;
                 if (actions->isActionPressed(GtsAction::DebugLayerToggle))
-                    uiCommandExtractor->getDebugOverlay().toggle();
+                    platform.toggleDebugOverlay();
 
                 platform.setSimulationPaused(gameLoop.paused);
 
