@@ -14,7 +14,7 @@
 //   e.g., scale = 0.05 → one line occupies 5 % of the viewport height.
 //
 // Workflow:
-//   UICommandExtractor reads all visible UITextComponents each frame,
+//   UITextCommandExtractor reads all visible UITextComponents each frame,
 //   lays glyphs out in screen space (Y increases downward), and batches
 //   all glyphs sharing the same atlas into one TextCommandList.
 struct UITextComponent

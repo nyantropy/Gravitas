@@ -5,12 +5,12 @@
 
 #include "GlmConfig.h"
 
-#include "QuadTextComponent.h"
+#include "WorldTextComponent.h"
 #include "BitmapFont.h"
 #include "TextCommand.h"
 #include "Vertex.h"
 
-// Converts a QuadTextComponent's string into flat world-space quad geometry
+// Converts a WorldTextComponent's string into flat world-space quad geometry
 // stored in caller-owned vertex and index vectors.  Used by WorldTextCommandExtractor.
 //
 // Coordinate convention (world-space, entity local XY plane):
@@ -19,7 +19,7 @@
 //   Quad : top-left = (x0, y0), bottom-right = (x1, y1) with y0 > y1.
 namespace GlyphLayoutEngine
 {
-    inline void build(const QuadTextComponent& text,
+    inline void build(const WorldTextComponent& text,
                       std::vector<Vertex>& verts,
                       std::vector<uint32_t>& indices)
     {

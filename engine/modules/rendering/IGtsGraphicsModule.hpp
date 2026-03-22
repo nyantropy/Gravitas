@@ -6,6 +6,7 @@
 #include "GtsKeyEvent.h"
 #include "RenderCommand.h"
 #include "TextCommand.h"
+#include "UiCommand.h"
 #include "IResourceProvider.hpp"
 #include "GtsFrameStats.h"
 
@@ -18,6 +19,7 @@ public:
 
     virtual void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
                              const std::vector<TextCommandList>& uiLists,
+                             const UiCommandBuffer& uiBuffer,
                              const GtsFrameStats& stats) = 0;
     virtual void toggleDebugOverlay() = 0;
     virtual void pollWindowEvents() = 0;

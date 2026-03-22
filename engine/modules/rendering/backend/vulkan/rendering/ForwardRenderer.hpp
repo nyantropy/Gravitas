@@ -22,11 +22,13 @@
 #include "GtsEvent.hpp"
 
 #include <TextCommand.h>
+#include <UiCommand.h>
 #include "GtsFrameStats.h"
 
 #include "GtsFrameGraph.h"
 #include "SceneRenderStage.h"
 #include "TextRenderStage.h"
+#include "UiRenderStage.h"
 
 class ForwardRenderer : Renderer
 {
@@ -42,6 +44,7 @@ class ForwardRenderer : Renderer
         // Raw pointers into the frame graph — set during buildFrameGraph().
         SceneRenderStage* sceneStage = nullptr;
         TextRenderStage*  textStage  = nullptr;
+        UiRenderStage*    uiStage    = nullptr;
 
         // Depth format — resolved once in createDepthAttachment(), reused by
         // buildFrameGraph() and SceneRenderStage.
@@ -127,6 +130,12 @@ class ForwardRenderer : Renderer
             textStage = ownedText.get();
             frameGraph.addStage(std::move(ownedText));
 
+            auto ownedUi = std::make_unique<UiRenderStage>(
+                resourceSystem.get(),
+                swapchainHandle0);
+            uiStage = ownedUi.get();
+            frameGraph.addStage(std::move(ownedUi));
+
             frameGraph.compile();
         }
 
@@ -140,6 +149,7 @@ class ForwardRenderer : Renderer
 
         void recordCommandBuffer(const std::vector<RenderCommand>& renderList,
                                  const std::vector<TextCommandList>& uiLists,
+                                 const UiCommandBuffer& uiBuffer,
                                  VkCommandBuffer commandBuffer, uint32_t imageIndex)
         {
             VkCommandBufferBeginInfo beginInfo{};
@@ -150,6 +160,7 @@ class ForwardRenderer : Renderer
 
             frameGraph.provideData(&renderList);
             frameGraph.provideData(&uiLists);
+            frameGraph.provideData(&uiBuffer);
             frameGraph.provideData(&frameStats);
             frameGraph.execute(commandBuffer, imageIndex, currentFrame);
 
@@ -188,6 +199,7 @@ class ForwardRenderer : Renderer
 
         void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
                          const std::vector<TextCommandList>& uiLists,
+                         const UiCommandBuffer& uiBuffer,
                          const GtsFrameStats& stats) override
         {
             // Store the pre-populated stats from the engine; triangleCount is
@@ -239,7 +251,7 @@ class ForwardRenderer : Renderer
             // Reset & record command buffer
             vkResetFences(vcsheet::getDevice(), 1, &frame.inFlightFence);
             vkResetCommandBuffer(frame.commandBuffer, 0);
-            recordCommandBuffer(renderList, uiLists, frame.commandBuffer, imageIndex);
+            recordCommandBuffer(renderList, uiLists, uiBuffer, frame.commandBuffer, imageIndex);
 
             // Submit command buffer
             VkSubmitInfo submitInfo{};

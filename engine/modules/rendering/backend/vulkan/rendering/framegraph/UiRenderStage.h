@@ -18,33 +18,29 @@
 #include "VulkanFramebufferSetConfig.h"
 #include "RenderResourceManager.hpp"
 #include "GraphicsConstants.h"
-#include "TextGlyphVertexDescription.h"
+#include "UiVertexDescription.h"
 #include "dssheet.h"
 #include "vcsheet.h"
 #include "VulkanDynamicBuffer.h"
-#include <TextCommand.h>
-#include "GtsFrameStats.h"
-#include "GtsDebugOverlay.h"
+#include <UiCommand.h>
 
-// Text render stage.
-// Renders both screen-space (UITextComponent) and world-space (WorldTextComponent)
-// text in a single pass.  World-space quads arrive pre-transformed in NDC [0..1]
-// via the TextCommandList blackboard — transformation is done by WorldTextCommandExtractor
-// before renderFrame is called.
+// UI primitive render stage.
+// Renders textured quads (images, sprites) and colored quads over the 3D scene
+// and text layers.  Receives a UiCommandBuffer from the blackboard — populated
+// by UiCommandExtractor from UiImageComponent entities.
 //
-// Owns its render pass, pipeline, framebuffers, and dynamic vertex/index buffers.
-// Composites text over the 3D scene by reading the swapchain in PRESENT_SRC_KHR
-// (left by SceneRenderStage) and writing it back to the same layout.
-class TextRenderStage : public GtsRenderStage
+// Composites over the scene and text by reading the swapchain in PRESENT_SRC_KHR
+// and writing it back to the same layout.
+class UiRenderStage : public GtsRenderStage
 {
 public:
-    TextRenderStage(RenderResourceManager* resources,
-                    GtsResourceHandle      swapchainHandle)
-        : GtsRenderStage("TextRenderStage")
+    UiRenderStage(RenderResourceManager* resources,
+                  GtsResourceHandle      swapchainHandle)
+        : GtsRenderStage("UiRenderStage")
         , resources(resources)
         , swapchainHandle(swapchainHandle)
     {
-        // Render pass — LOAD_OP_LOAD, no depth, composites onto the 3D scene.
+        // Render pass — LOAD_OP_LOAD, no depth, composites onto the text layer.
         VulkanRenderPassConfig rpConfig;
         rpConfig.colorFormat        = vcsheet::getSwapChainImageFormat();
         rpConfig.colorLoadOp        = VK_ATTACHMENT_LOAD_OP_LOAD;
@@ -52,14 +48,14 @@ public:
         rpConfig.hasDepthAttachment = false;
         renderPass = std::make_unique<VulkanRenderPass>(rpConfig);
 
-        // Pipeline — alpha blend, no depth, UI vertex layout, push constant mat4.
+        // Pipeline — alpha blend, no depth, UI vertex layout, push constant mat4 + float.
         VulkanPipelineConfig pConfig;
-        pConfig.vertexShaderPath   = GraphicsConstants::TEXT_V_SHADER_PATH;
-        pConfig.fragmentShaderPath = GraphicsConstants::TEXT_F_SHADER_PATH;
+        pConfig.vertexShaderPath   = GraphicsConstants::UI_V_SHADER_PATH;
+        pConfig.fragmentShaderPath = GraphicsConstants::UI_F_SHADER_PATH;
         pConfig.vkRenderPass       = renderPass->getRenderPass();
         {
-            auto b = TextGlyphVertexDescription::getBindingDescription();
-            auto a = TextGlyphVertexDescription::getAttributeDescriptions();
+            auto b = UiVertexDescription::getBindingDescription();
+            auto a = UiVertexDescription::getAttributeDescriptions();
             pConfig.vertexBinding    = b;
             pConfig.vertexAttributes = std::vector<VkVertexInputAttributeDescription>(a.begin(), a.end());
         }
@@ -72,8 +68,8 @@ public:
         pConfig.srcAlphaBlendFactor  = VK_BLEND_FACTOR_ONE;
         pConfig.dstAlphaBlendFactor  = VK_BLEND_FACTOR_ZERO;
         pConfig.alphaBlendOp         = VK_BLEND_OP_ADD;
-        pConfig.pushConstantSize     = sizeof(glm::mat4);
-        pConfig.pushConstantStages   = VK_SHADER_STAGE_VERTEX_BIT;
+        pConfig.pushConstantSize     = sizeof(glm::mat4) + sizeof(float); // proj + useTexture
+        pConfig.pushConstantStages   = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
         pConfig.descriptorSetLayouts = { dssheet::getDescriptorSetLayouts()[2] };
         pipeline = std::make_unique<VulkanPipeline>(pConfig);
 
@@ -91,17 +87,18 @@ public:
             fbConfig.attachmentsPerFramebuffer[i] = { imageViews[i] };
         framebuffers = std::make_unique<VulkanFramebufferSet>(fbConfig);
 
-        debugOverlay.init(resources);
+        // Load a fallback texture for ColoredQuad commands (shader ignores it
+        // when useTexture == 0.0, but Vulkan requires a valid descriptor set).
+        fallbackTextureID = resources->requestTexture(
+            GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png");
     }
 
     void declareResources(GtsFrameGraph& graph) override
     {
-        graph.requestData<std::vector<TextCommandList>>(this);
-        graph.requestData<GtsFrameStats>(this);
+        graph.requestData<UiCommandBuffer>(this);
 
-        // Write-after-write serialization orders Text after Scene — no explicit
-        // read declaration needed (any writer→reader edge from a later writer
-        // back to this stage's reader would create a cycle with the w-a-w edge).
+        // Write-after-write serialization already orders UiRenderStage after
+        // TextRenderStage — no explicit read declaration needed here.
         graph.declareWrite(this, swapchainHandle,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
@@ -111,51 +108,22 @@ public:
     void record(VkCommandBuffer cmd, GtsFrameGraph& graph,
                 uint32_t imageIndex, uint32_t currentFrame) override
     {
-        // Get ECS UI batch (screen-space + pre-transformed world-space) and frame stats.
-        const auto& uiListsFromBlackboard = graph.getData<std::vector<TextCommandList>>();
-        const auto& stats                 = graph.getData<GtsFrameStats>();
-
-        // Build the full batch (game UI + optional debug overlay) as a mutable copy.
-        std::vector<TextCommandList> uiLists = uiListsFromBlackboard;
-
-        if (debugOverlay.isEnabled())
-            debugOverlay.appendToBatch(uiLists, stats);
-
-        if (uiLists.empty())
+        const auto& uiBuffer = graph.getData<UiCommandBuffer>();
+        if (uiBuffer.empty())
             return;
 
-        // Upload all vertices/indices (all batches concatenated).
-        uint32_t totalVerts   = 0;
-        uint32_t totalIndices = 0;
-        for (const auto& list : uiLists)
-        {
-            totalVerts   += static_cast<uint32_t>(list.vertices.size());
-            totalIndices += static_cast<uint32_t>(list.indices.size());
-        }
+        // Upload vertices and indices.
+        vertexBuffer.ensureCapacity(uiBuffer.vertices.size() * sizeof(UiVertex));
+        indexBuffer.ensureCapacity(uiBuffer.indices.size()   * sizeof(uint32_t));
 
-        if (totalVerts == 0)
-            return;
+        std::memcpy(vertexBuffer.getMapped(),
+                    uiBuffer.vertices.data(),
+                    uiBuffer.vertices.size() * sizeof(UiVertex));
+        std::memcpy(indexBuffer.getMapped(),
+                    uiBuffer.indices.data(),
+                    uiBuffer.indices.size() * sizeof(uint32_t));
 
-        vertexBuffer.ensureCapacity(totalVerts   * sizeof(TextGlyphVertex));
-        indexBuffer.ensureCapacity(totalIndices  * sizeof(uint32_t));
-
-        auto* vDst = static_cast<TextGlyphVertex*>(vertexBuffer.getMapped());
-        auto* iDst = static_cast<uint32_t*>(indexBuffer.getMapped());
-        uint32_t vertOffset = 0;
-        uint32_t idxOffset  = 0;
-        for (const auto& list : uiLists)
-        {
-            std::memcpy(vDst + vertOffset, list.vertices.data(),
-                        list.vertices.size() * sizeof(TextGlyphVertex));
-
-            // Indices must be rebased to the concatenated vertex offset.
-            for (uint32_t idx : list.indices)
-                iDst[idxOffset++] = idx + vertOffset;
-
-            vertOffset += static_cast<uint32_t>(list.vertices.size());
-        }
-
-        // Begin text render pass.
+        // Begin render pass.
         VkRenderPassBeginInfo rpInfo{};
         rpInfo.sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         rpInfo.renderPass        = renderPass->getRenderPass();
@@ -164,7 +132,6 @@ public:
         rpInfo.renderArea.extent = vcsheet::getSwapChainExtent();
         rpInfo.clearValueCount   = 0;
         rpInfo.pClearValues      = nullptr;
-
         vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
         VkViewport vp{};
@@ -185,7 +152,8 @@ public:
 
         // DONT EVER CHANGE THIS, WE HAVE TO FLIP TOP AND BOT BECAUSE OF GLM SETTINGS, SO DONT CHANGE THIS
         glm::mat4 proj = glm::ortho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f);
-        vkCmdPushConstants(cmd, pipeline->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT,
+        vkCmdPushConstants(cmd, pipeline->getPipelineLayout(),
+                           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                            0, sizeof(glm::mat4), &proj);
 
         const VkDeviceSize offsets[] = {0};
@@ -194,29 +162,34 @@ public:
         VkBuffer ib = indexBuffer.getBuffer();
         vkCmdBindIndexBuffer(cmd, ib, 0, VK_INDEX_TYPE_UINT32);
 
-        // One draw call per atlas.
-        uint32_t indexBase = 0;
-        for (const auto& list : uiLists)
+        // One draw call per UiDrawCommand.
+        for (const auto& drawCmd : uiBuffer.commands)
         {
-            TextureResource* tex = resources->getTexture(list.textureID);
-            if (!tex) { indexBase += static_cast<uint32_t>(list.indices.size()); continue; }
+            // Resolve texture — fall back for ColoredQuad (useTexture=0 in shader).
+            texture_id_type resolvedID =
+                (drawCmd.type == UiDrawType::TexturedQuad)
+                    ? drawCmd.textureID
+                    : fallbackTextureID;
+
+            TextureResource* tex = resources->getTexture(resolvedID);
+            if (!tex) tex = resources->getTexture(fallbackTextureID);
+            if (!tex) continue;
 
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                     pipeline->getPipelineLayout(), 0, 1,
                                     &tex->descriptorSets[currentFrame],
                                     0, nullptr);
 
-            vkCmdDrawIndexed(cmd,
-                             static_cast<uint32_t>(list.indices.size()),
-                             1, indexBase, 0, 0);
+            float useTexture = (drawCmd.type == UiDrawType::TexturedQuad) ? 1.0f : 0.0f;
+            vkCmdPushConstants(cmd, pipeline->getPipelineLayout(),
+                               VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                               sizeof(glm::mat4), sizeof(float), &useTexture);
 
-            indexBase += static_cast<uint32_t>(list.indices.size());
+            vkCmdDrawIndexed(cmd, drawCmd.indexCount, 1, drawCmd.indexOffset, 0, 0);
         }
 
         vkCmdEndRenderPass(cmd);
     }
-
-    GtsDebugOverlay& getDebugOverlay() { return debugOverlay; }
 
 private:
     std::unique_ptr<VulkanRenderPass>     renderPass;
@@ -224,15 +197,14 @@ private:
     std::unique_ptr<VulkanFramebufferSet> framebuffers;
     RenderResourceManager*                resources;
     GtsResourceHandle                     swapchainHandle;
-
-    GtsDebugOverlay                       debugOverlay;
+    texture_id_type                       fallbackTextureID = 0;
 
     // Dynamic buffers — host-visible, persistently mapped, resized on demand.
-    static constexpr uint32_t INITIAL_VERTEX_CAP = 4096;
-    static constexpr uint32_t INITIAL_INDEX_CAP  = 8192;
+    static constexpr uint32_t INITIAL_VERTEX_CAP = 1024;
+    static constexpr uint32_t INITIAL_INDEX_CAP  = 2048;
 
     VulkanDynamicBuffer vertexBuffer{VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                                      INITIAL_VERTEX_CAP * sizeof(TextGlyphVertex)};
+                                      INITIAL_VERTEX_CAP * sizeof(UiVertex)};
     VulkanDynamicBuffer indexBuffer {VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                                       INITIAL_INDEX_CAP  * sizeof(uint32_t)};
 };

@@ -11,8 +11,9 @@
 #include "GtsGameLoop.h"
 
 #include "RenderCommandExtractor.hpp"
-#include "UICommandExtractor.hpp"
+#include "UITextCommandExtractor.hpp"
 #include "WorldTextCommandExtractor.hpp"
+#include "UiCommandExtractor.hpp"
 #include "SceneManager.hpp"
 
 #include "GtsCommand.h"
@@ -37,10 +38,13 @@ class GravitasEngine
         std::unique_ptr<RenderCommandExtractor> renderCommandExtractor;
 
         // extracts UI text commands for the overlay pass
-        std::unique_ptr<UICommandExtractor> uiCommandExtractor;
+        std::unique_ptr<UITextCommandExtractor> uiCommandExtractor;
 
-        // extracts world-space text from QuadTextComponent entities
+        // extracts world-space text from WorldTextComponent entities
         std::unique_ptr<WorldTextCommandExtractor> worldTextExtractor;
+
+        // extracts UI image/primitive commands for the UI stage
+        std::unique_ptr<UiCommandExtractor> uiPrimitiveExtractor;
 
         // the scene manager
         // the whole world is a stage after all
@@ -70,8 +74,9 @@ class GravitasEngine
         void createECSExtractors()
         {
             renderCommandExtractor = std::make_unique<RenderCommandExtractor>(engineConfig.frustumCullingEnabled);
-            uiCommandExtractor     = std::make_unique<UICommandExtractor>();
+            uiCommandExtractor     = std::make_unique<UITextCommandExtractor>();
             worldTextExtractor     = std::make_unique<WorldTextCommandExtractor>();
+            uiPrimitiveExtractor   = std::make_unique<UiCommandExtractor>();
         }
 
         // render call
@@ -79,9 +84,10 @@ class GravitasEngine
         {
             auto& world = sceneManager->getActiveScene()->getWorld();
 
-            auto renderList    = renderCommandExtractor->extractRenderList(world);
-            auto uiLists       = uiCommandExtractor->extract(world);
+            auto renderList     = renderCommandExtractor->extractRenderList(world);
+            auto uiLists        = uiCommandExtractor->extract(world);
             auto worldTextLists = worldTextExtractor->extract(world);
+            auto uiBuffer       = uiPrimitiveExtractor->extract(world);
 
             // Merge world-space text batches into the screen-space UI batches.
             for (auto& wt : worldTextLists)
@@ -110,7 +116,7 @@ class GravitasEngine
             stats.totalObjects   = static_cast<uint32_t>(renderCommandExtractor->getLastTotalRenderables());
             // triangleCount is filled in by SceneRenderStage during execute
 
-            platform.getGraphics()->renderFrame(dt, renderList, uiLists, stats);
+            platform.getGraphics()->renderFrame(dt, renderList, uiLists, uiBuffer, stats);
         }
 
         // command callback from lower level architectures

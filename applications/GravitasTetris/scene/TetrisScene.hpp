@@ -25,7 +25,7 @@
 #include "CameraOverrideComponent.h"
 #include "CameraControlOverrideComponent.h"
 #include "TransformComponent.h"
-#include "QuadTextComponent.h"
+#include "WorldTextComponent.h"
 #include "BitmapFontLoader.h"
 #include "HierarchyHelper.h"
 
@@ -158,7 +158,7 @@ class TetrisScene : public GtsScene
         tc.position = glm::vec3(-2.0f, 3.0f, 0.0f);
         ecsWorld.addComponent(e, tc);
 
-        QuadTextComponent text;
+        WorldTextComponent text;
         text.text  = "NEXT";
         text.font  = &scoreFont;
         text.scale = 1.0f;
@@ -176,7 +176,7 @@ class TetrisScene : public GtsScene
         tc.position = glm::vec3(-1.5f, 3.0f, 0.0f);
         ecsWorld.addComponent(e, tc);
 
-        QuadTextComponent text;
+        WorldTextComponent text;
         text.text  = "HOLD";
         text.font  = &scoreFont;
         text.scale = 1.0f;
@@ -212,7 +212,7 @@ class TetrisScene : public GtsScene
             tc.position = glm::vec3(-5.5f, 4.5f, 0.0f);   // AGENT CHANGE: aligned with right stats at y=4.5
             ecsWorld.addComponent(leftStats, tc);
 
-            QuadTextComponent text;
+            WorldTextComponent text;
             text.text  = "LEVEL\n1\nLINES\n0000";
             text.font  = &scoreFont;
             text.scale = 0.6f;
@@ -230,7 +230,7 @@ class TetrisScene : public GtsScene
             tc.position = glm::vec3(11.0f, 4.5f, 0.0f);
             ecsWorld.addComponent(rightStats, tc);
 
-            QuadTextComponent text;
+            WorldTextComponent text;
             text.text  = "SCORE\n00000000\nBEST\n00000000";
             text.font  = &scoreFont;
             text.scale = 0.6f;

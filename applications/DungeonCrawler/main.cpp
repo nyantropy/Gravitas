@@ -13,7 +13,7 @@ int main()
     config.graphics.window.width         = 1920;
     config.graphics.window.height        = 1080;
     config.graphics.window.title         = "DungeonCrawler";
-    config.graphics.window.windowMode    = WindowMode::Windowed;
+    config.graphics.window.windowMode    = WindowMode::BorderlessFullscreen;
     config.graphics.window.vsync         = true;
 
     GravitasEngine engine(config);

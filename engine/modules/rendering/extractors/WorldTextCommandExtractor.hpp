@@ -6,14 +6,14 @@
 
 #include "ECSWorld.hpp"
 #include "CameraGpuComponent.h"
-#include "QuadTextComponent.h"
+#include "WorldTextComponent.h"
 #include "TransformComponent.h"
 #include "HierarchyComponent.h"
 #include "GlyphLayoutEngine.h"
 #include "TextCommand.h"
 #include "Vertex.h"
 
-// Extracts world-space text from QuadTextComponent + TransformComponent entities,
+// Extracts world-space text from WorldTextComponent + TransformComponent entities,
 // transforms the glyph quads into NDC [0..1] using the active camera's
 // view-projection matrix, and returns them as TextCommandLists ready for the
 // TextRenderStage.  Hierarchy is handled by walking the parent chain.
@@ -36,8 +36,8 @@ public:
         });
 
         // Generate and transform world-space text quads.
-        world.forEach<QuadTextComponent, TransformComponent>(
-            [&](Entity e, QuadTextComponent& qtc, TransformComponent& tc)
+        world.forEach<WorldTextComponent, TransformComponent>(
+            [&](Entity e, WorldTextComponent& qtc, TransformComponent& tc)
         {
             if (!qtc.font || qtc.text.empty()) return;
 

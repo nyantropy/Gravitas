@@ -16,7 +16,7 @@
 //   - WorldTextCommandExtractor reads this component every frame, generates
 //     glyph quads in local space, and transforms them to screen space via
 //     the entity's world transform and the active camera's view-projection matrix.
-struct QuadTextComponent
+struct WorldTextComponent
 {
     std::string  text;
     BitmapFont*  font  = nullptr;

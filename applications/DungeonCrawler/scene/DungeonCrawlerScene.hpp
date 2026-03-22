@@ -8,6 +8,7 @@
 #include "CameraDescriptionComponent.h"
 #include "TransformComponent.h"
 #include "BoundsComponent.h"
+#include "UiImageComponent.h"
 
 #include "SceneContext.h"
 #include "GraphicsConstants.h"
@@ -38,6 +39,20 @@ class DungeonCrawlerScene : public GtsScene
             TransformComponent ct;
             ct.position = glm::vec3(0.0f, 0.0f, 10.0f);
             ecsWorld.addComponent(camera, ct);
+
+            texture_id_type furinaTexID =
+                ctx.resources->requestTexture(
+                    GraphicsConstants::ENGINE_RESOURCES + "/pictures/furina.jpg");
+
+            Entity furinaEntity = ecsWorld.createEntity();
+            UiImageComponent img;
+            img.textureID = furinaTexID;
+            img.x         = 0.1f;
+            img.y         = 0.1f;
+            img.w         = 0.3f;
+            img.h         = 0.5f;
+            img.visible   = true;
+            ecsWorld.addComponent(furinaEntity, img);
 
             installRendererFeature();
         }

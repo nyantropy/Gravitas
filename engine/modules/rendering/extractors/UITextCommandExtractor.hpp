@@ -17,7 +17,7 @@
 //   (0, 0) = top-left, (1, 1) = bottom-right.
 //   '\n' : cursor.x = ui.x, cursor.y += lineHeight * scale.
 //   Quad : top-left = (x0, y0), bottom-right = (x1, y1), y0 < y1.
-class UICommandExtractor
+class UITextCommandExtractor
 {
 public:
     std::vector<TextCommandList> extract(ECSWorld& world)
