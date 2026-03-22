@@ -46,12 +46,12 @@ class DungeonCrawlerScene : public GtsScene
 
             Entity furinaEntity = ecsWorld.createEntity();
             UiImageComponent img;
-            img.textureID = furinaTexID;
-            img.x         = 0.1f;
-            img.y         = 0.1f;
-            img.w         = 0.3f;
-            img.h         = 0.5f;
-            img.visible   = true;
+            img.textureID   = furinaTexID;
+            img.x           = 0.1f;
+            img.y           = 0.1f;
+            img.width       = 0.3f;
+            img.imageAspect = 850.0f / 1200.0f;
+            img.visible     = true;
             ecsWorld.addComponent(furinaEntity, img);
 
             installRendererFeature();

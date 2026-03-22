@@ -10,6 +10,7 @@
 #include "GtsPlatform.h"
 #include "GtsGameLoop.h"
 
+#include "GtsExtractorContext.h"
 #include "RenderCommandExtractor.hpp"
 #include "UITextCommandExtractor.hpp"
 #include "WorldTextCommandExtractor.hpp"
@@ -84,10 +85,12 @@ class GravitasEngine
         {
             auto& world = sceneManager->getActiveScene()->getWorld();
 
-            auto renderList     = renderCommandExtractor->extractRenderList(world);
-            auto uiLists        = uiCommandExtractor->extract(world);
-            auto worldTextLists = worldTextExtractor->extract(world);
-            auto uiBuffer       = uiPrimitiveExtractor->extract(world);
+            GtsExtractorContext extractCtx{world, sceneContext.windowAspectRatio};
+
+            auto renderList     = renderCommandExtractor->extract(extractCtx);
+            auto uiLists        = uiCommandExtractor->extract(extractCtx);
+            auto worldTextLists = worldTextExtractor->extract(extractCtx);
+            auto uiBuffer       = uiPrimitiveExtractor->extract(extractCtx);
 
             // Merge world-space text batches into the screen-space UI batches.
             for (auto& wt : worldTextLists)

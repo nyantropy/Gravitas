@@ -4,6 +4,7 @@
 #include <unordered_map>
 
 #include "ECSWorld.hpp"
+#include "IGtsExtractor.h"
 #include "UITextComponent.h"
 #include "TextCommand.h"
 #include "BitmapFont.h"
@@ -17,14 +18,14 @@
 //   (0, 0) = top-left, (1, 1) = bottom-right.
 //   '\n' : cursor.x = ui.x, cursor.y += lineHeight * scale.
 //   Quad : top-left = (x0, y0), bottom-right = (x1, y1), y0 < y1.
-class UITextCommandExtractor
+class UITextCommandExtractor : public IGtsExtractor<std::vector<TextCommandList>>
 {
 public:
-    std::vector<TextCommandList> extract(ECSWorld& world)
+    std::vector<TextCommandList> extract(const GtsExtractorContext& ctx) override
     {
         std::unordered_map<texture_id_type, TextCommandList> batches;
 
-        world.forEach<UITextComponent>([&](Entity, UITextComponent& ui)
+        ctx.world.forEach<UITextComponent>([&](Entity, UITextComponent& ui)
         {
             if (!ui.visible || !ui.font || ui.text.empty())
                 return;

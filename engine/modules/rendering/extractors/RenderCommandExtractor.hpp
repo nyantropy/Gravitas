@@ -5,6 +5,7 @@
 #include <limits>
 
 #include "ECSWorld.hpp"
+#include "IGtsExtractor.h"
 #include "RenderGpuComponent.h"
 #include "CameraGpuComponent.h"
 #include "BoundsComponent.h"
@@ -26,15 +27,17 @@
 // Frustum freeze: when frustumFrozen is true, the frustum planes are not
 // updated from the live camera — the planes captured at freeze time are reused.
 // The render camera continues to move normally; only the cull volume is locked.
-class RenderCommandExtractor
+class RenderCommandExtractor : public IGtsExtractor<std::vector<RenderCommand>>
 {
 public:
     explicit RenderCommandExtractor(bool frustumCullingEnabled = true)
         : frustumCullingEnabled(frustumCullingEnabled)
     {}
 
-    std::vector<RenderCommand> extractRenderList(ECSWorld& world)
+    std::vector<RenderCommand> extract(const GtsExtractorContext& ctx) override
     {
+        ECSWorld& world = ctx.world;
+
         int totalRenderables   = 0;
         int visibleRenderables = 0;
 

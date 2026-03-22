@@ -5,6 +5,7 @@
 #include "GlmConfig.h"
 
 #include "ECSWorld.hpp"
+#include "IGtsExtractor.h"
 #include "CameraGpuComponent.h"
 #include "WorldTextComponent.h"
 #include "TransformComponent.h"
@@ -20,11 +21,13 @@
 //
 // Called from GravitasEngine::render() before renderFrame.  The returned lists
 // are merged into the screen-space uiLists so both arrive in one batch.
-class WorldTextCommandExtractor
+class WorldTextCommandExtractor : public IGtsExtractor<std::vector<TextCommandList>>
 {
 public:
-    std::vector<TextCommandList> extract(ECSWorld& world)
+    std::vector<TextCommandList> extract(const GtsExtractorContext& ctx) override
     {
+        ECSWorld& world = ctx.world;
+
         std::vector<TextCommandList> result;
 
         // Find the active camera's view-projection matrix.
