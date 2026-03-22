@@ -156,6 +156,7 @@ class ForwardRenderer : Renderer
             // Triangle count is written by SceneRenderStage during execute — read it back.
             if (sceneStage)
                 frameStats.triangleCount = sceneStage->getLastTriangleCount();
+                //std::cout << sceneStage->getLastTriangleCount() << std::endl;
 
             if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
                 throw std::runtime_error("failed to record command buffer!");
@@ -191,7 +192,9 @@ class ForwardRenderer : Renderer
         {
             // Store the pre-populated stats from the engine; triangleCount is
             // filled in after frameGraph.execute() inside recordCommandBuffer.
+            uint32_t previousTriangleCount = frameStats.triangleCount;
             frameStats = stats;
+            frameStats.triangleCount = previousTriangleCount;
 
             lastFrameTime += dt;
 

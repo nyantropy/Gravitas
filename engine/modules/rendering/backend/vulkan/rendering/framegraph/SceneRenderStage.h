@@ -151,6 +151,7 @@ public:
         }
 
         lastTriangleCount = triangles;
+        //std::cout << triangles << std::endl;
 
         vkCmdEndRenderPass(cmd);
     }
