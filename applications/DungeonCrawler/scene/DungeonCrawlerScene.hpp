@@ -9,6 +9,7 @@
 #include "TransformComponent.h"
 #include "BoundsComponent.h"
 #include "UiImageComponent.h"
+#include "WorldImageComponent.h"
 
 #include "SceneContext.h"
 #include "GraphicsConstants.h"
@@ -53,6 +54,30 @@ class DungeonCrawlerScene : public GtsScene
             img.imageAspect = 850.0f / 1200.0f;
             img.visible     = true;
             ecsWorld.addComponent(furinaEntity, img);
+
+            // World-space Furina quad (3 units to the right of the cube)
+            // furina.jpg is 850 x 1200 px → aspect = 850/1200
+            // width = 2.0 world units, height = width / aspect
+            constexpr float furinaAspect = 850.0f / 1200.0f;
+            constexpr float furinaW      = 2.0f;
+            constexpr float furinaH      = furinaW / furinaAspect;
+
+            Entity worldFurina = ecsWorld.createEntity();
+
+            WorldImageComponent wimg;
+            wimg.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/pictures/furina.jpg";
+            wimg.width       = furinaW;
+            wimg.height      = furinaH;
+            ecsWorld.addComponent(worldFurina, wimg);
+
+            TransformComponent wt;
+            wt.position = glm::vec3(3.0f, 0.0f, 0.0f);
+            ecsWorld.addComponent(worldFurina, wt);
+
+            BoundsComponent wb;
+            wb.min = glm::vec3(-furinaW * 0.5f, -furinaH * 0.5f, -0.01f);
+            wb.max = glm::vec3( furinaW * 0.5f,  furinaH * 0.5f,  0.01f);
+            ecsWorld.addComponent(worldFurina, wb);
 
             installRendererFeature();
         }
