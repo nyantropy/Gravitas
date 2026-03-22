@@ -2,13 +2,14 @@
 
 #include "GlmConfig.h"
 
-#include "ECSSimulationSystem.hpp"
+#include "ECSControllerSystem.hpp"
 #include "CameraDescriptionComponent.h"
 #include "CameraGpuComponent.h"
 #include "CameraOverrideComponent.h"
 #include "TransformComponent.h"
 
-// Simulation system — pure CPU math, no GPU resources, no SceneContext.
+// Controller system — pure CPU math, no GPU resources.
+// Runs every frame regardless of pause state so camera matrices stay current.
 // Mirrors RenderGpuSystem for the default camera pipeline.
 //
 // Each frame, for every entity with CameraDescriptionComponent:
@@ -23,10 +24,10 @@
 //
 // Does not allocate GPU resources or descriptor sets — that is
 // CameraBindingSystem's exclusive responsibility.
-class CameraGpuSystem : public ECSSimulationSystem
+class CameraGpuSystem : public ECSControllerSystem
 {
 public:
-    void update(ECSWorld& world, float) override
+    void update(ECSWorld& world, SceneContext&) override
     {
         world.forEach<CameraDescriptionComponent>([&](Entity e, CameraDescriptionComponent& desc)
         {

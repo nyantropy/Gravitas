@@ -109,8 +109,14 @@ public:
 
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getPipeline());
 
+        // No active camera yet — skip all draws this frame.
+        if (renderList.empty() || renderList[0].cameraViewID == 0)
+        {
+            vkCmdEndRenderPass(cmd);
+            return;
+        }
+
         // Bind set 0 (camera UBO) and set 1 (object SSBO) once for all draws.
-        if (!renderList.empty() && renderList[0].cameraViewID != 0)
         {
             CameraBufferResource* cameraView = resources->getCameraView(renderList[0].cameraViewID);
             VkDescriptorSet globalSets[2] = {

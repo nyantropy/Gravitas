@@ -3,13 +3,14 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "ECSSimulationSystem.hpp"
+#include "ECSControllerSystem.hpp"
 #include "RenderGpuComponent.h"
 #include "TransformComponent.h"
 #include "HierarchyComponent.h"
 
-// Simulation system that keeps RenderGpuComponent::modelMatrix in sync with
+// Controller system that keeps RenderGpuComponent::modelMatrix in sync with
 // TransformComponent, accounting for parent-child hierarchies.
+// Runs every frame regardless of pause state so transforms stay current.
 //
 // Entities without a HierarchyComponent (or whose parent is INVALID_ENTITY)
 // behave exactly as before: the matrix is only recomputed when dirty == true.
@@ -18,10 +19,10 @@
 // propagate automatically without requiring every child to be marked dirty.
 // A per-frame memoization cache ensures each ancestor is walked at most once,
 // and a visiting set breaks any malformed cycles.
-class RenderGpuSystem : public ECSSimulationSystem
+class RenderGpuSystem : public ECSControllerSystem
 {
 public:
-    void update(ECSWorld& world, float) override
+    void update(ECSWorld& world, SceneContext&) override
     {
         // Per-frame cache: entity id → resolved world-space model matrix
         std::unordered_map<entity_id_type, glm::mat4> cache;

@@ -3,7 +3,7 @@
 #include "GlmConfig.h"
 #include <cmath>
 
-#include "ECSSimulationSystem.hpp"
+#include "ECSControllerSystem.hpp"
 #include "CameraDescriptionComponent.h"
 #include "CameraGpuComponent.h"
 #include "CameraOverrideComponent.h"
@@ -16,7 +16,7 @@
 // It reads orbit and zoom intent from TetrisCameraControlComponent,
 // which is written each frame by TetrisCameraControlSystem.
 // Input is never read here.
-class TetrisCameraSystem : public ECSSimulationSystem
+class TetrisCameraSystem : public ECSControllerSystem
 {
     static constexpr float GRID_WIDTH       = 10.0f;
     static constexpr float GRID_HEIGHT      = 20.0f;
@@ -27,7 +27,7 @@ class TetrisCameraSystem : public ECSSimulationSystem
     static constexpr float FRAMING_OFFSET_X = 0.0f;
 
     public:
-        void update(ECSWorld& world, float) override
+        void update(ECSWorld& world, SceneContext&) override
         {
             world.forEach<CameraDescriptionComponent,
                           CameraOverrideComponent,

@@ -42,8 +42,8 @@ class GtsScene
         // pre defined rendering systems - should be called once in the onLoad() function of whatever scene you design
         inline void installRendererFeature()
         {
-            ecsWorld.addSimulationSystem<RenderGpuSystem>();
-            ecsWorld.addSimulationSystem<CameraGpuSystem>();
+            ecsWorld.addControllerSystem<RenderGpuSystem>();
+            ecsWorld.addControllerSystem<CameraGpuSystem>();
             ecsWorld.addControllerSystem<RenderBindingSystem>();
             ecsWorld.addControllerSystem<WorldImageBindingSystem>();
             ecsWorld.addControllerSystem<WorldTextBindingSystem>();

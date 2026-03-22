@@ -351,7 +351,7 @@ public:
         RegisterAi(ecsWorld, gameSystem);
         ecsWorld.addControllerSystem<TetrisCameraControlSystem>();
         ecsWorld.addSimulationSystem<TetrisScoreSystem>();
-        ecsWorld.addSimulationSystem<TetrisCameraSystem>();
+        ecsWorld.addControllerSystem<TetrisCameraSystem>();
     }
 
     void onUpdateSimulation(SceneContext& ctx) override
