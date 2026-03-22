@@ -6,6 +6,7 @@
 
 #include "BitmapFont.h"
 #include "BitmapFontLoader.h"
+#include "GlyphLayoutEngine.h"
 #include "GtsFrameStats.h"
 #include "UICommand.h"
 #include "IResourceProvider.hpp"
@@ -66,95 +67,27 @@ public:
 
         snprintf(line, sizeof(line), "FPS  %d",
                  static_cast<int>(stats.fps));
-        appendText(batches, line, OVERLAY_X, y);
+        GlyphLayoutEngine::appendTextToBatch(batches, font, line, OVERLAY_X, y, FONT_SCALE);
         y += LINE_HEIGHT * FONT_SCALE;
 
         snprintf(line, sizeof(line), "DT   %.1fMS",
                  stats.frameTimeMs);
-        appendText(batches, line, OVERLAY_X, y);
+        GlyphLayoutEngine::appendTextToBatch(batches, font, line, OVERLAY_X, y, FONT_SCALE);
         y += LINE_HEIGHT * FONT_SCALE;
 
         snprintf(line, sizeof(line), "VIS  %d / %d",
                  static_cast<int>(stats.visibleObjects),
                  static_cast<int>(stats.totalObjects));
-        appendText(batches, line, OVERLAY_X, y);
+        GlyphLayoutEngine::appendTextToBatch(batches, font, line, OVERLAY_X, y, FONT_SCALE);
         y += LINE_HEIGHT * FONT_SCALE;
 
         snprintf(line, sizeof(line), "TRIS %d",
                  static_cast<int>(stats.triangleCount));
-        appendText(batches, line, OVERLAY_X, y);
+        GlyphLayoutEngine::appendTextToBatch(batches, font, line, OVERLAY_X, y, FONT_SCALE);
     }
 
 private:
     BitmapFont font;
     bool       enabled     = false;
     bool       initialised = false;
-
-    // Layout a string into quads and append to the matching atlas batch.
-    // Follows the same vertex/index layout as UICommandExtractor.
-    void appendText(std::vector<UICommandList>& batches,
-                    const std::string&           text,
-                    float x, float y) const
-    {
-        // Find or create the batch for this font's atlas.
-        UICommandList* cmd = nullptr;
-        for (auto& b : batches)
-        {
-            if (b.textureID == font.atlasTexture)
-            { cmd = &b; break; }
-        }
-        if (!cmd)
-        {
-            batches.push_back({});
-            cmd = &batches.back();
-            cmd->textureID = font.atlasTexture;
-        }
-
-        float cursorX = x;
-        float cursorY = y;
-
-        for (char ch : text)
-        {
-            if (ch == '\n')
-            {
-                cursorX  = x;
-                cursorY += font.lineHeight * FONT_SCALE;
-                continue;
-            }
-
-            auto it = font.glyphs.find(ch);
-            if (it == font.glyphs.end())
-            {
-                cursorX += font.lineHeight * 0.5f * FONT_SCALE;
-                continue;
-            }
-
-            const GlyphInfo& g = it->second;
-
-            if (ch != ' ')
-            {
-                float x0 = cursorX + g.bearing.x * FONT_SCALE;
-                float y0 = cursorY - (g.bearing.y - g.size.y) * FONT_SCALE;
-                float x1 = x0 + g.size.x * FONT_SCALE;
-                float y1 = y0 + g.size.y * FONT_SCALE;
-
-                auto base = static_cast<uint32_t>(cmd->vertices.size());
-
-                cmd->vertices.push_back({{x0, y0}, {g.uvMin.x, g.uvMin.y}}); // TL
-                cmd->vertices.push_back({{x1, y0}, {g.uvMax.x, g.uvMin.y}}); // TR
-                cmd->vertices.push_back({{x0, y1}, {g.uvMin.x, g.uvMax.y}}); // BL
-                cmd->vertices.push_back({{x1, y1}, {g.uvMax.x, g.uvMax.y}}); // BR
-
-                // Two CCW triangles (TL→BL→TR, TR→BL→BR) — cull mode NONE.
-                cmd->indices.push_back(base + 0);
-                cmd->indices.push_back(base + 2);
-                cmd->indices.push_back(base + 1);
-                cmd->indices.push_back(base + 1);
-                cmd->indices.push_back(base + 2);
-                cmd->indices.push_back(base + 3);
-            }
-
-            cursorX += g.advance * FONT_SCALE;
-        }
-    }
 };

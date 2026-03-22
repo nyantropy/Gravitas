@@ -19,10 +19,9 @@
 #include "RenderResourceManager.hpp"
 #include "GraphicsConstants.h"
 #include "UIGlyphVertexDescription.h"
-#include "BufferUtil.hpp"
-#include "MemoryUtil.hpp"
 #include "dssheet.h"
 #include "vcsheet.h"
+#include "VulkanDynamicBuffer.h"
 #include <UICommand.h>
 #include "GtsFrameStats.h"
 #include "GtsDebugOverlay.h"
@@ -88,27 +87,7 @@ public:
             fbConfig.attachmentsPerFramebuffer[i] = { imageViews[i] };
         framebuffers = std::make_unique<VulkanFramebufferSet>(fbConfig);
 
-        createDynamicBuffers();
-
         debugOverlay.init(resources);
-    }
-
-    ~UiRenderStage()
-    {
-        VkDevice dev = vcsheet::getDevice();
-
-        if (vertexBuffer != VK_NULL_HANDLE)
-        {
-            vkUnmapMemory(dev, vertexMemory);
-            vkDestroyBuffer(dev, vertexBuffer, nullptr);
-            vkFreeMemory(dev, vertexMemory, nullptr);
-        }
-        if (indexBuffer != VK_NULL_HANDLE)
-        {
-            vkUnmapMemory(dev, indexMemory);
-            vkDestroyBuffer(dev, indexBuffer, nullptr);
-            vkFreeMemory(dev, indexMemory, nullptr);
-        }
     }
 
     void declareResources(GtsFrameGraph& graph) override
@@ -157,10 +136,11 @@ public:
         if (totalVerts == 0)
             return;
 
-        ensureBufferCapacity(totalVerts, totalIndices);
+        vertexBuffer.ensureCapacity(totalVerts   * sizeof(UIGlyphVertex));
+        indexBuffer.ensureCapacity(totalIndices  * sizeof(uint32_t));
 
-        auto* vDst = static_cast<UIGlyphVertex*>(vertexMapped);
-        auto* iDst = static_cast<uint32_t*>(indexMapped);
+        auto* vDst = static_cast<UIGlyphVertex*>(vertexBuffer.getMapped());
+        auto* iDst = static_cast<uint32_t*>(indexBuffer.getMapped());
         uint32_t vertOffset = 0;
         uint32_t idxOffset  = 0;
         for (const auto& list : uiLists)
@@ -209,8 +189,10 @@ public:
                            0, sizeof(glm::mat4), &proj);
 
         const VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(cmd, 0, 1, &vertexBuffer, offsets);
-        vkCmdBindIndexBuffer(cmd, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        VkBuffer vb = vertexBuffer.getBuffer();
+        vkCmdBindVertexBuffers(cmd, 0, 1, &vb, offsets);
+        VkBuffer ib = indexBuffer.getBuffer();
+        vkCmdBindIndexBuffer(cmd, ib, 0, VK_INDEX_TYPE_UINT32);
 
         // One draw call per atlas.
         uint32_t indexBase = 0;
@@ -246,73 +228,11 @@ private:
     GtsDebugOverlay                       debugOverlay;
 
     // Dynamic buffers — host-visible, persistently mapped, resized on demand.
-    VkBuffer       vertexBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
-    void*          vertexMapped = nullptr;
-    uint32_t       vertexCap    = 0;
-
-    VkBuffer       indexBuffer  = VK_NULL_HANDLE;
-    VkDeviceMemory indexMemory  = VK_NULL_HANDLE;
-    void*          indexMapped  = nullptr;
-    uint32_t       indexCap     = 0;
-
     static constexpr uint32_t INITIAL_VERTEX_CAP = 4096;
     static constexpr uint32_t INITIAL_INDEX_CAP  = 8192;
 
-    void createDynamicBuffers()
-    {
-        allocateHostBuffer(
-            sizeof(UIGlyphVertex) * INITIAL_VERTEX_CAP,
-            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-            vertexBuffer, vertexMemory, vertexMapped);
-        vertexCap = INITIAL_VERTEX_CAP;
-
-        allocateHostBuffer(
-            sizeof(uint32_t) * INITIAL_INDEX_CAP,
-            VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-            indexBuffer, indexMemory, indexMapped);
-        indexCap = INITIAL_INDEX_CAP;
-    }
-
-    void ensureBufferCapacity(uint32_t neededVerts, uint32_t neededIndices)
-    {
-        VkDevice dev = vcsheet::getDevice();
-
-        if (neededVerts > vertexCap)
-        {
-            vkUnmapMemory(dev, vertexMemory);
-            vkDestroyBuffer(dev, vertexBuffer, nullptr);
-            vkFreeMemory(dev, vertexMemory, nullptr);
-
-            vertexCap = neededVerts * 2;
-            allocateHostBuffer(sizeof(UIGlyphVertex) * vertexCap,
-                               VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                               vertexBuffer, vertexMemory, vertexMapped);
-        }
-
-        if (neededIndices > indexCap)
-        {
-            vkUnmapMemory(dev, indexMemory);
-            vkDestroyBuffer(dev, indexBuffer, nullptr);
-            vkFreeMemory(dev, indexMemory, nullptr);
-
-            indexCap = neededIndices * 2;
-            allocateHostBuffer(sizeof(uint32_t) * indexCap,
-                               VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                               indexBuffer, indexMemory, indexMapped);
-        }
-    }
-
-    void allocateHostBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
-                            VkBuffer& buf, VkDeviceMemory& mem, void*& mapped)
-    {
-        BufferUtil::createBuffer(
-            vcsheet::getDevice(),
-            vcsheet::getPhysicalDevice(),
-            size, usage,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            buf, mem);
-
-        vkMapMemory(vcsheet::getDevice(), mem, 0, size, 0, &mapped);
-    }
+    VulkanDynamicBuffer vertexBuffer{VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                      INITIAL_VERTEX_CAP * sizeof(UIGlyphVertex)};
+    VulkanDynamicBuffer indexBuffer {VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                                      INITIAL_INDEX_CAP  * sizeof(uint32_t)};
 };
