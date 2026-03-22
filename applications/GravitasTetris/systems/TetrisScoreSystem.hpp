@@ -85,13 +85,11 @@ class TetrisScoreSystem : public ECSSimulationSystem
                     {
                         // Left panel: SPEED LV and LINES
                         text.text  = leftText;
-                        text.dirty = true;
                     }
                     else
                     {
                         // Right panel: SCORE and BEST
                         text.text  = rightText;
-                        text.dirty = true;
                     }
                 });
         }

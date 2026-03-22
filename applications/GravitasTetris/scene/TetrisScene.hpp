@@ -162,7 +162,7 @@ class TetrisScene : public GtsScene
         text.text  = "NEXT";
         text.font  = &scoreFont;
         text.scale = 1.0f;
-        text.dirty = true;
+
         ecsWorld.addComponent(e, text);
 
         return e;
@@ -180,7 +180,7 @@ class TetrisScene : public GtsScene
         text.text  = "HOLD";
         text.font  = &scoreFont;
         text.scale = 1.0f;
-        text.dirty = true;
+
         ecsWorld.addComponent(e, text);
 
         return e;
@@ -216,7 +216,7 @@ class TetrisScene : public GtsScene
             text.text  = "LEVEL\n1\nLINES\n0000";
             text.font  = &scoreFont;
             text.scale = 0.6f;
-            text.dirty = true;
+    
             ecsWorld.addComponent(leftStats, text);
             ecsWorld.addComponent(leftStats, ScoreDisplayComponent{0});  // id=0: left panel
         }
@@ -234,7 +234,7 @@ class TetrisScene : public GtsScene
             text.text  = "SCORE\n00000000\nBEST\n00000000";
             text.font  = &scoreFont;
             text.scale = 0.6f;
-            text.dirty = true;
+    
             ecsWorld.addComponent(rightStats, text);
             ecsWorld.addComponent(rightStats, ScoreDisplayComponent{1});  // id=1: right panel
         }

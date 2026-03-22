@@ -6,12 +6,12 @@
 #include "GlmConfig.h"
 
 #include "QuadTextComponent.h"
-#include "TextMeshComponent.h"
 #include "BitmapFont.h"
 #include "UICommand.h"
+#include "Vertex.h"
 
 // Converts a QuadTextComponent's string into flat world-space quad geometry
-// stored in TextMeshComponent.  Shared by TextBuildSystem.
+// stored in caller-owned vertex and index vectors.  Used by TextRenderStage.
 //
 // Coordinate convention (world-space, entity local XY plane):
 //   X increases rightward, Y increases upward.
@@ -19,7 +19,9 @@
 //   Quad : top-left = (x0, y0), bottom-right = (x1, y1) with y0 > y1.
 namespace GlyphLayoutEngine
 {
-    inline void build(const QuadTextComponent& text, TextMeshComponent& tm)
+    inline void build(const QuadTextComponent& text,
+                      std::vector<Vertex>& verts,
+                      std::vector<uint32_t>& indices)
     {
         const BitmapFont& font  = *text.font;
         const float       scale = text.scale;
@@ -55,22 +57,22 @@ namespace GlyphLayoutEngine
                 float x1 = x0 + g.size.x * scale;
                 float y1 = y0 - g.size.y * scale;
 
-                auto base = static_cast<uint32_t>(tm.vertices.size());
+                auto base = static_cast<uint32_t>(verts.size());
 
                 constexpr glm::vec3 white = {1.0f, 1.0f, 1.0f};
 
-                tm.vertices.push_back({{x0, y0, 0.0f}, white, {g.uvMin.x, g.uvMin.y}}); // TL
-                tm.vertices.push_back({{x1, y0, 0.0f}, white, {g.uvMax.x, g.uvMin.y}}); // TR
-                tm.vertices.push_back({{x0, y1, 0.0f}, white, {g.uvMin.x, g.uvMax.y}}); // BL
-                tm.vertices.push_back({{x1, y1, 0.0f}, white, {g.uvMax.x, g.uvMax.y}}); // BR
+                verts.push_back({{x0, y0, 0.0f}, white, {g.uvMin.x, g.uvMin.y}}); // TL
+                verts.push_back({{x1, y0, 0.0f}, white, {g.uvMax.x, g.uvMin.y}}); // TR
+                verts.push_back({{x0, y1, 0.0f}, white, {g.uvMin.x, g.uvMax.y}}); // BL
+                verts.push_back({{x1, y1, 0.0f}, white, {g.uvMax.x, g.uvMax.y}}); // BR
 
                 // Two CCW triangles (TL→BL→TR, TR→BL→BR).
-                tm.indices.push_back(base + 0);
-                tm.indices.push_back(base + 2);
-                tm.indices.push_back(base + 1);
-                tm.indices.push_back(base + 1);
-                tm.indices.push_back(base + 2);
-                tm.indices.push_back(base + 3);
+                indices.push_back(base + 0);
+                indices.push_back(base + 2);
+                indices.push_back(base + 1);
+                indices.push_back(base + 1);
+                indices.push_back(base + 2);
+                indices.push_back(base + 3);
             }
 
             cursorX += g.advance * scale;

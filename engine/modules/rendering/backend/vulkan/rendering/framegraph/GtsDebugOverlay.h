@@ -12,9 +12,9 @@
 #include "IResourceProvider.hpp"
 #include "GraphicsConstants.h"
 
-// Self-contained debug overlay module owned by UiRenderStage.
+// Self-contained debug overlay module owned by TextRenderStage.
 // Appends debug stat quads to an existing UICommandList batch when enabled.
-// All rendering shares UiRenderStage's pipeline and draw call — no separate
+// All rendering shares TextRenderStage's pipeline and draw call — no separate
 // Vulkan objects needed.
 //
 // Font path and atlas constants are the single source of truth — changing the
@@ -55,7 +55,7 @@ public:
     void setEnabled(bool e) { enabled = e; }
     bool isEnabled()  const { return enabled; }
 
-    // Appends debug stat quads to batches.  Called from UiRenderStage::record
+    // Appends debug stat quads to batches.  Called from TextRenderStage::record
     // after game UI quads have been appended.
     void appendToBatch(std::vector<UICommandList>& batches,
                        const GtsFrameStats&         stats) const

@@ -12,6 +12,7 @@
 
 #include "RenderCommandExtractor.hpp"
 #include "UICommandExtractor.hpp"
+#include "WorldTextCommandExtractor.hpp"
 #include "SceneManager.hpp"
 
 #include "GtsCommand.h"
@@ -37,6 +38,9 @@ class GravitasEngine
 
         // extracts UI text commands for the overlay pass
         std::unique_ptr<UICommandExtractor> uiCommandExtractor;
+
+        // extracts world-space text from QuadTextComponent entities
+        std::unique_ptr<WorldTextCommandExtractor> worldTextExtractor;
 
         // the scene manager
         // the whole world is a stage after all
@@ -67,6 +71,7 @@ class GravitasEngine
         {
             renderCommandExtractor = std::make_unique<RenderCommandExtractor>(engineConfig.frustumCullingEnabled);
             uiCommandExtractor     = std::make_unique<UICommandExtractor>();
+            worldTextExtractor     = std::make_unique<WorldTextCommandExtractor>();
         }
 
         // render call
@@ -74,8 +79,29 @@ class GravitasEngine
         {
             auto& world = sceneManager->getActiveScene()->getWorld();
 
-            auto renderList = renderCommandExtractor->extractRenderList(world);
-            auto uiLists    = uiCommandExtractor->extract(world);
+            auto renderList    = renderCommandExtractor->extractRenderList(world);
+            auto uiLists       = uiCommandExtractor->extract(world);
+            auto worldTextLists = worldTextExtractor->extract(world);
+
+            // Merge world-space text batches into the screen-space UI batches.
+            for (auto& wt : worldTextLists)
+            {
+                bool found = false;
+                for (auto& ui : uiLists)
+                {
+                    if (ui.textureID == wt.textureID)
+                    {
+                        uint32_t base = static_cast<uint32_t>(ui.vertices.size());
+                        ui.vertices.insert(ui.vertices.end(), wt.vertices.begin(), wt.vertices.end());
+                        for (uint32_t idx : wt.indices)
+                            ui.indices.push_back(base + idx);
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                    uiLists.push_back(std::move(wt));
+            }
 
             GtsFrameStats stats;
             stats.fps            = (dt > 0.0f) ? 1.0f / dt : 0.0f;

@@ -26,7 +26,7 @@
 
 #include "GtsFrameGraph.h"
 #include "SceneRenderStage.h"
-#include "UiRenderStage.h"
+#include "TextRenderStage.h"
 
 class ForwardRenderer : Renderer
 {
@@ -41,7 +41,7 @@ class ForwardRenderer : Renderer
 
         // Raw pointers into the frame graph — set during buildFrameGraph().
         SceneRenderStage* sceneStage = nullptr;
-        UiRenderStage*    uiStage    = nullptr;
+        TextRenderStage*  textStage  = nullptr;
 
         // Depth format — resolved once in createDepthAttachment(), reused by
         // buildFrameGraph() and SceneRenderStage.
@@ -121,11 +121,11 @@ class ForwardRenderer : Renderer
             sceneStage = ownedScene.get();
             frameGraph.addStage(std::move(ownedScene));
 
-            auto ownedUi = std::make_unique<UiRenderStage>(
+            auto ownedText = std::make_unique<TextRenderStage>(
                 resourceSystem.get(),
                 swapchainHandle0);
-            uiStage = ownedUi.get();
-            frameGraph.addStage(std::move(ownedUi));
+            textStage = ownedText.get();
+            frameGraph.addStage(std::move(ownedText));
 
             frameGraph.compile();
         }
@@ -182,8 +182,8 @@ class ForwardRenderer : Renderer
 
         void toggleDebugOverlay() override
         {
-            if (uiStage)
-                uiStage->getDebugOverlay().setEnabled(!uiStage->getDebugOverlay().isEnabled());
+            if (textStage)
+                textStage->getDebugOverlay().setEnabled(!textStage->getDebugOverlay().isEnabled());
         }
 
         void renderFrame(float dt, const std::vector<RenderCommand>& renderList,

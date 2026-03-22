@@ -12,15 +12,13 @@
 // Never create one entity per character.
 //
 // Workflow:
-//   - Set text/font/scale, leave dirty = true (default).
-//   - TextBuildSystem (SimulationSystem) rebuilds quad geometry when dirty.
-//   - TextBindingSystem (ControllerSystem) uploads the geometry to GPU and
-//     feeds the atlas texture into RenderGpuComponent for the normal pipeline.
-//   - Set dirty = true whenever text or font changes.
+//   - Set text/font/scale.
+//   - WorldTextCommandExtractor reads this component every frame, generates
+//     glyph quads in local space, and transforms them to screen space via
+//     the entity's world transform and the active camera's view-projection matrix.
 struct QuadTextComponent
 {
     std::string  text;
     BitmapFont*  font  = nullptr;
     float        scale = 1.0f;
-    bool         dirty = true;
 };

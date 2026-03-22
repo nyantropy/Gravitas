@@ -26,17 +26,21 @@
 #include "GtsFrameStats.h"
 #include "GtsDebugOverlay.h"
 
-// UI overlay render stage.
+// Text render stage.
+// Renders both screen-space (UITextComponent) and world-space (QuadTextComponent)
+// text in a single pass.  World-space quads arrive pre-transformed in NDC [0..1]
+// via the UICommandList blackboard — transformation is done by WorldTextCommandExtractor
+// before renderFrame is called.
+//
 // Owns its render pass, pipeline, framebuffers, and dynamic vertex/index buffers.
-// Composites screen-space text over the 3D scene.
-// Reads the swapchain in PRESENT_SRC_KHR (left by SceneRenderStage) and
-// writes it back to PRESENT_SRC_KHR — same layout, so no barrier is inserted.
-class UiRenderStage : public GtsRenderStage
+// Composites text over the 3D scene by reading the swapchain in PRESENT_SRC_KHR
+// (left by SceneRenderStage) and writing it back to the same layout.
+class TextRenderStage : public GtsRenderStage
 {
 public:
-    UiRenderStage(RenderResourceManager* resources,
-                  GtsResourceHandle      swapchainHandle)
-        : GtsRenderStage("UiRenderStage")
+    TextRenderStage(RenderResourceManager* resources,
+                    GtsResourceHandle      swapchainHandle)
+        : GtsRenderStage("TextRenderStage")
         , resources(resources)
         , swapchainHandle(swapchainHandle)
     {
@@ -95,7 +99,7 @@ public:
         graph.requestData<std::vector<UICommandList>>(this);
         graph.requestData<GtsFrameStats>(this);
 
-        // Read dependency on the swapchain — creates the scene→UI ordering edge.
+        // Read dependency on the swapchain — creates the scene→text ordering edge.
         graph.declareRead(this, swapchainHandle,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
@@ -111,7 +115,7 @@ public:
     void record(VkCommandBuffer cmd, GtsFrameGraph& graph,
                 uint32_t imageIndex, uint32_t currentFrame) override
     {
-        // Get ECS UI batch and frame stats from blackboard.
+        // Get ECS UI batch (screen-space + pre-transformed world-space) and frame stats.
         const auto& uiListsFromBlackboard = graph.getData<std::vector<UICommandList>>();
         const auto& stats                 = graph.getData<GtsFrameStats>();
 
@@ -155,7 +159,7 @@ public:
             vertOffset += static_cast<uint32_t>(list.vertices.size());
         }
 
-        // Begin UI render pass.
+        // Begin text render pass.
         VkRenderPassBeginInfo rpInfo{};
         rpInfo.sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         rpInfo.renderPass        = renderPass->getRenderPass();

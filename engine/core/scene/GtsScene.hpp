@@ -9,8 +9,6 @@
 #include "RenderBindingSystem.hpp"
 #include "CameraBindingSystem.hpp"
 #include "RenderResourceClearSystem.hpp"
-#include "TextBuildSystem.hpp"
-#include "TextBindingSystem.hpp"
 #include "DefaultCameraControlSystem.hpp"
 
 
@@ -44,11 +42,9 @@ class GtsScene
         {
             ecsWorld.addSimulationSystem<RenderGpuSystem>();
             ecsWorld.addSimulationSystem<CameraGpuSystem>();
-            ecsWorld.addSimulationSystem<TextBuildSystem>();
             ecsWorld.addControllerSystem<RenderBindingSystem>();
             ecsWorld.addControllerSystem<CameraBindingSystem>();
             ecsWorld.addControllerSystem<RenderResourceClearSystem>();
-            ecsWorld.addControllerSystem<TextBindingSystem>();
             ecsWorld.addControllerSystem<DefaultCameraControlSystem>();
         }
 };
