@@ -10,12 +10,12 @@
 #include "TransformComponent.h"
 #include "HierarchyComponent.h"
 #include "GlyphLayoutEngine.h"
-#include "UICommand.h"
+#include "TextCommand.h"
 #include "Vertex.h"
 
 // Extracts world-space text from QuadTextComponent + TransformComponent entities,
 // transforms the glyph quads into NDC [0..1] using the active camera's
-// view-projection matrix, and returns them as UICommandLists ready for the
+// view-projection matrix, and returns them as TextCommandLists ready for the
 // TextRenderStage.  Hierarchy is handled by walking the parent chain.
 //
 // Called from GravitasEngine::render() before renderFrame.  The returned lists
@@ -23,9 +23,9 @@
 class WorldTextCommandExtractor
 {
 public:
-    std::vector<UICommandList> extract(ECSWorld& world)
+    std::vector<TextCommandList> extract(ECSWorld& world)
     {
-        std::vector<UICommandList> result;
+        std::vector<TextCommandList> result;
 
         // Find the active camera's view-projection matrix.
         glm::mat4 viewProj = glm::mat4(1.0f);
@@ -52,7 +52,7 @@ public:
             if (localVerts.empty()) return;
 
             // Find or create the batch for this atlas.
-            UICommandList* cmd = nullptr;
+            TextCommandList* cmd = nullptr;
             for (auto& b : result)
                 if (b.textureID == qtc.font->atlasTexture) { cmd = &b; break; }
             if (!cmd)
@@ -73,7 +73,8 @@ public:
                 // Convert from NDC [-1,1] to viewport [0,1].
                 cmd->vertices.push_back(
                     {{ndcX * 0.5f + 0.5f, ndcY * 0.5f + 0.5f},
-                     {v.texCoord.x, v.texCoord.y}});
+                     {v.texCoord.x, v.texCoord.y},
+                     {1.0f, 1.0f, 1.0f, 1.0f}});
             }
 
             // Remap indices to the concatenated vertex base.

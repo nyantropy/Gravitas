@@ -7,11 +7,11 @@
 
 #include "QuadTextComponent.h"
 #include "BitmapFont.h"
-#include "UICommand.h"
+#include "TextCommand.h"
 #include "Vertex.h"
 
 // Converts a QuadTextComponent's string into flat world-space quad geometry
-// stored in caller-owned vertex and index vectors.  Used by TextRenderStage.
+// stored in caller-owned vertex and index vectors.  Used by WorldTextCommandExtractor.
 //
 // Coordinate convention (world-space, entity local XY plane):
 //   X increases rightward, Y increases upward.
@@ -82,12 +82,13 @@ namespace GlyphLayoutEngine
     // Append quads for text into cmd, starting at (x, y) with scale.
     // '\n' advances y by font.lineHeight * scale and resets x.
     // Unknown characters advance cursor by half a line height without emitting quads.
-    inline void appendText(UICommandList&     cmd,
+    inline void appendText(TextCommandList&   cmd,
                            const BitmapFont&  font,
                            const std::string& text,
                            float              x,
                            float              y,
-                           float              scale)
+                           float              scale,
+                           glm::vec4          color = {1.0f, 1.0f, 1.0f, 1.0f})
     {
         float cursorX = x;
         float cursorY = y;
@@ -119,10 +120,10 @@ namespace GlyphLayoutEngine
 
                 auto base = static_cast<uint32_t>(cmd.vertices.size());
 
-                cmd.vertices.push_back({{x0, y0}, {g.uvMin.x, g.uvMin.y}}); // TL
-                cmd.vertices.push_back({{x1, y0}, {g.uvMax.x, g.uvMin.y}}); // TR
-                cmd.vertices.push_back({{x0, y1}, {g.uvMin.x, g.uvMax.y}}); // BL
-                cmd.vertices.push_back({{x1, y1}, {g.uvMax.x, g.uvMax.y}}); // BR
+                cmd.vertices.push_back({{x0, y0}, {g.uvMin.x, g.uvMin.y}, color}); // TL
+                cmd.vertices.push_back({{x1, y0}, {g.uvMax.x, g.uvMin.y}, color}); // TR
+                cmd.vertices.push_back({{x0, y1}, {g.uvMin.x, g.uvMax.y}, color}); // BL
+                cmd.vertices.push_back({{x1, y1}, {g.uvMax.x, g.uvMax.y}, color}); // BR
 
                 // Two CCW triangles (TL→BL→TR, TR→BL→BR) — cull mode NONE.
                 cmd.indices.push_back(base + 0);
@@ -137,14 +138,15 @@ namespace GlyphLayoutEngine
         }
     }
 
-    // Find or create the UICommandList matching font.atlasTexture in batches,
+    // Find or create the TextCommandList matching font.atlasTexture in batches,
     // then call appendText into it.
-    inline void appendTextToBatch(std::vector<UICommandList>& batches,
-                                   const BitmapFont&           font,
-                                   const std::string&          text,
-                                   float x, float y, float scale)
+    inline void appendTextToBatch(std::vector<TextCommandList>& batches,
+                                   const BitmapFont&             font,
+                                   const std::string&            text,
+                                   float x, float y, float scale,
+                                   glm::vec4 color = {1.0f, 1.0f, 1.0f, 1.0f})
     {
-        UICommandList* cmd = nullptr;
+        TextCommandList* cmd = nullptr;
         for (auto& b : batches)
             if (b.textureID == font.atlasTexture) { cmd = &b; break; }
         if (!cmd)
@@ -153,6 +155,6 @@ namespace GlyphLayoutEngine
             cmd = &batches.back();
             cmd->textureID = font.atlasTexture;
         }
-        appendText(*cmd, font, text, x, y, scale);
+        appendText(*cmd, font, text, x, y, scale, color);
     }
 }

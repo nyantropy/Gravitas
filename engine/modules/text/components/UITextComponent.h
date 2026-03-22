@@ -16,7 +16,7 @@
 // Workflow:
 //   UICommandExtractor reads all visible UITextComponents each frame,
 //   lays glyphs out in screen space (Y increases downward), and batches
-//   all glyphs sharing the same atlas into one UICommandList.
+//   all glyphs sharing the same atlas into one TextCommandList.
 struct UITextComponent
 {
     std::string  text;

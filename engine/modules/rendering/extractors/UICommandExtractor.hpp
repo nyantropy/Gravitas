@@ -5,13 +5,13 @@
 
 #include "ECSWorld.hpp"
 #include "UITextComponent.h"
-#include "UICommand.h"
+#include "TextCommand.h"
 #include "BitmapFont.h"
 #include "GlyphLayoutEngine.h"
 
 // Reads all visible UITextComponent entities from the ECS world each frame,
 // lays out glyphs in screen space (Y increases downward), and batches the
-// results into one UICommandList per atlas texture.
+// results into one TextCommandList per atlas texture.
 //
 // Coordinate convention (screen-space, Y-down):
 //   (0, 0) = top-left, (1, 1) = bottom-right.
@@ -20,9 +20,9 @@
 class UICommandExtractor
 {
 public:
-    std::vector<UICommandList> extract(ECSWorld& world)
+    std::vector<TextCommandList> extract(ECSWorld& world)
     {
-        std::unordered_map<texture_id_type, UICommandList> batches;
+        std::unordered_map<texture_id_type, TextCommandList> batches;
 
         world.forEach<UITextComponent>([&](Entity, UITextComponent& ui)
         {
@@ -31,13 +31,13 @@ public:
 
             const BitmapFont& font = *ui.font;
 
-            UICommandList& cmd = batches[font.atlasTexture];
+            TextCommandList& cmd = batches[font.atlasTexture];
             cmd.textureID = font.atlasTexture;
 
             GlyphLayoutEngine::appendText(cmd, font, ui.text, ui.x, ui.y, ui.scale);
         });
 
-        std::vector<UICommandList> result;
+        std::vector<TextCommandList> result;
         result.reserve(batches.size());
         for (auto& [id, cmd] : batches)
             if (!cmd.vertices.empty())

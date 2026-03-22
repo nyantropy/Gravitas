@@ -15,7 +15,7 @@ struct VulkanPipelineConfig
 
     // ── vertex input ─────────────────────────────────────────────────────
     // Defaults to the standard Vertex layout used by the main pipeline.
-    // Override for custom vertex types (e.g. UIGlyphVertex).
+    // Override for custom vertex types (e.g. TextGlyphVertex).
     VkVertexInputBindingDescription                vertexBinding    = Vertex::getBindingDescription();
     std::vector<VkVertexInputAttributeDescription> vertexAttributes = []
     {

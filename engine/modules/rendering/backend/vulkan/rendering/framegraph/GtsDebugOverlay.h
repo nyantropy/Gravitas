@@ -8,12 +8,12 @@
 #include "BitmapFontLoader.h"
 #include "GlyphLayoutEngine.h"
 #include "GtsFrameStats.h"
-#include "UICommand.h"
+#include "TextCommand.h"
 #include "IResourceProvider.hpp"
 #include "GraphicsConstants.h"
 
 // Self-contained debug overlay module owned by TextRenderStage.
-// Appends debug stat quads to an existing UICommandList batch when enabled.
+// Appends debug stat quads to an existing TextCommandList batch when enabled.
 // All rendering shares TextRenderStage's pipeline and draw call — no separate
 // Vulkan objects needed.
 //
@@ -57,7 +57,7 @@ public:
 
     // Appends debug stat quads to batches.  Called from TextRenderStage::record
     // after game UI quads have been appended.
-    void appendToBatch(std::vector<UICommandList>& batches,
+    void appendToBatch(std::vector<TextCommandList>& batches,
                        const GtsFrameStats&         stats) const
     {
         if (!initialised) return;

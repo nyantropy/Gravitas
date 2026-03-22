@@ -18,18 +18,18 @@
 #include "VulkanFramebufferSetConfig.h"
 #include "RenderResourceManager.hpp"
 #include "GraphicsConstants.h"
-#include "UIGlyphVertexDescription.h"
+#include "TextGlyphVertexDescription.h"
 #include "dssheet.h"
 #include "vcsheet.h"
 #include "VulkanDynamicBuffer.h"
-#include <UICommand.h>
+#include <TextCommand.h>
 #include "GtsFrameStats.h"
 #include "GtsDebugOverlay.h"
 
 // Text render stage.
 // Renders both screen-space (UITextComponent) and world-space (QuadTextComponent)
 // text in a single pass.  World-space quads arrive pre-transformed in NDC [0..1]
-// via the UICommandList blackboard — transformation is done by WorldTextCommandExtractor
+// via the TextCommandList blackboard — transformation is done by WorldTextCommandExtractor
 // before renderFrame is called.
 //
 // Owns its render pass, pipeline, framebuffers, and dynamic vertex/index buffers.
@@ -58,8 +58,8 @@ public:
         pConfig.fragmentShaderPath = GraphicsConstants::UI_F_SHADER_PATH;
         pConfig.vkRenderPass       = renderPass->getRenderPass();
         {
-            auto b = UIGlyphVertexDescription::getBindingDescription();
-            auto a = UIGlyphVertexDescription::getAttributeDescriptions();
+            auto b = TextGlyphVertexDescription::getBindingDescription();
+            auto a = TextGlyphVertexDescription::getAttributeDescriptions();
             pConfig.vertexBinding    = b;
             pConfig.vertexAttributes = std::vector<VkVertexInputAttributeDescription>(a.begin(), a.end());
         }
@@ -96,7 +96,7 @@ public:
 
     void declareResources(GtsFrameGraph& graph) override
     {
-        graph.requestData<std::vector<UICommandList>>(this);
+        graph.requestData<std::vector<TextCommandList>>(this);
         graph.requestData<GtsFrameStats>(this);
 
         // Read dependency on the swapchain — creates the scene→text ordering edge.
@@ -116,11 +116,11 @@ public:
                 uint32_t imageIndex, uint32_t currentFrame) override
     {
         // Get ECS UI batch (screen-space + pre-transformed world-space) and frame stats.
-        const auto& uiListsFromBlackboard = graph.getData<std::vector<UICommandList>>();
+        const auto& uiListsFromBlackboard = graph.getData<std::vector<TextCommandList>>();
         const auto& stats                 = graph.getData<GtsFrameStats>();
 
         // Build the full batch (game UI + optional debug overlay) as a mutable copy.
-        std::vector<UICommandList> uiLists = uiListsFromBlackboard;
+        std::vector<TextCommandList> uiLists = uiListsFromBlackboard;
 
         if (debugOverlay.isEnabled())
             debugOverlay.appendToBatch(uiLists, stats);
@@ -140,17 +140,17 @@ public:
         if (totalVerts == 0)
             return;
 
-        vertexBuffer.ensureCapacity(totalVerts   * sizeof(UIGlyphVertex));
+        vertexBuffer.ensureCapacity(totalVerts   * sizeof(TextGlyphVertex));
         indexBuffer.ensureCapacity(totalIndices  * sizeof(uint32_t));
 
-        auto* vDst = static_cast<UIGlyphVertex*>(vertexBuffer.getMapped());
+        auto* vDst = static_cast<TextGlyphVertex*>(vertexBuffer.getMapped());
         auto* iDst = static_cast<uint32_t*>(indexBuffer.getMapped());
         uint32_t vertOffset = 0;
         uint32_t idxOffset  = 0;
         for (const auto& list : uiLists)
         {
             std::memcpy(vDst + vertOffset, list.vertices.data(),
-                        list.vertices.size() * sizeof(UIGlyphVertex));
+                        list.vertices.size() * sizeof(TextGlyphVertex));
 
             // Indices must be rebased to the concatenated vertex offset.
             for (uint32_t idx : list.indices)
@@ -236,7 +236,7 @@ private:
     static constexpr uint32_t INITIAL_INDEX_CAP  = 8192;
 
     VulkanDynamicBuffer vertexBuffer{VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                                      INITIAL_VERTEX_CAP * sizeof(UIGlyphVertex)};
+                                      INITIAL_VERTEX_CAP * sizeof(TextGlyphVertex)};
     VulkanDynamicBuffer indexBuffer {VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                                       INITIAL_INDEX_CAP  * sizeof(uint32_t)};
 };

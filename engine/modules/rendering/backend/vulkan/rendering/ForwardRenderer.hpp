@@ -21,7 +21,7 @@
 
 #include "GtsEvent.hpp"
 
-#include <UICommand.h>
+#include <TextCommand.h>
 #include "GtsFrameStats.h"
 
 #include "GtsFrameGraph.h"
@@ -139,7 +139,7 @@ class ForwardRenderer : Renderer
         }
 
         void recordCommandBuffer(const std::vector<RenderCommand>& renderList,
-                                 const std::vector<UICommandList>& uiLists,
+                                 const std::vector<TextCommandList>& uiLists,
                                  VkCommandBuffer commandBuffer, uint32_t imageIndex)
         {
             VkCommandBufferBeginInfo beginInfo{};
@@ -187,7 +187,7 @@ class ForwardRenderer : Renderer
         }
 
         void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
-                         const std::vector<UICommandList>& uiLists,
+                         const std::vector<TextCommandList>& uiLists,
                          const GtsFrameStats& stats) override
         {
             // Store the pre-populated stats from the engine; triangleCount is
