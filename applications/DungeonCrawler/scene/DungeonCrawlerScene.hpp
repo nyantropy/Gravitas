@@ -12,7 +12,6 @@
 #include "TransformComponent.h"
 #include "CameraDescriptionComponent.h"
 #include "CameraControlOverrideComponent.h"
-#include "CameraOverrideComponent.h"
 #include "BoundsComponent.h"
 #include "WorldImageComponent.h"
 
@@ -21,6 +20,7 @@
 #include "PlayerComponent.h"
 #include "DungeonInputSystem.hpp"
 #include "PlayerMovementSystem.hpp"
+#include "PlayerCameraSystem.h"
 #include "DungeonFreeFlyCamera.hpp"
 
 class DungeonCrawlerScene : public GtsScene
@@ -71,13 +71,13 @@ public:
         playerEntity = ecsWorld.createEntity();
 
         PlayerComponent pc;
-        pc.gridX  = 3;
-        pc.gridZ  = 3;
+        pc.gridX  = 9;  // center corridor area — isWalkable(9,9) == true
+        pc.gridZ  = 9;
         pc.facing = 0; // facing North (-Z)
         ecsWorld.addComponent(playerEntity, pc);
 
         TransformComponent playerTc;
-        playerTc.position = glm::vec3(3.5f, 0.5f, 3.5f);
+        playerTc.position = glm::vec3(9.5f, 0.5f, 9.5f);
         ecsWorld.addComponent(playerEntity, playerTc);
 
         CameraDescriptionComponent camDesc;
@@ -86,12 +86,13 @@ public:
         camDesc.aspectRatio = ctx.windowAspectRatio;
         camDesc.nearClip    = 0.05f;
         camDesc.farClip     = 100.0f;
-        camDesc.target      = glm::vec3(3.5f, 0.5f, 2.5f); // initial look North
+        camDesc.target      = glm::vec3(9.5f, 0.5f, 8.5f); // initial look North
         ecsWorld.addComponent(playerEntity, camDesc);
 
         // ── Debug free-fly camera ──────────────────────────────────────────
-        // Starts inactive; toggled by T. DungeonFreeFlyCamera writes matrices
-        // directly, so CameraGpuSystem and DefaultCameraControlSystem skip it.
+        // Starts inactive; toggled by T. DungeonFreeFlyCamera updates desc.target,
+        // CameraGpuSystem builds the view matrix. DefaultCameraControlSystem is
+        // skipped via CameraControlOverrideComponent.
         debugCamEntity = ecsWorld.createEntity();
 
         CameraDescriptionComponent dbgDesc;
@@ -100,13 +101,13 @@ public:
         dbgDesc.aspectRatio = ctx.windowAspectRatio;
         dbgDesc.nearClip    = 0.1f;
         dbgDesc.farClip     = 500.0f;
+        dbgDesc.target      = glm::vec3(10.0f, 0.0f, 10.0f); // initial look: down at map center
         ecsWorld.addComponent(debugCamEntity, dbgDesc);
 
         TransformComponent dbgTc;
-        dbgTc.position = glm::vec3(3.5f, 10.0f, 3.5f); // above the map centre
+        dbgTc.position = glm::vec3(10.0f, 22.0f, 10.0f); // high above map center
         ecsWorld.addComponent(debugCamEntity, dbgTc);
 
-        ecsWorld.addComponent(debugCamEntity, CameraOverrideComponent{});
         ecsWorld.addComponent(debugCamEntity, CameraControlOverrideComponent{});
 
         // ── Furina position marker ─────────────────────────────────────────
@@ -124,7 +125,7 @@ public:
         ecsWorld.addComponent(markerEntity, markerImg);
 
         TransformComponent markerTc;
-        markerTc.position   = glm::vec3(3.5f, 0.02f, 3.5f);
+        markerTc.position   = glm::vec3(9.5f, 0.02f, 9.5f);
         markerTc.rotation.x = -glm::half_pi<float>(); // flat on floor
         ecsWorld.addComponent(markerEntity, markerTc);
 
@@ -135,9 +136,10 @@ public:
 
         // ── Systems ────────────────────────────────────────────────────────
         // DungeonInputSystem must run first — it populates DungeonInputComponent
-        // before PlayerMovementSystem and DungeonFreeFlyCamera read from it.
+        // before movement and camera systems read from it.
         ecsWorld.addControllerSystem<DungeonInputSystem>();
         ecsWorld.addControllerSystem<PlayerMovementSystem>();
+        ecsWorld.addControllerSystem<PlayerCameraSystem>();
         ecsWorld.addControllerSystem<DungeonFreeFlyCamera>();
         installRendererFeature();
     }

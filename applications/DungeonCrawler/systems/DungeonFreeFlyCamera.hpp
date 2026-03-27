@@ -10,13 +10,12 @@
 
 #include "CameraDescriptionComponent.h"
 #include "CameraControlOverrideComponent.h"
-#include "CameraOverrideComponent.h"
-#include "CameraGpuComponent.h"
 #include "TransformComponent.h"
 
 // Free-fly debug camera for the dungeon crawler.
-// Adapted from GtsScene2/FreeFlyCamera; only processes input when desc.active
-// is true so keys don't interfere with the player movement system.
+// Processes input only when desc.active is true so keys don't interfere
+// with the player movement system.  Updates desc.target so CameraGpuSystem
+// builds the view matrix; no direct GPU writes.
 //
 // Controls (active only when the debug camera is on):
 //   W / S     — move forward / backward along look direction
@@ -36,7 +35,6 @@ public:
 
         for (Entity e : world.getAllEntitiesWith<CameraDescriptionComponent,
                                                  CameraControlOverrideComponent,
-                                                 CameraOverrideComponent,
                                                  TransformComponent>())
         {
             auto& desc = world.getComponent<CameraDescriptionComponent>(e);
@@ -50,12 +48,15 @@ public:
             if (input->isKeyDown(GtsKey::Q)) yaw += ROTATE_SPEED * dt;
             if (input->isKeyDown(GtsKey::E)) yaw -= ROTATE_SPEED * dt;
 
+            // Forward vector incorporating pitch for movement.
             glm::vec3 forward{
-                -std::sin(yaw),
-                 0.0f,
-                -std::cos(yaw)
+                std::cos(pitch) * (-std::sin(yaw)),
+                std::sin(pitch),
+                std::cos(pitch) * (-std::cos(yaw))
             };
-            glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3(0.0f, 1.0f, 0.0f)));
+            // Horizontal forward for strafing (ignore pitch).
+            glm::vec3 hForward{-std::sin(yaw), 0.0f, -std::cos(yaw)};
+            glm::vec3 right = glm::normalize(glm::cross(hForward, glm::vec3(0.0f, 1.0f, 0.0f)));
 
             if (input->isKeyDown(GtsKey::W)) tr.position += forward * MOVE_SPEED * dt;
             if (input->isKeyDown(GtsKey::S)) tr.position -= forward * MOVE_SPEED * dt;
@@ -64,25 +65,13 @@ public:
             if (input->isKeyDown(GtsKey::R)) tr.position.y += MOVE_SPEED * dt;
             if (input->isKeyDown(GtsKey::G)) tr.position.y -= MOVE_SPEED * dt;
 
-            if (!world.hasComponent<CameraGpuComponent>(e))
-                world.addComponent(e, CameraGpuComponent{});
-
-            auto& gpu = world.getComponent<CameraGpuComponent>(e);
-
-            glm::vec3 lookAt = tr.position + forward;
-            gpu.viewMatrix   = glm::lookAt(tr.position, lookAt, glm::vec3(0.0f, 1.0f, 0.0f));
-            gpu.projMatrix   = glm::perspective(
-                desc.fov,
-                desc.aspectRatio > 0.0f ? desc.aspectRatio : ctx.windowAspectRatio,
-                desc.nearClip,
-                desc.farClip);
-            gpu.projMatrix[1][1] *= -1.0f;
-
-            gpu.active = true;
-            gpu.dirty  = true;
+            // Write back to desc so CameraGpuSystem computes the view matrix.
+            desc.target      = tr.position + forward;
+            desc.aspectRatio = ctx.windowAspectRatio;
         }
     }
 
 private:
-    float yaw = 0.0f; // radians; 0 = looking along -Z
+    float yaw   = 0.0f;                    // radians; 0 = looking along -Z
+    float pitch = glm::radians(-80.0f);    // start looking down at the map
 };
