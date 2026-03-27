@@ -6,5 +6,9 @@
 struct FramebufferManagerConfig
 {
     VkRenderPass vkRenderpass;
-    VkImageView attachmentImageView;
+    VkImageView  attachmentImageView;
+
+    // Set to false for render passes with no depth attachment (e.g. UI overlay).
+    // When false, attachmentImageView is ignored.
+    bool hasDepthAttachment = true;
 };

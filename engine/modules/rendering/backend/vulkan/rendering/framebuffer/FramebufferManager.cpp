@@ -23,13 +23,23 @@ FramebufferManager::FramebufferManager(const FramebufferManagerConfig& config)
     fbConfig.attachmentsPerFramebuffer.resize(vcsheet::getSwapChainImageViews().size());
     for (size_t i = 0; i < vcsheet::getSwapChainImageViews().size(); ++i)
     {
-        // color views are unique per framebuffer
-        // attachment views (depth) remains the same for all frames in flight
-        fbConfig.attachmentsPerFramebuffer[i] = 
+        if (config.hasDepthAttachment)
         {
-            vcsheet::getSwapChainImageViews()[i],
-            config.attachmentImageView
-        };
+            // color views are unique per framebuffer
+            // attachment views (depth) remains the same for all frames in flight
+            fbConfig.attachmentsPerFramebuffer[i] =
+            {
+                vcsheet::getSwapChainImageViews()[i],
+                config.attachmentImageView
+            };
+        }
+        else
+        {
+            fbConfig.attachmentsPerFramebuffer[i] =
+            {
+                vcsheet::getSwapChainImageViews()[i]
+            };
+        }
     }
 
     framebuffers = std::make_unique<VulkanFramebufferSet>(fbConfig);

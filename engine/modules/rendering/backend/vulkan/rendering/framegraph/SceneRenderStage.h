@@ -41,12 +41,17 @@ public:
         rpConfig.depthFormat = depthFormat;
         renderPass = std::make_unique<VulkanRenderPass>(rpConfig);
 
-        // Pipeline
+        // Default pipeline — backface culling (cullMode defaults to VK_CULL_MODE_BACK_BIT)
         VulkanPipelineConfig pConfig;
         pConfig.vertexShaderPath   = GraphicsConstants::V_SHADER_PATH;
         pConfig.fragmentShaderPath = GraphicsConstants::F_SHADER_PATH;
         pConfig.vkRenderPass       = renderPass->getRenderPass();
         pipeline = std::make_unique<VulkanPipeline>(pConfig);
+
+        // Double-sided pipeline — no culling (planes, quads, world images)
+        VulkanPipelineConfig pConfigDS = pConfig;
+        pConfigDS.cullMode = VK_CULL_MODE_NONE;
+        pipelineDoubleSided = std::make_unique<VulkanPipeline>(pConfigDS);
 
         // Framebuffers (color + depth)
         FramebufferManagerConfig fbConfig;
@@ -107,8 +112,6 @@ public:
         scissor.extent = vcsheet::getSwapChainExtent();
         vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getPipeline());
-
         // No active camera yet — skip all draws this frame.
         if (renderList.empty() || renderList[0].cameraViewID == 0)
         {
@@ -117,6 +120,7 @@ public:
         }
 
         // Bind set 0 (camera UBO) and set 1 (object SSBO) once for all draws.
+        // Both pipeline variants share the same layout — use either layout here.
         {
             CameraBufferResource* cameraView = resources->getCameraView(renderList[0].cameraViewID);
             VkDescriptorSet globalSets[2] = {
@@ -138,18 +142,24 @@ public:
 
             triangles += static_cast<uint32_t>(mesh->indices.size()) / 3;
 
+            // Select pipeline variant — re-bind per draw since commands are not sorted by doubleSided.
+            VulkanPipeline* activePipeline = cmdData.doubleSided
+                ? pipelineDoubleSided.get()
+                : pipeline.get();
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, activePipeline->getPipeline());
+
             vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vertexBuffer, offsets);
             vkCmdBindIndexBuffer(cmd, mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
             // Push objectIndex (vertex) + alpha (fragment) as a single 8-byte block.
             struct { uint32_t objectIndex; float alpha; } pc{ cmdData.objectSSBOSlot, cmdData.alpha };
-            vkCmdPushConstants(cmd, pipeline->getPipelineLayout(),
+            vkCmdPushConstants(cmd, activePipeline->getPipelineLayout(),
                                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                                0, sizeof(pc), &pc);
 
             // Bind set 2 (texture sampler) — changes per draw.
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    pipeline->getPipelineLayout(),
+                                    activePipeline->getPipelineLayout(),
                                     2, 1, &tex->descriptorSets[currentFrame],
                                     0, nullptr);
 
@@ -166,7 +176,8 @@ public:
 
 private:
     std::unique_ptr<VulkanRenderPass>   renderPass;
-    std::unique_ptr<VulkanPipeline>     pipeline;
+    std::unique_ptr<VulkanPipeline>     pipeline;            // backface culled (default)
+    std::unique_ptr<VulkanPipeline>     pipelineDoubleSided; // no culling
     std::unique_ptr<FramebufferManager> framebuffers;
     RenderResourceManager*              resources;
     GtsResourceHandle                   swapchainHandle;

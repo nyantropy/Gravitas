@@ -23,6 +23,11 @@ struct VulkanPipelineConfig
         return std::vector<VkVertexInputAttributeDescription>(a.begin(), a.end());
     }();
 
+    // ── rasterizer ───────────────────────────────────────────────────────
+    // Default is back-face culling for closed meshes.
+    // Set to VK_CULL_MODE_NONE for double-sided geometry (planes, quads, foliage).
+    VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT;
+
     // ── depth / stencil ──────────────────────────────────────────────────
     bool depthTestEnable  = true;
     bool depthWriteEnable = true;

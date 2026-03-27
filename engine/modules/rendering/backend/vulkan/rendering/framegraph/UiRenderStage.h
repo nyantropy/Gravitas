@@ -14,8 +14,8 @@
 #include "VulkanRenderPassConfig.h"
 #include "VulkanPipeline.hpp"
 #include "VulkanPipelineConfig.h"
-#include "VulkanFramebufferSet.hpp"
-#include "VulkanFramebufferSetConfig.h"
+#include "FramebufferManager.hpp"
+#include "FramebufferManagerConfig.h"
 #include "RenderResourceManager.hpp"
 #include "GraphicsConstants.h"
 #include "UiVertexDescription.h"
@@ -80,18 +80,11 @@ public:
         pipeline = std::make_unique<VulkanPipeline>(pConfig);
 
         // Framebuffers — swapchain image views only, no depth.
-        const auto& imageViews = vcsheet::getSwapChainImageViews();
-        const auto  extent     = vcsheet::getSwapChainExtent();
-
-        VulkanFramebufferSetConfig fbConfig;
-        fbConfig.renderPass = renderPass->getRenderPass();
-        fbConfig.width      = extent.width;
-        fbConfig.height     = extent.height;
-        fbConfig.layers     = 1;
-        fbConfig.attachmentsPerFramebuffer.resize(imageViews.size());
-        for (size_t i = 0; i < imageViews.size(); ++i)
-            fbConfig.attachmentsPerFramebuffer[i] = { imageViews[i] };
-        framebuffers = std::make_unique<VulkanFramebufferSet>(fbConfig);
+        FramebufferManagerConfig fbConfig;
+        fbConfig.vkRenderpass       = renderPass->getRenderPass();
+        fbConfig.hasDepthAttachment = false;
+        // attachmentImageView intentionally not set — no depth
+        framebuffers = std::make_unique<FramebufferManager>(fbConfig);
 
         // Load a fallback texture for ColoredQuad commands (shader ignores it
         // when useTexture == 0.0, but Vulkan requires a valid descriptor set).
@@ -209,7 +202,7 @@ public:
 private:
     std::unique_ptr<VulkanRenderPass>     renderPass;
     std::unique_ptr<VulkanPipeline>       pipeline;
-    std::unique_ptr<VulkanFramebufferSet> framebuffers;
+    std::unique_ptr<FramebufferManager>   framebuffers;
     RenderResourceManager*                resources;
     GtsResourceHandle                     swapchainHandle;
     texture_id_type                       fallbackTextureID = 0;

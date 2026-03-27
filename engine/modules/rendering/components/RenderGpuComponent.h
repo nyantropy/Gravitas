@@ -28,7 +28,8 @@ struct RenderGpuComponent
     glm::mat4       modelMatrix    = glm::mat4(1.0f);
     bool            dirty          = true;
     bool            readyToRender  = false;
-    float           alpha          = 1.0f;  // synced from RenderDescriptionComponent by RenderBindingSystem
+    bool            doubleSided    = false;  // synced from RenderDescriptionComponent / WorldImageBindingSystem
+    float           alpha          = 1.0f;   // synced from RenderDescriptionComponent by RenderBindingSystem
 
     std::string boundMeshPath;
     std::string boundTexturePath;

@@ -145,7 +145,8 @@ public:
                 rc.modelMatrix,
                 viewMatrix,
                 projMatrix,
-                rc.alpha
+                rc.alpha,
+                rc.doubleSided
             });
         }
 

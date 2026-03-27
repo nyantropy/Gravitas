@@ -46,8 +46,9 @@ class RenderBindingSystem : public ECSControllerSystem
                     rc.dirty            = true;
                 }
 
-                // Sync alpha (cheap float copy; no GPU resource involved)
-                rc.alpha = desc.alpha;
+                // Sync alpha and doubleSided (cheap copies; no GPU resource involved)
+                rc.alpha       = desc.alpha;
+                rc.doubleSided = desc.doubleSided;
             });
         }
 };

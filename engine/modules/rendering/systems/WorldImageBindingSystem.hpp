@@ -31,6 +31,9 @@ public:
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
                 rc.objectSSBOSlot = ctx.resources->requestObjectSlot();
 
+            // World image quads are single-polygon planes — always visible from both sides.
+            rc.doubleSided = true;
+
             // Resolve (or re-resolve) texture if the path changed
             if (img.texturePath != img._boundTexturePath)
             {
