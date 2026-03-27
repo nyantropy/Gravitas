@@ -25,6 +25,7 @@ class DungeonInputSystem : public ECSControllerSystem
         actionManager.bind(DungeonAction::TurnLeft,          GtsKey::Q);
         actionManager.bind(DungeonAction::TurnRight,         GtsKey::E);
         actionManager.bind(DungeonAction::ToggleDebugCamera, GtsKey::T);
+        actionManager.bind(DungeonAction::Attack,            GtsKey::Space);
     }
 
 public:
@@ -46,5 +47,6 @@ public:
         input.turnLeft          = actionManager.isActionActive(DungeonAction::TurnLeft);
         input.turnRight         = actionManager.isActionActive(DungeonAction::TurnRight);
         input.toggleDebugCamera = actionManager.isActionPressed(DungeonAction::ToggleDebugCamera);
+        input.attackPressed     = actionManager.isActionPressed(DungeonAction::Attack);
     }
 };
