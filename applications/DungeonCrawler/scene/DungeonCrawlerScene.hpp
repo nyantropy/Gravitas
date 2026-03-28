@@ -15,8 +15,9 @@
 #include "CameraDescriptionComponent.h"
 #include "CameraControlOverrideComponent.h"
 #include "BoundsComponent.h"
-#include "WorldImageComponent.h"
-#include "RenderDescriptionComponent.h"
+#include "ProceduralMeshComponent.h"
+#include "StaticMeshComponent.h"
+#include "MaterialComponent.h"
 #include "UITextComponent.h"
 #include "BitmapFont.h"
 #include "BitmapFontLoader.h"
@@ -80,7 +81,7 @@ public:
         const std::string cube_mesh   = RES + "/models/cube.obj";
 
         // ── Floor + ceiling + walls ─────────────────────────────────────────
-        // Helper lambda: spawn a WorldImageComponent flat quad.
+        // Helper lambda: spawn a ProceduralMeshComponent flat quad.
         auto spawnQuad = [&](const std::string& tex,
                              float wx, float wy, float wz,
                              float rotX, float rotY,
@@ -88,11 +89,14 @@ public:
         {
             Entity e = ecsWorld.createEntity();
 
-            WorldImageComponent img;
-            img.texturePath = tex;
-            img.width       = w;
-            img.height      = h;
-            ecsWorld.addComponent(e, img);
+            ProceduralMeshComponent mesh;
+            mesh.width  = w;
+            mesh.height = h;
+            ecsWorld.addComponent(e, mesh);
+
+            MaterialComponent mat;
+            mat.texturePath = tex;
+            ecsWorld.addComponent(e, mat);
 
             TransformComponent tc;
             tc.position   = {wx, wy, wz};
@@ -208,10 +212,13 @@ public:
             ec.moveCooldown = cooldownOffset; // stagger so they don't all move at once
             ecsWorld.addComponent(e, ec);
 
-            RenderDescriptionComponent rd;
-            rd.meshPath    = cube_mesh;
-            rd.texturePath = enemy_tex;
-            ecsWorld.addComponent(e, rd);
+            StaticMeshComponent mesh;
+            mesh.meshPath = cube_mesh;
+            ecsWorld.addComponent(e, mesh);
+
+            MaterialComponent mat;
+            mat.texturePath = enemy_tex;
+            ecsWorld.addComponent(e, mat);
 
             TransformComponent tc;
             tc.position = {gx + 0.5f, 0.5f, gz + 0.5f};

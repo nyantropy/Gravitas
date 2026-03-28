@@ -3,7 +3,8 @@
 #include "ECSWorld.hpp"
 #include "GtsScene.hpp"
 
-#include "RenderDescriptionComponent.h"
+#include "StaticMeshComponent.h"
+#include "MaterialComponent.h"
 #include "CameraDescriptionComponent.h"
 #include "TransformComponent.h"
 #include "AnimationComponent.h"
@@ -23,10 +24,13 @@ class DefaultScene : public GtsScene
         {
             controlledCube = ecsWorld.createEntity();
 
-            RenderDescriptionComponent desc;
-            desc.meshPath    = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
-            desc.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png";
-            ecsWorld.addComponent<RenderDescriptionComponent>(controlledCube, desc);
+            StaticMeshComponent mesh;
+            mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+            ecsWorld.addComponent<StaticMeshComponent>(controlledCube, mesh);
+
+            MaterialComponent mat;
+            mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png";
+            ecsWorld.addComponent<MaterialComponent>(controlledCube, mat);
 
             TransformComponent tc;
             ecsWorld.addComponent<TransformComponent>(controlledCube, tc);
@@ -42,10 +46,13 @@ class DefaultScene : public GtsScene
         {
             Entity cube2 = ecsWorld.createEntity();
 
-            RenderDescriptionComponent desc;
-            desc.meshPath    = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
-            desc.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/blue_texture.png";
-            ecsWorld.addComponent<RenderDescriptionComponent>(cube2, desc);
+            StaticMeshComponent mesh;
+            mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+            ecsWorld.addComponent<StaticMeshComponent>(cube2, mesh);
+
+            MaterialComponent mat;
+            mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/blue_texture.png";
+            ecsWorld.addComponent<MaterialComponent>(cube2, mat);
 
             TransformComponent tc2;
             tc2.position = glm::vec3(2.0f, 2.0f, 2.0f);
@@ -66,10 +73,13 @@ class DefaultScene : public GtsScene
         {
             Entity cube3 = ecsWorld.createEntity();
 
-            RenderDescriptionComponent desc;
-            desc.meshPath    = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
-            desc.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/purple_texture.png";
-            ecsWorld.addComponent<RenderDescriptionComponent>(cube3, desc);
+            StaticMeshComponent mesh;
+            mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+            ecsWorld.addComponent<StaticMeshComponent>(cube3, mesh);
+
+            MaterialComponent mat;
+            mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/purple_texture.png";
+            ecsWorld.addComponent<MaterialComponent>(cube3, mat);
 
             TransformComponent tc3;
             tc3.position = glm::vec3(-2.0f, -2.0f, -2.0f);

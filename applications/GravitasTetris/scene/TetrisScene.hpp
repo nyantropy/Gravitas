@@ -19,7 +19,8 @@
 #include "TetrisScoreSystem.hpp"
 #include "ScoreDisplayComponent.hpp"
 
-#include "RenderDescriptionComponent.h"
+#include "MeshGpuComponent.h"
+#include "MaterialGpuComponent.h"
 #include "RenderGpuComponent.h"
 #include "CameraDescriptionComponent.h"
 #include "CameraOverrideComponent.h"
@@ -58,9 +59,15 @@ class TetrisScene : public GtsScene
         tc.position = {0.0f, 0.0f, 0.0f};
         ecsWorld.addComponent(e, tc);
 
+        MeshGpuComponent meshGpu{};
+        meshGpu.meshID = meshID;
+        ecsWorld.addComponent(e, meshGpu);
+
+        MaterialGpuComponent matGpu{};
+        matGpu.textureID = texID;
+        ecsWorld.addComponent(e, matGpu);
+
         RenderGpuComponent rc{};
-        rc.meshID         = meshID;
-        rc.textureID      = texID;
         rc.objectSSBOSlot = slot;
         rc.dirty          = true;
         rc.readyToRender  = false;
@@ -325,19 +332,19 @@ public:
 
         // Registration order is critical for correctness:
         //
-        // 1. TetrisBlockInitSystem — runs first; attaches TransformComponent and
-        //    RenderDescriptionComponent to any newly spawned block entity. Newly
-        //    spawned entities have only TetrisBlockComponent; without this system
-        //    running before RenderBindingSystem, the binding system would skip
-        //    them on their first frame and produce a one-frame texture flash.
+        // 1. TetrisBlockInitSystem — runs first; attaches TransformComponent,
+        //    StaticMeshComponent, and MaterialComponent to any newly spawned block
+        //    entity. Newly spawned entities have only TetrisBlockComponent; without
+        //    this system running before StaticMeshBindingSystem, the binding system
+        //    would skip them on their first frame and produce a one-frame texture flash.
         //
         // 2. TetrisVisualSystem — runs second; keeps texture paths and transform
         //    positions in sync for ghost, held, and next-preview blocks. It can
         //    assume all components are already attached.
         //
-        // 3. installRendererFeature — registers RenderBindingSystem (and others).
+        // 3. installRendererFeature — registers StaticMeshBindingSystem (and others).
         //    By the time it runs, both visual systems have already written the
-        //    correct desc.texturePath, so binding always sees the right state.
+        //    correct mat.texturePath, so binding always sees the right state.
         ecsWorld.addControllerSystem<TetrisBlockInitSystem>();
         ecsWorld.addControllerSystem<TetrisVisualSystem>();
 

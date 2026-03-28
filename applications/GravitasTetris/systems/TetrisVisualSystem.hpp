@@ -6,7 +6,8 @@
 #include "HeldPieceBlockComponent.hpp"
 #include "NextPieceBlockComponent.hpp"
 #include "TransformComponent.h"
-#include "RenderDescriptionComponent.h"
+#include "StaticMeshComponent.h"
+#include "MaterialComponent.h"
 #include "RenderGpuComponent.h"
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
@@ -15,9 +16,9 @@
 #include <string>
 
 // Visual system: owns only the gameplay-level description of what a block looks like.
-// Attaches RenderDescriptionComponent (paths only) and keeps TransformComponent in sync
-// with block grid coordinates.  No resource manager calls; all GPU binding is handled
-// by RenderBindingSystem.
+// Attaches StaticMeshComponent + MaterialComponent (paths only) and keeps
+// TransformComponent in sync with block grid coordinates.
+// No resource manager calls; all GPU binding is handled by StaticMeshBindingSystem.
 class TetrisVisualSystem : public ECSControllerSystem
 {
     public:
@@ -31,20 +32,20 @@ class TetrisVisualSystem : public ECSControllerSystem
                 const bool isHeld  = world.hasComponent<HeldPieceBlockComponent>(e);
                 const bool isNext  = world.hasComponent<NextPieceBlockComponent>(e);
 
-                // TetrisBlockInitSystem guarantees TransformComponent and
-                // RenderDescriptionComponent are attached before this system runs.
+                // TetrisBlockInitSystem guarantees TransformComponent, StaticMeshComponent,
+                // and MaterialComponent are attached before this system runs.
                 // Keep texture in sync for blocks whose type can change at runtime.
                 if (isGhost || isHeld || isNext)
                 {
-                    auto& desc          = world.getComponent<RenderDescriptionComponent>(e);
+                    auto& mat           = world.getComponent<MaterialComponent>(e);
                     std::string newPath = texturePath(block);
 
-                    if (newPath != desc.texturePath)
+                    if (newPath != mat.texturePath)
                     {
-                        // Type changed this frame — hide for one frame while RenderBindingSystem
+                        // Type changed this frame — hide for one frame while StaticMeshBindingSystem
                         // rebinds the texture. RenderGpuSystem will restore readyToRender = true
                         // on the next simulation tick after processing the dirty flag.
-                        desc.texturePath = newPath;
+                        mat.texturePath = newPath;
 
                         if (world.hasComponent<RenderGpuComponent>(e))
                             world.getComponent<RenderGpuComponent>(e).readyToRender = false;

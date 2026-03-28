@@ -9,7 +9,8 @@
 #include "RenderCommandExtractor.hpp"
 
 #include "TransformComponent.h"
-#include "RenderDescriptionComponent.h"
+#include "StaticMeshComponent.h"
+#include "MaterialComponent.h"
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
 #include "CameraControlOverrideComponent.h"
@@ -54,10 +55,13 @@ class CullTestScene : public GtsScene
                 tc.position = glm::vec3(worldX, 0.0f, worldZ);
                 ecsWorld.addComponent(e, tc);
 
-                RenderDescriptionComponent desc;
-                desc.meshPath    = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
-                desc.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png";
-                ecsWorld.addComponent(e, desc);
+                StaticMeshComponent mesh;
+                mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+                ecsWorld.addComponent(e, mesh);
+
+                MaterialComponent mat;
+                mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png";
+                ecsWorld.addComponent(e, mat);
 
                 ecsWorld.addComponent(e, BoundsComponent{});
             }

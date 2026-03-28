@@ -6,7 +6,7 @@
 
 // Consumed by the renderer to produce one frame.
 // All fields are value copies — no raw pointers into ECS component memory.
-// objectSSBOSlot  : SSBO slot index assigned by RenderBindingSystem
+// objectSSBOSlot  : SSBO slot index assigned by a mesh binding system
 // modelMatrix     : packed into ObjectUBO by the renderer
 // viewMatrix/proj : packed into CameraUBO by the renderer (mirrors the object side)
 struct RenderCommand

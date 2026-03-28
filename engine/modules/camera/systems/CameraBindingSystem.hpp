@@ -5,7 +5,7 @@
 #include "CameraGpuComponent.h"
 
 // Controller system — GPU resource management only, no matrix math.
-// Mirrors RenderBindingSystem for the camera pipeline.
+// Mirrors the mesh binding systems for the camera pipeline.
 // Matrix calculations can be found in the CameraGpuSystem
 class CameraBindingSystem : public ECSControllerSystem
 {

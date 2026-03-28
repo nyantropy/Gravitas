@@ -6,8 +6,8 @@
 
 #include "RenderGpuSystem.hpp"
 #include "CameraGpuSystem.hpp"
-#include "RenderBindingSystem.hpp"
-#include "WorldImageBindingSystem.hpp"
+#include "StaticMeshBindingSystem.hpp"
+#include "ProceduralMeshBindingSystem.hpp"
 #include "WorldTextBindingSystem.hpp"
 #include "CameraBindingSystem.hpp"
 #include "RenderResourceClearSystem.hpp"
@@ -44,8 +44,8 @@ class GtsScene
         {
             ecsWorld.addControllerSystem<RenderGpuSystem>();
             ecsWorld.addControllerSystem<CameraGpuSystem>();
-            ecsWorld.addControllerSystem<RenderBindingSystem>();
-            ecsWorld.addControllerSystem<WorldImageBindingSystem>();
+            ecsWorld.addControllerSystem<StaticMeshBindingSystem>();
+            ecsWorld.addControllerSystem<ProceduralMeshBindingSystem>();
             ecsWorld.addControllerSystem<WorldTextBindingSystem>();
             ecsWorld.addControllerSystem<CameraBindingSystem>();
             ecsWorld.addControllerSystem<RenderResourceClearSystem>();

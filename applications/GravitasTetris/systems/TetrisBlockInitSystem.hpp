@@ -5,22 +5,21 @@
 #include "HeldPieceBlockComponent.hpp"
 #include "NextPieceBlockComponent.hpp"
 #include "TransformComponent.h"
-#include "RenderDescriptionComponent.h"
+#include "StaticMeshComponent.h"
+#include "MaterialComponent.h"
 #include "TetrominoType.hpp"
 #include "GraphicsConstants.h"
 #include "BoundsComponent.h"
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
 
-// First-pass controller system: attaches TransformComponent and
-// RenderDescriptionComponent to any TetrisBlockComponent entity that
-// does not yet have them.
+// First-pass controller system: attaches TransformComponent, StaticMeshComponent,
+// and MaterialComponent to any TetrisBlockComponent entity that does not yet have them.
 //
-// Must be registered before installRendererFeature() so it always runs
-// before RenderBindingSystem. This guarantees that every block entity is
-// fully described before the binding system inspects it — eliminating the
-// one-frame texture flash that occurred when binding ran before the lazy-
-// attach branch in TetrisVisualSystem.
+// Must be registered before installRendererFeature() so it always runs before
+// StaticMeshBindingSystem. This guarantees that every block entity is fully described
+// before the binding system inspects it — eliminating the one-frame texture flash that
+// occurred when binding ran before the lazy-attach branch in TetrisVisualSystem.
 class TetrisBlockInitSystem : public ECSControllerSystem
 {
 public:
@@ -38,11 +37,14 @@ public:
             world.addComponent(e, TransformComponent{});
             world.addComponent(e, BoundsComponent{});  // unit cube local bounds for frustum culling
 
-            RenderDescriptionComponent desc;
-            desc.meshPath    = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
-            desc.texturePath = texturePath(block.type);
-            if (isGhost) desc.alpha = GHOST_ALPHA;
-            world.addComponent(e, desc);
+            StaticMeshComponent mesh;
+            mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+            world.addComponent(e, mesh);
+
+            MaterialComponent mat;
+            mat.texturePath = texturePath(block.type);
+            if (isGhost) mat.alpha = GHOST_ALPHA;
+            world.addComponent(e, mat);
         });
     }
 

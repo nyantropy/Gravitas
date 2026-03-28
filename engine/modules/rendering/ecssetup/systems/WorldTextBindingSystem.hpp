@@ -2,6 +2,8 @@
 
 #include "ECSControllerSystem.hpp"
 #include "WorldTextComponent.h"
+#include "MeshGpuComponent.h"
+#include "MaterialGpuComponent.h"
 #include "RenderGpuComponent.h"
 #include "TransformComponent.h"
 #include "GlyphLayoutEngine.h"
@@ -19,10 +21,17 @@ public:
         {
             if (!wtc.font || wtc.text.empty()) return;
 
+            // Ensure all three GPU components exist
+            if (!world.hasComponent<MeshGpuComponent>(e))
+                world.addComponent(e, MeshGpuComponent{});
+            if (!world.hasComponent<MaterialGpuComponent>(e))
+                world.addComponent(e, MaterialGpuComponent{});
             if (!world.hasComponent<RenderGpuComponent>(e))
                 world.addComponent(e, RenderGpuComponent{});
 
-            auto& rc = world.getComponent<RenderGpuComponent>(e);
+            auto& meshGpu = world.getComponent<MeshGpuComponent>(e);
+            auto& matGpu  = world.getComponent<MaterialGpuComponent>(e);
+            auto& rc      = world.getComponent<RenderGpuComponent>(e);
 
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
                 rc.objectSSBOSlot = ctx.resources->requestObjectSlot();
@@ -35,9 +44,10 @@ public:
 
                 if (!verts.empty())
                 {
-                    rc.meshID    = ctx.resources->uploadProceduralMesh(rc.meshID, verts, indices);
-                    rc.textureID = wtc.font->atlasTexture;
-                    rc.dirty     = true;
+                    meshGpu.meshID     = ctx.resources->uploadProceduralMesh(meshGpu.meshID, verts, indices);
+                    matGpu.textureID   = wtc.font->atlasTexture;
+                    matGpu.doubleSided = true;
+                    rc.dirty           = true;
                 }
 
                 wtc.dirty = false;

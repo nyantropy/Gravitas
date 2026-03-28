@@ -7,14 +7,17 @@
 #include "ECSWorld.hpp"
 #include "IGtsExtractor.h"
 #include "RenderGpuComponent.h"
+#include "MeshGpuComponent.h"
+#include "MaterialGpuComponent.h"
 #include "CameraGpuComponent.h"
 #include "BoundsComponent.h"
 #include "CullFlagsComponent.h"
 #include "FrustumCuller.h"
 #include "RenderCommand.h"
 
-// Reads only RenderGpuComponent (per-object render state) and the active
-// CameraGpuComponent.  No Vulkan types; no pointers into ECS memory.
+// Reads RenderGpuComponent (transform / slot), MeshGpuComponent (mesh ID),
+// and MaterialGpuComponent (texture, alpha, doubleSided) per entity, plus the
+// active CameraGpuComponent.  No Vulkan types; no pointers into ECS memory.
 //
 // Camera selection is driven by CameraGpuComponent::active, which is written
 // by both CameraGpuSystem (default cameras) and custom override systems such
@@ -67,15 +70,20 @@ public:
             culler.extractPlanes(viewProj);
         }
 
-        // one command per renderable entity that has a bound SSBO slot
+        // one command per renderable entity that has all three GPU components bound
         std::vector<RenderCommand> cmds;
 
         for (Entity e : world.getAllEntitiesWith<RenderGpuComponent>())
         {
-            auto& rc = world.getComponent<RenderGpuComponent>(e);
+            if (!world.hasComponent<MeshGpuComponent>(e))     continue;
+            if (!world.hasComponent<MaterialGpuComponent>(e)) continue;
+
+            auto& rc      = world.getComponent<RenderGpuComponent>(e);
+            auto& meshGpu = world.getComponent<MeshGpuComponent>(e);
+            auto& matGpu  = world.getComponent<MaterialGpuComponent>(e);
 
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
-                continue; // slot not yet assigned by RenderBindingSystem — skip this frame
+                continue; // slot not yet assigned by a binding system — skip this frame
 
             if (!rc.readyToRender)
                 continue; // model matrix not yet computed by RenderGpuSystem — skip this frame
@@ -138,15 +146,15 @@ public:
             ++visibleRenderables;
 
             cmds.push_back({
-                rc.meshID,
-                rc.textureID,
+                meshGpu.meshID,
+                matGpu.textureID,
                 rc.objectSSBOSlot,
                 cameraViewID,
                 rc.modelMatrix,
                 viewMatrix,
                 projMatrix,
-                rc.alpha,
-                rc.doubleSided
+                matGpu.alpha,
+                matGpu.doubleSided
             });
         }
 
