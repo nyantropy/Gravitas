@@ -17,9 +17,11 @@
 #include "CameraOverrideComponent.h"
 #include "GraphicsConstants.h"
 #include "GtsKey.h"
+#include "UiTree.h"
+#include "UiTextDesc.h"
+#include "UiHandle.h"
 #include "BitmapFont.h"
 #include "BitmapFontLoader.h"
-#include "UITextComponent.h"
 
 #include "FreeFlyCamera.hpp"
 
@@ -37,8 +39,7 @@ class CullTestScene : public GtsScene
     static constexpr float GRID_SPACING = 3.0f;         // world units between cube centres
 
     BitmapFont overlayFont;
-    Entity     overlayEntity{};
-    bool       overlayReady = false;
+    UiHandle   overlayHandle = UI_INVALID_HANDLE;
 
     void spawnGrid()
     {
@@ -107,16 +108,9 @@ public:
             "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
             1.2f, true);
 
-        overlayEntity = ecsWorld.createEntity();
-        UITextComponent tc;
-        tc.font    = &overlayFont;
-        tc.x       = 0.01f;
-        tc.y       = 0.01f;
-        tc.scale   = 0.03f;
-        tc.text    = "CULLING ON\nFRUSTUM LIVE";
-        tc.visible = true;
-        ecsWorld.addComponent(overlayEntity, tc);
-        overlayReady = true;
+        overlayHandle = ctx.ui->addText({.text="CULLING ON\nFRUSTUM LIVE",
+                                          .font=&overlayFont,
+                                          .x=0.01f, .y=0.01f, .scale=0.03f, .visible=true});
 
         // FreeFlyCamera must run before CameraBindingSystem (installed by installRendererFeature)
         ecsWorld.addControllerSystem<FreeFlyCamera>();
@@ -154,13 +148,14 @@ public:
         }
 
         // Update overlay text with current culling / frustum state.
-        if (overlayReady)
+        if (overlayHandle != UI_INVALID_HANDLE)
         {
             char buf[64];
             snprintf(buf, sizeof(buf), "CULLING %s\nFRUSTUM %s",
                 extractor->isFrustumCullingEnabled() ? "ON" : "OFF",
                 extractor->isFrustumFrozen()         ? "FROZEN" : "LIVE");
-            ecsWorld.getComponent<UITextComponent>(overlayEntity).text = buf;
+            ctx.ui->update(overlayHandle, {.text=buf, .font=&overlayFont,
+                                           .x=0.01f, .y=0.01f, .scale=0.03f, .visible=true});
         }
 
     }

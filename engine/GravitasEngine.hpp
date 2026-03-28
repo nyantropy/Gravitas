@@ -13,6 +13,7 @@
 #include "GtsExtractorContext.h"
 #include "RenderCommandExtractor.hpp"
 #include "UiCommandExtractor.hpp"
+#include "UiTree.h"
 #include "SceneManager.hpp"
 
 #include "GtsCommand.h"
@@ -39,6 +40,9 @@ class GravitasEngine
         // extracts UI image/primitive commands and screen-space text for the UI stage
         std::unique_ptr<UiCommandExtractor> uiCommandExtractor;
 
+        // retained UI element tree — owned here, exposed to scenes via SceneContext::ui
+        std::unique_ptr<UiTree> uiTree;
+
         // the scene manager
         // the whole world is a stage after all
         std::unique_ptr<SceneManager> sceneManager;
@@ -61,13 +65,15 @@ class GravitasEngine
             sceneContext.engineCommands    = &engineCommands;
             sceneContext.windowAspectRatio = platform.getAspectRatio();
             sceneContext.extractor         = renderCommandExtractor.get();
+            sceneContext.ui                = uiTree.get();
+            uiCommandExtractor             = std::make_unique<UiCommandExtractor>(uiTree.get());
         }
 
         // its only a render system now, maybe this will move later
         void createECSExtractors()
         {
             renderCommandExtractor = std::make_unique<RenderCommandExtractor>(engineConfig.frustumCullingEnabled);
-            uiCommandExtractor     = std::make_unique<UiCommandExtractor>();
+            uiTree                 = std::make_unique<UiTree>(platform.getResourceProvider());
         }
 
         // render call
@@ -85,7 +91,7 @@ class GravitasEngine
             GtsExtractorContext extractCtx{world, sceneContext.windowAspectRatio};
 
             auto renderList = renderCommandExtractor->extract(extractCtx);
-            auto uiBuffer   = uiCommandExtractor->extract(extractCtx);
+            auto uiBuffer   = uiCommandExtractor->extract(sceneContext.windowAspectRatio);
 
             platform.getGraphics()->renderFrame(dt, renderList, uiBuffer, stats);
         }
@@ -103,6 +109,7 @@ class GravitasEngine
                         break;
                     case GtsCommand::Type::LoadScene:
                     case GtsCommand::Type::ChangeScene:
+                        uiTree->clear();
                         sceneManager->setActiveScene(cmd.stringArg);
                         sceneManager->getActiveScene()->onLoad(sceneContext, nullptr);
                         break;
@@ -134,6 +141,7 @@ class GravitasEngine
 
         void setActiveScene(std::string name)
         {
+            uiTree->clear();
             sceneManager->setActiveScene(name);
             sceneManager->getActiveScene()->onLoad(sceneContext, nullptr);
         }

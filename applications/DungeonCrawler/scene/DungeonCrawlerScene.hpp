@@ -18,7 +18,8 @@
 #include "ProceduralMeshComponent.h"
 #include "StaticMeshComponent.h"
 #include "MaterialComponent.h"
-#include "UITextComponent.h"
+#include "UiTree.h"
+#include "UiTextDesc.h"
 #include "BitmapFont.h"
 #include "BitmapFontLoader.h"
 
@@ -57,7 +58,7 @@
 // ─────────────────────────────────────────────────────────────
 class DungeonCrawlerScene : public GtsScene
 {
-    BitmapFont hudFont;       // must outlive UITextComponent entities
+    BitmapFont hudFont;       // must outlive UiTree text elements
 
     Entity playerEntity{};
     Entity debugCamEntity{};
@@ -279,53 +280,47 @@ public:
 
         // Health display — top-left
         {
+            UiHandle h = ctx.ui->addText({.text="HP  5 OF 5", .font=&hudFont,
+                                          .x=0.02f, .y=0.02f, .scale=0.035f, .visible=true});
             Entity he = ecsWorld.createEntity();
             HudMarkerComponent hm;
-            hm.type = HudMarkerComponent::Type::Health;
+            hm.type     = HudMarkerComponent::Type::Health;
+            hm.uiHandle = h;
+            hm.font     = &hudFont;
+            hm.x        = 0.02f;
+            hm.y        = 0.02f;
+            hm.scale    = 0.035f;
             ecsWorld.addComponent(he, hm);
-
-            UITextComponent tc;
-            tc.font    = &hudFont;
-            tc.x       = 0.02f;
-            tc.y       = 0.02f;
-            tc.scale   = 0.035f;
-            tc.text    = "HP  5 OF 5";
-            tc.visible = true;
-            ecsWorld.addComponent(he, tc);
         }
 
         // Status display — below health (key / win / lose)
         {
+            UiHandle h = ctx.ui->addText({.text="KEY  NO", .font=&hudFont,
+                                          .x=0.02f, .y=0.07f, .scale=0.035f, .visible=true});
             Entity se = ecsWorld.createEntity();
             HudMarkerComponent sm;
-            sm.type = HudMarkerComponent::Type::Status;
+            sm.type     = HudMarkerComponent::Type::Status;
+            sm.uiHandle = h;
+            sm.font     = &hudFont;
+            sm.x        = 0.02f;
+            sm.y        = 0.07f;
+            sm.scale    = 0.035f;
             ecsWorld.addComponent(se, sm);
-
-            UITextComponent tc;
-            tc.font    = &hudFont;
-            tc.x       = 0.02f;
-            tc.y       = 0.07f;
-            tc.scale   = 0.035f;
-            tc.text    = "KEY  NO";
-            tc.visible = true;
-            ecsWorld.addComponent(se, tc);
         }
 
         // Message display — centre screen, shown briefly
         {
+            UiHandle h = ctx.ui->addText({.text="", .font=&hudFont,
+                                          .x=0.3f, .y=0.45f, .scale=0.045f, .visible=false});
             Entity me = ecsWorld.createEntity();
             HudMarkerComponent mm;
-            mm.type = HudMarkerComponent::Type::Message;
+            mm.type     = HudMarkerComponent::Type::Message;
+            mm.uiHandle = h;
+            mm.font     = &hudFont;
+            mm.x        = 0.3f;
+            mm.y        = 0.45f;
+            mm.scale    = 0.045f;
             ecsWorld.addComponent(me, mm);
-
-            UITextComponent tc;
-            tc.font    = &hudFont;
-            tc.x       = 0.3f;
-            tc.y       = 0.45f;
-            tc.scale   = 0.045f;
-            tc.text    = "";
-            tc.visible = false;
-            ecsWorld.addComponent(me, tc);
         }
 
         // ── Systems ──────────────────────────────────────────────────────────

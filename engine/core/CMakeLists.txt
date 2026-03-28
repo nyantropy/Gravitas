@@ -34,8 +34,6 @@ target_include_directories(gravitas_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/extractors/render"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/extractors/render/frustumcull"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/extractors/render/frustumcull/components"
-    "${CMAKE_CURRENT_SOURCE_DIR}/ecs/extractors/ui"
-
     # Event system
     "${CMAKE_CURRENT_SOURCE_DIR}/event"
 
@@ -47,8 +45,8 @@ target_include_directories(gravitas_core PUBLIC
     # Options / constants / types
     "${CMAKE_CURRENT_SOURCE_DIR}/options"
 
-    # Render description components (UITextComponent, WorldImageComponent, etc.)
-    "${CMAKE_CURRENT_SOURCE_DIR}/render-description"
+    # Render description components (StaticMeshComponent, MaterialComponent, etc.)
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecs/desc"
 
     # RNG
     "${CMAKE_CURRENT_SOURCE_DIR}/rng"

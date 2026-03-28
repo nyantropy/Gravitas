@@ -45,6 +45,12 @@ target_include_directories(gravitas_rendering PUBLIC
     # ECS rendering components and systems
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/systems"
+
+    # UI tree (retained UI element tree, UiHandle, UiImageDesc, UiTextDesc)
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/uitree"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/uitree/desc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/uitree/elements"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/uitree/extractor"
 )
 
 target_link_libraries(gravitas_rendering PUBLIC

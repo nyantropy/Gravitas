@@ -29,7 +29,7 @@
 // UI primitive render stage.
 // Renders textured quads (images, sprites, glyphs) and colored quads over the 3D scene.
 // Receives a UiCommandBuffer from the blackboard — populated by UiCommandExtractor from
-// UiImageComponent and UITextComponent entities.  The debug overlay is appended here
+// the UiTree retained UI element tree.  The debug overlay is appended here
 // directly from the GtsFrameStats pointer before upload.
 //
 // Composites over the scene by reading the swapchain in PRESENT_SRC_KHR
