@@ -1,49 +1,118 @@
-# Gravitas: an experimental Vulkan Engine
+# Gravitas Engine
 
-Gravitas is a work-in-progress C++ game and graphics engine built on top of the Vulkan API.  
-The project is still in an early stage and features a lot of experimental and exploratory code.
-
-Despite that, **basic 3D rendering is already supported**, including:
-- Creating and displaying textured 3D objects
-- Applying transformations: translation, rotation, and scaling
-- Rendering multiple entities within a scene
-
-## 🧭 Project Goals
-Gravitas is primarily a **learning and experimentation platform** — a space to explore engine architecture, Vulkan abstractions, and modern C++ patterns.  
-The long-term aim is to evolve into a modular engine that supports:
-- Clean Vulkan object management via a unified context ✅
-- Entity Component System (ECS) – for modular scene organization ✅
-- Event-driven architecture for real-time updates
-- Extensible rendering and simulation modules
+A work-in-progress C++20 Vulkan game engine with an ECS core, a two-stage frame graph renderer, and a separate retained UI tree. Four demo applications are included: Tetris, a dungeon crawler prototype, and two test scenes.
 
 ---
 
-## 🧩 Planned Extensions
-- Physics Module – for real-time object simulation and collisions
-- Improved Shader Management – automated SPIR-V compilation and pipeline reflection
-- Enhanced Scenegraph – with hierarchical object transforms
-- Event System Expansion – input, frame, and scene update events
+## Prerequisites
+
+### Linux
+- **CMake 3.20+**
+- **Vulkan SDK** — install via package manager or from [vulkan.lunarg.com](https://vulkan.lunarg.com)
+  - Arch: `sudo pacman -S vulkan-devel`
+  - Ubuntu/Debian: `sudo apt install libvulkan-dev vulkan-tools`
+- **GLFW** — fetched and built automatically by CMake via FetchContent. No manual install needed.
+- **GLM** — bundled in `external/glm/`. No install needed.
+- GCC 10+ or Clang 12+
+
+### Windows
+- **CMake 3.20+**
+- **Vulkan SDK** — download from [vulkan.lunarg.com](https://vulkan.lunarg.com). Install to the default location so the `VULKAN_SDK` environment variable is set automatically.
+- **Visual Studio 2022** with the "Desktop development with C++" workload, or MinGW-w64 (w64devkit / MSYS2)
+- **GLFW** — fetched automatically by CMake. No install needed.
+- **GLM** — bundled. No install needed.
+
+---
+
+## Build
+
+### Linux
+```bash
+git clone <repo>
+cd Gravitas
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake --build . --parallel
+```
+
+### Windows — Visual Studio 2022
+```bash
+mkdir build && cd build
+cmake .. -G "Visual Studio 17 2022" -A x64
+cmake --build . --config Release
+```
+
+### Windows — MinGW
+```bash
+mkdir build && cd build
+cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+cmake --build . --parallel
+```
+
+---
+
+## Running
+
+All executables must be run from the **project root** so asset paths resolve correctly.
+
+```bash
+./build/applications/GravitasTetris/GravitasTetris
+./build/applications/DungeonCrawler/DungeonCrawler
+./build/applications/GtsScene1/GtsScene1
+./build/applications/GtsScene2/GtsScene2
+```
+
+---
+
+## Key Bindings
+
+### All Applications
+| Key | Action |
+|-----|--------|
+| Escape | Quit |
+| F3 | Toggle debug stats overlay |
+| P | Pause / Resume simulation |
+
+### Dungeon Crawler
+| Key | Action |
+|-----|--------|
+| W / S | Move forward / backward |
+| A / D | Strafe left / right |
+| Q / E | Turn left / right |
+| Space | Attack (1 damage, 0.4 s cooldown) |
+| T | Toggle debug bird's-eye camera |
+
+### GtsScene2 — Frustum Culling Test
+| Key | Action |
+|-----|--------|
+| W / S / A / D | Move camera |
+| Q / E | Camera up / down |
+| R / F | Camera roll / down |
+| C | Toggle frustum culling on / off |
+| F | Freeze / unfreeze cull frustum |
+
+---
+
+## Shader Compilation
+
+Pre-compiled SPIR-V blobs are checked in to `shaders/` and loaded at runtime. You do **not** need to recompile them unless you modify the GLSL source files.
+
+When `glslc` is available (installed with the Vulkan SDK), CMake registers a `compile_shaders` target:
+
+```bash
+cmake --build build --target compile_shaders
+```
+
+If `glslc` is not found, CMake warns and the checked-in SPIRVs are used as-is.
 
 ---
 
 ## Dependencies
-- Vulkan (Vulkan SDK installed)
-- GLFW
 
----
-
-## How to run
-
-### Linux
-1. Clone repository
-    ```bash
-    git clone git@github.com:nyantropy/Gravitas.git
-    cd Gravitas
-    ```
-
-2. Build Engine and Test Applications
-    ```bash
-    ./build.sh
-    ```
-
-3. Alternatively, open the project in VSCode after installing the **CMakeTools** extension, and build target `GravitasEngine`.
+| Dependency | How provided |
+|------------|-------------|
+| Vulkan SDK | System — `find_package(Vulkan REQUIRED)` |
+| GLFW | CMake FetchContent (auto-downloaded at configure time) |
+| GLM | Bundled — `external/glm/` |
+| stb_image | Bundled — `external/stb/` |
+| tinyobjloader | Bundled — `external/` |
