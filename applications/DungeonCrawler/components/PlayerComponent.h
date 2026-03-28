@@ -1,17 +1,24 @@
 #pragma once
 
+#include "GlmConfig.h"
+
 // Grid-space player state for the dungeon crawler.
 // Position is in grid cells. Facing: 0=North(-Z), 1=East(+X), 2=South(+Z), 3=West(-X).
 struct PlayerComponent
 {
+    // Logical state — updated immediately on input
     int gridX  = 3;
-    int gridZ  = 3;
-    int facing = 0; // 0=North, 1=East, 2=South, 3=West
+    int gridZ  = 2;
+    int facing = 1; // 0=North, 1=East, 2=South, 3=West
 
-    // Input cooldown — prevents holding a key from moving multiple cells per frame.
-    float moveCooldown = 0.0f;
-    float turnCooldown = 0.0f;
+    // Transition state — drives smooth visual interpolation
+    bool  inTransition       = false;
+    float transitionProgress = 0.0f;
 
-    static constexpr float MOVE_COOLDOWN_TIME = 0.18f;
-    static constexpr float TURN_COOLDOWN_TIME = 0.15f;
+    glm::vec3 fromPosition = {3.5f, 0.5f, 2.5f};
+    glm::vec3 toPosition   = {3.5f, 0.5f, 2.5f};
+    float     fromYaw      = 90.0f; // East
+    float     toYaw        = 90.0f;
+
+    static constexpr float TRANSITION_DURATION = 0.15f;
 };

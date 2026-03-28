@@ -1,7 +1,5 @@
 #pragma once
 
-#include <algorithm>
-
 #include "GlmConfig.h"
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
@@ -14,9 +12,10 @@
 
 // Handles player grid movement and facing — pure game logic, no camera code.
 // Reads DungeonInputComponent singleton (written by DungeonInputSystem).
-// Ticks cooldown timers so holding a key moves one cell at a time.
-// Q/E rotate facing 90 degrees; WASD move relative to current facing.
-// Updates TransformComponent.position (eye-height world position).
+// Input is locked while a movement or turn transition is in progress.
+// On valid input, records from/to positions and yaw, then advances
+// transitionProgress each frame. PlayerCameraSystem reads the progress
+// to interpolate the visual camera position and orientation.
 class PlayerMovementSystem : public ECSControllerSystem
 {
 public:
@@ -28,60 +27,90 @@ public:
         world.forEach<PlayerComponent, TransformComponent>(
             [&](Entity, PlayerComponent& player, TransformComponent& tc)
         {
-            // Tick cooldowns.
-            player.moveCooldown = std::max(0.0f, player.moveCooldown - dt);
-            player.turnCooldown = std::max(0.0f, player.turnCooldown - dt);
-
-            // --- Turning (Q / E) ---
-            if (player.turnCooldown <= 0.0f)
+            // Advance active transition
+            if (player.inTransition)
             {
-                if (input.turnLeft)
+                player.transitionProgress += dt / PlayerComponent::TRANSITION_DURATION;
+                if (player.transitionProgress >= 1.0f)
                 {
-                    player.facing       = (player.facing + 3) % 4; // -1 mod 4
-                    player.turnCooldown = PlayerComponent::TURN_COOLDOWN_TIME;
+                    player.transitionProgress = 1.0f;
+                    player.inTransition       = false;
+
+                    // Snap transform to final position
+                    tc.position = player.toPosition;
                 }
-                else if (input.turnRight)
-                {
-                    player.facing       = (player.facing + 1) % 4;
-                    player.turnCooldown = PlayerComponent::TURN_COOLDOWN_TIME;
-                }
+                return; // input locked during transition
             }
 
-            // --- Grid movement (WASD) ---
-            if (player.moveCooldown <= 0.0f)
+            // --- Accept new input when idle ---
+
+            // Turning (Q / E)
+            int newFacing = player.facing;
+            if      (input.turnLeft)  newFacing = (player.facing + 3) % 4;
+            else if (input.turnRight) newFacing = (player.facing + 1) % 4;
+
+            if (newFacing != player.facing)
             {
-                glm::ivec2 forward = facingToForward(player.facing);
-                glm::ivec2 right   = facingToRight(player.facing);
-                glm::ivec2 move    = {0, 0};
-
-                if      (input.moveForward)  move =  forward;
-                else if (input.moveBackward) move = -forward;
-                else if (input.strafeLeft)   move = -right;
-                else if (input.strafeRight)  move =  right;
-
-                if (move != glm::ivec2{0, 0})
-                {
-                    int newX = player.gridX + move.x;
-                    int newZ = player.gridZ + move.y;
-
-                    if (isWalkable(newX, newZ))
-                    {
-                        player.gridX        = newX;
-                        player.gridZ        = newZ;
-                        player.moveCooldown = PlayerComponent::MOVE_COOLDOWN_TIME;
-                    }
-                }
+                player.fromYaw = facingToYaw(player.facing);
+                player.toYaw   = facingToYaw(newFacing);
+                player.facing  = newFacing;
+                startTransition(player, tc.position, tc.position);
+                return;
             }
 
-            // Cell size = 1.0 world unit; eye height = 0.5 units.
-            tc.position = glm::vec3(
-                player.gridX + 0.5f,
-                0.5f,
-                player.gridZ + 0.5f);
+            // Grid movement (WASD)
+            glm::ivec2 forward = facingToForward(player.facing);
+            glm::ivec2 right   = facingToRight(player.facing);
+            glm::ivec2 move    = {0, 0};
+
+            if      (input.moveForward)  move =  forward;
+            else if (input.moveBackward) move = -forward;
+            else if (input.strafeLeft)   move = -right;
+            else if (input.strafeRight)  move =  right;
+
+            if (move != glm::ivec2{0, 0})
+            {
+                int newX = player.gridX + move.x;
+                int newZ = player.gridZ + move.y;
+
+                if (isWalkable(newX, newZ))
+                {
+                    glm::vec3 newPos = {newX + 0.5f, 0.5f, newZ + 0.5f};
+                    player.gridX   = newX;
+                    player.gridZ   = newZ;
+                    player.fromYaw = facingToYaw(player.facing);
+                    player.toYaw   = player.fromYaw; // no yaw change on move
+                    startTransition(player, tc.position, newPos);
+                }
+            }
         });
     }
 
 private:
+    static void startTransition(PlayerComponent& player,
+                                const glm::vec3& from,
+                                const glm::vec3& to)
+    {
+        player.fromPosition       = from;
+        player.toPosition         = to;
+        player.transitionProgress = 0.0f;
+        player.inTransition       = true;
+    }
+
+    // Yaw convention: North=0°, East=90°, South=180°, West=270°
+    // forward vector from yaw: (sin(yaw), 0, -cos(yaw))
+    static float facingToYaw(int facing)
+    {
+        switch (facing)
+        {
+            case 0: return   0.0f; // North
+            case 1: return  90.0f; // East
+            case 2: return 180.0f; // South
+            case 3: return 270.0f; // West
+            default: return 0.0f;
+        }
+    }
+
     static glm::ivec2 facingToForward(int facing)
     {
         switch (facing)

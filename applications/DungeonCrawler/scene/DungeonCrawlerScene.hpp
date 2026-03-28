@@ -150,9 +150,14 @@ public:
         playerEntity = ecsWorld.createEntity();
 
         PlayerComponent pc;
-        pc.gridX  = 3;
-        pc.gridZ  = 2;
-        pc.facing = 1; // East — corridor is to the east, so orient that way
+        pc.gridX        = 3;
+        pc.gridZ        = 2;
+        pc.facing       = 1; // East — corridor is to the east, so orient that way
+        pc.fromPosition = {3.5f, 0.5f, 2.5f};
+        pc.toPosition   = {3.5f, 0.5f, 2.5f};
+        pc.fromYaw      = 90.0f; // East
+        pc.toYaw        = 90.0f;
+        pc.inTransition = false;
         ecsWorld.addComponent(playerEntity, pc);
 
         TransformComponent playerTc;

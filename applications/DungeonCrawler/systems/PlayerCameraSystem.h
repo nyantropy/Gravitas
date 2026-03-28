@@ -9,10 +9,11 @@
 #include "TransformComponent.h"
 #include "CameraDescriptionComponent.h"
 
-// Reads PlayerComponent facing and TransformComponent position,
-// updates CameraDescriptionComponent so CameraGpuSystem builds the
-// correct first-person view matrix each frame.
-// Only runs when the player camera is active (not in debug mode).
+// Reads PlayerComponent transition state and updates the camera each frame.
+// Interpolates visual position (translation) and yaw (rotation) over
+// TRANSITION_DURATION using smoothstep easing. CameraGpuSystem then reads
+// TransformComponent.position (eye position) and CameraDescriptionComponent.target
+// to build the view matrix.
 class PlayerCameraSystem : public ECSControllerSystem
 {
 public:
@@ -27,22 +28,37 @@ public:
             // Keep aspect ratio current (handles window resize).
             desc.aspectRatio = ctx.windowAspectRatio;
 
-            // Point camera in current facing direction.
-            glm::vec3 fwd = facingToForward3D(player.facing);
-            desc.target   = tc.position + fwd;
-        });
-    }
+            // Smoothstep easing
+            const float t    = player.transitionProgress;
+            const float ease = player.inTransition
+                             ? t * t * (3.0f - 2.0f * t)
+                             : 1.0f;
 
-private:
-    static glm::vec3 facingToForward3D(int facing)
-    {
-        switch (facing)
-        {
-            case 0: return { 0.0f, 0.0f, -1.0f}; // North
-            case 1: return { 1.0f, 0.0f,  0.0f}; // East
-            case 2: return { 0.0f, 0.0f,  1.0f}; // South
-            case 3: return {-1.0f, 0.0f,  0.0f}; // West
-            default: return {0.0f, 0.0f, -1.0f};
-        }
+            // Interpolated world position
+            const glm::vec3 visualPos = player.inTransition
+                ? glm::mix(player.fromPosition, player.toPosition, ease)
+                : player.toPosition;
+
+            // Interpolated yaw — shortest angular path
+            float deltaYaw = player.toYaw - player.fromYaw;
+            while (deltaYaw >  180.0f) deltaYaw -= 360.0f;
+            while (deltaYaw < -180.0f) deltaYaw += 360.0f;
+            const float visualYaw = player.fromYaw + ease * deltaYaw;
+
+            // Convert yaw to forward direction vector.
+            // Convention: North=0°, East=90°, South=180°, West=270°
+            // forward = (sin(yaw), 0, -cos(yaw))
+            const float yawRad = glm::radians(visualYaw);
+            const glm::vec3 forward = {
+                 glm::sin(yawRad),
+                 0.0f,
+                -glm::cos(yawRad)
+            };
+
+            // CameraGpuSystem reads TransformComponent.position as eye position
+            // and CameraDescriptionComponent.target as look-at point.
+            tc.position = visualPos;
+            desc.target = visualPos + forward;
+        });
     }
 };
