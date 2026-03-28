@@ -58,13 +58,13 @@ class BufferUtil
         }
 
         static void createUniformBuffers(VkDevice& device, VkPhysicalDevice& physicalDevice, std::vector<VkBuffer>& uniformBuffers, std::vector<VkDeviceMemory>& uniformBuffersMemory,
-        std::vector<void*>& uniformBuffersMapped, int frames_in_flight, VkDeviceSize size)
+        std::vector<void*>& uniformBuffersMapped, uint32_t frames_in_flight, VkDeviceSize size)
         {
             uniformBuffers.resize(frames_in_flight);
             uniformBuffersMemory.resize(frames_in_flight);
             uniformBuffersMapped.resize(frames_in_flight);
 
-            for (size_t i = 0; i < frames_in_flight; i++) 
+            for (uint32_t i = 0; i < frames_in_flight; i++)
             {
                 createBuffer(device, physicalDevice, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
 
