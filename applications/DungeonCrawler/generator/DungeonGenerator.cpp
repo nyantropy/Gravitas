@@ -1,0 +1,480 @@
+#include "DungeonGenerator.h"
+
+#include <algorithm>
+#include <cstdint>
+#include <queue>
+#include <cstdio>
+
+// ─── RNG ───────────────────────────────────────────────────────────────────
+// Simple xorshift32 — deterministic, no dependencies.
+uint32_t DungeonGenerator::rng()
+{
+    seed ^= seed << 13;
+    seed ^= seed >> 17;
+    seed ^= seed << 5;
+    return seed;
+}
+
+// Uniform int in [lo, hi] (inclusive)
+static int rngRange(uint32_t& s, int lo, int hi)
+{
+    uint32_t x = s;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    s = x;
+    if (lo >= hi) return lo;
+    return lo + static_cast<int>(x % static_cast<uint32_t>(hi - lo + 1));
+}
+
+// ─── Entry point ───────────────────────────────────────────────────────────
+GeneratedFloor DungeonGenerator::generate(const DungeonSpec& specIn)
+{
+    spec  = &specIn;
+    nodes.clear();
+
+    // Seed the RNG
+    seed = (specIn.seed != 0)
+        ? specIn.seed
+        : static_cast<uint32_t>(12345u + specIn.floorNumber * 7919u);
+
+    // Initialise floor
+    GeneratedFloor f;
+    f.floorNumber = specIn.floorNumber;
+    f.width       = specIn.width;
+    f.height      = specIn.height;
+    f.tiles.assign(static_cast<size_t>(specIn.width) * specIn.height, TileType::Wall);
+    floor = &f;
+
+    // Build BSP tree and carve rooms
+    buildBSP(0, 0, specIn.width, specIn.height, 0);
+    carveRooms(0);
+
+    // Connect sibling subtrees
+    // Walk the tree: for each internal node connect left-subtree's and right-subtree's leaf rooms
+    // We do this by an iterative post-order pass
+    for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
+    {
+        const BSPNode& n = nodes[i];
+        if (!n.isLeaf())
+            connectRooms(n.left, n.right);
+    }
+
+    // Place budgeted content (templates, enemies, treasure)
+    placeBudgetedContent();
+
+    // Place stairs (4 total floors)
+    placeStairs(specIn.floorNumber, 4);
+
+    // Pick player start: near stairUp if present, else center of first room
+    if (!f.stairUpPos.empty())
+    {
+        f.playerStart = f.stairUpPos[0];
+    }
+    else if (!f.rooms.empty())
+    {
+        const GeneratedRoom& r = f.rooms[0];
+        f.playerStart = { r.x + r.width / 2, r.y + r.height / 2 };
+    }
+
+    // Connectivity validation — flood-fill from playerStart and warn if the
+    // floor has disconnected walkable regions (indicates broken corridor generation).
+    {
+        int reachable = 0;
+        std::vector<bool> visited(static_cast<size_t>(f.width) * f.height, false);
+        std::queue<glm::ivec2> q;
+        q.push(f.playerStart);
+        visited[f.playerStart.y * f.width + f.playerStart.x] = true;
+        while (!q.empty())
+        {
+            glm::ivec2 cur = q.front(); q.pop();
+            ++reachable;
+            const int dx[4] = {1,-1,0,0};
+            const int dz[4] = {0,0,1,-1};
+            for (int d = 0; d < 4; ++d)
+            {
+                int nx = cur.x + dx[d], nz = cur.y + dz[d];
+                if (f.inBounds(nx, nz) && !visited[nz * f.width + nx] && f.isWalkable(nx, nz))
+                {
+                    visited[nz * f.width + nx] = true;
+                    q.push(glm::ivec2{nx, nz});
+                }
+            }
+        }
+
+        int total = 0;
+        for (auto t : f.tiles)
+            if (t != TileType::Wall) ++total;
+
+        if (total > 0 && reachable < total / 2)
+        {
+            std::printf("WARNING: Floor %d has disconnected regions (%d/%d reachable)\n",
+                        f.floorNumber, reachable, total);
+        }
+    }
+
+    return f;
+}
+
+// ─── BSP ───────────────────────────────────────────────────────────────────
+int DungeonGenerator::buildBSP(int x, int y, int w, int h, int depth)
+{
+    int idx = static_cast<int>(nodes.size());
+    nodes.push_back({ x, y, w, h });
+
+    splitNode(idx, depth);
+    return idx;
+}
+
+void DungeonGenerator::splitNode(int idx, int depth)
+{
+    BSPNode& n = nodes[idx];
+
+    const int minSplit = spec->minRoomSize * 2 + 4;
+
+    // Stop conditions
+    if (depth >= 6)             return;
+    if (n.w < minSplit && n.h < minSplit) return;
+
+    bool splitH; // split horizontally = cut along Y axis, creating top/bottom children
+    if (n.w >= minSplit && n.h >= minSplit)
+    {
+        if      (n.w > static_cast<int>(n.h * 1.25f)) splitH = false; // wide → split vertically
+        else if (n.h > static_cast<int>(n.w * 1.25f)) splitH = true;  // tall → split horizontally
+        else splitH = (rng() % 2 == 0);
+    }
+    else if (n.w >= minSplit)   splitH = false;
+    else                        splitH = true;
+
+    if (splitH)
+    {
+        if (n.h < minSplit) return;
+        // Split position in range [40%..60%] of height
+        int lo = n.y + static_cast<int>(n.h * 0.4f);
+        int hi = n.y + static_cast<int>(n.h * 0.6f);
+        if (lo >= hi) return;
+        int split = rngRange(seed, lo, hi);
+
+        int leftIdx  = buildBSP(n.x, n.y,     n.w, split - n.y,           depth + 1);
+        int rightIdx = buildBSP(n.x, split,    n.w, n.y + n.h - split,     depth + 1);
+        // Re-fetch reference after potential reallocation
+        nodes[idx].left  = leftIdx;
+        nodes[idx].right = rightIdx;
+    }
+    else
+    {
+        if (n.w < minSplit) return;
+        int lo = n.x + static_cast<int>(n.w * 0.4f);
+        int hi = n.x + static_cast<int>(n.w * 0.6f);
+        if (lo >= hi) return;
+        int split = rngRange(seed, lo, hi);
+
+        int leftIdx  = buildBSP(n.x,     n.y, split - n.x,           n.h, depth + 1);
+        int rightIdx = buildBSP(split,    n.y, n.x + n.w - split,     n.h, depth + 1);
+        nodes[idx].left  = leftIdx;
+        nodes[idx].right = rightIdx;
+    }
+}
+
+// ─── Room carving ──────────────────────────────────────────────────────────
+void DungeonGenerator::carveRooms(int idx)
+{
+    BSPNode& n = nodes[idx];
+
+    if (!n.isLeaf())
+    {
+        carveRooms(n.left);
+        carveRooms(n.right);
+        return;
+    }
+
+    // Leave a 1-tile border
+    const int minSize = spec->minRoomSize;
+    const int maxSize = std::min(spec->maxRoomSize, std::min(n.w - 2, n.h - 2));
+
+    if (maxSize < minSize) return; // region too small
+
+    int rw = rngRange(seed, minSize, maxSize);
+    int rh = rngRange(seed, minSize, maxSize);
+
+    // Random offset within the border
+    int rx = rngRange(seed, n.x + 1, n.x + n.w - 1 - rw);
+    int rz = rngRange(seed, n.y + 1, n.y + n.h - 1 - rh);
+
+    // Clamp to floor bounds
+    if (rx < 0) rx = 0;
+    if (rz < 0) rz = 0;
+    if (rx + rw > floor->width)  rw = floor->width  - rx;
+    if (rz + rh > floor->height) rh = floor->height - rz;
+    if (rw < 1 || rh < 1) return;
+
+    n.roomX = rx;
+    n.roomY = rz;
+    n.roomW = rw;
+    n.roomH = rh;
+
+    for (int z = rz; z < rz + rh; ++z)
+        for (int x = rx; x < rx + rw; ++x)
+            floor->set(x, z, TileType::Floor);
+
+    GeneratedRoom room;
+    room.x      = rx;
+    room.y      = rz;
+    room.width  = rw;
+    room.height = rh;
+    floor->rooms.push_back(room);
+}
+
+// ─── Corridor helpers ──────────────────────────────────────────────────────
+void DungeonGenerator::carveHCorridor(int x1, int x2, int z)
+{
+    if (x1 > x2) std::swap(x1, x2);
+    for (int x = x1; x <= x2; ++x)
+        if (floor->inBounds(x, z))
+            floor->set(x, z, TileType::Floor);
+}
+
+void DungeonGenerator::carveVCorridor(int x, int z1, int z2)
+{
+    if (z1 > z2) std::swap(z1, z2);
+    for (int z = z1; z <= z2; ++z)
+        if (floor->inBounds(x, z))
+            floor->set(x, z, TileType::Floor);
+}
+
+glm::ivec2 DungeonGenerator::roomCenter(const BSPNode& node) const
+{
+    return {
+        node.roomX + node.roomW / 2,
+        node.roomY + node.roomH / 2
+    };
+}
+
+void DungeonGenerator::connectRooms(int idxA, int idxB)
+{
+    // BFS to find the nearest leaf with a valid room in each subtree.
+    // Descending only via `left` fails when the leftmost leaf has no room.
+    auto findLeafWithRoom = [&](int start) -> int
+    {
+        std::queue<int> q;
+        q.push(start);
+        while (!q.empty())
+        {
+            int cur = q.front(); q.pop();
+            const BSPNode& n = nodes[cur];
+            if (n.isLeaf())
+            {
+                if (n.roomW > 0 && n.roomH > 0) return cur;
+            }
+            else
+            {
+                q.push(n.left);
+                q.push(n.right);
+            }
+        }
+        return -1;
+    };
+
+    int leafA = findLeafWithRoom(idxA);
+    int leafB = findLeafWithRoom(idxB);
+
+    if (leafA < 0 || leafB < 0) return;
+
+    const BSPNode& a = nodes[leafA];
+    const BSPNode& b = nodes[leafB];
+
+    if (a.roomW == 0 || a.roomH == 0) return;
+    if (b.roomW == 0 || b.roomH == 0) return;
+
+    glm::ivec2 ca = roomCenter(a);
+    glm::ivec2 cb = roomCenter(b);
+
+    // Randomly choose L-shape direction
+    if (rng() % 2 == 0)
+    {
+        carveHCorridor(ca.x, cb.x, ca.y);
+        carveVCorridor(cb.x, ca.y, cb.y);
+    }
+    else
+    {
+        carveVCorridor(ca.x, ca.y, cb.y);
+        carveHCorridor(ca.x, cb.x, cb.y);
+    }
+}
+
+// ─── Budget content ────────────────────────────────────────────────────────
+bool DungeonGenerator::tryPlaceTemplate(const RoomTemplate& tmpl, int leafIdx)
+{
+    BSPNode& leaf = nodes[leafIdx];
+    if (leaf.roomW < tmpl.width || leaf.roomH < tmpl.height) return false;
+    if (tmpl.tiles.size() != static_cast<size_t>(tmpl.width * tmpl.height)) return false;
+
+    // Overwrite tiles in the top-left of the room
+    for (int row = 0; row < tmpl.height; ++row)
+    {
+        for (int col = 0; col < tmpl.width; ++col)
+        {
+            int wx = leaf.roomX + col;
+            int wz = leaf.roomY + row;
+            if (!floor->inBounds(wx, wz)) continue;
+
+            int val = tmpl.tiles[row * tmpl.width + col];
+            switch (val)
+            {
+                case 0: floor->set(wx, wz, TileType::Floor);      break;
+                case 1: floor->set(wx, wz, TileType::Wall);       break;
+                case 2: floor->set(wx, wz, TileType::StairDown);  break;
+                case 3: floor->set(wx, wz, TileType::StairUp);    break;
+                case 4: floor->set(wx, wz, TileType::Treasure);   break;
+                case 5: floor->set(wx, wz, TileType::EnemySpawn); break;
+                default: break;
+            }
+        }
+    }
+    return true;
+}
+
+void DungeonGenerator::spendEnemyBudget()
+{
+    std::vector<glm::ivec2> eligible;
+    eligible.reserve(256);
+
+    for (int z = 1; z < floor->height - 1; ++z)
+    {
+        for (int x = 1; x < floor->width - 1; ++x)
+        {
+            if (floor->get(x, z) != TileType::Floor) continue;
+
+            // Must not be adjacent to a wall on all 4 sides
+            bool adjWall = false;
+            if (floor->get(x - 1, z) == TileType::Wall ||
+                floor->get(x + 1, z) == TileType::Wall ||
+                floor->get(x, z - 1) == TileType::Wall ||
+                floor->get(x, z + 1) == TileType::Wall)
+                adjWall = true;
+
+            if (!adjWall) eligible.push_back({x, z});
+        }
+    }
+
+    int count = std::min(spec->budget.enemyCount, static_cast<int>(eligible.size()));
+    // Shuffle a subset using our RNG
+    for (int i = 0; i < count && !eligible.empty(); ++i)
+    {
+        int j = rngRange(seed, i, static_cast<int>(eligible.size()) - 1);
+        std::swap(eligible[i], eligible[j]);
+        floor->set(eligible[i].x, eligible[i].y, TileType::EnemySpawn);
+        floor->enemySpawns.push_back(eligible[i]);
+    }
+}
+
+void DungeonGenerator::spendTreasureBudget()
+{
+    // Prefer tiles inside recorded rooms
+    std::vector<glm::ivec2> candidates;
+    candidates.reserve(64);
+
+    for (const GeneratedRoom& r : floor->rooms)
+    {
+        for (int z = r.y; z < r.y + r.height; ++z)
+            for (int x = r.x; x < r.x + r.width; ++x)
+                if (floor->get(x, z) == TileType::Floor)
+                    candidates.push_back({x, z});
+    }
+
+    if (candidates.empty()) return;
+
+    int count = std::min(spec->budget.treasureCount, static_cast<int>(candidates.size()));
+    for (int i = 0; i < count; ++i)
+    {
+        int j = rngRange(seed, i, static_cast<int>(candidates.size()) - 1);
+        std::swap(candidates[i], candidates[j]);
+        floor->set(candidates[i].x, candidates[i].y, TileType::Treasure);
+        floor->treasureSpawns.push_back(candidates[i]);
+    }
+}
+
+void DungeonGenerator::placeBudgetedContent()
+{
+    // Gather leaf indices
+    std::vector<int> leaves;
+    for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
+        if (nodes[i].isLeaf() && nodes[i].roomW > 0)
+            leaves.push_back(i);
+
+    // Sort templates by cost descending
+    std::vector<RoomTemplate> sorted = spec->templates;
+    std::sort(sorted.begin(), sorted.end(),
+        [](const RoomTemplate& a, const RoomTemplate& b) { return a.cost > b.cost; });
+
+    int roomBudget = spec->budget.roomCost;
+    for (const RoomTemplate& t : sorted)
+    {
+        if (t.cost > roomBudget) continue;
+
+        // Find a leaf large enough
+        for (int li : leaves)
+        {
+            if (tryPlaceTemplate(t, li))
+            {
+                roomBudget -= t.cost;
+                break;
+            }
+        }
+    }
+
+    spendEnemyBudget();
+    spendTreasureBudget();
+}
+
+// ─── Stairs ────────────────────────────────────────────────────────────────
+void DungeonGenerator::placeStairs(int floorNumber, int totalFloors)
+{
+    // Player start room = first room in the list
+    if (floor->rooms.empty()) return;
+
+    const GeneratedRoom& startRoom = floor->rooms[0];
+
+    auto placeTile = [&](const GeneratedRoom& r, TileType t, std::vector<glm::ivec2>& out)
+    {
+        // Place at center of room, or first available floor tile
+        int cx = r.x + r.width  / 2;
+        int cz = r.y + r.height / 2;
+        if (floor->get(cx, cz) == TileType::Floor || floor->get(cx, cz) == TileType::EnemySpawn)
+        {
+            floor->set(cx, cz, t);
+            out.push_back({cx, cz});
+            return;
+        }
+        // Fallback: first floor tile in room
+        for (int z = r.y; z < r.y + r.height; ++z)
+        {
+            for (int x = r.x; x < r.x + r.width; ++x)
+            {
+                if (floor->get(x, z) == TileType::Floor)
+                {
+                    floor->set(x, z, t);
+                    out.push_back({x, z});
+                    return;
+                }
+            }
+        }
+    };
+
+    // StairDown: in a room that is NOT the player start room
+    if (floorNumber < totalFloors - 1)
+    {
+        for (size_t i = 1; i < floor->rooms.size(); ++i)
+        {
+            placeTile(floor->rooms[i], TileType::StairDown, floor->stairDownPos);
+            break;
+        }
+        // Fallback to start room if only one room exists
+        if (floor->stairDownPos.empty() && !floor->rooms.empty())
+            placeTile(floor->rooms[0], TileType::StairDown, floor->stairDownPos);
+    }
+
+    // StairUp: near player start room
+    if (floorNumber > 0)
+        placeTile(floor->rooms[0], TileType::StairUp, floor->stairUpPos);
+}

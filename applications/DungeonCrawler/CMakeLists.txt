@@ -18,6 +18,7 @@ target_include_directories(DungeonCrawler PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/systems"
     "${CMAKE_CURRENT_SOURCE_DIR}/struct"
+    "${CMAKE_CURRENT_SOURCE_DIR}/generator"
 )
 target_link_libraries(DungeonCrawler PRIVATE GravitasEngine)
 

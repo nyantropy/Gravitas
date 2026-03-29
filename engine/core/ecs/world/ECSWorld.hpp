@@ -160,6 +160,16 @@ class ECSWorld
             return result;
         }
         
+        // Destroy all entities, components, and systems.
+        // Call at the start of onLoad when a scene may be reloaded.
+        void clear()
+        {
+            storages.clear();
+            simulationSystems.clear();
+            controllerSystems.clear();
+            nextEntityId = 0;
+        }
+
         // ------------------------------------------------------------
         // singleton helpers
         // a singleton is just a component type that is guaranteed

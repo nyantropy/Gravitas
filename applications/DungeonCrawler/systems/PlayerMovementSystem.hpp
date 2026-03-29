@@ -7,8 +7,9 @@
 
 #include "PlayerComponent.h"
 #include "TransformComponent.h"
+#include "CameraDescriptionComponent.h"
 #include "DungeonInputComponent.h"
-#include "DungeonMap.h"
+#include "DungeonFloorSingleton.h"
 
 // Handles player grid movement and facing — pure game logic, no camera code.
 // Reads DungeonInputComponent singleton (written by DungeonInputSystem).
@@ -23,10 +24,14 @@ public:
     {
         const float dt    = ctx.time->unscaledDeltaTime;
         auto&       input = world.getSingleton<DungeonInputComponent>();
+        auto&       floorSingleton = world.getSingleton<DungeonFloorSingleton>();
 
-        world.forEach<PlayerComponent, TransformComponent>(
-            [&](Entity, PlayerComponent& player, TransformComponent& tc)
+        world.forEach<PlayerComponent, TransformComponent, CameraDescriptionComponent>(
+            [&](Entity, PlayerComponent& player, TransformComponent& tc,
+                CameraDescriptionComponent& desc)
         {
+            if (!desc.active) return; // debug camera active — skip player input
+
             // Advance active transition
             if (player.inTransition)
             {
@@ -73,7 +78,7 @@ public:
                 int newX = player.gridX + move.x;
                 int newZ = player.gridZ + move.y;
 
-                if (isWalkable(newX, newZ))
+                if (floorSingleton.floor && floorSingleton.floor->isWalkable(newX, newZ))
                 {
                     glm::vec3 newPos = {newX + 0.5f, 0.5f, newZ + 0.5f};
                     player.gridX   = newX;

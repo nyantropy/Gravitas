@@ -4,7 +4,7 @@
 
 #include "GravitasEngine.hpp"
 #include "EngineConfig.h"
-#include "DungeonCrawlerScene.hpp"
+#include "DungeonManager.h"
 
 int main()
 {
@@ -17,8 +17,11 @@ int main()
     config.graphics.window.vsync         = true;
 
     GravitasEngine engine(config);
-    engine.registerScene("dungeon", std::make_unique<DungeonCrawlerScene>());
-    engine.setActiveScene("dungeon");
+
+    DungeonManager dungeonManager;
+    dungeonManager.setup(engine);
+
+    engine.setActiveScene("floor_0");
     engine.start();
 
     return EXIT_SUCCESS;

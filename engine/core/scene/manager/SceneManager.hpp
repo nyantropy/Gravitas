@@ -10,22 +10,26 @@
 class SceneManager 
 {
     private:
-        std::unique_ptr<GtsScene> activeScene;
+        // Ownership lives here for the lifetime of the engine.
+        // Scenes are never moved out, so raw pointers into them remain valid.
         std::unordered_map<std::string, std::unique_ptr<GtsScene>> loadedScenes;
 
+        // Non-owning pointer to the currently active scene.
+        GtsScene* activeScene = nullptr;
+
     public:
-        void setActiveScene(const std::string& name) 
+        void setActiveScene(const std::string& name)
         {
-            activeScene = std::move(loadedScenes[name]);
+            activeScene = loadedScenes.at(name).get();
         }
 
-        void registerScene(const std::string& name, std::unique_ptr<GtsScene> scene) 
+        void registerScene(const std::string& name, std::unique_ptr<GtsScene> scene)
         {
             loadedScenes[name] = std::move(scene);
         }
 
-        GtsScene* getActiveScene() 
-        { 
-            return activeScene.get(); 
+        GtsScene* getActiveScene()
+        {
+            return activeScene;
         }
 };
