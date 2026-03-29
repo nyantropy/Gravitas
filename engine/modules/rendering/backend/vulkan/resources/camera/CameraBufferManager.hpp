@@ -76,6 +76,12 @@ class CameraBufferManager
 
             VkDevice device = vcsheet::getDevice();
             auto& res = it->second;
+
+            // Return descriptor sets to the UBO pool before freeing the buffers.
+            // The pool is created with FREE_DESCRIPTOR_SET_BIT specifically for this.
+            if (!res->descriptorSets.empty())
+                dssheet::getManager().freeUniformBufferSets(res->descriptorSets);
+
             for (size_t i = 0; i < res->uniformBuffers.size(); ++i)
             {
                 if (res->uniformBuffers[i] != VK_NULL_HANDLE)
