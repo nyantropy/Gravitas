@@ -9,8 +9,12 @@
 #include "HierarchyComponent.h"
 #include "TransformComponent.h"
 #include "CameraDescriptionComponent.h"
-#include "CameraGpuComponent.h"
+#include "CameraResourceClearComponent.h"
+#include "CameraResourceClearSystem.hpp"
 #include "CameraControlOverrideComponent.h"
+#include "RenderGpuComponent.h"
+#include "RenderResourceClearComponent.h"
+#include "RenderResourceClearSystem.hpp"
 #include "BoundsComponent.h"
 #include "ProceduralMeshComponent.h"
 #include "StaticMeshComponent.h"
@@ -47,22 +51,38 @@ DungeonFloorScene::DungeonFloorScene(GeneratedFloor floor)
 void DungeonFloorScene::onLoad(SceneContext& ctx,
                                 const GtsSceneTransitionData* /*data*/)
 {
-    // Release camera GPU resources before clearing the ECS world.
-    // ecsWorld.clear() discards CameraGpuComponent without calling releaseCameraBuffer,
-    // which leaks Vulkan descriptor sets from the camera UBO pool on every floor load.
-    ecsWorld.forEach<CameraGpuComponent>([&](Entity, CameraGpuComponent& gpu)
+    // On reload, release GPU resources via the clear systems before wiping the world.
+    // Tag camera entities so CameraResourceClearSystem returns their UBO descriptor sets.
+    // Tag renderable entities so RenderResourceClearSystem returns their SSBO slots.
+    // destroyAfterClear = false because ecsWorld.clear() destroys the entities below.
+    ecsWorld.forEach<CameraDescriptionComponent>([&](Entity e, CameraDescriptionComponent&)
     {
-        if (gpu.viewID != 0)
+        if (!ecsWorld.hasComponent<CameraResourceClearComponent>(e))
         {
-            ctx.resources->releaseCameraBuffer(gpu.viewID);
-            gpu.viewID = 0;
+            CameraResourceClearComponent c;
+            c.destroyAfterClear = false;
+            ecsWorld.addComponent(e, c);
         }
     });
 
-    // Reset ECS state — this scene may be reloaded (e.g. returning from another floor)
+    ecsWorld.forEach<RenderGpuComponent>([&](Entity e, RenderGpuComponent& rc)
+    {
+        if (rc.objectSSBOSlot != RENDERABLE_SLOT_UNALLOCATED &&
+            !ecsWorld.hasComponent<RenderResourceClearComponent>(e))
+        {
+            RenderResourceClearComponent c;
+            c.destroyAfterClear = false;
+            ecsWorld.addComponent(e, c);
+        }
+    });
+
+    CameraResourceClearSystem{}.update(ecsWorld, ctx);
+    RenderResourceClearSystem{}.update(ecsWorld, ctx);
+
+    // All GPU resources released — safe to wipe the world
     ecsWorld.clear();
-    playerEntity   = Entity{ std::numeric_limits<entity_id_type>::max() };
-    debugCamEntity = Entity{ std::numeric_limits<entity_id_type>::max() };
+    playerEntity   = INVALID_ENTITY;
+    debugCamEntity = INVALID_ENTITY;
 
     // Singletons shared across dungeon systems
     ecsWorld.createSingleton<DungeonInputComponent>();
