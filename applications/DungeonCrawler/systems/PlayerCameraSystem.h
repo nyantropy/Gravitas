@@ -8,17 +8,25 @@
 #include "PlayerComponent.h"
 #include "TransformComponent.h"
 #include "CameraDescriptionComponent.h"
+#include "FloorTransitionStateComponent.h"
 
 // Reads PlayerComponent transition state and updates the camera each frame.
 // Interpolates visual position (translation) and yaw (rotation) over
 // TRANSITION_DURATION using smoothstep easing. CameraGpuSystem then reads
 // TransformComponent.position (eye position) and CameraDescriptionComponent.target
 // to build the view matrix.
+//
+// Returns early while a floor transition is active — FloorTransitionSystem
+// drives the camera directly during that window.
 class PlayerCameraSystem : public ECSControllerSystem
 {
 public:
     void update(ECSWorld& world, SceneContext& ctx) override
     {
+        // FloorTransitionSystem owns the camera while a transition plays
+        const auto& ts = world.getSingleton<FloorTransitionStateComponent>();
+        if (ts.active) return;
+
         world.forEach<PlayerComponent, TransformComponent, CameraDescriptionComponent>(
             [&](Entity, PlayerComponent& player,
                 TransformComponent& tc, CameraDescriptionComponent& desc)
@@ -28,11 +36,9 @@ public:
             // Keep aspect ratio current (handles window resize).
             desc.aspectRatio = ctx.windowAspectRatio;
 
-            // Smoothstep easing
+            // Normal first-person camera — smoothstep easing
             const float t    = player.transitionProgress;
-            const float ease = player.inTransition
-                             ? t * t * (3.0f - 2.0f * t)
-                             : 1.0f;
+            const float ease = player.inTransition ? t * t * (3.0f - 2.0f * t) : 1.0f;
 
             // Interpolated world position
             const glm::vec3 visualPos = player.inTransition
@@ -55,8 +61,6 @@ public:
                 -glm::cos(yawRad)
             };
 
-            // CameraGpuSystem reads TransformComponent.position as eye position
-            // and CameraDescriptionComponent.target as look-at point.
             tc.position = visualPos;
             desc.target = visualPos + forward;
         });

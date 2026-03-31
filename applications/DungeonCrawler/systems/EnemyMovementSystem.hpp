@@ -74,7 +74,7 @@ public:
 
             glm::ivec2 target   = enemy.patrolPath[nextIdx];
             enemy.fromPosition  = tc.position;
-            enemy.toPosition    = glm::vec3(target.x + 0.5f, 0.5f, target.y + 0.5f);
+            enemy.toPosition    = glm::vec3(target.x + 0.5f, enemy.floorY + 0.5f, target.y + 0.5f);
             enemy.gridX         = target.x;
             enemy.gridZ         = target.y;
             enemy.inTransition  = true;

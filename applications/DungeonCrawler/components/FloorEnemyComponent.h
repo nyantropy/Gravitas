@@ -8,8 +8,9 @@
 // EnemyMovementSystem drives smooth interpolation via fromPosition / toPosition.
 struct FloorEnemyComponent
 {
-    int  gridX = 0;
-    int  gridZ = 0;
+    int   gridX  = 0;
+    int   gridZ  = 0;
+    float floorY = 0.0f; // world-space Y of the floor this enemy lives on
 
     std::vector<glm::ivec2> patrolPath;
     int  patrolIndex   = 0;

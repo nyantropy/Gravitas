@@ -10,20 +10,25 @@
 #include "CameraDescriptionComponent.h"
 #include "DungeonInputComponent.h"
 #include "DungeonFloorSingleton.h"
+#include "FloorTransitionStateComponent.h"
+#include "DungeonConstants.h"
 
-// Handles player grid movement and facing — pure game logic, no camera code.
-// Reads DungeonInputComponent singleton (written by DungeonInputSystem).
-// Input is locked while a movement or turn transition is in progress.
-// On valid input, records from/to positions and yaw, then advances
-// transitionProgress each frame. PlayerCameraSystem reads the progress
-// to interpolate the visual camera position and orientation.
+// Handles player grid movement and facing turns.
+//
+// Input is locked while a movement or turn transition is in progress, and
+// also while a floor transition is active (FloorTransitionSystem drives the
+// camera and player position during that window).
 class PlayerMovementSystem : public ECSControllerSystem
 {
 public:
     void update(ECSWorld& world, SceneContext& ctx) override
     {
-        const float dt    = ctx.time->unscaledDeltaTime;
-        auto&       input = world.getSingleton<DungeonInputComponent>();
+        // Lock all player input during floor transitions
+        const auto& ts = world.getSingleton<FloorTransitionStateComponent>();
+        if (ts.active) return;
+
+        const float dt           = ctx.time->unscaledDeltaTime;
+        auto&       input        = world.getSingleton<DungeonInputComponent>();
         auto&       floorSingleton = world.getSingleton<DungeonFloorSingleton>();
 
         world.forEach<PlayerComponent, TransformComponent, CameraDescriptionComponent>(
@@ -32,7 +37,7 @@ public:
         {
             if (!desc.active) return; // debug camera active — skip player input
 
-            // Advance active transition
+            // ── Advance active transition ─────────────────────────────────
             if (player.inTransition)
             {
                 player.transitionProgress += dt / PlayerComponent::TRANSITION_DURATION;
@@ -40,14 +45,12 @@ public:
                 {
                     player.transitionProgress = 1.0f;
                     player.inTransition       = false;
-
-                    // Snap transform to final position
-                    tc.position = player.toPosition;
+                    tc.position               = player.toPosition;
                 }
-                return; // input locked during transition
+                return; // input locked during movement transition
             }
 
-            // --- Accept new input when idle ---
+            // ── Accept new input when idle ────────────────────────────────
 
             // Turning (Q / E)
             int newFacing = player.facing;
@@ -64,9 +67,9 @@ public:
             }
 
             // Grid movement (WASD)
-            glm::ivec2 forward = facingToForward(player.facing);
-            glm::ivec2 right   = facingToRight(player.facing);
-            glm::ivec2 move    = {0, 0};
+            const glm::ivec2 forward = facingToForward(player.facing);
+            const glm::ivec2 right   = facingToRight(player.facing);
+            glm::ivec2 move = {0, 0};
 
             if      (input.moveForward)  move =  forward;
             else if (input.moveBackward) move = -forward;
@@ -75,16 +78,17 @@ public:
 
             if (move != glm::ivec2{0, 0})
             {
-                int newX = player.gridX + move.x;
-                int newZ = player.gridZ + move.y;
+                const int newX = player.gridX + move.x;
+                const int newZ = player.gridZ + move.y;
 
                 if (floorSingleton.floor && floorSingleton.floor->isWalkable(newX, newZ))
                 {
-                    glm::vec3 newPos = {newX + 0.5f, 0.5f, newZ + 0.5f};
+                    const float floorY = DungeonConstants::floorWorldY(floorSingleton.currentFloorIndex);
+                    const glm::vec3 newPos = {newX + 0.5f, floorY + 0.5f, newZ + 0.5f};
                     player.gridX   = newX;
                     player.gridZ   = newZ;
                     player.fromYaw = facingToYaw(player.facing);
-                    player.toYaw   = player.fromYaw; // no yaw change on move
+                    player.toYaw   = player.fromYaw;
                     startTransition(player, tc.position, newPos);
                 }
             }

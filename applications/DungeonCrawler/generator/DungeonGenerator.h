@@ -38,4 +38,14 @@ private:
     void       spendEnemyBudget();
     void       spendTreasureBudget();
     void       placeStairs(int floorNumber, int totalFloors);
+
+    struct StairCandidate {
+        glm::ivec2 pos;
+        float      weight = 0.0f;
+    };
+
+    std::vector<StairCandidate> collectStairCandidates(const glm::ivec2& avoidPos,
+                                                        float minDistance) const;
+    glm::ivec2 weightedRandomPick(const std::vector<StairCandidate>& candidates);
+    void       carveCorridorToStair(const glm::ivec2& stairPos);
 };

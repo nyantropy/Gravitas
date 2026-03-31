@@ -4,6 +4,7 @@
 #include <cstdint>
 #include "FloorBudget.h"
 #include "RoomTemplate.h"
+#include "GlmConfig.h"
 
 struct DungeonSpec
 {
@@ -15,4 +16,8 @@ struct DungeonSpec
     int          minRoomSize = 5;
     int          maxRoomSize = 14;
     uint32_t     seed        = 0;
+
+    // If x >= 0, the generator MUST place StairUp at this X/Z position.
+    // Used by DungeonManager to align floor N+1's StairUp with floor N's StairDown.
+    glm::ivec2 requiredStairUpPos = {-1, -1};
 };
