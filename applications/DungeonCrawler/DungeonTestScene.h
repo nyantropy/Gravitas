@@ -37,11 +37,14 @@ private:
     void initializeDungeonSingleton();
     void rebuildActiveFloor(SceneContext& ctx);
     void buildFloorEntities(const GeneratedFloor& floor);
-    void destroyFloorEntities();
+    void destroyFloorEntities(SceneContext& ctx);
+    void spawnStairFeature(const GeneratedFloor& floor, const glm::ivec2& stairPos, bool descends);
     void spawnPlayer(SceneContext& ctx, const glm::ivec2& startPos);
     void spawnPlayerMarker();
     void movePlayerToTile(const glm::ivec2& gridPos);
     void syncPlayerMarker();
+    void beginFloorTransition(SceneContext& ctx, bool movingDown, const glm::ivec2& sourceGridPos);
+    void updateFloorTransition(SceneContext& ctx);
     void updateMinimapReveal(SceneContext& ctx);
     void handleDungeonRegenerate(SceneContext& ctx);
     void handleStairTransitions(SceneContext& ctx);
