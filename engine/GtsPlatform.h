@@ -47,6 +47,11 @@ class GtsPlatform
             return graphics->getAspectRatio();
         }
 
+        void getViewportSize(int& width, int& height) const
+        {
+            graphics->getViewportSize(width, height);
+        }
+
         IResourceProvider* getResourceProvider()
         {
             return graphics->getResourceProvider();

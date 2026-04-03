@@ -24,6 +24,7 @@ public:
     virtual void shutdown() = 0;
     virtual bool isWindowOpen() const = 0;
     virtual float getAspectRatio() const = 0;
+    virtual void getViewportSize(int& width, int& height) const = 0;
     virtual IResourceProvider* getResourceProvider() = 0;
 
     // Events the engine subscribes to at startup

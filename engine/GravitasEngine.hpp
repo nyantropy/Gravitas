@@ -54,12 +54,18 @@ class GravitasEngine
 
         void createSceneContext()
         {
+            int viewportWidth = 1;
+            int viewportHeight = 1;
+            platform.getViewportSize(viewportWidth, viewportHeight);
+
             sceneContext.resources         = platform.getResourceProvider();
             sceneContext.inputSource       = platform.getInputSource();   // pause-gated
             sceneContext.actions           = platform.getActionManager(); // always live
             sceneContext.time              = &timeContext;
             sceneContext.engineCommands    = &engineCommands;
             sceneContext.windowAspectRatio = platform.getAspectRatio();
+            sceneContext.windowPixelWidth  = viewportWidth;
+            sceneContext.windowPixelHeight = viewportHeight;
             sceneContext.extractor         = renderCommandExtractor.get();
             sceneContext.ui                = uiSystem.get();
         }
@@ -75,6 +81,12 @@ class GravitasEngine
         void render(float dt)
         {
             auto& world = sceneManager->getActiveScene()->getWorld();
+            int viewportWidth = 1;
+            int viewportHeight = 1;
+            platform.getViewportSize(viewportWidth, viewportHeight);
+            sceneContext.windowAspectRatio = platform.getAspectRatio();
+            sceneContext.windowPixelWidth = viewportWidth;
+            sceneContext.windowPixelHeight = viewportHeight;
 
             GtsFrameStats stats;
             stats.fps            = (dt > 0.0f) ? 1.0f / dt : 0.0f;
@@ -86,7 +98,8 @@ class GravitasEngine
             GtsExtractorContext extractCtx{world, sceneContext.windowAspectRatio};
 
             auto renderList = renderCommandExtractor->extract(extractCtx);
-            auto uiBuffer   = uiSystem->extractCommands(sceneContext.windowAspectRatio);
+            auto uiBuffer   = uiSystem->extractCommands(sceneContext.windowPixelWidth,
+                                                       sceneContext.windowPixelHeight);
 
             platform.getGraphics()->renderFrame(dt, renderList, uiBuffer, stats);
         }

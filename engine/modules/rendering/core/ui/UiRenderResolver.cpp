@@ -10,12 +10,40 @@ namespace
     {
         return {color.r, color.g, color.b, color.a};
     }
+
+    float snapToPixel(float normalizedValue, int pixelSpan)
+    {
+        if (pixelSpan <= 0) return normalizedValue;
+        return std::floor(normalizedValue * static_cast<float>(pixelSpan))
+            / static_cast<float>(pixelSpan);
+    }
+
+    UiRect snapRectToPixels(const UiRect& rect, int viewportWidth, int viewportHeight)
+    {
+        if (viewportWidth <= 0 || viewportHeight <= 0) return rect;
+
+        const float left = snapToPixel(rect.x, viewportWidth);
+        const float top = snapToPixel(rect.y, viewportHeight);
+        const float width = std::floor(rect.width * static_cast<float>(viewportWidth))
+            / static_cast<float>(viewportWidth);
+        const float height = std::floor(rect.height * static_cast<float>(viewportHeight))
+            / static_cast<float>(viewportHeight);
+
+        return {
+            left,
+            top,
+            std::max(0.0f, width),
+            std::max(0.0f, height)
+        };
+    }
 }
 
 UiCommandBuffer UiRenderResolver::buildCommandBuffer(
     const UiVisualList& visualList,
     IResourceProvider* resources,
-    const std::unordered_map<UiHandle, BitmapFont*>& textBindings) const
+    const std::unordered_map<UiHandle, BitmapFont*>& textBindings,
+    int viewportWidth,
+    int viewportHeight) const
 {
     UiCommandBuffer buffer;
 
@@ -27,10 +55,11 @@ UiCommandBuffer UiRenderResolver::buildCommandBuffer(
 
             if constexpr (std::is_same_v<T, UiRectPrimitive>)
             {
-                buffer.addColoredQuad(value.bounds.x,
-                                      value.bounds.y,
-                                      value.bounds.width,
-                                      value.bounds.height,
+                const UiRect snapped = snapRectToPixels(value.bounds, viewportWidth, viewportHeight);
+                buffer.addColoredQuad(snapped.x,
+                                      snapped.y,
+                                      snapped.width,
+                                      snapped.height,
                                       toGlm(value.color));
             }
             else if constexpr (std::is_same_v<T, UiImagePrimitive>)
@@ -40,10 +69,11 @@ UiCommandBuffer UiRenderResolver::buildCommandBuffer(
                 const texture_id_type textureId = resources->requestTexture(value.imageAsset);
                 if (textureId == 0) return;
 
-                buffer.addTexturedQuad(value.bounds.x,
-                                       value.bounds.y,
-                                       value.bounds.width,
-                                       value.bounds.height,
+                const UiRect snapped = snapRectToPixels(value.bounds, viewportWidth, viewportHeight);
+                buffer.addTexturedQuad(snapped.x,
+                                       snapped.y,
+                                       snapped.width,
+                                       snapped.height,
                                        textureId,
                                        toGlm(value.tint));
             }
@@ -52,11 +82,14 @@ UiCommandBuffer UiRenderResolver::buildCommandBuffer(
                 const auto it = textBindings.find(value.source);
                 if (it == textBindings.end() || !it->second) return;
 
+                const float snappedX = snapToPixel(value.bounds.x, viewportWidth);
+                const float snappedY = snapToPixel(value.bounds.y, viewportHeight);
+
                 GlyphLayoutEngine::appendUiText(buffer,
                                                 *it->second,
                                                 value.text,
-                                                value.bounds.x,
-                                                value.bounds.y,
+                                                snappedX,
+                                                snappedY,
                                                 value.scale,
                                                 toGlm(value.color));
             }

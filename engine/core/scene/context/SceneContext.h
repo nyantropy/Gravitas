@@ -18,6 +18,8 @@ struct SceneContext
     const TimeContext*              time;
     GtsCommandBuffer*               engineCommands;
     float                           windowAspectRatio = 1.0f;
+    int                             windowPixelWidth = 1;
+    int                             windowPixelHeight = 1;
     RenderCommandExtractor*         extractor         = nullptr;  // query visible/total counts, freeze frustum
     UiSystem*                       ui                = nullptr;  // retained engine UI system
 };

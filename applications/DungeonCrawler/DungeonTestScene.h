@@ -1,16 +1,17 @@
 #pragma once
 
+#include <limits>
 #include <vector>
 
-#include "BitmapFont.h"
 #include "Entity.h"
 #include "GtsScene.hpp"
 #include "Types.h"
-#include "UiHandle.h"
 
 #include "DungeonManager.h"
 #include "DungeonVisibilityState.h"
 #include "GeneratedFloor.h"
+#include "ui/DungeonUiController.h"
+#include "ui/DungeonUiState.h"
 
 class DungeonTestScene : public GtsScene
 {
@@ -27,15 +28,7 @@ private:
     std::vector<Entity>  floorEntities;
     Entity               playerEntity = Entity{ std::numeric_limits<entity_id_type>::max() };
     Entity               playerMarkerEntity = Entity{ std::numeric_limits<entity_id_type>::max() };
-    BitmapFont           overlayFont;
-    UiHandle             overlayRootHandle = UI_INVALID_HANDLE;
-    UiHandle             overlayBackgroundHandle = UI_INVALID_HANDLE;
-    UiHandle             overlayTextHandle = UI_INVALID_HANDLE;
-    UiHandle             minimapRootHandle = UI_INVALID_HANDLE;
-    UiHandle             minimapBackgroundHandle = UI_INVALID_HANDLE;
-    UiHandle             minimapGridHandle = UI_INVALID_HANDLE;
-    UiHandle             minimapPlayerHandle = UI_INVALID_HANDLE;
-    UiHandle             minimapLabelHandle = UI_INVALID_HANDLE;
+    DungeonUiController  uiController;
     DungeonVisibilityState visibilityState;
     bool                 stairLatchActive = false;
     int                  latchedFloorIndex = -1;
@@ -49,11 +42,9 @@ private:
     void spawnPlayerMarker();
     void movePlayerToTile(const glm::ivec2& gridPos);
     void syncPlayerMarker();
-    void buildMinimapUi(SceneContext& ctx);
-    void refreshMinimap(SceneContext& ctx);
     void updateMinimapReveal(SceneContext& ctx);
-    void refreshOverlay(SceneContext& ctx);
     void handleDungeonRegenerate(SceneContext& ctx);
     void handleStairTransitions(SceneContext& ctx);
     void updateStairLatch(const GeneratedFloor& floor, const glm::ivec2& playerGridPos);
+    DungeonUiState buildUiState();
 };

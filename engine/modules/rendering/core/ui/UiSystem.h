@@ -34,7 +34,7 @@ public:
     UiDocument&       getDocument();
     const UiDocument& getDocument() const;
 
-    UiCommandBuffer extractCommands(float viewportAspect);
+    UiCommandBuffer extractCommands(int viewportWidth, int viewportHeight);
 
 private:
     void removeTextBindingsRecursive(UiHandle handle);

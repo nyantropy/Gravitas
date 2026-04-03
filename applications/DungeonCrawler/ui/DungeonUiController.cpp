@@ -1,0 +1,375 @@
+#include "DungeonUiController.h"
+
+#include <algorithm>
+#include <cmath>
+#include <string>
+
+#include "BitmapFontLoader.h"
+#include "GtsDebugOverlay.h"
+#include "UiSystem.h"
+
+namespace
+{
+    constexpr float UI_EDGE_MARGIN = 0.020f;
+
+    constexpr float DEBUG_PANEL_WIDTH = 0.34f;
+    constexpr float DEBUG_PANEL_PADDING = 0.016f;
+    constexpr float DEBUG_LINE_HEIGHT = 0.030f;
+    constexpr float DEBUG_LINE_GAP = 0.008f;
+
+    constexpr float MINIMAP_OUTER_PADDING = 0.016f;
+    constexpr float MINIMAP_INNER_PADDING = 0.010f;
+    constexpr float MINIMAP_LABEL_HEIGHT = 0.032f;
+    constexpr float MINIMAP_MAX_WIDTH = 0.26f;
+    constexpr float MINIMAP_MAX_HEIGHT = 0.32f;
+    constexpr float MINIMAP_MIN_MARKER_SIZE = 0.007f;
+
+    UiColor uiColor(float r, float g, float b, float a = 1.0f)
+    {
+        return {r, g, b, a};
+    }
+
+    UiColor minimapColorForTile(TileType tileType)
+    {
+        switch (tileType)
+        {
+            case TileType::Wall:       return uiColor(0.12f, 0.13f, 0.15f);
+            case TileType::Floor:      return uiColor(0.72f, 0.72f, 0.74f);
+            case TileType::StairUp:    return uiColor(0.20f, 0.82f, 0.28f);
+            case TileType::StairDown:  return uiColor(0.88f, 0.24f, 0.20f);
+            case TileType::Treasure:   return uiColor(0.95f, 0.82f, 0.22f);
+            case TileType::EnemySpawn: return uiColor(0.64f, 0.34f, 0.82f);
+        }
+
+        return uiColor(1.0f, 1.0f, 1.0f);
+    }
+
+    float toNormalizedWidth(int pixels, int viewportWidth)
+    {
+        if (viewportWidth <= 0) return 0.0f;
+        return static_cast<float>(pixels) / static_cast<float>(viewportWidth);
+    }
+
+    float toNormalizedHeight(int pixels, int viewportHeight)
+    {
+        if (viewportHeight <= 0) return 0.0f;
+        return static_cast<float>(pixels) / static_cast<float>(viewportHeight);
+    }
+}
+
+void DungeonUiController::reset()
+{
+    debugRootHandle = UI_INVALID_HANDLE;
+    debugBackgroundHandle = UI_INVALID_HANDLE;
+    floorTextHandle = UI_INVALID_HANDLE;
+    cameraTextHandle = UI_INVALID_HANDLE;
+    mapModeTextHandle = UI_INVALID_HANDLE;
+    minimapRootHandle = UI_INVALID_HANDLE;
+    minimapBackgroundHandle = UI_INVALID_HANDLE;
+    minimapGridHandle = UI_INVALID_HANDLE;
+    minimapPlayerHandle = UI_INVALID_HANDLE;
+    minimapLabelHandle = UI_INVALID_HANDLE;
+}
+
+void DungeonUiController::initialize(SceneContext& ctx, const DungeonUiState& state)
+{
+    reset();
+
+    uiFont = BitmapFontLoader::load(
+        ctx.resources,
+        GtsDebugOverlay::DEBUG_FONT_PATH,
+        GtsDebugOverlay::ATLAS_W,  GtsDebugOverlay::ATLAS_H,
+        GtsDebugOverlay::CELL_W,   GtsDebugOverlay::CELL_H,
+        GtsDebugOverlay::ATLAS_COLS,
+        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ :/",
+        GtsDebugOverlay::LINE_HEIGHT,
+        true);
+
+    buildDebugPanel(ctx);
+    buildMinimapPanel(ctx);
+    update(ctx, state);
+}
+
+void DungeonUiController::update(SceneContext& ctx, const DungeonUiState& state)
+{
+    updateDebugPanel(ctx, state);
+    updateMinimapPanel(ctx, state);
+}
+
+void DungeonUiController::buildDebugPanel(SceneContext& ctx)
+{
+    debugRootHandle = ctx.ui->createNode(UiNodeType::Container);
+    debugBackgroundHandle = ctx.ui->createNode(UiNodeType::Rect, debugRootHandle);
+    floorTextHandle = ctx.ui->createNode(UiNodeType::Text, debugRootHandle);
+    cameraTextHandle = ctx.ui->createNode(UiNodeType::Text, debugRootHandle);
+    mapModeTextHandle = ctx.ui->createNode(UiNodeType::Text, debugRootHandle);
+
+    UiLayoutSpec rootLayout;
+    rootLayout.positionMode = UiPositionMode::Absolute;
+    rootLayout.widthMode = UiSizeMode::Fixed;
+    rootLayout.heightMode = UiSizeMode::Fixed;
+    rootLayout.offsetMin = {UI_EDGE_MARGIN, UI_EDGE_MARGIN};
+    rootLayout.fixedWidth = DEBUG_PANEL_WIDTH;
+    rootLayout.fixedHeight = DEBUG_PANEL_PADDING * 2.0f
+        + DEBUG_LINE_HEIGHT * 3.0f
+        + DEBUG_LINE_GAP * 2.0f;
+    rootLayout.padding = {
+        DEBUG_PANEL_PADDING,
+        DEBUG_PANEL_PADDING,
+        DEBUG_PANEL_PADDING,
+        DEBUG_PANEL_PADDING
+    };
+    ctx.ui->setLayout(debugRootHandle, rootLayout);
+    ctx.ui->setState(debugRootHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+
+    UiLayoutSpec backgroundLayout;
+    backgroundLayout.positionMode = UiPositionMode::Anchored;
+    backgroundLayout.widthMode = UiSizeMode::FromAnchors;
+    backgroundLayout.heightMode = UiSizeMode::FromAnchors;
+    backgroundLayout.anchorMin = {0.0f, 0.0f};
+    backgroundLayout.anchorMax = {1.0f, 1.0f};
+    ctx.ui->setLayout(debugBackgroundHandle, backgroundLayout);
+    ctx.ui->setState(debugBackgroundHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+    ctx.ui->setPayload(debugBackgroundHandle, UiRectData{uiColor(0.03f, 0.04f, 0.06f, 0.82f)});
+
+    const float lineOffsets[3] = {
+        DEBUG_PANEL_PADDING,
+        DEBUG_PANEL_PADDING + DEBUG_LINE_HEIGHT + DEBUG_LINE_GAP,
+        DEBUG_PANEL_PADDING + (DEBUG_LINE_HEIGHT + DEBUG_LINE_GAP) * 2.0f
+    };
+    const UiHandle textHandles[3] = {floorTextHandle, cameraTextHandle, mapModeTextHandle};
+
+    for (int i = 0; i < 3; ++i)
+    {
+        UiLayoutSpec textLayout;
+        textLayout.positionMode = UiPositionMode::Absolute;
+        textLayout.widthMode = UiSizeMode::Fixed;
+        textLayout.heightMode = UiSizeMode::Fixed;
+        textLayout.offsetMin = {DEBUG_PANEL_PADDING, lineOffsets[i]};
+        ctx.ui->setLayout(textHandles[i], textLayout);
+        ctx.ui->setState(textHandles[i], UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+        ctx.ui->setTextFont(textHandles[i], &uiFont);
+    }
+}
+
+void DungeonUiController::buildMinimapPanel(SceneContext& ctx)
+{
+    minimapRootHandle = ctx.ui->createNode(UiNodeType::Container);
+    minimapBackgroundHandle = ctx.ui->createNode(UiNodeType::Rect, minimapRootHandle);
+    minimapGridHandle = ctx.ui->createNode(UiNodeType::Grid, minimapRootHandle);
+    minimapPlayerHandle = ctx.ui->createNode(UiNodeType::Rect, minimapRootHandle);
+    minimapLabelHandle = ctx.ui->createNode(UiNodeType::Text, minimapRootHandle);
+
+    UiLayoutSpec rootLayout;
+    rootLayout.positionMode = UiPositionMode::Absolute;
+    rootLayout.widthMode = UiSizeMode::Fixed;
+    rootLayout.heightMode = UiSizeMode::Fixed;
+    rootLayout.offsetMin = {1.0f - UI_EDGE_MARGIN - MINIMAP_MAX_WIDTH, UI_EDGE_MARGIN};
+    rootLayout.fixedWidth = MINIMAP_MAX_WIDTH;
+    rootLayout.fixedHeight = MINIMAP_MAX_HEIGHT;
+    rootLayout.padding = {
+        MINIMAP_OUTER_PADDING,
+        MINIMAP_OUTER_PADDING,
+        MINIMAP_OUTER_PADDING,
+        MINIMAP_OUTER_PADDING
+    };
+    rootLayout.clipMode = UiClipMode::ClipChildren;
+    ctx.ui->setLayout(minimapRootHandle, rootLayout);
+    ctx.ui->setState(minimapRootHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+
+    UiLayoutSpec backgroundLayout;
+    backgroundLayout.positionMode = UiPositionMode::Anchored;
+    backgroundLayout.widthMode = UiSizeMode::FromAnchors;
+    backgroundLayout.heightMode = UiSizeMode::FromAnchors;
+    backgroundLayout.anchorMin = {0.0f, 0.0f};
+    backgroundLayout.anchorMax = {1.0f, 1.0f};
+    ctx.ui->setLayout(minimapBackgroundHandle, backgroundLayout);
+    ctx.ui->setState(minimapBackgroundHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+    ctx.ui->setPayload(minimapBackgroundHandle, UiRectData{uiColor(0.05f, 0.06f, 0.08f, 0.88f)});
+
+    UiLayoutSpec gridLayout;
+    gridLayout.positionMode = UiPositionMode::Absolute;
+    gridLayout.widthMode = UiSizeMode::Fixed;
+    gridLayout.heightMode = UiSizeMode::Fixed;
+    gridLayout.offsetMin = {MINIMAP_OUTER_PADDING + MINIMAP_INNER_PADDING,
+                            MINIMAP_OUTER_PADDING + MINIMAP_LABEL_HEIGHT};
+    ctx.ui->setLayout(minimapGridHandle, gridLayout);
+    ctx.ui->setState(minimapGridHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+
+    UiLayoutSpec playerLayout;
+    playerLayout.positionMode = UiPositionMode::Absolute;
+    playerLayout.widthMode = UiSizeMode::Fixed;
+    playerLayout.heightMode = UiSizeMode::Fixed;
+    ctx.ui->setLayout(minimapPlayerHandle, playerLayout);
+    ctx.ui->setState(minimapPlayerHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+    ctx.ui->setPayload(minimapPlayerHandle, UiRectData{uiColor(0.14f, 0.86f, 1.0f, 1.0f)});
+
+    UiLayoutSpec labelLayout;
+    labelLayout.positionMode = UiPositionMode::Absolute;
+    labelLayout.widthMode = UiSizeMode::Fixed;
+    labelLayout.heightMode = UiSizeMode::Fixed;
+    labelLayout.offsetMin = {MINIMAP_OUTER_PADDING, 0.008f};
+    ctx.ui->setLayout(minimapLabelHandle, labelLayout);
+    ctx.ui->setState(minimapLabelHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+    ctx.ui->setTextFont(minimapLabelHandle, &uiFont);
+}
+
+void DungeonUiController::updateDebugPanel(SceneContext& ctx, const DungeonUiState& state)
+{
+    ctx.ui->setPayload(floorTextHandle, UiTextData{
+        "FLOOR: " + std::to_string(state.currentFloorIndex + 1)
+            + " / " + std::to_string(state.totalFloorCount),
+        {},
+        uiColor(1.0f, 1.0f, 1.0f, 1.0f),
+        GtsDebugOverlay::FONT_SCALE
+    });
+    ctx.ui->setPayload(cameraTextHandle, UiTextData{
+        state.debugCameraActive ? "CAM: DEBUG" : "CAM: PLAYER",
+        {},
+        uiColor(1.0f, 1.0f, 1.0f, 1.0f),
+        GtsDebugOverlay::FONT_SCALE
+    });
+
+    const char* minimapMode = state.minimapRevealMode == MinimapRevealMode::FullReveal
+        ? "FULL"
+        : "EXPLORED";
+    ctx.ui->setPayload(mapModeTextHandle, UiTextData{
+        std::string("MAP: ") + minimapMode,
+        {},
+        uiColor(1.0f, 1.0f, 1.0f, 1.0f),
+        GtsDebugOverlay::FONT_SCALE
+    });
+}
+
+void DungeonUiController::updateMinimapPanel(SceneContext& ctx, const DungeonUiState& state)
+{
+    if (!state.activeFloor || !state.visibility) return;
+
+    const GeneratedFloor& floor = *state.activeFloor;
+    if (floor.width <= 0 || floor.height <= 0) return;
+
+    const int viewportWidth = std::max(1, ctx.windowPixelWidth);
+    const int viewportHeight = std::max(1, ctx.windowPixelHeight);
+
+    const int outerPaddingXPx = std::max(1, static_cast<int>(std::floor(MINIMAP_OUTER_PADDING * viewportWidth)));
+    const int outerPaddingYPx = std::max(1, static_cast<int>(std::floor(MINIMAP_OUTER_PADDING * viewportHeight)));
+    const int innerPaddingXPx = std::max(1, static_cast<int>(std::floor(MINIMAP_INNER_PADDING * viewportWidth)));
+    const int innerPaddingYPx = std::max(1, static_cast<int>(std::floor(MINIMAP_INNER_PADDING * viewportHeight)));
+    const int labelHeightPx = std::max(1, static_cast<int>(std::floor(MINIMAP_LABEL_HEIGHT * viewportHeight)));
+    const int maxWidthPx = std::max(1, static_cast<int>(std::floor(MINIMAP_MAX_WIDTH * viewportWidth)));
+    const int maxHeightPx = std::max(1, static_cast<int>(std::floor(MINIMAP_MAX_HEIGHT * viewportHeight)));
+
+    const int availableGridWidthPx =
+        std::max(1, maxWidthPx - (outerPaddingXPx + innerPaddingXPx) * 2);
+    const int availableGridHeightPx =
+        std::max(1, maxHeightPx - labelHeightPx - outerPaddingYPx * 2 - innerPaddingYPx);
+    const int cellSizePx = std::max(
+        1,
+        static_cast<int>(std::floor(std::min(
+            static_cast<float>(availableGridWidthPx) / static_cast<float>(floor.width),
+            static_cast<float>(availableGridHeightPx) / static_cast<float>(floor.height)))));
+
+    const int gridWidthPx = floor.width * cellSizePx;
+    const int gridHeightPx = floor.height * cellSizePx;
+    const int containerWidthPx = gridWidthPx + (outerPaddingXPx + innerPaddingXPx) * 2;
+    const int containerHeightPx = gridHeightPx + labelHeightPx + outerPaddingYPx * 2 + innerPaddingYPx;
+
+    const float gridWidth = toNormalizedWidth(gridWidthPx, viewportWidth);
+    const float gridHeight = toNormalizedHeight(gridHeightPx, viewportHeight);
+    const float containerWidth = toNormalizedWidth(containerWidthPx, viewportWidth);
+    const float containerHeight = toNormalizedHeight(containerHeightPx, viewportHeight);
+
+    UiLayoutSpec rootLayout;
+    rootLayout.positionMode = UiPositionMode::Absolute;
+    rootLayout.widthMode = UiSizeMode::Fixed;
+    rootLayout.heightMode = UiSizeMode::Fixed;
+    rootLayout.offsetMin = {1.0f - UI_EDGE_MARGIN - containerWidth, UI_EDGE_MARGIN};
+    rootLayout.fixedWidth = containerWidth;
+    rootLayout.fixedHeight = containerHeight;
+    rootLayout.padding = {
+        MINIMAP_OUTER_PADDING,
+        MINIMAP_OUTER_PADDING,
+        MINIMAP_OUTER_PADDING,
+        MINIMAP_OUTER_PADDING
+    };
+    rootLayout.clipMode = UiClipMode::ClipChildren;
+    ctx.ui->setLayout(minimapRootHandle, rootLayout);
+
+    UiLayoutSpec gridLayout;
+    gridLayout.positionMode = UiPositionMode::Absolute;
+    gridLayout.widthMode = UiSizeMode::Fixed;
+    gridLayout.heightMode = UiSizeMode::Fixed;
+    gridLayout.offsetMin = {
+        toNormalizedWidth(outerPaddingXPx + innerPaddingXPx, viewportWidth),
+        toNormalizedHeight(outerPaddingYPx + labelHeightPx, viewportHeight)
+    };
+    gridLayout.fixedWidth = gridWidth;
+    gridLayout.fixedHeight = gridHeight;
+    ctx.ui->setLayout(minimapGridHandle, gridLayout);
+
+    UiGridData gridData;
+    gridData.columns = floor.width;
+    gridData.rows = floor.height;
+    gridData.hiddenColor = uiColor(0.0f, 0.0f, 0.0f, 1.0f);
+    const int cellInsetPx = std::clamp(static_cast<int>(std::floor(cellSizePx * 0.08f)), 1, std::max(1, cellSizePx / 3));
+    gridData.cellInset = std::min(
+        toNormalizedWidth(cellInsetPx, viewportWidth),
+        toNormalizedHeight(cellInsetPx, viewportHeight));
+    gridData.cells.reserve(static_cast<size_t>(floor.width * floor.height));
+
+    for (int z = 0; z < floor.height; ++z)
+    {
+        for (int x = 0; x < floor.width; ++x)
+        {
+            gridData.cells.push_back(UiGridCellData{
+                minimapColorForTile(floor.get(x, z)),
+                state.visibility->isVisible(state.currentFloorIndex, x, z)
+            });
+        }
+    }
+
+    ctx.ui->setPayload(minimapGridHandle, gridData);
+
+    const int markerMinPx = std::max(
+        1,
+        static_cast<int>(std::floor(std::min(
+            MINIMAP_MIN_MARKER_SIZE * viewportWidth,
+            MINIMAP_MIN_MARKER_SIZE * viewportHeight))));
+    const int markerMaxPx = std::max(1, cellSizePx - cellInsetPx * 2);
+    const int markerSizePx = std::clamp(
+        static_cast<int>(std::floor(cellSizePx * 0.72f)),
+        std::min(markerMinPx, markerMaxPx),
+        markerMaxPx);
+    const int markerOffsetPx = std::max(0, (cellSizePx - markerSizePx) / 2);
+
+    UiLayoutSpec playerLayout;
+    playerLayout.positionMode = UiPositionMode::Absolute;
+    playerLayout.widthMode = UiSizeMode::Fixed;
+    playerLayout.heightMode = UiSizeMode::Fixed;
+    playerLayout.offsetMin = {
+        toNormalizedWidth(
+            outerPaddingXPx + innerPaddingXPx + state.playerTile.x * cellSizePx + markerOffsetPx,
+            viewportWidth),
+        toNormalizedHeight(
+            outerPaddingYPx + labelHeightPx + state.playerTile.y * cellSizePx + markerOffsetPx,
+            viewportHeight)
+    };
+    playerLayout.fixedWidth = toNormalizedWidth(markerSizePx, viewportWidth);
+    playerLayout.fixedHeight = toNormalizedHeight(markerSizePx, viewportHeight);
+    ctx.ui->setLayout(minimapPlayerHandle, playerLayout);
+    ctx.ui->setState(minimapPlayerHandle, UiStateFlags{
+        .visible = state.visibility->isVisible(state.currentFloorIndex, state.playerTile.x, state.playerTile.y),
+        .enabled = false,
+        .interactable = false
+    });
+
+    const char* revealModeText = state.minimapRevealMode == MinimapRevealMode::FullReveal
+        ? "FULL"
+        : "FOG";
+    ctx.ui->setPayload(minimapLabelHandle, UiTextData{
+        "MAP F" + std::to_string(state.currentFloorIndex + 1) + " " + revealModeText,
+        {},
+        uiColor(0.95f, 0.96f, 1.0f, 1.0f),
+        0.020f
+    });
+}

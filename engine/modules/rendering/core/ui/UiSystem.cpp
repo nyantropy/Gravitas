@@ -81,7 +81,7 @@ const UiDocument& UiSystem::getDocument() const
     return document;
 }
 
-UiCommandBuffer UiSystem::extractCommands(float /*viewportAspect*/)
+UiCommandBuffer UiSystem::extractCommands(int viewportWidth, int viewportHeight)
 {
     document.setViewportSize(1.0f, 1.0f);
 
@@ -91,7 +91,11 @@ UiCommandBuffer UiSystem::extractCommands(float /*viewportAspect*/)
     if (hasFlag(document.getDirtyFlags(), UiDirtyFlags::Visual))
         document.rebuildVisualList();
 
-    return resolver.buildCommandBuffer(document.getVisualList(), resources, textBindings);
+    return resolver.buildCommandBuffer(document.getVisualList(),
+                                       resources,
+                                       textBindings,
+                                       viewportWidth,
+                                       viewportHeight);
 }
 
 void UiSystem::removeTextBindingsRecursive(UiHandle handle)

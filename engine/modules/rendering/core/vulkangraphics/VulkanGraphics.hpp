@@ -141,6 +141,11 @@ public:
         return windowManager->getOutputWindow()->getAspectRatio();
     }
 
+    void getViewportSize(int& width, int& height) const override
+    {
+        windowManager->getOutputWindow()->getSize(width, height);
+    }
+
     IResourceProvider* getResourceProvider() override
     {
         return renderer->getResourceSystem();
