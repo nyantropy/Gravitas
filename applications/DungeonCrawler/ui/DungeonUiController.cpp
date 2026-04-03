@@ -17,11 +17,11 @@ namespace
     constexpr float DEBUG_LINE_HEIGHT = 0.030f;
     constexpr float DEBUG_LINE_GAP = 0.008f;
 
-    constexpr float MINIMAP_OUTER_PADDING = 0.016f;
-    constexpr float MINIMAP_INNER_PADDING = 0.010f;
+    constexpr float MINIMAP_PANEL_PADDING = 0.020f;
+    constexpr float MINIMAP_HEADER_GAP = 0.012f;
     constexpr float MINIMAP_LABEL_HEIGHT = 0.032f;
-    constexpr float MINIMAP_MAX_WIDTH = 0.26f;
-    constexpr float MINIMAP_MAX_HEIGHT = 0.32f;
+    constexpr float MINIMAP_MAX_WIDTH = 0.32f;
+    constexpr float MINIMAP_MAX_HEIGHT = 0.40f;
     constexpr float MINIMAP_MIN_MARKER_SIZE = 0.007f;
 
     UiColor uiColor(float r, float g, float b, float a = 1.0f)
@@ -98,6 +98,8 @@ void DungeonUiController::update(SceneContext& ctx, const DungeonUiState& state)
 
 void DungeonUiController::buildDebugPanel(SceneContext& ctx)
 {
+    // Dungeon HUD panels use explicit child offsets for all internal spacing.
+    // Root containers define outer bounds only so the background rect fills the full panel.
     debugRootHandle = ctx.ui->createNode(UiNodeType::Container);
     debugBackgroundHandle = ctx.ui->createNode(UiNodeType::Rect, debugRootHandle);
     floorTextHandle = ctx.ui->createNode(UiNodeType::Text, debugRootHandle);
@@ -113,12 +115,6 @@ void DungeonUiController::buildDebugPanel(SceneContext& ctx)
     rootLayout.fixedHeight = DEBUG_PANEL_PADDING * 2.0f
         + DEBUG_LINE_HEIGHT * 3.0f
         + DEBUG_LINE_GAP * 2.0f;
-    rootLayout.padding = {
-        DEBUG_PANEL_PADDING,
-        DEBUG_PANEL_PADDING,
-        DEBUG_PANEL_PADDING,
-        DEBUG_PANEL_PADDING
-    };
     ctx.ui->setLayout(debugRootHandle, rootLayout);
     ctx.ui->setState(debugRootHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
 
@@ -167,12 +163,6 @@ void DungeonUiController::buildMinimapPanel(SceneContext& ctx)
     rootLayout.offsetMin = {1.0f - UI_EDGE_MARGIN - MINIMAP_MAX_WIDTH, UI_EDGE_MARGIN};
     rootLayout.fixedWidth = MINIMAP_MAX_WIDTH;
     rootLayout.fixedHeight = MINIMAP_MAX_HEIGHT;
-    rootLayout.padding = {
-        MINIMAP_OUTER_PADDING,
-        MINIMAP_OUTER_PADDING,
-        MINIMAP_OUTER_PADDING,
-        MINIMAP_OUTER_PADDING
-    };
     rootLayout.clipMode = UiClipMode::ClipChildren;
     ctx.ui->setLayout(minimapRootHandle, rootLayout);
     ctx.ui->setState(minimapRootHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
@@ -191,8 +181,8 @@ void DungeonUiController::buildMinimapPanel(SceneContext& ctx)
     gridLayout.positionMode = UiPositionMode::Absolute;
     gridLayout.widthMode = UiSizeMode::Fixed;
     gridLayout.heightMode = UiSizeMode::Fixed;
-    gridLayout.offsetMin = {MINIMAP_OUTER_PADDING + MINIMAP_INNER_PADDING,
-                            MINIMAP_OUTER_PADDING + MINIMAP_LABEL_HEIGHT};
+    gridLayout.offsetMin = {MINIMAP_PANEL_PADDING,
+                            MINIMAP_PANEL_PADDING + MINIMAP_LABEL_HEIGHT + MINIMAP_HEADER_GAP};
     ctx.ui->setLayout(minimapGridHandle, gridLayout);
     ctx.ui->setState(minimapGridHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
 
@@ -208,7 +198,7 @@ void DungeonUiController::buildMinimapPanel(SceneContext& ctx)
     labelLayout.positionMode = UiPositionMode::Absolute;
     labelLayout.widthMode = UiSizeMode::Fixed;
     labelLayout.heightMode = UiSizeMode::Fixed;
-    labelLayout.offsetMin = {MINIMAP_OUTER_PADDING, 0.008f};
+    labelLayout.offsetMin = {MINIMAP_PANEL_PADDING, MINIMAP_PANEL_PADDING};
     ctx.ui->setLayout(minimapLabelHandle, labelLayout);
     ctx.ui->setState(minimapLabelHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
     ctx.ui->setTextFont(minimapLabelHandle, &uiFont);
@@ -251,18 +241,17 @@ void DungeonUiController::updateMinimapPanel(SceneContext& ctx, const DungeonUiS
     const int viewportWidth = std::max(1, ctx.windowPixelWidth);
     const int viewportHeight = std::max(1, ctx.windowPixelHeight);
 
-    const int outerPaddingXPx = std::max(1, static_cast<int>(std::floor(MINIMAP_OUTER_PADDING * viewportWidth)));
-    const int outerPaddingYPx = std::max(1, static_cast<int>(std::floor(MINIMAP_OUTER_PADDING * viewportHeight)));
-    const int innerPaddingXPx = std::max(1, static_cast<int>(std::floor(MINIMAP_INNER_PADDING * viewportWidth)));
-    const int innerPaddingYPx = std::max(1, static_cast<int>(std::floor(MINIMAP_INNER_PADDING * viewportHeight)));
+    const int panelPaddingXPx = std::max(1, static_cast<int>(std::floor(MINIMAP_PANEL_PADDING * viewportWidth)));
+    const int panelPaddingYPx = std::max(1, static_cast<int>(std::floor(MINIMAP_PANEL_PADDING * viewportHeight)));
+    const int headerGapPx = std::max(1, static_cast<int>(std::floor(MINIMAP_HEADER_GAP * viewportHeight)));
     const int labelHeightPx = std::max(1, static_cast<int>(std::floor(MINIMAP_LABEL_HEIGHT * viewportHeight)));
     const int maxWidthPx = std::max(1, static_cast<int>(std::floor(MINIMAP_MAX_WIDTH * viewportWidth)));
     const int maxHeightPx = std::max(1, static_cast<int>(std::floor(MINIMAP_MAX_HEIGHT * viewportHeight)));
 
     const int availableGridWidthPx =
-        std::max(1, maxWidthPx - (outerPaddingXPx + innerPaddingXPx) * 2);
+        std::max(1, maxWidthPx - panelPaddingXPx * 2);
     const int availableGridHeightPx =
-        std::max(1, maxHeightPx - labelHeightPx - outerPaddingYPx * 2 - innerPaddingYPx);
+        std::max(1, maxHeightPx - panelPaddingYPx * 2 - labelHeightPx - headerGapPx);
     const int cellSizePx = std::max(
         1,
         static_cast<int>(std::floor(std::min(
@@ -271,8 +260,8 @@ void DungeonUiController::updateMinimapPanel(SceneContext& ctx, const DungeonUiS
 
     const int gridWidthPx = floor.width * cellSizePx;
     const int gridHeightPx = floor.height * cellSizePx;
-    const int containerWidthPx = gridWidthPx + (outerPaddingXPx + innerPaddingXPx) * 2;
-    const int containerHeightPx = gridHeightPx + labelHeightPx + outerPaddingYPx * 2 + innerPaddingYPx;
+    const int containerWidthPx = gridWidthPx + panelPaddingXPx * 2;
+    const int containerHeightPx = labelHeightPx + gridHeightPx + panelPaddingYPx * 2 + headerGapPx;
 
     const float gridWidth = toNormalizedWidth(gridWidthPx, viewportWidth);
     const float gridHeight = toNormalizedHeight(gridHeightPx, viewportHeight);
@@ -286,12 +275,6 @@ void DungeonUiController::updateMinimapPanel(SceneContext& ctx, const DungeonUiS
     rootLayout.offsetMin = {1.0f - UI_EDGE_MARGIN - containerWidth, UI_EDGE_MARGIN};
     rootLayout.fixedWidth = containerWidth;
     rootLayout.fixedHeight = containerHeight;
-    rootLayout.padding = {
-        MINIMAP_OUTER_PADDING,
-        MINIMAP_OUTER_PADDING,
-        MINIMAP_OUTER_PADDING,
-        MINIMAP_OUTER_PADDING
-    };
     rootLayout.clipMode = UiClipMode::ClipChildren;
     ctx.ui->setLayout(minimapRootHandle, rootLayout);
 
@@ -300,12 +283,24 @@ void DungeonUiController::updateMinimapPanel(SceneContext& ctx, const DungeonUiS
     gridLayout.widthMode = UiSizeMode::Fixed;
     gridLayout.heightMode = UiSizeMode::Fixed;
     gridLayout.offsetMin = {
-        toNormalizedWidth(outerPaddingXPx + innerPaddingXPx, viewportWidth),
-        toNormalizedHeight(outerPaddingYPx + labelHeightPx, viewportHeight)
+        toNormalizedWidth(panelPaddingXPx, viewportWidth),
+        toNormalizedHeight(panelPaddingYPx + labelHeightPx + headerGapPx, viewportHeight)
     };
     gridLayout.fixedWidth = gridWidth;
     gridLayout.fixedHeight = gridHeight;
     ctx.ui->setLayout(minimapGridHandle, gridLayout);
+
+    UiLayoutSpec labelLayout;
+    labelLayout.positionMode = UiPositionMode::Absolute;
+    labelLayout.widthMode = UiSizeMode::Fixed;
+    labelLayout.heightMode = UiSizeMode::Fixed;
+    labelLayout.offsetMin = {
+        toNormalizedWidth(panelPaddingXPx, viewportWidth),
+        toNormalizedHeight(panelPaddingYPx, viewportHeight)
+    };
+    labelLayout.fixedWidth = gridWidth;
+    labelLayout.fixedHeight = toNormalizedHeight(labelHeightPx, viewportHeight);
+    ctx.ui->setLayout(minimapLabelHandle, labelLayout);
 
     UiGridData gridData;
     gridData.columns = floor.width;
@@ -348,10 +343,10 @@ void DungeonUiController::updateMinimapPanel(SceneContext& ctx, const DungeonUiS
     playerLayout.heightMode = UiSizeMode::Fixed;
     playerLayout.offsetMin = {
         toNormalizedWidth(
-            outerPaddingXPx + innerPaddingXPx + state.playerTile.x * cellSizePx + markerOffsetPx,
+            panelPaddingXPx + state.playerTile.x * cellSizePx + markerOffsetPx,
             viewportWidth),
         toNormalizedHeight(
-            outerPaddingYPx + labelHeightPx + state.playerTile.y * cellSizePx + markerOffsetPx,
+            panelPaddingYPx + labelHeightPx + headerGapPx + state.playerTile.y * cellSizePx + markerOffsetPx,
             viewportHeight)
     };
     playerLayout.fixedWidth = toNormalizedWidth(markerSizePx, viewportWidth);
