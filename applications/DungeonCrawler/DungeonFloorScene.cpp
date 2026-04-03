@@ -36,8 +36,7 @@
 // Font + UI
 #include "BitmapFontLoader.h"
 #include "GtsDebugOverlay.h"
-#include "UiTree.h"
-#include "UiTextDesc.h"
+#include "UiSystem.h"
 
 // Dungeon systems
 #include "DungeonInputSystem.hpp"
@@ -142,14 +141,25 @@ void DungeonFloorScene::onLoad(SceneContext& ctx,
         GtsDebugOverlay::LINE_HEIGHT,
         true);
 
-    floorIndicatorHandle = ctx.ui->addText({
-        .text    = "FLOOR " + std::to_string(dungeon.getActiveFloor().floorNumber + 1),
-        .font    = &floorFont,
-        .x       = 0.02f,
-        .y       = 0.02f,
-        .scale   = GtsDebugOverlay::FONT_SCALE,
-        .visible = true
+    floorIndicatorHandle = ctx.ui->createNode(UiNodeType::Text);
+    UiLayoutSpec indicatorLayout;
+    indicatorLayout.positionMode = UiPositionMode::Absolute;
+    indicatorLayout.widthMode = UiSizeMode::Fixed;
+    indicatorLayout.heightMode = UiSizeMode::Fixed;
+    indicatorLayout.offsetMin = {0.02f, 0.02f};
+    ctx.ui->setLayout(floorIndicatorHandle, indicatorLayout);
+    ctx.ui->setState(floorIndicatorHandle, UiStateFlags{
+        .visible = true,
+        .enabled = false,
+        .interactable = false
     });
+    ctx.ui->setPayload(floorIndicatorHandle, UiTextData{
+        "FLOOR " + std::to_string(dungeon.getActiveFloor().floorNumber + 1),
+        {},
+        {1.0f, 1.0f, 1.0f, 1.0f},
+        GtsDebugOverlay::FONT_SCALE
+    });
+    ctx.ui->setTextFont(floorIndicatorHandle, &floorFont);
 
     // Systems — order: input → movement → camera → transition → debug cam → tile binding → enemy
     ecsWorld.addControllerSystem<DungeonInputSystem>();
@@ -179,13 +189,11 @@ void DungeonFloorScene::onUpdateControllers(SceneContext& ctx)
     if (floorSingleton.currentFloorIndex != lastDisplayedFloor)
     {
         lastDisplayedFloor = floorSingleton.currentFloorIndex;
-        ctx.ui->update(floorIndicatorHandle, UiTextDesc{
-            .text    = "FLOOR " + std::to_string(lastDisplayedFloor + 1),
-            .font    = &floorFont,
-            .x       = 0.02f,
-            .y       = 0.02f,
-            .scale   = GtsDebugOverlay::FONT_SCALE,
-            .visible = true
+        ctx.ui->setPayload(floorIndicatorHandle, UiTextData{
+            "FLOOR " + std::to_string(lastDisplayedFloor + 1),
+            {},
+            {1.0f, 1.0f, 1.0f, 1.0f},
+            GtsDebugOverlay::FONT_SCALE
         });
     }
 }

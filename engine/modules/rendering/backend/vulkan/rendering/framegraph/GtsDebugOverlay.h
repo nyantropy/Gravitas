@@ -13,7 +13,7 @@
 #include "GraphicsConstants.h"
 #include "GlyphLayoutEngine.h"
 
-// Self-contained debug overlay module owned by UiCommandExtractor.
+// Self-contained debug overlay module appended after game UI extraction.
 // Appends debug stat glyph quads to a UiCommandBuffer when enabled.
 // All rendering shares UiRenderStage's pipeline and draw call — no separate
 // Vulkan objects needed.
@@ -58,7 +58,7 @@ public:
     bool isEnabled()  const { return enabled; }
 
     // Appends debug stat glyph quads to the UiCommandBuffer.
-    // Called from UiCommandExtractor::extract after game UI quads.
+    // Called after game UI quads have been extracted into the command buffer.
     void appendToBuffer(UiCommandBuffer& buffer, const GtsFrameStats& stats) const
     {
         if (!initialised) return;

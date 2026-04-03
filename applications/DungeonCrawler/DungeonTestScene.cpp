@@ -19,8 +19,7 @@
 #include "PlayerMovementSystem.hpp"
 #include "ProceduralMeshComponent.h"
 #include "TransformComponent.h"
-#include "UiTextDesc.h"
-#include "UiTree.h"
+#include "UiSystem.h"
 
 #include "systems/DungeonInputSystem.hpp"
 
@@ -104,7 +103,9 @@ void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /
     floorEntities.clear();
     playerEntity = INVALID_ENTITY;
     playerMarkerEntity = INVALID_ENTITY;
-    overlayHandle = UI_INVALID_HANDLE;
+    overlayRootHandle = UI_INVALID_HANDLE;
+    overlayBackgroundHandle = UI_INVALID_HANDLE;
+    overlayTextHandle = UI_INVALID_HANDLE;
     stairLatchActive = false;
     latchedFloorIndex = -1;
     latchedStairPos = {-1, -1};
@@ -129,14 +130,59 @@ void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /
         GtsDebugOverlay::LINE_HEIGHT,
         true);
 
-    overlayHandle = ctx.ui->addText({
-        .text    = "FLOOR 1 / 4",
-        .font    = &overlayFont,
-        .x       = 0.02f,
-        .y       = 0.02f,
-        .scale   = GtsDebugOverlay::FONT_SCALE,
-        .visible = true
+    overlayRootHandle = ctx.ui->createNode(UiNodeType::Container);
+    overlayBackgroundHandle = ctx.ui->createNode(UiNodeType::Rect, overlayRootHandle);
+    overlayTextHandle = ctx.ui->createNode(UiNodeType::Text, overlayRootHandle);
+
+    UiLayoutSpec overlayRootLayout;
+    overlayRootLayout.positionMode = UiPositionMode::Absolute;
+    overlayRootLayout.widthMode    = UiSizeMode::Fixed;
+    overlayRootLayout.heightMode   = UiSizeMode::Fixed;
+    overlayRootLayout.offsetMin    = {0.015f, 0.015f};
+    overlayRootLayout.fixedWidth   = 0.34f;
+    overlayRootLayout.fixedHeight  = 0.07f;
+    overlayRootLayout.padding      = {0.012f, 0.012f, 0.012f, 0.012f};
+    ctx.ui->setLayout(overlayRootHandle, overlayRootLayout);
+    ctx.ui->setState(overlayRootHandle, UiStateFlags{
+        .visible = true,
+        .enabled = false,
+        .interactable = false
     });
+
+    UiLayoutSpec backgroundLayout;
+    backgroundLayout.positionMode = UiPositionMode::Anchored;
+    backgroundLayout.widthMode    = UiSizeMode::FromAnchors;
+    backgroundLayout.heightMode   = UiSizeMode::FromAnchors;
+    backgroundLayout.anchorMin    = {0.0f, 0.0f};
+    backgroundLayout.anchorMax    = {1.0f, 1.0f};
+    ctx.ui->setLayout(overlayBackgroundHandle, backgroundLayout);
+    ctx.ui->setState(overlayBackgroundHandle, UiStateFlags{
+        .visible = true,
+        .enabled = false,
+        .interactable = false
+    });
+    ctx.ui->setPayload(overlayBackgroundHandle, UiRectData{
+        {0.03f, 0.04f, 0.06f, 0.82f}
+    });
+
+    UiLayoutSpec textLayout;
+    textLayout.positionMode = UiPositionMode::Absolute;
+    textLayout.widthMode    = UiSizeMode::Fixed;
+    textLayout.heightMode   = UiSizeMode::Fixed;
+    textLayout.offsetMin    = {0.012f, 0.014f};
+    ctx.ui->setLayout(overlayTextHandle, textLayout);
+    ctx.ui->setState(overlayTextHandle, UiStateFlags{
+        .visible = true,
+        .enabled = false,
+        .interactable = false
+    });
+    ctx.ui->setPayload(overlayTextHandle, UiTextData{
+        "FLOOR: 1 / 4  CAM: PLAYER",
+        {},
+        {1.0f, 1.0f, 1.0f, 1.0f},
+        GtsDebugOverlay::FONT_SCALE
+    });
+    ctx.ui->setTextFont(overlayTextHandle, &overlayFont);
 
     ecsWorld.addControllerSystem<DungeonInputSystem>();
     ecsWorld.addControllerSystem<PlayerMovementSystem>();
@@ -345,19 +391,17 @@ void DungeonTestScene::syncPlayerMarker()
 
 void DungeonTestScene::refreshOverlay(SceneContext& ctx)
 {
-    if (overlayHandle == UI_INVALID_HANDLE) return;
+    if (overlayTextHandle == UI_INVALID_HANDLE) return;
     const bool debugCameraActive = ecsWorld.hasAny<DebugCameraStateComponent>()
         && ecsWorld.getSingleton<DebugCameraStateComponent>().active;
 
-    ctx.ui->update(overlayHandle, UiTextDesc{
-        .text    = "FLOOR: " + std::to_string(dungeon.getCurrentFloorIndex() + 1)
-                 + " / " + std::to_string(dungeon.getTotalFloorCount())
-                 + (debugCameraActive ? "  CAM: DEBUG" : "  CAM: PLAYER"),
-        .font    = &overlayFont,
-        .x       = 0.02f,
-        .y       = 0.02f,
-        .scale   = GtsDebugOverlay::FONT_SCALE,
-        .visible = true
+    ctx.ui->setPayload(overlayTextHandle, UiTextData{
+        "FLOOR: " + std::to_string(dungeon.getCurrentFloorIndex() + 1)
+            + " / " + std::to_string(dungeon.getTotalFloorCount())
+            + (debugCameraActive ? "  CAM: DEBUG" : "  CAM: PLAYER"),
+        {},
+        {1.0f, 1.0f, 1.0f, 1.0f},
+        GtsDebugOverlay::FONT_SCALE
     });
 }
 

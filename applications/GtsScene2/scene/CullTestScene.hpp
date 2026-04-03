@@ -17,8 +17,7 @@
 #include "CameraOverrideComponent.h"
 #include "GraphicsConstants.h"
 #include "GtsKey.h"
-#include "UiTree.h"
-#include "UiTextDesc.h"
+#include "UiSystem.h"
 #include "UiHandle.h"
 #include "BitmapFont.h"
 #include "BitmapFontLoader.h"
@@ -108,9 +107,25 @@ public:
             "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
             1.2f, true);
 
-        overlayHandle = ctx.ui->addText({.text="CULLING ON\nFRUSTUM LIVE",
-                                          .font=&overlayFont,
-                                          .x=0.01f, .y=0.01f, .scale=0.03f, .visible=true});
+        overlayHandle = ctx.ui->createNode(UiNodeType::Text);
+        UiLayoutSpec overlayLayout;
+        overlayLayout.positionMode = UiPositionMode::Absolute;
+        overlayLayout.widthMode = UiSizeMode::Fixed;
+        overlayLayout.heightMode = UiSizeMode::Fixed;
+        overlayLayout.offsetMin = {0.01f, 0.01f};
+        ctx.ui->setLayout(overlayHandle, overlayLayout);
+        ctx.ui->setState(overlayHandle, UiStateFlags{
+            .visible = true,
+            .enabled = false,
+            .interactable = false
+        });
+        ctx.ui->setPayload(overlayHandle, UiTextData{
+            "CULLING ON\nFRUSTUM LIVE",
+            {},
+            {1.0f, 1.0f, 1.0f, 1.0f},
+            0.03f
+        });
+        ctx.ui->setTextFont(overlayHandle, &overlayFont);
 
         // FreeFlyCamera must run before CameraBindingSystem (installed by installRendererFeature)
         ecsWorld.addControllerSystem<FreeFlyCamera>();
@@ -154,8 +169,12 @@ public:
             snprintf(buf, sizeof(buf), "CULLING %s\nFRUSTUM %s",
                 extractor->isFrustumCullingEnabled() ? "ON" : "OFF",
                 extractor->isFrustumFrozen()         ? "FROZEN" : "LIVE");
-            ctx.ui->update(overlayHandle, {.text=buf, .font=&overlayFont,
-                                           .x=0.01f, .y=0.01f, .scale=0.03f, .visible=true});
+            ctx.ui->setPayload(overlayHandle, UiTextData{
+                buf,
+                {},
+                {1.0f, 1.0f, 1.0f, 1.0f},
+                0.03f
+            });
         }
 
     }

@@ -3,6 +3,8 @@
 /.VSCodeCounter/
 /.claude/
 CLAUDE.md
+AGENTS.md
+/.codex/
 .bash_profile
 .bashrc
 .gitconfig

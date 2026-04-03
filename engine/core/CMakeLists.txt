@@ -63,6 +63,9 @@ target_include_directories(gravitas_core PUBLIC
     # Time
     "${CMAKE_CURRENT_SOURCE_DIR}/time"
 
+    # UI core model
+    "${CMAKE_CURRENT_SOURCE_DIR}/ui"
+
     # Bundled GLM (GlmConfig.h uses #include <glm.hpp>)
     "${CMAKE_SOURCE_DIR}/external/glm/glm"
 )

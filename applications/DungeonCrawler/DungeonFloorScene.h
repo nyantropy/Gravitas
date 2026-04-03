@@ -40,7 +40,7 @@ private:
 
     Entity playerEntity   = Entity{ std::numeric_limits<entity_id_type>::max() };
 
-    // Floor indicator UI — lifetime must exceed the UiTree's reference to font
+    // Floor indicator UI — lifetime must exceed the retained UI text binding
     BitmapFont floorFont;
     UiHandle   floorIndicatorHandle = UI_INVALID_HANDLE;
     int        lastDisplayedFloor   = 0;

@@ -27,7 +27,9 @@ private:
     Entity               playerEntity = Entity{ std::numeric_limits<entity_id_type>::max() };
     Entity               playerMarkerEntity = Entity{ std::numeric_limits<entity_id_type>::max() };
     BitmapFont           overlayFont;
-    UiHandle             overlayHandle = UI_INVALID_HANDLE;
+    UiHandle             overlayRootHandle = UI_INVALID_HANDLE;
+    UiHandle             overlayBackgroundHandle = UI_INVALID_HANDLE;
+    UiHandle             overlayTextHandle = UI_INVALID_HANDLE;
     bool                 stairLatchActive = false;
     int                  latchedFloorIndex = -1;
     glm::ivec2           latchedStairPos   = {-1, -1};

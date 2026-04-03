@@ -6,12 +6,11 @@
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
 
-#include "UiTree.h"
-#include "UiTextDesc.h"
+#include "UiSystem.h"
 #include "HudMarkerComponent.h"
 #include "DungeonGameStateComponent.h"
 
-// Controller system — updates UiTree text elements each frame from game state.
+// Controller system — updates retained UI text nodes each frame from game state.
 // Runs after CombatSystem so the HUD always reflects the current frame's state.
 class HudSystem : public ECSControllerSystem
 {
@@ -35,28 +34,34 @@ public:
         world.forEach<HudMarkerComponent>(
             [&](Entity, HudMarkerComponent& marker)
         {
-            UiTextDesc desc;
-            desc.font    = marker.font;
-            desc.x       = marker.x;
-            desc.y       = marker.y;
-            desc.scale   = marker.scale;
-            desc.visible = true;
+            std::string text;
+            bool visible = true;
 
             switch (marker.type)
             {
                 case HudMarkerComponent::Type::Health:
-                    desc.text = hpStr;
+                    text = hpStr;
                     break;
                 case HudMarkerComponent::Type::Status:
-                    desc.text = statusStr;
+                    text = statusStr;
                     break;
                 case HudMarkerComponent::Type::Message:
-                    desc.text    = state.message;
-                    desc.visible = !state.message.empty();
+                    text = state.message;
+                    visible = !state.message.empty();
                     break;
             }
 
-            ctx.ui->update(marker.uiHandle, desc);
+            ctx.ui->setState(marker.uiHandle, UiStateFlags{
+                .visible = visible,
+                .enabled = false,
+                .interactable = false
+            });
+            ctx.ui->setPayload(marker.uiHandle, UiTextData{
+                text,
+                {},
+                {1.0f, 1.0f, 1.0f, 1.0f},
+                marker.scale
+            });
         });
     }
 };
