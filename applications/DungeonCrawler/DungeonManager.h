@@ -1,40 +1,50 @@
 #pragma once
 
-#include <memory>
-#include <vector>
 #include <string>
+#include <vector>
+#include <cstdint>
 
-#include "GravitasEngine.hpp"
-#include "DungeonFloorScene.h"
 #include "generator/DungeonSpec.h"
 #include "generator/DungeonGenerator.h"
 
-// Configures and pre-generates all dungeon floors, then registers each as a
-// named scene with the engine.  Call setup() before engine.setActiveScene().
-//
-// Floor naming convention: "floor_0", "floor_1", "floor_2", "floor_3"
+// Runtime coordinator for a single dungeon run.
+// Owns the master seed, generates all floors in order, and carries the active
+// floor index for gameplay systems and scene-building code.
 class DungeonManager
 {
 public:
-    void setup(GravitasEngine& engine)
+    explicit DungeonManager(uint32_t masterSeed = 0x12345u, int totalFloors = 4)
+        : masterSeed(masterSeed)
+        , totalFloorCount(totalFloors)
     {
-        for (int i = 0; i < 4; ++i)
-        {
-            DungeonSpec    spec  = makeSpec(i);
-            GeneratedFloor floor = generator.generate(spec);
-
-            engine.registerScene("floor_" + std::to_string(i),
-                                  std::make_unique<DungeonFloorScene>(std::move(floor)));
-        }
     }
 
-    static DungeonSpec makeSpec(int floorNumber)
+    void generateRun();
+
+    int getTotalFloorCount() const { return totalFloorCount; }
+    int getCurrentFloorIndex() const { return currentFloorIndex; }
+    void setCurrentFloorIndex(int floorIndex);
+
+    const GeneratedFloor& getActiveFloor() const;
+    GeneratedFloor&       getActiveFloor();
+    const GeneratedFloor* getFloor(int floorIndex) const;
+    GeneratedFloor*       getFloor(int floorIndex);
+    const std::vector<GeneratedFloor>& getFloors() const { return floors; }
+
+    bool canMoveToFloor(int floorIndex) const;
+    bool moveToFloor(int floorIndex);
+    bool moveUp();
+    bool moveDown();
+
+    static DungeonSpec makeSpec(int floorNumber, int totalFloorCount, uint32_t floorSeed)
     {
         DungeonSpec spec;
         spec.floorNumber = floorNumber;
         spec.minRoomSize = 5;
         spec.maxRoomSize = 14;
-        spec.seed        = 0; // deterministic per-floor seed via generator
+        spec.seed        = floorSeed;
+        spec.placeStairUp   = floorNumber > 0;
+        spec.placeStairDown = floorNumber + 1 < totalFloorCount;
 
         switch (floorNumber)
         {
@@ -116,5 +126,11 @@ public:
     }
 
 private:
+    static uint32_t mixSeed(uint32_t baseSeed, uint32_t value);
+
+    uint32_t                     masterSeed      = 0;
+    int                          totalFloorCount = 4;
+    int                          currentFloorIndex = 0;
     DungeonGenerator generator;
+    std::vector<GeneratedFloor>  floors;
 };

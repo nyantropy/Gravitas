@@ -49,11 +49,6 @@
 #include "DungeonTileBindingSystem.hpp"
 #include "EnemyMovementSystem.hpp"
 
-// Dungeon spec/generator dependencies
-#include "generator/DungeonSpec.h"
-#include "generator/FloorBudget.h"
-#include "generator/RoomTemplate.h"
-
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 // Returns the first walkable neighbour of stairPos on dest, or dest.playerStart
@@ -71,80 +66,11 @@ static glm::ivec2 findWalkableNeighbor(const GeneratedFloor& dest, glm::ivec2 st
     return dest.playerStart;
 }
 
-static DungeonSpec makeFloorSpec(int floorNumber)
-{
-    DungeonSpec spec;
-    spec.floorNumber = floorNumber;
-    spec.minRoomSize = 5;
-    spec.maxRoomSize = 14;
-    spec.seed        = 0;
-
-    switch (floorNumber)
-    {
-        case 0: spec.width = 40; spec.height = 40;
-                spec.budget = {20, 4, 3}; break;
-        case 1: spec.width = 50; spec.height = 40;
-                spec.budget = {25, 6, 4}; break;
-        case 2: spec.width = 50; spec.height = 50;
-                spec.budget = {30, 8, 5}; break;
-        case 3: spec.width = 60; spec.height = 50;
-                spec.budget = {35, 10, 6}; break;
-        default: break;
-    }
-
-    // Vendor room 8×8
-    {
-        RoomTemplate vendor;
-        vendor.name = "vendor_room"; vendor.width = 8; vendor.height = 8; vendor.cost = 10;
-        vendor.tiles.assign(static_cast<size_t>(8 * 8), 0);
-        spec.templates.push_back(vendor);
-    }
-    // Treasure vault 6×6
-    {
-        RoomTemplate vault;
-        vault.name = "treasure_vault"; vault.width = 6; vault.height = 6; vault.cost = 8;
-        vault.tiles.assign(static_cast<size_t>(6 * 6), 4);
-        spec.templates.push_back(vault);
-    }
-    // Ambush room 10×6
-    {
-        RoomTemplate ambush;
-        ambush.name = "ambush_room"; ambush.width = 10; ambush.height = 6; ambush.cost = 6;
-        ambush.tiles.assign(static_cast<size_t>(10 * 6), 0);
-        ambush.tiles[3 * 10 + 0] = 5;
-        ambush.tiles[3 * 10 + 9] = 5;
-        spec.templates.push_back(ambush);
-    }
-
-    return spec;
-}
-
 // ─── Constructor ─────────────────────────────────────────────────────────────
 DungeonFloorScene::DungeonFloorScene()
+    : dungeon(0x12345u, 4)
 {
-    glm::ivec2 requiredUp = {-1, -1};
-    for (int i = 0; i < 4; ++i)
-    {
-        DungeonSpec spec        = makeFloorSpec(i);
-        spec.requiredStairUpPos = requiredUp;
-
-        GeneratedFloor floor = generator.generate(spec);
-
-        // Confirm stair reachability (debug only)
-        for (const auto& pos : floor.stairDownPos)
-            if (!floor.isWalkable(pos.x, pos.y))
-                printf("WARNING: Floor %d StairDown (%d,%d) not walkable\n", i, pos.x, pos.y);
-        for (const auto& pos : floor.stairUpPos)
-            if (!floor.isWalkable(pos.x, pos.y))
-                printf("WARNING: Floor %d StairUp (%d,%d) not walkable\n", i, pos.x, pos.y);
-
-        // Pass this floor's StairDown position as the next floor's required StairUp
-        requiredUp = floor.stairDownPos.empty()
-            ? glm::ivec2{-1, -1}
-            : floor.stairDownPos[0];
-
-        floors.push_back(std::move(floor));
-    }
+    dungeon.generateRun();
 }
 
 // ─── onLoad ──────────────────────────────────────────────────────────────────
@@ -188,21 +114,25 @@ void DungeonFloorScene::onLoad(SceneContext& ctx,
 
     // Build DungeonFloorSingleton with all four floors
     auto& floorSingleton = ecsWorld.createSingleton<DungeonFloorSingleton>();
-    for (int i = 0; i < 4; ++i)
-        floorSingleton.allFloors[i] = &floors[i];
-    floorSingleton.floor             = &floors[0];
-    floorSingleton.currentFloorIndex = 0;
+    const auto& floors = dungeon.getFloors();
+    floorSingleton.run               = &dungeon;
+    for (int i = 0; i < dungeon.getTotalFloorCount(); ++i)
+        floorSingleton.allFloors[i] = &floors[static_cast<size_t>(i)];
+    floorSingleton.floor             = &dungeon.getActiveFloor();
+    floorSingleton.currentFloorIndex = dungeon.getCurrentFloorIndex();
+    for (int i = 0; i < dungeon.getTotalFloorCount(); ++i)
+        floorSingleton.floorWorldOffset[i] = {0.0f, DungeonConstants::floorWorldY(i), 0.0f};
 
     // Spawn all four floors at their Y offsets
-    for (int i = 0; i < 4; ++i)
+    for (const GeneratedFloor& floor : floors)
     {
-        spawnFloorTiles(ctx, floors[i]);
-        spawnEnemies(ctx, floors[i]);
-        spawnRamps(ctx, floors[i]);
+        spawnFloorTiles(ctx, floor);
+        spawnEnemies(ctx, floor);
+        spawnRamps(ctx, floor);
     }
 
     // Spawn player on floor 0
-    spawnPlayer(ctx, floors[0].playerStart);
+    spawnPlayer(ctx, dungeon.getActiveFloor().playerStart);
     spawnDebugCamera(ctx);
 
     // Floor indicator
@@ -217,7 +147,7 @@ void DungeonFloorScene::onLoad(SceneContext& ctx,
         true);
 
     floorIndicatorHandle = ctx.ui->addText({
-        .text    = "FLOOR " + std::to_string(floors[0].floorNumber + 1),
+        .text    = "FLOOR " + std::to_string(dungeon.getActiveFloor().floorNumber + 1),
         .font    = &floorFont,
         .x       = 0.02f,
         .y       = 0.02f,
@@ -375,10 +305,11 @@ void DungeonFloorScene::spawnFloorTiles(SceneContext& /*ctx*/, const GeneratedFl
             // Floor transition trigger
             if (t == TileType::StairDown && floor.floorNumber < 3)
             {
-                const GeneratedFloor& dest = floors[floor.floorNumber + 1];
-                glm::ivec2 arrival = dest.playerStart;
-                if (!dest.stairUpPos.empty())
-                    arrival = findWalkableNeighbor(dest, dest.stairUpPos[0]);
+                const GeneratedFloor* dest = dungeon.getFloor(floor.floorNumber + 1);
+                if (!dest) continue;
+                glm::ivec2 arrival = dest->playerStart;
+                if (dest->hasStairUp())
+                    arrival = findWalkableNeighbor(*dest, dest->stairUpPos);
 
                 FloorTransitionTriggerComponent trig;
                 trig.type        = FloorTransitionType::Stairs;
@@ -388,10 +319,11 @@ void DungeonFloorScene::spawnFloorTiles(SceneContext& /*ctx*/, const GeneratedFl
             }
             else if (t == TileType::StairUp && floor.floorNumber > 0)
             {
-                const GeneratedFloor& dest = floors[floor.floorNumber - 1];
-                glm::ivec2 arrival = dest.playerStart;
-                if (!dest.stairDownPos.empty())
-                    arrival = findWalkableNeighbor(dest, dest.stairDownPos[0]);
+                const GeneratedFloor* dest = dungeon.getFloor(floor.floorNumber - 1);
+                if (!dest) continue;
+                glm::ivec2 arrival = dest->playerStart;
+                if (dest->hasStairDown())
+                    arrival = findWalkableNeighbor(*dest, dest->stairDownPos);
 
                 FloorTransitionTriggerComponent trig;
                 trig.type        = FloorTransitionType::Stairs;
@@ -454,47 +386,45 @@ void DungeonFloorScene::spawnEnemies(SceneContext& /*ctx*/, const GeneratedFloor
 // Spawns a visual ramp quad between this floor and the floor below at each
 // StairDown position. The quad is a tilted ProceduralMesh that spans the
 // vertical gap between the two floor levels.
-void DungeonFloorScene::spawnRamps(SceneContext& ctx, const GeneratedFloor& floor)
+void DungeonFloorScene::spawnRamps(SceneContext& /*ctx*/, const GeneratedFloor& floor)
 {
     // Only floors that have a floor below get a ramp
-    if (floor.floorNumber >= 3) return;
-    if (floor.stairDownPos.empty()) return;
+    if (floor.floorNumber + 1 >= dungeon.getTotalFloorCount()) return;
+    if (!floor.hasStairDown()) return;
 
     const std::string& RES    = GraphicsConstants::ENGINE_RESOURCES;
     const float        topY   = DungeonConstants::floorWorldY(floor.floorNumber);
     const float        botY   = DungeonConstants::floorWorldY(floor.floorNumber + 1);
     const float        height = topY - botY; // positive
 
-    for (const glm::ivec2& stairPos : floor.stairDownPos)
-    {
-        Entity e = ecsWorld.createEntity();
-        ecsWorld.addComponent(e, FloorEntityTag{});
+    const glm::ivec2 stairPos = floor.stairDownPos;
+    Entity e = ecsWorld.createEntity();
+    ecsWorld.addComponent(e, FloorEntityTag{});
 
-        // Ramp centre is halfway between the two floor levels
-        const float midY  = (topY + botY) * 0.5f;
-        const float centX = stairPos.x + 0.5f;
-        const float centZ = stairPos.y + 0.5f;
+    // Ramp centre is halfway between the two floor levels
+    const float midY  = (topY + botY) * 0.5f;
+    const float centX = stairPos.x + 0.5f;
+    const float centZ = stairPos.y + 0.5f;
 
-        // Tilt angle: arctan(height / width_in_tiles) — using a 1-tile horizontal footprint
-        const float rampAngle = std::atan2(height, 1.0f); // radians, rotate around Z
+    // Tilt angle: arctan(height / width_in_tiles) — using a 1-tile horizontal footprint
+    const float rampAngle = std::atan2(height, 1.0f); // radians, rotate around Z
 
-        ProceduralMeshComponent rampMesh;
-        rampMesh.width  = 1.2f;
-        rampMesh.height = std::sqrt(height * height + 1.0f * 1.0f) + 0.2f;
-        ecsWorld.addComponent(e, rampMesh);
+    ProceduralMeshComponent rampMesh;
+    rampMesh.width  = 1.2f;
+    rampMesh.height = std::sqrt(height * height + 1.0f * 1.0f) + 0.2f;
+    ecsWorld.addComponent(e, rampMesh);
 
-        MaterialComponent rampMat;
-        rampMat.texturePath = RES + "/textures/grey_texture.png";
-        rampMat.doubleSided = true;
-        ecsWorld.addComponent(e, rampMat);
+    MaterialComponent rampMat;
+    rampMat.texturePath = RES + "/textures/grey_texture.png";
+    rampMat.doubleSided = true;
+    ecsWorld.addComponent(e, rampMat);
 
-        TransformComponent rampTc;
-        rampTc.position   = {centX, midY, centZ};
-        // Lay the quad flat then tilt it: default quad is XY plane, we rotate
-        // around X to make it face up, then tilt by the ramp angle around Z.
-        rampTc.rotation.x = -glm::half_pi<float>() + rampAngle;
-        ecsWorld.addComponent(e, rampTc);
-    }
+    TransformComponent rampTc;
+    rampTc.position   = {centX, midY, centZ};
+    // Lay the quad flat then tilt it: default quad is XY plane, we rotate
+    // around X to make it face up, then tilt by the ramp angle around Z.
+    rampTc.rotation.x = -glm::half_pi<float>() + rampAngle;
+    ecsWorld.addComponent(e, rampTc);
 }
 
 // ─── spawnPlayer ─────────────────────────────────────────────────────────────
@@ -563,7 +493,7 @@ void DungeonFloorScene::spawnDebugCamera(SceneContext& ctx)
     // No FloorEntityTag — debug camera persists across floor transitions
 
     // Use floor 0 dimensions for camera centering; position high enough to see all floors
-    const GeneratedFloor& f0 = floors[0];
+    const GeneratedFloor& f0 = dungeon.getFloors().front();
 
     CameraDescriptionComponent dbgDesc;
     dbgDesc.active      = false;

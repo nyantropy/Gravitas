@@ -32,8 +32,8 @@ struct GeneratedFloor
     std::vector<GeneratedRoom> rooms;
     std::vector<glm::ivec2>    enemySpawns;
     std::vector<glm::ivec2>    treasureSpawns;
-    std::vector<glm::ivec2>    stairDownPos;
-    std::vector<glm::ivec2>    stairUpPos;
+    glm::ivec2                 stairDownPos = {-1, -1};
+    glm::ivec2                 stairUpPos   = {-1, -1};
     glm::ivec2                 playerStart = {1, 1};
 
     TileType get(int x, int z) const       { return tiles[z * width + x]; }
@@ -48,5 +48,15 @@ struct GeneratedFloor
     {
         if (!inBounds(x, z)) return false;
         return get(x, z) != TileType::Wall;
+    }
+
+    bool hasStairUp() const
+    {
+        return stairUpPos.x >= 0 && stairUpPos.y >= 0;
+    }
+
+    bool hasStairDown() const
+    {
+        return stairDownPos.x >= 0 && stairDownPos.y >= 0;
     }
 };

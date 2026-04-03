@@ -10,8 +10,8 @@
 #include "CameraDescriptionComponent.h"
 #include "DungeonInputComponent.h"
 #include "DungeonFloorSingleton.h"
+#include "DebugCameraStateComponent.h"
 #include "FloorTransitionStateComponent.h"
-#include "DungeonConstants.h"
 
 // Handles player grid movement and facing turns.
 //
@@ -26,6 +26,9 @@ public:
         // Lock all player input during floor transitions
         const auto& ts = world.getSingleton<FloorTransitionStateComponent>();
         if (ts.active) return;
+        if (world.hasAny<DebugCameraStateComponent>()
+            && world.getSingleton<DebugCameraStateComponent>().active)
+            return;
 
         const float dt           = ctx.time->unscaledDeltaTime;
         auto&       input        = world.getSingleton<DungeonInputComponent>();
@@ -83,8 +86,8 @@ public:
 
                 if (floorSingleton.floor && floorSingleton.floor->isWalkable(newX, newZ))
                 {
-                    const float floorY = DungeonConstants::floorWorldY(floorSingleton.currentFloorIndex);
-                    const glm::vec3 newPos = {newX + 0.5f, floorY + 0.5f, newZ + 0.5f};
+                    const glm::vec3& offset = floorSingleton.floorWorldOffset[floorSingleton.currentFloorIndex];
+                    const glm::vec3 newPos = {newX + offset.x + 0.5f, offset.y + 0.5f, newZ + offset.z + 0.5f};
                     player.gridX   = newX;
                     player.gridZ   = newZ;
                     player.fromYaw = facingToYaw(player.facing);

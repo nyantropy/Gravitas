@@ -37,7 +37,8 @@ private:
     bool       tryPlaceTemplate(const RoomTemplate& tmpl, int leafIdx);
     void       spendEnemyBudget();
     void       spendTreasureBudget();
-    void       placeStairs(int floorNumber, int totalFloors);
+    void       placeStairs();
+    glm::ivec2 choosePlayerStart() const;
 
     struct StairCandidate {
         glm::ivec2 pos;

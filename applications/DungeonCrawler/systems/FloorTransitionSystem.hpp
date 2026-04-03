@@ -13,6 +13,7 @@
 #include "CameraDescriptionComponent.h"
 #include "TransformComponent.h"
 #include "DungeonFloorSingleton.h"
+#include "DungeonManager.h"
 
 // Single owner of all floor-transition logic.
 // When the player steps onto a FloorTransitionTriggerComponent tile:
@@ -63,8 +64,11 @@ private:
         {
             if (ts.active) return;
 
-            const int tx = static_cast<int>(triggerTc.position.x);
-            const int tz = static_cast<int>(triggerTc.position.z);
+            // Subtract the current floor's world offset to convert the trigger's
+            // world position back to local grid coordinates for comparison.
+            const glm::vec3& curOffset = sg.floorWorldOffset[sg.currentFloorIndex];
+            const int tx = static_cast<int>(triggerTc.position.x - curOffset.x);
+            const int tz = static_cast<int>(triggerTc.position.z - curOffset.z);
             if (playerX != tx || playerZ != tz) return;
 
             if (trigger.targetFloor < 0 || trigger.targetFloor > 3 ||
@@ -76,11 +80,11 @@ private:
             if (arrival.x < 0)
                 arrival = dest->playerStart;
 
-            const float destY = floorWorldY(trigger.targetFloor);
+            const glm::vec3& destOffset = sg.floorWorldOffset[trigger.targetFloor];
             const glm::vec3 arrivalWorld = {
-                arrival.x + 0.5f,
-                destY + 0.5f,
-                arrival.y + 0.5f
+                arrival.x + destOffset.x + 0.5f,
+                destOffset.y + 0.5f,
+                arrival.y + destOffset.z + 0.5f
             };
 
             ts.active      = true;
@@ -106,6 +110,7 @@ private:
 
             sg.floor             = dest;
             sg.currentFloorIndex = trigger.targetFloor;
+            if (sg.run) sg.run->moveToFloor(trigger.targetFloor);
         });
     }
 
@@ -121,10 +126,13 @@ private:
         switch (type)
         {
         case FloorTransitionType::Stairs:
-            // Arc forward and down — follows ramp geometry
-            ts.lookAtStart = from + glm::vec3(1.0f, -0.4f, 0.0f);
-            ts.lookAtEnd   = to   + glm::vec3(1.0f,  0.0f, 0.0f);
+        {
+            // Look in the direction of travel — works for both A→B and B→A
+            const glm::vec3 dir = glm::normalize(to - from);
+            ts.lookAtStart = from + dir;
+            ts.lookAtEnd   = to   + dir;
             break;
+        }
 
         case FloorTransitionType::Hole:
             // Fall straight down, looking down
@@ -158,14 +166,10 @@ private:
         switch (ts.type)
         {
         case FloorTransitionType::Stairs:
-        {
-            // Quadratic bezier arc through ramp space
-            glm::vec3 mid = (ts.camStart + ts.camEnd) * 0.5f;
-            mid += glm::vec3(1.5f, 0.0f, 0.0f);
-            camPos = quadBezier(ts.camStart, mid, ts.camEnd, ease);
+            // Linear path follows the gentle ramp slope
+            camPos = glm::mix(ts.camStart, ts.camEnd, ease);
             lookAt = glm::mix(ts.lookAtStart, ts.lookAtEnd, ease);
             break;
-        }
         case FloorTransitionType::Hole:
             // Linear drop
             camPos = glm::mix(ts.camStart, ts.camEnd, ease);
@@ -204,16 +208,4 @@ private:
         }
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────
-    static glm::vec3 quadBezier(const glm::vec3& p0, const glm::vec3& p1,
-                                  const glm::vec3& p2, float t)
-    {
-        const float u = 1.0f - t;
-        return u*u*p0 + 2.0f*u*t*p1 + t*t*p2;
-    }
-
-    static float floorWorldY(int floorNumber)
-    {
-        return -static_cast<float>(floorNumber) * 4.0f;
-    }
 };

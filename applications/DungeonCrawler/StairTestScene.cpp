@@ -22,7 +22,6 @@
 #include "FloorEntityTag.h"
 #include "FloorTransitionStateComponent.h"
 #include "FloorTransitionTriggerComponent.h"
-#include "DungeonConstants.h"
 
 // Dungeon systems
 #include "DungeonInputSystem.hpp"
@@ -49,6 +48,10 @@ void StairTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /*d
     sg.allFloors[1]      = &testFloors[1];
     sg.floor             = &testFloors[0];
     sg.currentFloorIndex = 0;
+
+    // World-space origin per floor: (X offset, base Y, Z offset)
+    sg.floorWorldOffset[0] = {0.0f,  0.0f, 0.0f};
+    sg.floorWorldOffset[1] = {14.0f, -2.0f, 0.0f};
 
     spawnFloor(0);
     spawnFloor(1);
@@ -96,7 +99,7 @@ void StairTestScene::onUpdateControllers(SceneContext& ctx)
 // ─── buildTestFloors ─────────────────────────────────────────────────────────
 void StairTestScene::buildTestFloors()
 {
-    // Floor 0
+    // Floor A: 10×10, interior walkable, border walls except transition tile at east edge (9,5)
     testFloors[0].floorNumber = 0;
     testFloors[0].width       = 10;
     testFloors[0].height      = 10;
@@ -106,38 +109,35 @@ void StairTestScene::buildTestFloors()
     for (int z = 0; z < 10; ++z)
         for (int x = 0; x < 10; ++x)
         {
-            const int v = FLOOR0[z][x];
-            TileType t = (v == 0) ? TileType::Floor
-                       : (v == 2) ? TileType::StairDown
-                       :             TileType::Wall;
-            testFloors[0].set(x, z, t);
+            const bool isInterior      = (x >= 1 && x <= 8 && z >= 1 && z <= 8);
+            const bool isTransitionTile = (x == 9 && z == 5);
+            if (isInterior || isTransitionTile)
+                testFloors[0].set(x, z, TileType::Floor);
         }
-    testFloors[0].stairDownPos.push_back({8, 5});
 
-    // Floor 1
+    // Floor B: 10×10, interior walkable, border walls except transition tile at west edge (0,5)
     testFloors[1].floorNumber = 1;
     testFloors[1].width       = 10;
     testFloors[1].height      = 10;
     testFloors[1].tiles.assign(100, TileType::Wall);
-    testFloors[1].playerStart = {2, 5};
+    testFloors[1].playerStart = {1, 5};
 
     for (int z = 0; z < 10; ++z)
         for (int x = 0; x < 10; ++x)
         {
-            const int v = FLOOR1[z][x];
-            TileType t = (v == 0) ? TileType::Floor
-                       : (v == 3) ? TileType::StairUp
-                       :             TileType::Wall;
-            testFloors[1].set(x, z, t);
+            const bool isInterior      = (x >= 1 && x <= 8 && z >= 1 && z <= 8);
+            const bool isTransitionTile = (x == 0 && z == 5);
+            if (isInterior || isTransitionTile)
+                testFloors[1].set(x, z, TileType::Floor);
         }
-    testFloors[1].stairUpPos.push_back({1, 5});
 }
 
 // ─── spawnFloor ──────────────────────────────────────────────────────────────
 void StairTestScene::spawnFloor(int floorIdx)
 {
-    const GeneratedFloor& fl    = testFloors[floorIdx];
-    const float           baseY = -static_cast<float>(floorIdx) * FLOOR_Y;
+    const GeneratedFloor& fl      = testFloors[floorIdx];
+    const float           baseY   = (floorIdx == 0) ? 0.0f : -2.0f;
+    const float           xOffset = (floorIdx == 0) ? 0.0f : 14.0f;
 
     for (int z = 0; z < fl.height; ++z)
     {
@@ -155,7 +155,7 @@ void StairTestScene::spawnFloor(int floorIdx)
             ecsWorld.addComponent(e, tile);
 
             TransformComponent tc;
-            tc.position   = {x + 0.5f, baseY, z + 0.5f};
+            tc.position   = {x + xOffset + 0.5f, baseY, z + 0.5f};
             tc.rotation.x = -glm::half_pi<float>();
             ecsWorld.addComponent(e, tc);
 
@@ -164,22 +164,25 @@ void StairTestScene::spawnFloor(int floorIdx)
             bc.max = { 0.5f,  0.5f,  0.02f};
             ecsWorld.addComponent(e, bc);
 
-            // Stair-down at (8,5) on floor 0 → arrive at (2,5) on floor 1
-            if (t == TileType::StairDown)
+            // Transition trigger on east edge of Floor A at (9,5)
+            // Arrival: one step inside Floor B → local (1,5), world (15.5, -1.5, 5.5)
+            if (floorIdx == 0 && x == 9 && z == 5)
             {
                 FloorTransitionTriggerComponent trig;
                 trig.type        = FloorTransitionType::Stairs;
                 trig.targetFloor = 1;
-                trig.arrivalGrid = {2, 5};
+                trig.arrivalGrid = {1, 5};
                 ecsWorld.addComponent(e, trig);
             }
-            // Stair-up at (1,5) on floor 1 → arrive at (7,5) on floor 0
-            else if (t == TileType::StairUp)
+
+            // Transition trigger on west edge of Floor B at (0,5)
+            // Arrival: one step inside Floor A → local (8,5), world (8.5, 0.5, 5.5)
+            if (floorIdx == 1 && x == 0 && z == 5)
             {
                 FloorTransitionTriggerComponent trig;
                 trig.type        = FloorTransitionType::Stairs;
                 trig.targetFloor = 0;
-                trig.arrivalGrid = {7, 5};
+                trig.arrivalGrid = {8, 5};
                 ecsWorld.addComponent(e, trig);
             }
         }
@@ -187,40 +190,53 @@ void StairTestScene::spawnFloor(int floorIdx)
 }
 
 // ─── spawnRamp ───────────────────────────────────────────────────────────────
-// Visual ramp at the floor 0 stair-down position, tilted to span the
-// vertical gap down to floor 1.
+// Single quad spanning the open space between Floor A and Floor B.
+// Horizontal span: 4 tiles (world X 10→14), vertical drop: 2 units (Y 0→-2),
+// depth: 5 tiles (Z 2→7). Textured orange for visibility.
 void StairTestScene::spawnRamp()
 {
-    const float topY      = 0.0f;
-    const float botY      = -FLOOR_Y;
-    const float height    = topY - botY;
-    const float rampAngle = std::atan2(height, 1.0f); // radians
+    constexpr float hSpan = 4.0f; // horizontal distance
+    constexpr float yDrop = 2.0f; // vertical drop
+    constexpr float depth = 5.0f; // ramp depth along Z
 
-    Entity e = ecsWorld.createEntity();
-    ecsWorld.addComponent(e, FloorEntityTag{});
+    const float rampLen = std::sqrt(hSpan * hSpan + yDrop * yDrop);
+    const float angle   = std::atan2(yDrop, hSpan); // radians
+
+    Entity ramp = ecsWorld.createEntity();
+    ecsWorld.addComponent(ramp, FloorEntityTag{});
 
     ProceduralMeshComponent mesh;
-    mesh.width  = 1.2f;
-    mesh.height = std::sqrt(height * height + 1.0f) + 0.2f;
-    ecsWorld.addComponent(e, mesh);
+    mesh.width  = rampLen; // along the slope
+    mesh.height = depth;   // into the screen (Z axis)
+    ecsWorld.addComponent(ramp, mesh);
 
     MaterialComponent mat;
-    mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png";
+    mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/orange_texture.png";
     mat.doubleSided = true;
-    ecsWorld.addComponent(e, mat);
+    ecsWorld.addComponent(ramp, mat);
 
+    // Center: X=12 (midpoint of 10..14), Y=-1 (midpoint of 0..-2), Z=4.5 (midpoint of 2..7)
+    // getModelMatrix applies rotations X→Y→Z, so vertex sees Z first, then Y, then X.
+    // To "first lay flat (Rx(-pi/2)), then tilt slope (Rz(-a))" in world space we need the
+    // combined matrix Rz(-a)*Rx(-pi/2), which factors as Rx(-pi/2)*Ry(+a) in XYZ order.
     TransformComponent tc;
-    tc.position   = {8.5f, (topY + botY) * 0.5f, 5.5f};
-    tc.rotation.x = -glm::half_pi<float>() + rampAngle;
-    ecsWorld.addComponent(e, tc);
+    tc.position   = {12.0f, -1.0f, 4.5f};
+    tc.rotation.x = -glm::half_pi<float>(); // lay quad flat (same as floor tiles)
+    tc.rotation.y = angle;                   // gentle downward slope: right side (Floor B) goes down
+    ecsWorld.addComponent(ramp, tc);
+
+    BoundsComponent bc;
+    bc.min = {-rampLen * 0.5f, -depth * 0.5f, -0.1f};
+    bc.max = { rampLen * 0.5f,  depth * 0.5f,  0.1f};
+    ecsWorld.addComponent(ramp, bc);
 }
 
 // ─── spawnPlayer ─────────────────────────────────────────────────────────────
 void StairTestScene::spawnPlayer(SceneContext& ctx)
 {
-    const float worldX = 2.5f;
-    const float worldY = DungeonConstants::floorWorldY(0) + 0.5f;
-    const float worldZ = 5.5f;
+    constexpr float worldX = 2.5f;
+    constexpr float worldY = 0.5f; // Floor A base Y=0, eye height=0.5
+    constexpr float worldZ = 5.5f;
 
     playerEntity = ecsWorld.createEntity();
 
@@ -244,7 +260,7 @@ void StairTestScene::spawnPlayer(SceneContext& ctx)
     cam.aspectRatio = ctx.windowAspectRatio;
     cam.nearClip    = 0.05f;
     cam.farClip     = 100.0f;
-    cam.target      = {worldX + 1.0f, worldY, worldZ};
+    cam.target      = {3.5f, worldY, worldZ}; // looking east (+X)
     ecsWorld.addComponent(playerEntity, cam);
 
     // Visible billboard marker (shown in debug bird's-eye view)
@@ -279,12 +295,12 @@ void StairTestScene::spawnDebugCamera(SceneContext& ctx)
     cam.fov         = glm::radians(60.0f);
     cam.aspectRatio = ctx.windowAspectRatio;
     cam.nearClip    = 0.1f;
-    cam.farClip     = 200.0f;
-    cam.target      = {5.0f, -2.0f, 5.0f};
+    cam.farClip     = 100.0f;
+    cam.target      = {12.0f, -1.0f, 5.0f}; // looking at ramp center
     ecsWorld.addComponent(debugCamEntity, cam);
 
     TransformComponent tc;
-    tc.position = {5.0f, 20.0f, 5.0f};
+    tc.position = {12.0f, 20.0f, 5.0f}; // above the ramp center
     ecsWorld.addComponent(debugCamEntity, tc);
 
     ecsWorld.addComponent(debugCamEntity, CameraControlOverrideComponent{});

@@ -12,8 +12,9 @@ enum class DungeonAction
     StrafeRight,
     TurnLeft,           // Q — rotate facing 90° counter-clockwise
     TurnRight,          // E — rotate facing 90° clockwise
-    ToggleDebugCamera,  // T — swap between player and debug free-fly camera
+    ToggleDebugCamera,  // C — swap between player and debug free-fly camera
     Attack,             // Space — strike the cell directly ahead
+    RegenerateDungeon,  // V — regenerate the full dungeon run
 
     // sentinel — always keep last
     ACTION_COUNT

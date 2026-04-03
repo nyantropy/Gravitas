@@ -10,7 +10,7 @@
 #include "UiHandle.h"
 
 #include "GeneratedFloor.h"
-#include "generator/DungeonGenerator.h"
+#include "DungeonManager.h"
 #include "DungeonConstants.h"
 
 #include <vector>
@@ -35,9 +35,8 @@ public:
     bool enableCeiling = false;
 
 private:
-    // All floors generated at construction; all spawned simultaneously in onLoad.
-    DungeonGenerator            generator;
-    std::vector<GeneratedFloor> floors;
+    // Runtime dungeon state shared across the scene.
+    DungeonManager              dungeon;
 
     Entity playerEntity   = Entity{ std::numeric_limits<entity_id_type>::max() };
     Entity debugCamEntity = Entity{ std::numeric_limits<entity_id_type>::max() };

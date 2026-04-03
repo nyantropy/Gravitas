@@ -5,6 +5,7 @@
 #include "GravitasEngine.hpp"
 #include "EngineConfig.h"
 #include "DungeonFloorScene.h"
+#include "DungeonTestScene.h"
 #include "StairTestScene.h"
 
 int main()
@@ -21,7 +22,8 @@ int main()
 
     engine.registerScene("stair_test", std::make_unique<StairTestScene>());
     engine.registerScene("dungeon",    std::make_unique<DungeonFloorScene>());
-    engine.setActiveScene("stair_test");
+    engine.registerScene("dungeon_test", std::make_unique<DungeonTestScene>());
+    engine.setActiveScene("dungeon_test");
     engine.start();
 
     return EXIT_SUCCESS;

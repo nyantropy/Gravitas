@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <queue>
 #include <cstdio>
 
@@ -63,18 +64,17 @@ GeneratedFloor DungeonGenerator::generate(const DungeonSpec& specIn)
     // Place budgeted content (templates, enemies, treasure)
     placeBudgetedContent();
 
-    // Place stairs (4 total floors)
-    placeStairs(specIn.floorNumber, 4);
+    // Set a stable player start before stair placement so stair heuristics have
+    // a sensible anchor on every floor.
+    f.playerStart = choosePlayerStart();
 
-    // Pick player start: near stairUp if present, else center of first room
-    if (!f.stairUpPos.empty())
+    // Place floor-local transitions according to the spec prepared by the run manager.
+    placeStairs();
+
+    // Prefer spawning near the incoming stair when present.
+    if (f.hasStairUp())
     {
-        f.playerStart = f.stairUpPos[0];
-    }
-    else if (!f.rooms.empty())
-    {
-        const GeneratedRoom& r = f.rooms[0];
-        f.playerStart = { r.x + r.width / 2, r.y + r.height / 2 };
+        f.playerStart = f.stairUpPos;
     }
 
     // Connectivity validation — flood-fill from playerStart and warn if the
@@ -428,12 +428,12 @@ void DungeonGenerator::placeBudgetedContent()
 }
 
 // ─── Stairs ────────────────────────────────────────────────────────────────
-void DungeonGenerator::placeStairs(int floorNumber, int totalFloors)
+void DungeonGenerator::placeStairs()
 {
     const glm::ivec2 start = floor->playerStart;
 
     // ── StairUp ─────────────────────────────────────────────────────────
-    if (floorNumber > 0)
+    if (spec->placeStairUp)
     {
         glm::ivec2 upPos;
 
@@ -451,11 +451,11 @@ void DungeonGenerator::placeStairs(int floorNumber, int totalFloors)
         }
 
         floor->set(upPos.x, upPos.y, TileType::StairUp);
-        floor->stairUpPos.push_back(upPos);
+        floor->stairUpPos = upPos;
     }
 
     // ── StairDown ───────────────────────────────────────────────────────
-    if (floorNumber < totalFloors - 1)
+    if (spec->placeStairDown)
     {
         const float minDist = static_cast<float>(
             std::min(spec->width, spec->height)) * 0.4f;
@@ -463,9 +463,9 @@ void DungeonGenerator::placeStairs(int floorNumber, int totalFloors)
         auto candidates = collectStairCandidates(start, minDist);
 
         // Filter candidates too close to StairUp
-        if (!floor->stairUpPos.empty())
+        if (floor->hasStairUp())
         {
-            const glm::ivec2& upPos = floor->stairUpPos[0];
+            const glm::ivec2& upPos = floor->stairUpPos;
             candidates.erase(
                 std::remove_if(candidates.begin(), candidates.end(),
                     [&](const StairCandidate& c)
@@ -482,8 +482,19 @@ void DungeonGenerator::placeStairs(int floorNumber, int totalFloors)
 
         glm::ivec2 downPos = weightedRandomPick(candidates);
         floor->set(downPos.x, downPos.y, TileType::StairDown);
-        floor->stairDownPos.push_back(downPos);
+        floor->stairDownPos = downPos;
     }
+}
+
+glm::ivec2 DungeonGenerator::choosePlayerStart() const
+{
+    if (!floor->rooms.empty())
+    {
+        const GeneratedRoom& r = floor->rooms[0];
+        return { r.x + r.width / 2, r.y + r.height / 2 };
+    }
+
+    return {1, 1};
 }
 
 std::vector<DungeonGenerator::StairCandidate>
