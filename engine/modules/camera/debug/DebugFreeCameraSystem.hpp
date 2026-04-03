@@ -34,7 +34,7 @@ public:
         if (ctx.actions->isActionPressed(GtsAction::ToggleDebugCamera))
         {
             if (!state.active) activate(world, ctx, state);
-            else deactivate(world, state);
+            else deactivate(world, ctx, state);
         }
 
         if (!state.active) return;
@@ -130,21 +130,60 @@ private:
         dstDesc.target    = srcPos + forward;
         srcDesc.active    = false;
 
+        if (world.hasComponent<CameraGpuComponent>(currentCamera))
+        {
+            auto& srcGpu = world.getComponent<CameraGpuComponent>(currentCamera);
+            srcGpu.active = false;
+            srcGpu.dirty  = true;
+        }
+
         yaw   = std::atan2(-forward.x, -forward.z);
         pitch = glm::clamp(std::asin(glm::clamp(forward.y, -1.0f, 1.0f)), MIN_PITCH, MAX_PITCH);
     }
 
-    void deactivate(ECSWorld& world, DebugCameraStateComponent& state)
+    void deactivate(ECSWorld& world, SceneContext& ctx, DebugCameraStateComponent& state)
     {
         state.active = false;
 
         if (world.hasComponent<CameraDescriptionComponent>(state.debugCameraEntity))
             world.getComponent<CameraDescriptionComponent>(state.debugCameraEntity).active = false;
 
+        if (world.hasComponent<CameraGpuComponent>(state.debugCameraEntity))
+        {
+            auto& debugGpu = world.getComponent<CameraGpuComponent>(state.debugCameraEntity);
+            debugGpu.active = false;
+            debugGpu.dirty  = true;
+        }
+
         if (state.previousActiveCamera != invalidEntity()
             && world.hasComponent<CameraDescriptionComponent>(state.previousActiveCamera))
         {
-            world.getComponent<CameraDescriptionComponent>(state.previousActiveCamera).active = true;
+            auto& restoredDesc = world.getComponent<CameraDescriptionComponent>(state.previousActiveCamera);
+            restoredDesc.active      = true;
+            restoredDesc.aspectRatio = ctx.windowAspectRatio;
+
+            if (world.hasComponent<CameraGpuComponent>(state.previousActiveCamera))
+            {
+                auto& restoredGpu = world.getComponent<CameraGpuComponent>(state.previousActiveCamera);
+                restoredGpu.active = true;
+                restoredGpu.dirty  = true;
+
+                if (!world.hasComponent<CameraOverrideComponent>(state.previousActiveCamera))
+                {
+                    const glm::vec3 restoredPos = world.hasComponent<TransformComponent>(state.previousActiveCamera)
+                        ? world.getComponent<TransformComponent>(state.previousActiveCamera).position
+                        : glm::vec3(0.0f);
+
+                    restoredGpu.viewMatrix = glm::lookAt(restoredPos,
+                                                         restoredDesc.target,
+                                                         restoredDesc.up);
+                    restoredGpu.projMatrix = glm::perspective(restoredDesc.fov,
+                                                              restoredDesc.aspectRatio,
+                                                              restoredDesc.nearClip,
+                                                              restoredDesc.farClip);
+                    restoredGpu.projMatrix[1][1] *= -1.0f;
+                }
+            }
         }
 
         state.previousActiveCamera = invalidEntity();
