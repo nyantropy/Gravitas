@@ -24,7 +24,6 @@ class DungeonInputSystem : public ECSControllerSystem
         actionManager.bind(DungeonAction::StrafeRight,       GtsKey::D);
         actionManager.bind(DungeonAction::TurnLeft,          GtsKey::Q);
         actionManager.bind(DungeonAction::TurnRight,         GtsKey::E);
-        actionManager.bind(DungeonAction::ToggleDebugCamera, GtsKey::C);
         actionManager.bind(DungeonAction::Attack,            GtsKey::Space);
         actionManager.bind(DungeonAction::RegenerateDungeon, GtsKey::V);
     }
@@ -47,7 +46,6 @@ public:
         input.strafeRight       = actionManager.isActionActive(DungeonAction::StrafeRight);
         input.turnLeft          = actionManager.isActionActive(DungeonAction::TurnLeft);
         input.turnRight         = actionManager.isActionActive(DungeonAction::TurnRight);
-        input.toggleDebugCamera = actionManager.isActionPressed(DungeonAction::ToggleDebugCamera);
         input.attackPressed     = actionManager.isActionPressed(DungeonAction::Attack);
         input.regeneratePressed = actionManager.isActionPressed(DungeonAction::RegenerateDungeon);
     }

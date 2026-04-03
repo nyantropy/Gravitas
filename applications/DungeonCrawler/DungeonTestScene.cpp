@@ -6,11 +6,9 @@
 #include "BitmapFontLoader.h"
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
-#include "CameraControlOverrideComponent.h"
 #include "DebugCameraStateComponent.h"
 #include "DungeonConstants.h"
 #include "DungeonFloorSingleton.h"
-#include "DungeonFreeFlyCamera.hpp"
 #include "DungeonInputComponent.h"
 #include "FloorTransitionStateComponent.h"
 #include "GtsDebugOverlay.h"
@@ -105,24 +103,20 @@ void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /
     ecsWorld.clear();
     floorEntities.clear();
     playerEntity = INVALID_ENTITY;
-    debugCameraEntity = INVALID_ENTITY;
     playerMarkerEntity = INVALID_ENTITY;
     overlayHandle = UI_INVALID_HANDLE;
-    debugCameraActive = false;
     stairLatchActive = false;
     latchedFloorIndex = -1;
     latchedStairPos = {-1, -1};
 
     dungeon.generateRun();
 
-    ecsWorld.createSingleton<DebugCameraStateComponent>();
     ecsWorld.createSingleton<DungeonInputComponent>();
     ecsWorld.createSingleton<FloorTransitionStateComponent>();
 
     initializeDungeonSingleton();
     buildFloorEntities(dungeon.getActiveFloor());
     spawnPlayer(ctx, dungeon.getActiveFloor().playerStart);
-    spawnDebugCamera(ctx);
     spawnPlayerMarker();
 
     overlayFont = BitmapFontLoader::load(
@@ -147,7 +141,6 @@ void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /
     ecsWorld.addControllerSystem<DungeonInputSystem>();
     ecsWorld.addControllerSystem<PlayerMovementSystem>();
     ecsWorld.addControllerSystem<PlayerCameraSystem>();
-    ecsWorld.addControllerSystem<DungeonFreeFlyCamera>();
 
     installRendererFeature();
 }
@@ -161,7 +154,6 @@ void DungeonTestScene::onUpdateControllers(SceneContext& ctx)
 {
     ecsWorld.updateControllers(ctx);
 
-    handleDebugCameraToggle(ctx);
     handleDungeonRegenerate(ctx);
     handleStairTransitions(ctx);
     syncPlayerMarker();
@@ -295,26 +287,6 @@ void DungeonTestScene::spawnPlayer(SceneContext& ctx, const glm::ivec2& startPos
     ecsWorld.addComponent(playerEntity, camera);
 }
 
-void DungeonTestScene::spawnDebugCamera(SceneContext& ctx)
-{
-    debugCameraEntity = ecsWorld.createEntity();
-
-    CameraDescriptionComponent camera;
-    camera.active      = false;
-    camera.fov         = glm::radians(70.0f);
-    camera.aspectRatio = ctx.windowAspectRatio;
-    camera.nearClip    = 0.05f;
-    camera.farClip     = 200.0f;
-    camera.target      = {0.0f, 0.0f, 0.0f};
-    ecsWorld.addComponent(debugCameraEntity, camera);
-
-    TransformComponent transform;
-    transform.position = ecsWorld.getComponent<TransformComponent>(playerEntity).position + glm::vec3(0.0f, 5.0f, 0.0f);
-    ecsWorld.addComponent(debugCameraEntity, transform);
-
-    ecsWorld.addComponent(debugCameraEntity, CameraControlOverrideComponent{});
-}
-
 void DungeonTestScene::spawnPlayerMarker()
 {
     playerMarkerEntity = ecsWorld.createEntity();
@@ -374,6 +346,8 @@ void DungeonTestScene::syncPlayerMarker()
 void DungeonTestScene::refreshOverlay(SceneContext& ctx)
 {
     if (overlayHandle == UI_INVALID_HANDLE) return;
+    const bool debugCameraActive = ecsWorld.hasAny<DebugCameraStateComponent>()
+        && ecsWorld.getSingleton<DebugCameraStateComponent>().active;
 
     ctx.ui->update(overlayHandle, UiTextDesc{
         .text    = "FLOOR: " + std::to_string(dungeon.getCurrentFloorIndex() + 1)
@@ -387,36 +361,6 @@ void DungeonTestScene::refreshOverlay(SceneContext& ctx)
     });
 }
 
-void DungeonTestScene::handleDebugCameraToggle(SceneContext& ctx)
-{
-    const auto& input = ecsWorld.getSingleton<DungeonInputComponent>();
-    if (!input.toggleDebugCamera) return;
-
-    debugCameraActive = !debugCameraActive;
-    ecsWorld.getSingleton<DebugCameraStateComponent>().active = debugCameraActive;
-
-    auto& playerCamera = ecsWorld.getComponent<CameraDescriptionComponent>(playerEntity);
-    auto& debugCamera  = ecsWorld.getComponent<CameraDescriptionComponent>(debugCameraEntity);
-
-    if (debugCameraActive)
-    {
-        const glm::vec3 playerPos = ecsWorld.getComponent<TransformComponent>(playerEntity).position;
-        auto& debugTransform = ecsWorld.getComponent<TransformComponent>(debugCameraEntity);
-        debugTransform.position = playerPos + glm::vec3(0.0f, 5.0f, 0.0f);
-
-        playerCamera.active = false;
-        debugCamera.active  = true;
-        debugCamera.aspectRatio = ctx.windowAspectRatio;
-        debugCamera.target  = playerPos;
-    }
-    else
-    {
-        playerCamera.active = true;
-        debugCamera.active  = false;
-        playerCamera.aspectRatio = ctx.windowAspectRatio;
-    }
-}
-
 void DungeonTestScene::handleDungeonRegenerate(SceneContext& ctx)
 {
     const auto& input = ecsWorld.getSingleton<DungeonInputComponent>();
@@ -426,12 +370,6 @@ void DungeonTestScene::handleDungeonRegenerate(SceneContext& ctx)
     dungeon.setCurrentFloorIndex(0);
     rebuildActiveFloor(ctx);
     movePlayerToTile(dungeon.getActiveFloor().playerStart);
-    if (debugCameraActive)
-    {
-        auto& debugTransform = ecsWorld.getComponent<TransformComponent>(debugCameraEntity);
-        debugTransform.position = ecsWorld.getComponent<TransformComponent>(playerEntity).position
-                                + glm::vec3(0.0f, 5.0f, 0.0f);
-    }
     stairLatchActive = false;
     latchedFloorIndex = -1;
     latchedStairPos = {-1, -1};
@@ -479,12 +417,6 @@ void DungeonTestScene::handleStairTransitions(SceneContext& ctx)
 
     rebuildActiveFloor(ctx);
     movePlayerToTile(destination);
-    if (debugCameraActive)
-    {
-        auto& debugTransform = ecsWorld.getComponent<TransformComponent>(debugCameraEntity);
-        debugTransform.position = ecsWorld.getComponent<TransformComponent>(playerEntity).position
-                                + glm::vec3(0.0f, 5.0f, 0.0f);
-    }
     stairLatchActive = true;
     latchedFloorIndex = dungeon.getCurrentFloorIndex();
     latchedStairPos = destination;

@@ -15,6 +15,7 @@ target_include_directories(gravitas_modules INTERFACE
 
     # Camera
     "${CMAKE_CURRENT_SOURCE_DIR}/camera/components"
+    "${CMAKE_CURRENT_SOURCE_DIR}/camera/debug"
     "${CMAKE_CURRENT_SOURCE_DIR}/camera/systems"
 
     # Hierarchy

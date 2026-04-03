@@ -11,7 +11,6 @@ struct DungeonInputComponent
     bool strafeRight        = false;
     bool turnLeft           = false;
     bool turnRight          = false;
-    bool toggleDebugCamera  = false; // edge-triggered (pressed this frame only)
     bool attackPressed      = false; // edge-triggered (pressed this frame only)
     bool regeneratePressed  = false; // edge-triggered (pressed this frame only)
 };

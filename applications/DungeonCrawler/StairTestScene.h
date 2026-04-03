@@ -28,11 +28,9 @@ public:
 private:
     GeneratedFloor testFloors[2];
     Entity         playerEntity   = Entity{std::numeric_limits<entity_id_type>::max()};
-    Entity         debugCamEntity = Entity{std::numeric_limits<entity_id_type>::max()};
 
     void buildTestFloors();
     void spawnFloor(int floorIdx);
     void spawnRamp();
     void spawnPlayer(SceneContext& ctx);
-    void spawnDebugCamera(SceneContext& ctx);
 };

@@ -12,6 +12,7 @@
 #include "CameraBindingSystem.hpp"
 #include "RenderResourceClearSystem.hpp"
 #include "CameraResourceClearSystem.hpp"
+#include "DebugFreeCameraSystem.hpp"
 #include "DefaultCameraControlSystem.hpp"
 
 
@@ -48,6 +49,7 @@ class GtsScene
             ecsWorld.addControllerSystem<StaticMeshBindingSystem>();
             ecsWorld.addControllerSystem<ProceduralMeshBindingSystem>();
             ecsWorld.addControllerSystem<WorldTextBindingSystem>();
+            ecsWorld.addControllerSystem<DebugFreeCameraSystem>();
             ecsWorld.addControllerSystem<CameraBindingSystem>();
             ecsWorld.addControllerSystem<RenderResourceClearSystem>();
             ecsWorld.addControllerSystem<CameraResourceClearSystem>();

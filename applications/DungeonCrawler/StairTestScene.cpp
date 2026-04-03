@@ -7,7 +7,6 @@
 #include "GlmConfig.h"
 #include "TransformComponent.h"
 #include "CameraDescriptionComponent.h"
-#include "CameraControlOverrideComponent.h"
 #include "ProceduralMeshComponent.h"
 #include "MaterialComponent.h"
 #include "BoundsComponent.h"
@@ -28,7 +27,6 @@
 #include "PlayerMovementSystem.hpp"
 #include "PlayerCameraSystem.h"
 #include "FloorTransitionSystem.hpp"
-#include "DungeonFreeFlyCamera.hpp"
 #include "DungeonTileBindingSystem.hpp"
 
 // ─── onLoad ──────────────────────────────────────────────────────────────────
@@ -36,7 +34,6 @@ void StairTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /*d
 {
     ecsWorld.clear();
     playerEntity   = INVALID_ENTITY;
-    debugCamEntity = INVALID_ENTITY;
 
     ecsWorld.createSingleton<DungeonInputComponent>();
     ecsWorld.createSingleton<FloorTransitionStateComponent>();
@@ -57,14 +54,12 @@ void StairTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /*d
     spawnFloor(1);
     spawnRamp();
     spawnPlayer(ctx);
-    spawnDebugCamera(ctx);
 
     // Systems — order: input → movement → camera → transition → debug cam → tile binding
     ecsWorld.addControllerSystem<DungeonInputSystem>();
     ecsWorld.addControllerSystem<PlayerMovementSystem>();
     ecsWorld.addControllerSystem<PlayerCameraSystem>();
     ecsWorld.addControllerSystem<FloorTransitionSystem>();
-    ecsWorld.addControllerSystem<DungeonFreeFlyCamera>();
     ecsWorld.addControllerSystem<DungeonTileBindingSystem>();
 
     installRendererFeature();
@@ -81,19 +76,6 @@ void StairTestScene::onUpdateControllers(SceneContext& ctx)
 {
     ecsWorld.updateControllers(ctx);
 
-    // T — toggle between first-person and debug bird's-eye camera
-    // (blocked during floor transitions)
-    const auto& input = ecsWorld.getSingleton<DungeonInputComponent>();
-    const auto& ts    = ecsWorld.getSingleton<FloorTransitionStateComponent>();
-
-    if (input.toggleDebugCamera && !ts.active)
-    {
-        auto& playerCam = ecsWorld.getComponent<CameraDescriptionComponent>(playerEntity);
-        auto& dbgCam    = ecsWorld.getComponent<CameraDescriptionComponent>(debugCamEntity);
-        const bool wasPlayerActive = playerCam.active;
-        playerCam.active = !wasPlayerActive;
-        dbgCam.active    =  wasPlayerActive;
-    }
 }
 
 // ─── buildTestFloors ─────────────────────────────────────────────────────────
@@ -283,25 +265,4 @@ void StairTestScene::spawnPlayer(SceneContext& ctx)
     HierarchyComponent hierarchy;
     hierarchy.parent = playerEntity;
     ecsWorld.addComponent(marker, hierarchy);
-}
-
-// ─── spawnDebugCamera ────────────────────────────────────────────────────────
-void StairTestScene::spawnDebugCamera(SceneContext& ctx)
-{
-    debugCamEntity = ecsWorld.createEntity();
-
-    CameraDescriptionComponent cam;
-    cam.active      = false;
-    cam.fov         = glm::radians(60.0f);
-    cam.aspectRatio = ctx.windowAspectRatio;
-    cam.nearClip    = 0.1f;
-    cam.farClip     = 100.0f;
-    cam.target      = {12.0f, -1.0f, 5.0f}; // looking at ramp center
-    ecsWorld.addComponent(debugCamEntity, cam);
-
-    TransformComponent tc;
-    tc.position = {12.0f, 20.0f, 5.0f}; // above the ramp center
-    ecsWorld.addComponent(debugCamEntity, tc);
-
-    ecsWorld.addComponent(debugCamEntity, CameraControlOverrideComponent{});
 }

@@ -37,7 +37,6 @@
 #include "DungeonInputSystem.hpp"
 #include "PlayerMovementSystem.hpp"
 #include "PlayerCameraSystem.h"
-#include "DungeonFreeFlyCamera.hpp"
 #include "EnemySystem.h"
 #include "CombatSystem.h"
 #include "HudSystem.h"
@@ -54,14 +53,12 @@
 //   W/S/A/D  — move forward/back/strafe
 //   Q / E    — turn left / right
 //   Space    — attack cell ahead (1 damage per hit, 0.4 s cooldown)
-//   T        — toggle debug bird's-eye camera
 // ─────────────────────────────────────────────────────────────
 class DungeonCrawlerScene : public GtsScene
 {
     BitmapFont hudFont;       // must outlive UiTree text elements
 
     Entity playerEntity{};
-    Entity debugCamEntity{};
 
 public:
     void onLoad(SceneContext& ctx,
@@ -177,24 +174,6 @@ public:
         camDesc.farClip     = 100.0f;
         camDesc.target      = {4.5f, 0.5f, 2.5f}; // initial look East
         ecsWorld.addComponent(playerEntity, camDesc);
-
-        // ── Debug free-fly camera ───────────────────────────────────────────
-        debugCamEntity = ecsWorld.createEntity();
-
-        CameraDescriptionComponent dbgDesc;
-        dbgDesc.active      = false;
-        dbgDesc.fov         = glm::radians(60.0f);
-        dbgDesc.aspectRatio = ctx.windowAspectRatio;
-        dbgDesc.nearClip    = 0.1f;
-        dbgDesc.farClip     = 500.0f;
-        dbgDesc.target      = {10.0f, 0.0f, 10.0f};
-        ecsWorld.addComponent(debugCamEntity, dbgDesc);
-
-        TransformComponent dbgTc;
-        dbgTc.position = {10.0f, 22.0f, 10.0f};
-        ecsWorld.addComponent(debugCamEntity, dbgTc);
-
-        ecsWorld.addComponent(debugCamEntity, CameraControlOverrideComponent{});
 
         // ── Enemies ─────────────────────────────────────────────────────────
         // Helper: spawn a cube-mesh enemy that patrols between two waypoints.
@@ -328,7 +307,6 @@ public:
         ecsWorld.addControllerSystem<DungeonInputSystem>();
         ecsWorld.addControllerSystem<PlayerMovementSystem>();
         ecsWorld.addControllerSystem<PlayerCameraSystem>();
-        ecsWorld.addControllerSystem<DungeonFreeFlyCamera>();
         ecsWorld.addControllerSystem<EnemySystem>();
         ecsWorld.addControllerSystem<CombatSystem>();
         ecsWorld.addControllerSystem<HudSystem>();
@@ -343,16 +321,5 @@ public:
     void onUpdateControllers(SceneContext& ctx) override
     {
         ecsWorld.updateControllers(ctx);
-
-        // T — toggle between first-person and debug bird's-eye camera.
-        const auto& input = ecsWorld.getSingleton<DungeonInputComponent>();
-        if (input.toggleDebugCamera)
-        {
-            auto& playerCam = ecsWorld.getComponent<CameraDescriptionComponent>(playerEntity);
-            auto& dbgCam    = ecsWorld.getComponent<CameraDescriptionComponent>(debugCamEntity);
-            const bool wasPlayerActive = playerCam.active;
-            playerCam.active = !wasPlayerActive;
-            dbgCam.active    =  wasPlayerActive;
-        }
     }
 };

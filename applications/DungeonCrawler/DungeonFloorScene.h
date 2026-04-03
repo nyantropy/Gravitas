@@ -39,7 +39,6 @@ private:
     DungeonManager              dungeon;
 
     Entity playerEntity   = Entity{ std::numeric_limits<entity_id_type>::max() };
-    Entity debugCamEntity = Entity{ std::numeric_limits<entity_id_type>::max() };
 
     // Floor indicator UI — lifetime must exceed the UiTree's reference to font
     BitmapFont floorFont;
@@ -51,9 +50,8 @@ private:
     void spawnEnemies(SceneContext& ctx, const GeneratedFloor& floor);
     void spawnRamps(SceneContext& ctx, const GeneratedFloor& floor);
 
-    // Player and debug camera persist across floor transitions
+    // Player persists across floor transitions
     void spawnPlayer(SceneContext& ctx, glm::ivec2 startPos);
-    void spawnDebugCamera(SceneContext& ctx);
 
     std::vector<glm::ivec2> generatePatrolPath(const GeneratedFloor& floor,
                                                glm::ivec2 start, int length) const;

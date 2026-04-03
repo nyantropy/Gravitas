@@ -11,7 +11,6 @@
 #include "CameraDescriptionComponent.h"
 #include "CameraResourceClearComponent.h"
 #include "CameraResourceClearSystem.hpp"
-#include "CameraControlOverrideComponent.h"
 #include "RenderGpuComponent.h"
 #include "RenderResourceClearComponent.h"
 #include "RenderResourceClearSystem.hpp"
@@ -45,7 +44,6 @@
 #include "PlayerMovementSystem.hpp"
 #include "PlayerCameraSystem.h"
 #include "FloorTransitionSystem.hpp"
-#include "DungeonFreeFlyCamera.hpp"
 #include "DungeonTileBindingSystem.hpp"
 #include "EnemyMovementSystem.hpp"
 
@@ -104,7 +102,6 @@ void DungeonFloorScene::onLoad(SceneContext& ctx,
 
     ecsWorld.clear();
     playerEntity      = INVALID_ENTITY;
-    debugCamEntity    = INVALID_ENTITY;
     lastDisplayedFloor = 0;
 
     // Singletons shared across dungeon systems
@@ -133,7 +130,6 @@ void DungeonFloorScene::onLoad(SceneContext& ctx,
 
     // Spawn player on floor 0
     spawnPlayer(ctx, dungeon.getActiveFloor().playerStart);
-    spawnDebugCamera(ctx);
 
     // Floor indicator
     floorFont = BitmapFontLoader::load(
@@ -160,7 +156,6 @@ void DungeonFloorScene::onLoad(SceneContext& ctx,
     ecsWorld.addControllerSystem<PlayerMovementSystem>();
     ecsWorld.addControllerSystem<PlayerCameraSystem>();
     ecsWorld.addControllerSystem<FloorTransitionSystem>();
-    ecsWorld.addControllerSystem<DungeonFreeFlyCamera>();
     ecsWorld.addControllerSystem<DungeonTileBindingSystem>();
     ecsWorld.addControllerSystem<EnemyMovementSystem>();
 
@@ -178,20 +173,6 @@ void DungeonFloorScene::onUpdateSimulation(SceneContext& ctx)
 void DungeonFloorScene::onUpdateControllers(SceneContext& ctx)
 {
     ecsWorld.updateControllers(ctx);
-
-    // T — toggle between first-person and debug bird's-eye camera
-    // (blocked during floor transitions so we don't interfere)
-    const auto& input = ecsWorld.getSingleton<DungeonInputComponent>();
-    const auto& ts    = ecsWorld.getSingleton<FloorTransitionStateComponent>();
-
-    if (input.toggleDebugCamera && !ts.active)
-    {
-        auto& playerCam = ecsWorld.getComponent<CameraDescriptionComponent>(playerEntity);
-        auto& dbgCam    = ecsWorld.getComponent<CameraDescriptionComponent>(debugCamEntity);
-        const bool wasPlayerActive = playerCam.active;
-        playerCam.active = !wasPlayerActive;
-        dbgCam.active    =  wasPlayerActive;
-    }
 
     // Update floor indicator UI when the player changes floors
     const auto& floorSingleton = ecsWorld.getSingleton<DungeonFloorSingleton>();
@@ -484,39 +465,6 @@ void DungeonFloorScene::spawnPlayer(SceneContext& ctx, glm::ivec2 startPos)
     HierarchyComponent hierarchy;
     hierarchy.parent = playerEntity;
     ecsWorld.addComponent(marker, hierarchy);
-}
-
-// ─── spawnDebugCamera ────────────────────────────────────────────────────────
-void DungeonFloorScene::spawnDebugCamera(SceneContext& ctx)
-{
-    debugCamEntity = ecsWorld.createEntity();
-    // No FloorEntityTag — debug camera persists across floor transitions
-
-    // Use floor 0 dimensions for camera centering; position high enough to see all floors
-    const GeneratedFloor& f0 = dungeon.getFloors().front();
-
-    CameraDescriptionComponent dbgDesc;
-    dbgDesc.active      = false;
-    dbgDesc.fov         = glm::radians(60.0f);
-    dbgDesc.aspectRatio = ctx.windowAspectRatio;
-    dbgDesc.nearClip    = 0.1f;
-    dbgDesc.farClip     = 200.0f;
-    dbgDesc.target      = {
-        f0.width  * 0.5f,
-        -6.0f,
-        f0.height * 0.5f
-    };
-    ecsWorld.addComponent(debugCamEntity, dbgDesc);
-
-    TransformComponent dbgTc;
-    dbgTc.position = {
-        f0.width  * 0.5f,
-        60.0f,
-        f0.height * 0.5f
-    };
-    ecsWorld.addComponent(debugCamEntity, dbgTc);
-
-    ecsWorld.addComponent(debugCamEntity, CameraControlOverrideComponent{});
 }
 
 // ─── generatePatrolPath ──────────────────────────────────────────────────────
