@@ -26,6 +26,7 @@ class DungeonInputSystem : public ECSControllerSystem
         actionManager.bind(DungeonAction::TurnRight,         GtsKey::E);
         actionManager.bind(DungeonAction::Attack,            GtsKey::Space);
         actionManager.bind(DungeonAction::RegenerateDungeon, GtsKey::V);
+        actionManager.bind(DungeonAction::ToggleMinimapRevealMode, GtsKey::M);
     }
 
 public:
@@ -48,5 +49,6 @@ public:
         input.turnRight         = actionManager.isActionActive(DungeonAction::TurnRight);
         input.attackPressed     = actionManager.isActionPressed(DungeonAction::Attack);
         input.regeneratePressed = actionManager.isActionPressed(DungeonAction::RegenerateDungeon);
+        input.toggleMinimapRevealPressed = actionManager.isActionPressed(DungeonAction::ToggleMinimapRevealMode);
     }
 };

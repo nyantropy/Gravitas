@@ -1,5 +1,6 @@
 #include "DungeonTestScene.h"
 
+#include <algorithm>
 #include <limits>
 #include <string>
 
@@ -26,6 +27,10 @@
 namespace
 {
     constexpr float TEST_WALL_HEIGHT = 2.25f;
+    constexpr float MINIMAP_CELL_SIZE = 0.0048f;
+    constexpr float MINIMAP_PADDING = 0.010f;
+    constexpr float MINIMAP_LABEL_HEIGHT = 0.030f;
+    constexpr float MINIMAP_PLAYER_INSET = 0.0014f;
 
     glm::vec4 tintForTile(TileType tileType)
     {
@@ -55,6 +60,26 @@ namespace
     bool isWalkable(const GeneratedFloor& floor, int x, int z)
     {
         return floor.inBounds(x, z) && floor.isWalkable(x, z);
+    }
+
+    UiColor uiColor(float r, float g, float b, float a = 1.0f)
+    {
+        return {r, g, b, a};
+    }
+
+    UiColor minimapColorForTile(TileType tileType)
+    {
+        switch (tileType)
+        {
+            case TileType::Wall:       return uiColor(0.12f, 0.13f, 0.15f);
+            case TileType::Floor:      return uiColor(0.72f, 0.72f, 0.74f);
+            case TileType::StairUp:    return uiColor(0.20f, 0.82f, 0.28f);
+            case TileType::StairDown:  return uiColor(0.88f, 0.24f, 0.20f);
+            case TileType::Treasure:   return uiColor(0.95f, 0.82f, 0.22f);
+            case TileType::EnemySpawn: return uiColor(0.64f, 0.34f, 0.82f);
+        }
+
+        return uiColor(1.0f, 1.0f, 1.0f);
     }
 
     void spawnWallSegment(ECSWorld& world,
@@ -106,11 +131,21 @@ void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /
     overlayRootHandle = UI_INVALID_HANDLE;
     overlayBackgroundHandle = UI_INVALID_HANDLE;
     overlayTextHandle = UI_INVALID_HANDLE;
+    minimapRootHandle = UI_INVALID_HANDLE;
+    minimapBackgroundHandle = UI_INVALID_HANDLE;
+    minimapGridHandle = UI_INVALID_HANDLE;
+    minimapPlayerHandle = UI_INVALID_HANDLE;
+    minimapLabelHandle = UI_INVALID_HANDLE;
     stairLatchActive = false;
     latchedFloorIndex = -1;
     latchedStairPos = {-1, -1};
 
     dungeon.generateRun();
+    visibilityState.initialize(dungeon.getFloors());
+    visibilityState.revealAt(0,
+                             dungeon.getActiveFloor(),
+                             dungeon.getActiveFloor().playerStart.x,
+                             dungeon.getActiveFloor().playerStart.y);
 
     ecsWorld.createSingleton<DungeonInputComponent>();
     ecsWorld.createSingleton<FloorTransitionStateComponent>();
@@ -184,6 +219,9 @@ void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /
     });
     ctx.ui->setTextFont(overlayTextHandle, &overlayFont);
 
+    buildMinimapUi(ctx);
+    refreshMinimap(ctx);
+
     ecsWorld.addControllerSystem<DungeonInputSystem>();
     ecsWorld.addControllerSystem<PlayerMovementSystem>();
     ecsWorld.addControllerSystem<PlayerCameraSystem>();
@@ -202,7 +240,9 @@ void DungeonTestScene::onUpdateControllers(SceneContext& ctx)
 
     handleDungeonRegenerate(ctx);
     handleStairTransitions(ctx);
+    updateMinimapReveal(ctx);
     syncPlayerMarker();
+    refreshMinimap(ctx);
     refreshOverlay(ctx);
 }
 
@@ -394,11 +434,15 @@ void DungeonTestScene::refreshOverlay(SceneContext& ctx)
     if (overlayTextHandle == UI_INVALID_HANDLE) return;
     const bool debugCameraActive = ecsWorld.hasAny<DebugCameraStateComponent>()
         && ecsWorld.getSingleton<DebugCameraStateComponent>().active;
+    const char* minimapMode = visibilityState.getRevealMode() == MinimapRevealMode::FullReveal
+        ? "FULL"
+        : "EXPLORED";
 
     ctx.ui->setPayload(overlayTextHandle, UiTextData{
         "FLOOR: " + std::to_string(dungeon.getCurrentFloorIndex() + 1)
             + " / " + std::to_string(dungeon.getTotalFloorCount())
-            + (debugCameraActive ? "  CAM: DEBUG" : "  CAM: PLAYER"),
+            + (debugCameraActive ? "  CAM: DEBUG" : "  CAM: PLAYER")
+            + "  MAP: " + minimapMode,
         {},
         {1.0f, 1.0f, 1.0f, 1.0f},
         GtsDebugOverlay::FONT_SCALE
@@ -411,9 +455,15 @@ void DungeonTestScene::handleDungeonRegenerate(SceneContext& ctx)
     if (!input.regeneratePressed) return;
 
     dungeon.generateRun();
+    visibilityState.initialize(dungeon.getFloors());
     dungeon.setCurrentFloorIndex(0);
+    visibilityState.revealAt(0,
+                             dungeon.getActiveFloor(),
+                             dungeon.getActiveFloor().playerStart.x,
+                             dungeon.getActiveFloor().playerStart.y);
     rebuildActiveFloor(ctx);
     movePlayerToTile(dungeon.getActiveFloor().playerStart);
+    refreshMinimap(ctx);
     stairLatchActive = false;
     latchedFloorIndex = -1;
     latchedStairPos = {-1, -1};
@@ -461,6 +511,7 @@ void DungeonTestScene::handleStairTransitions(SceneContext& ctx)
 
     rebuildActiveFloor(ctx);
     movePlayerToTile(destination);
+    refreshMinimap(ctx);
     stairLatchActive = true;
     latchedFloorIndex = dungeon.getCurrentFloorIndex();
     latchedStairPos = destination;
@@ -476,4 +527,161 @@ void DungeonTestScene::updateStairLatch(const GeneratedFloor& /*floor*/, const g
         latchedFloorIndex = -1;
         latchedStairPos = {-1, -1};
     }
+}
+
+void DungeonTestScene::buildMinimapUi(SceneContext& ctx)
+{
+    minimapRootHandle = ctx.ui->createNode(UiNodeType::Container);
+    minimapBackgroundHandle = ctx.ui->createNode(UiNodeType::Rect, minimapRootHandle);
+    minimapGridHandle = ctx.ui->createNode(UiNodeType::Grid, minimapRootHandle);
+    minimapPlayerHandle = ctx.ui->createNode(UiNodeType::Rect, minimapRootHandle);
+    minimapLabelHandle = ctx.ui->createNode(UiNodeType::Text, minimapRootHandle);
+
+    UiLayoutSpec rootLayout;
+    rootLayout.positionMode = UiPositionMode::Absolute;
+    rootLayout.widthMode = UiSizeMode::Fixed;
+    rootLayout.heightMode = UiSizeMode::Fixed;
+    rootLayout.offsetMin = {0.74f, 0.04f};
+    rootLayout.fixedWidth = 0.22f;
+    rootLayout.fixedHeight = 0.22f;
+    rootLayout.padding = {MINIMAP_PADDING, MINIMAP_PADDING, MINIMAP_PADDING, MINIMAP_PADDING};
+    rootLayout.clipMode = UiClipMode::ClipChildren;
+    ctx.ui->setLayout(minimapRootHandle, rootLayout);
+    ctx.ui->setState(minimapRootHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+
+    UiLayoutSpec backgroundLayout;
+    backgroundLayout.positionMode = UiPositionMode::Anchored;
+    backgroundLayout.widthMode = UiSizeMode::FromAnchors;
+    backgroundLayout.heightMode = UiSizeMode::FromAnchors;
+    backgroundLayout.anchorMin = {0.0f, 0.0f};
+    backgroundLayout.anchorMax = {1.0f, 1.0f};
+    ctx.ui->setLayout(minimapBackgroundHandle, backgroundLayout);
+    ctx.ui->setState(minimapBackgroundHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+    ctx.ui->setPayload(minimapBackgroundHandle, UiRectData{uiColor(0.05f, 0.06f, 0.08f, 0.88f)});
+
+    UiLayoutSpec gridLayout;
+    gridLayout.positionMode = UiPositionMode::Absolute;
+    gridLayout.widthMode = UiSizeMode::Fixed;
+    gridLayout.heightMode = UiSizeMode::Fixed;
+    gridLayout.offsetMin = {MINIMAP_PADDING, MINIMAP_PADDING + MINIMAP_LABEL_HEIGHT};
+    ctx.ui->setLayout(minimapGridHandle, gridLayout);
+    ctx.ui->setState(minimapGridHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+
+    UiLayoutSpec playerLayout;
+    playerLayout.positionMode = UiPositionMode::Absolute;
+    playerLayout.widthMode = UiSizeMode::Fixed;
+    playerLayout.heightMode = UiSizeMode::Fixed;
+    ctx.ui->setLayout(minimapPlayerHandle, playerLayout);
+    ctx.ui->setState(minimapPlayerHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+    ctx.ui->setPayload(minimapPlayerHandle, UiRectData{uiColor(0.14f, 0.86f, 1.0f, 1.0f)});
+
+    UiLayoutSpec labelLayout;
+    labelLayout.positionMode = UiPositionMode::Absolute;
+    labelLayout.widthMode = UiSizeMode::Fixed;
+    labelLayout.heightMode = UiSizeMode::Fixed;
+    labelLayout.offsetMin = {MINIMAP_PADDING, 0.006f};
+    ctx.ui->setLayout(minimapLabelHandle, labelLayout);
+    ctx.ui->setState(minimapLabelHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+    ctx.ui->setPayload(minimapLabelHandle, UiTextData{
+        "MAP F1",
+        {},
+        uiColor(0.95f, 0.96f, 1.0f, 1.0f),
+        0.020f
+    });
+    ctx.ui->setTextFont(minimapLabelHandle, &overlayFont);
+}
+
+void DungeonTestScene::refreshMinimap(SceneContext& ctx)
+{
+    if (minimapRootHandle == UI_INVALID_HANDLE || playerEntity == INVALID_ENTITY) return;
+
+    const GeneratedFloor& floor = dungeon.getActiveFloor();
+    const PlayerComponent& player = ecsWorld.getComponent<PlayerComponent>(playerEntity);
+
+    const float gridWidth = floor.width * MINIMAP_CELL_SIZE;
+    const float gridHeight = floor.height * MINIMAP_CELL_SIZE;
+    const float containerWidth = gridWidth + MINIMAP_PADDING * 2.0f;
+    const float containerHeight = gridHeight + MINIMAP_PADDING * 2.0f + MINIMAP_LABEL_HEIGHT;
+
+    UiLayoutSpec rootLayout;
+    rootLayout.positionMode = UiPositionMode::Absolute;
+    rootLayout.widthMode = UiSizeMode::Fixed;
+    rootLayout.heightMode = UiSizeMode::Fixed;
+    rootLayout.offsetMin = {std::max(0.02f, 0.98f - containerWidth), 0.04f};
+    rootLayout.fixedWidth = containerWidth;
+    rootLayout.fixedHeight = containerHeight;
+    rootLayout.padding = {MINIMAP_PADDING, MINIMAP_PADDING, MINIMAP_PADDING, MINIMAP_PADDING};
+    rootLayout.clipMode = UiClipMode::ClipChildren;
+    ctx.ui->setLayout(minimapRootHandle, rootLayout);
+
+    UiLayoutSpec gridLayout;
+    gridLayout.positionMode = UiPositionMode::Absolute;
+    gridLayout.widthMode = UiSizeMode::Fixed;
+    gridLayout.heightMode = UiSizeMode::Fixed;
+    gridLayout.offsetMin = {MINIMAP_PADDING, MINIMAP_PADDING + MINIMAP_LABEL_HEIGHT};
+    gridLayout.fixedWidth = gridWidth;
+    gridLayout.fixedHeight = gridHeight;
+    ctx.ui->setLayout(minimapGridHandle, gridLayout);
+
+    UiGridData gridData;
+    gridData.columns = floor.width;
+    gridData.rows = floor.height;
+    gridData.hiddenColor = uiColor(0.0f, 0.0f, 0.0f, 1.0f);
+    gridData.cellInset = 0.00025f;
+    gridData.cells.reserve(static_cast<size_t>(floor.width * floor.height));
+
+    for (int z = 0; z < floor.height; ++z)
+    {
+        for (int x = 0; x < floor.width; ++x)
+        {
+            gridData.cells.push_back(UiGridCellData{
+                minimapColorForTile(floor.get(x, z)),
+                visibilityState.isVisible(dungeon.getCurrentFloorIndex(), x, z)
+            });
+        }
+    }
+
+    ctx.ui->setPayload(minimapGridHandle, gridData);
+
+    UiLayoutSpec playerLayout;
+    playerLayout.positionMode = UiPositionMode::Absolute;
+    playerLayout.widthMode = UiSizeMode::Fixed;
+    playerLayout.heightMode = UiSizeMode::Fixed;
+    playerLayout.offsetMin = {
+        MINIMAP_PADDING + player.gridX * MINIMAP_CELL_SIZE + MINIMAP_PLAYER_INSET,
+        MINIMAP_PADDING + MINIMAP_LABEL_HEIGHT + player.gridZ * MINIMAP_CELL_SIZE + MINIMAP_PLAYER_INSET
+    };
+    playerLayout.fixedWidth = std::max(0.0f, MINIMAP_CELL_SIZE - MINIMAP_PLAYER_INSET * 2.0f);
+    playerLayout.fixedHeight = std::max(0.0f, MINIMAP_CELL_SIZE - MINIMAP_PLAYER_INSET * 2.0f);
+    ctx.ui->setLayout(minimapPlayerHandle, playerLayout);
+    ctx.ui->setState(minimapPlayerHandle, UiStateFlags{
+        .visible = visibilityState.isVisible(dungeon.getCurrentFloorIndex(), player.gridX, player.gridZ),
+        .enabled = false,
+        .interactable = false
+    });
+
+    const char* revealModeText = visibilityState.getRevealMode() == MinimapRevealMode::FullReveal
+        ? "FULL"
+        : "FOG";
+    ctx.ui->setPayload(minimapLabelHandle, UiTextData{
+        "MAP F" + std::to_string(dungeon.getCurrentFloorIndex() + 1) + " " + revealModeText,
+        {},
+        uiColor(0.95f, 0.96f, 1.0f, 1.0f),
+        0.020f
+    });
+}
+
+void DungeonTestScene::updateMinimapReveal(SceneContext& /*ctx*/)
+{
+    if (playerEntity == INVALID_ENTITY) return;
+
+    const auto& input = ecsWorld.getSingleton<DungeonInputComponent>();
+    if (input.toggleMinimapRevealPressed)
+        visibilityState.toggleRevealMode();
+
+    const PlayerComponent& player = ecsWorld.getComponent<PlayerComponent>(playerEntity);
+    visibilityState.revealAt(dungeon.getCurrentFloorIndex(),
+                             dungeon.getActiveFloor(),
+                             player.gridX,
+                             player.gridZ);
 }

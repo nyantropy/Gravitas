@@ -33,7 +33,30 @@ struct UiTextData
     float       scale = 1.0f;
 };
 
-using UiNodePayload = std::variant<UiContainerData, UiRectData, UiImageData, UiTextData>;
+struct UiGridCellData
+{
+    UiColor color   = {0.0f, 0.0f, 0.0f, 1.0f};
+    bool    visible = true;
+};
+
+struct UiGridData
+{
+    int                       columns       = 0;
+    int                       rows          = 0;
+    std::vector<UiGridCellData> cells;
+    UiColor                   hiddenColor   = {0.0f, 0.0f, 0.0f, 1.0f};
+    float                     cellInset     = 0.0f;
+
+    const UiGridCellData* cellAt(int x, int y) const
+    {
+        if (x < 0 || y < 0 || x >= columns || y >= rows) return nullptr;
+        const size_t index = static_cast<size_t>(y * columns + x);
+        if (index >= cells.size()) return nullptr;
+        return &cells[index];
+    }
+};
+
+using UiNodePayload = std::variant<UiContainerData, UiRectData, UiImageData, UiTextData, UiGridData>;
 
 struct UiNode
 {

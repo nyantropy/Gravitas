@@ -9,6 +9,7 @@
 #include "UiHandle.h"
 
 #include "DungeonManager.h"
+#include "DungeonVisibilityState.h"
 #include "GeneratedFloor.h"
 
 class DungeonTestScene : public GtsScene
@@ -30,6 +31,12 @@ private:
     UiHandle             overlayRootHandle = UI_INVALID_HANDLE;
     UiHandle             overlayBackgroundHandle = UI_INVALID_HANDLE;
     UiHandle             overlayTextHandle = UI_INVALID_HANDLE;
+    UiHandle             minimapRootHandle = UI_INVALID_HANDLE;
+    UiHandle             minimapBackgroundHandle = UI_INVALID_HANDLE;
+    UiHandle             minimapGridHandle = UI_INVALID_HANDLE;
+    UiHandle             minimapPlayerHandle = UI_INVALID_HANDLE;
+    UiHandle             minimapLabelHandle = UI_INVALID_HANDLE;
+    DungeonVisibilityState visibilityState;
     bool                 stairLatchActive = false;
     int                  latchedFloorIndex = -1;
     glm::ivec2           latchedStairPos   = {-1, -1};
@@ -42,6 +49,9 @@ private:
     void spawnPlayerMarker();
     void movePlayerToTile(const glm::ivec2& gridPos);
     void syncPlayerMarker();
+    void buildMinimapUi(SceneContext& ctx);
+    void refreshMinimap(SceneContext& ctx);
+    void updateMinimapReveal(SceneContext& ctx);
     void refreshOverlay(SceneContext& ctx);
     void handleDungeonRegenerate(SceneContext& ctx);
     void handleStairTransitions(SceneContext& ctx);

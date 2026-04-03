@@ -37,7 +37,8 @@ enum class UiNodeType : uint8_t
     Container = 0,
     Rect,
     Image,
-    Text
+    Text,
+    Grid
 };
 
 enum class UiPositionMode : uint8_t

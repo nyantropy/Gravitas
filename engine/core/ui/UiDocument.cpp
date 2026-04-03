@@ -78,6 +78,7 @@ UiHandle UiDocument::createNode(UiNodeType type, UiHandle parent)
             case UiNodeType::Rect:      return UiRectData{};
             case UiNodeType::Image:     return UiImageData{};
             case UiNodeType::Text:      return UiTextData{};
+            case UiNodeType::Grid:      return UiGridData{};
         }
 
         return UiContainerData{};
@@ -348,6 +349,38 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, con
                 data.color,
                 data.scale
             });
+            break;
+        }
+
+        case UiNodeType::Grid:
+        {
+            const auto& data = std::get<UiGridData>(node.payload);
+            if (data.columns <= 0 || data.rows <= 0) break;
+
+            const float cellWidth = node.computedLayout.bounds.width / static_cast<float>(data.columns);
+            const float cellHeight = node.computedLayout.bounds.height / static_cast<float>(data.rows);
+            const float inset = std::max(0.0f, data.cellInset);
+
+            for (int y = 0; y < data.rows; ++y)
+            {
+                for (int x = 0; x < data.columns; ++x)
+                {
+                    const UiGridCellData* cell = data.cellAt(x, y);
+                    const UiColor color = (cell && cell->visible) ? cell->color : data.hiddenColor;
+
+                    visualList.primitives.push_back(UiRectPrimitive{
+                        node.handle,
+                        {
+                            node.computedLayout.bounds.x + x * cellWidth + inset,
+                            node.computedLayout.bounds.y + y * cellHeight + inset,
+                            std::max(0.0f, cellWidth - inset * 2.0f),
+                            std::max(0.0f, cellHeight - inset * 2.0f)
+                        },
+                        effectiveClip,
+                        color
+                    });
+                }
+            }
             break;
         }
     }

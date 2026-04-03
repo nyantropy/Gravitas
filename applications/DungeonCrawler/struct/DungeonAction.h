@@ -14,6 +14,7 @@ enum class DungeonAction
     TurnRight,          // E — rotate facing 90° clockwise
     Attack,             // Space — strike the cell directly ahead
     RegenerateDungeon,  // V — regenerate the full dungeon run
+    ToggleMinimapRevealMode, // M — toggle full reveal vs explored-only minimap
 
     // sentinel — always keep last
     ACTION_COUNT

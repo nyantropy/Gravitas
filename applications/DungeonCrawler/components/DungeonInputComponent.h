@@ -13,4 +13,5 @@ struct DungeonInputComponent
     bool turnRight          = false;
     bool attackPressed      = false; // edge-triggered (pressed this frame only)
     bool regeneratePressed  = false; // edge-triggered (pressed this frame only)
+    bool toggleMinimapRevealPressed = false; // edge-triggered (pressed this frame only)
 };
