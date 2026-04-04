@@ -19,13 +19,11 @@
 #include "TetrisScoreSystem.hpp"
 #include "ScoreDisplayComponent.hpp"
 
-#include "MeshGpuComponent.h"
-#include "MaterialGpuComponent.h"
-#include "RenderGpuComponent.h"
 #include "CameraDescriptionComponent.h"
-#include "CameraOverrideComponent.h"
 #include "CameraControlOverrideComponent.h"
 #include "TransformComponent.h"
+#include "MaterialComponent.h"
+#include "ProceduralMeshComponent.h"
 #include "WorldTextComponent.h"
 #include "BitmapFontLoader.h"
 #include "HierarchyHelper.h"
@@ -42,41 +40,31 @@ class TetrisScene : public GtsScene
     Entity holdGroupAnchor;
     Entity nextGroupAnchor;
 
-    Entity spawnProceduralMeshEntity(SceneContext& ctx,
-                                     std::vector<Vertex>&   verts,
-                                     std::vector<uint32_t>& idxs)
+    Entity spawnProceduralMeshEntity(const std::vector<Vertex>&   verts,
+                                     const std::vector<uint32_t>& idxs)
     {
-        const std::string greyTex =
-            GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png";
-
-        mesh_id_type    meshID = ctx.resources->uploadProceduralMesh(0, verts, idxs);
-        texture_id_type texID  = ctx.resources->requestTexture(greyTex);
-        ssbo_id_type    slot   = ctx.resources->requestObjectSlot();
-
         Entity e = ecsWorld.createEntity();
 
         TransformComponent tc;
         tc.position = {0.0f, 0.0f, 0.0f};
         ecsWorld.addComponent(e, tc);
 
-        MeshGpuComponent meshGpu{};
-        meshGpu.meshID = meshID;
-        ecsWorld.addComponent(e, meshGpu);
+        ProceduralMeshComponent mesh;
+        mesh.useCustomGeometry = true;
+        mesh.vertices          = verts;
+        mesh.indices           = idxs;
+        mesh.geometryVersion   = 1;
+        ecsWorld.addComponent(e, mesh);
 
-        MaterialGpuComponent matGpu{};
-        matGpu.textureID = texID;
-        ecsWorld.addComponent(e, matGpu);
-
-        RenderGpuComponent rc{};
-        rc.objectSSBOSlot = slot;
-        rc.dirty          = true;
-        rc.readyToRender  = false;
-        ecsWorld.addComponent(e, rc);
+        MaterialComponent material;
+        material.texturePath =
+            GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png";
+        ecsWorld.addComponent(e, material);
 
         return e;
     }
 
-    void buildTetrisFrameMesh(SceneContext& ctx)
+    void buildTetrisFrameMesh()
     {
         // Inner edges of the former cube walls (cubes were unit-cubes centered on
         // integer positions, so x=-1 spanned x=-1.5..-0.5, giving inner edge -0.5).
@@ -110,10 +98,10 @@ class TetrisScene : public GtsScene
         // Floor: horizontal strip at y = BOT_Y, spans full width to cover corners
         addQuad(LEFT_X - T, BOT_Y - T, RIGHT_X + T, BOT_Y + T);
 
-        spawnProceduralMeshEntity(ctx, verts, idxs);
+        spawnProceduralMeshEntity(verts, idxs);
     }
 
-    Entity buildHoldBoxMesh(SceneContext& ctx)
+    Entity buildHoldBoxMesh()
     {
         // Box corners — line centers (T = half-thickness of each line strip).
         // Width is sized to give the I piece (4 cells wide) 0.5-unit padding on each
@@ -152,7 +140,7 @@ class TetrisScene : public GtsScene
         // Top — horizontal strip spanning box width
         addQuad(BOX_L - T, BOX_T - T, BOX_R + T, BOX_T + T);
 
-        return spawnProceduralMeshEntity(ctx, verts, idxs);
+        return spawnProceduralMeshEntity(verts, idxs);
     }
 
     Entity buildNextLabel()
@@ -260,7 +248,6 @@ class TetrisScene : public GtsScene
         ecsWorld.addComponent(camera, desc);
 
         ecsWorld.addComponent(camera, TransformComponent{});
-        ecsWorld.addComponent(camera, CameraOverrideComponent{});
         ecsWorld.addComponent(camera, CameraControlOverrideComponent{});
         ecsWorld.addComponent(camera, TetrisCameraControlComponent{});
     }
@@ -303,12 +290,12 @@ public:
             ecsWorld.addComponent(nextGroupAnchor, tc);
         }
 
-        buildTetrisFrameMesh(ctx);
+        buildTetrisFrameMesh();
 
         // Hold box outline — local offset converts world (0,0,0) to be relative
         // to holdGroupAnchor at (−5, 16, 0): local = (5, −16, 0).
         // Verify: anchor (−5,16) + local (5,−16) = world (0, 0) ✓
-        Entity holdBoxEntity = buildHoldBoxMesh(ctx);
+        Entity holdBoxEntity = buildHoldBoxMesh();
         ecsWorld.getComponent<TransformComponent>(holdBoxEntity).position = { 5.0f, -16.0f, 0.0f };
         setParent(ecsWorld, holdBoxEntity, holdGroupAnchor);
 
@@ -348,7 +335,7 @@ public:
         ecsWorld.addControllerSystem<TetrisBlockInitSystem>();
         ecsWorld.addControllerSystem<TetrisVisualSystem>();
 
-        installRendererFeature();
+        installRendererFeature(ctx);
 
         ecsWorld.addControllerSystem<TetrisInputSystem>();
         // Register TetrisGameSystem before the AI so we can pass a direct reference.

@@ -19,6 +19,12 @@ class ComponentStorage : public IComponentStorage
             return components.find(entity.id) != components.end();
         }
 
+        void* getRawPtr(Entity entity) override
+        {
+            auto it = components.find(entity.id);
+            return (it != components.end()) ? static_cast<void*>(&it->second) : nullptr;
+        }
+
         Component& get(Entity entity) 
         {
             return components.at(entity.id);

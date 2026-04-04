@@ -8,16 +8,13 @@
 
 #include "RenderGpuSystem.hpp"
 #include "CameraGpuSystem.hpp"
-#include "CameraDescriptionComponent.h"
-#include "CameraResourceClearComponent.h"
+#include "CameraGpuComponent.h"
 #include "StaticMeshBindingSystem.hpp"
 #include "ProceduralMeshBindingSystem.hpp"
 #include "WorldTextBindingSystem.hpp"
 #include "CameraBindingSystem.hpp"
+#include "MeshGpuComponent.h"
 #include "RenderGpuComponent.h"
-#include "RenderResourceClearComponent.h"
-#include "RenderResourceClearSystem.hpp"
-#include "CameraResourceClearSystem.hpp"
 #include "DebugFreeCameraSystem.hpp"
 #include "DefaultCameraControlSystem.hpp"
 #include "PhysicsSystem.h"
@@ -30,32 +27,15 @@ class GtsScene
     protected:
         ECSWorld ecsWorld;
         std::unique_ptr<PhysicsWorld> physicsWorld;
+        bool rendererFeatureInstalled = false;
+        bool physicsFeatureInstalled  = false;
 
-        void releaseGpuResources(SceneContext& ctx)
+        void resetSceneWorld()
         {
-            ecsWorld.forEach<CameraDescriptionComponent>([&](Entity e, CameraDescriptionComponent&)
-            {
-                if (!ecsWorld.hasComponent<CameraResourceClearComponent>(e))
-                {
-                    CameraResourceClearComponent clear;
-                    clear.destroyAfterClear = false;
-                    ecsWorld.addComponent(e, clear);
-                }
-            });
-
-            ecsWorld.forEach<RenderGpuComponent>([&](Entity e, RenderGpuComponent& renderGpu)
-            {
-                if (renderGpu.objectSSBOSlot != RENDERABLE_SLOT_UNALLOCATED
-                    && !ecsWorld.hasComponent<RenderResourceClearComponent>(e))
-                {
-                    RenderResourceClearComponent clear;
-                    clear.destroyAfterClear = false;
-                    ecsWorld.addComponent(e, clear);
-                }
-            });
-
-            CameraResourceClearSystem{}.update(ecsWorld, ctx);
-            RenderResourceClearSystem{}.update(ecsWorld, ctx);
+            ecsWorld.clear();
+            physicsWorld.reset();
+            rendererFeatureInstalled = false;
+            physicsFeatureInstalled  = false;
         }
     public:
         virtual ~GtsScene() = default;
@@ -84,19 +64,59 @@ class GtsScene
             return physicsWorld.get();
         }
 
-        inline void installPhysicsFeature(SceneContext& ctx, bool enableDebugRenderer = true)
+        inline void installPhysicsFeature(SceneContext& ctx, bool enableDebugRenderer = false)
         {
+            if (physicsFeatureInstalled)
+                return;
+
             physicsWorld = std::make_unique<PhysicsWorld>(&ecsWorld);
             ctx.physics  = physicsWorld.get();
 
             ecsWorld.addSimulationSystem<PhysicsSystem>(physicsWorld.get());
             if (enableDebugRenderer)
                 ecsWorld.addControllerSystem<PhysicsDebugRenderer>();
+            physicsFeatureInstalled = true;
         }
 
         // pre defined rendering systems - should be called once in the onLoad() function of whatever scene you design
-        inline void installRendererFeature()
+        inline void installRendererFeature(SceneContext& ctx)
         {
+            if (rendererFeatureInstalled)
+                return;
+
+            auto* resources = ctx.resources;
+            ecsWorld.registerRemoveCallback<CameraGpuComponent>(
+                [resources](ECSWorld&, Entity, CameraGpuComponent& cameraGpu)
+                {
+                    if (cameraGpu.viewID == 0 || resources == nullptr)
+                        return;
+
+                    resources->releaseCameraBuffer(cameraGpu.viewID);
+                    cameraGpu.viewID = 0;
+                });
+            ecsWorld.registerRemoveCallback<RenderGpuComponent>(
+                [resources](ECSWorld&, Entity, RenderGpuComponent& renderGpu)
+                {
+                    if (renderGpu.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED
+                        || resources == nullptr)
+                        return;
+
+                    resources->releaseObjectSlot(renderGpu.objectSSBOSlot);
+                    renderGpu.objectSSBOSlot = RENDERABLE_SLOT_UNALLOCATED;
+                });
+            ecsWorld.registerRemoveCallback<MeshGpuComponent>(
+                [resources](ECSWorld&, Entity, MeshGpuComponent& meshGpu)
+                {
+                    if (!meshGpu.ownsProceduralMeshResource
+                        || meshGpu.meshID == 0
+                        || resources == nullptr)
+                        return;
+
+                    resources->releaseProceduralMesh(meshGpu.meshID);
+                    meshGpu.meshID = 0;
+                    meshGpu.ownsProceduralMeshResource = false;
+                });
+
             ecsWorld.addControllerSystem<RenderGpuSystem>();
             ecsWorld.addControllerSystem<CameraGpuSystem>();
             ecsWorld.addControllerSystem<StaticMeshBindingSystem>();
@@ -104,8 +124,7 @@ class GtsScene
             ecsWorld.addControllerSystem<WorldTextBindingSystem>();
             ecsWorld.addControllerSystem<DebugFreeCameraSystem>();
             ecsWorld.addControllerSystem<CameraBindingSystem>();
-            ecsWorld.addControllerSystem<RenderResourceClearSystem>();
-            ecsWorld.addControllerSystem<CameraResourceClearSystem>();
             ecsWorld.addControllerSystem<DefaultCameraControlSystem>();
+            rendererFeatureInstalled = true;
         }
 };

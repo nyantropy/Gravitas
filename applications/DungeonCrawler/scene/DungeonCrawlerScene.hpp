@@ -324,7 +324,7 @@ public:
         ecsWorld.addControllerSystem<EnemySystem>();
         ecsWorld.addControllerSystem<CombatSystem>();
         ecsWorld.addControllerSystem<HudSystem>();
-        installRendererFeature();
+        installRendererFeature(ctx);
     }
 
     void onUpdateSimulation(SceneContext& ctx) override

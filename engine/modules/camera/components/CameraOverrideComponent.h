@@ -3,7 +3,7 @@
 // Marker component that flags a camera entity as fully custom-controlled.
 //
 // When present on an entity, CameraGpuSystem will skip it entirely.
-// The custom camera system that owns this entity must:
+// The engine-owned custom camera system that owns this entity must:
 //   - iterate on CameraDescriptionComponent + CameraOverrideComponent
 //   - read lens parameters (fov, aspect, near, far) from CameraDescriptionComponent
 //   - compute and write viewMatrix / projMatrix into CameraGpuComponent

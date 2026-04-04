@@ -9,6 +9,7 @@
 #include <tuple>
 #include <type_traits>
 #include <cassert>
+#include <functional>
 #include <unordered_set>
 
 #include "Entity.h"
@@ -56,7 +57,15 @@ class ECSWorld
             );
         }
 
+        void invokeRemoveCallback(const std::type_index& type, Entity entity, void* componentData)
+        {
+            auto it = removeCallbacks.find(type);
+            if (it != removeCallbacks.end() && componentData != nullptr)
+                it->second(*this, entity, componentData);
+        }
+
         mutable std::unordered_map<std::type_index, std::unique_ptr<IComponentStorage>> storages;
+        std::unordered_map<std::type_index, std::function<void(ECSWorld&, Entity, void*)>> removeCallbacks;
 
     public:
         Entity createEntity()
@@ -67,7 +76,13 @@ class ECSWorld
         void destroyEntity(Entity e)
         {
             for (auto& [type, storage] : storages)
+            {
+                if (!storage->has(e))
+                    continue;
+
+                invokeRemoveCallback(type, e, storage->getRawPtr(e));
                 storage->remove(e);
+            }
         }
 
         template<typename Component>
@@ -91,7 +106,12 @@ class ECSWorld
         template<typename Component>
         void removeComponent(Entity entity)
         {
-            getStorage<Component>().remove(entity);
+            auto& storage = getStorage<Component>();
+            if (!storage.has(entity))
+                return;
+
+            invokeRemoveCallback(std::type_index(typeid(Component)), entity, storage.getRawPtr(entity));
+            storage.remove(entity);
         }
 
         template<typename SystemType, typename... Args>
@@ -165,6 +185,13 @@ class ECSWorld
         // Call at the start of onLoad when a scene may be reloaded.
         void clear()
         {
+            for (auto& [type, storage] : storages)
+            {
+                const std::vector<Entity> entities = storage->getAllEntities();
+                for (Entity entity : entities)
+                    invokeRemoveCallback(type, entity, storage->getRawPtr(entity));
+            }
+
             storages.clear();
             simulationSystems.clear();
             controllerSystems.clear();
@@ -240,6 +267,16 @@ class ECSWorld
                     uniqueEntities.insert(e.id);
             }
             return uniqueEntities.size();
+        }
+
+        template<typename Component, typename Callback>
+        void registerRemoveCallback(Callback&& callback)
+        {
+            removeCallbacks[std::type_index(typeid(Component))] =
+                [cb = std::forward<Callback>(callback)](ECSWorld& world, Entity entity, void* componentData)
+                {
+                    cb(world, entity, *static_cast<Component*>(componentData));
+                };
         }
 
 };

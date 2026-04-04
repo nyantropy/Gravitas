@@ -6,6 +6,9 @@
 
 // Engine-internal material GPU state. Managed exclusively by binding systems.
 // Do not read or write from game code.
+//
+// textureID points at shared/cached texture resources. It is not owned by an
+// individual ECS entity and therefore is not released on component teardown.
 struct MaterialGpuComponent
 {
     texture_id_type textureID        = 0;

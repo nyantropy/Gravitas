@@ -14,7 +14,6 @@
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
 #include "CameraControlOverrideComponent.h"
-#include "CameraOverrideComponent.h"
 #include "GraphicsConstants.h"
 #include "GtsKey.h"
 #include "UiSystem.h"
@@ -85,9 +84,6 @@ class CullTestScene : public GtsScene
         tc.position = glm::vec3(0.0f, 8.0f, 40.0f);
         ecsWorld.addComponent(camera, tc);
 
-        // CameraOverrideComponent: FreeFlyCamera writes matrices directly, CameraGpuSystem skips this entity
-        ecsWorld.addComponent(camera, CameraOverrideComponent{});
-
         // CameraControlOverrideComponent: DefaultCameraControlSystem skips this entity
         ecsWorld.addComponent(camera, CameraControlOverrideComponent{});
     }
@@ -129,7 +125,7 @@ public:
 
         // FreeFlyCamera must run before CameraBindingSystem (installed by installRendererFeature)
         ecsWorld.addControllerSystem<FreeFlyCamera>();
-        installRendererFeature();
+        installRendererFeature(ctx);
     }
 
     void onUpdateSimulation(SceneContext& ctx) override

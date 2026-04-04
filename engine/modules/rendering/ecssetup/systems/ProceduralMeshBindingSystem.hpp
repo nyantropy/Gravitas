@@ -50,29 +50,52 @@ public:
                 matGpu.textureID        = ctx.resources->requestTexture(mat.texturePath);
                 matGpu.boundTexturePath = mat.texturePath;
                 rc.dirty                = true;
+                rc.readyToRender        = false;
             }
 
             matGpu.tint  = mat.tint;
             matGpu.alpha = mat.alpha;
 
-            // Re-upload the procedural quad mesh whenever dimensions change
-            if (mesh.width != meshGpu.boundWidth || mesh.height != meshGpu.boundHeight)
-            {
-                const float hw = mesh.width  * 0.5f;
-                const float hh = mesh.height * 0.5f;
+            const bool customGeometryChanged =
+                mesh.useCustomGeometry
+                && mesh.geometryVersion != meshGpu.boundGeometryVersion;
 
-                std::vector<Vertex> verts = {
-                    { { -hw,  hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f } },
-                    { {  hw,  hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f } },
-                    { {  hw, -hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f } },
-                    { { -hw, -hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } },
-                };
-                std::vector<uint32_t> idxs = { 0, 1, 2, 0, 2, 3 };
+            const bool quadGeometryChanged =
+                !mesh.useCustomGeometry
+                && (mesh.width != meshGpu.boundWidth || mesh.height != meshGpu.boundHeight);
+
+            // Re-upload whenever the gameplay-facing procedural description changes.
+            if (customGeometryChanged || quadGeometryChanged)
+            {
+                std::vector<Vertex> verts;
+                std::vector<uint32_t> idxs;
+
+                if (mesh.useCustomGeometry)
+                {
+                    verts = mesh.vertices;
+                    idxs  = mesh.indices;
+                }
+                else
+                {
+                    const float hw = mesh.width  * 0.5f;
+                    const float hh = mesh.height * 0.5f;
+
+                    verts = {
+                        { { -hw,  hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f } },
+                        { {  hw,  hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f } },
+                        { {  hw, -hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f } },
+                        { { -hw, -hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } },
+                    };
+                    idxs = { 0, 1, 2, 0, 2, 3 };
+                }
 
                 meshGpu.meshID      = ctx.resources->uploadProceduralMesh(meshGpu.meshID, verts, idxs);
+                meshGpu.ownsProceduralMeshResource = true;
                 meshGpu.boundWidth  = mesh.width;
                 meshGpu.boundHeight = mesh.height;
+                meshGpu.boundGeometryVersion = mesh.geometryVersion;
                 rc.dirty            = true;
+                rc.readyToRender    = false;
             }
         });
     }

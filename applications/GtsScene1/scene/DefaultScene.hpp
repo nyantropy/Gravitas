@@ -106,9 +106,9 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent(camera, ct);
         }
 
-        void addSystems()
+        void addSystems(SceneContext& ctx)
         {
-            installRendererFeature();
+            installRendererFeature(ctx);
             ecsWorld.addSimulationSystem<TransformAnimationSystem>();
         }
 
@@ -119,7 +119,7 @@ class DefaultScene : public GtsScene
             secondCube();
             thirdCube();
             mainCamera();
-            addSystems();
+            addSystems(ctx);
         }
 
         void onUpdateSimulation(SceneContext& ctx) override

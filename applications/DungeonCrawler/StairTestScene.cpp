@@ -32,7 +32,7 @@
 // ─── onLoad ──────────────────────────────────────────────────────────────────
 void StairTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /*data*/)
 {
-    ecsWorld.clear();
+    resetSceneWorld();
     playerEntity   = INVALID_ENTITY;
 
     ecsWorld.createSingleton<DungeonInputComponent>();
@@ -62,7 +62,7 @@ void StairTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /*d
     ecsWorld.addControllerSystem<FloorTransitionSystem>();
     ecsWorld.addControllerSystem<DungeonTileBindingSystem>();
 
-    installRendererFeature();
+    installRendererFeature(ctx);
 }
 
 // ─── onUpdateSimulation ──────────────────────────────────────────────────────

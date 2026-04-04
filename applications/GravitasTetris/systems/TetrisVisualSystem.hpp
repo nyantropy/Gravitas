@@ -8,7 +8,6 @@
 #include "TransformComponent.h"
 #include "StaticMeshComponent.h"
 #include "MaterialComponent.h"
-#include "RenderGpuComponent.h"
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
 #include "TetrominoType.hpp"
@@ -41,15 +40,7 @@ class TetrisVisualSystem : public ECSControllerSystem
                     std::string newPath = texturePath(block);
 
                     if (newPath != mat.texturePath)
-                    {
-                        // Type changed this frame — hide for one frame while StaticMeshBindingSystem
-                        // rebinds the texture. RenderGpuSystem will restore readyToRender = true
-                        // on the next simulation tick after processing the dirty flag.
                         mat.texturePath = newPath;
-
-                        if (world.hasComponent<RenderGpuComponent>(e))
-                            world.getComponent<RenderGpuComponent>(e).readyToRender = false;
-                    }
                 }
 
                 // keep the block's grid position reflected in the transform
@@ -78,10 +69,6 @@ class TetrisVisualSystem : public ECSControllerSystem
                     tr.position.y = float(block.y);
                 }
                 tr.position.z = 0.0f;
-
-                // flag the renderer-side component dirty so the model matrix is re-uploaded
-                if (world.hasComponent<RenderGpuComponent>(e))
-                    world.getComponent<RenderGpuComponent>(e).dirty = true;
             });
         }
 

@@ -45,9 +45,11 @@ public:
                 if (!verts.empty())
                 {
                     meshGpu.meshID     = ctx.resources->uploadProceduralMesh(meshGpu.meshID, verts, indices);
+                    meshGpu.ownsProceduralMeshResource = true;
                     matGpu.textureID   = wtc.font->atlasTexture;
                     matGpu.doubleSided = true;
                     rc.dirty           = true;
+                    rc.readyToRender   = false;
                 }
 
                 wtc.dirty = false;

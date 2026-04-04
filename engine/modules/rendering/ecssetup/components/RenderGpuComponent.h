@@ -10,7 +10,10 @@ constexpr ssbo_id_type RENDERABLE_SLOT_UNALLOCATED = std::numeric_limits<ssbo_id
 // Engine-internal per-object GPU state. Managed by RenderGpuSystem.
 // Do not read or write from game code.
 //
-// modelMatrix    : kept current by RenderGpuSystem when dirty == true.
+// objectSSBOSlot : unique per-entity SSBO slot allocated by a binding system and
+//   owned by this component. Automatically recycled when the component or entity
+//   is removed from the ECS world.
+// modelMatrix    : kept current by RenderGpuSystem every controller tick.
 // readyToRender  : starts false; set true by RenderGpuSystem the first time it writes a
 //   valid model matrix from TransformComponent.  RenderCommandExtractor skips any entity
 //   where this is still false, preventing the one-frame glitch where a newly created entity

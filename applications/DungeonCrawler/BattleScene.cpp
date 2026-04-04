@@ -17,8 +17,7 @@
 
 void BattleScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* data)
 {
-    releaseGpuResources(ctx);
-    ecsWorld.clear();
+    resetSceneWorld();
     actionManager = InputActionManager<DungeonAction>{};
     actionManager.bind(DungeonAction::BattleExit, GtsKey::Q);
     enemyEntity = INVALID_ENTITY;
@@ -99,7 +98,7 @@ void BattleScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* data)
     ecsWorld.addComponent(cameraEntity, cameraTransform);
     ecsWorld.addComponent(cameraEntity, camera);
 
-    installRendererFeature();
+    installRendererFeature(ctx);
 }
 
 void BattleScene::onUpdateSimulation(SceneContext& ctx)

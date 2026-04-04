@@ -9,21 +9,23 @@
 //
 // Two paths produce matrices into this component each frame:
 //
-//   Default path (CameraGpuSystem — simulation):
+//   Default path (CameraGpuSystem):
 //     Processes entities with CameraDescriptionComponent but WITHOUT
 //     CameraOverrideComponent.  Computes view/proj from description + transform,
 //     syncs the active flag, and sets dirty = true.
 //
-//   Override path (custom camera systems, e.g. TetrisCameraSystem — simulation):
+//   Override path (engine-owned custom camera systems):
 //     Processes entities with CameraOverrideComponent.  Writes view/proj directly
-//     (e.g. orthographic for 2D), sets active and dirty = true.
+//     when a fully custom camera pipeline is required, sets active and dirty = true.
 //     CameraGpuSystem never touches these entities.
 //
 //   CameraBindingSystem (controller):
 //     Allocates viewID on first encounter, uploads matrices to the camera UBO
-//     when dirty == true, then resets dirty = false.
+//     when dirty == true, then resets dirty = false. viewID is owned by this
+//     component and is released automatically when the component or entity is
+//     removed from the ECS world.
 //
-// Gameplay systems must not write to this component directly.
+// Gameplay and application systems must not write to this component directly.
 struct CameraGpuComponent
 {
     view_id_type viewID     = 0;        // 0 = not yet allocated by CameraBindingSystem

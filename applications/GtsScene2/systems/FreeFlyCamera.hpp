@@ -10,14 +10,11 @@
 
 #include "CameraDescriptionComponent.h"
 #include "CameraControlOverrideComponent.h"
-#include "CameraOverrideComponent.h"
-#include "CameraGpuComponent.h"
 #include "TransformComponent.h"
 
 // Free-fly camera controller for GtsScene2.
 // Entities must have CameraControlOverrideComponent so DefaultCameraControlSystem skips them.
-// Also requires CameraOverrideComponent so CameraGpuSystem skips them; this system writes
-// matrices directly to CameraGpuComponent each frame.
+// This system updates only TransformComponent and CameraDescriptionComponent.
 //
 // Controls:
 //   W / S     — move forward / backward along look direction
@@ -37,7 +34,6 @@ public:
 
         for (Entity e : world.getAllEntitiesWith<CameraDescriptionComponent,
                                                  CameraControlOverrideComponent,
-                                                 CameraOverrideComponent,
                                                  TransformComponent>())
         {
             auto& tr   = world.getComponent<TransformComponent>(e);
@@ -63,24 +59,9 @@ public:
             if (input->isKeyDown(GtsKey::R)) tr.position.y += MOVE_SPEED * dt;
             if (input->isKeyDown(GtsKey::T)) tr.position.y -= MOVE_SPEED * dt;
 
-            // Write view/proj directly into CameraGpuComponent
-            if (!world.hasComponent<CameraGpuComponent>(e))
-                world.addComponent(e, CameraGpuComponent{});
-
-            auto& gpu = world.getComponent<CameraGpuComponent>(e);
-
-            glm::vec3 lookAt = tr.position + forward;
-            gpu.viewMatrix = glm::lookAt(tr.position, lookAt, glm::vec3(0.0f, 1.0f, 0.0f));
-            gpu.projMatrix = glm::perspective(
-                desc.fov,
-                desc.aspectRatio > 0.0f ? desc.aspectRatio : ctx.windowAspectRatio,
-                desc.nearClip,
-                desc.farClip);
-            // Flip Y for Vulkan NDC
-            gpu.projMatrix[1][1] *= -1.0f;
-
-            gpu.active = desc.active;
-            gpu.dirty  = true;
+            desc.target      = tr.position + forward;
+            desc.up          = glm::vec3(0.0f, 1.0f, 0.0f);
+            desc.aspectRatio = ctx.windowAspectRatio;
         }
     }
 

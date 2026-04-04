@@ -44,8 +44,10 @@ public:
             if (mesh.meshPath != meshGpu.boundMeshPath)
             {
                 meshGpu.meshID        = ctx.resources->requestMesh(mesh.meshPath);
+                meshGpu.ownsProceduralMeshResource = false;
                 meshGpu.boundMeshPath = mesh.meshPath;
                 rc.dirty              = true;
+                rc.readyToRender      = false;
             }
 
             // Resolve (or re-resolve) texture if the path changed
@@ -54,6 +56,7 @@ public:
                 matGpu.textureID        = ctx.resources->requestTexture(mat.texturePath);
                 matGpu.boundTexturePath = mat.texturePath;
                 rc.dirty                = true;
+                rc.readyToRender        = false;
             }
 
             // Sync material properties (cheap copies; no GPU resource involved)

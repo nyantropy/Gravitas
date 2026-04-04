@@ -12,11 +12,9 @@
 // TransformComponent, accounting for parent-child hierarchies.
 // Runs every frame regardless of pause state so transforms stay current.
 //
-// Entities without a HierarchyComponent (or whose parent is INVALID_ENTITY)
-// behave exactly as before: the matrix is only recomputed when dirty == true.
-//
-// Entities with a valid parent always recompute so that parent-transform changes
-// propagate automatically without requiring every child to be marked dirty.
+// Model matrices are recomputed every controller tick from TransformComponent.
+// This keeps GPU-facing state engine-owned and removes the need for gameplay
+// code to manually toggle RenderGpuComponent dirty flags.
 // A per-frame memoization cache ensures each ancestor is walked at most once,
 // and a visiting set breaks any malformed cycles.
 class RenderGpuSystem : public ECSControllerSystem
@@ -62,14 +60,6 @@ public:
 
         world.forEach<RenderGpuComponent, TransformComponent>([&](Entity e, RenderGpuComponent& rc, TransformComponent&)
         {
-            // Entities with a live parent always recompute so parent transforms propagate.
-            // Root entities (no parent) only recompute when their dirty flag is set.
-            bool hasParent = world.hasComponent<HierarchyComponent>(e) &&
-                             world.getComponent<HierarchyComponent>(e).parent != INVALID_ENTITY;
-
-            if (!rc.dirty && !hasParent)
-                return;
-
             rc.modelMatrix   = computeWorldMatrix(computeWorldMatrix, e);
             rc.dirty         = false;
             rc.readyToRender = true;

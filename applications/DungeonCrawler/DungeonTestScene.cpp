@@ -27,9 +27,6 @@
 #include "PlayerCameraSystem.h"
 #include "PlayerMovementSystem.hpp"
 #include "ProceduralMeshComponent.h"
-#include "RenderGpuComponent.h"
-#include "RenderResourceClearComponent.h"
-#include "RenderResourceClearSystem.hpp"
 #include "StaticMeshComponent.h"
 #include "TransformComponent.h"
 
@@ -151,8 +148,7 @@ DungeonTestScene::DungeonTestScene()
 
 void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* data)
 {
-    releaseGpuResources(ctx);
-    ecsWorld.clear();
+    resetSceneWorld();
     floorEntities.clear();
     playerEntity = INVALID_ENTITY;
     playerMarkerEntity = INVALID_ENTITY;
@@ -206,7 +202,7 @@ void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* d
     installPhysicsFeature(ctx);
     ecsWorld.addSimulationSystem<EnemyInteractionSystem>(ctx.physics);
 
-    installRendererFeature();
+    installRendererFeature(ctx);
 }
 
 void DungeonTestScene::onUpdateSimulation(SceneContext& ctx)
@@ -264,7 +260,7 @@ void DungeonTestScene::initializeDungeonSingleton()
 
 void DungeonTestScene::rebuildActiveFloor(SceneContext& ctx)
 {
-    destroyFloorEntities(ctx);
+    destroyFloorEntities();
 
     auto& floorSingleton = ecsWorld.getSingleton<DungeonFloorSingleton>();
     floorSingleton.floor = &dungeon.getActiveFloor();
@@ -449,23 +445,10 @@ void DungeonTestScene::spawnStairFeature(const GeneratedFloor& floor,
     }
 }
 
-void DungeonTestScene::destroyFloorEntities(SceneContext& ctx)
+void DungeonTestScene::destroyFloorEntities()
 {
     for (Entity entity : floorEntities)
-    {
-        if (ecsWorld.hasComponent<RenderGpuComponent>(entity)
-            && !ecsWorld.hasComponent<RenderResourceClearComponent>(entity))
-        {
-            ecsWorld.addComponent(entity, RenderResourceClearComponent{});
-        }
-        else if (!ecsWorld.hasComponent<RenderGpuComponent>(entity))
-        {
-            ecsWorld.destroyEntity(entity);
-        }
-    }
-
-    // Reclaim object SSBO slots before spawning the replacement floor.
-    RenderResourceClearSystem{}.update(ecsWorld, ctx);
+        ecsWorld.destroyEntity(entity);
 
     floorEntities.clear();
 }

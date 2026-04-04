@@ -11,7 +11,6 @@
 #include "PhysicsWorld.h"
 #include "ProceduralMeshComponent.h"
 #include "RenderGpuComponent.h"
-#include "RenderResourceClearComponent.h"
 #include "SphereColliderComponent.h"
 #include "TransformComponent.h"
 
@@ -49,15 +48,7 @@ namespace
 
     void releaseSegmentEntity(ECSWorld& world, Entity entity)
     {
-        if (world.hasComponent<RenderGpuComponent>(entity)
-            && !world.hasComponent<RenderResourceClearComponent>(entity))
-        {
-            world.addComponent(entity, RenderResourceClearComponent{});
-        }
-        else if (!world.hasComponent<RenderGpuComponent>(entity))
-        {
-            world.destroyEntity(entity);
-        }
+        world.destroyEntity(entity);
     }
 
     void updateSegment(ECSWorld& world,

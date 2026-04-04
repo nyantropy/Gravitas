@@ -16,8 +16,6 @@
 //
 // The system runs only on entities with CameraControlOverrideComponent,
 // which prevents DefaultCameraControlSystem from also processing them.
-// CameraOverrideComponent (GPU matrix ownership) is a separate concern and
-// is not read or written here.
 class TetrisCameraControlSystem : public ECSControllerSystem
 {
     static constexpr float ZOOM_SPEED  = 30.0f;   // world units per second

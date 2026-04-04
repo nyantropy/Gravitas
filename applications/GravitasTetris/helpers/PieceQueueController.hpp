@@ -4,7 +4,6 @@
 #include "TetrominoShape.hpp"
 #include "TetrisBlockComponent.hpp"
 #include "NextPieceBlockComponent.hpp"
-#include "RenderResourceClearComponent.h"
 #include "HierarchyHelper.h"
 #include "ECSWorld.hpp"
 #include "Entity.h"
@@ -51,10 +50,7 @@ struct PieceQueueController
         nextQueue.pop_front();
 
         for (int j = 0; j < 4; ++j)
-        {
-            world.addComponent(previewBlocks[0][j], RenderResourceClearComponent{});
-            world.removeComponent<TetrisBlockComponent>(previewBlocks[0][j]);
-        }
+            world.destroyEntity(previewBlocks[0][j]);
         previewBlocks.erase(previewBlocks.begin());
 
         TetrominoType newT = (TetrominoType)(rand() % 7);

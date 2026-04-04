@@ -3,6 +3,7 @@
 #include <string>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "MeshResource.h"
 #include "GtsModelLoader.hpp"
@@ -15,6 +16,7 @@ class MeshManager
     private:
         std::unordered_map<std::string, mesh_id_type> pathToID;
         std::unordered_map<mesh_id_type, std::unique_ptr<MeshResource>> idToMesh;
+        std::unordered_set<mesh_id_type> proceduralMeshIDs;
         mesh_id_type nextID = 1; // start from 1, 0 = invalid
 
     public:
@@ -41,6 +43,7 @@ class MeshManager
 
             idToMesh.clear();
             pathToID.clear();
+            proceduralMeshIDs.clear();
         }
 
         // load mesh if not loaded, return mesh ID
@@ -162,6 +165,34 @@ class MeshManager
 
             mesh_id_type id = nextID++;
             idToMesh[id] = std::move(mesh);
+            proceduralMeshIDs.insert(id);
             return id;
+        }
+
+        void destroyProceduralMesh(mesh_id_type id)
+        {
+            if (id == 0 || !proceduralMeshIDs.contains(id))
+                return;
+
+            auto it = idToMesh.find(id);
+            if (it == idToMesh.end())
+            {
+                proceduralMeshIDs.erase(id);
+                return;
+            }
+
+            MeshResource* mesh = it->second.get();
+
+            if (mesh->vertexBuffer != VK_NULL_HANDLE)
+                vkDestroyBuffer(vcsheet::getDevice(), mesh->vertexBuffer, nullptr);
+            if (mesh->vertexMemory != VK_NULL_HANDLE)
+                vkFreeMemory(vcsheet::getDevice(), mesh->vertexMemory, nullptr);
+            if (mesh->indexBuffer != VK_NULL_HANDLE)
+                vkDestroyBuffer(vcsheet::getDevice(), mesh->indexBuffer, nullptr);
+            if (mesh->indexMemory != VK_NULL_HANDLE)
+                vkFreeMemory(vcsheet::getDevice(), mesh->indexMemory, nullptr);
+
+            idToMesh.erase(it);
+            proceduralMeshIDs.erase(id);
         }
 };

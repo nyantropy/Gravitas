@@ -9,11 +9,6 @@
 #include "HierarchyComponent.h"
 #include "TransformComponent.h"
 #include "CameraDescriptionComponent.h"
-#include "CameraResourceClearComponent.h"
-#include "CameraResourceClearSystem.hpp"
-#include "RenderGpuComponent.h"
-#include "RenderResourceClearComponent.h"
-#include "RenderResourceClearSystem.hpp"
 #include "BoundsComponent.h"
 #include "ProceduralMeshComponent.h"
 #include "StaticMeshComponent.h"
@@ -77,9 +72,7 @@ DungeonFloorScene::DungeonFloorScene()
 void DungeonFloorScene::onLoad(SceneContext& ctx,
                                 const GtsSceneTransitionData* /*data*/)
 {
-    // On reload, release GPU resources before wiping the world.
-    releaseGpuResources(ctx);
-    ecsWorld.clear();
+    resetSceneWorld();
     playerEntity      = INVALID_ENTITY;
     lastDisplayedFloor = 0;
 
@@ -151,7 +144,7 @@ void DungeonFloorScene::onLoad(SceneContext& ctx,
     installPhysicsFeature(ctx);
 
     // installRendererFeature must be LAST
-    installRendererFeature();
+    installRendererFeature(ctx);
 }
 
 // ─── onUpdateSimulation ──────────────────────────────────────────────────────

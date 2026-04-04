@@ -41,7 +41,7 @@ private:
     void rebuildActiveFloor(SceneContext& ctx);
     void buildFloorEntities(const GeneratedFloor& floor);
     void spawnEnemyEntities(const GeneratedFloor& floor);
-    void destroyFloorEntities(SceneContext& ctx);
+    void destroyFloorEntities();
     void spawnStairFeature(const GeneratedFloor& floor, const glm::ivec2& stairPos, bool descends);
     void spawnPlayer(SceneContext& ctx, const glm::ivec2& startPos);
     void spawnPlayerMarker();

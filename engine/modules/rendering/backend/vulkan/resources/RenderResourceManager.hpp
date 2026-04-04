@@ -63,6 +63,11 @@ class RenderResourceManager : public IResourceProvider
             return meshManager->uploadProceduralMesh(existingId, vertices, indices);
         }
 
+        void releaseProceduralMesh(mesh_id_type id) override
+        {
+            meshManager->destroyProceduralMesh(id);
+        }
+
         // --- Texture ---
         texture_id_type requestTexture(const std::string& path) override
         {

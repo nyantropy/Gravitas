@@ -8,7 +8,6 @@
 
 #include "EnemyComponent.h"
 #include "TransformComponent.h"
-#include "RenderGpuComponent.h"
 #include "PlayerComponent.h"
 #include "DungeonGameStateComponent.h"
 #include "DungeonMap.h"
@@ -106,10 +105,6 @@ public:
             }
 
             enemy.moveCooldown = EnemyComponent::MOVE_COOLDOWN_TIME;
-
-            // Dirty the GPU component so RenderGpuSystem recomputes the matrix.
-            if (world.hasComponent<RenderGpuComponent>(e))
-                world.getComponent<RenderGpuComponent>(e).dirty = true;
         });
     }
 };

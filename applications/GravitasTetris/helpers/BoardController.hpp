@@ -2,7 +2,6 @@
 
 #include "TetrisGrid.hpp"
 #include "TetrisBlockComponent.hpp"
-#include "RenderResourceClearComponent.h"
 #include "TetrisScoreComponent.hpp"
 #include "NextPieceBlockComponent.hpp"
 #include "GhostBlockComponent.hpp"
@@ -54,10 +53,7 @@ struct BoardController
                     toDestroy.push_back(e);
             }
             for (Entity e : toDestroy)
-            {
-                world.addComponent(e, RenderResourceClearComponent{});
-                world.removeComponent<TetrisBlockComponent>(e);
-            }
+                world.destroyEntity(e);
 
             // preview and ghost blocks have active=true, so the !b.active guard skips them
             world.forEach<TetrisBlockComponent>([&](Entity, TetrisBlockComponent& b)
@@ -88,10 +84,7 @@ struct BoardController
                 toWipe.push_back(e);
         });
         for (Entity e : toWipe)
-        {
-            world.addComponent(e, RenderResourceClearComponent{});
-            world.removeComponent<TetrisBlockComponent>(e);
-        }
+            world.destroyEntity(e);
     }
 
 private:

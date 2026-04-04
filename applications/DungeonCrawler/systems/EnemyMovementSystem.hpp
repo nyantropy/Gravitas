@@ -9,7 +9,6 @@
 #include "DungeonFloorSingleton.h"
 #include "EnemyComponent.h"
 #include "EnemyMovementStateComponent.h"
-#include "RenderGpuComponent.h"
 #include "TransformComponent.h"
 
 // Random-walk movement for grid-bound enemies with smooth interpolation.
@@ -38,7 +37,6 @@ public:
                 movement.progress += dt * enemy.moveSpeed;
                 const float clampedProgress = glm::clamp(movement.progress, 0.0f, 1.0f);
                 tc.position = glm::mix(movement.startPosition, movement.targetPosition, clampedProgress);
-                markRenderDirty(world, e);
 
                 if (movement.progress >= 1.0f)
                 {
@@ -47,7 +45,6 @@ public:
                     enemy.gridZ       = movement.targetTile.y;
                     movement.progress = 1.0f;
                     movement.moving   = false;
-                    markRenderDirty(world, e);
                 }
                 return;
             }
@@ -71,17 +68,10 @@ public:
             };
             movement.progress = 0.0f;
             movement.moving   = true;
-            markRenderDirty(world, e);
         });
     }
 
 private:
-    static void markRenderDirty(ECSWorld& world, Entity entity)
-    {
-        if (world.hasComponent<RenderGpuComponent>(entity))
-            world.getComponent<RenderGpuComponent>(entity).dirty = true;
-    }
-
     static uint32_t nextRandom(uint32_t& state)
     {
         if (state == 0u) state = 1u;

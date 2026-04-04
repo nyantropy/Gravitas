@@ -3,7 +3,6 @@
 #include "ActiveTetromino.hpp"
 #include "TetrisGrid.hpp"
 #include "TetrisBlockComponent.hpp"
-#include "RenderResourceClearComponent.h"
 #include "TetrominoShape.hpp"
 #include "TetrominoType.hpp"
 #include "TetrisPhysics.hpp"
@@ -45,10 +44,7 @@ struct ActivePieceController
     void clearFromECS(ECSWorld& world)
     {
         for (int i = 0; i < 4; ++i)
-        {
-            world.addComponent(active.blocks[i], RenderResourceClearComponent{});
-            world.removeComponent<TetrisBlockComponent>(active.blocks[i]);
-        }
+            world.destroyEntity(active.blocks[i]);
     }
 
     // ── transform ────────────────────────────────────────────────────────────
