@@ -38,7 +38,10 @@ public:
 
             // Allocate a GPU slot the first time this entity is seen
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
+            {
                 rc.objectSSBOSlot = ctx.resources->requestObjectSlot();
+                rc.commandDirty   = true;
+            }
 
             // Resolve (or re-resolve) mesh if the path changed
             if (mesh.meshPath != meshGpu.boundMeshPath)
@@ -48,6 +51,7 @@ public:
                 meshGpu.boundMeshPath = mesh.meshPath;
                 rc.dirty              = true;
                 rc.readyToRender      = false;
+                rc.commandDirty       = true;
             }
 
             // Resolve (or re-resolve) texture if the path changed
@@ -57,9 +61,16 @@ public:
                 matGpu.boundTexturePath = mat.texturePath;
                 rc.dirty                = true;
                 rc.readyToRender        = false;
+                rc.commandDirty         = true;
             }
 
             // Sync material properties (cheap copies; no GPU resource involved)
+            if (matGpu.alpha != mat.alpha
+                || matGpu.doubleSided != mat.doubleSided
+                || matGpu.tint != mat.tint)
+            {
+                rc.commandDirty = true;
+            }
             matGpu.tint        = mat.tint;
             matGpu.alpha       = mat.alpha;
             matGpu.doubleSided = mat.doubleSided;

@@ -180,32 +180,6 @@ public:
                                     0, 2, globalSets, 0, nullptr);
         }
 
-        // Sort render commands to group by (pipeline variant, mesh, texture), minimising
-        // redundant Vulkan state changes.  We sort pointers to avoid copying RenderCommand
-        // structs.  The render list is already stable_partitioned opaque-first by
-        // RenderCommandExtractor, so we locate the partition point and sort only the opaque
-        // prefix — transparent objects must remain in their original back-to-front order so
-        // alpha blending is correct.
-        std::vector<const RenderCommand*> sorted;
-        sorted.reserve(renderList.size());
-        for (const auto& rc : renderList)
-            sorted.push_back(&rc);
-
-        // Find where opaque commands end (renderList is opaque-first due to stable_partition).
-        size_t opaqueCount = 0;
-        while (opaqueCount < renderList.size() && renderList[opaqueCount].alpha >= 1.0f)
-            ++opaqueCount;
-
-        // Sort the opaque prefix by (doubleSided, meshID, textureID).
-        // Transparent suffix stays in original back-to-front order.
-        std::sort(sorted.begin(), sorted.begin() + opaqueCount,
-            [](const RenderCommand* a, const RenderCommand* b)
-            {
-                if (a->doubleSided != b->doubleSided) return !a->doubleSided && b->doubleSided;
-                if (a->meshID      != b->meshID)      return a->meshID      < b->meshID;
-                return a->textureID < b->textureID;
-            });
-
         const VkDeviceSize zeroOffset = 0;
 
         // Bound-state cache: track what is currently set on the command buffer so
@@ -228,9 +202,9 @@ public:
         // Iterate sorted commands, grouping consecutive same-(pipeline, mesh, texture, alpha)
         // commands into one instanced draw call.
         size_t i = 0;
-        while (i < sorted.size())
+        while (i < renderList.size())
         {
-            const RenderCommand* first = sorted[i];
+            const RenderCommand* first = &renderList[i];
             MeshResource*    mesh = resources->getMesh(first->meshID);
             TextureResource* tex  = resources->getTexture(first->textureID);
             VulkanPipeline*  activePipeline = first->doubleSided
@@ -240,9 +214,9 @@ public:
             // Collect all consecutive commands that can share one draw call.
             const uint32_t batchBase  = instanceHead;
             uint32_t       batchCount = 0;
-            while (i < sorted.size())
+            while (i < renderList.size())
             {
-                const RenderCommand* cur = sorted[i];
+                const RenderCommand* cur = &renderList[i];
                 VulkanPipeline* curPipeline = cur->doubleSided
                     ? pipelineDoubleSided.get()
                     : pipeline.get();

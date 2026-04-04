@@ -15,5 +15,5 @@ public:
 
     // Extract commands for the current frame.
     // Called once per frame from GravitasEngine::render().
-    virtual TOutput extract(const GtsExtractorContext& ctx) = 0;
+    virtual const TOutput& extract(const GtsExtractorContext& ctx) = 0;
 };

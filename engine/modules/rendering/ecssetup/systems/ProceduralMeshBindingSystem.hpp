@@ -39,7 +39,10 @@ public:
 
             // Allocate a GPU slot on first bind
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
+            {
                 rc.objectSSBOSlot = ctx.resources->requestObjectSlot();
+                rc.commandDirty   = true;
+            }
 
             // Procedural quads are always visible from both sides
             matGpu.doubleSided = true;
@@ -51,8 +54,11 @@ public:
                 matGpu.boundTexturePath = mat.texturePath;
                 rc.dirty                = true;
                 rc.readyToRender        = false;
+                rc.commandDirty         = true;
             }
 
+            if (matGpu.tint != mat.tint || matGpu.alpha != mat.alpha)
+                rc.commandDirty = true;
             matGpu.tint  = mat.tint;
             matGpu.alpha = mat.alpha;
 
@@ -90,6 +96,7 @@ public:
                 meshGpu.boundGeometryVersion = mesh.geometryVersion;
                 rc.dirty                     = true;
                 rc.readyToRender             = false;
+                rc.commandDirty              = true;
             }
         });
     }

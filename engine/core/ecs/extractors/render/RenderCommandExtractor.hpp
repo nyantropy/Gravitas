@@ -4,6 +4,7 @@
 #include <vector>
 #include <algorithm>
 #include <limits>
+#include <unordered_map>
 
 #include "ECSWorld.hpp"
 #include "IGtsExtractor.h"
@@ -36,9 +37,14 @@ class RenderCommandExtractor : public IGtsExtractor<std::vector<RenderCommand>>
 public:
     struct Metrics
     {
-        float    extractCpuMs      = 0.0f;
-        uint32_t totalRenderables  = 0;
+        float    extractCpuMs       = 0.0f;
+        float    sortCpuMs          = 0.0f;
+        uint32_t visitedRenderables = 0;
+        uint32_t totalRenderables   = 0;
         uint32_t visibleRenderables = 0;
+        uint32_t updatedCommands    = 0;
+        uint32_t cachedCommands     = 0;
+        bool     sortedThisFrame    = false;
     };
 
     explicit RenderCommandExtractor(bool frustumCullingEnabled = true)
@@ -50,13 +56,16 @@ public:
         return lastMetrics;
     }
 
-    std::vector<RenderCommand> extract(const GtsExtractorContext& ctx) override
+    const std::vector<RenderCommand>& extract(const GtsExtractorContext& ctx) override
     {
         const auto start = std::chrono::steady_clock::now();
         ECSWorld& world = ctx.world;
 
-        int totalRenderables   = 0;
-        int visibleRenderables = 0;
+        frameStamp += 1;
+        int totalRenderables    = 0;
+        int visibleRenderables  = 0;
+        int visitedRenderables  = 0;
+        int updatedCommands     = 0;
 
         // find the active camera's backend state
         view_id_type cameraViewID  = 0;
@@ -76,114 +85,133 @@ public:
             break;
         }
 
+        const bool cameraChanged = !cacheInitialised
+            || cameraViewID != lastCameraViewID
+            || viewMatrix != lastViewMatrix
+            || projMatrix != lastProjMatrix;
+
         // Extract frustum planes from the live camera each frame unless frozen.
         // When frozen, culler retains the planes captured at freeze time.
-        if (frustumCullingEnabled && !frustumFrozen)
+        if (frustumCullingEnabled && !frustumFrozen && cameraChanged)
         {
             glm::mat4 viewProj = projMatrix * viewMatrix;
             culler.extractPlanes(viewProj);
         }
 
-        // one command per renderable entity that has all three GPU components bound
-        std::vector<RenderCommand> cmds;
+        opaqueEntityOrder.clear();
+        transparentEntityOrder.clear();
+        opaqueEntityOrder.reserve(commandCache.size());
+        transparentEntityOrder.reserve(commandCache.size());
 
-        for (Entity e : world.getAllEntitiesWith<RenderGpuComponent>())
+        world.forEach<RenderGpuComponent, MeshGpuComponent, MaterialGpuComponent>(
+            [&](Entity e, RenderGpuComponent& rc, MeshGpuComponent& meshGpu, MaterialGpuComponent& matGpu)
         {
-            if (!world.hasComponent<MeshGpuComponent>(e))     continue;
-            if (!world.hasComponent<MaterialGpuComponent>(e)) continue;
-
-            auto& rc      = world.getComponent<RenderGpuComponent>(e);
-            auto& meshGpu = world.getComponent<MeshGpuComponent>(e);
-            auto& matGpu  = world.getComponent<MaterialGpuComponent>(e);
+            visitedRenderables += 1;
 
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
-                continue; // slot not yet assigned by a binding system — skip this frame
+            {
+                markInvisible(e.id);
+                return;
+            }
 
             if (!rc.readyToRender)
-                continue; // model matrix not yet computed by RenderGpuSystem — skip this frame
+            {
+                markInvisible(e.id);
+                return;
+            }
 
             ++totalRenderables;
 
-            // --- Frustum cull test ---
-            if (frustumCullingEnabled)
+            CachedCommandState& cached = commandCache[e.id];
+            cached.lastSeenFrame = frameStamp;
+
+            const bool opaque = matGpu.alpha >= 1.0f;
+            const bool needsUpdate = !cacheInitialised
+                || rc.commandDirty
+                || cameraChanged
+                || !cached.initialised
+                || cached.command.meshID != meshGpu.meshID
+                || cached.command.textureID != matGpu.textureID
+                || cached.command.objectSSBOSlot != rc.objectSSBOSlot
+                || cached.command.alpha != matGpu.alpha
+                || cached.command.doubleSided != matGpu.doubleSided;
+
+            if (needsUpdate)
             {
-                // Per-entity neverCull / cullEnabled overrides.
-                bool skipCull = false;
-                if (world.hasComponent<CullFlagsComponent>(e))
-                {
-                    const auto& flags = world.getComponent<CullFlagsComponent>(e);
-                    if (flags.neverCull || !flags.cullEnabled)
-                        skipCull = true;
-                }
-
-                if (!skipCull)
-                {
-                    if (world.hasComponent<BoundsComponent>(e))
-                    {
-                        const auto& bounds = world.getComponent<BoundsComponent>(e);
-
-                        // Transform all 8 AABB corners to world space using the model
-                        // matrix and recompute the world-space min/max from those corners.
-                        // DO NOT simply multiply min and max directly — this gives wrong
-                        // results for rotated or non-uniformly scaled entities.
-                        const glm::mat4& model = rc.modelMatrix;
-
-                        glm::vec3 corners[8] = {
-                            { bounds.min.x, bounds.min.y, bounds.min.z },
-                            { bounds.max.x, bounds.min.y, bounds.min.z },
-                            { bounds.min.x, bounds.max.y, bounds.min.z },
-                            { bounds.max.x, bounds.max.y, bounds.min.z },
-                            { bounds.min.x, bounds.min.y, bounds.max.z },
-                            { bounds.max.x, bounds.min.y, bounds.max.z },
-                            { bounds.min.x, bounds.max.y, bounds.max.z },
-                            { bounds.max.x, bounds.max.y, bounds.max.z }
-                        };
-
-                        glm::vec3 worldMin{ std::numeric_limits<float>::max() };
-                        glm::vec3 worldMax{ std::numeric_limits<float>::lowest() };
-
-                        for (const glm::vec3& corner : corners)
-                        {
-                            glm::vec3 worldCorner = glm::vec3(model * glm::vec4(corner, 1.0f));
-                            worldMin = glm::min(worldMin, worldCorner);
-                            worldMax = glm::max(worldMax, worldCorner);
-                        }
-
-                        if (!culler.isVisible(worldMin, worldMax))
-                            continue;  // culled — skip this entity
-                    }
-                    // No BoundsComponent → never cull (safe default).
-                }
+                cached.command.meshID         = meshGpu.meshID;
+                cached.command.textureID      = matGpu.textureID;
+                cached.command.objectSSBOSlot = rc.objectSSBOSlot;
+                cached.command.cameraViewID   = cameraViewID;
+                cached.command.modelMatrix    = rc.modelMatrix;
+                cached.command.viewMatrix     = viewMatrix;
+                cached.command.projMatrix     = projMatrix;
+                cached.command.alpha          = matGpu.alpha;
+                cached.command.doubleSided    = matGpu.doubleSided;
+                cached.visible                = isEntityVisible(world, e, rc);
+                cached.initialised            = true;
+                rc.commandDirty               = false;
+                updatedCommands += 1;
             }
-            // --- End cull test ---
+
+            if (!cached.visible)
+                return;
 
             ++visibleRenderables;
+            if (opaque)
+                opaqueEntityOrder.push_back(e.id);
+            else
+                transparentEntityOrder.push_back(e.id);
+        });
 
-            cmds.push_back({
-                meshGpu.meshID,
-                matGpu.textureID,
-                rc.objectSSBOSlot,
-                cameraViewID,
-                rc.modelMatrix,
-                viewMatrix,
-                projMatrix,
-                matGpu.alpha,
-                matGpu.doubleSided
-            });
+        pruneStaleCache();
+
+        const bool needsRebuild = !cacheInitialised || cameraChanged || updatedCommands > 0 || staleEntriesPruned;
+        lastMetrics.sortCpuMs = 0.0f;
+        lastMetrics.sortedThisFrame = false;
+
+        if (needsRebuild)
+        {
+            const auto sortStart = std::chrono::steady_clock::now();
+            std::sort(opaqueEntityOrder.begin(), opaqueEntityOrder.end(),
+                [&](entity_id_type lhs, entity_id_type rhs)
+                {
+                    const auto& a = commandCache[lhs].command;
+                    const auto& b = commandCache[rhs].command;
+                    if (a.doubleSided != b.doubleSided) return !a.doubleSided && b.doubleSided;
+                    if (a.meshID      != b.meshID)      return a.meshID < b.meshID;
+                    return a.textureID < b.textureID;
+                });
+
+            cachedVisibleCommands.clear();
+            cachedVisibleCommands.reserve(opaqueEntityOrder.size() + transparentEntityOrder.size());
+            for (entity_id_type id : opaqueEntityOrder)
+                cachedVisibleCommands.push_back(commandCache[id].command);
+            for (entity_id_type id : transparentEntityOrder)
+                cachedVisibleCommands.push_back(commandCache[id].command);
+
+            const auto sortEnd = std::chrono::steady_clock::now();
+            lastMetrics.sortCpuMs =
+                std::chrono::duration<float, std::milli>(sortEnd - sortStart).count();
+            lastMetrics.sortedThisFrame = !opaqueEntityOrder.empty();
         }
-
-        // Opaque commands first so transparent geometry blends correctly against rendered geometry
-        std::stable_partition(cmds.begin(), cmds.end(),
-            [](const RenderCommand& cmd) { return cmd.alpha >= 1.0f; });
 
         lastTotalRenderables   = totalRenderables;
         lastVisibleRenderables = visibleRenderables;
         const auto end = std::chrono::steady_clock::now();
+        lastCameraViewID = cameraViewID;
+        lastViewMatrix   = viewMatrix;
+        lastProjMatrix   = projMatrix;
+        cacheInitialised = true;
+        staleEntriesPruned = false;
+
         lastMetrics.extractCpuMs = std::chrono::duration<float, std::milli>(end - start).count();
+        lastMetrics.visitedRenderables = static_cast<uint32_t>(visitedRenderables);
         lastMetrics.totalRenderables = static_cast<uint32_t>(totalRenderables);
         lastMetrics.visibleRenderables = static_cast<uint32_t>(visibleRenderables);
+        lastMetrics.updatedCommands = static_cast<uint32_t>(updatedCommands);
+        lastMetrics.cachedCommands  = static_cast<uint32_t>(cachedVisibleCommands.size());
 
-        return cmds;
+        return cachedVisibleCommands;
     }
 
     // Frustum culling global toggle
@@ -199,10 +227,97 @@ public:
     int  getLastVisibleRenderables() const { return lastVisibleRenderables; }
 
 private:
+    struct CachedCommandState
+    {
+        RenderCommand command;
+        uint64_t      lastSeenFrame = 0;
+        bool          visible       = false;
+        bool          initialised   = false;
+    };
+
     bool          frustumCullingEnabled;
     bool          frustumFrozen        = false;
     FrustumCuller culler;               // persists between frames; updated unless frozen
     int           lastTotalRenderables   = 0;
     int           lastVisibleRenderables = 0;
     Metrics       lastMetrics;
+    std::unordered_map<entity_id_type, CachedCommandState> commandCache;
+    std::vector<entity_id_type> opaqueEntityOrder;
+    std::vector<entity_id_type> transparentEntityOrder;
+    std::vector<RenderCommand>  cachedVisibleCommands;
+    glm::mat4    lastViewMatrix = glm::mat4(1.0f);
+    glm::mat4    lastProjMatrix = glm::mat4(1.0f);
+    view_id_type lastCameraViewID = 0;
+    uint64_t     frameStamp = 0;
+    bool         cacheInitialised = false;
+    bool         staleEntriesPruned = false;
+
+    void markInvisible(entity_id_type id)
+    {
+        auto it = commandCache.find(id);
+        if (it != commandCache.end())
+        {
+            it->second.lastSeenFrame = frameStamp;
+            it->second.visible = false;
+        }
+    }
+
+    void pruneStaleCache()
+    {
+        for (auto it = commandCache.begin(); it != commandCache.end(); )
+        {
+            if (it->second.lastSeenFrame != frameStamp)
+            {
+                staleEntriesPruned = true;
+                it = commandCache.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+
+    bool isEntityVisible(ECSWorld& world, Entity e, const RenderGpuComponent& rc)
+    {
+        if (!frustumCullingEnabled)
+            return true;
+
+        bool skipCull = false;
+        if (world.hasComponent<CullFlagsComponent>(e))
+        {
+            const auto& flags = world.getComponent<CullFlagsComponent>(e);
+            if (flags.neverCull || !flags.cullEnabled)
+                skipCull = true;
+        }
+
+        if (skipCull || !world.hasComponent<BoundsComponent>(e))
+            return true;
+
+        const auto& bounds = world.getComponent<BoundsComponent>(e);
+        const glm::mat4& model = rc.modelMatrix;
+
+        glm::vec3 corners[8] = {
+            { bounds.min.x, bounds.min.y, bounds.min.z },
+            { bounds.max.x, bounds.min.y, bounds.min.z },
+            { bounds.min.x, bounds.max.y, bounds.min.z },
+            { bounds.max.x, bounds.max.y, bounds.min.z },
+            { bounds.min.x, bounds.min.y, bounds.max.z },
+            { bounds.max.x, bounds.min.y, bounds.max.z },
+            { bounds.min.x, bounds.max.y, bounds.max.z },
+            { bounds.max.x, bounds.max.y, bounds.max.z }
+        };
+
+        glm::vec3 worldMin{ std::numeric_limits<float>::max() };
+        glm::vec3 worldMax{ std::numeric_limits<float>::lowest() };
+
+        for (const glm::vec3& corner : corners)
+        {
+            glm::vec3 worldCorner = glm::vec3(model * glm::vec4(corner, 1.0f));
+            worldMin = glm::min(worldMin, worldCorner);
+            worldMax = glm::max(worldMax, worldCorner);
+        }
+
+        return culler.isVisible(worldMin, worldMax);
+    }
 };

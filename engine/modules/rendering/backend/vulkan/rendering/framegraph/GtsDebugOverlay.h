@@ -107,6 +107,28 @@ public:
         appendLine(buffer, line, OVERLAY_X, y);
         y += lineAdvance;
 
+        snprintf(line, sizeof(line), "RCT  %.2fMS",
+                 stats.renderExtractCpuMs);
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "RCS  %.2fMS",
+                 stats.renderExtractSortCpuMs);
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "RCV/U %d/%d",
+                 static_cast<int>(stats.renderCommandVisitedCount),
+                 static_cast<int>(stats.renderCommandUpdatedCount));
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "RCTO/S %d/%d",
+                 static_cast<int>(stats.renderCommandTotalCount),
+                 static_cast<int>(stats.renderCommandSortedCount));
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
         snprintf(line, sizeof(line), "PSW  %d",
                  static_cast<int>(stats.pipelineSwitches));
         appendLine(buffer, line, OVERLAY_X, y);

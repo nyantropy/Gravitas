@@ -128,6 +128,7 @@ public:
             rc.modelMatrix   = state.worldMatrix;
             rc.dirty         = false;
             rc.readyToRender = true;
+            rc.commandDirty  = true;
             updatedRenderables += 1;
         });
 

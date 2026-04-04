@@ -34,7 +34,10 @@ public:
             auto& rc      = world.getComponent<RenderGpuComponent>(e);
 
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
+            {
                 rc.objectSSBOSlot = ctx.resources->requestObjectSlot();
+                rc.commandDirty   = true;
+            }
 
             if (wtc.dirty)
             {
@@ -50,6 +53,7 @@ public:
                     matGpu.doubleSided = true;
                     rc.dirty           = true;
                     rc.readyToRender   = false;
+                    rc.commandDirty    = true;
                 }
 
                 wtc.dirty = false;

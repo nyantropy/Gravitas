@@ -109,7 +109,7 @@ class GravitasEngine
             GtsExtractorContext extractCtx{world, sceneContext.windowAspectRatio};
 
             const auto extractStart = std::chrono::steady_clock::now();
-            auto renderList = renderCommandExtractor->extract(extractCtx);
+            const auto& renderList = renderCommandExtractor->extract(extractCtx);
             const auto extractEnd = std::chrono::steady_clock::now();
 
             UiCommandBuffer uiBuffer;
@@ -127,6 +127,7 @@ class GravitasEngine
             const auto extractorMetrics = renderCommandExtractor->getLastMetrics();
             const auto uiMetrics = uiSystem->getLastMetrics();
             stats.renderExtractCpuMs = std::chrono::duration<float, std::milli>(extractEnd - extractStart).count();
+            stats.renderExtractSortCpuMs = extractorMetrics.sortCpuMs;
             stats.uiLayoutCpuMs      = uiMetrics.layoutMs;
             stats.uiVisualCpuMs      = uiMetrics.visualMs;
             stats.uiCommandCpuMs     = uiMetrics.commandBuildMs;
@@ -135,6 +136,10 @@ class GravitasEngine
             stats.uiCommandCount     = uiMetrics.commandCount;
             stats.totalObjects       = extractorMetrics.totalRenderables;
             stats.visibleObjects     = extractorMetrics.visibleRenderables;
+            stats.renderCommandVisitedCount = extractorMetrics.visitedRenderables;
+            stats.renderCommandTotalCount   = extractorMetrics.cachedCommands;
+            stats.renderCommandUpdatedCount = extractorMetrics.updatedCommands;
+            stats.renderCommandSortedCount  = extractorMetrics.sortedThisFrame ? 1u : 0u;
 
             const auto submitStart = std::chrono::steady_clock::now();
             platform.getGraphics()->renderFrame(dt, renderList, uiBuffer, stats);

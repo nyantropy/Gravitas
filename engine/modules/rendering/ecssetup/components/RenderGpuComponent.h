@@ -19,10 +19,14 @@ constexpr ssbo_id_type RENDERABLE_SLOT_UNALLOCATED = std::numeric_limits<ssbo_id
 //   valid model matrix from TransformComponent.  RenderCommandExtractor skips any entity
 //   where this is still false, preventing the one-frame glitch where a newly created entity
 //   is drawn at the origin before RenderGpuSystem has had a chance to compute its matrix.
+// commandDirty   : marks that the cached RenderCommand needs to be rebuilt. Set
+//   by binding systems when mesh/material state changes and by RenderGpuSystem
+//   when the world-space model matrix changes.
 struct RenderGpuComponent
 {
     ssbo_id_type objectSSBOSlot = RENDERABLE_SLOT_UNALLOCATED;
     glm::mat4    modelMatrix    = glm::mat4(1.0f);
     bool         dirty          = true;
     bool         readyToRender  = false;
+    bool         commandDirty   = true;
 };

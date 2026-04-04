@@ -11,6 +11,7 @@ struct GtsFrameStats
     float    frameTimeMs            = 0.0f;
     float    renderGpuCpuMs         = 0.0f;
     float    renderExtractCpuMs     = 0.0f;
+    float    renderExtractSortCpuMs = 0.0f;
     float    uiLayoutCpuMs          = 0.0f;
     float    uiVisualCpuMs          = 0.0f;
     float    uiCommandCpuMs         = 0.0f;
@@ -32,6 +33,10 @@ struct GtsFrameStats
     uint32_t pipelineSwitches       = 0;
     uint32_t textureSwitches        = 0;
     uint32_t renderGpuUpdatedCount  = 0;
+    uint32_t renderCommandVisitedCount = 0;
+    uint32_t renderCommandTotalCount   = 0;
+    uint32_t renderCommandUpdatedCount = 0;
+    uint32_t renderCommandSortedCount  = 0;
     uint32_t controllerSystemCount  = 0;
     uint32_t simulationSystemCount  = 0;
     uint32_t uiNodeCount            = 0;
