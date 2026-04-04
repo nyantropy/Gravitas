@@ -116,6 +116,5 @@ class GtsPlatform
             actionManager->bind(GtsAction::TogglePause,       GtsKey::X);
             actionManager->bind(GtsAction::CloseApplication,  GtsKey::Escape);
             actionManager->bind(GtsAction::DebugLayerToggle,  GtsKey::F3);
-            actionManager->bind(GtsAction::BattleExit,        GtsKey::Q);
         }
 };

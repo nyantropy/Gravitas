@@ -15,6 +15,7 @@ enum class DungeonAction
     Attack,             // Space — strike the cell directly ahead
     RegenerateDungeon,  // V — regenerate the full dungeon run
     ToggleMinimapRevealMode, // M — toggle full reveal vs explored-only minimap
+    BattleExit,         // Q — exit the temporary battle scene
 
     // sentinel — always keep last
     ACTION_COUNT

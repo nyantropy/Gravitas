@@ -5,6 +5,8 @@
 #include "Entity.h"
 #include "GlmConfig.h"
 #include "GtsScene.hpp"
+#include "InputActionManager.hpp"
+#include "DungeonAction.h"
 
 class BattleScene : public GtsScene
 {
@@ -15,6 +17,7 @@ public:
     void onUpdateControllers(SceneContext& ctx) override;
 
 private:
+    InputActionManager<DungeonAction> actionManager;
     Entity      enemyEntity      = INVALID_ENTITY;
     Entity      floorEntity      = INVALID_ENTITY;
     Entity      cameraEntity     = INVALID_ENTITY;

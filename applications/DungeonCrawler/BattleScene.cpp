@@ -6,8 +6,9 @@
 #include "BattleTransitionData.h"
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
+#include "DungeonAction.h"
 #include "GlmConfig.h"
-#include "GtsAction.h"
+#include "GtsKey.h"
 #include "GraphicsConstants.h"
 #include "MaterialComponent.h"
 #include "ProceduralMeshComponent.h"
@@ -18,6 +19,8 @@ void BattleScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* data)
 {
     releaseGpuResources(ctx);
     ecsWorld.clear();
+    actionManager = InputActionManager<DungeonAction>{};
+    actionManager.bind(DungeonAction::BattleExit, GtsKey::Q);
     enemyEntity = INVALID_ENTITY;
     floorEntity = INVALID_ENTITY;
     cameraEntity = INVALID_ENTITY;
@@ -108,7 +111,9 @@ void BattleScene::onUpdateControllers(SceneContext& ctx)
 {
     ecsWorld.updateControllers(ctx);
 
-    if (!ctx.actions->isActionPressed(GtsAction::BattleExit))
+    actionManager.update(*ctx.inputSource);
+
+    if (!actionManager.isActionPressed(DungeonAction::BattleExit))
         return;
 
     auto result = std::make_shared<BattleResultTransitionData>();

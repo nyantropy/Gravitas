@@ -16,7 +16,6 @@ enum class GtsAction
     CloseApplication,
     DebugLayerToggle,
     ToggleDebugCamera,
-    BattleExit,
 
     // sentinel — always keep last
     ACTION_COUNT
