@@ -87,6 +87,11 @@ public:
         appendLine(buffer, line, OVERLAY_X, y);
         y += lineAdvance;
 
+        snprintf(line, sizeof(line), "ENTS %d",
+                 static_cast<int>(stats.sceneEntityCount));
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
         snprintf(line, sizeof(line), "TRIS %d",
                  static_cast<int>(stats.triangleCount));
         appendLine(buffer, line, OVERLAY_X, y);
