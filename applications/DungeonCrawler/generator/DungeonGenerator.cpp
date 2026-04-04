@@ -491,13 +491,10 @@ glm::ivec2 DungeonGenerator::choosePlayerStart() const
 
 glm::vec3 DungeonGenerator::tileToEnemySpawnPosition(const glm::ivec2& tilePos)
 {
-    const float offsetX = static_cast<float>(rngRange(seed, -30, 30)) / 100.0f;
-    const float offsetZ = static_cast<float>(rngRange(seed, -30, 30)) / 100.0f;
-
     return {
-        tilePos.x + 0.5f + offsetX,
+        tilePos.x + 0.5f,
         0.25f,
-        tilePos.y + 0.5f + offsetZ
+        tilePos.y + 0.5f
     };
 }
 

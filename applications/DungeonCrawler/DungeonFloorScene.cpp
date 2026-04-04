@@ -25,10 +25,11 @@
 #include "DungeonFloorSingleton.h"
 #include "DungeonInputComponent.h"
 #include "DungeonGameStateComponent.h"
+#include "EnemyComponent.h"
+#include "EnemyMovementStateComponent.h"
 #include "PlayerComponent.h"
 #include "DungeonTileComponent.h"
 #include "FloorEntityTag.h"
-#include "FloorEnemyComponent.h"
 #include "FloorTransitionStateComponent.h"
 #include "FloorTransitionTriggerComponent.h"
 #include "DungeonConstants.h"
@@ -167,7 +168,7 @@ void DungeonFloorScene::onLoad(SceneContext& ctx,
     ecsWorld.addControllerSystem<PlayerCameraSystem>();
     ecsWorld.addControllerSystem<FloorTransitionSystem>();
     ecsWorld.addControllerSystem<DungeonTileBindingSystem>();
-    ecsWorld.addControllerSystem<EnemyMovementSystem>();
+    ecsWorld.addSimulationSystem<EnemyMovementSystem>();
 
     // installRendererFeature must be LAST
     installRendererFeature();
@@ -337,26 +338,28 @@ void DungeonFloorScene::spawnEnemies(SceneContext& /*ctx*/, const GeneratedFloor
         Entity e = ecsWorld.createEntity();
         ecsWorld.addComponent(e, FloorEntityTag{});
 
-        FloorEnemyComponent enemy;
-        enemy.gridX  = static_cast<int>(std::floor(spawnPosition.x));
-        enemy.gridZ  = static_cast<int>(std::floor(spawnPosition.z));
-        enemy.floorY = floorY;
-        enemy.patrolPath = generatePatrolPath(floor, {enemy.gridX, enemy.gridZ}, 6);
-        enemy.patrolIndex = 0;
-        enemy.patrolForward = true;
-        if (!enemy.patrolPath.empty())
-        {
-            enemy.fromPosition = {spawnPosition.x, floorY + spawnPosition.y, spawnPosition.z};
-            enemy.toPosition   = enemy.fromPosition;
-        }
+        EnemyComponent enemy;
+        enemy.gridX      = static_cast<int>(spawnPosition.x);
+        enemy.gridZ      = static_cast<int>(spawnPosition.z);
+        enemy.floorIndex = floor.floorNumber;
+        enemy.moveSpeed  = 2.0f + static_cast<float>((floor.floorNumber * 19 + enemy.gridX * 7 + enemy.gridZ * 11) % 11) * 0.1f;
+        enemy.rngState   = static_cast<uint32_t>((floor.floorNumber + 1) * 73856093
+                       ^ (enemy.gridX + 1) * 19349663
+                       ^ (enemy.gridZ + 1) * 83492791);
         ecsWorld.addComponent(e, enemy);
+
+        EnemyMovementStateComponent movement;
+        movement.startPosition  = {spawnPosition.x, floorY + spawnPosition.y, spawnPosition.z};
+        movement.targetPosition = movement.startPosition;
+        movement.targetTile     = {enemy.gridX, enemy.gridZ};
+        ecsWorld.addComponent(e, movement);
 
         StaticMeshComponent mesh;
         mesh.meshPath = cubeMesh;
         ecsWorld.addComponent(e, mesh);
 
         MaterialComponent mat;
-        mat.texturePath = enemyTex;
+        mat.texturePath = RES + "/textures/blue_texture.png";
         ecsWorld.addComponent(e, mat);
 
         TransformComponent tc;

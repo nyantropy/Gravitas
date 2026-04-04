@@ -1,84 +1,115 @@
 #pragma once
 
-#include "GlmConfig.h"
-#include "ECSControllerSystem.hpp"
-#include "ECSWorld.hpp"
-#include "SceneContext.h"
+#include <array>
 
-#include "FloorEnemyComponent.h"
+#include "GlmConfig.h"
+#include "ECSSimulationSystem.hpp"
+#include "ECSWorld.hpp"
+
+#include "DungeonFloorSingleton.h"
+#include "EnemyComponent.h"
+#include "EnemyMovementStateComponent.h"
+#include "RenderGpuComponent.h"
 #include "TransformComponent.h"
 
-// Advances FloorEnemyComponent patrol movement each frame.
-// Enemies ping-pong along their stored patrol path with smooth lerp transitions.
-// When a transition completes the enemy waits PATROL_WAIT_TIME seconds before
-// advancing to the next waypoint.
-class EnemyMovementSystem : public ECSControllerSystem
+// Random-walk movement for grid-bound enemies with smooth interpolation.
+class EnemyMovementSystem : public ECSSimulationSystem
 {
 public:
-    void update(ECSWorld& world, SceneContext& ctx) override
+    void update(ECSWorld& world, float dt) override
     {
-        const float dt = ctx.time->unscaledDeltaTime;
+        if (!world.hasAny<DungeonFloorSingleton>()) return;
 
-        world.forEach<FloorEnemyComponent, TransformComponent>(
-            [&](Entity, FloorEnemyComponent& enemy, TransformComponent& tc)
+        auto& floorSingleton = world.getSingleton<DungeonFloorSingleton>();
+
+        world.forEach<EnemyComponent, EnemyMovementStateComponent, TransformComponent>(
+            [&](Entity e, EnemyComponent& enemy, EnemyMovementStateComponent& movement, TransformComponent& tc)
         {
             if (!enemy.alive) return;
+            if (enemy.floorIndex < 0 || enemy.floorIndex >= 4) return;
 
-            // Advance active transition
-            if (enemy.inTransition)
+            const GeneratedFloor* floor = floorSingleton.allFloors[enemy.floorIndex];
+            if (!floor) return;
+
+            const glm::vec3 floorOffset = floorSingleton.floorWorldOffset[enemy.floorIndex];
+
+            if (movement.moving)
             {
-                enemy.transitionProgress += dt / FloorEnemyComponent::TRANSITION_DURATION;
+                movement.progress += dt * enemy.moveSpeed;
+                const float clampedProgress = glm::clamp(movement.progress, 0.0f, 1.0f);
+                tc.position = glm::mix(movement.startPosition, movement.targetPosition, clampedProgress);
+                markRenderDirty(world, e);
 
-                if (enemy.transitionProgress >= 1.0f)
+                if (movement.progress >= 1.0f)
                 {
-                    enemy.transitionProgress = 1.0f;
-                    enemy.inTransition       = false;
-                    tc.position              = enemy.toPosition;
-                    enemy.waitTimer          = FloorEnemyComponent::PATROL_WAIT_TIME;
+                    tc.position       = movement.targetPosition;
+                    enemy.gridX       = movement.targetTile.x;
+                    enemy.gridZ       = movement.targetTile.y;
+                    movement.progress = 1.0f;
+                    movement.moving   = false;
+                    markRenderDirty(world, e);
                 }
-
-                const float t    = enemy.transitionProgress;
-                const float ease = t * t * (3.0f - 2.0f * t); // smoothstep
-                tc.position = glm::mix(enemy.fromPosition, enemy.toPosition, ease);
                 return;
             }
 
-            // Wait at current waypoint
-            if (enemy.waitTimer > 0.0f)
+            if (enemy.moveCooldown > 0.0f)
             {
-                enemy.waitTimer -= dt;
+                enemy.moveCooldown = std::max(0.0f, enemy.moveCooldown - dt);
                 return;
             }
 
-            // No path — nothing to do
-            if (enemy.patrolPath.empty()) return;
-
-            // Advance patrol index (ping-pong)
-            int nextIdx = enemy.patrolIndex + (enemy.patrolForward ? 1 : -1);
-
-            if (nextIdx >= static_cast<int>(enemy.patrolPath.size()))
-            {
-                enemy.patrolForward = false;
-                nextIdx = static_cast<int>(enemy.patrolPath.size()) - 2;
-            }
-            else if (nextIdx < 0)
-            {
-                enemy.patrolForward = true;
-                nextIdx = 1;
-            }
-
-            if (nextIdx < 0 || nextIdx >= static_cast<int>(enemy.patrolPath.size()))
+            const glm::ivec2 nextTile = chooseNextTile(*floor, enemy);
+            if (nextTile.x < 0 || nextTile.y < 0)
                 return;
 
-            enemy.patrolIndex = nextIdx;
-
-            glm::ivec2 target   = enemy.patrolPath[nextIdx];
-            enemy.fromPosition  = tc.position;
-            enemy.toPosition    = glm::vec3(target.x + 0.5f, enemy.floorY + 0.5f, target.y + 0.5f);
-            enemy.gridX         = target.x;
-            enemy.gridZ         = target.y;
-            enemy.inTransition  = true;
-            enemy.transitionProgress = 0.0f;
+            movement.startPosition  = tc.position;
+            movement.targetTile     = nextTile;
+            movement.targetPosition = {
+                floorOffset.x + nextTile.x + 0.5f,
+                tc.position.y,
+                floorOffset.z + nextTile.y + 0.5f
+            };
+            movement.progress = 0.0f;
+            movement.moving   = true;
+            markRenderDirty(world, e);
         });
+    }
+
+private:
+    static void markRenderDirty(ECSWorld& world, Entity entity)
+    {
+        if (world.hasComponent<RenderGpuComponent>(entity))
+            world.getComponent<RenderGpuComponent>(entity).dirty = true;
+    }
+
+    static uint32_t nextRandom(uint32_t& state)
+    {
+        if (state == 0u) state = 1u;
+        state ^= state << 13;
+        state ^= state >> 17;
+        state ^= state << 5;
+        return state;
+    }
+
+    static glm::ivec2 chooseNextTile(const GeneratedFloor& floor, EnemyComponent& enemy)
+    {
+        static constexpr std::array<glm::ivec2, 4> directions = {{
+            {0, -1},
+            {1, 0},
+            {0, 1},
+            {-1, 0},
+        }};
+
+        const int startDirection = static_cast<int>(nextRandom(enemy.rngState) % directions.size());
+        for (int i = 0; i < static_cast<int>(directions.size()); ++i)
+        {
+            const glm::ivec2 dir = directions[(startDirection + i) % directions.size()];
+            const glm::ivec2 candidate = {enemy.gridX + dir.x, enemy.gridZ + dir.y};
+            if (!floor.isWalkable(candidate.x, candidate.y)) continue;
+            if (floor.get(candidate.x, candidate.y) == TileType::Wall) continue;
+            return candidate;
+        }
+
+        return {-1, -1};
     }
 };

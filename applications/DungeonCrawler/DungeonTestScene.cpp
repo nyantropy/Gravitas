@@ -9,6 +9,8 @@
 #include "DungeonConstants.h"
 #include "DungeonFloorSingleton.h"
 #include "DungeonInputComponent.h"
+#include "EnemyComponent.h"
+#include "EnemyMovementStateComponent.h"
 #include "EnemyTagComponent.h"
 #include "FloorTransitionStateComponent.h"
 #include "GraphicsConstants.h"
@@ -24,6 +26,7 @@
 #include "TransformComponent.h"
 
 #include "systems/DungeonInputSystem.hpp"
+#include "systems/EnemyMovementSystem.hpp"
 
 namespace
 {
@@ -167,6 +170,7 @@ void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /
     ecsWorld.addControllerSystem<DungeonInputSystem>();
     ecsWorld.addControllerSystem<PlayerMovementSystem>();
     ecsWorld.addControllerSystem<PlayerCameraSystem>();
+    ecsWorld.addSimulationSystem<EnemyMovementSystem>();
 
     installRendererFeature();
 }
@@ -286,14 +290,30 @@ void DungeonTestScene::spawnEnemyEntities(const GeneratedFloor& floor)
     const std::string cubeMesh = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
     const std::string blueTexture = GraphicsConstants::ENGINE_RESOURCES + "/textures/blue_texture.png";
 
-    for (const glm::vec3& spawnPosition : floor.enemySpawnPositions)
+    for (size_t spawnIndex = 0; spawnIndex < floor.enemySpawnPositions.size(); ++spawnIndex)
     {
+        const glm::vec3& spawnPosition = floor.enemySpawnPositions[spawnIndex];
         Entity e = ecsWorld.createEntity();
         floorEntities.push_back(e);
 
         TransformComponent transform;
         transform.position = spawnPosition;
         transform.scale    = {0.5f, 0.5f, 0.5f};
+
+        EnemyComponent enemy;
+        enemy.gridX      = static_cast<int>(spawnPosition.x);
+        enemy.gridZ      = static_cast<int>(spawnPosition.z);
+        enemy.floorIndex = floor.floorNumber;
+        enemy.moveSpeed  = 2.0f + static_cast<float>((floor.floorNumber * 13 + static_cast<int>(spawnIndex) * 17) % 11) * 0.1f;
+        enemy.rngState   = static_cast<uint32_t>((floor.floorNumber + 1) * 73856093
+                       ^ (enemy.gridX + 1) * 19349663
+                       ^ (enemy.gridZ + 1) * 83492791
+                       ^ static_cast<int>(spawnIndex + 1) * 2654435761u);
+
+        EnemyMovementStateComponent movement;
+        movement.startPosition  = spawnPosition;
+        movement.targetPosition = spawnPosition;
+        movement.targetTile     = {enemy.gridX, enemy.gridZ};
 
         StaticMeshComponent mesh;
         mesh.meshPath = cubeMesh;
@@ -306,6 +326,8 @@ void DungeonTestScene::spawnEnemyEntities(const GeneratedFloor& floor)
         bounds.min = {-0.25f, -0.25f, -0.25f};
         bounds.max = { 0.25f,  0.25f,  0.25f};
 
+        ecsWorld.addComponent(e, enemy);
+        ecsWorld.addComponent(e, movement);
         ecsWorld.addComponent(e, EnemyTagComponent{});
         ecsWorld.addComponent(e, transform);
         ecsWorld.addComponent(e, mesh);
