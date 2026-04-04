@@ -70,6 +70,7 @@ class GravitasEngine
             sceneContext.windowPixelHeight = viewportHeight;
             sceneContext.extractor         = renderCommandExtractor.get();
             sceneContext.ui                = uiSystem.get();
+            sceneContext.uiEnabled         = true;
             sceneContext.physics           = nullptr;
         }
 
@@ -111,8 +112,17 @@ class GravitasEngine
             auto renderList = renderCommandExtractor->extract(extractCtx);
             const auto extractEnd = std::chrono::steady_clock::now();
 
-            auto uiBuffer   = uiSystem->extractCommands(sceneContext.windowPixelWidth,
-                                                       sceneContext.windowPixelHeight);
+            UiCommandBuffer uiBuffer;
+            if (sceneContext.uiEnabled)
+            {
+                uiSystem->setEnabled(true);
+                uiBuffer = uiSystem->extractCommands(sceneContext.windowPixelWidth,
+                                                     sceneContext.windowPixelHeight);
+            }
+            else
+            {
+                uiSystem->setEnabled(false);
+            }
 
             const auto extractorMetrics = renderCommandExtractor->getLastMetrics();
             const auto uiMetrics = uiSystem->getLastMetrics();
@@ -149,6 +159,7 @@ class GravitasEngine
                         uiSystem->clear();
                         sceneContext.physics = nullptr;
                         sceneManager->setActiveScene(cmd.stringArg);
+                        uiSystem->setEnabled(sceneContext.uiEnabled);
                         sceneManager->getActiveScene()->onLoad(sceneContext, cmd.transitionData.get());
                         break;
                     case GtsCommand::Type::Quit:
@@ -183,6 +194,7 @@ class GravitasEngine
             uiSystem->clear();
             sceneContext.physics = nullptr;
             sceneManager->setActiveScene(name);
+            uiSystem->setEnabled(sceneContext.uiEnabled);
             sceneManager->getActiveScene()->onLoad(sceneContext, data.get());
         }
 
@@ -207,6 +219,12 @@ class GravitasEngine
                     gameLoop.paused = !gameLoop.paused;
                 if (actions->isActionPressed(GtsAction::DebugLayerToggle))
                     platform.toggleDebugOverlay();
+                if (actions->isActionPressed(GtsAction::ToggleUI))
+                {
+                    sceneContext.uiEnabled = !sceneContext.uiEnabled;
+                    uiSystem->setEnabled(sceneContext.uiEnabled);
+                    std::cout << (sceneContext.uiEnabled ? "UI: ON" : "UI: OFF") << std::endl;
+                }
 
                 platform.setSimulationPaused(gameLoop.paused);
 

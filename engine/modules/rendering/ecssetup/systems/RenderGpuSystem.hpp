@@ -38,11 +38,12 @@ public:
     {
         const auto startTime = std::chrono::steady_clock::now();
 
-        // Per-frame cache: entity id → resolved world-space model matrix
+        // Per-frame cache used only for hierarchy traversal: entity id → resolved NodeState.
+        // Kept small — most entities in a dungeon scene have no parent.
         std::unordered_map<entity_id_type, NodeState> cache;
         cache.reserve(transformCache.size());
 
-        // In-progress set for cycle detection
+        // In-progress set for cycle detection during hierarchy traversal.
         std::unordered_set<entity_id_type> visiting;
         visiting.reserve(transformCache.size());
 
@@ -53,47 +54,60 @@ public:
         // Recursively compute the world-space matrix for any entity.
         // Works for entities that may not themselves have a RenderGpuComponent
         // (e.g. invisible transform-only parents).
+        //
+        // PERFORMANCE CONTRACT: getModelMatrix() is called only when the transform
+        // has actually changed.  Static entities pay only the cost of three vec3
+        // comparisons; no trig functions are invoked on unchanged transforms.
         auto computeWorldState = [&](auto& self, Entity e) -> NodeState
         {
-            // Return cached result if available
+            // Return cached result if available (deduplication for shared parents).
             auto it = cache.find(e.id);
             if (it != cache.end())
                 return it->second;
 
-            // Cycle guard: if we are already visiting this entity, we have a cycle — break with identity
+            // Cycle guard: if we are already visiting this entity, we have a cycle — break with identity.
             if (!visiting.insert(e.id).second)
                 return {};
 
-            glm::mat4 local = glm::mat4(1.0f);
-            bool localChanged = false;
+            auto& cached = transformCache[e.id];
+            cached.lastSeenFrame = frameStamp;
+
+            NodeState state;
+            state.changed = false;
+
             if (world.hasComponent<TransformComponent>(e))
             {
                 const auto& transform = world.getComponent<TransformComponent>(e);
-                local = transform.getModelMatrix();
 
-                auto& cachedTransform = transformCache[e.id];
-                localChanged = !cachedTransform.initialized
-                    || differs(cachedTransform.position, transform.position)
-                    || differs(cachedTransform.rotation, transform.rotation)
-                    || differs(cachedTransform.scale, transform.scale);
+                // Detect whether the local transform has changed BEFORE calling
+                // getModelMatrix().  getModelMatrix() involves sin/cos and is the
+                // dominant per-entity cost — only pay it when actually needed.
+                const bool localChanged = !cached.initialized
+                    || differs(cached.position, transform.position)
+                    || differs(cached.rotation, transform.rotation)
+                    || differs(cached.scale,    transform.scale);
 
-                cachedTransform.position    = transform.position;
-                cachedTransform.rotation    = transform.rotation;
-                cachedTransform.scale       = transform.scale;
-                cachedTransform.initialized = true;
-                cachedTransform.lastSeenFrame = frameStamp;
+                if (localChanged)
+                {
+                    cached.modelMatrix  = transform.getModelMatrix();
+                    cached.position     = transform.position;
+                    cached.rotation     = transform.rotation;
+                    cached.scale        = transform.scale;
+                    cached.initialized  = true;
+                }
+                // When nothing changed, reuse cached.modelMatrix — zero trig cost.
+
+                state.worldMatrix = cached.modelMatrix;
+                state.changed     = localChanged;
             }
 
-            NodeState state;
-            state.worldMatrix = local;
-            state.changed     = localChanged;
             if (world.hasComponent<HierarchyComponent>(e))
             {
                 Entity parent = world.getComponent<HierarchyComponent>(e).parent;
                 if (parent != INVALID_ENTITY)
                 {
                     const NodeState parentState = self(self, parent);
-                    state.worldMatrix = parentState.worldMatrix * local;
+                    state.worldMatrix = parentState.worldMatrix * state.worldMatrix;
                     state.changed = state.changed || parentState.changed;
                 }
             }
@@ -131,6 +145,8 @@ private:
         glm::vec3 position      = glm::vec3(0.0f);
         glm::vec3 rotation      = glm::vec3(0.0f);
         glm::vec3 scale         = glm::vec3(1.0f);
+        // Cached result of getModelMatrix() — reused when position/rotation/scale are unchanged.
+        glm::mat4 modelMatrix   = glm::mat4(1.0f);
         uint64_t  lastSeenFrame = 0;
         bool      initialized   = false;
     };

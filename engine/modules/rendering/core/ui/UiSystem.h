@@ -25,6 +25,8 @@ public:
     explicit UiSystem(IResourceProvider* resources);
 
     void clear();
+    void setEnabled(bool enabled);
+    bool isEnabled() const;
 
     UiHandle getRoot() const;
 
@@ -51,6 +53,7 @@ private:
     void removeTextBindingsRecursive(UiHandle handle);
 
     IResourceProvider*                         resources = nullptr;
+    bool                                       enabled   = true;
     UiDocument                                 document;
     UiRenderResolver                           resolver;
     std::unordered_map<UiHandle, BitmapFont*>  textBindings;

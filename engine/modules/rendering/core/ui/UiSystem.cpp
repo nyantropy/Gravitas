@@ -13,6 +13,16 @@ void UiSystem::clear()
     textBindings.clear();
 }
 
+void UiSystem::setEnabled(bool inEnabled)
+{
+    enabled = inEnabled;
+}
+
+bool UiSystem::isEnabled() const
+{
+    return enabled;
+}
+
 UiHandle UiSystem::getRoot() const
 {
     return document.getRoot();
@@ -90,6 +100,13 @@ UiSystem::Metrics UiSystem::getLastMetrics() const
 
 UiCommandBuffer UiSystem::extractCommands(int viewportWidth, int viewportHeight)
 {
+    if (!enabled)
+    {
+        lastMetrics = {};
+        lastMetrics.nodeCount = static_cast<uint32_t>(document.getNodeCount());
+        return {};
+    }
+
     document.setViewportSize(1.0f, 1.0f);
 
     lastMetrics = {};

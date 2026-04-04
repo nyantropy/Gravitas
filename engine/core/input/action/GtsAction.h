@@ -14,6 +14,7 @@ enum class GtsAction
     // ─── engine / UI ───────────────────────────────────────────────────
     TogglePause,
     CloseApplication,
+    ToggleUI,
     DebugLayerToggle,
     ToggleDebugCamera,
 

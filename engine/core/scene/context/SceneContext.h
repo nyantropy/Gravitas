@@ -21,6 +21,7 @@ struct SceneContext
     float                           windowAspectRatio = 1.0f;
     int                             windowPixelWidth = 1;
     int                             windowPixelHeight = 1;
+    bool                            uiEnabled        = true;
     RenderCommandExtractor*         extractor         = nullptr;  // query visible/total counts, freeze frustum
     UiSystem*                       ui                = nullptr;  // retained engine UI system
     IGtsPhysicsModule*              physics           = nullptr;
