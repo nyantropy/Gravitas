@@ -30,7 +30,7 @@ struct GeneratedFloor
     int  height      = 0;
     std::vector<TileType>      tiles;
     std::vector<GeneratedRoom> rooms;
-    std::vector<glm::ivec2>    enemySpawns;
+    std::vector<glm::vec3>     enemySpawnPositions;
     std::vector<glm::ivec2>    treasureSpawns;
     glm::ivec2                 stairDownPos = {-1, -1};
     glm::ivec2                 stairUpPos   = {-1, -1};

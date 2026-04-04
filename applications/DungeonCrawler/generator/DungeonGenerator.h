@@ -39,6 +39,7 @@ private:
     void       spendTreasureBudget();
     void       placeStairs();
     glm::ivec2 choosePlayerStart() const;
+    glm::vec3  tileToEnemySpawnPosition(const glm::ivec2& tilePos);
 
     struct StairCandidate {
         glm::ivec2 pos;

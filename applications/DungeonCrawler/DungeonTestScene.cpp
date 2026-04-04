@@ -9,6 +9,7 @@
 #include "DungeonConstants.h"
 #include "DungeonFloorSingleton.h"
 #include "DungeonInputComponent.h"
+#include "EnemyTagComponent.h"
 #include "FloorTransitionStateComponent.h"
 #include "GraphicsConstants.h"
 #include "MaterialComponent.h"
@@ -19,6 +20,7 @@
 #include "RenderGpuComponent.h"
 #include "RenderResourceClearComponent.h"
 #include "RenderResourceClearSystem.hpp"
+#include "StaticMeshComponent.h"
 #include "TransformComponent.h"
 
 #include "systems/DungeonInputSystem.hpp"
@@ -274,6 +276,41 @@ void DungeonTestScene::buildFloorEntities(const GeneratedFloor& floor)
                                      glm::half_pi<float>());
             }
         }
+    }
+
+    spawnEnemyEntities(floor);
+}
+
+void DungeonTestScene::spawnEnemyEntities(const GeneratedFloor& floor)
+{
+    const std::string cubeMesh = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+    const std::string blueTexture = GraphicsConstants::ENGINE_RESOURCES + "/textures/blue_texture.png";
+
+    for (const glm::vec3& spawnPosition : floor.enemySpawnPositions)
+    {
+        Entity e = ecsWorld.createEntity();
+        floorEntities.push_back(e);
+
+        TransformComponent transform;
+        transform.position = spawnPosition;
+        transform.scale    = {0.5f, 0.5f, 0.5f};
+
+        StaticMeshComponent mesh;
+        mesh.meshPath = cubeMesh;
+
+        MaterialComponent material;
+        material.texturePath = blueTexture;
+        material.tint        = {0.25f, 0.45f, 1.0f, 1.0f};
+
+        BoundsComponent bounds;
+        bounds.min = {-0.25f, -0.25f, -0.25f};
+        bounds.max = { 0.25f,  0.25f,  0.25f};
+
+        ecsWorld.addComponent(e, EnemyTagComponent{});
+        ecsWorld.addComponent(e, transform);
+        ecsWorld.addComponent(e, mesh);
+        ecsWorld.addComponent(e, material);
+        ecsWorld.addComponent(e, bounds);
     }
 }
 

@@ -52,7 +52,7 @@ std::string buildDungeonFloorSummary(const GeneratedFloor& floor)
     stream << "floor=" << floor.floorNumber
            << ", size=" << floor.width << "x" << floor.height
            << ", rooms=" << floor.rooms.size()
-           << ", enemies=" << floor.enemySpawns.size()
+           << ", enemies=" << floor.enemySpawnPositions.size()
            << ", treasures=" << floor.treasureSpawns.size()
            << ", stairUp=" << (floor.hasStairUp() ? "yes" : "no")
            << ", stairDown=" << (floor.hasStairDown() ? "yes" : "no");

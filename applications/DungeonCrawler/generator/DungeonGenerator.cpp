@@ -5,6 +5,7 @@
 #include <limits>
 #include <queue>
 #include <cstdio>
+#include <cmath>
 
 // ─── RNG ───────────────────────────────────────────────────────────────────
 // Simple xorshift32 — deterministic, no dependencies.
@@ -339,32 +340,23 @@ void DungeonGenerator::spendEnemyBudget()
     std::vector<glm::ivec2> eligible;
     eligible.reserve(256);
 
-    for (int z = 1; z < floor->height - 1; ++z)
+    for (int z = 0; z < floor->height; ++z)
     {
-        for (int x = 1; x < floor->width - 1; ++x)
+        for (int x = 0; x < floor->width; ++x)
         {
-            if (floor->get(x, z) != TileType::Floor) continue;
-
-            // Must not be adjacent to a wall on all 4 sides
-            bool adjWall = false;
-            if (floor->get(x - 1, z) == TileType::Wall ||
-                floor->get(x + 1, z) == TileType::Wall ||
-                floor->get(x, z - 1) == TileType::Wall ||
-                floor->get(x, z + 1) == TileType::Wall)
-                adjWall = true;
-
-            if (!adjWall) eligible.push_back({x, z});
+            if (!floor->isWalkable(x, z)) continue;
+            const glm::ivec2 tilePos = {x, z};
+            if (tilePos == floor->stairDownPos || tilePos == floor->stairUpPos) continue;
+            eligible.push_back(tilePos);
         }
     }
 
     int count = std::min(spec->budget.enemyCount, static_cast<int>(eligible.size()));
-    // Shuffle a subset using our RNG
     for (int i = 0; i < count && !eligible.empty(); ++i)
     {
         int j = rngRange(seed, i, static_cast<int>(eligible.size()) - 1);
         std::swap(eligible[i], eligible[j]);
-        floor->set(eligible[i].x, eligible[i].y, TileType::EnemySpawn);
-        floor->enemySpawns.push_back(eligible[i]);
+        floor->enemySpawnPositions.push_back(tileToEnemySpawnPosition(eligible[i]));
     }
 }
 
@@ -495,6 +487,18 @@ glm::ivec2 DungeonGenerator::choosePlayerStart() const
     }
 
     return {1, 1};
+}
+
+glm::vec3 DungeonGenerator::tileToEnemySpawnPosition(const glm::ivec2& tilePos)
+{
+    const float offsetX = static_cast<float>(rngRange(seed, -30, 30)) / 100.0f;
+    const float offsetZ = static_cast<float>(rngRange(seed, -30, 30)) / 100.0f;
+
+    return {
+        tilePos.x + 0.5f + offsetX,
+        0.25f,
+        tilePos.y + 0.5f + offsetZ
+    };
 }
 
 std::vector<DungeonGenerator::StairCandidate>

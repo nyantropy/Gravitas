@@ -332,21 +332,21 @@ void DungeonFloorScene::spawnEnemies(SceneContext& /*ctx*/, const GeneratedFloor
     const std::string  enemyTex = RES + "/textures/orange_texture.png";
     const float        floorY   = DungeonConstants::floorWorldY(floor.floorNumber);
 
-    for (const glm::ivec2& spawn : floor.enemySpawns)
+    for (const glm::vec3& spawnPosition : floor.enemySpawnPositions)
     {
         Entity e = ecsWorld.createEntity();
         ecsWorld.addComponent(e, FloorEntityTag{});
 
         FloorEnemyComponent enemy;
-        enemy.gridX  = spawn.x;
-        enemy.gridZ  = spawn.y;
+        enemy.gridX  = static_cast<int>(std::floor(spawnPosition.x));
+        enemy.gridZ  = static_cast<int>(std::floor(spawnPosition.z));
         enemy.floorY = floorY;
-        enemy.patrolPath = generatePatrolPath(floor, spawn, 6);
+        enemy.patrolPath = generatePatrolPath(floor, {enemy.gridX, enemy.gridZ}, 6);
         enemy.patrolIndex = 0;
         enemy.patrolForward = true;
         if (!enemy.patrolPath.empty())
         {
-            enemy.fromPosition = {spawn.x + 0.5f, floorY + 0.5f, spawn.y + 0.5f};
+            enemy.fromPosition = {spawnPosition.x, floorY + spawnPosition.y, spawnPosition.z};
             enemy.toPosition   = enemy.fromPosition;
         }
         ecsWorld.addComponent(e, enemy);
@@ -360,7 +360,7 @@ void DungeonFloorScene::spawnEnemies(SceneContext& /*ctx*/, const GeneratedFloor
         ecsWorld.addComponent(e, mat);
 
         TransformComponent tc;
-        tc.position = {spawn.x + 0.5f, floorY + 0.5f, spawn.y + 0.5f};
+        tc.position = {spawnPosition.x, floorY + spawnPosition.y, spawnPosition.z};
         tc.scale    = {0.55f, 0.75f, 0.55f};
         ecsWorld.addComponent(e, tc);
 
