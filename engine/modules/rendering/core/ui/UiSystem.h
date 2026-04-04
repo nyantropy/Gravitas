@@ -12,6 +12,16 @@
 class UiSystem
 {
 public:
+    struct Metrics
+    {
+        float    layoutMs        = 0.0f;
+        float    visualMs        = 0.0f;
+        float    commandBuildMs  = 0.0f;
+        uint32_t nodeCount       = 0;
+        uint32_t primitiveCount  = 0;
+        uint32_t commandCount    = 0;
+    };
+
     explicit UiSystem(IResourceProvider* resources);
 
     void clear();
@@ -33,6 +43,7 @@ public:
 
     UiDocument&       getDocument();
     const UiDocument& getDocument() const;
+    Metrics           getLastMetrics() const;
 
     UiCommandBuffer extractCommands(int viewportWidth, int viewportHeight);
 
@@ -43,4 +54,5 @@ private:
     UiDocument                                 document;
     UiRenderResolver                           resolver;
     std::unordered_map<UiHandle, BitmapFont*>  textBindings;
+    Metrics                                    lastMetrics;
 };

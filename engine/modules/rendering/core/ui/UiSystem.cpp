@@ -1,5 +1,7 @@
 #include "UiSystem.h"
 
+#include <chrono>
+
 UiSystem::UiSystem(IResourceProvider* inResources)
     : resources(inResources)
 {
@@ -81,21 +83,51 @@ const UiDocument& UiSystem::getDocument() const
     return document;
 }
 
+UiSystem::Metrics UiSystem::getLastMetrics() const
+{
+    return lastMetrics;
+}
+
 UiCommandBuffer UiSystem::extractCommands(int viewportWidth, int viewportHeight)
 {
     document.setViewportSize(1.0f, 1.0f);
 
+    lastMetrics = {};
+    lastMetrics.nodeCount = static_cast<uint32_t>(document.getNodeCount());
+
     if (hasFlag(document.getDirtyFlags(), UiDirtyFlags::Layout))
+    {
+        const auto start = std::chrono::steady_clock::now();
         document.updateLayout(1.0f, 1.0f);
+        const auto end = std::chrono::steady_clock::now();
+        lastMetrics.layoutMs =
+            std::chrono::duration<float, std::milli>(end - start).count();
+    }
 
     if (hasFlag(document.getDirtyFlags(), UiDirtyFlags::Visual))
+    {
+        const auto start = std::chrono::steady_clock::now();
         document.rebuildVisualList();
+        const auto end = std::chrono::steady_clock::now();
+        lastMetrics.visualMs =
+            std::chrono::duration<float, std::milli>(end - start).count();
+    }
 
-    return resolver.buildCommandBuffer(document.getVisualList(),
-                                       resources,
-                                       textBindings,
-                                       viewportWidth,
-                                       viewportHeight);
+    lastMetrics.primitiveCount =
+        static_cast<uint32_t>(document.getVisualList().primitives.size());
+
+    const auto commandStart = std::chrono::steady_clock::now();
+    UiCommandBuffer buffer = resolver.buildCommandBuffer(document.getVisualList(),
+                                                         resources,
+                                                         textBindings,
+                                                         viewportWidth,
+                                                         viewportHeight);
+    const auto commandEnd = std::chrono::steady_clock::now();
+    lastMetrics.commandBuildMs =
+        std::chrono::duration<float, std::milli>(commandEnd - commandStart).count();
+    lastMetrics.commandCount = static_cast<uint32_t>(buffer.commands.size());
+
+    return buffer;
 }
 
 void UiSystem::removeTextBindingsRecursive(UiHandle handle)

@@ -6,6 +6,8 @@ struct UiVec2
 {
     float x = 0.0f;
     float y = 0.0f;
+
+    bool operator==(const UiVec2&) const = default;
 };
 
 struct UiColor
@@ -14,6 +16,8 @@ struct UiColor
     float g = 1.0f;
     float b = 1.0f;
     float a = 1.0f;
+
+    bool operator==(const UiColor&) const = default;
 };
 
 struct UiRect
@@ -22,6 +26,8 @@ struct UiRect
     float y      = 0.0f;
     float width  = 0.0f;
     float height = 0.0f;
+
+    bool operator==(const UiRect&) const = default;
 };
 
 struct UiThickness
@@ -30,6 +36,8 @@ struct UiThickness
     float top    = 0.0f;
     float right  = 0.0f;
     float bottom = 0.0f;
+
+    bool operator==(const UiThickness&) const = default;
 };
 
 enum class UiNodeType : uint8_t

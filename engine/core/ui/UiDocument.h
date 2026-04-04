@@ -35,6 +35,7 @@ public:
 
     const UiVisualList& getVisualList() const { return visualList; }
     UiDirtyFlags        getDirtyFlags() const { return dirtyFlags; }
+    size_t              getNodeCount() const { return nodes.size(); }
 
 private:
     UiHandle allocHandle();

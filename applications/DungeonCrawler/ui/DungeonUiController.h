@@ -12,6 +12,7 @@ public:
     void reset();
     void initialize(SceneContext& ctx, const DungeonUiState& state);
     void update(SceneContext& ctx, const DungeonUiState& state);
+    uint32_t getLastMinimapCellCount() const;
 
 private:
     void buildDebugPanel(SceneContext& ctx);
@@ -32,4 +33,5 @@ private:
     UiHandle minimapGridHandle = UI_INVALID_HANDLE;
     UiHandle minimapPlayerHandle = UI_INVALID_HANDLE;
     UiHandle minimapLabelHandle = UI_INVALID_HANDLE;
+    uint32_t lastMinimapCellCount = 0;
 };

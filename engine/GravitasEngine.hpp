@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <iostream>
+#include <chrono>
 
 #include "EngineConfig.h"
 #include "Timer.hpp"
@@ -18,6 +19,7 @@
 #include "GtsCommand.h"
 #include "GtsCommandBuffer.h"
 #include "GtsFrameStats.h"
+#include "RenderGpuSystem.hpp"
 
 class GravitasEngine
 {
@@ -95,16 +97,40 @@ class GravitasEngine
             stats.frameTimeMs    = dt * 1000.0f;
             stats.visibleObjects = static_cast<uint32_t>(renderCommandExtractor->getLastVisibleRenderables());
             stats.totalObjects   = static_cast<uint32_t>(renderCommandExtractor->getLastTotalRenderables());
+            stats.controllerSystemCount = static_cast<uint32_t>(world.getControllerSystemCount());
+            stats.simulationSystemCount = static_cast<uint32_t>(world.getSimulationSystemCount());
+            const auto renderMetrics = RenderGpuSystem::getLastMetrics();
+            stats.renderGpuUpdatedCount = renderMetrics.updatedRenderables;
+            stats.renderGpuCpuMs        = renderMetrics.cpuTimeMs;
             // triangleCount is filled in by SceneRenderStage during execute
             activeScene->populateFrameStats(stats);
 
             GtsExtractorContext extractCtx{world, sceneContext.windowAspectRatio};
 
+            const auto extractStart = std::chrono::steady_clock::now();
             auto renderList = renderCommandExtractor->extract(extractCtx);
+            const auto extractEnd = std::chrono::steady_clock::now();
+
             auto uiBuffer   = uiSystem->extractCommands(sceneContext.windowPixelWidth,
                                                        sceneContext.windowPixelHeight);
 
+            const auto extractorMetrics = renderCommandExtractor->getLastMetrics();
+            const auto uiMetrics = uiSystem->getLastMetrics();
+            stats.renderExtractCpuMs = std::chrono::duration<float, std::milli>(extractEnd - extractStart).count();
+            stats.uiLayoutCpuMs      = uiMetrics.layoutMs;
+            stats.uiVisualCpuMs      = uiMetrics.visualMs;
+            stats.uiCommandCpuMs     = uiMetrics.commandBuildMs;
+            stats.uiNodeCount        = uiMetrics.nodeCount;
+            stats.uiPrimitiveCount   = uiMetrics.primitiveCount;
+            stats.uiCommandCount     = uiMetrics.commandCount;
+            stats.totalObjects       = extractorMetrics.totalRenderables;
+            stats.visibleObjects     = extractorMetrics.visibleRenderables;
+
+            const auto submitStart = std::chrono::steady_clock::now();
             platform.getGraphics()->renderFrame(dt, renderList, uiBuffer, stats);
+            const auto submitEnd = std::chrono::steady_clock::now();
+            stats.renderSubmitCpuMs =
+                std::chrono::duration<float, std::milli>(submitEnd - submitStart).count();
         }
 
         // command callback from lower level architectures

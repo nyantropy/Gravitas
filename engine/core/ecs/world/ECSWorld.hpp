@@ -269,6 +269,16 @@ class ECSWorld
             return uniqueEntities.size();
         }
 
+        size_t getSimulationSystemCount() const
+        {
+            return simulationSystems.size();
+        }
+
+        size_t getControllerSystemCount() const
+        {
+            return controllerSystems.size();
+        }
+
         template<typename Component, typename Callback>
         void registerRemoveCallback(Callback&& callback)
         {

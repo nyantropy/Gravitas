@@ -69,6 +69,12 @@ void DungeonUiController::reset()
     minimapGridHandle = UI_INVALID_HANDLE;
     minimapPlayerHandle = UI_INVALID_HANDLE;
     minimapLabelHandle = UI_INVALID_HANDLE;
+    lastMinimapCellCount = 0;
+}
+
+uint32_t DungeonUiController::getLastMinimapCellCount() const
+{
+    return lastMinimapCellCount;
 }
 
 void DungeonUiController::initialize(SceneContext& ctx, const DungeonUiState& state)
@@ -237,6 +243,7 @@ void DungeonUiController::updateMinimapPanel(SceneContext& ctx, const DungeonUiS
 
     const GeneratedFloor& floor = *state.activeFloor;
     if (floor.width <= 0 || floor.height <= 0) return;
+    lastMinimapCellCount = static_cast<uint32_t>(floor.width * floor.height);
 
     const int viewportWidth = std::max(1, ctx.windowPixelWidth);
     const int viewportHeight = std::max(1, ctx.windowPixelHeight);

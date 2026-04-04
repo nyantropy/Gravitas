@@ -96,6 +96,16 @@ public:
         appendLine(buffer, line, OVERLAY_X, y);
         y += lineAdvance;
 
+        snprintf(line, sizeof(line), "RUP  %d",
+                 static_cast<int>(stats.renderGpuUpdatedCount));
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "RCPU %.2fMS",
+                 stats.renderGpuCpuMs);
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
         snprintf(line, sizeof(line), "PSW  %d",
                  static_cast<int>(stats.pipelineSwitches));
         appendLine(buffer, line, OVERLAY_X, y);
@@ -103,6 +113,47 @@ public:
 
         snprintf(line, sizeof(line), "TSW  %d",
                  static_cast<int>(stats.textureSwitches));
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "SYS  %d / %d",
+                 static_cast<int>(stats.controllerSystemCount),
+                 static_cast<int>(stats.simulationSystemCount));
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance * 1.25f;
+
+        appendLine(buffer, "[UI]", OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "ULYT %.2fMS",
+                 stats.uiLayoutCpuMs);
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "UVIS %.2fMS",
+                 stats.uiVisualCpuMs);
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "UCMD %.2fMS",
+                 stats.uiCommandCpuMs);
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "RNDR %.2fMS",
+                 stats.renderExtractCpuMs);
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "N/P/C %d/%d/%d",
+                 static_cast<int>(stats.uiNodeCount),
+                 static_cast<int>(stats.uiPrimitiveCount),
+                 static_cast<int>(stats.uiCommandCount));
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "MMAP %d",
+                 static_cast<int>(stats.minimapCellCount));
         appendLine(buffer, line, OVERLAY_X, y);
         y += lineAdvance * 1.25f;
 

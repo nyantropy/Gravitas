@@ -20,6 +20,8 @@ struct UiLayoutSpec
     UiThickness margin;
     UiThickness padding;
     UiClipMode  clipMode = UiClipMode::None;
+
+    bool operator==(const UiLayoutSpec&) const = default;
 };
 
 struct UiComputedLayout
@@ -27,4 +29,6 @@ struct UiComputedLayout
     UiRect bounds;
     UiRect contentRect;
     UiRect clipRect;
+
+    bool operator==(const UiComputedLayout&) const = default;
 };

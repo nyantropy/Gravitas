@@ -232,6 +232,8 @@ void DungeonTestScene::onUpdateControllers(SceneContext& ctx)
 
 void DungeonTestScene::populateFrameStats(GtsFrameStats& stats) const
 {
+    stats.minimapCellCount = uiController.getLastMinimapCellCount();
+
     if (physicsWorld)
         stats.physicsCollisionCount = static_cast<uint32_t>(physicsWorld->getCollisions().size());
 

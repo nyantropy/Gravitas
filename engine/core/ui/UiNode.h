@@ -11,11 +11,14 @@
 
 struct UiContainerData
 {
+    bool operator==(const UiContainerData&) const = default;
 };
 
 struct UiRectData
 {
     UiColor color = {1.0f, 1.0f, 1.0f, 1.0f};
+
+    bool operator==(const UiRectData&) const = default;
 };
 
 struct UiImageData
@@ -23,6 +26,8 @@ struct UiImageData
     std::string imageAsset;
     UiColor     tint        = {1.0f, 1.0f, 1.0f, 1.0f};
     float       imageAspect = 1.0f;
+
+    bool operator==(const UiImageData&) const = default;
 };
 
 struct UiTextData
@@ -31,12 +36,16 @@ struct UiTextData
     std::string fontAsset;
     UiColor     color = {1.0f, 1.0f, 1.0f, 1.0f};
     float       scale = 1.0f;
+
+    bool operator==(const UiTextData&) const = default;
 };
 
 struct UiGridCellData
 {
     UiColor color   = {0.0f, 0.0f, 0.0f, 1.0f};
     bool    visible = true;
+
+    bool operator==(const UiGridCellData&) const = default;
 };
 
 struct UiGridData
@@ -46,6 +55,8 @@ struct UiGridData
     std::vector<UiGridCellData> cells;
     UiColor                   hiddenColor   = {0.0f, 0.0f, 0.0f, 1.0f};
     float                     cellInset     = 0.0f;
+
+    bool operator==(const UiGridData&) const = default;
 
     const UiGridCellData* cellAt(int x, int y) const
     {

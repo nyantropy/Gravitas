@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <vector>
 #include <algorithm>
 #include <limits>
@@ -33,12 +34,25 @@
 class RenderCommandExtractor : public IGtsExtractor<std::vector<RenderCommand>>
 {
 public:
+    struct Metrics
+    {
+        float    extractCpuMs      = 0.0f;
+        uint32_t totalRenderables  = 0;
+        uint32_t visibleRenderables = 0;
+    };
+
     explicit RenderCommandExtractor(bool frustumCullingEnabled = true)
         : frustumCullingEnabled(frustumCullingEnabled)
     {}
 
+    Metrics getLastMetrics() const
+    {
+        return lastMetrics;
+    }
+
     std::vector<RenderCommand> extract(const GtsExtractorContext& ctx) override
     {
+        const auto start = std::chrono::steady_clock::now();
         ECSWorld& world = ctx.world;
 
         int totalRenderables   = 0;
@@ -164,6 +178,10 @@ public:
 
         lastTotalRenderables   = totalRenderables;
         lastVisibleRenderables = visibleRenderables;
+        const auto end = std::chrono::steady_clock::now();
+        lastMetrics.extractCpuMs = std::chrono::duration<float, std::milli>(end - start).count();
+        lastMetrics.totalRenderables = static_cast<uint32_t>(totalRenderables);
+        lastMetrics.visibleRenderables = static_cast<uint32_t>(visibleRenderables);
 
         return cmds;
     }
@@ -186,4 +204,5 @@ private:
     FrustumCuller culler;               // persists between frames; updated unless frozen
     int           lastTotalRenderables   = 0;
     int           lastVisibleRenderables = 0;
+    Metrics       lastMetrics;
 };

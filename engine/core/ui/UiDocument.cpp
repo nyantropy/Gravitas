@@ -129,6 +129,7 @@ bool UiDocument::setLayout(UiHandle handle, const UiLayoutSpec& layout)
 {
     UiNode* node = findNode(handle);
     if (!node) return false;
+    if (node->layout == layout) return true;
 
     node->layout = layout;
     markDirty(handle, UiDirtyFlags::Layout | UiDirtyFlags::Visual);
@@ -139,6 +140,7 @@ bool UiDocument::setStyle(UiHandle handle, const UiStyle& style)
 {
     UiNode* node = findNode(handle);
     if (!node) return false;
+    if (node->style == style) return true;
 
     node->style = style;
     markDirty(handle, UiDirtyFlags::Visual);
@@ -149,6 +151,7 @@ bool UiDocument::setState(UiHandle handle, const UiStateFlags& state)
 {
     UiNode* node = findNode(handle);
     if (!node) return false;
+    if (node->state == state) return true;
 
     node->state = state;
     markDirty(handle, UiDirtyFlags::Visual);
@@ -159,6 +162,7 @@ bool UiDocument::setPayload(UiHandle handle, const UiNodePayload& payload)
 {
     UiNode* node = findNode(handle);
     if (!node) return false;
+    if (node->payload == payload) return true;
 
     node->payload = payload;
     markDirty(handle, UiDirtyFlags::Visual);
@@ -183,6 +187,9 @@ void UiDocument::markAllDirty(UiDirtyFlags flags)
 
 void UiDocument::setViewportSize(float inViewportWidth, float inViewportHeight)
 {
+    if (viewportWidth == inViewportWidth && viewportHeight == inViewportHeight)
+        return;
+
     viewportWidth  = inViewportWidth;
     viewportHeight = inViewportHeight;
     dirtyFlags |= UiDirtyFlags::Layout | UiDirtyFlags::Visual;
