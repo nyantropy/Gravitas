@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <vector>
@@ -132,47 +133,106 @@ public:
                                     0, 2, globalSets, 0, nullptr);
         }
 
+        // Sort render commands to group by (pipeline variant, mesh, texture), minimising
+        // redundant Vulkan state changes.  We sort pointers to avoid copying RenderCommand
+        // structs.  The render list is already stable_partitioned opaque-first by
+        // RenderCommandExtractor, so we locate the partition point and sort only the opaque
+        // prefix — transparent objects must remain in their original back-to-front order so
+        // alpha blending is correct.
+        std::vector<const RenderCommand*> sorted;
+        sorted.reserve(renderList.size());
+        for (const auto& rc : renderList)
+            sorted.push_back(&rc);
+
+        // Find where opaque commands end (renderList is opaque-first due to stable_partition).
+        size_t opaqueCount = 0;
+        while (opaqueCount < renderList.size() && renderList[opaqueCount].alpha >= 1.0f)
+            ++opaqueCount;
+
+        // Sort the opaque prefix by (doubleSided, meshID, textureID).
+        // Transparent suffix stays in original back-to-front order.
+        std::sort(sorted.begin(), sorted.begin() + opaqueCount,
+            [](const RenderCommand* a, const RenderCommand* b)
+            {
+                if (a->doubleSided != b->doubleSided) return !a->doubleSided && b->doubleSided;
+                if (a->meshID      != b->meshID)      return a->meshID      < b->meshID;
+                return a->textureID < b->textureID;
+            });
+
         const VkDeviceSize offsets[] = { 0 };
 
-        uint32_t triangles = 0;
-        for (const auto& cmdData : renderList)
+        // Bound-state cache: track what is currently set on the command buffer so
+        // we skip redundant vkCmd* calls.  Initialise to sentinel values that can
+        // never match a real resource.
+        VulkanPipeline* boundPipeline = nullptr;
+        mesh_id_type    boundMesh     = static_cast<mesh_id_type>(-1);
+        texture_id_type boundTexture  = static_cast<texture_id_type>(-1);
+
+        uint32_t triangles        = 0;
+        uint32_t drawCalls        = 0;
+        uint32_t pipelineSwitches = 0;
+        uint32_t textureSwitches  = 0;
+
+        for (const RenderCommand* cmdPtr : sorted)
         {
+            const auto& cmdData = *cmdPtr;
             MeshResource*    mesh = resources->getMesh(cmdData.meshID);
             TextureResource* tex  = resources->getTexture(cmdData.textureID);
 
             triangles += static_cast<uint32_t>(mesh->indices.size()) / 3;
 
-            // Select pipeline variant — re-bind per draw since commands are not sorted by doubleSided.
             VulkanPipeline* activePipeline = cmdData.doubleSided
                 ? pipelineDoubleSided.get()
                 : pipeline.get();
-            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, activePipeline->getPipeline());
 
-            vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vertexBuffer, offsets);
-            vkCmdBindIndexBuffer(cmd, mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+            if (activePipeline != boundPipeline)
+            {
+                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, activePipeline->getPipeline());
+                boundPipeline = activePipeline;
+                ++pipelineSwitches;
+            }
+
+            if (cmdData.meshID != boundMesh)
+            {
+                vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vertexBuffer, offsets);
+                vkCmdBindIndexBuffer(cmd, mesh->indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+                boundMesh = cmdData.meshID;
+            }
 
             // Push objectIndex (vertex) + alpha (fragment) as a single 8-byte block.
+            // objectSSBOSlot is unique per object so this always changes.
             struct { uint32_t objectIndex; float alpha; } pc{ cmdData.objectSSBOSlot, cmdData.alpha };
             vkCmdPushConstants(cmd, activePipeline->getPipelineLayout(),
                                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                                0, sizeof(pc), &pc);
 
-            // Bind set 2 (texture sampler) — changes per draw.
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    activePipeline->getPipelineLayout(),
-                                    2, 1, &tex->descriptorSets[currentFrame],
-                                    0, nullptr);
+            if (cmdData.textureID != boundTexture)
+            {
+                // Bind set 2 (texture sampler) — only when it actually changes.
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        activePipeline->getPipelineLayout(),
+                                        2, 1, &tex->descriptorSets[currentFrame],
+                                        0, nullptr);
+                boundTexture = cmdData.textureID;
+                ++textureSwitches;
+            }
 
             vkCmdDrawIndexed(cmd, static_cast<uint32_t>(mesh->indices.size()), 1, 0, 0, 0);
+            ++drawCalls;
         }
 
-        lastTriangleCount = triangles;
-        //std::cout << triangles << std::endl;
+        lastTriangleCount   = triangles;
+        lastDrawCalls       = drawCalls;
+        lastPipelineSwitches = pipelineSwitches;
+        lastTextureSwitches = textureSwitches;
 
         vkCmdEndRenderPass(cmd);
     }
 
-    uint32_t getLastTriangleCount() const { return lastTriangleCount; }
+    uint32_t getLastTriangleCount()    const { return lastTriangleCount; }
+    uint32_t getLastDrawCalls()        const { return lastDrawCalls; }
+    uint32_t getLastPipelineSwitches() const { return lastPipelineSwitches; }
+    uint32_t getLastTextureSwitches()  const { return lastTextureSwitches; }
 
 private:
     std::unique_ptr<VulkanRenderPass>   renderPass;
@@ -182,6 +242,9 @@ private:
     RenderResourceManager*              resources;
     GtsResourceHandle                   swapchainHandle;
     GtsResourceHandle                   depthHandle;
-    uint32_t                            lastTriangleCount = 0;
+    uint32_t                            lastTriangleCount    = 0;
+    uint32_t                            lastDrawCalls        = 0;
+    uint32_t                            lastPipelineSwitches = 0;
+    uint32_t                            lastTextureSwitches  = 0;
 
 };

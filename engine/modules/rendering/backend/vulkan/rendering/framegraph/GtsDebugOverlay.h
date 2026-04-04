@@ -85,6 +85,21 @@ public:
         snprintf(line, sizeof(line), "TRIS %d",
                  static_cast<int>(stats.triangleCount));
         appendLine(buffer, line, OVERLAY_X, y);
+        y += LINE_HEIGHT * FONT_SCALE;
+
+        snprintf(line, sizeof(line), "DC   %d",
+                 static_cast<int>(stats.drawCalls));
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += LINE_HEIGHT * FONT_SCALE;
+
+        snprintf(line, sizeof(line), "PSW  %d",
+                 static_cast<int>(stats.pipelineSwitches));
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += LINE_HEIGHT * FONT_SCALE;
+
+        snprintf(line, sizeof(line), "TSW  %d",
+                 static_cast<int>(stats.textureSwitches));
+        appendLine(buffer, line, OVERLAY_X, y);
     }
 
 private:
