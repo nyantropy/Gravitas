@@ -51,6 +51,11 @@ class RenderResourceManager : public IResourceProvider
             return meshManager->loadMesh(path);
         }
 
+        mesh_id_type getSharedQuadMesh(float w, float h) override
+        {
+            return meshManager->getOrCreateQuadMesh(w, h);
+        }
+
         MeshResource* getMesh(mesh_id_type id)
         {
             return meshManager->getMesh(id);

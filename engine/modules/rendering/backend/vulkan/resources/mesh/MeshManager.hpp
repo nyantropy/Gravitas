@@ -4,6 +4,7 @@
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
+#include <cstring>
 
 #include "MeshResource.h"
 #include "GtsModelLoader.hpp"
@@ -17,6 +18,9 @@ class MeshManager
         std::unordered_map<std::string, mesh_id_type> pathToID;
         std::unordered_map<mesh_id_type, std::unique_ptr<MeshResource>> idToMesh;
         std::unordered_set<mesh_id_type> proceduralMeshIDs;
+        // Shared quad meshes: keyed by packed float bits (width << 32 | height).
+        // These are never in proceduralMeshIDs, so destroyProceduralMesh won't free them.
+        std::unordered_map<uint64_t, mesh_id_type> quadMeshCache;
         mesh_id_type nextID = 1; // start from 1, 0 = invalid
 
     public:
@@ -83,6 +87,54 @@ class MeshManager
             if (it != idToMesh.end())
                 return it->second.get();
             return nullptr; // invalid ID
+        }
+
+        // Returns a shared mesh ID for an axis-aligned quad of the given dimensions.
+        // Same (width, height) → same mesh ID, so all identically-sized quads share
+        // one vertex/index buffer and can be batched via instanced drawing.
+        // The returned ID is NOT in proceduralMeshIDs; it lives until the MeshManager
+        // is destroyed and must NOT be passed to destroyProceduralMesh.
+        mesh_id_type getOrCreateQuadMesh(float w, float h)
+        {
+            uint32_t wBits, hBits;
+            std::memcpy(&wBits, &w, sizeof(float));
+            std::memcpy(&hBits, &h, sizeof(float));
+            const uint64_t key = (static_cast<uint64_t>(wBits) << 32) | hBits;
+
+            auto it = quadMeshCache.find(key);
+            if (it != quadMeshCache.end())
+                return it->second;
+
+            const float hw = w * 0.5f;
+            const float hh = h * 0.5f;
+            std::vector<Vertex> verts = {
+                { { -hw,  hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f } },
+                { {  hw,  hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f } },
+                { {  hw, -hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f } },
+                { { -hw, -hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } },
+            };
+            std::vector<uint32_t> idxs  = { 0, 1, 2, 0, 2, 3 };
+            std::vector<Vertex>   vertsC = verts;
+            std::vector<uint32_t> idxsC  = idxs;
+
+            auto mesh = std::make_unique<MeshResource>();
+            mesh->vertices = verts;
+            mesh->indices  = idxs;
+
+            BufferUtil::createVertexBuffer(
+                vcsheet::getDevice(), vcsheet::getPhysicalDevice(),
+                vcsheet::getCommandPool(), vcsheet::getGraphicsQueue(),
+                vertsC, mesh->vertexBuffer, mesh->vertexMemory);
+
+            BufferUtil::createIndexBuffer(
+                vcsheet::getDevice(), vcsheet::getCommandPool(),
+                vcsheet::getGraphicsQueue(), vcsheet::getPhysicalDevice(),
+                idxsC, mesh->indexBuffer, mesh->indexMemory);
+
+            mesh_id_type id = nextID++;
+            idToMesh[id] = std::move(mesh);
+            quadMeshCache[key] = id;
+            return id;
         }
 
         // Create or update a GPU mesh from CPU-generated vertex/index data.

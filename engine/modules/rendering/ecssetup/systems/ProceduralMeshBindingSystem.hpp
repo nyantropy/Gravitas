@@ -64,38 +64,32 @@ public:
                 !mesh.useCustomGeometry
                 && (mesh.width != meshGpu.boundWidth || mesh.height != meshGpu.boundHeight);
 
-            // Re-upload whenever the gameplay-facing procedural description changes.
+            // Re-upload/rebind whenever the gameplay-facing procedural description changes.
             if (customGeometryChanged || quadGeometryChanged)
             {
-                std::vector<Vertex> verts;
-                std::vector<uint32_t> idxs;
-
                 if (mesh.useCustomGeometry)
                 {
-                    verts = mesh.vertices;
-                    idxs  = mesh.indices;
+                    // Custom geometry is per-entity — upload directly.
+                    std::vector<Vertex>   verts = mesh.vertices;
+                    std::vector<uint32_t> idxs  = mesh.indices;
+                    meshGpu.meshID = ctx.resources->uploadProceduralMesh(meshGpu.meshID, verts, idxs);
+                    meshGpu.ownsProceduralMeshResource = true;
                 }
                 else
                 {
-                    const float hw = mesh.width  * 0.5f;
-                    const float hh = mesh.height * 0.5f;
-
-                    verts = {
-                        { { -hw,  hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f } },
-                        { {  hw,  hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f } },
-                        { {  hw, -hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f } },
-                        { { -hw, -hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } },
-                    };
-                    idxs = { 0, 1, 2, 0, 2, 3 };
+                    // Standard axis-aligned quad: use a shared mesh so all same-size quads
+                    // share one vertex/index buffer and can be instanced together.
+                    if (meshGpu.ownsProceduralMeshResource && meshGpu.meshID != 0)
+                        ctx.resources->releaseProceduralMesh(meshGpu.meshID);
+                    meshGpu.meshID = ctx.resources->getSharedQuadMesh(mesh.width, mesh.height);
+                    meshGpu.ownsProceduralMeshResource = false;
                 }
 
-                meshGpu.meshID      = ctx.resources->uploadProceduralMesh(meshGpu.meshID, verts, idxs);
-                meshGpu.ownsProceduralMeshResource = true;
-                meshGpu.boundWidth  = mesh.width;
-                meshGpu.boundHeight = mesh.height;
+                meshGpu.boundWidth           = mesh.width;
+                meshGpu.boundHeight          = mesh.height;
                 meshGpu.boundGeometryVersion = mesh.geometryVersion;
-                rc.dirty            = true;
-                rc.readyToRender    = false;
+                rc.dirty                     = true;
+                rc.readyToRender             = false;
             }
         });
     }

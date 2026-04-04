@@ -62,7 +62,7 @@ public:
         {
             auto b = UiVertexDescription::getBindingDescription();
             auto a = UiVertexDescription::getAttributeDescriptions();
-            pConfig.vertexBinding    = b;
+            pConfig.vertexBindings   = { b };
             pConfig.vertexAttributes = std::vector<VkVertexInputAttributeDescription>(a.begin(), a.end());
         }
         pConfig.depthTestEnable      = false;

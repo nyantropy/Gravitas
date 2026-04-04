@@ -16,7 +16,8 @@ struct VulkanPipelineConfig
     // ── vertex input ─────────────────────────────────────────────────────
     // Defaults to the standard Vertex layout used by the main pipeline.
     // Override for custom vertex types (e.g. TextGlyphVertex).
-    VkVertexInputBindingDescription                vertexBinding    = Vertex::getBindingDescription();
+    // Scene pipeline adds a second per-instance binding for objectSSBOSlot.
+    std::vector<VkVertexInputBindingDescription>   vertexBindings   = { Vertex::getBindingDescription() };
     std::vector<VkVertexInputAttributeDescription> vertexAttributes = []
     {
         auto a = Vertex::getAttributeDescriptions();
@@ -43,11 +44,12 @@ struct VulkanPipelineConfig
     VkBlendOp     alphaBlendOp          = VK_BLEND_OP_ADD;
 
     // ── push constants ────────────────────────────────────────────────────
-    // Defaults match the main pipeline: objectIndex (uint32) + alpha (float)
-    // = 8 bytes, visible to vertex and fragment stages.
+    // Defaults match the main scene pipeline: alpha (float) = 4 bytes,
+    // visible to the fragment stage only. objectIndex is now a per-instance
+    // vertex attribute (instanceObjectIndex at location 3).
     // Set pushConstantSize = 0 to omit push constants entirely.
-    uint32_t           pushConstantSize   = sizeof(uint32_t) + sizeof(float);
-    VkShaderStageFlags pushConstantStages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    uint32_t           pushConstantSize   = sizeof(float);
+    VkShaderStageFlags pushConstantStages = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     // ── descriptor set layouts ────────────────────────────────────────────
     // Empty means VulkanPipeline uses the global dssheet layouts (current
