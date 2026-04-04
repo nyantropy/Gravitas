@@ -9,6 +9,7 @@
 #include <tuple>
 #include <type_traits>
 #include <cassert>
+#include <unordered_set>
 
 #include "Entity.h"
 #include "ComponentStorage.hpp"
@@ -229,5 +230,16 @@ class ECSWorld
         }
 
         // ------------------------------------------------------------
+
+        size_t getEntityCount() const
+        {
+            std::unordered_set<entity_id_type> uniqueEntities;
+            for (const auto& [type, storage] : storages)
+            {
+                for (Entity e : storage->getAllEntities())
+                    uniqueEntities.insert(e.id);
+            }
+            return uniqueEntities.size();
+        }
 
 };
