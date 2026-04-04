@@ -1,6 +1,7 @@
 #pragma once
-#include "ECSWorld.hpp"
-#include "SceneContext.h"
+
+class ECSWorld;
+struct SceneContext;
 
 // a more open system that can access the scene context - a "bridge" of sorts
 class ECSControllerSystem 

@@ -27,7 +27,9 @@
 #include "DungeonGameStateComponent.h"
 #include "EnemyComponent.h"
 #include "EnemyMovementStateComponent.h"
+#include "PhysicsBodyComponent.h"
 #include "PlayerComponent.h"
+#include "SphereColliderComponent.h"
 #include "DungeonTileComponent.h"
 #include "FloorEntityTag.h"
 #include "FloorTransitionStateComponent.h"
@@ -169,6 +171,7 @@ void DungeonFloorScene::onLoad(SceneContext& ctx,
     ecsWorld.addControllerSystem<FloorTransitionSystem>();
     ecsWorld.addControllerSystem<DungeonTileBindingSystem>();
     ecsWorld.addSimulationSystem<EnemyMovementSystem>();
+    installPhysicsFeature(ctx);
 
     // installRendererFeature must be LAST
     installRendererFeature();
@@ -330,7 +333,6 @@ void DungeonFloorScene::spawnEnemies(SceneContext& /*ctx*/, const GeneratedFloor
 {
     const std::string& RES      = GraphicsConstants::ENGINE_RESOURCES;
     const std::string  cubeMesh = RES + "/models/cube.obj";
-    const std::string  enemyTex = RES + "/textures/orange_texture.png";
     const float        floorY   = DungeonConstants::floorWorldY(floor.floorNumber);
 
     for (const glm::vec3& spawnPosition : floor.enemySpawnPositions)
@@ -353,6 +355,12 @@ void DungeonFloorScene::spawnEnemies(SceneContext& /*ctx*/, const GeneratedFloor
         movement.targetPosition = movement.startPosition;
         movement.targetTile     = {enemy.gridX, enemy.gridZ};
         ecsWorld.addComponent(e, movement);
+
+        PhysicsBodyComponent body;
+        SphereColliderComponent collider;
+        collider.radius = 0.35f;
+        ecsWorld.addComponent(e, body);
+        ecsWorld.addComponent(e, collider);
 
         StaticMeshComponent mesh;
         mesh.meshPath = cubeMesh;
@@ -443,6 +451,12 @@ void DungeonFloorScene::spawnPlayer(SceneContext& ctx, glm::ivec2 startPos)
     TransformComponent playerTc;
     playerTc.position = {worldX, worldY, worldZ};
     ecsWorld.addComponent(playerEntity, playerTc);
+
+    PhysicsBodyComponent body;
+    SphereColliderComponent collider;
+    collider.radius = 0.4f;
+    ecsWorld.addComponent(playerEntity, body);
+    ecsWorld.addComponent(playerEntity, collider);
 
     CameraDescriptionComponent camDesc;
     camDesc.active      = true;

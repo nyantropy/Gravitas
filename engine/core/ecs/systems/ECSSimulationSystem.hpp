@@ -1,5 +1,6 @@
 #pragma once
-#include "ECSWorld.hpp"
+
+class ECSWorld;
 
 // a pure system, best suited for actual game simulation
 class ECSSimulationSystem 

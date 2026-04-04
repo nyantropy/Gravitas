@@ -1,6 +1,7 @@
 # rendering must be first — it defines gravitas_rendering (and transitively
 # gravitas_vulkan_backend + gravitas_vulkan_setup) before other modules reference graphics types.
 add_subdirectory(rendering)
+add_subdirectory(physics)
 
 # ── gravitas_modules — INTERFACE aggregator for ECS feature modules ────────────
 # All sub-modules are header-only; no .cpp files exist under camera/, transform/,
@@ -23,9 +24,17 @@ target_include_directories(gravitas_modules INTERFACE
 
     # Transform
     "${CMAKE_CURRENT_SOURCE_DIR}/transform/components"
+
+    # Physics
+    "${CMAKE_CURRENT_SOURCE_DIR}/physics/core"
+    "${CMAKE_CURRENT_SOURCE_DIR}/physics/core/interface"
+    "${CMAKE_CURRENT_SOURCE_DIR}/physics/components"
+    "${CMAKE_CURRENT_SOURCE_DIR}/physics/systems"
+    "${CMAKE_CURRENT_SOURCE_DIR}/physics/debug"
 )
 
 target_link_libraries(gravitas_modules INTERFACE
     gravitas_core
     gravitas_rendering
+    gravitas_physics
 )

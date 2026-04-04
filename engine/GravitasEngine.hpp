@@ -68,6 +68,7 @@ class GravitasEngine
             sceneContext.windowPixelHeight = viewportHeight;
             sceneContext.extractor         = renderCommandExtractor.get();
             sceneContext.ui                = uiSystem.get();
+            sceneContext.physics           = nullptr;
         }
 
         // its only a render system now, maybe this will move later
@@ -118,6 +119,7 @@ class GravitasEngine
                     case GtsCommand::Type::LoadScene:
                     case GtsCommand::Type::ChangeScene:
                         uiSystem->clear();
+                        sceneContext.physics = nullptr;
                         sceneManager->setActiveScene(cmd.stringArg);
                         sceneManager->getActiveScene()->onLoad(sceneContext, nullptr);
                         break;
@@ -150,6 +152,7 @@ class GravitasEngine
         void setActiveScene(std::string name)
         {
             uiSystem->clear();
+            sceneContext.physics = nullptr;
             sceneManager->setActiveScene(name);
             sceneManager->getActiveScene()->onLoad(sceneContext, nullptr);
         }

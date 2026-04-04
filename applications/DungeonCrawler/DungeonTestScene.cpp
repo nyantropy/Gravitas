@@ -12,6 +12,8 @@
 #include "EnemyComponent.h"
 #include "EnemyMovementStateComponent.h"
 #include "EnemyTagComponent.h"
+#include "PhysicsBodyComponent.h"
+#include "SphereColliderComponent.h"
 #include "FloorTransitionStateComponent.h"
 #include "GraphicsConstants.h"
 #include "MaterialComponent.h"
@@ -171,6 +173,7 @@ void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /
     ecsWorld.addControllerSystem<PlayerMovementSystem>();
     ecsWorld.addControllerSystem<PlayerCameraSystem>();
     ecsWorld.addSimulationSystem<EnemyMovementSystem>();
+    installPhysicsFeature(ctx);
 
     installRendererFeature();
 }
@@ -315,6 +318,10 @@ void DungeonTestScene::spawnEnemyEntities(const GeneratedFloor& floor)
         movement.targetPosition = spawnPosition;
         movement.targetTile     = {enemy.gridX, enemy.gridZ};
 
+        PhysicsBodyComponent body;
+        SphereColliderComponent collider;
+        collider.radius = 0.35f;
+
         StaticMeshComponent mesh;
         mesh.meshPath = cubeMesh;
 
@@ -328,6 +335,8 @@ void DungeonTestScene::spawnEnemyEntities(const GeneratedFloor& floor)
 
         ecsWorld.addComponent(e, enemy);
         ecsWorld.addComponent(e, movement);
+        ecsWorld.addComponent(e, body);
+        ecsWorld.addComponent(e, collider);
         ecsWorld.addComponent(e, EnemyTagComponent{});
         ecsWorld.addComponent(e, transform);
         ecsWorld.addComponent(e, mesh);
@@ -424,6 +433,12 @@ void DungeonTestScene::spawnPlayer(SceneContext& ctx, const glm::ivec2& startPos
     TransformComponent transform;
     transform.position = gridToWorld(startPos);
     ecsWorld.addComponent(playerEntity, transform);
+
+    PhysicsBodyComponent body;
+    SphereColliderComponent collider;
+    collider.radius = 0.4f;
+    ecsWorld.addComponent(playerEntity, body);
+    ecsWorld.addComponent(playerEntity, collider);
 
     CameraDescriptionComponent camera;
     camera.active      = true;
