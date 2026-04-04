@@ -18,6 +18,7 @@ class VulkanSwapChain
         VkFormat swapChainImageFormat;
         VkExtent2D swapChainExtent;
         std::vector<VkImageView> swapChainImageViews;
+        VkPresentModeKHR selectedPresentMode = VK_PRESENT_MODE_FIFO_KHR;
         
         VulkanSwapChainConfig config;
 
@@ -38,6 +39,7 @@ class VulkanSwapChain
         VkFormat& getSwapChainImageFormat();
         VkExtent2D& getSwapChainExtent();
         std::vector<VkImageView>& getSwapChainImageViews();
+        VkPresentModeKHR getPresentMode() const;
 
         VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 };

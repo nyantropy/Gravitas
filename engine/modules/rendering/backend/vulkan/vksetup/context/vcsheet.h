@@ -13,6 +13,11 @@ namespace vcsheet
         glbcontext = ctx;
     }
 
+    inline VulkanContext* getContext()
+    {
+        return glbcontext;
+    }
+
     // VulkanInstance
     inline VkInstance& getInstance() { return glbcontext->getInstance(); }
     inline std::vector<const char*> getValidationLayers() { return glbcontext->getValidationLayers(); }
@@ -38,4 +43,5 @@ namespace vcsheet
     inline VkFormat& getSwapChainImageFormat() { return glbcontext->getSwapChainImageFormat(); }
     inline VkExtent2D& getSwapChainExtent() { return glbcontext->getSwapChainExtent(); }
     inline std::vector<VkImageView>& getSwapChainImageViews() { return glbcontext->getSwapChainImageViews(); }
+    inline VkPresentModeKHR getPresentMode() { return glbcontext->getPresentMode(); }
 }

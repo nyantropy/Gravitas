@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <string>
 #include <vector>
+#include <vulkan/vulkan.h>
 
 #include "GlmConfig.h"
 #include "BitmapFont.h"
@@ -157,6 +158,54 @@ public:
         appendLine(buffer, line, OVERLAY_X, y);
         y += lineAdvance * 1.25f;
 
+        appendLine(buffer, "[BACKEND]", OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "BFRM %.2fMS",
+                 stats.backendFrameCpuMs);
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "FENC %.2fMS",
+                 stats.backendFenceWaitCpuMs);
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "ACQ  %.2fMS",
+                 stats.backendAcquireCpuMs);
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "IFNC %.2fMS",
+                 stats.backendImageWaitCpuMs);
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "OWRT %.2fMS",
+                 stats.backendObjectWriteCpuMs);
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "RCMD %.2fMS",
+                 stats.backendCmdRecordCpuMs);
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "SUBM %.2fMS",
+                 stats.backendQueueSubmitCpuMs);
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "PRES %.2fMS",
+                 stats.backendPresentCpuMs);
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "PMOD %s",
+                 presentModeLabel(stats.backendPresentMode));
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance * 1.25f;
+
         appendLine(buffer, "[PHYSICS]", OVERLAY_X, y);
         y += lineAdvance;
 
@@ -174,6 +223,18 @@ private:
     BitmapFont font;
     bool       enabled     = false;
     bool       initialised = false;
+
+    static const char* presentModeLabel(uint32_t mode)
+    {
+        switch (static_cast<VkPresentModeKHR>(mode))
+        {
+            case VK_PRESENT_MODE_IMMEDIATE_KHR: return "IMMD";
+            case VK_PRESENT_MODE_MAILBOX_KHR:   return "MBX";
+            case VK_PRESENT_MODE_FIFO_KHR:      return "FIFO";
+            case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "FREL";
+            default: return "UNK";
+        }
+    }
 
     void appendLine(UiCommandBuffer& buffer, const std::string& text,
                     float x, float y,

@@ -38,6 +38,11 @@ VkExtent2D& VulkanSwapChain::getSwapChainExtent()
     return swapChainExtent;
 }
 
+VkPresentModeKHR VulkanSwapChain::getPresentMode() const
+{
+    return selectedPresentMode;
+}
+
 std::vector<VkImageView>& VulkanSwapChain::getSwapChainImageViews()
 {
     return swapChainImageViews;
@@ -98,6 +103,7 @@ void VulkanSwapChain::createSwapChain()
 
     swapChainImageFormat = surfaceFormat.format;
     swapChainExtent = extent;
+    selectedPresentMode = presentMode;
 }
 
 VkSurfaceFormatKHR VulkanSwapChain::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) 
@@ -115,12 +121,30 @@ VkSurfaceFormatKHR VulkanSwapChain::chooseSwapSurfaceFormat(const std::vector<Vk
 
 VkPresentModeKHR VulkanSwapChain::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) 
 {
-    for (const auto& availablePresentMode : availablePresentModes) 
+    auto hasMode = [&](VkPresentModeKHR wanted)
     {
-        if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) 
-        {
-            return availablePresentMode;
-        }
+        return std::find(availablePresentModes.begin(), availablePresentModes.end(), wanted)
+            != availablePresentModes.end();
+    };
+
+    switch (config.presentModePreference)
+    {
+        case PresentModePreference::Immediate:
+            if (hasMode(VK_PRESENT_MODE_IMMEDIATE_KHR))
+                return VK_PRESENT_MODE_IMMEDIATE_KHR;
+            if (hasMode(VK_PRESENT_MODE_MAILBOX_KHR))
+                return VK_PRESENT_MODE_MAILBOX_KHR;
+            break;
+
+        case PresentModePreference::Mailbox:
+            if (hasMode(VK_PRESENT_MODE_MAILBOX_KHR))
+                return VK_PRESENT_MODE_MAILBOX_KHR;
+            if (hasMode(VK_PRESENT_MODE_IMMEDIATE_KHR))
+                return VK_PRESENT_MODE_IMMEDIATE_KHR;
+            break;
+
+        case PresentModePreference::Fifo:
+            break;
     }
 
     return VK_PRESENT_MODE_FIFO_KHR;

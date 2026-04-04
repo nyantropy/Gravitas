@@ -103,6 +103,7 @@ class VulkanContext
             vscConfig.swapChainSupportDetails = this->getSwapChainSupportDetails();
             vscConfig.queueFamilyIndices = this->getQueueFamilyIndices();
             vscConfig.outputWindowPtr = this->config.outputWindowPtr;
+            vscConfig.presentModePreference = this->config.presentModePreference;
             vswapchain = std::make_unique<VulkanSwapChain>(vscConfig);
         }
 
@@ -159,6 +160,7 @@ class VulkanContext
         VkFormat& getSwapChainImageFormat() { return vswapchain->getSwapChainImageFormat(); }
         VkExtent2D& getSwapChainExtent() { return vswapchain->getSwapChainExtent(); }
         std::vector<VkImageView>& getSwapChainImageViews() { return vswapchain->getSwapChainImageViews(); }
+        VkPresentModeKHR getPresentMode() const { return vswapchain->getPresentMode(); }
 
         // also exposing the concrete wrapper objects as pointers - this is not needed in the final codebase, but is still
         // included for now as an alternative way of accessing lower level vulkan constructs

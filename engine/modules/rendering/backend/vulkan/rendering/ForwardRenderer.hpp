@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <memory>
+#include <chrono>
 #include <vulkan/vulkan.h>
 
 #include "Renderer.hpp"
@@ -196,27 +197,38 @@ class ForwardRenderer : Renderer
                          const UiCommandBuffer& uiBuffer,
                          const GtsFrameStats& stats) override
         {
+            const auto frameStart = std::chrono::steady_clock::now();
+
             // Store the pre-populated stats from the engine; triangleCount is
             // filled in after frameGraph.execute() inside recordCommandBuffer.
             uint32_t previousTriangleCount = frameStats.triangleCount;
             frameStats = stats;
             frameStats.triangleCount = previousTriangleCount;
+            frameStats.backendPresentMode = static_cast<uint32_t>(vcsheet::getPresentMode());
 
             lastFrameTime += dt;
 
             FrameResources& frame = frameManager->getFrame(currentFrame);
 
             // Wait for this frame's fence
+            const auto fenceWaitStart = std::chrono::steady_clock::now();
             vkWaitForFences(vcsheet::getDevice(), 1, &frame.inFlightFence, VK_TRUE, UINT64_MAX);
+            const auto fenceWaitEnd = std::chrono::steady_clock::now();
+            frameStats.backendFenceWaitCpuMs =
+                std::chrono::duration<float, std::milli>(fenceWaitEnd - fenceWaitStart).count();
 
             // Acquire swapchain image
             uint32_t imageIndex;
+            const auto acquireStart = std::chrono::steady_clock::now();
             VkResult result = vkAcquireNextImageKHR(vcsheet::getDevice(),
                                                     vcsheet::getSwapChain(),
                                                     UINT64_MAX,
                                                     frame.imageAvailableSemaphore,
                                                     VK_NULL_HANDLE,
                                                     &imageIndex);
+            const auto acquireEnd = std::chrono::steady_clock::now();
+            frameStats.backendAcquireCpuMs =
+                std::chrono::duration<float, std::milli>(acquireEnd - acquireStart).count();
 
             if (result == VK_ERROR_OUT_OF_DATE_KHR)
             {
@@ -230,22 +242,44 @@ class ForwardRenderer : Renderer
             VkFence imageFence = frameManager->getImageFence(imageIndex);
             if (frameManager->getImagesInFlightCount() > imageIndex && imageFence != VK_NULL_HANDLE)
             {
+                const auto imageWaitStart = std::chrono::steady_clock::now();
                 vkWaitForFences(vcsheet::getDevice(), 1, &imageFence, VK_TRUE, UINT64_MAX);
+                const auto imageWaitEnd = std::chrono::steady_clock::now();
+                frameStats.backendImageWaitCpuMs =
+                    std::chrono::duration<float, std::milli>(imageWaitEnd - imageWaitStart).count();
             }
 
             // Write each object's model matrix into its SSBO slot for this frame.
             // The renderer owns the ObjectUBO packing; the ECS only supplies a plain glm::mat4.
+            const auto objectWriteStart = std::chrono::steady_clock::now();
             for (const auto& cmdData : renderList)
             {
                 ObjectUBO ubo;
                 ubo.model = cmdData.modelMatrix;
                 resourceSystem->writeObjectSlot(currentFrame, cmdData.objectSSBOSlot, ubo);
             }
+            const auto objectWriteEnd = std::chrono::steady_clock::now();
+            frameStats.backendObjectWriteCpuMs =
+                std::chrono::duration<float, std::milli>(objectWriteEnd - objectWriteStart).count();
 
             // Reset & record command buffer
+            const auto fenceResetStart = std::chrono::steady_clock::now();
             vkResetFences(vcsheet::getDevice(), 1, &frame.inFlightFence);
+            const auto fenceResetEnd = std::chrono::steady_clock::now();
+            frameStats.backendFenceResetCpuMs =
+                std::chrono::duration<float, std::milli>(fenceResetEnd - fenceResetStart).count();
+
+            const auto cmdResetStart = std::chrono::steady_clock::now();
             vkResetCommandBuffer(frame.commandBuffer, 0);
+            const auto cmdResetEnd = std::chrono::steady_clock::now();
+            frameStats.backendCmdResetCpuMs =
+                std::chrono::duration<float, std::milli>(cmdResetEnd - cmdResetStart).count();
+
+            const auto cmdRecordStart = std::chrono::steady_clock::now();
             recordCommandBuffer(renderList, uiBuffer, frame.commandBuffer, imageIndex);
+            const auto cmdRecordEnd = std::chrono::steady_clock::now();
+            frameStats.backendCmdRecordCpuMs =
+                std::chrono::duration<float, std::milli>(cmdRecordEnd - cmdRecordStart).count();
 
             // Submit command buffer
             VkSubmitInfo submitInfo{};
@@ -264,9 +298,13 @@ class ForwardRenderer : Renderer
             submitInfo.signalSemaphoreCount = 1;
             submitInfo.pSignalSemaphores = signalSemaphores;
 
+            const auto submitStart = std::chrono::steady_clock::now();
             if (vkQueueSubmit(vcsheet::getGraphicsQueue(), 1, &submitInfo, frame.inFlightFence) != VK_SUCCESS) {
                 throw std::runtime_error("failed to submit draw command buffer!");
             }
+            const auto submitEnd = std::chrono::steady_clock::now();
+            frameStats.backendQueueSubmitCpuMs =
+                std::chrono::duration<float, std::milli>(submitEnd - submitStart).count();
 
             if (frameManager->getImagesInFlightCount() > imageIndex)
             {
@@ -291,7 +329,11 @@ class ForwardRenderer : Renderer
             presentInfo.pSwapchains = swapChains;
             presentInfo.pImageIndices = &imageIndex;
 
+            const auto presentStart = std::chrono::steady_clock::now();
             result = vkQueuePresentKHR(vcsheet::getPresentQueue(), &presentInfo);
+            const auto presentEnd = std::chrono::steady_clock::now();
+            frameStats.backendPresentCpuMs =
+                std::chrono::duration<float, std::milli>(presentEnd - presentStart).count();
 
             if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized)
             {
@@ -304,6 +346,9 @@ class ForwardRenderer : Renderer
             }
 
             currentFrame = (currentFrame + 1) % GraphicsConstants::MAX_FRAMES_IN_FLIGHT;
+            const auto frameEnd = std::chrono::steady_clock::now();
+            frameStats.backendFrameCpuMs =
+                std::chrono::duration<float, std::milli>(frameEnd - frameStart).count();
         }
 
         // filler getters, not to be used in the real program

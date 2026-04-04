@@ -10,11 +10,17 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL instanceDebugCallback(VkDebugUtilsMessageS
 VulkanInstance::VulkanInstance(VulkanInstanceConfig config): config(config)
 {
     this->createInstance();
+    this->createDebugMessenger();
 }
 
 VulkanInstance::~VulkanInstance() 
 {
-    vkDestroyInstance(instance, nullptr);
+    destroyDebugMessenger();
+
+    if (instance != VK_NULL_HANDLE)
+    {
+        vkDestroyInstance(instance, nullptr);
+    }
 }
 
 VkInstance& VulkanInstance::getInstance()
@@ -70,6 +76,50 @@ void VulkanInstance::createInstance()
     {
         throw std::runtime_error("failed to create instance!");
     }
+}
+
+void VulkanInstance::createDebugMessenger()
+{
+    if (!config.enableValidationLayers || instance == VK_NULL_HANDLE)
+    {
+        return;
+    }
+
+    VkDebugUtilsMessengerCreateInfoEXT createInfo{};
+    populateDebugMessengerCreateInfo(createInfo);
+
+    auto createDebugUtilsMessengerEXT =
+        reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+            vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
+
+    if (createDebugUtilsMessengerEXT == nullptr)
+    {
+        throw std::runtime_error("failed to load vkCreateDebugUtilsMessengerEXT!");
+    }
+
+    if (createDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create debug messenger!");
+    }
+}
+
+void VulkanInstance::destroyDebugMessenger()
+{
+    if (!config.enableValidationLayers || instance == VK_NULL_HANDLE || debugMessenger == VK_NULL_HANDLE)
+    {
+        return;
+    }
+
+    auto destroyDebugUtilsMessengerEXT =
+        reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
+            vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
+
+    if (destroyDebugUtilsMessengerEXT != nullptr)
+    {
+        destroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+    }
+
+    debugMessenger = VK_NULL_HANDLE;
 }
 
 bool VulkanInstance::checkValidationLayerSupport() 

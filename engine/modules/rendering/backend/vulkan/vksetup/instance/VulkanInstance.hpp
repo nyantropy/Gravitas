@@ -21,15 +21,16 @@ class VulkanInstance
 
     private:
         void createInstance();
+        void createDebugMessenger();
+        void destroyDebugMessenger();
         bool checkValidationLayerSupport();
         void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
 
-        VkInstance instance;
+        VkInstance instance = VK_NULL_HANDLE;
         VulkanInstanceConfig config;
 
         std::vector<const char*> validationLayers = {
             "VK_LAYER_KHRONOS_validation"
         };
-        VkDebugUtilsMessengerEXT debugMessenger;
+        VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
 };
-

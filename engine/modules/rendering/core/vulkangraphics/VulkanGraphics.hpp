@@ -31,12 +31,6 @@
 #include "GraphicsConfig.h"
 #include "IGtsGraphicsModule.hpp"
 
-#ifdef NDEBUG
-const bool enableValidationLayers = false;
-#else
-const bool enableValidationLayers = true;
-#endif
-
 class VulkanGraphics : public IGtsGraphicsModule
 {
 public:
@@ -73,7 +67,7 @@ public:
         wmConfig.windowWidth            = config.window.width;
         wmConfig.windowHeight           = config.window.height;
         wmConfig.windowTitle            = config.window.title;
-        wmConfig.enableValidationLayers = config.window.enableValidationLayers;
+        wmConfig.enableValidationLayers = config.enableValidationLayers;
         wmConfig.windowMode             = config.window.windowMode;
         windowManager = std::make_unique<WindowManager>(wmConfig);
     }
@@ -85,9 +79,10 @@ public:
         const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
         VulkanContextConfig vcConfig;
-        vcConfig.enableValidationLayers   = enableValidationLayers;
+        vcConfig.enableValidationLayers   = config.enableValidationLayers;
         vcConfig.vulkanInstanceExtensions = std::vector<const char*>(glfwExtensions, glfwExtensions + glfwExtensionCount);
         vcConfig.outputWindowPtr          = windowManager->getOutputWindow();
+        vcConfig.presentModePreference    = config.presentModePreference;
         vContext = std::make_unique<VulkanContext>(vcConfig);
         vcsheet::SetContext(vContext.get());
     }
@@ -149,13 +144,5 @@ public:
     IResourceProvider* getResourceProvider() override
     {
         return renderer->getResourceSystem();
-    }
-
-private:
-    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
-    {
-        std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
-
-        return VK_FALSE;
     }
 };

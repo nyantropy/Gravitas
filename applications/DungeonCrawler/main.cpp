@@ -18,6 +18,7 @@ int main()
     config.graphics.window.title         = "DungeonCrawler";
     config.graphics.window.windowMode    = WindowMode::BorderlessFullscreen;
     config.graphics.window.vsync         = true;
+    config.graphics.enableValidationLayers = true;
 
     GravitasEngine engine(config);
 

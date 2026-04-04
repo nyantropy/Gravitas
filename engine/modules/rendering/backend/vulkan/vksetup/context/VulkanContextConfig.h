@@ -5,6 +5,7 @@
 #include <string>
 
 #include "OutputWindow.hpp"
+#include "../../../../core/init/GraphicsConfig.h"
 
 // all configuration settings for the Vulkan Context object
 struct VulkanContextConfig 
@@ -18,6 +19,7 @@ struct VulkanContextConfig
 
     // needed for WindowSurface
     OutputWindow* outputWindowPtr;
+    PresentModePreference presentModePreference = PresentModePreference::Immediate;
 
 
     bool enableSurfaceSupport;
