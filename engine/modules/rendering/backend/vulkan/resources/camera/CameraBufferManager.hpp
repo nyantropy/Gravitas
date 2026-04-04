@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include <cstdio>
 #include <unordered_map>
 #include <memory>
 #include <stdexcept>
@@ -63,7 +64,15 @@ class CameraBufferManager
                 .allocateForUniformBuffer(res->uniformBuffers, sizeof(CameraUBO));
 
             view_id_type id = nextID++;
+            allocatedViews += 1;
+            allocatedDescriptorSets += res->descriptorSets.size();
             idToView[id] = std::move(res);
+            std::printf("[camera] allocate view=%u liveViews=%zu allocatedViews=%zu allocatedSets=%zu freedSets=%zu\n",
+                        static_cast<unsigned>(id),
+                        idToView.size(),
+                        allocatedViews,
+                        allocatedDescriptorSets,
+                        freedDescriptorSets);
             return id;
         }
 
@@ -80,7 +89,10 @@ class CameraBufferManager
             // Return descriptor sets to the UBO pool before freeing the buffers.
             // The pool is created with FREE_DESCRIPTOR_SET_BIT specifically for this.
             if (!res->descriptorSets.empty())
+            {
                 dssheet::getManager().freeUniformBufferSets(res->descriptorSets);
+                freedDescriptorSets += res->descriptorSets.size();
+            }
 
             for (size_t i = 0; i < res->uniformBuffers.size(); ++i)
             {
@@ -90,6 +102,13 @@ class CameraBufferManager
                     vkFreeMemory(device, res->uniformBuffersMemory[i], nullptr);
             }
             idToView.erase(it);
+            destroyedViews += 1;
+            std::printf("[camera] free view=%u liveViews=%zu destroyedViews=%zu allocatedSets=%zu freedSets=%zu\n",
+                        static_cast<unsigned>(id),
+                        idToView.size(),
+                        destroyedViews,
+                        allocatedDescriptorSets,
+                        freedDescriptorSets);
         }
 
         // Returns the GPU resource for the given view, or nullptr if invalid.
@@ -116,4 +135,8 @@ class CameraBufferManager
     private:
         std::unordered_map<view_id_type, std::unique_ptr<CameraBufferResource>> idToView;
         view_id_type nextID = 1; // 0 = invalid
+        size_t allocatedViews = 0;
+        size_t destroyedViews = 0;
+        size_t allocatedDescriptorSets = 0;
+        size_t freedDescriptorSets = 0;
 };

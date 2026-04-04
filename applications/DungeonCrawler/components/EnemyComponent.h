@@ -7,11 +7,13 @@
 // Used by both the legacy dungeon scenes and the active-floor enemy movement.
 struct EnemyComponent
 {
-    int  gridX    = 0;
-    int  gridZ    = 0;
+    int  gridX      = 0;
+    int  gridZ      = 0;
+    int  spawnGridX = 0;
+    int  spawnGridZ = 0;
     int  floorIndex = 0;
-    int  hp       = 2;
-    int  maxHp    = 2;
+    int  hp         = 2;
+    int  maxHp      = 2;
 
     float    moveSpeed    = 2.5f;
     float    moveCooldown = 0.0f;

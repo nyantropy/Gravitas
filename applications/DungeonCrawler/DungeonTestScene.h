@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "Entity.h"
+#include "GtsFrameStats.h"
 #include "GtsScene.hpp"
 #include "Types.h"
 
@@ -22,6 +23,7 @@ public:
                 const GtsSceneTransitionData* data = nullptr) override;
     void onUpdateSimulation(SceneContext& ctx) override;
     void onUpdateControllers(SceneContext& ctx) override;
+    void populateFrameStats(GtsFrameStats& stats) const override;
 
 private:
     DungeonManager       dungeon;
@@ -30,6 +32,7 @@ private:
     Entity               playerMarkerEntity = Entity{ std::numeric_limits<entity_id_type>::max() };
     DungeonUiController  uiController;
     DungeonVisibilityState visibilityState;
+    bool                 runInitialized = false;
     bool                 stairLatchActive = false;
     int                  latchedFloorIndex = -1;
     glm::ivec2           latchedStairPos   = {-1, -1};
@@ -48,7 +51,9 @@ private:
     void updateFloorTransition(SceneContext& ctx);
     void updateMinimapReveal(SceneContext& ctx);
     void handleDungeonRegenerate(SceneContext& ctx);
+    void handleEncounterTransitions(SceneContext& ctx);
     void handleStairTransitions(SceneContext& ctx);
     void updateStairLatch(const GeneratedFloor& floor, const glm::ivec2& playerGridPos);
+    void removeDefeatedEnemy(int floorIndex, const glm::ivec2& spawnTile);
     DungeonUiState buildUiState();
 };

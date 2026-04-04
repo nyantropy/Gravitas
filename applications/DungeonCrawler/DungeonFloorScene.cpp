@@ -77,31 +77,8 @@ DungeonFloorScene::DungeonFloorScene()
 void DungeonFloorScene::onLoad(SceneContext& ctx,
                                 const GtsSceneTransitionData* /*data*/)
 {
-    // On reload, release GPU resources via the clear systems before wiping the world.
-    ecsWorld.forEach<CameraDescriptionComponent>([&](Entity e, CameraDescriptionComponent&)
-    {
-        if (!ecsWorld.hasComponent<CameraResourceClearComponent>(e))
-        {
-            CameraResourceClearComponent c;
-            c.destroyAfterClear = false;
-            ecsWorld.addComponent(e, c);
-        }
-    });
-
-    ecsWorld.forEach<RenderGpuComponent>([&](Entity e, RenderGpuComponent& rc)
-    {
-        if (rc.objectSSBOSlot != RENDERABLE_SLOT_UNALLOCATED &&
-            !ecsWorld.hasComponent<RenderResourceClearComponent>(e))
-        {
-            RenderResourceClearComponent c;
-            c.destroyAfterClear = false;
-            ecsWorld.addComponent(e, c);
-        }
-    });
-
-    CameraResourceClearSystem{}.update(ecsWorld, ctx);
-    RenderResourceClearSystem{}.update(ecsWorld, ctx);
-
+    // On reload, release GPU resources before wiping the world.
+    releaseGpuResources(ctx);
     ecsWorld.clear();
     playerEntity      = INVALID_ENTITY;
     lastDisplayedFloor = 0;

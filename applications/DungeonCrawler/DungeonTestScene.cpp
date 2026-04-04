@@ -1,8 +1,13 @@
 #include "DungeonTestScene.h"
 
+#include <algorithm>
 #include <limits>
+#include <memory>
 #include <string>
 
+#include "BattleEncounterStateComponent.h"
+#include "BattleResultTransitionData.h"
+#include "BattleTransitionData.h"
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
 #include "DebugCameraStateComponent.h"
@@ -18,6 +23,7 @@
 #include "GraphicsConstants.h"
 #include "MaterialComponent.h"
 #include "PlayerComponent.h"
+#include "PlayerTagComponent.h"
 #include "PlayerCameraSystem.h"
 #include "PlayerMovementSystem.hpp"
 #include "ProceduralMeshComponent.h"
@@ -28,6 +34,7 @@
 #include "TransformComponent.h"
 
 #include "systems/DungeonInputSystem.hpp"
+#include "systems/EnemyInteractionSystem.hpp"
 #include "systems/EnemyMovementSystem.hpp"
 
 namespace
@@ -142,8 +149,9 @@ DungeonTestScene::DungeonTestScene()
 {
 }
 
-void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /*data*/)
+void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* data)
 {
+    releaseGpuResources(ctx);
     ecsWorld.clear();
     floorEntities.clear();
     playerEntity = INVALID_ENTITY;
@@ -153,19 +161,41 @@ void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /
     latchedFloorIndex = -1;
     latchedStairPos = {-1, -1};
 
-    dungeon.generateRun();
-    visibilityState.initialize(dungeon.getFloors());
-    visibilityState.revealAt(0,
-                             dungeon.getActiveFloor(),
-                             dungeon.getActiveFloor().playerStart.x,
-                             dungeon.getActiveFloor().playerStart.y);
+    glm::ivec2 playerStart = {1, 1};
+    const auto* battleResult = dynamic_cast<const BattleResultTransitionData*>(data);
+
+    if (battleResult != nullptr
+        && runInitialized
+        && dungeon.canMoveToFloor(battleResult->floorIndex))
+    {
+        dungeon.setCurrentFloorIndex(battleResult->floorIndex);
+        removeDefeatedEnemy(battleResult->floorIndex, battleResult->defeatedEnemyTile);
+        playerStart = battleResult->playerTile;
+        visibilityState.revealAt(dungeon.getCurrentFloorIndex(),
+                                 dungeon.getActiveFloor(),
+                                 playerStart.x,
+                                 playerStart.y);
+    }
+    else
+    {
+        dungeon.generateRun();
+        visibilityState.initialize(dungeon.getFloors());
+        dungeon.setCurrentFloorIndex(0);
+        playerStart = dungeon.getActiveFloor().playerStart;
+        visibilityState.revealAt(0,
+                                 dungeon.getActiveFloor(),
+                                 playerStart.x,
+                                 playerStart.y);
+        runInitialized = true;
+    }
 
     ecsWorld.createSingleton<DungeonInputComponent>();
     ecsWorld.createSingleton<FloorTransitionStateComponent>();
+    ecsWorld.createSingleton<BattleEncounterStateComponent>();
 
     initializeDungeonSingleton();
     buildFloorEntities(dungeon.getActiveFloor());
-    spawnPlayer(ctx, dungeon.getActiveFloor().playerStart);
+    spawnPlayer(ctx, playerStart);
     spawnPlayerMarker();
     uiController.initialize(ctx, buildUiState());
 
@@ -174,6 +204,7 @@ void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /
     ecsWorld.addControllerSystem<PlayerCameraSystem>();
     ecsWorld.addSimulationSystem<EnemyMovementSystem>();
     installPhysicsFeature(ctx);
+    ecsWorld.addSimulationSystem<EnemyInteractionSystem>(ctx.physics);
 
     installRendererFeature();
 }
@@ -187,11 +218,32 @@ void DungeonTestScene::onUpdateControllers(SceneContext& ctx)
 {
     ecsWorld.updateControllers(ctx);
 
+    handleEncounterTransitions(ctx);
+    if (ecsWorld.hasAny<BattleEncounterStateComponent>()
+        && ecsWorld.getSingleton<BattleEncounterStateComponent>().transitionIssued)
+    {
+        syncPlayerMarker();
+        uiController.update(ctx, buildUiState());
+        return;
+    }
+
     handleDungeonRegenerate(ctx);
     handleStairTransitions(ctx);
     updateMinimapReveal(ctx);
     syncPlayerMarker();
     uiController.update(ctx, buildUiState());
+}
+
+void DungeonTestScene::populateFrameStats(GtsFrameStats& stats) const
+{
+    if (physicsWorld)
+        stats.physicsCollisionCount = static_cast<uint32_t>(physicsWorld->getCollisions().size());
+
+    if (ecsWorld.hasAny<BattleEncounterStateComponent>())
+    {
+        const auto& encounter = ecsWorld.getSingleton<BattleEncounterStateComponent>();
+        stats.playerCollisionCount = encounter.playerCollisionCount;
+    }
 }
 
 void DungeonTestScene::initializeDungeonSingleton()
@@ -306,6 +358,8 @@ void DungeonTestScene::spawnEnemyEntities(const GeneratedFloor& floor)
         EnemyComponent enemy;
         enemy.gridX      = static_cast<int>(spawnPosition.x);
         enemy.gridZ      = static_cast<int>(spawnPosition.z);
+        enemy.spawnGridX = enemy.gridX;
+        enemy.spawnGridZ = enemy.gridZ;
         enemy.floorIndex = floor.floorNumber;
         enemy.moveSpeed  = 2.0f + static_cast<float>((floor.floorNumber * 13 + static_cast<int>(spawnIndex) * 17) % 11) * 0.1f;
         enemy.rngState   = static_cast<uint32_t>((floor.floorNumber + 1) * 73856093
@@ -429,6 +483,7 @@ void DungeonTestScene::spawnPlayer(SceneContext& ctx, const glm::ivec2& startPos
     player.fromYaw = 90.0f;
     player.toYaw   = 90.0f;
     ecsWorld.addComponent(playerEntity, player);
+    ecsWorld.addComponent(playerEntity, PlayerTagComponent{});
 
     TransformComponent transform;
     transform.position = gridToWorld(startPos);
@@ -525,6 +580,26 @@ void DungeonTestScene::handleDungeonRegenerate(SceneContext& ctx)
     stairLatchActive = false;
     latchedFloorIndex = -1;
     latchedStairPos = {-1, -1};
+}
+
+void DungeonTestScene::handleEncounterTransitions(SceneContext& ctx)
+{
+    if (!ecsWorld.hasAny<BattleEncounterStateComponent>())
+        return;
+
+    auto& encounter = ecsWorld.getSingleton<BattleEncounterStateComponent>();
+    if (!encounter.battleRequested || encounter.transitionIssued)
+        return;
+
+    auto transition = std::make_shared<BattleTransitionData>();
+    transition->returnSceneName = "dungeon_test";
+    transition->floorIndex = encounter.floorIndex;
+    transition->playerTile = encounter.playerTile;
+    transition->enemyTile = encounter.enemyTile;
+    transition->enemySpawnTile = encounter.enemySpawnTile;
+
+    encounter.transitionIssued = true;
+    ctx.engineCommands->requestChangeScene("battle", transition);
 }
 
 void DungeonTestScene::handleStairTransitions(SceneContext& ctx)
@@ -708,6 +783,25 @@ void DungeonTestScene::updateFloorTransition(SceneContext& ctx)
         transition.progress = 0.0f;
         transition.floorSwapApplied = false;
     }
+}
+
+void DungeonTestScene::removeDefeatedEnemy(int floorIndex, const glm::ivec2& spawnTile)
+{
+    GeneratedFloor* floor = dungeon.getFloor(floorIndex);
+    if (floor == nullptr)
+        return;
+
+    auto& enemySpawns = floor->enemySpawnPositions;
+    enemySpawns.erase(
+        std::remove_if(
+            enemySpawns.begin(),
+            enemySpawns.end(),
+            [&](const glm::vec3& spawnPosition)
+            {
+                return static_cast<int>(spawnPosition.x) == spawnTile.x
+                    && static_cast<int>(spawnPosition.z) == spawnTile.y;
+            }),
+        enemySpawns.end());
 }
 
 DungeonUiState DungeonTestScene::buildUiState()

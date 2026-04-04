@@ -81,7 +81,8 @@ class GravitasEngine
         // render call
         void render(float dt)
         {
-            auto& world = sceneManager->getActiveScene()->getWorld();
+            GtsScene* activeScene = sceneManager->getActiveScene();
+            auto& world = activeScene->getWorld();
             int viewportWidth = 1;
             int viewportHeight = 1;
             platform.getViewportSize(viewportWidth, viewportHeight);
@@ -95,6 +96,7 @@ class GravitasEngine
             stats.visibleObjects = static_cast<uint32_t>(renderCommandExtractor->getLastVisibleRenderables());
             stats.totalObjects   = static_cast<uint32_t>(renderCommandExtractor->getLastTotalRenderables());
             // triangleCount is filled in by SceneRenderStage during execute
+            activeScene->populateFrameStats(stats);
 
             GtsExtractorContext extractCtx{world, sceneContext.windowAspectRatio};
 
@@ -121,7 +123,7 @@ class GravitasEngine
                         uiSystem->clear();
                         sceneContext.physics = nullptr;
                         sceneManager->setActiveScene(cmd.stringArg);
-                        sceneManager->getActiveScene()->onLoad(sceneContext, nullptr);
+                        sceneManager->getActiveScene()->onLoad(sceneContext, cmd.transitionData.get());
                         break;
                     case GtsCommand::Type::Quit:
                         break;
@@ -149,12 +151,13 @@ class GravitasEngine
             sceneManager->registerScene(name, std::move(scene));
         }
 
-        void setActiveScene(std::string name)
+        void setActiveScene(std::string name,
+                            std::shared_ptr<GtsSceneTransitionData> data = nullptr)
         {
             uiSystem->clear();
             sceneContext.physics = nullptr;
             sceneManager->setActiveScene(name);
-            sceneManager->getActiveScene()->onLoad(sceneContext, nullptr);
+            sceneManager->getActiveScene()->onLoad(sceneContext, data.get());
         }
 
         void start()

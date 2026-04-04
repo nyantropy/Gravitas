@@ -34,7 +34,7 @@ public:
     static constexpr int   CELL_H      = 8;
     static constexpr int   ATLAS_COLS  = 8;
     static constexpr float LINE_HEIGHT = 1.2f;
-    static constexpr float FONT_SCALE  = 0.03f;
+    static constexpr float FONT_SCALE  = 0.026f;
 
     // Screen-space position of the debug overlay (normalized, top-right area).
     static constexpr float OVERLAY_X = 0.60f;
@@ -47,7 +47,7 @@ public:
             DEBUG_FONT_PATH,
             ATLAS_W, ATLAS_H,
             CELL_W, CELL_H, ATLAS_COLS,
-            "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+            "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ []/.",
             LINE_HEIGHT,
             true);
         initialised = true;
@@ -65,40 +65,57 @@ public:
 
         char line[64];
         float y = OVERLAY_Y;
+        const float lineAdvance = LINE_HEIGHT * FONT_SCALE;
+
+        appendLine(buffer, "[RENDER]", OVERLAY_X, y);
+        y += lineAdvance;
 
         snprintf(line, sizeof(line), "FPS  %d",
                  static_cast<int>(stats.fps));
         appendLine(buffer, line, OVERLAY_X, y);
-        y += LINE_HEIGHT * FONT_SCALE;
+        y += lineAdvance;
 
         snprintf(line, sizeof(line), "DT   %.1fMS",
                  stats.frameTimeMs);
         appendLine(buffer, line, OVERLAY_X, y);
-        y += LINE_HEIGHT * FONT_SCALE;
+        y += lineAdvance;
 
         snprintf(line, sizeof(line), "VIS  %d / %d",
                  static_cast<int>(stats.visibleObjects),
                  static_cast<int>(stats.totalObjects));
         appendLine(buffer, line, OVERLAY_X, y);
-        y += LINE_HEIGHT * FONT_SCALE;
+        y += lineAdvance;
 
         snprintf(line, sizeof(line), "TRIS %d",
                  static_cast<int>(stats.triangleCount));
         appendLine(buffer, line, OVERLAY_X, y);
-        y += LINE_HEIGHT * FONT_SCALE;
+        y += lineAdvance;
 
         snprintf(line, sizeof(line), "DC   %d",
                  static_cast<int>(stats.drawCalls));
         appendLine(buffer, line, OVERLAY_X, y);
-        y += LINE_HEIGHT * FONT_SCALE;
+        y += lineAdvance;
 
         snprintf(line, sizeof(line), "PSW  %d",
                  static_cast<int>(stats.pipelineSwitches));
         appendLine(buffer, line, OVERLAY_X, y);
-        y += LINE_HEIGHT * FONT_SCALE;
+        y += lineAdvance;
 
         snprintf(line, sizeof(line), "TSW  %d",
                  static_cast<int>(stats.textureSwitches));
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance * 1.25f;
+
+        appendLine(buffer, "[PHYSICS]", OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "COLL %d",
+                 static_cast<int>(stats.physicsCollisionCount));
+        appendLine(buffer, line, OVERLAY_X, y);
+        y += lineAdvance;
+
+        snprintf(line, sizeof(line), "PCOL %d",
+                 static_cast<int>(stats.playerCollisionCount));
         appendLine(buffer, line, OVERLAY_X, y);
     }
 

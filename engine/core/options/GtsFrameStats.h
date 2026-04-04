@@ -15,4 +15,6 @@ struct GtsFrameStats
     uint32_t drawCalls       = 0;
     uint32_t pipelineSwitches = 0;
     uint32_t textureSwitches = 0;
+    uint32_t physicsCollisionCount = 0;
+    uint32_t playerCollisionCount  = 0;
 };

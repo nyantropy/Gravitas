@@ -3,14 +3,19 @@
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
 #include "GtsSceneTransitionData.h"
+#include "GtsFrameStats.h"
 #include "PhysicsWorld.h"
 
 #include "RenderGpuSystem.hpp"
 #include "CameraGpuSystem.hpp"
+#include "CameraDescriptionComponent.h"
+#include "CameraResourceClearComponent.h"
 #include "StaticMeshBindingSystem.hpp"
 #include "ProceduralMeshBindingSystem.hpp"
 #include "WorldTextBindingSystem.hpp"
 #include "CameraBindingSystem.hpp"
+#include "RenderGpuComponent.h"
+#include "RenderResourceClearComponent.h"
 #include "RenderResourceClearSystem.hpp"
 #include "CameraResourceClearSystem.hpp"
 #include "DebugFreeCameraSystem.hpp"
@@ -25,6 +30,33 @@ class GtsScene
     protected:
         ECSWorld ecsWorld;
         std::unique_ptr<PhysicsWorld> physicsWorld;
+
+        void releaseGpuResources(SceneContext& ctx)
+        {
+            ecsWorld.forEach<CameraDescriptionComponent>([&](Entity e, CameraDescriptionComponent&)
+            {
+                if (!ecsWorld.hasComponent<CameraResourceClearComponent>(e))
+                {
+                    CameraResourceClearComponent clear;
+                    clear.destroyAfterClear = false;
+                    ecsWorld.addComponent(e, clear);
+                }
+            });
+
+            ecsWorld.forEach<RenderGpuComponent>([&](Entity e, RenderGpuComponent& renderGpu)
+            {
+                if (renderGpu.objectSSBOSlot != RENDERABLE_SLOT_UNALLOCATED
+                    && !ecsWorld.hasComponent<RenderResourceClearComponent>(e))
+                {
+                    RenderResourceClearComponent clear;
+                    clear.destroyAfterClear = false;
+                    ecsWorld.addComponent(e, clear);
+                }
+            });
+
+            CameraResourceClearSystem{}.update(ecsWorld, ctx);
+            RenderResourceClearSystem{}.update(ecsWorld, ctx);
+        }
     public:
         virtual ~GtsScene() = default;
 
@@ -39,6 +71,8 @@ class GtsScene
         // Called once per rendered frame regardless of tick rate.
         // Input processing, visual updates, and rendering prep go here.
         virtual void onUpdateControllers(SceneContext& ctx) {}
+
+        virtual void populateFrameStats(GtsFrameStats& /*stats*/) const {}
 
         ECSWorld& getWorld()
         {

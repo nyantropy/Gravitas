@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdio>
+
 #include "ECSControllerSystem.hpp"
 #include "CameraDescriptionComponent.h"
 #include "CameraGpuComponent.h"
@@ -12,8 +14,11 @@ class CameraBindingSystem : public ECSControllerSystem
     public:
         void update(ECSWorld& world, SceneContext& ctx) override
         {
+            size_t cameraEntityCount = 0;
             world.forEach<CameraDescriptionComponent>([&](Entity e, CameraDescriptionComponent&)
             {
+                cameraEntityCount += 1;
+
                 if (!world.hasComponent<CameraGpuComponent>(e))
                     world.addComponent(e, CameraGpuComponent{});
 
@@ -28,5 +33,12 @@ class CameraBindingSystem : public ECSControllerSystem
                     gpu.dirty = false;
                 }
             });
+
+            static uint64_t frameCounter = 0;
+            frameCounter += 1;
+            if ((frameCounter % 120u) == 0u)
+            {
+                std::printf("[camera] binding activeCameraEntities=%zu\n", cameraEntityCount);
+            }
         }
 };
