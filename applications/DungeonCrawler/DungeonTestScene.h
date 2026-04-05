@@ -11,6 +11,8 @@
 #include "DungeonManager.h"
 #include "DungeonVisibilityState.h"
 #include "GeneratedFloor.h"
+#include "inventory/Item.h"
+#include "inventory/KeySpawnState.h"
 #include "ui/DungeonUiController.h"
 #include "ui/DungeonUiState.h"
 
@@ -36,11 +38,14 @@ private:
     bool                 stairLatchActive = false;
     int                  latchedFloorIndex = -1;
     glm::ivec2           latchedStairPos   = {-1, -1};
+    std::vector<Item>    persistentInventoryItems;
+    KeySpawnState        persistentKeyState;
 
     void initializeDungeonSingleton();
     void rebuildActiveFloor(SceneContext& ctx);
     void buildFloorEntities(const GeneratedFloor& floor);
     void spawnEnemyEntities(const GeneratedFloor& floor);
+    void spawnKeyEntity(const GeneratedFloor& floor);
     void destroyFloorEntities();
     void spawnStairFeature(const GeneratedFloor& floor, const glm::ivec2& stairPos, bool descends);
     void spawnPlayer(SceneContext& ctx, const glm::ivec2& startPos);
@@ -55,5 +60,7 @@ private:
     void handleStairTransitions(SceneContext& ctx);
     void updateStairLatch(const GeneratedFloor& floor, const glm::ivec2& playerGridPos);
     void removeDefeatedEnemy(int floorIndex, const glm::ivec2& spawnTile);
+    void chooseNewKeySpawnState();
+    void syncPersistentInventoryFromWorld();
     DungeonUiState buildUiState();
 };

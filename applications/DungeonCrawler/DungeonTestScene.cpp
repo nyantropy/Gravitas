@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
+#include <random>
 #include <string>
 
 #include "BattleEncounterStateComponent.h"
@@ -29,6 +30,11 @@
 #include "ProceduralMeshComponent.h"
 #include "StaticMeshComponent.h"
 #include "TransformComponent.h"
+#include "inventory/InventoryComponent.h"
+#include "inventory/InventoryPickupSystem.hpp"
+#include "inventory/InventoryUiSystem.hpp"
+#include "inventory/KeyCollectibleComponent.h"
+#include "inventory/KeyRotationSystem.hpp"
 
 #include "systems/DungeonInputSystem.hpp"
 #include "systems/EnemyInteractionSystem.hpp"
@@ -75,6 +81,15 @@ namespace
     glm::vec3 gridToWorld(const glm::ivec2& gridPos)
     {
         return {gridPos.x + 0.5f, 0.5f, gridPos.y + 0.5f};
+    }
+
+    Item makeGoldenKeyItem()
+    {
+        return {
+            "key",
+            "Golden Key",
+            GraphicsConstants::ENGINE_RESOURCES + "/textures/yellow_texture.png"
+        };
     }
 
     bool isWall(const GeneratedFloor& floor, int x, int z)
@@ -182,12 +197,21 @@ void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* d
                                  dungeon.getActiveFloor(),
                                  playerStart.x,
                                  playerStart.y);
+        persistentInventoryItems.clear();
+        chooseNewKeySpawnState();
         runInitialized = true;
+    }
+
+    if (!(battleResult != nullptr && runInitialized))
+    {
+        if (persistentKeyState.item.id.empty())
+            chooseNewKeySpawnState();
     }
 
     ecsWorld.createSingleton<DungeonInputComponent>();
     ecsWorld.createSingleton<FloorTransitionStateComponent>();
     ecsWorld.createSingleton<BattleEncounterStateComponent>();
+    ecsWorld.createSingleton<KeySpawnState>(persistentKeyState);
 
     initializeDungeonSingleton();
     buildFloorEntities(dungeon.getActiveFloor());
@@ -198,8 +222,11 @@ void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* d
     ecsWorld.addControllerSystem<DungeonInputSystem>();
     ecsWorld.addControllerSystem<PlayerMovementSystem>();
     ecsWorld.addControllerSystem<PlayerCameraSystem>();
+    ecsWorld.addControllerSystem<KeyRotationSystem>();
+    ecsWorld.addControllerSystem<InventoryUiSystem>();
     ecsWorld.addSimulationSystem<EnemyMovementSystem>();
     installPhysicsFeature(ctx);
+    ecsWorld.addSimulationSystem<InventoryPickupSystem>(ctx.physics);
     ecsWorld.addSimulationSystem<EnemyInteractionSystem>(ctx.physics);
 
     installRendererFeature(ctx);
@@ -227,6 +254,9 @@ void DungeonTestScene::onUpdateControllers(SceneContext& ctx)
     handleStairTransitions(ctx);
     updateMinimapReveal(ctx);
     syncPlayerMarker();
+    syncPersistentInventoryFromWorld();
+    if (ecsWorld.hasAny<KeySpawnState>())
+        persistentKeyState = ecsWorld.getSingleton<KeySpawnState>();
     uiController.update(ctx, buildUiState());
 }
 
@@ -336,6 +366,7 @@ void DungeonTestScene::buildFloorEntities(const GeneratedFloor& floor)
     }
 
     spawnEnemyEntities(floor);
+    spawnKeyEntity(floor);
 }
 
 void DungeonTestScene::spawnEnemyEntities(const GeneratedFloor& floor)
@@ -469,6 +500,10 @@ void DungeonTestScene::spawnPlayer(SceneContext& ctx, const glm::ivec2& startPos
     player.toYaw   = 90.0f;
     ecsWorld.addComponent(playerEntity, player);
     ecsWorld.addComponent(playerEntity, PlayerTagComponent{});
+    ecsWorld.addComponent(playerEntity, InventoryComponent{
+        persistentInventoryItems,
+        8
+    });
 
     TransformComponent transform;
     transform.position = gridToWorld(startPos);
@@ -488,6 +523,55 @@ void DungeonTestScene::spawnPlayer(SceneContext& ctx, const glm::ivec2& startPos
     camera.farClip     = 100.0f;
     camera.target      = transform.position + glm::vec3(1.0f, 0.0f, 0.0f);
     ecsWorld.addComponent(playerEntity, camera);
+}
+
+void DungeonTestScene::spawnKeyEntity(const GeneratedFloor& floor)
+{
+    if (!ecsWorld.hasAny<KeySpawnState>())
+        return;
+
+    const auto& keyState = ecsWorld.getSingleton<KeySpawnState>();
+    if (keyState.collected || keyState.floorIndex != floor.floorNumber)
+        return;
+
+    const std::string cubeMesh = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+    const std::string yellowTexture = GraphicsConstants::ENGINE_RESOURCES + "/textures/yellow_texture.png";
+
+    Entity e = ecsWorld.createEntity();
+    floorEntities.push_back(e);
+
+    TransformComponent transform;
+    transform.position = {keyState.gridPosition.x + 0.5f, 0.7f, keyState.gridPosition.y + 0.5f};
+    transform.scale = {0.35f, 0.35f, 0.35f};
+
+    PhysicsBodyComponent body;
+    SphereColliderComponent collider;
+    collider.radius = 0.35f;
+
+    StaticMeshComponent mesh;
+    mesh.meshPath = cubeMesh;
+
+    MaterialComponent material;
+    material.texturePath = yellowTexture;
+    material.tint = {1.0f, 0.82f, 0.18f, 1.0f};
+
+    BoundsComponent bounds;
+    bounds.min = {-0.25f, -0.25f, -0.25f};
+    bounds.max = { 0.25f,  0.25f,  0.25f};
+
+    KeyCollectibleComponent key;
+    key.item = keyState.item;
+    key.floorIndex = keyState.floorIndex;
+    key.gridPosition = keyState.gridPosition;
+    key.rotationSpeed = 2.2f;
+
+    ecsWorld.addComponent(e, transform);
+    ecsWorld.addComponent(e, body);
+    ecsWorld.addComponent(e, collider);
+    ecsWorld.addComponent(e, mesh);
+    ecsWorld.addComponent(e, material);
+    ecsWorld.addComponent(e, bounds);
+    ecsWorld.addComponent(e, key);
 }
 
 void DungeonTestScene::spawnPlayerMarker()
@@ -556,6 +640,8 @@ void DungeonTestScene::handleDungeonRegenerate(SceneContext& ctx)
     dungeon.generateRun();
     visibilityState.initialize(dungeon.getFloors());
     dungeon.setCurrentFloorIndex(0);
+    persistentInventoryItems.clear();
+    chooseNewKeySpawnState();
     visibilityState.revealAt(0,
                              dungeon.getActiveFloor(),
                              dungeon.getActiveFloor().playerStart.x,
@@ -565,6 +651,8 @@ void DungeonTestScene::handleDungeonRegenerate(SceneContext& ctx)
     stairLatchActive = false;
     latchedFloorIndex = -1;
     latchedStairPos = {-1, -1};
+    if (ecsWorld.hasAny<KeySpawnState>())
+        ecsWorld.getSingleton<KeySpawnState>() = persistentKeyState;
 }
 
 void DungeonTestScene::handleEncounterTransitions(SceneContext& ctx)
@@ -787,6 +875,58 @@ void DungeonTestScene::removeDefeatedEnemy(int floorIndex, const glm::ivec2& spa
                     && static_cast<int>(spawnPosition.z) == spawnTile.y;
             }),
         enemySpawns.end());
+}
+
+void DungeonTestScene::chooseNewKeySpawnState()
+{
+    persistentKeyState = {};
+    persistentKeyState.item = makeGoldenKeyItem();
+
+    std::vector<std::pair<int, glm::ivec2>> candidates;
+    const auto& floors = dungeon.getFloors();
+    for (const GeneratedFloor& floor : floors)
+    {
+        if (!floor.treasureSpawns.empty())
+        {
+            for (const glm::ivec2& treasure : floor.treasureSpawns)
+                candidates.push_back({floor.floorNumber, treasure});
+            continue;
+        }
+
+        for (int z = 0; z < floor.height; ++z)
+        {
+            for (int x = 0; x < floor.width; ++x)
+            {
+                const glm::ivec2 tile = {x, z};
+                if (!floor.isWalkable(x, z)) continue;
+                if (tile == floor.playerStart) continue;
+                if (tile == floor.stairDownPos || tile == floor.stairUpPos) continue;
+                candidates.push_back({floor.floorNumber, tile});
+            }
+        }
+    }
+
+    if (candidates.empty())
+    {
+        persistentKeyState.floorIndex = 0;
+        persistentKeyState.gridPosition = dungeon.getActiveFloor().playerStart;
+        return;
+    }
+
+    std::mt19937 rng(std::random_device{}());
+    std::uniform_int_distribution<size_t> dist(0, candidates.size() - 1);
+    const size_t index = dist(rng);
+    persistentKeyState.floorIndex = candidates[index].first;
+    persistentKeyState.gridPosition = candidates[index].second;
+    persistentKeyState.collected = false;
+}
+
+void DungeonTestScene::syncPersistentInventoryFromWorld()
+{
+    if (playerEntity == INVALID_ENTITY || !ecsWorld.hasComponent<InventoryComponent>(playerEntity))
+        return;
+
+    persistentInventoryItems = ecsWorld.getComponent<InventoryComponent>(playerEntity).items;
 }
 
 DungeonUiState DungeonTestScene::buildUiState()
