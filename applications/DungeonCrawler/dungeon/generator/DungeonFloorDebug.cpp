@@ -1,4 +1,4 @@
-#include "generator/DungeonFloorDebug.h"
+#include "dungeon/generator/DungeonFloorDebug.h"
 
 #include <iostream>
 #include <sstream>

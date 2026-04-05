@@ -4,8 +4,8 @@
 #include <vector>
 #include <cstdint>
 
-#include "generator/DungeonSpec.h"
-#include "generator/DungeonGenerator.h"
+#include "dungeon/generator/DungeonGenerator.h"
+#include "dungeon/generator/DungeonSpec.h"
 
 // Runtime coordinator for a single dungeon run.
 // Owns the master seed, generates all floors in order, and carries the active

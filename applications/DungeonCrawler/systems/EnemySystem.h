@@ -10,7 +10,7 @@
 #include "TransformComponent.h"
 #include "components/PlayerComponent.h"
 #include "components/DungeonGameStateComponent.h"
-#include "DungeonMap.h"
+#include "dungeon/DungeonMap.h"
 
 // Controller system — enemy patrol AI.
 // Each enemy walks back and forth between its two patrol waypoints.

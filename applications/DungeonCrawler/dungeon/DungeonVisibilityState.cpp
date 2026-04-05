@@ -1,4 +1,4 @@
-#include "DungeonVisibilityState.h"
+#include "dungeon/DungeonVisibilityState.h"
 
 namespace
 {

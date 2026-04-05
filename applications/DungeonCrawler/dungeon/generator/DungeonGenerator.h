@@ -1,7 +1,7 @@
 #pragma once
 
-#include "generator/DungeonSpec.h"
-#include "generator/GeneratedFloor.h"
+#include "dungeon/generator/DungeonSpec.h"
+#include "dungeon/generator/GeneratedFloor.h"
 #include <vector>
 
 class DungeonGenerator

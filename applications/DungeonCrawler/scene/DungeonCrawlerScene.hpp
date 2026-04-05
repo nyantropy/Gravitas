@@ -23,7 +23,7 @@
 #include "BitmapFontLoader.h"
 
 // Dungeon components
-#include "DungeonMap.h"
+#include "dungeon/DungeonMap.h"
 #include "components/DungeonInputComponent.h"
 #include "components/DungeonGameStateComponent.h"
 #include "components/PlayerComponent.h"

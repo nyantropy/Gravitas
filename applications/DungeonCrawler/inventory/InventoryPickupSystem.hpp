@@ -1,5 +1,6 @@
 #pragma once
 
+#include <limits>
 #include <unordered_set>
 #include <vector>
 
@@ -24,6 +25,8 @@ public:
 
     void update(ECSWorld& world, SceneContext& ctx) override
     {
+        constexpr Entity invalidEntity{std::numeric_limits<entity_id_type>::max()};
+
         if (physicsModule == nullptr)
             return;
 
@@ -34,24 +37,23 @@ public:
         {
             const Entity playerEntity = resolvePlayerEntity(world, collision);
             const Entity collectibleEntity = resolveCollectibleEntity(world, collision);
-            if (playerEntity == INVALID_ENTITY || collectibleEntity == INVALID_ENTITY)
+            if (playerEntity == invalidEntity || collectibleEntity == invalidEntity)
                 continue;
 
             if (!emittedCollectibles.insert(collectibleEntity.id).second)
                 continue;
 
             auto& collectible = world.getComponent<CollectibleComponent>(collectibleEntity);
+            ctx.events.emit(ItemPickedUpEvent{playerEntity, collectibleEntity});
+
             if (collectible.type == CollectibleType::Gold)
             {
                 ctx.events.emit(GoldPickedUpEvent{
                     playerEntity,
-                    collectibleEntity,
                     static_cast<int>(collectible.goldAmount)
                 });
                 continue;
             }
-
-            ctx.events.emit(ItemPickedUpEvent{playerEntity, collectibleEntity});
             if (collectible.item.id == "health_potion")
             {
                 ctx.events.emit(HealthPotionPickedUpEvent{
@@ -59,7 +61,7 @@ public:
                     collectibleEntity
                 });
             }
-        } 
+        }
     }
 
 private:
@@ -67,6 +69,8 @@ private:
 
     Entity resolvePlayerEntity(ECSWorld& world, const CollisionEvent& collision) const
     {
+        constexpr Entity invalidEntity{std::numeric_limits<entity_id_type>::max()};
+
         if (world.hasComponent<PlayerComponent>(collision.a)
             && world.hasComponent<InventoryComponent>(collision.a))
             return collision.a;
@@ -75,17 +79,19 @@ private:
             && world.hasComponent<InventoryComponent>(collision.b))
             return collision.b;
 
-        return INVALID_ENTITY;
+        return invalidEntity;
     }
 
     Entity resolveCollectibleEntity(ECSWorld& world, const CollisionEvent& collision) const
     {
+        constexpr Entity invalidEntity{std::numeric_limits<entity_id_type>::max()};
+
         if (world.hasComponent<CollectibleComponent>(collision.a))
             return collision.a;
 
         if (world.hasComponent<CollectibleComponent>(collision.b))
             return collision.b;
 
-        return INVALID_ENTITY;
+        return invalidEntity;
     }
 };

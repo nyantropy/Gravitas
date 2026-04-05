@@ -4,19 +4,18 @@
 
 struct ItemPickedUpEvent
 {
-    Entity player = INVALID_ENTITY;
-    Entity item   = INVALID_ENTITY;
+    Entity player{};
+    Entity item{};
 };
 
 struct GoldPickedUpEvent
 {
-    Entity player = INVALID_ENTITY;
-    Entity item   = INVALID_ENTITY;
+    Entity player{};
     int    amount = 0;
 };
 
 struct HealthPotionPickedUpEvent
 {
-    Entity player = INVALID_ENTITY;
-    Entity potion = INVALID_ENTITY;
+    Entity player{};
+    Entity potion{};
 };

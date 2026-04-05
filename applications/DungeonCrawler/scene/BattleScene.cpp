@@ -1,12 +1,12 @@
-#include "BattleScene.h"
+#include "scene/BattleScene.h"
 
+#include <limits>
 #include <memory>
 
 #include "components/BattleResultTransitionData.h"
 #include "components/BattleTransitionData.h"
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
-#include "struct/DungeonAction.h"
 #include "GlmConfig.h"
 #include "GtsKey.h"
 #include "GraphicsConstants.h"
@@ -17,12 +17,14 @@
 
 void BattleScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* data)
 {
+    constexpr Entity invalidEntity{std::numeric_limits<entity_id_type>::max()};
+
     resetSceneWorld();
     actionManager = InputActionManager<DungeonAction>{};
     actionManager.bind(DungeonAction::BattleExit, GtsKey::Q);
-    enemyEntity = INVALID_ENTITY;
-    floorEntity = INVALID_ENTITY;
-    cameraEntity = INVALID_ENTITY;
+    enemyEntity = invalidEntity;
+    floorEntity = invalidEntity;
+    cameraEntity = invalidEntity;
     returnSceneName = "dungeon_test";
     returnFloorIndex = -1;
     returnPlayerTile = {-1, -1};

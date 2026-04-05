@@ -1,12 +1,13 @@
 #pragma once
 
+#include <limits>
 #include <string>
 
 #include "Entity.h"
 #include "GlmConfig.h"
 #include "GtsScene.hpp"
 #include "InputActionManager.hpp"
-#include "struct/DungeonAction.h"
+#include "utils/DungeonAction.h"
 
 class BattleScene : public GtsScene
 {
@@ -18,9 +19,9 @@ public:
 
 private:
     InputActionManager<DungeonAction> actionManager;
-    Entity      enemyEntity      = INVALID_ENTITY;
-    Entity      floorEntity      = INVALID_ENTITY;
-    Entity      cameraEntity     = INVALID_ENTITY;
+    Entity      enemyEntity      = Entity{std::numeric_limits<entity_id_type>::max()};
+    Entity      floorEntity      = Entity{std::numeric_limits<entity_id_type>::max()};
+    Entity      cameraEntity     = Entity{std::numeric_limits<entity_id_type>::max()};
     std::string returnSceneName  = "dungeon_test";
     int         returnFloorIndex = -1;
     glm::ivec2  returnPlayerTile = {-1, -1};

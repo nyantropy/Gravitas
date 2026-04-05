@@ -1,4 +1,4 @@
-#include "StairTestScene.h"
+#include "scene/StairTestScene.h"
 
 #include <cmath>
 #include <limits>
@@ -33,7 +33,7 @@
 void StairTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* /*data*/)
 {
     resetSceneWorld();
-    playerEntity   = INVALID_ENTITY;
+    playerEntity   = Entity{std::numeric_limits<entity_id_type>::max()};
 
     ecsWorld.createSingleton<DungeonInputComponent>();
     ecsWorld.createSingleton<FloorTransitionStateComponent>();

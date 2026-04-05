@@ -13,7 +13,7 @@
 #include "CameraDescriptionComponent.h"
 #include "TransformComponent.h"
 #include "components/DungeonFloorSingleton.h"
-#include "DungeonManager.h"
+#include "dungeon/DungeonManager.h"
 
 // Single owner of all floor-transition logic.
 // When the player steps onto a FloorTransitionTriggerComponent tile:
