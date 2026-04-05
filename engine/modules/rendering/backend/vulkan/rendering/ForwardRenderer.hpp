@@ -1,8 +1,8 @@
 #pragma once
 
-#include <vector>
-#include <memory>
 #include <chrono>
+#include <memory>
+#include <vector>
 #include <vulkan/vulkan.h>
 
 #include "Renderer.hpp"
@@ -19,6 +19,7 @@
 #include "FormatUtil.hpp"
 
 #include "FrameManager.hpp"
+#include "ScreenshotManager.hpp"
 
 #include "GtsEvent.hpp"
 
@@ -60,6 +61,8 @@ class ForwardRenderer : Renderer
 
         uint32_t currentFrame = 0;
         bool framebufferResized = false;
+        bool screenshotRequested = false;
+        ScreenshotManager screenshotManager;
 
 
         VkFormat findDepthFormat()
@@ -193,6 +196,11 @@ class ForwardRenderer : Renderer
                 uiStage->getDebugOverlay().toggle();
         }
 
+        void requestScreenshot() override
+        {
+            screenshotRequested = true;
+        }
+
         void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
                          const UiCommandBuffer& uiBuffer,
                          const GtsFrameStats& stats) override
@@ -315,6 +323,12 @@ class ForwardRenderer : Renderer
             if (frameManager->getImagesInFlightCount() > imageIndex)
             {
                 frameManager->setImageFence(imageIndex, frame.inFlightFence);
+            }
+
+            if (screenshotRequested)
+            {
+                screenshotManager.saveSwapchainImage(imageIndex);
+                screenshotRequested = false;
             }
 
             // fire the on frame ended event, currently non functional

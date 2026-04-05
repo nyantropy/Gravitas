@@ -115,6 +115,11 @@ public:
         renderer->toggleDebugOverlay();
     }
 
+    void requestScreenshot() override
+    {
+        renderer->requestScreenshot();
+    }
+
     void pollWindowEvents() override
     {
         windowManager->getOutputWindow()->pollEvents();

@@ -16,6 +16,7 @@ enum class GtsAction
     CloseApplication,
     ToggleUI,
     DebugLayerToggle,
+    Screenshot,
     ToggleDebugCamera,
 
     // sentinel — always keep last

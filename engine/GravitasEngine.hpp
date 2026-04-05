@@ -224,6 +224,8 @@ class GravitasEngine
                     gameLoop.paused = !gameLoop.paused;
                 if (actions->isActionPressed(GtsAction::DebugLayerToggle))
                     platform.toggleDebugOverlay();
+                if (actions->isActionPressed(GtsAction::Screenshot))
+                    platform.getGraphics()->requestScreenshot();
                 if (actions->isActionPressed(GtsAction::ToggleUI))
                 {
                     sceneContext.uiEnabled = !sceneContext.uiEnabled;
