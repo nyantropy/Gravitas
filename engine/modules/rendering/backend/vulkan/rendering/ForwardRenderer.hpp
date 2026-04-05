@@ -21,7 +21,8 @@
 #include "FrameManager.hpp"
 #include "ScreenshotManager.hpp"
 
-#include "GtsEvent.hpp"
+#include "GtsEventBus.hpp"
+#include "GtsEventTypes.h"
 
 #include <UiCommand.h>
 #include "GtsFrameStats.h"
@@ -63,6 +64,7 @@ class ForwardRenderer : Renderer
         bool framebufferResized = false;
         bool screenshotRequested = false;
         ScreenshotManager screenshotManager;
+        GtsEventBus& eventBus;
 
 
         VkFormat findDepthFormat()
@@ -174,11 +176,8 @@ class ForwardRenderer : Renderer
 
 
     public:
-        // render events
-        GtsEvent<int, uint32_t> onFrameEnded;
-
-
-        ForwardRenderer(RendererConfig config) : Renderer(config)
+        ForwardRenderer(RendererConfig config, GtsEventBus& eventBus)
+            : Renderer(config), eventBus(eventBus)
         {
             createResources();
         }
@@ -334,7 +333,7 @@ class ForwardRenderer : Renderer
             // fire the on frame ended event, currently non functional
             if (lastFrameTime >= frameInterval)
             {
-                onFrameEnded.notify(dt, imageIndex);
+                eventBus.emit(GtsFrameEndedEvent{dt, imageIndex});
                 lastFrameTime -= frameInterval;
                 frameCounter++;
             }

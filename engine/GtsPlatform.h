@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "EngineConfig.h"
+#include "GtsEventBus.hpp"
 #include "IGtsGraphicsModule.hpp"
 #include "VulkanGraphics.hpp"
 #include "InputManager.hpp"
@@ -29,6 +30,7 @@ class GtsPlatform
         {
             inputManager->beginFrame();
             graphics->pollWindowEvents();
+            graphics->getEventBus().dispatch();
             actionManager->update(*inputManager);
         }
 
@@ -80,6 +82,11 @@ class GtsPlatform
             graphics->toggleDebugOverlay();
         }
 
+        void dispatchGraphicsEvents()
+        {
+            graphics->getEventBus().dispatch();
+        }
+
         // Gates all key queries through the filtered input source to false
         // while the simulation is paused.
         void setSimulationPaused(bool paused)
@@ -102,7 +109,7 @@ class GtsPlatform
                     break;
             }
 
-            graphics->onKeyPressed().subscribe([this](const GtsKeyEvent& e)
+            graphics->getEventBus().subscribe<GtsKeyEvent>([this](const GtsKeyEvent& e)
             {
                 inputManager->onKeyEvent(e.key, e.pressed);
             });

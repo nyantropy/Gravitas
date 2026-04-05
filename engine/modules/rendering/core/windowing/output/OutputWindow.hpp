@@ -4,27 +4,27 @@
 #include <string>
 #include <memory>
 
+#include "GtsEventBus.hpp"
+#include "GtsEventTypes.h"
 #include "OutputWindowConfig.h"
-#include "GtsEvent.hpp"
 #include "GtsKeyEvent.h"
 #include "GtsKeyTranslator.hpp"
 
 class OutputWindow
 {
     protected:
-        explicit OutputWindow(const OutputWindowConfig& config): config(config) {};
+        explicit OutputWindow(const OutputWindowConfig& config, GtsEventBus& eventBus)
+            : config(config), eventBus(eventBus) {};
         virtual void init() = 0;
 
         OutputWindowConfig config;
         void* window;
         std::unique_ptr<GtsKeyTranslator> keyTranslator;
+        GtsEventBus& eventBus;
 
     public:
 
         virtual ~OutputWindow() = default;
-
-        GtsEvent<int, int> onResize;
-        GtsEvent<GtsKeyEvent> onKeyPressed;
 
         // misc methods
         virtual bool shouldClose() const = 0;

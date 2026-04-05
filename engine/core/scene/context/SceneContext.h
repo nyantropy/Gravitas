@@ -9,6 +9,7 @@
 class RenderCommandExtractor;  // forward declaration — include RenderCommandExtractor.hpp for full access
 class UiSystem;                // retained UI system — include UiSystem.h for authoring access
 class IGtsPhysicsModule;
+class GtsEventBus;
 
 // contains all the important stuff the scene needs for its logic to work out
 struct SceneContext
@@ -25,4 +26,5 @@ struct SceneContext
     RenderCommandExtractor*         extractor         = nullptr;  // query visible/total counts, freeze frustum
     UiSystem*                       ui                = nullptr;  // retained engine UI system
     IGtsPhysicsModule*              physics           = nullptr;
+    GtsEventBus*                    events            = nullptr;
 };

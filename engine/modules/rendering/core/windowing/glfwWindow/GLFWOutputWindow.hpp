@@ -9,7 +9,7 @@
 class GLFWOutputWindow : public OutputWindow
 {
     public:
-        GLFWOutputWindow(OutputWindowConfig config);
+        GLFWOutputWindow(OutputWindowConfig config, GtsEventBus& eventBus);
         ~GLFWOutputWindow();
 
         bool shouldClose() const override;
@@ -33,7 +33,7 @@ class GLFWOutputWindow : public OutputWindow
         static void framebufferResizeCallbackStatic(GLFWwindow* window, int width, int height) 
         {
             auto app = reinterpret_cast<GLFWOutputWindow*>(glfwGetWindowUserPointer(window));
-            if (app) app->onResize.notify(width, height);
+            if (app) app->eventBus.emit(GtsWindowResizeEvent{width, height});
         }
 
         static void onKeyPressedCallbackStatic(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -43,6 +43,6 @@ class GLFWOutputWindow : public OutputWindow
 
             GtsKey gtsKey = app->keyTranslator->fromPlatformScancode(scancode);
             bool   pressed = !app->keyTranslator->isReleaseAction(action);
-            app->onKeyPressed.notify(GtsKeyEvent{gtsKey, pressed});
+            app->eventBus.emit(GtsKeyEvent{gtsKey, pressed});
         }
 };
