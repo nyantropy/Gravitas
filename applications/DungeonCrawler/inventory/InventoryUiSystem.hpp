@@ -15,6 +15,7 @@
 
 #include "inventory/GoldComponent.h"
 #include "inventory/InventoryComponent.h"
+#include "inventory/InventoryEvents.hpp"
 #include "components/PlayerComponent.h"
 
 class InventoryUiSystem : public ECSControllerSystem
@@ -26,15 +27,10 @@ public:
             return;
 
         ensureUi(ctx);
-
-        const InventoryComponent* inventory = findPlayerInventory(world);
-        const GoldComponent* gold = findPlayerGold(world);
-        if (inventory == nullptr || gold == nullptr)
-            return;
-
-        updateLayout(ctx, *inventory);
-        updateGoldLabel(ctx, *gold);
-        updateSlots(ctx, *inventory);
+        ensureSubscriptions(world, ctx);
+        updateLayout(ctx);
+        updateGoldLabel(ctx);
+        updateSlots(ctx);
     }
 
 private:
@@ -51,7 +47,10 @@ private:
     UiHandle goldTextHandle = UI_INVALID_HANDLE;
     std::array<UiHandle, MAX_UI_SLOTS> slotBackgrounds{};
     std::array<UiHandle, MAX_UI_SLOTS> slotIcons{};
+    InventoryComponent cachedInventory;
+    GoldComponent cachedGold;
     bool initialized = false;
+    bool subscriptionsInitialized = false;
 
     static float toNormalizedWidth(int pixels, int viewportWidth)
     {
@@ -99,37 +98,63 @@ private:
         initialized = true;
     }
 
-    const InventoryComponent* findPlayerInventory(ECSWorld& world) const
+    void ensureSubscriptions(ECSWorld& world, SceneContext& ctx)
     {
-        const InventoryComponent* inventory = nullptr;
+        if (subscriptionsInitialized)
+            return;
 
-        world.forEach<PlayerComponent, InventoryComponent>(
-            [&](Entity, PlayerComponent&, InventoryComponent& candidate)
-        {
-            inventory = &candidate;
-        });
+        syncFromWorld(world);
 
-        return inventory;
+        ctx.events.subscribe<ItemPickedUpEvent>(
+            [this, &world](const ItemPickedUpEvent& event)
+            {
+                if (!world.hasComponent<InventoryComponent>(event.player))
+                    return;
+
+                cachedInventory = world.getComponent<InventoryComponent>(event.player);
+            });
+
+        ctx.events.subscribe<GoldPickedUpEvent>(
+            [this, &world](const GoldPickedUpEvent& event)
+            {
+                if (!world.hasComponent<GoldComponent>(event.player))
+                    return;
+
+                cachedGold = world.getComponent<GoldComponent>(event.player);
+            });
+
+        ctx.events.subscribe<HealthPotionPickedUpEvent>(
+            [this, &world](const HealthPotionPickedUpEvent& event)
+            {
+                if (!world.hasComponent<InventoryComponent>(event.player))
+                    return;
+
+                cachedInventory = world.getComponent<InventoryComponent>(event.player);
+            });
+
+        subscriptionsInitialized = true;
     }
 
-    const GoldComponent* findPlayerGold(ECSWorld& world) const
+    void syncFromWorld(ECSWorld& world)
     {
-        const GoldComponent* gold = nullptr;
+        world.forEach<PlayerComponent, InventoryComponent>(
+            [this](Entity, PlayerComponent&, InventoryComponent& candidate)
+        {
+            cachedInventory = candidate;
+        });
 
         world.forEach<PlayerComponent, GoldComponent>(
-            [&](Entity, PlayerComponent&, GoldComponent& candidate)
+            [this](Entity, PlayerComponent&, GoldComponent& candidate)
         {
-            gold = &candidate;
+            cachedGold = candidate;
         });
-
-        return gold;
     }
 
-    void updateLayout(SceneContext& ctx, const InventoryComponent& inventory)
+    void updateLayout(SceneContext& ctx)
     {
         const int viewportWidth = std::max(1, ctx.windowPixelWidth);
         const int viewportHeight = std::max(1, ctx.windowPixelHeight);
-        const size_t slotCount = std::min(inventory.maxSlots, MAX_UI_SLOTS);
+        const size_t slotCount = std::min(cachedInventory.maxSlots, MAX_UI_SLOTS);
 
         const int totalWidthPx = static_cast<int>(slotCount) * SLOT_SIZE_PX
             + static_cast<int>(slotCount > 0 ? slotCount - 1 : 0) * SLOT_GAP_PX;
@@ -187,30 +212,30 @@ private:
         }
     }
 
-    void updateGoldLabel(SceneContext& ctx, const GoldComponent& gold)
+    void updateGoldLabel(SceneContext& ctx)
     {
         ctx.ui->setPayload(goldTextHandle, UiTextData{
-            "GOLD: " + std::to_string(gold.amount),
+            "GOLD: " + std::to_string(cachedGold.amount),
             {},
             {1.0f, 0.88f, 0.22f, 1.0f},
             0.020f
         });
     }
 
-    void updateSlots(SceneContext& ctx, const InventoryComponent& inventory)
+    void updateSlots(SceneContext& ctx)
     {
-        const size_t slotCount = std::min(inventory.maxSlots, MAX_UI_SLOTS);
+        const size_t slotCount = std::min(cachedInventory.maxSlots, MAX_UI_SLOTS);
 
         for (size_t i = 0; i < MAX_UI_SLOTS; ++i)
         {
-            const bool hasItem = i < inventory.items.size() && i < slotCount;
+            const bool hasItem = i < cachedInventory.items.size() && i < slotCount;
             ctx.ui->setState(slotIcons[i], UiStateFlags{.visible = hasItem, .enabled = false, .interactable = false});
 
             if (!hasItem)
                 continue;
 
             ctx.ui->setPayload(slotIcons[i], UiImageData{
-                inventory.items[i].iconPath,
+                cachedInventory.items[i].iconPath,
                 {1.0f, 1.0f, 1.0f, 1.0f},
                 1.0f
             });

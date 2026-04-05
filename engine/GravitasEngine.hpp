@@ -5,7 +5,6 @@
 #include <chrono>
 
 #include "EngineConfig.h"
-#include "GtsEventBus.hpp"
 #include "Timer.hpp"
 #include "TimeContext.h"
 
@@ -45,7 +44,6 @@ class GravitasEngine
         // the scene manager
         // the whole world is a stage after all
         std::unique_ptr<SceneManager> sceneManager;
-        std::unique_ptr<GtsEventBus> sceneEventBus;
 
         // the scene context and the time context should both be members of the engine, as they get updated
         // constantly and need to not run out of scope
@@ -55,12 +53,6 @@ class GravitasEngine
         // the engine also has its own command buffer, which can be filled by lower level architectures, and will lead
         // to the engine executing pre defined functions like pausing, or changing the scene, etc..
         GtsCommandBuffer engineCommands;
-
-        void resetSceneEventBus()
-        {
-            sceneEventBus = std::make_unique<GtsEventBus>();
-            sceneContext.events = sceneEventBus.get();
-        }
 
         void createSceneContext()
         {
@@ -80,7 +72,6 @@ class GravitasEngine
             sceneContext.ui                = uiSystem.get();
             sceneContext.uiEnabled         = true;
             sceneContext.physics           = nullptr;
-            sceneContext.events            = sceneEventBus.get();
         }
 
         // its only a render system now, maybe this will move later
@@ -172,7 +163,7 @@ class GravitasEngine
                     case GtsCommand::Type::ChangeScene:
                         uiSystem->clear();
                         sceneContext.physics = nullptr;
-                        resetSceneEventBus();
+                        sceneContext.events = GtsEventBus{};
                         sceneManager->setActiveScene(cmd.stringArg);
                         uiSystem->setEnabled(sceneContext.uiEnabled);
                         sceneManager->getActiveScene()->onLoad(sceneContext, cmd.transitionData.get());
@@ -192,7 +183,6 @@ class GravitasEngine
         {
             gameLoop.init(engineConfig);
             sceneManager = std::make_unique<SceneManager>();
-            resetSceneEventBus();
             createECSExtractors();
             createSceneContext();
         }
@@ -209,7 +199,7 @@ class GravitasEngine
         {
             uiSystem->clear();
             sceneContext.physics = nullptr;
-            resetSceneEventBus();
+            sceneContext.events = GtsEventBus{};
             sceneManager->setActiveScene(name);
             uiSystem->setEnabled(sceneContext.uiEnabled);
             sceneManager->getActiveScene()->onLoad(sceneContext, data.get());
@@ -257,9 +247,8 @@ class GravitasEngine
 
                 // controller systems and rendering run every frame
                 sceneManager->getActiveScene()->onUpdateControllers(sceneContext);
-                sceneEventBus->dispatch();
+                sceneContext.events.dispatch();
                 render(realDt);
-                platform.dispatchGraphicsEvents();
                 applyCommands();
             }
 

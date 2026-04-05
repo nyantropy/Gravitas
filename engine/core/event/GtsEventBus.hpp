@@ -25,7 +25,8 @@ class GtsEventBus
         template<typename Event>
         void subscribe(std::function<void(const Event&)> listener)
         {
-            auto& listeners = listenersByType[std::type_index(typeid(Event))];
+            const std::type_index eventType = std::type_index(typeid(Event));
+            auto& listeners = listenersByType[eventType];
             listeners.emplace_back(
                 [listener = std::move(listener)](const void* payload)
                 {
@@ -34,16 +35,19 @@ class GtsEventBus
         }
 
         template<typename Event>
-        void emit(const Event& event)
+        void emit(Event&& event)
         {
+            using DecayedEvent = std::decay_t<Event>;
+            const std::type_index eventType = std::type_index(typeid(DecayedEvent));
+
             auto destroy = [](void* payload)
             {
-                delete static_cast<Event*>(payload);
+                delete static_cast<DecayedEvent*>(payload);
             };
 
-            auto& queue = queuedEventsByType[std::type_index(typeid(Event))];
+            auto& queue = queuedEventsByType[eventType];
             queue.push_back(QueuedEvent{
-                ErasedEventPtr(new Event(event), destroy)
+                ErasedEventPtr(new DecayedEvent(std::forward<Event>(event)), destroy)
             });
         }
 

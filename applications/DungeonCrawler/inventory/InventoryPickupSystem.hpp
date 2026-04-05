@@ -1,19 +1,20 @@
 #pragma once
 
+#include <unordered_set>
 #include <vector>
 
-#include "ECSSimulationSystem.hpp"
+#include "ECSControllerSystem.hpp"
 #include "CollisionEvent.h"
 #include "IGtsPhysicsModule.h"
+#include "SceneContext.h"
 
 #include "inventory/CollectibleComponent.h"
-#include "inventory/CollectibleRunState.h"
 #include "inventory/CollectibleType.h"
-#include "inventory/GoldComponent.h"
+#include "inventory/InventoryEvents.hpp"
 #include "inventory/InventoryComponent.h"
 #include "components/PlayerComponent.h"
 
-class InventoryPickupSystem : public ECSSimulationSystem
+class InventoryPickupSystem : public ECSControllerSystem
 {
 public:
     explicit InventoryPickupSystem(IGtsPhysicsModule* physicsModule)
@@ -21,13 +22,13 @@ public:
     {
     }
 
-    void update(ECSWorld& world, float /*dt*/) override
+    void update(ECSWorld& world, SceneContext& ctx) override
     {
         if (physicsModule == nullptr)
             return;
 
         const auto& collisions = physicsModule->getCollisions();
-        std::vector<Entity> pickedCollectibles;
+        std::unordered_set<entity_id_type> emittedCollectibles;
 
         for (const CollisionEvent& collision : collisions)
         {
@@ -36,44 +37,29 @@ public:
             if (playerEntity == INVALID_ENTITY || collectibleEntity == INVALID_ENTITY)
                 continue;
 
-            auto& collectible = world.getComponent<CollectibleComponent>(collectibleEntity);
-            bool pickedUp = false;
-
-            if (collectible.type == CollectibleType::Gold)
-            {
-                auto& gold = world.getComponent<GoldComponent>(playerEntity);
-                gold.amount += collectible.goldAmount;
-                pickedUp = true;
-            }
-            else
-            {
-                auto& inventory = world.getComponent<InventoryComponent>(playerEntity);
-                pickedUp = inventory.addItem(collectible.item);
-            }
-
-            if (!pickedUp)
+            if (!emittedCollectibles.insert(collectibleEntity.id).second)
                 continue;
 
-            if (world.hasAny<CollectibleRunState>())
+            auto& collectible = world.getComponent<CollectibleComponent>(collectibleEntity);
+            if (collectible.type == CollectibleType::Gold)
             {
-                auto& runState = world.getSingleton<CollectibleRunState>();
-                for (auto& spawn : runState.collectibles)
-                {
-                    if (spawn.floorIndex == collectible.floorIndex
-                        && spawn.gridPosition == collectible.gridPosition
-                        && spawn.type == collectible.type)
-                    {
-                        spawn.collected = true;
-                        break;
-                    }
-                }
+                ctx.events.emit(GoldPickedUpEvent{
+                    playerEntity,
+                    collectibleEntity,
+                    static_cast<int>(collectible.goldAmount)
+                });
+                continue;
             }
 
-            pickedCollectibles.push_back(collectibleEntity);
-        }
-
-        for (Entity collectibleEntity : pickedCollectibles)
-            world.destroyEntity(collectibleEntity);
+            ctx.events.emit(ItemPickedUpEvent{playerEntity, collectibleEntity});
+            if (collectible.item.id == "health_potion")
+            {
+                ctx.events.emit(HealthPotionPickedUpEvent{
+                    playerEntity,
+                    collectibleEntity
+                });
+            }
+        } 
     }
 
 private:
@@ -82,13 +68,11 @@ private:
     Entity resolvePlayerEntity(ECSWorld& world, const CollisionEvent& collision) const
     {
         if (world.hasComponent<PlayerComponent>(collision.a)
-            && world.hasComponent<InventoryComponent>(collision.a)
-            && world.hasComponent<GoldComponent>(collision.a))
+            && world.hasComponent<InventoryComponent>(collision.a))
             return collision.a;
 
         if (world.hasComponent<PlayerComponent>(collision.b)
-            && world.hasComponent<InventoryComponent>(collision.b)
-            && world.hasComponent<GoldComponent>(collision.b))
+            && world.hasComponent<InventoryComponent>(collision.b))
             return collision.b;
 
         return INVALID_ENTITY;

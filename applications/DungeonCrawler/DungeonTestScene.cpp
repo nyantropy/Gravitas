@@ -35,6 +35,7 @@
 #include "StaticMeshComponent.h"
 #include "TransformComponent.h"
 #include "inventory/InventoryComponent.h"
+#include "inventory/InventoryEvents.hpp"
 #include "inventory/InventoryPickupSystem.hpp"
 #include "inventory/InventoryUiSystem.hpp"
 #include "inventory/KeyRotationSystem.hpp"
@@ -236,10 +237,51 @@ void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* d
     ecsWorld.addControllerSystem<PlayerMovementSystem>();
     ecsWorld.addControllerSystem<PlayerCameraSystem>();
     ecsWorld.addControllerSystem<KeyRotationSystem>();
+    ctx.events.subscribe<ItemPickedUpEvent>(
+        [this](const ItemPickedUpEvent& event)
+        {
+            if (!ecsWorld.hasComponent<InventoryComponent>(event.player)
+                || !ecsWorld.hasComponent<CollectibleComponent>(event.item))
+                return;
+
+            auto& inventory = ecsWorld.getComponent<InventoryComponent>(event.player);
+            auto& collectible = ecsWorld.getComponent<CollectibleComponent>(event.item);
+            if (!inventory.addItem(collectible.item))
+                return;
+
+            if (ecsWorld.hasAny<CollectibleRunState>())
+            {
+                auto& runState = ecsWorld.getSingleton<CollectibleRunState>();
+                for (auto& spawn : runState.collectibles)
+                {
+                    if (spawn.floorIndex == collectible.floorIndex
+                        && spawn.gridPosition == collectible.gridPosition
+                        && spawn.type == collectible.type)
+                    {
+                        spawn.collected = true;
+                        break;
+                    }
+                }
+            }
+
+            ecsWorld.destroyEntity(event.item);
+        });
+
+    ctx.events.subscribe<GoldPickedUpEvent>(
+        [this](const GoldPickedUpEvent& event)
+        {
+            if (!ecsWorld.hasComponent<GoldComponent>(event.player))
+                return;
+
+            auto& gold = ecsWorld.getComponent<GoldComponent>(event.player);
+            gold.amount += static_cast<uint32_t>(std::max(event.amount, 0));
+            ecsWorld.destroyEntity(event.item);
+        });
+
     ecsWorld.addControllerSystem<InventoryUiSystem>();
     ecsWorld.addSimulationSystem<EnemyMovementSystem>();
     installPhysicsFeature(ctx);
-    ecsWorld.addSimulationSystem<InventoryPickupSystem>(ctx.physics);
+    ecsWorld.addControllerSystem<InventoryPickupSystem>(ctx.physics);
     ecsWorld.addSimulationSystem<EnemyInteractionSystem>(ctx.physics);
 
     installRendererFeature(ctx);
