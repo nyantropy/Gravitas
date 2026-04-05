@@ -169,7 +169,12 @@ public:
                 nextTransparentEntityOrder.push_back(slot);
         });
 
-        const bool visibilityChanged = !cacheInitialised || cameraChanged || updatedCommands > 0 || sortOrderDirty;
+        const bool staleEntriesPruned = invalidateStaleSlots();
+        const bool visibilityChanged = !cacheInitialised
+            || cameraChanged
+            || updatedCommands > 0
+            || sortOrderDirty
+            || staleEntriesPruned;
         lastMetrics.sortCpuMs = 0.0f;
         lastMetrics.sortedThisFrame = false;
 
@@ -275,6 +280,28 @@ private:
         CachedCommandState& cached = commandCache[slot];
         cached.lastSeenFrame = frameStamp;
         cached.visible = false;
+    }
+
+    bool invalidateStaleSlots()
+    {
+        bool pruned = false;
+        for (CachedCommandState& cached : commandCache)
+        {
+            if (cached.lastSeenFrame == frameStamp)
+                continue;
+
+            if (!cached.initialised && !cached.visible)
+                continue;
+
+            cached.initialised = false;
+            cached.visible     = false;
+            pruned = true;
+        }
+
+        if (pruned)
+            sortOrderDirty = true;
+
+        return pruned;
     }
 
     bool isEntityVisible(ECSWorld& world, Entity e, const RenderGpuComponent& rc)

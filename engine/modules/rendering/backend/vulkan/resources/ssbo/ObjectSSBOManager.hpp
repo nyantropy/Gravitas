@@ -85,6 +85,14 @@ class ObjectSSBOManager
         // Returns a slot to the free-list for future reuse.
         void releaseSlot(ssbo_id_type slot)
         {
+            ObjectUBO empty{};
+            empty.model = glm::mat4(0.0f);
+            for (uint32_t f = 0; f < static_cast<uint32_t>(ssboMapped.size()); ++f)
+            {
+                ObjectUBO* base = reinterpret_cast<ObjectUBO*>(ssboMapped[f]);
+                base[slot] = empty;
+            }
+
             freeList.push_back(slot);
             for (auto& frameCache : lastWrittenMatrix)
                 frameCache[slot] = glm::mat4(0.0f);

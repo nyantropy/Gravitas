@@ -103,10 +103,10 @@ public:
         if (!world.hasAny<StressSettingsComponent>())
             return;
 
+        const float dt = ctx.time ? ctx.time->unscaledDeltaTime : 0.0f;
+        accumulatedTime += dt;
+
         const auto& settings = world.getSingleton<StressSettingsComponent>();
-        const float t = ctx.time
-            ? static_cast<float>(ctx.time->frame) * ctx.time->unscaledDeltaTime
-            : 0.0f;
 
         world.forEach<StressCubeComponent, TransformComponent>(
             [&](Entity, StressCubeComponent& cube, TransformComponent& tr)
@@ -118,7 +118,7 @@ public:
                 return;
             }
 
-            const float wave = std::sinf(t * STRESS_WAVE_SPEED + cube.phaseOffset);
+            const float wave = std::sin(accumulatedTime * STRESS_WAVE_SPEED + cube.phaseOffset);
             tr.position = cube.staticPosition;
             tr.position.y = cube.baseHeight + wave * STRESS_WAVE_AMPLITUDE;
             tr.rotation.x = 0.0f;
@@ -126,6 +126,9 @@ public:
             tr.rotation.y = wave * 0.08f;
         });
     }
+
+private:
+    float accumulatedTime = 0.0f;
 };
 }
 
