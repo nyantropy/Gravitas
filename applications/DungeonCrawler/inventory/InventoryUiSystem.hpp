@@ -4,11 +4,16 @@
 #include <array>
 #include <cstddef>
 
+#include "BitmapFont.h"
+#include "BitmapFontLoader.h"
 #include "ECSControllerSystem.hpp"
+#include "GraphicsConstants.h"
+#include "GtsDebugOverlay.h"
 #include "SceneContext.h"
-#include "UiSystem.h"
 #include "UiNode.h"
+#include "UiSystem.h"
 
+#include "inventory/GoldComponent.h"
 #include "inventory/InventoryComponent.h"
 #include "components/PlayerComponent.h"
 
@@ -23,21 +28,27 @@ public:
         ensureUi(ctx);
 
         const InventoryComponent* inventory = findPlayerInventory(world);
-        if (inventory == nullptr)
+        const GoldComponent* gold = findPlayerGold(world);
+        if (inventory == nullptr || gold == nullptr)
             return;
 
         updateLayout(ctx, *inventory);
+        updateGoldLabel(ctx, *gold);
         updateSlots(ctx, *inventory);
     }
 
 private:
     static constexpr size_t MAX_UI_SLOTS = 8;
+    static constexpr int GOLD_LABEL_HEIGHT_PX = 26;
+    static constexpr int GOLD_LABEL_GAP_PX = 8;
     static constexpr int SLOT_SIZE_PX = 56;
     static constexpr int SLOT_GAP_PX = 10;
     static constexpr int SLOT_MARGIN_PX = 20;
     static constexpr int SLOT_ICON_PADDING_PX = 6;
 
+    BitmapFont uiFont;
     UiHandle rootHandle = UI_INVALID_HANDLE;
+    UiHandle goldTextHandle = UI_INVALID_HANDLE;
     std::array<UiHandle, MAX_UI_SLOTS> slotBackgrounds{};
     std::array<UiHandle, MAX_UI_SLOTS> slotIcons{};
     bool initialized = false;
@@ -61,6 +72,19 @@ private:
 
         rootHandle = ctx.ui->createNode(UiNodeType::Container);
         ctx.ui->setState(rootHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+        uiFont = BitmapFontLoader::load(
+            ctx.resources,
+            GtsDebugOverlay::DEBUG_FONT_PATH,
+            GtsDebugOverlay::ATLAS_W,  GtsDebugOverlay::ATLAS_H,
+            GtsDebugOverlay::CELL_W,   GtsDebugOverlay::CELL_H,
+            GtsDebugOverlay::ATLAS_COLS,
+            "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ :",
+            GtsDebugOverlay::LINE_HEIGHT,
+            true);
+
+        goldTextHandle = ctx.ui->createNode(UiNodeType::Text, rootHandle);
+        ctx.ui->setState(goldTextHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+        ctx.ui->setTextFont(goldTextHandle, &uiFont);
 
         for (size_t i = 0; i < MAX_UI_SLOTS; ++i)
         {
@@ -88,6 +112,19 @@ private:
         return inventory;
     }
 
+    const GoldComponent* findPlayerGold(ECSWorld& world) const
+    {
+        const GoldComponent* gold = nullptr;
+
+        world.forEach<PlayerComponent, GoldComponent>(
+            [&](Entity, PlayerComponent&, GoldComponent& candidate)
+        {
+            gold = &candidate;
+        });
+
+        return gold;
+    }
+
     void updateLayout(SceneContext& ctx, const InventoryComponent& inventory)
     {
         const int viewportWidth = std::max(1, ctx.windowPixelWidth);
@@ -96,6 +133,7 @@ private:
 
         const int totalWidthPx = static_cast<int>(slotCount) * SLOT_SIZE_PX
             + static_cast<int>(slotCount > 0 ? slotCount - 1 : 0) * SLOT_GAP_PX;
+        const int totalHeightPx = GOLD_LABEL_HEIGHT_PX + GOLD_LABEL_GAP_PX + SLOT_SIZE_PX;
 
         UiLayoutSpec rootLayout;
         rootLayout.positionMode = UiPositionMode::Absolute;
@@ -103,11 +141,20 @@ private:
         rootLayout.heightMode = UiSizeMode::Fixed;
         rootLayout.offsetMin = {
             1.0f - toNormalizedWidth(totalWidthPx + SLOT_MARGIN_PX, viewportWidth),
-            1.0f - toNormalizedHeight(SLOT_SIZE_PX + SLOT_MARGIN_PX, viewportHeight)
+            1.0f - toNormalizedHeight(totalHeightPx + SLOT_MARGIN_PX, viewportHeight)
         };
         rootLayout.fixedWidth = toNormalizedWidth(totalWidthPx, viewportWidth);
-        rootLayout.fixedHeight = toNormalizedHeight(SLOT_SIZE_PX, viewportHeight);
+        rootLayout.fixedHeight = toNormalizedHeight(totalHeightPx, viewportHeight);
         ctx.ui->setLayout(rootHandle, rootLayout);
+
+        UiLayoutSpec goldLayout;
+        goldLayout.positionMode = UiPositionMode::Absolute;
+        goldLayout.widthMode = UiSizeMode::Fixed;
+        goldLayout.heightMode = UiSizeMode::Fixed;
+        goldLayout.offsetMin = {0.0f, 0.0f};
+        goldLayout.fixedWidth = toNormalizedWidth(totalWidthPx, viewportWidth);
+        goldLayout.fixedHeight = toNormalizedHeight(GOLD_LABEL_HEIGHT_PX, viewportHeight);
+        ctx.ui->setLayout(goldTextHandle, goldLayout);
 
         for (size_t i = 0; i < MAX_UI_SLOTS; ++i)
         {
@@ -120,7 +167,7 @@ private:
             slotLayout.heightMode = UiSizeMode::Fixed;
             slotLayout.offsetMin = {
                 toNormalizedWidth(static_cast<int>(i) * (SLOT_SIZE_PX + SLOT_GAP_PX), viewportWidth),
-                0.0f
+                toNormalizedHeight(GOLD_LABEL_HEIGHT_PX + GOLD_LABEL_GAP_PX, viewportHeight)
             };
             slotLayout.fixedWidth = toNormalizedWidth(SLOT_SIZE_PX, viewportWidth);
             slotLayout.fixedHeight = toNormalizedHeight(SLOT_SIZE_PX, viewportHeight);
@@ -132,12 +179,22 @@ private:
             iconLayout.heightMode = UiSizeMode::Fixed;
             iconLayout.offsetMin = {
                 toNormalizedWidth(static_cast<int>(i) * (SLOT_SIZE_PX + SLOT_GAP_PX) + SLOT_ICON_PADDING_PX, viewportWidth),
-                toNormalizedHeight(SLOT_ICON_PADDING_PX, viewportHeight)
+                toNormalizedHeight(GOLD_LABEL_HEIGHT_PX + GOLD_LABEL_GAP_PX + SLOT_ICON_PADDING_PX, viewportHeight)
             };
             iconLayout.fixedWidth = toNormalizedWidth(SLOT_SIZE_PX - SLOT_ICON_PADDING_PX * 2, viewportWidth);
             iconLayout.fixedHeight = toNormalizedHeight(SLOT_SIZE_PX - SLOT_ICON_PADDING_PX * 2, viewportHeight);
             ctx.ui->setLayout(slotIcons[i], iconLayout);
         }
+    }
+
+    void updateGoldLabel(SceneContext& ctx, const GoldComponent& gold)
+    {
+        ctx.ui->setPayload(goldTextHandle, UiTextData{
+            "GOLD: " + std::to_string(gold.amount),
+            {},
+            {1.0f, 0.88f, 0.22f, 1.0f},
+            0.020f
+        });
     }
 
     void updateSlots(SceneContext& ctx, const InventoryComponent& inventory)

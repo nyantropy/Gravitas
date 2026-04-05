@@ -4,7 +4,7 @@
 #include "SceneContext.h"
 #include "TransformComponent.h"
 
-#include "inventory/KeyCollectibleComponent.h"
+#include "inventory/CollectibleComponent.h"
 
 class KeyRotationSystem : public ECSControllerSystem
 {
@@ -13,10 +13,10 @@ public:
     {
         const float dt = ctx.time->unscaledDeltaTime;
 
-        world.forEach<KeyCollectibleComponent, TransformComponent>(
-            [dt](Entity, KeyCollectibleComponent& key, TransformComponent& transform)
+        world.forEach<CollectibleComponent, TransformComponent>(
+            [dt](Entity, CollectibleComponent& collectible, TransformComponent& transform)
         {
-            transform.rotation.y += key.rotationSpeed * dt;
+            transform.rotation.y += collectible.rotationSpeed * dt;
         });
     }
 };

@@ -23,6 +23,10 @@
 #include "components/FloorTransitionStateComponent.h"
 #include "GraphicsConstants.h"
 #include "MaterialComponent.h"
+#include "inventory/CollectibleComponent.h"
+#include "inventory/CollectibleRunState.h"
+#include "inventory/CollectibleType.h"
+#include "inventory/GoldComponent.h"
 #include "components/PlayerComponent.h"
 #include "components/PlayerTagComponent.h"
 #include "systems/PlayerCameraSystem.h"
@@ -33,7 +37,6 @@
 #include "inventory/InventoryComponent.h"
 #include "inventory/InventoryPickupSystem.hpp"
 #include "inventory/InventoryUiSystem.hpp"
-#include "inventory/KeyCollectibleComponent.h"
 #include "inventory/KeyRotationSystem.hpp"
 
 #include "systems/DungeonInputSystem.hpp"
@@ -89,6 +92,15 @@ namespace
             "key",
             "Golden Key",
             GraphicsConstants::ENGINE_RESOURCES + "/textures/yellow_texture.png"
+        };
+    }
+
+    Item makeHealthPotionItem()
+    {
+        return {
+            "health_potion",
+            "Health Potion",
+            GraphicsConstants::ENGINE_RESOURCES + "/textures/red_texture.png"
         };
     }
 
@@ -198,20 +210,21 @@ void DungeonTestScene::onLoad(SceneContext& ctx, const GtsSceneTransitionData* d
                                  playerStart.x,
                                  playerStart.y);
         persistentInventoryItems.clear();
-        chooseNewKeySpawnState();
+        persistentGoldAmount = 0;
+        chooseNewCollectibleRunState();
         runInitialized = true;
     }
 
     if (!(battleResult != nullptr && runInitialized))
     {
-        if (persistentKeyState.item.id.empty())
-            chooseNewKeySpawnState();
+        if (persistentCollectibles.collectibles.empty())
+            chooseNewCollectibleRunState();
     }
 
     ecsWorld.createSingleton<DungeonInputComponent>();
     ecsWorld.createSingleton<FloorTransitionStateComponent>();
     ecsWorld.createSingleton<BattleEncounterStateComponent>();
-    ecsWorld.createSingleton<KeySpawnState>(persistentKeyState);
+    ecsWorld.createSingleton<CollectibleRunState>(persistentCollectibles);
 
     initializeDungeonSingleton();
     buildFloorEntities(dungeon.getActiveFloor());
@@ -254,9 +267,9 @@ void DungeonTestScene::onUpdateControllers(SceneContext& ctx)
     handleStairTransitions(ctx);
     updateMinimapReveal(ctx);
     syncPlayerMarker();
-    syncPersistentInventoryFromWorld();
-    if (ecsWorld.hasAny<KeySpawnState>())
-        persistentKeyState = ecsWorld.getSingleton<KeySpawnState>();
+    syncPersistentPlayerStateFromWorld();
+    if (ecsWorld.hasAny<CollectibleRunState>())
+        persistentCollectibles = ecsWorld.getSingleton<CollectibleRunState>();
     uiController.update(ctx, buildUiState());
 }
 
@@ -366,7 +379,7 @@ void DungeonTestScene::buildFloorEntities(const GeneratedFloor& floor)
     }
 
     spawnEnemyEntities(floor);
-    spawnKeyEntity(floor);
+    spawnCollectibles(floor);
 }
 
 void DungeonTestScene::spawnEnemyEntities(const GeneratedFloor& floor)
@@ -504,6 +517,7 @@ void DungeonTestScene::spawnPlayer(SceneContext& ctx, const glm::ivec2& startPos
         persistentInventoryItems,
         8
     });
+    ecsWorld.addComponent(playerEntity, GoldComponent{persistentGoldAmount});
 
     TransformComponent transform;
     transform.position = gridToWorld(startPos);
@@ -525,53 +539,74 @@ void DungeonTestScene::spawnPlayer(SceneContext& ctx, const glm::ivec2& startPos
     ecsWorld.addComponent(playerEntity, camera);
 }
 
-void DungeonTestScene::spawnKeyEntity(const GeneratedFloor& floor)
+void DungeonTestScene::spawnCollectibles(const GeneratedFloor& floor)
 {
-    if (!ecsWorld.hasAny<KeySpawnState>())
-        return;
-
-    const auto& keyState = ecsWorld.getSingleton<KeySpawnState>();
-    if (keyState.collected || keyState.floorIndex != floor.floorNumber)
+    if (!ecsWorld.hasAny<CollectibleRunState>())
         return;
 
     const std::string cubeMesh = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
-    const std::string yellowTexture = GraphicsConstants::ENGINE_RESOURCES + "/textures/yellow_texture.png";
+    const auto& runState = ecsWorld.getSingleton<CollectibleRunState>();
 
-    Entity e = ecsWorld.createEntity();
-    floorEntities.push_back(e);
+    for (const auto& spawn : runState.collectibles)
+    {
+        if (spawn.collected || spawn.floorIndex != floor.floorNumber)
+            continue;
 
-    TransformComponent transform;
-    transform.position = {keyState.gridPosition.x + 0.5f, 0.7f, keyState.gridPosition.y + 0.5f};
-    transform.scale = {0.35f, 0.35f, 0.35f};
+        Entity e = ecsWorld.createEntity();
+        floorEntities.push_back(e);
 
-    PhysicsBodyComponent body;
-    SphereColliderComponent collider;
-    collider.radius = 0.35f;
+        TransformComponent transform;
+        transform.position = {spawn.gridPosition.x + 0.5f, 0.7f, spawn.gridPosition.y + 0.5f};
 
-    StaticMeshComponent mesh;
-    mesh.meshPath = cubeMesh;
+        MaterialComponent material;
+        CollectibleComponent collectible;
+        collectible.type = spawn.type;
+        collectible.item = spawn.item;
+        collectible.goldAmount = spawn.goldAmount;
+        collectible.floorIndex = spawn.floorIndex;
+        collectible.gridPosition = spawn.gridPosition;
 
-    MaterialComponent material;
-    material.texturePath = yellowTexture;
-    material.tint = {1.0f, 0.82f, 0.18f, 1.0f};
+        if (spawn.type == CollectibleType::Gold)
+        {
+            transform.scale = {0.28f, 0.28f, 0.28f};
+            material.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/yellow_texture.png";
+            material.tint = {1.0f, 0.84f, 0.18f, 1.0f};
+            collectible.rotationSpeed = 1.2f;
+        }
+        else if (spawn.item.id == "health_potion")
+        {
+            transform.scale = {0.30f, 0.30f, 0.30f};
+            material.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/red_texture.png";
+            material.tint = {0.92f, 0.20f, 0.20f, 1.0f};
+            collectible.rotationSpeed = 1.8f;
+        }
+        else
+        {
+            transform.scale = {0.35f, 0.35f, 0.35f};
+            material.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/yellow_texture.png";
+            material.tint = {1.0f, 0.82f, 0.18f, 1.0f};
+            collectible.rotationSpeed = 2.2f;
+        }
 
-    BoundsComponent bounds;
-    bounds.min = {-0.25f, -0.25f, -0.25f};
-    bounds.max = { 0.25f,  0.25f,  0.25f};
+        PhysicsBodyComponent body;
+        SphereColliderComponent collider;
+        collider.radius = 0.35f;
 
-    KeyCollectibleComponent key;
-    key.item = keyState.item;
-    key.floorIndex = keyState.floorIndex;
-    key.gridPosition = keyState.gridPosition;
-    key.rotationSpeed = 2.2f;
+        StaticMeshComponent mesh;
+        mesh.meshPath = cubeMesh;
 
-    ecsWorld.addComponent(e, transform);
-    ecsWorld.addComponent(e, body);
-    ecsWorld.addComponent(e, collider);
-    ecsWorld.addComponent(e, mesh);
-    ecsWorld.addComponent(e, material);
-    ecsWorld.addComponent(e, bounds);
-    ecsWorld.addComponent(e, key);
+        BoundsComponent bounds;
+        bounds.min = {-0.25f, -0.25f, -0.25f};
+        bounds.max = { 0.25f,  0.25f,  0.25f};
+
+        ecsWorld.addComponent(e, transform);
+        ecsWorld.addComponent(e, body);
+        ecsWorld.addComponent(e, collider);
+        ecsWorld.addComponent(e, mesh);
+        ecsWorld.addComponent(e, material);
+        ecsWorld.addComponent(e, bounds);
+        ecsWorld.addComponent(e, collectible);
+    }
 }
 
 void DungeonTestScene::spawnPlayerMarker()
@@ -641,7 +676,8 @@ void DungeonTestScene::handleDungeonRegenerate(SceneContext& ctx)
     visibilityState.initialize(dungeon.getFloors());
     dungeon.setCurrentFloorIndex(0);
     persistentInventoryItems.clear();
-    chooseNewKeySpawnState();
+    persistentGoldAmount = 0;
+    chooseNewCollectibleRunState();
     visibilityState.revealAt(0,
                              dungeon.getActiveFloor(),
                              dungeon.getActiveFloor().playerStart.x,
@@ -651,8 +687,8 @@ void DungeonTestScene::handleDungeonRegenerate(SceneContext& ctx)
     stairLatchActive = false;
     latchedFloorIndex = -1;
     latchedStairPos = {-1, -1};
-    if (ecsWorld.hasAny<KeySpawnState>())
-        ecsWorld.getSingleton<KeySpawnState>() = persistentKeyState;
+    if (ecsWorld.hasAny<CollectibleRunState>())
+        ecsWorld.getSingleton<CollectibleRunState>() = persistentCollectibles;
 }
 
 void DungeonTestScene::handleEncounterTransitions(SceneContext& ctx)
@@ -877,56 +913,104 @@ void DungeonTestScene::removeDefeatedEnemy(int floorIndex, const glm::ivec2& spa
         enemySpawns.end());
 }
 
-void DungeonTestScene::chooseNewKeySpawnState()
+void DungeonTestScene::chooseNewCollectibleRunState()
 {
-    persistentKeyState = {};
-    persistentKeyState.item = makeGoldenKeyItem();
+    persistentCollectibles.collectibles.clear();
 
-    std::vector<std::pair<int, glm::ivec2>> candidates;
     const auto& floors = dungeon.getFloors();
+    std::vector<std::pair<int, glm::ivec2>> keyCandidates;
+    std::mt19937 rng(std::random_device{}());
+
     for (const GeneratedFloor& floor : floors)
     {
+        std::vector<glm::ivec2> candidates;
+
         if (!floor.treasureSpawns.empty())
         {
             for (const glm::ivec2& treasure : floor.treasureSpawns)
-                candidates.push_back({floor.floorNumber, treasure});
-            continue;
+                candidates.push_back(treasure);
         }
-
-        for (int z = 0; z < floor.height; ++z)
+        else
         {
-            for (int x = 0; x < floor.width; ++x)
+            for (int z = 0; z < floor.height; ++z)
             {
-                const glm::ivec2 tile = {x, z};
-                if (!floor.isWalkable(x, z)) continue;
-                if (tile == floor.playerStart) continue;
-                if (tile == floor.stairDownPos || tile == floor.stairUpPos) continue;
-                candidates.push_back({floor.floorNumber, tile});
+                for (int x = 0; x < floor.width; ++x)
+                {
+                    const glm::ivec2 tile = {x, z};
+                    if (!floor.isWalkable(x, z)) continue;
+                    if (tile == floor.playerStart) continue;
+                    if (tile == floor.stairDownPos || tile == floor.stairUpPos) continue;
+                    candidates.push_back(tile);
+                }
             }
         }
+
+        std::shuffle(candidates.begin(), candidates.end(), rng);
+        for (const glm::ivec2& candidate : candidates)
+            keyCandidates.push_back({floor.floorNumber, candidate});
+
+        if (!candidates.empty())
+        {
+            persistentCollectibles.collectibles.push_back(CollectibleSpawnState{
+                CollectibleType::InventoryItem,
+                makeHealthPotionItem(),
+                0,
+                floor.floorNumber,
+                candidates[0],
+                false
+            });
+        }
+
+        if (candidates.size() > 1)
+        {
+            persistentCollectibles.collectibles.push_back(CollectibleSpawnState{
+                CollectibleType::Gold,
+                {},
+                25,
+                floor.floorNumber,
+                candidates[1],
+                false
+            });
+        }
+
+        for (size_t i = std::min<size_t>(2, candidates.size()); i < candidates.size(); ++i)
+            keyCandidates.push_back({floor.floorNumber, candidates[i]});
     }
 
-    if (candidates.empty())
+    if (keyCandidates.empty())
     {
-        persistentKeyState.floorIndex = 0;
-        persistentKeyState.gridPosition = dungeon.getActiveFloor().playerStart;
+        persistentCollectibles.collectibles.push_back(CollectibleSpawnState{
+            CollectibleType::InventoryItem,
+            makeGoldenKeyItem(),
+            0,
+            0,
+            dungeon.getActiveFloor().playerStart,
+            false
+        });
         return;
     }
 
-    std::mt19937 rng(std::random_device{}());
-    std::uniform_int_distribution<size_t> dist(0, candidates.size() - 1);
-    const size_t index = dist(rng);
-    persistentKeyState.floorIndex = candidates[index].first;
-    persistentKeyState.gridPosition = candidates[index].second;
-    persistentKeyState.collected = false;
+    std::shuffle(keyCandidates.begin(), keyCandidates.end(), rng);
+    persistentCollectibles.collectibles.push_back(CollectibleSpawnState{
+        CollectibleType::InventoryItem,
+        makeGoldenKeyItem(),
+        0,
+        keyCandidates.front().first,
+        keyCandidates.front().second,
+        false
+    });
 }
 
-void DungeonTestScene::syncPersistentInventoryFromWorld()
+void DungeonTestScene::syncPersistentPlayerStateFromWorld()
 {
-    if (playerEntity == INVALID_ENTITY || !ecsWorld.hasComponent<InventoryComponent>(playerEntity))
+    if (playerEntity == INVALID_ENTITY)
         return;
 
-    persistentInventoryItems = ecsWorld.getComponent<InventoryComponent>(playerEntity).items;
+    if (ecsWorld.hasComponent<InventoryComponent>(playerEntity))
+        persistentInventoryItems = ecsWorld.getComponent<InventoryComponent>(playerEntity).items;
+
+    if (ecsWorld.hasComponent<GoldComponent>(playerEntity))
+        persistentGoldAmount = ecsWorld.getComponent<GoldComponent>(playerEntity).amount;
 }
 
 DungeonUiState DungeonTestScene::buildUiState()
