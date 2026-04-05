@@ -4,7 +4,6 @@
 #include <vector>
 #include <algorithm>
 #include <limits>
-#include <unordered_map>
 
 #include "ECSWorld.hpp"
 #include "IGtsExtractor.h"
@@ -16,6 +15,7 @@
 #include "CullFlagsComponent.h"
 #include "FrustumCuller.h"
 #include "RenderCommand.h"
+#include "ObjectSSBOManager.hpp"
 
 // Reads RenderGpuComponent (transform / slot), MeshGpuComponent (mesh ID),
 // and MaterialGpuComponent (texture, alpha, doubleSided) per entity, plus the
@@ -98,82 +98,89 @@ public:
             culler.extractPlanes(viewProj);
         }
 
-        opaqueEntityOrder.clear();
-        transparentEntityOrder.clear();
-        opaqueEntityOrder.reserve(commandCache.size());
-        transparentEntityOrder.reserve(commandCache.size());
+        nextOpaqueEntityOrder.clear();
+        nextTransparentEntityOrder.clear();
+        nextOpaqueEntityOrder.reserve(commandCache.size());
+        nextTransparentEntityOrder.reserve(commandCache.size());
 
         world.forEach<RenderGpuComponent, MeshGpuComponent, MaterialGpuComponent>(
             [&](Entity e, RenderGpuComponent& rc, MeshGpuComponent& meshGpu, MaterialGpuComponent& matGpu)
         {
             visitedRenderables += 1;
 
-            if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
-            {
-                markInvisible(e.id);
+            const ssbo_id_type slot = rc.objectSSBOSlot;
+
+            if (slot == RENDERABLE_SLOT_UNALLOCATED)
                 return;
-            }
 
             if (!rc.readyToRender)
             {
-                markInvisible(e.id);
+                markInvisible(slot);
                 return;
             }
 
             ++totalRenderables;
 
-            CachedCommandState& cached = commandCache[e.id];
+            CachedCommandState& cached = commandCache[slot];
+            if (cached.lastSeenFrame != 0 && cached.lastSeenFrame != frameStamp - 1)
+                cached.initialised = false;
             cached.lastSeenFrame = frameStamp;
 
             const bool opaque = matGpu.alpha >= 1.0f;
+            const bool sortKeyChanged = !cached.initialised
+                || cached.command.meshID != meshGpu.meshID
+                || cached.command.textureID != matGpu.textureID
+                || cached.command.doubleSided != matGpu.doubleSided;
             const bool needsUpdate = !cacheInitialised
                 || rc.commandDirty
-                || cameraChanged
                 || !cached.initialised
                 || cached.command.meshID != meshGpu.meshID
                 || cached.command.textureID != matGpu.textureID
                 || cached.command.objectSSBOSlot != rc.objectSSBOSlot
                 || cached.command.alpha != matGpu.alpha
-                || cached.command.doubleSided != matGpu.doubleSided;
+                || cached.command.doubleSided != matGpu.doubleSided
+                || cached.command.cameraViewID != cameraViewID;
+
+            if (needsUpdate || cameraChanged)
+                cached.visible = isEntityVisible(world, e, rc);
 
             if (needsUpdate)
             {
+                if (sortKeyChanged)
+                    sortOrderDirty = true;
+
                 cached.command.meshID         = meshGpu.meshID;
                 cached.command.textureID      = matGpu.textureID;
                 cached.command.objectSSBOSlot = rc.objectSSBOSlot;
                 cached.command.cameraViewID   = cameraViewID;
                 cached.command.modelMatrix    = rc.modelMatrix;
-                cached.command.viewMatrix     = viewMatrix;
-                cached.command.projMatrix     = projMatrix;
                 cached.command.alpha          = matGpu.alpha;
                 cached.command.doubleSided    = matGpu.doubleSided;
-                cached.visible                = isEntityVisible(world, e, rc);
                 cached.initialised            = true;
                 rc.commandDirty               = false;
                 updatedCommands += 1;
             }
 
-            if (!cached.visible)
-                return;
-
-            ++visibleRenderables;
+            if (cached.visible)
+                ++visibleRenderables;
             if (opaque)
-                opaqueEntityOrder.push_back(e.id);
+                nextOpaqueEntityOrder.push_back(slot);
             else
-                transparentEntityOrder.push_back(e.id);
+                nextTransparentEntityOrder.push_back(slot);
         });
 
-        pruneStaleCache();
-
-        const bool needsRebuild = !cacheInitialised || cameraChanged || updatedCommands > 0 || staleEntriesPruned;
+        const bool visibilityChanged = !cacheInitialised || cameraChanged || updatedCommands > 0 || sortOrderDirty;
         lastMetrics.sortCpuMs = 0.0f;
         lastMetrics.sortedThisFrame = false;
 
-        if (needsRebuild)
+        if (sortOrderDirty || !cacheInitialised)
         {
             const auto sortStart = std::chrono::steady_clock::now();
+            opaqueEntityOrder = nextOpaqueEntityOrder;
+            transparentEntityOrder = nextTransparentEntityOrder;
+
             std::sort(opaqueEntityOrder.begin(), opaqueEntityOrder.end(),
-                [&](entity_id_type lhs, entity_id_type rhs)
+                [&](ssbo_id_type lhs, ssbo_id_type rhs)
                 {
                     const auto& a = commandCache[lhs].command;
                     const auto& b = commandCache[rhs].command;
@@ -181,18 +188,28 @@ public:
                     if (a.meshID      != b.meshID)      return a.meshID < b.meshID;
                     return a.textureID < b.textureID;
                 });
-
-            cachedVisibleCommands.clear();
-            cachedVisibleCommands.reserve(opaqueEntityOrder.size() + transparentEntityOrder.size());
-            for (entity_id_type id : opaqueEntityOrder)
-                cachedVisibleCommands.push_back(commandCache[id].command);
-            for (entity_id_type id : transparentEntityOrder)
-                cachedVisibleCommands.push_back(commandCache[id].command);
+            sortOrderDirty = false;
 
             const auto sortEnd = std::chrono::steady_clock::now();
             lastMetrics.sortCpuMs =
                 std::chrono::duration<float, std::milli>(sortEnd - sortStart).count();
             lastMetrics.sortedThisFrame = !opaqueEntityOrder.empty();
+        }
+
+        if (visibilityChanged || !cacheInitialised)
+        {
+            cachedVisibleCommands.clear();
+            cachedVisibleCommands.reserve(opaqueEntityOrder.size() + transparentEntityOrder.size());
+            for (ssbo_id_type slot : opaqueEntityOrder)
+            {
+                if (commandCache[slot].visible)
+                    cachedVisibleCommands.push_back(commandCache[slot].command);
+            }
+            for (ssbo_id_type slot : transparentEntityOrder)
+            {
+                if (commandCache[slot].visible)
+                    cachedVisibleCommands.push_back(commandCache[slot].command);
+            }
         }
 
         lastTotalRenderables   = totalRenderables;
@@ -202,8 +219,6 @@ public:
         lastViewMatrix   = viewMatrix;
         lastProjMatrix   = projMatrix;
         cacheInitialised = true;
-        staleEntriesPruned = false;
-
         lastMetrics.extractCpuMs = std::chrono::duration<float, std::milli>(end - start).count();
         lastMetrics.visitedRenderables = static_cast<uint32_t>(visitedRenderables);
         lastMetrics.totalRenderables = static_cast<uint32_t>(totalRenderables);
@@ -241,41 +256,25 @@ private:
     int           lastTotalRenderables   = 0;
     int           lastVisibleRenderables = 0;
     Metrics       lastMetrics;
-    std::unordered_map<entity_id_type, CachedCommandState> commandCache;
-    std::vector<entity_id_type> opaqueEntityOrder;
-    std::vector<entity_id_type> transparentEntityOrder;
+    std::vector<CachedCommandState> commandCache =
+        std::vector<CachedCommandState>(ObjectSSBOManager::MAX_OBJECTS);
+    std::vector<ssbo_id_type> opaqueEntityOrder;
+    std::vector<ssbo_id_type> transparentEntityOrder;
+    std::vector<ssbo_id_type> nextOpaqueEntityOrder;
+    std::vector<ssbo_id_type> nextTransparentEntityOrder;
     std::vector<RenderCommand>  cachedVisibleCommands;
     glm::mat4    lastViewMatrix = glm::mat4(1.0f);
     glm::mat4    lastProjMatrix = glm::mat4(1.0f);
     view_id_type lastCameraViewID = 0;
     uint64_t     frameStamp = 0;
     bool         cacheInitialised = false;
-    bool         staleEntriesPruned = false;
+    bool         sortOrderDirty = true;
 
-    void markInvisible(entity_id_type id)
+    void markInvisible(ssbo_id_type slot)
     {
-        auto it = commandCache.find(id);
-        if (it != commandCache.end())
-        {
-            it->second.lastSeenFrame = frameStamp;
-            it->second.visible = false;
-        }
-    }
-
-    void pruneStaleCache()
-    {
-        for (auto it = commandCache.begin(); it != commandCache.end(); )
-        {
-            if (it->second.lastSeenFrame != frameStamp)
-            {
-                staleEntriesPruned = true;
-                it = commandCache.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-        }
+        CachedCommandState& cached = commandCache[slot];
+        cached.lastSeenFrame = frameStamp;
+        cached.visible = false;
     }
 
     bool isEntityVisible(ECSWorld& world, Entity e, const RenderGpuComponent& rc)

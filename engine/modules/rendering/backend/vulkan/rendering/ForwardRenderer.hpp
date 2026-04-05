@@ -252,12 +252,18 @@ class ForwardRenderer : Renderer
             // Write each object's model matrix into its SSBO slot for this frame.
             // The renderer owns the ObjectUBO packing; the ECS only supplies a plain glm::mat4.
             const auto objectWriteStart = std::chrono::steady_clock::now();
+            frameStats.backendObjectWrites = 0;
+            frameStats.backendObjectWritesSkipped = 0;
             for (const auto& cmdData : renderList)
             {
                 ObjectUBO ubo;
                 ubo.model = cmdData.modelMatrix;
-                resourceSystem->writeObjectSlot(currentFrame, cmdData.objectSSBOSlot, ubo);
+                if (resourceSystem->writeObjectSlot(currentFrame, cmdData.objectSSBOSlot, ubo))
+                    frameStats.backendObjectWrites += 1;
+                else
+                    frameStats.backendObjectWritesSkipped += 1;
             }
+            resourceSystem->flushObjectSSBO(currentFrame);
             const auto objectWriteEnd = std::chrono::steady_clock::now();
             frameStats.backendObjectWriteCpuMs =
                 std::chrono::duration<float, std::milli>(objectWriteEnd - objectWriteStart).count();

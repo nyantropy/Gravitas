@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.h>
 #include <vector>
+#include <array>
 #include <cassert>
 #include <stdexcept>
 #include <cstring>
@@ -38,7 +39,7 @@ class ObjectSSBOManager
                     vcsheet::getPhysicalDevice(),
                     bufferSize,
                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
                     ssboBuffers[i],
                     ssboMemory[i]
                 );
@@ -47,6 +48,7 @@ class ObjectSSBOManager
 
                 // zero-initialize so unwritten slots don't contain garbage
                 std::memset(ssboMapped[i], 0, static_cast<size_t>(bufferSize));
+                lastWrittenMatrix[i].resize(MAX_OBJECTS, glm::mat4(0.0f));
             }
 
             descriptorSets = dssheet::getManager().allocateForObjectSSBO(ssboBuffers, bufferSize);
@@ -83,13 +85,30 @@ class ObjectSSBOManager
         void releaseSlot(ssbo_id_type slot)
         {
             freeList.push_back(slot);
+            for (auto& frameCache : lastWrittenMatrix)
+                frameCache[slot] = glm::mat4(0.0f);
         }
 
         // Writes one object's data into the given frame's SSBO at the given slot.
-        void writeSlot(uint32_t frameIndex, ssbo_id_type slot, const ObjectUBO& data)
+        bool writeSlot(uint32_t frameIndex, ssbo_id_type slot, const ObjectUBO& data)
         {
+            if (lastWrittenMatrix[frameIndex][slot] == data.model)
+                return false;
+
+            lastWrittenMatrix[frameIndex][slot] = data.model;
             ObjectUBO* base = reinterpret_cast<ObjectUBO*>(ssboMapped[frameIndex]);
             base[slot] = data;
+            return true;
+        }
+
+        void flushFrame(uint32_t frameIndex)
+        {
+            VkMappedMemoryRange range{};
+            range.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+            range.memory = ssboMemory[frameIndex];
+            range.offset = 0;
+            range.size   = VK_WHOLE_SIZE;
+            vkFlushMappedMemoryRanges(vcsheet::getDevice(), 1, &range);
         }
 
         // Returns the descriptor set for the given frame index (bound to set 1).
@@ -103,6 +122,7 @@ class ObjectSSBOManager
         std::vector<VkDeviceMemory>  ssboMemory;
         std::vector<void*>           ssboMapped;
         std::vector<VkDescriptorSet> descriptorSets;
+        std::array<std::vector<glm::mat4>, GraphicsConstants::MAX_FRAMES_IN_FLIGHT> lastWrittenMatrix;
 
         std::vector<ssbo_id_type> freeList;
         ssbo_id_type              nextSlot = 0;

@@ -37,6 +37,8 @@ struct GtsFrameStats
     uint32_t renderCommandTotalCount   = 0;
     uint32_t renderCommandUpdatedCount = 0;
     uint32_t renderCommandSortedCount  = 0;
+    uint32_t backendObjectWrites       = 0;
+    uint32_t backendObjectWritesSkipped = 0;
     uint32_t sceneEntityCount          = 0;
     uint32_t controllerSystemCount  = 0;
     uint32_t simulationSystemCount  = 0;

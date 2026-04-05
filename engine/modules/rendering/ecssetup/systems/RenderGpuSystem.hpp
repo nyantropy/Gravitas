@@ -8,6 +8,7 @@
 #include "RenderGpuComponent.h"
 #include "TransformComponent.h"
 #include "HierarchyComponent.h"
+#include "ObjectSSBOManager.hpp"
 
 // Controller system that keeps RenderGpuComponent::modelMatrix in sync with
 // TransformComponent, accounting for parent-child hierarchies.
@@ -41,7 +42,7 @@ public:
         // Per-frame cache used only for hierarchy traversal: entity id → resolved NodeState.
         // Kept small — most entities in a dungeon scene have no parent.
         std::unordered_map<entity_id_type, NodeState> cache;
-        cache.reserve(transformCache.size());
+        cache.reserve(nonRenderableTransformCache.size());
 
         // In-progress set for cycle detection during hierarchy traversal.
         std::unordered_set<entity_id_type> visiting;
@@ -69,8 +70,19 @@ public:
             if (!visiting.insert(e.id).second)
                 return {};
 
-            auto& cached = transformCache[e.id];
-            cached.lastSeenFrame = frameStamp;
+            CachedTransform* cached = nullptr;
+            if (world.hasComponent<RenderGpuComponent>(e))
+            {
+                const auto& rc = world.getComponent<RenderGpuComponent>(e);
+                if (rc.objectSSBOSlot != RENDERABLE_SLOT_UNALLOCATED)
+                    cached = &transformCache[rc.objectSSBOSlot];
+            }
+            if (!cached)
+                cached = &nonRenderableTransformCache[e.id];
+
+            if (cached->lastSeenFrame != 0 && cached->lastSeenFrame != frameStamp - 1)
+                cached->initialized = false;
+            cached->lastSeenFrame = frameStamp;
 
             NodeState state;
             state.changed = false;
@@ -82,22 +94,22 @@ public:
                 // Detect whether the local transform has changed BEFORE calling
                 // getModelMatrix().  getModelMatrix() involves sin/cos and is the
                 // dominant per-entity cost — only pay it when actually needed.
-                const bool localChanged = !cached.initialized
-                    || differs(cached.position, transform.position)
-                    || differs(cached.rotation, transform.rotation)
-                    || differs(cached.scale,    transform.scale);
+                const bool localChanged = !cached->initialized
+                    || differs(cached->position, transform.position)
+                    || differs(cached->rotation, transform.rotation)
+                    || differs(cached->scale,    transform.scale);
 
                 if (localChanged)
                 {
-                    cached.modelMatrix  = transform.getModelMatrix();
-                    cached.position     = transform.position;
-                    cached.rotation     = transform.rotation;
-                    cached.scale        = transform.scale;
-                    cached.initialized  = true;
+                    cached->modelMatrix  = transform.getModelMatrix();
+                    cached->position     = transform.position;
+                    cached->rotation     = transform.rotation;
+                    cached->scale        = transform.scale;
+                    cached->initialized  = true;
                 }
                 // When nothing changed, reuse cached.modelMatrix — zero trig cost.
 
-                state.worldMatrix = cached.modelMatrix;
+                state.worldMatrix = cached->modelMatrix;
                 state.changed     = localChanged;
             }
 
@@ -131,9 +143,6 @@ public:
             rc.commandDirty  = true;
             updatedRenderables += 1;
         });
-
-        pruneStaleTransformCache();
-
         const auto endTime = std::chrono::steady_clock::now();
         lastMetrics.totalRenderables   = totalRenderables;
         lastMetrics.updatedRenderables = updatedRenderables;
@@ -160,22 +169,13 @@ private:
 
     static inline Metrics lastMetrics{0, 0, 0.0f};
 
-    std::unordered_map<entity_id_type, CachedTransform> transformCache;
+    std::vector<CachedTransform> transformCache =
+        std::vector<CachedTransform>(ObjectSSBOManager::MAX_OBJECTS);
+    std::unordered_map<entity_id_type, CachedTransform> nonRenderableTransformCache;
     uint64_t frameStamp = 0;
 
     static bool differs(const glm::vec3& lhs, const glm::vec3& rhs)
     {
         return lhs.x != rhs.x || lhs.y != rhs.y || lhs.z != rhs.z;
-    }
-
-    void pruneStaleTransformCache()
-    {
-        for (auto it = transformCache.begin(); it != transformCache.end(); )
-        {
-            if (it->second.lastSeenFrame != frameStamp)
-                it = transformCache.erase(it);
-            else
-                ++it;
-        }
     }
 };
