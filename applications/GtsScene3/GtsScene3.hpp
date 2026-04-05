@@ -69,6 +69,7 @@ private:
     static constexpr float    GRID_SPACING       = 2.15f;
     static constexpr float    CUBE_SCALE         = 0.9f;
     static constexpr uint32_t RENDERABLE_HEADROOM = 128;
+    static constexpr float    GRID_Z_OFFSET      = -106.0f;
 
     BitmapFont overlayFont;
     UiHandle   overlayHandle = UI_INVALID_HANDLE;
@@ -189,7 +190,7 @@ inline glm::vec3 GtsScene3::computeCubePosition(uint32_t index) const
     const uint32_t gridZ = index / GRID_COLUMNS;
     const float halfX = (static_cast<float>(GRID_COLUMNS) - 1.0f) * 0.5f;
     const float worldX = (static_cast<float>(gridX) - halfX) * GRID_SPACING;
-    const float worldZ = static_cast<float>(gridZ) * GRID_SPACING;
+    const float worldZ = GRID_Z_OFFSET + static_cast<float>(gridZ) * GRID_SPACING;
     return {worldX, 0.0f, worldZ};
 }
 
@@ -266,7 +267,7 @@ inline void GtsScene3::spawnCamera(float aspectRatio)
     ecsWorld.addComponent(camera, desc);
 
     TransformComponent tr;
-    tr.position = glm::vec3(0.0f, 30.0f, 95.0f);
+    tr.position = glm::vec3(0.0f, 60.0f, 170.0f);
     ecsWorld.addComponent(camera, tr);
 }
 
