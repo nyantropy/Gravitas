@@ -1,4 +1,5 @@
 /build/
+/build_release/
 /lib/
 /.VSCodeCounter/
 /.claude/
@@ -21,3 +22,4 @@ HEAD
 hooks
 objects
 refs
+GtsScene3

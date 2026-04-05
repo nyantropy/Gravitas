@@ -12,6 +12,7 @@
 #include "BufferUtil.hpp"
 #include "ObjectUBO.h"
 #include "GraphicsConstants.h"
+#include "EngineConfig.h"
 #include "Types.h"
 
 // Manages a single large SSBO holding all per-object data.
@@ -21,7 +22,7 @@
 class ObjectSSBOManager
 {
     public:
-        static constexpr uint32_t MAX_OBJECTS = 4096;
+        static constexpr uint32_t MAX_OBJECTS = EngineConfig::MAX_RENDERABLE_OBJECTS;
 
         ObjectSSBOManager()
         {

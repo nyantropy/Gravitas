@@ -4,6 +4,8 @@
 
 struct EngineConfig
 {
+    static constexpr uint32_t MAX_RENDERABLE_OBJECTS = 16384;
+
     GraphicsConfig graphics;
 
     // Number of simulation ticks per second.

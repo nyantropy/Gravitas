@@ -8,7 +8,7 @@
 #include "RenderGpuComponent.h"
 #include "TransformComponent.h"
 #include "HierarchyComponent.h"
-#include "ObjectSSBOManager.hpp"
+#include "EngineConfig.h"
 
 // Controller system that keeps RenderGpuComponent::modelMatrix in sync with
 // TransformComponent, accounting for parent-child hierarchies.
@@ -170,7 +170,7 @@ private:
     static inline Metrics lastMetrics{0, 0, 0.0f};
 
     std::vector<CachedTransform> transformCache =
-        std::vector<CachedTransform>(ObjectSSBOManager::MAX_OBJECTS);
+        std::vector<CachedTransform>(EngineConfig::MAX_RENDERABLE_OBJECTS);
     std::unordered_map<entity_id_type, CachedTransform> nonRenderableTransformCache;
     uint64_t frameStamp = 0;
 

@@ -19,8 +19,8 @@
 #include "RenderCommand.h"
 #include "ObjectUBO.h"
 #include "GraphicsConstants.h"
+#include "EngineConfig.h"
 #include "BufferUtil.hpp"
-#include "ObjectSSBOManager.hpp"
 #include "vcsheet.h"
 
 // Main 3D scene render stage.
@@ -81,7 +81,7 @@ public:
         // Each frame gets its own buffer so the CPU can write frame N while the GPU
         // reads frame N-1.
         const VkDeviceSize instanceBufSize =
-            static_cast<VkDeviceSize>(ObjectSSBOManager::MAX_OBJECTS) * sizeof(uint32_t);
+            static_cast<VkDeviceSize>(EngineConfig::MAX_RENDERABLE_OBJECTS) * sizeof(uint32_t);
         for (uint32_t f = 0; f < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; ++f)
         {
             BufferUtil::createBuffer(

@@ -18,6 +18,7 @@
 #include "GtsAction.h"
 #include "GtsKey.h"
 #include "GraphicsConstants.h"
+#include "EngineConfig.h"
 #include "MaterialComponent.h"
 #include "StaticMeshComponent.h"
 #include "TransformComponent.h"
@@ -36,10 +37,11 @@ enum class StressMode
 struct StressCubeComponent
 {
     glm::vec3 staticPosition = glm::vec3(0.0f);
-    float     angleOffset    = 0.0f;
-    float     radius         = 0.0f;
     float     baseHeight     = 0.0f;
     uint32_t  textureVariant = 0;
+    uint32_t  gridX          = 0;
+    uint32_t  gridZ          = 0;
+    float     phaseOffset    = 0.0f;
 };
 
 struct StressSettingsComponent
@@ -61,16 +63,22 @@ public:
     void populateFrameStats(GtsFrameStats& stats) const override;
 
 private:
-    static constexpr int GRID_X = 50;
-    static constexpr int GRID_Z = 60;
-    static constexpr int CUBE_COUNT = GRID_X * GRID_Z;
+    static constexpr uint32_t INITIAL_CUBE_COUNT = 3000;
+    static constexpr uint32_t CUBE_BATCH_SIZE    = 1000;
+    static constexpr uint32_t GRID_COLUMNS       = 100;
+    static constexpr float    GRID_SPACING       = 2.15f;
+    static constexpr float    CUBE_SCALE         = 0.9f;
+    static constexpr uint32_t RENDERABLE_HEADROOM = 128;
 
     BitmapFont overlayFont;
     UiHandle   overlayHandle = UI_INVALID_HANDLE;
     std::vector<Entity> cubeEntities;
     std::vector<std::string> texturePaths;
 
-    void spawnCubes();
+    void spawnCubes(uint32_t count);
+    void removeCubes(uint32_t count);
+    glm::vec3 computeCubePosition(uint32_t index) const;
+    uint32_t maxCubeCount() const;
     void spawnCamera(float aspectRatio);
     void createOverlay(SceneContext& ctx);
     void updateOverlay(SceneContext& ctx) const;
@@ -82,6 +90,11 @@ private:
 
 namespace
 {
+constexpr float STRESS_WAVE_AMPLITUDE = 0.7f;
+constexpr float STRESS_WAVE_SPEED     = 0.9f;
+constexpr float STRESS_PHASE_X_STEP   = 0.14f;
+constexpr float STRESS_PHASE_Z_STEP   = 0.18f;
+
 class StressMotionSystem : public ECSControllerSystem
 {
 public:
@@ -94,10 +107,9 @@ public:
         const float t = ctx.time
             ? static_cast<float>(ctx.time->frame) * ctx.time->unscaledDeltaTime
             : 0.0f;
-        const float dt = ctx.time ? ctx.time->unscaledDeltaTime : 0.0f;
 
         world.forEach<StressCubeComponent, TransformComponent>(
-            [&](Entity e, StressCubeComponent& cube, TransformComponent& tr)
+            [&](Entity, StressCubeComponent& cube, TransformComponent& tr)
         {
             if (!settings.movementEnabled)
             {
@@ -106,11 +118,12 @@ public:
                 return;
             }
 
-            const float angle = t + cube.angleOffset + static_cast<float>(e.id) * 0.1f;
-            tr.position.x = std::sin(angle) * cube.radius;
-            tr.position.z = std::cos(angle) * cube.radius;
-            tr.position.y = cube.baseHeight;
-            tr.rotation.y += dt;
+            const float wave = std::sinf(t * STRESS_WAVE_SPEED + cube.phaseOffset);
+            tr.position = cube.staticPosition;
+            tr.position.y = cube.baseHeight + wave * STRESS_WAVE_AMPLITUDE;
+            tr.rotation.x = 0.0f;
+            tr.rotation.z = 0.0f;
+            tr.rotation.y = wave * 0.08f;
         });
     }
 };
@@ -128,7 +141,7 @@ inline void GtsScene3::onLoad(SceneContext& ctx, const GtsSceneTransitionData*)
     ecsWorld.addControllerSystem<StressMotionSystem>();
     ecsWorld.createSingleton<StressSettingsComponent>();
 
-    spawnCubes();
+    spawnCubes(INITIAL_CUBE_COUNT);
     spawnCamera(ctx.windowAspectRatio);
     createOverlay(ctx);
     applyTextureMode();
@@ -150,6 +163,15 @@ inline void GtsScene3::onUpdateControllers(SceneContext& ctx)
         applyTextureMode();
     }
 
+    if (ctx.inputSource->isKeyPressed(GtsKey::Digit1))
+    {
+        spawnCubes(CUBE_BATCH_SIZE);
+        applyTextureMode();
+    }
+
+    if (ctx.inputSource->isKeyPressed(GtsKey::Digit2))
+        removeCubes(CUBE_BATCH_SIZE);
+
     updateOverlay(ctx);
 }
 
@@ -158,48 +180,72 @@ inline void GtsScene3::populateFrameStats(GtsFrameStats& stats) const
     stats.sceneEntityCount = static_cast<uint32_t>(cubeEntities.size());
 }
 
-inline void GtsScene3::spawnCubes()
+inline glm::vec3 GtsScene3::computeCubePosition(uint32_t index) const
 {
-    cubeEntities.reserve(CUBE_COUNT);
+    const uint32_t gridX = index % GRID_COLUMNS;
+    const uint32_t gridZ = index / GRID_COLUMNS;
+    const float halfX = (static_cast<float>(GRID_COLUMNS) - 1.0f) * 0.5f;
+    const float worldX = (static_cast<float>(gridX) - halfX) * GRID_SPACING;
+    const float worldZ = static_cast<float>(gridZ) * GRID_SPACING;
+    return {worldX, 0.0f, worldZ};
+}
 
-    const float spacing = 2.2f;
-    const float halfX = (static_cast<float>(GRID_X) - 1.0f) * 0.5f;
-    const float halfZ = (static_cast<float>(GRID_Z) - 1.0f) * 0.5f;
+inline uint32_t GtsScene3::maxCubeCount() const
+{
+    const uint32_t limit = EngineConfig::MAX_RENDERABLE_OBJECTS;
+    return limit > RENDERABLE_HEADROOM ? limit - RENDERABLE_HEADROOM : limit;
+}
+
+inline void GtsScene3::spawnCubes(uint32_t count)
+{
+    const uint32_t currentCount = static_cast<uint32_t>(cubeEntities.size());
+    const uint32_t targetCount = std::min(maxCubeCount(), currentCount + count);
     const std::string cubeMesh = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
 
-    for (int x = 0; x < GRID_X; ++x)
+    cubeEntities.reserve(targetCount);
+
+    for (uint32_t index = currentCount; index < targetCount; ++index)
     {
-        for (int z = 0; z < GRID_Z; ++z)
-        {
-            const float worldX = (static_cast<float>(x) - halfX) * spacing;
-            const float worldZ = (static_cast<float>(z) - halfZ) * spacing;
+        const glm::vec3 staticPos = computeCubePosition(index);
 
-            Entity e = ecsWorld.createEntity();
-            cubeEntities.push_back(e);
+        Entity e = ecsWorld.createEntity();
+        cubeEntities.push_back(e);
 
-            TransformComponent tr;
-            tr.position = glm::vec3(worldX, 0.0f, worldZ);
-            tr.scale    = glm::vec3(0.9f);
-            ecsWorld.addComponent(e, tr);
+        TransformComponent tr;
+        tr.position = staticPos;
+        tr.scale    = glm::vec3(CUBE_SCALE);
+        ecsWorld.addComponent(e, tr);
 
-            StaticMeshComponent mesh;
-            mesh.meshPath = cubeMesh;
-            ecsWorld.addComponent(e, mesh);
+        StaticMeshComponent mesh;
+        mesh.meshPath = cubeMesh;
+        ecsWorld.addComponent(e, mesh);
 
-            MaterialComponent mat;
-            mat.texturePath = texturePaths.front();
-            ecsWorld.addComponent(e, mat);
+        MaterialComponent mat;
+        mat.texturePath = texturePaths.front();
+        ecsWorld.addComponent(e, mat);
 
-            StressCubeComponent cube;
-            cube.staticPosition = tr.position;
-            cube.angleOffset    = static_cast<float>(x * GRID_Z + z) * 0.0314159f;
-            cube.radius         = std::max(6.0f, glm::length(glm::vec2(worldX, worldZ)));
-            cube.baseHeight     = tr.position.y;
-            cube.textureVariant = static_cast<uint32_t>((x * GRID_Z + z) % static_cast<int>(texturePaths.size()));
-            ecsWorld.addComponent(e, cube);
+        StressCubeComponent cube;
+        cube.staticPosition = staticPos;
+        cube.baseHeight     = staticPos.y;
+        cube.textureVariant = index % static_cast<uint32_t>(texturePaths.size());
+        cube.gridX          = index % GRID_COLUMNS;
+        cube.gridZ          = index / GRID_COLUMNS;
+        cube.phaseOffset    = static_cast<float>(cube.gridX) * STRESS_PHASE_X_STEP
+                            + static_cast<float>(cube.gridZ) * STRESS_PHASE_Z_STEP;
+        ecsWorld.addComponent(e, cube);
 
-            ecsWorld.addComponent(e, BoundsComponent{});
-        }
+        ecsWorld.addComponent(e, BoundsComponent{});
+    }
+}
+
+inline void GtsScene3::removeCubes(uint32_t count)
+{
+    const uint32_t removeCount = std::min<uint32_t>(count, static_cast<uint32_t>(cubeEntities.size()));
+    for (uint32_t i = 0; i < removeCount; ++i)
+    {
+        const Entity e = cubeEntities.back();
+        cubeEntities.pop_back();
+        ecsWorld.destroyEntity(e);
     }
 }
 
@@ -252,8 +298,9 @@ inline void GtsScene3::updateOverlay(SceneContext& ctx) const
 
     char buf[192];
     std::snprintf(buf, sizeof(buf),
-                  "GTSSCENE3\nCUBES %d\nMODE %s\nF3 NEXT MODE\nF4 DEBUG CAM\nF8 OVERLAY",
-                  CUBE_COUNT,
+                  "GTSSCENE3\nCUBES %u / %u\nMODE %s\n1 +1000  2 -1000\nF3 NEXT MODE\nF4 DEBUG CAM\nF8 OVERLAY",
+                  static_cast<uint32_t>(cubeEntities.size()),
+                  maxCubeCount(),
                   describeCurrentScenario());
 
     ctx.ui->setPayload(overlayHandle, UiTextData{

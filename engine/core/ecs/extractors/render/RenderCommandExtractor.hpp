@@ -15,7 +15,7 @@
 #include "CullFlagsComponent.h"
 #include "FrustumCuller.h"
 #include "RenderCommand.h"
-#include "ObjectSSBOManager.hpp"
+#include "EngineConfig.h"
 
 // Reads RenderGpuComponent (transform / slot), MeshGpuComponent (mesh ID),
 // and MaterialGpuComponent (texture, alpha, doubleSided) per entity, plus the
@@ -257,7 +257,7 @@ private:
     int           lastVisibleRenderables = 0;
     Metrics       lastMetrics;
     std::vector<CachedCommandState> commandCache =
-        std::vector<CachedCommandState>(ObjectSSBOManager::MAX_OBJECTS);
+        std::vector<CachedCommandState>(EngineConfig::MAX_RENDERABLE_OBJECTS);
     std::vector<ssbo_id_type> opaqueEntityOrder;
     std::vector<ssbo_id_type> transparentEntityOrder;
     std::vector<ssbo_id_type> nextOpaqueEntityOrder;
