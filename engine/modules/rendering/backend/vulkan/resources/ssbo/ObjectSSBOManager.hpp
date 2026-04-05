@@ -28,6 +28,9 @@ class ObjectSSBOManager
         {
             VkDeviceSize bufferSize = static_cast<VkDeviceSize>(MAX_OBJECTS) * sizeof(ObjectUBO);
             uint32_t frames = static_cast<uint32_t>(GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
+            VkPhysicalDeviceProperties props{};
+            vkGetPhysicalDeviceProperties(vcsheet::getPhysicalDevice(), &props);
+            nonCoherentAtomSize = props.limits.nonCoherentAtomSize;
 
             ssboBuffers.resize(frames);
             ssboMemory.resize(frames);
@@ -91,6 +94,7 @@ class ObjectSSBOManager
             {
                 ObjectUBO* base = reinterpret_cast<ObjectUBO*>(ssboMapped[f]);
                 base[slot] = empty;
+                flushSlotRange(f, slot);
             }
 
             freeList.push_back(slot);
@@ -127,11 +131,28 @@ class ObjectSSBOManager
         }
 
     private:
+        void flushSlotRange(uint32_t frameIndex, ssbo_id_type slot)
+        {
+            const VkDeviceSize slotOffset = static_cast<VkDeviceSize>(slot) * sizeof(ObjectUBO);
+            const VkDeviceSize atomSize = nonCoherentAtomSize > 0 ? nonCoherentAtomSize : sizeof(ObjectUBO);
+            const VkDeviceSize alignedOffset = (slotOffset / atomSize) * atomSize;
+            const VkDeviceSize slotEnd = slotOffset + sizeof(ObjectUBO);
+            const VkDeviceSize alignedEnd = ((slotEnd + atomSize - 1) / atomSize) * atomSize;
+
+            VkMappedMemoryRange range{};
+            range.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+            range.memory = ssboMemory[frameIndex];
+            range.offset = alignedOffset;
+            range.size   = alignedEnd - alignedOffset;
+            vkFlushMappedMemoryRanges(vcsheet::getDevice(), 1, &range);
+        }
+
         std::vector<VkBuffer>        ssboBuffers;
         std::vector<VkDeviceMemory>  ssboMemory;
         std::vector<void*>           ssboMapped;
         std::vector<VkDescriptorSet> descriptorSets;
         std::array<std::vector<glm::mat4>, GraphicsConstants::MAX_FRAMES_IN_FLIGHT> lastWrittenMatrix;
+        VkDeviceSize                 nonCoherentAtomSize = sizeof(ObjectUBO);
 
         std::vector<ssbo_id_type> freeList;
         ssbo_id_type              nextSlot = 0;

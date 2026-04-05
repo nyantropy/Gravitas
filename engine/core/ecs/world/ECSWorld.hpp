@@ -53,6 +53,7 @@ class ECSWorld
 
         mutable std::unordered_map<std::type_index, std::unique_ptr<IComponentStorage>> storages;
         std::unordered_map<std::type_index, std::function<void(ECSWorld&, Entity, void*)>> removeCallbacks;
+        std::vector<uint32_t> forEachScratch;
 
     public:
         Entity createEntity()
@@ -135,14 +136,13 @@ class ECSWorld
             auto& firstStorage = getStorage<First>();
             const uint32_t count = firstStorage.size();
 
-            thread_local std::vector<uint32_t> snapshot;
-            snapshot.resize(count);
+            forEachScratch.resize(count);
             if (count > 0)
-                std::memcpy(snapshot.data(), firstStorage.denseIds(), count * sizeof(uint32_t));
+                std::memcpy(forEachScratch.data(), firstStorage.denseIds(), count * sizeof(uint32_t));
 
             for (uint32_t i = 0; i < count; ++i)
             {
-                Entity e{snapshot[i]};
+                Entity e{forEachScratch[i]};
 
                 if (!(hasComponent<Components>(e) && ...))
                     continue;
@@ -201,6 +201,8 @@ class ECSWorld
             storages.clear();
             simulationSystems.clear();
             controllerSystems.clear();
+            forEachScratch.clear();
+            forEachScratch.shrink_to_fit();
             nextEntityId = 0;
         }
 

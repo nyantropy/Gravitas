@@ -105,11 +105,15 @@ public:
         return dense.data();
     }
 
+    // Direct access to the component data array. Reserved for optimized
+    // single-component iteration paths that can skip sparse lookups.
     Component* dataPtr()
     {
         return data.data();
     }
 
+    // Direct access to the component data array. Reserved for optimized
+    // single-component iteration paths that can skip sparse lookups.
     const Component* dataPtr() const
     {
         return data.data();

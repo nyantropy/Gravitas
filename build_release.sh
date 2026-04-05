@@ -36,7 +36,7 @@ if [ "$CLEAN" -eq 1 ]; then
     rm -rf "$BUILD_DIR"
 fi
 
-if [ ! -d "$BUILD_DIR" ] || [ ! -f "$BUILD_DIR/CMakeCache.txt" ] || [ ! -f "$BUILD_DIR/Makefile" ]; then
+if [ ! -d "$BUILD_DIR" ] || [ ! -f "$BUILD_DIR/CMakeCache.txt" ]; then
     echo "=== Configuring Release build ==="
     cmake -S "$PROJECT_ROOT" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release
 fi

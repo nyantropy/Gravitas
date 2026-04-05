@@ -147,6 +147,17 @@ public:
         lastMetrics.totalRenderables   = totalRenderables;
         lastMetrics.updatedRenderables = updatedRenderables;
         lastMetrics.cpuTimeMs = std::chrono::duration<float, std::milli>(endTime - startTime).count();
+
+        for (auto it = nonRenderableTransformCache.begin(); it != nonRenderableTransformCache.end();)
+        {
+            if (it->second.lastSeenFrame == frameStamp)
+            {
+                ++it;
+                continue;
+            }
+
+            it = nonRenderableTransformCache.erase(it);
+        }
     }
 
 private:

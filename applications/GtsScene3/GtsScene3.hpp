@@ -39,8 +39,6 @@ struct StressCubeComponent
     glm::vec3 staticPosition = glm::vec3(0.0f);
     float     baseHeight     = 0.0f;
     uint32_t  textureVariant = 0;
-    uint32_t  gridX          = 0;
-    uint32_t  gridZ          = 0;
     float     phaseOffset    = 0.0f;
 };
 
@@ -211,6 +209,8 @@ inline void GtsScene3::spawnCubes(uint32_t count)
     for (uint32_t index = currentCount; index < targetCount; ++index)
     {
         const glm::vec3 staticPos = computeCubePosition(index);
+        const uint32_t gridX = index % GRID_COLUMNS;
+        const uint32_t gridZ = index / GRID_COLUMNS;
 
         Entity e = ecsWorld.createEntity();
         cubeEntities.push_back(e);
@@ -232,10 +232,8 @@ inline void GtsScene3::spawnCubes(uint32_t count)
         cube.staticPosition = staticPos;
         cube.baseHeight     = staticPos.y;
         cube.textureVariant = index % static_cast<uint32_t>(texturePaths.size());
-        cube.gridX          = index % GRID_COLUMNS;
-        cube.gridZ          = index / GRID_COLUMNS;
-        cube.phaseOffset    = static_cast<float>(cube.gridX) * STRESS_PHASE_X_STEP
-                            + static_cast<float>(cube.gridZ) * STRESS_PHASE_Z_STEP;
+        cube.phaseOffset    = static_cast<float>(gridX) * STRESS_PHASE_X_STEP
+                            + static_cast<float>(gridZ) * STRESS_PHASE_Z_STEP;
         ecsWorld.addComponent(e, cube);
 
         ecsWorld.addComponent(e, BoundsComponent{});
