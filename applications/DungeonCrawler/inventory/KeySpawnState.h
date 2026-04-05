@@ -2,7 +2,7 @@
 
 #include "GlmConfig.h"
 
-#include "Item.h"
+#include "inventory/Item.h"
 
 struct KeySpawnState
 {

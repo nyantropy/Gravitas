@@ -9,7 +9,7 @@
 #include "BitmapFont.h"
 #include "UiHandle.h"
 
-#include "GeneratedFloor.h"
+#include "generator/GeneratedFloor.h"
 #include "DungeonManager.h"
 #include "DungeonConstants.h"
 

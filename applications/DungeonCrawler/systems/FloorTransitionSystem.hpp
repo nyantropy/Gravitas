@@ -7,12 +7,12 @@
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
 
-#include "FloorTransitionStateComponent.h"
-#include "FloorTransitionTriggerComponent.h"
-#include "PlayerComponent.h"
+#include "components/FloorTransitionStateComponent.h"
+#include "components/FloorTransitionTriggerComponent.h"
+#include "components/PlayerComponent.h"
 #include "CameraDescriptionComponent.h"
 #include "TransformComponent.h"
-#include "DungeonFloorSingleton.h"
+#include "components/DungeonFloorSingleton.h"
 #include "DungeonManager.h"
 
 // Single owner of all floor-transition logic.

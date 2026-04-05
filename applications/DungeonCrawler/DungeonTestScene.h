@@ -10,7 +10,7 @@
 
 #include "DungeonManager.h"
 #include "DungeonVisibilityState.h"
-#include "GeneratedFloor.h"
+#include "generator/GeneratedFloor.h"
 #include "inventory/Item.h"
 #include "inventory/KeySpawnState.h"
 #include "ui/DungeonUiController.h"

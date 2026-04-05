@@ -1,4 +1,4 @@
-#include "DungeonUiController.h"
+#include "ui/DungeonUiController.h"
 
 #include <algorithm>
 #include <cmath>

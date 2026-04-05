@@ -2,8 +2,8 @@
 
 #include <vector>
 #include <cstdint>
-#include "FloorBudget.h"
-#include "RoomTemplate.h"
+#include "generator/FloorBudget.h"
+#include "generator/RoomTemplate.h"
 #include "GlmConfig.h"
 
 struct DungeonSpec

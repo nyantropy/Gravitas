@@ -4,7 +4,7 @@
 #include "SceneContext.h"
 #include "UiHandle.h"
 
-#include "DungeonUiState.h"
+#include "ui/DungeonUiState.h"
 
 class DungeonUiController
 {

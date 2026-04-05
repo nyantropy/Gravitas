@@ -6,10 +6,10 @@
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
 
-#include "EnemyComponent.h"
+#include "components/EnemyComponent.h"
 #include "TransformComponent.h"
-#include "PlayerComponent.h"
-#include "DungeonGameStateComponent.h"
+#include "components/PlayerComponent.h"
+#include "components/DungeonGameStateComponent.h"
 #include "DungeonMap.h"
 
 // Controller system — enemy patrol AI.

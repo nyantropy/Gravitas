@@ -6,7 +6,7 @@
 #include "GlmConfig.h"
 #include "GtsScene.hpp"
 #include "InputActionManager.hpp"
-#include "DungeonAction.h"
+#include "struct/DungeonAction.h"
 
 class BattleScene : public GtsScene
 {

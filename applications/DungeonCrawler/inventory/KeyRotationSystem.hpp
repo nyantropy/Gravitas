@@ -4,7 +4,7 @@
 #include "SceneContext.h"
 #include "TransformComponent.h"
 
-#include "KeyCollectibleComponent.h"
+#include "inventory/KeyCollectibleComponent.h"
 
 class KeyRotationSystem : public ECSControllerSystem
 {

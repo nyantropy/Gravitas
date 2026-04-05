@@ -7,7 +7,7 @@
 
 #include "ProceduralMeshComponent.h"
 #include "MaterialComponent.h"
-#include "DungeonTileComponent.h"
+#include "components/DungeonTileComponent.h"
 
 // Binds DungeonTileComponent entities to ProceduralMeshComponent + MaterialComponent
 // so that ProceduralMeshBindingSystem can upload them to the GPU.

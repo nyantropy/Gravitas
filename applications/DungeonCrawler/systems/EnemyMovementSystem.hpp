@@ -6,9 +6,9 @@
 #include "ECSSimulationSystem.hpp"
 #include "ECSWorld.hpp"
 
-#include "DungeonFloorSingleton.h"
-#include "EnemyComponent.h"
-#include "EnemyMovementStateComponent.h"
+#include "components/DungeonFloorSingleton.h"
+#include "components/EnemyComponent.h"
+#include "components/EnemyMovementStateComponent.h"
 #include "TransformComponent.h"
 
 // Random-walk movement for grid-bound enemies with smooth interpolation.

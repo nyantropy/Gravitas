@@ -17,18 +17,18 @@
 #include "GlmConfig.h"
 
 // Dungeon components
-#include "DungeonFloorSingleton.h"
-#include "DungeonInputComponent.h"
-#include "DungeonGameStateComponent.h"
-#include "EnemyComponent.h"
-#include "EnemyMovementStateComponent.h"
+#include "components/DungeonFloorSingleton.h"
+#include "components/DungeonInputComponent.h"
+#include "components/DungeonGameStateComponent.h"
+#include "components/EnemyComponent.h"
+#include "components/EnemyMovementStateComponent.h"
 #include "PhysicsBodyComponent.h"
-#include "PlayerComponent.h"
+#include "components/PlayerComponent.h"
 #include "SphereColliderComponent.h"
-#include "DungeonTileComponent.h"
-#include "FloorEntityTag.h"
-#include "FloorTransitionStateComponent.h"
-#include "FloorTransitionTriggerComponent.h"
+#include "components/DungeonTileComponent.h"
+#include "components/FloorEntityTag.h"
+#include "components/FloorTransitionStateComponent.h"
+#include "components/FloorTransitionTriggerComponent.h"
 #include "DungeonConstants.h"
 
 // Font + UI
@@ -37,12 +37,12 @@
 #include "UiSystem.h"
 
 // Dungeon systems
-#include "DungeonInputSystem.hpp"
-#include "PlayerMovementSystem.hpp"
-#include "PlayerCameraSystem.h"
-#include "FloorTransitionSystem.hpp"
-#include "DungeonTileBindingSystem.hpp"
-#include "EnemyMovementSystem.hpp"
+#include "systems/DungeonInputSystem.hpp"
+#include "systems/PlayerMovementSystem.hpp"
+#include "systems/PlayerCameraSystem.h"
+#include "systems/FloorTransitionSystem.hpp"
+#include "systems/DungeonTileBindingSystem.hpp"
+#include "systems/EnemyMovementSystem.hpp"
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 

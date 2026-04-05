@@ -1,4 +1,4 @@
-#include "DungeonGenerator.h"
+#include "generator/DungeonGenerator.h"
 
 #include <algorithm>
 #include <cstdint>

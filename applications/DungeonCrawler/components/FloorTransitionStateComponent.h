@@ -1,7 +1,7 @@
 #pragma once
 
 #include "GlmConfig.h"
-#include "FloorTransitionType.h"
+#include "components/FloorTransitionType.h"
 
 enum class FloorTransitionPhase
 {

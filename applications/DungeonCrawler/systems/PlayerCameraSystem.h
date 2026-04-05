@@ -5,10 +5,10 @@
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
 
-#include "PlayerComponent.h"
+#include "components/PlayerComponent.h"
 #include "TransformComponent.h"
 #include "CameraDescriptionComponent.h"
-#include "FloorTransitionStateComponent.h"
+#include "components/FloorTransitionStateComponent.h"
 
 // Reads PlayerComponent transition state and updates the camera each frame.
 // Interpolates visual position (translation) and yaw (rotation) over

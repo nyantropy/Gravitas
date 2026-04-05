@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <vector>
 
-#include "Item.h"
+#include "inventory/Item.h"
 
 struct InventoryComponent
 {

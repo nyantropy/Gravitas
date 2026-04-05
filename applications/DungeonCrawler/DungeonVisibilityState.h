@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "GeneratedFloor.h"
+#include "generator/GeneratedFloor.h"
 
 enum class MinimapRevealMode : uint8_t
 {

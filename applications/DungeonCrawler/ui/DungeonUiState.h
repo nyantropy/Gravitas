@@ -3,7 +3,7 @@
 #include "GlmConfig.h"
 
 #include "DungeonVisibilityState.h"
-#include "GeneratedFloor.h"
+#include "generator/GeneratedFloor.h"
 
 struct DungeonUiState
 {

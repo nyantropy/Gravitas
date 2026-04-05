@@ -7,8 +7,8 @@
 #include "SceneContext.h"
 
 #include "UiSystem.h"
-#include "HudMarkerComponent.h"
-#include "DungeonGameStateComponent.h"
+#include "components/HudMarkerComponent.h"
+#include "components/DungeonGameStateComponent.h"
 
 // Controller system — updates retained UI text nodes each frame from game state.
 // Runs after CombatSystem so the HUD always reflects the current frame's state.

@@ -2,11 +2,11 @@
 
 #include <memory>
 
-#include "BattleResultTransitionData.h"
-#include "BattleTransitionData.h"
+#include "components/BattleResultTransitionData.h"
+#include "components/BattleTransitionData.h"
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
-#include "DungeonAction.h"
+#include "struct/DungeonAction.h"
 #include "GlmConfig.h"
 #include "GtsKey.h"
 #include "GraphicsConstants.h"

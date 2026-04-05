@@ -9,8 +9,8 @@
 #include "UiSystem.h"
 #include "UiNode.h"
 
-#include "InventoryComponent.h"
-#include "PlayerComponent.h"
+#include "inventory/InventoryComponent.h"
+#include "components/PlayerComponent.h"
 
 class InventoryUiSystem : public ECSControllerSystem
 {

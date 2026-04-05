@@ -3,7 +3,7 @@
 #include <iosfwd>
 #include <string>
 
-#include "GeneratedFloor.h"
+#include "generator/GeneratedFloor.h"
 
 std::string buildDungeonFloorAscii(const GeneratedFloor& floor);
 std::string buildDungeonFloorSummary(const GeneratedFloor& floor);

@@ -6,10 +6,10 @@
 #include "CollisionEvent.h"
 #include "IGtsPhysicsModule.h"
 
-#include "InventoryComponent.h"
-#include "KeyCollectibleComponent.h"
-#include "KeySpawnState.h"
-#include "PlayerComponent.h"
+#include "inventory/InventoryComponent.h"
+#include "inventory/KeyCollectibleComponent.h"
+#include "inventory/KeySpawnState.h"
+#include "components/PlayerComponent.h"
 
 class InventoryPickupSystem : public ECSSimulationSystem
 {

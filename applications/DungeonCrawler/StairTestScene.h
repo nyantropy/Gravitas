@@ -6,7 +6,7 @@
 #include "Entity.h"
 #include "Types.h"
 
-#include "GeneratedFloor.h"
+#include "generator/GeneratedFloor.h"
 
 #include <limits>
 
