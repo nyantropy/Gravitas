@@ -11,6 +11,7 @@
 #include <cassert>
 #include <functional>
 #include <unordered_set>
+#include <cstring>
 
 #include "Entity.h"
 #include "ComponentStorage.hpp"
@@ -41,20 +42,6 @@ class ECSWorld
                 storages[type] = std::make_unique<ComponentStorage<Component>>();
             }
             return *static_cast<ComponentStorage<Component>*>(storages[type].get());
-        }
-
-        template<typename Component>
-        void filterEntitiesWith(std::vector<Entity>& entities) const
-        {
-            auto& storage = getStorage<Component>();
-            entities.erase(
-                std::remove_if(
-                    entities.begin(),
-                    entities.end(),
-                    [&](Entity e) { return !storage.has(e); }
-                ),
-                entities.end()
-            );
         }
 
         void invokeRemoveCallback(const std::type_index& type, Entity entity, void* componentData)
@@ -146,9 +133,17 @@ class ECSWorld
             using First = typename std::tuple_element<0, std::tuple<Components...>>::type;
 
             auto& firstStorage = getStorage<First>();
+            const uint32_t count = firstStorage.size();
 
-            for (Entity e : firstStorage.getAllEntities())
+            thread_local std::vector<uint32_t> snapshot;
+            snapshot.resize(count);
+            if (count > 0)
+                std::memcpy(snapshot.data(), firstStorage.denseIds(), count * sizeof(uint32_t));
+
+            for (uint32_t i = 0; i < count; ++i)
             {
+                Entity e{snapshot[i]};
+
                 if (!(hasComponent<Components>(e) && ...))
                     continue;
 
@@ -171,12 +166,23 @@ class ECSWorld
         template<typename... Components>
         std::vector<Entity> getAllEntitiesWith()
         {
-            auto& firstStorage =
-                getStorage<typename std::tuple_element<0, std::tuple<Components...>>::type>();
+            static_assert(sizeof...(Components) > 0);
+            using First = typename std::tuple_element<0, std::tuple<Components...>>::type;
 
-            std::vector<Entity> result = firstStorage.getAllEntities();
+            auto& firstStorage = getStorage<First>();
 
-            (filterEntitiesWith<Components>(result), ...);
+            std::vector<Entity> result;
+            result.reserve(firstStorage.size());
+
+            const uint32_t count = firstStorage.size();
+            const uint32_t* ids = firstStorage.denseIds();
+
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                Entity e{ids[i]};
+                if ((hasComponent<Components>(e) && ...))
+                    result.push_back(e);
+            }
 
             return result;
         }
@@ -210,22 +216,22 @@ class ECSWorld
         bool hasAny() const
         {
             auto& storage = getStorage<Component>();
-            return !storage.getAllEntities().empty();
+            return storage.size() > 0;
         }
 
         template<typename Component>
         Entity getSingletonEntity() const
         {
             auto& storage = getStorage<Component>();
-            auto entities = storage.getAllEntities();
+            const uint32_t count = storage.size();
 
             // must exist
-            assert(!entities.empty() && "Singleton component does not exist");
+            assert(count > 0 && "Singleton component does not exist");
 
             // must be unique
-            assert(entities.size() == 1 && "More than one singleton component exists");
+            assert(count == 1 && "More than one singleton component exists");
 
-            return entities[0];
+            return Entity{storage.denseIds()[0]};
         }
 
         template<typename Component>
