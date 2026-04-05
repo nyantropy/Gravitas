@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 project(GravitasEngine VERSION 0.1.0 LANGUAGES C CXX)
 
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
+endif()
+
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release")
 
 add_subdirectory(engine)
