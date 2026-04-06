@@ -11,5 +11,5 @@ add_library(vkui INTERFACE)
 
 target_include_directories(vkui INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}"
-    "${CMAKE_SOURCE_DIR}/engine/modules/rendering/extractors"
+    "${GTS_ENGINE_ROOT}/engine/modules/rendering/extractors"
 )

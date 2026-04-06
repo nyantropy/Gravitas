@@ -63,10 +63,10 @@ target_include_directories(gravitas_vulkan_backend PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/util/memory_util"
 
     # Bundled external headers (stb_image, tiny_obj_loader)
-    "${CMAKE_SOURCE_DIR}/external/stb"
+    "${GTS_ENGINE_ROOT}/external/stb"
 
     # Bundled GLM (needed by vertex types, model loader, texture loader)
-    "${CMAKE_SOURCE_DIR}/external/glm/glm"
+    "${GTS_ENGINE_ROOT}/external/glm/glm"
 )
 
 target_link_libraries(gravitas_vulkan_backend PUBLIC

@@ -20,8 +20,8 @@ target_include_directories(gravitas_physics PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/systems"
     "${CMAKE_CURRENT_SOURCE_DIR}/debug"
-    "${CMAKE_SOURCE_DIR}/engine/modules/transform/components"
-    "${CMAKE_SOURCE_DIR}/engine/modules/hierarchy/components"
+    "${GTS_ENGINE_ROOT}/engine/modules/transform/components"
+    "${GTS_ENGINE_ROOT}/engine/modules/hierarchy/components"
 )
 
 target_link_libraries(gravitas_physics PUBLIC

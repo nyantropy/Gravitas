@@ -46,7 +46,7 @@ cmake --build . --parallel
 
 ## Running
 
-All executables must be run from the **project root** so asset paths resolve correctly.
+Shaders and engine-owned resources resolve relative to the engine directory, so the engine works both standalone and when included via `add_subdirectory(...)`.
 
 ```bash
 ./build/applications/GravitasTetris/GravitasTetris

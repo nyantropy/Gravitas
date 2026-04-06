@@ -6,6 +6,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release")
+set(GTS_ENGINE_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 
 add_subdirectory(engine)
 add_subdirectory(applications)
@@ -19,7 +20,7 @@ find_program(GLSLC glslc
 )
 
 if(GLSLC)
-    set(SHADER_DIR "${CMAKE_SOURCE_DIR}/shaders")
+    set(SHADER_DIR "${GTS_ENGINE_ROOT}/shaders")
     add_custom_target(compile_shaders
         COMMAND ${GLSLC} "${SHADER_DIR}/fragmentshader.frag" -o "${SHADER_DIR}/frag.spv"
         COMMAND ${GLSLC} "${SHADER_DIR}/vertexshader.vert"  -o "${SHADER_DIR}/vert.spv"
