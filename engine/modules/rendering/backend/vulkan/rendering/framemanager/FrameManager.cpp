@@ -1,6 +1,7 @@
 #include "FrameManager.hpp"
 
-FrameManager::FrameManager() 
+FrameManager::FrameManager(size_t frameOutputImageCount) 
+    : frameOutputImageCount(frameOutputImageCount)
 {
     createFrameResources();
 }
@@ -24,8 +25,6 @@ FrameManager::~FrameManager()
 
 void FrameManager::createFrameResources() 
 {
-    size_t swapchainImageCount = vcsheet::getSwapChainImages().size();
-
     // per-frame resources
     frames.resize(GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
     for (size_t i = 0; i < frames.size(); i++) 
@@ -35,15 +34,15 @@ void FrameManager::createFrameResources()
         frames[i].imageAvailableSemaphore = createSemaphore();
     }
 
-    // per-swapchain-image renderFinished semaphores
-    renderFinishedSemaphores.resize(swapchainImageCount);
-    for (size_t i = 0; i < swapchainImageCount; i++) 
+    // per-frame-output-image renderFinished semaphores
+    renderFinishedSemaphores.resize(frameOutputImageCount);
+    for (size_t i = 0; i < frameOutputImageCount; i++) 
     {
         renderFinishedSemaphores[i] = createSemaphore();
     }
 
     // images in flight can be all null handles
-    imagesInFlight.assign(swapchainImageCount, VK_NULL_HANDLE);
+    imagesInFlight.assign(frameOutputImageCount, VK_NULL_HANDLE);
 }
 
 // create a semaphore

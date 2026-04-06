@@ -31,7 +31,7 @@ uint32_t ScreenshotManager::bytesPerPixelForFormat(VkFormat format)
             return 3;
 
         default:
-            throw std::runtime_error("unsupported swapchain format for screenshot capture");
+            throw std::runtime_error("unsupported frame output format for screenshot capture");
     }
 }
 
@@ -69,13 +69,14 @@ std::string ScreenshotManager::allocateScreenshotPath()
     throw std::runtime_error("could not allocate screenshot filename");
 }
 
-void ScreenshotManager::saveSwapchainImage(uint32_t imageIndex) const
+void ScreenshotManager::saveImage(VkImage image,
+                                  VkFormat format,
+                                  VkExtent2D extent,
+                                  VkImageLayout currentLayout) const
 {
     VkDevice device = vcsheet::getDevice();
     vkDeviceWaitIdle(device);
 
-    const VkExtent2D extent = vcsheet::getSwapChainExtent();
-    const VkFormat format = vcsheet::getSwapChainImageFormat();
     const uint32_t bytesPerPixel = bytesPerPixelForFormat(format);
     const VkDeviceSize sourceSize =
         static_cast<VkDeviceSize>(extent.width) * extent.height * bytesPerPixel;
@@ -98,11 +99,11 @@ void ScreenshotManager::saveSwapchainImage(uint32_t imageIndex) const
 
         VkImageMemoryBarrier toTransferBarrier{};
         toTransferBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        toTransferBarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        toTransferBarrier.oldLayout = currentLayout;
         toTransferBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         toTransferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         toTransferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        toTransferBarrier.image = vcsheet::getSwapChainImages()[imageIndex];
+        toTransferBarrier.image = image;
         toTransferBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         toTransferBarrier.subresourceRange.baseMipLevel = 0;
         toTransferBarrier.subresourceRange.levelCount = 1;
@@ -113,7 +114,9 @@ void ScreenshotManager::saveSwapchainImage(uint32_t imageIndex) const
 
         vkCmdPipelineBarrier(
             commandBuffer,
-            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            currentLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+                : VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             0,
             0, nullptr,
@@ -133,7 +136,7 @@ void ScreenshotManager::saveSwapchainImage(uint32_t imageIndex) const
 
         vkCmdCopyImageToBuffer(
             commandBuffer,
-            vcsheet::getSwapChainImages()[imageIndex],
+            image,
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             stagingBuffer,
             1,
@@ -141,14 +144,19 @@ void ScreenshotManager::saveSwapchainImage(uint32_t imageIndex) const
 
         VkImageMemoryBarrier toPresentBarrier = toTransferBarrier;
         toPresentBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        toPresentBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        toPresentBarrier.newLayout = currentLayout;
         toPresentBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        toPresentBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        toPresentBarrier.dstAccessMask =
+            currentLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                ? VK_ACCESS_MEMORY_READ_BIT
+                : VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
         vkCmdPipelineBarrier(
             commandBuffer,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            currentLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+                ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+                : VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             0,
             0, nullptr,
             0, nullptr,

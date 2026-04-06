@@ -7,4 +7,5 @@ struct VulkanPhysicalDeviceConfig
 {
     VkInstance vkInstance = VK_NULL_HANDLE;
     VkSurfaceKHR vkSurface = VK_NULL_HANDLE;
+    bool requirePresentSupport = true;
 };

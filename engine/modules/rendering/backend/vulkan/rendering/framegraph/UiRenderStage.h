@@ -38,19 +38,24 @@ class UiRenderStage : public GtsRenderStage
 {
 public:
     UiRenderStage(RenderResourceManager* resources,
-                  GtsResourceHandle      swapchainHandle,
+                  GtsResourceHandle      outputHandle,
                   GtsFrameStats*         frameStats,
-                  bool                   debugEnabledByDefault)
+                  bool                   debugEnabledByDefault,
+                  VkImageLayout          colorInitialLayout,
+                  VkImageLayout          colorFinalLayout)
         : GtsRenderStage("UiRenderStage")
         , resources(resources)
-        , swapchainHandle(swapchainHandle)
+        , outputHandle(outputHandle)
         , frameStats(frameStats)
+        , colorInitialLayout(colorInitialLayout)
+        , colorFinalLayout(colorFinalLayout)
     {
         // Render pass — LOAD_OP_LOAD, no depth, composites onto the text layer.
         VulkanRenderPassConfig rpConfig;
-        rpConfig.colorFormat        = vcsheet::getSwapChainImageFormat();
+        rpConfig.colorFormat        = vcsheet::getFrameOutputFormat();
         rpConfig.colorLoadOp        = VK_ATTACHMENT_LOAD_OP_LOAD;
-        rpConfig.colorInitialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        rpConfig.colorInitialLayout = colorInitialLayout;
+        rpConfig.colorFinalLayout   = colorFinalLayout;
         rpConfig.hasDepthAttachment = false;
         renderPass = std::make_unique<VulkanRenderPass>(rpConfig);
 
@@ -79,7 +84,7 @@ public:
         pConfig.descriptorSetLayouts = { dssheet::getDescriptorSetLayouts()[2] };
         pipeline = std::make_unique<VulkanPipeline>(pConfig);
 
-        // Framebuffers — swapchain image views only, no depth.
+        // Framebuffers — frame output image views only, no depth.
         FramebufferManagerConfig fbConfig;
         fbConfig.vkRenderpass       = renderPass->getRenderPass();
         fbConfig.hasDepthAttachment = false;
@@ -103,10 +108,10 @@ public:
 
         // Write-after-write serialization orders UiRenderStage after
         // SceneRenderStage — no explicit read declaration needed here.
-        graph.declareWrite(this, swapchainHandle,
+        graph.declareWrite(this, outputHandle,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+            colorFinalLayout);
     }
 
     void record(VkCommandBuffer cmd, GtsFrameGraph& graph,
@@ -137,7 +142,7 @@ public:
         rpInfo.renderPass        = renderPass->getRenderPass();
         rpInfo.framebuffer       = framebuffers->getFramebuffers()[imageIndex];
         rpInfo.renderArea.offset = {0, 0};
-        rpInfo.renderArea.extent = vcsheet::getSwapChainExtent();
+        rpInfo.renderArea.extent = vcsheet::getFrameOutputExtent();
         rpInfo.clearValueCount   = 0;
         rpInfo.pClearValues      = nullptr;
         vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -145,15 +150,15 @@ public:
         VkViewport vp{};
         vp.x        = 0.0f;
         vp.y        = 0.0f;
-        vp.width    = static_cast<float>(vcsheet::getSwapChainExtent().width);
-        vp.height   = static_cast<float>(vcsheet::getSwapChainExtent().height);
+        vp.width    = static_cast<float>(vcsheet::getFrameOutputExtent().width);
+        vp.height   = static_cast<float>(vcsheet::getFrameOutputExtent().height);
         vp.minDepth = 0.0f;
         vp.maxDepth = 1.0f;
         vkCmdSetViewport(cmd, 0, 1, &vp);
 
         VkRect2D scissor{};
         scissor.offset = {0, 0};
-        scissor.extent = vcsheet::getSwapChainExtent();
+        scissor.extent = vcsheet::getFrameOutputExtent();
         vkCmdSetScissor(cmd, 0, 1, &scissor);
 
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getPipeline());
@@ -204,10 +209,12 @@ private:
     std::unique_ptr<VulkanPipeline>       pipeline;
     std::unique_ptr<FramebufferManager>   framebuffers;
     RenderResourceManager*                resources;
-    GtsResourceHandle                     swapchainHandle;
+    GtsResourceHandle                     outputHandle;
     texture_id_type                       fallbackTextureID = 0;
     GtsFrameStats*                        frameStats        = nullptr;
     GtsDebugOverlay                       debugOverlay;
+    VkImageLayout                         colorInitialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    VkImageLayout                         colorFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     // Dynamic buffers — host-visible, persistently mapped, resized on demand.
     static constexpr uint32_t INITIAL_VERTEX_CAP = 1024;

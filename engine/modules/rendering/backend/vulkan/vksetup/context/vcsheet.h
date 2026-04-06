@@ -44,4 +44,12 @@ namespace vcsheet
     inline VkExtent2D& getSwapChainExtent() { return glbcontext->getSwapChainExtent(); }
     inline std::vector<VkImageView>& getSwapChainImageViews() { return glbcontext->getSwapChainImageViews(); }
     inline VkPresentModeKHR getPresentMode() { return glbcontext->getPresentMode(); }
+
+    inline const std::vector<VkImage>& getFrameOutputImages() { return glbcontext->getFrameOutputImages(); }
+    inline const std::vector<VkImageView>& getFrameOutputImageViews() { return glbcontext->getFrameOutputImageViews(); }
+    inline VkFormat getFrameOutputFormat() { return glbcontext->getFrameOutputFormat(); }
+    inline VkExtent2D getFrameOutputExtent() { return glbcontext->getFrameOutputExtent(); }
+    inline VkPresentModeKHR getFrameOutputPresentMode() { return glbcontext->getFrameOutputPresentMode(); }
+    inline bool hasSurfaceSupport() { return glbcontext->hasSurfaceSupport(); }
+    inline bool isHeadless() { return glbcontext->isHeadless(); }
 }

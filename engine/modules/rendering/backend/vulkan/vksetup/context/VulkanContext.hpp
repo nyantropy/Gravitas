@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 #include <vulkan/vulkan.h>
 
 // config of this class
@@ -39,6 +40,11 @@ class VulkanContext
         std::unique_ptr<VulkanPhysicalDevice> vphysicaldevice;
         std::unique_ptr<VulkanLogicalDevice> vlogicaldevice;
         std::unique_ptr<VulkanSwapChain> vswapchain;
+        const std::vector<VkImage>* frameOutputImages = nullptr;
+        const std::vector<VkImageView>* frameOutputImageViews = nullptr;
+        VkFormat frameOutputFormat = VK_FORMAT_UNDEFINED;
+        VkExtent2D frameOutputExtent{1, 1};
+        VkPresentModeKHR frameOutputPresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 
         void setupVkInstance()
         {
@@ -51,7 +57,7 @@ class VulkanContext
 
             // make a new vulkan instance with the config
             VulkanInstanceConfig vInstanceConfig;
-            vInstanceConfig.enableSurfaceSupport = true;
+            vInstanceConfig.enableSurfaceSupport = this->config.enableSurfaceSupport;
             vInstanceConfig.enableValidationLayers = this->config.enableValidationLayers;
             vInstanceConfig.extensions = this->config.vulkanInstanceExtensions;
             vInstanceConfig.applicationName = this->config.applicationName.c_str();
@@ -71,7 +77,8 @@ class VulkanContext
         {
             VulkanPhysicalDeviceConfig physConfig;
             physConfig.vkInstance = this->getInstance();
-            physConfig.vkSurface = this->getSurface();
+            physConfig.vkSurface = this->config.enableSurfaceSupport ? this->getSurface() : VK_NULL_HANDLE;
+            physConfig.requirePresentSupport = this->config.enableSurfaceSupport;
             vphysicaldevice = std::make_unique<VulkanPhysicalDevice>(physConfig);
         }
 
@@ -86,6 +93,7 @@ class VulkanContext
             vldConfig.vkPhysicalDevice = this->getPhysicalDevice();
             vldConfig.physicalDeviceExtensions = this->getPhysicalDeviceExtensions();
             vldConfig.queueFamilyIndices = this->getQueueFamilyIndices();
+            vldConfig.requirePresentQueue = this->config.enableSurfaceSupport;
 
             // vk logical device also has validation layers
             vldConfig.enableValidationLayers = this->config.enableValidationLayers;
@@ -110,10 +118,12 @@ class VulkanContext
         void init()
         {
             setupVkInstance();
-            setupVkSurface();
+            if (this->config.enableSurfaceSupport)
+                setupVkSurface();
             setupVkPhysicalDevice();
             setupVkLogicalDevice();
-            setupVkSwapChain();
+            if (this->config.enableSurfaceSupport)
+                setupVkSwapChain();
         }
 
     public:
@@ -121,6 +131,18 @@ class VulkanContext
         {
             this->config = config;
             this->init();
+            if (vswapchain)
+            {
+                registerFrameOutput(vswapchain->getSwapChainImages(),
+                                    vswapchain->getSwapChainImageViews(),
+                                    vswapchain->getSwapChainImageFormat(),
+                                    vswapchain->getSwapChainExtent(),
+                                    vswapchain->getPresentMode());
+            }
+            else
+            {
+                frameOutputExtent = {this->config.renderWidth, this->config.renderHeight};
+            }
         }
 
         // manual destructor to maintain correct order of destruction
@@ -161,6 +183,27 @@ class VulkanContext
         VkExtent2D& getSwapChainExtent() { return vswapchain->getSwapChainExtent(); }
         std::vector<VkImageView>& getSwapChainImageViews() { return vswapchain->getSwapChainImageViews(); }
         VkPresentModeKHR getPresentMode() const { return vswapchain->getPresentMode(); }
+        bool hasSurfaceSupport() const { return config.enableSurfaceSupport; }
+        bool isHeadless() const { return config.headless; }
+
+        void registerFrameOutput(const std::vector<VkImage>& images,
+                                 const std::vector<VkImageView>& imageViews,
+                                 VkFormat format,
+                                 VkExtent2D extent,
+                                 VkPresentModeKHR presentMode)
+        {
+            frameOutputImages = &images;
+            frameOutputImageViews = &imageViews;
+            frameOutputFormat = format;
+            frameOutputExtent = extent;
+            frameOutputPresentMode = presentMode;
+        }
+
+        const std::vector<VkImage>& getFrameOutputImages() { return *frameOutputImages; }
+        const std::vector<VkImageView>& getFrameOutputImageViews() { return *frameOutputImageViews; }
+        VkFormat getFrameOutputFormat() const { return frameOutputFormat; }
+        VkExtent2D getFrameOutputExtent() const { return frameOutputExtent; }
+        VkPresentModeKHR getFrameOutputPresentMode() const { return frameOutputPresentMode; }
 
         // also exposing the concrete wrapper objects as pointers - this is not needed in the final codebase, but is still
         // included for now as an alternative way of accessing lower level vulkan constructs

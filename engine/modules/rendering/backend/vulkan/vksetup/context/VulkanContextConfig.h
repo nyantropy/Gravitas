@@ -22,7 +22,10 @@ struct VulkanContextConfig
     PresentModePreference presentModePreference = PresentModePreference::Immediate;
 
 
-    bool enableSurfaceSupport;
+    bool enableSurfaceSupport = true;
+    bool headless = false;
+    uint32_t renderWidth = 1;
+    uint32_t renderHeight = 1;
 
     //std::string appname;
 

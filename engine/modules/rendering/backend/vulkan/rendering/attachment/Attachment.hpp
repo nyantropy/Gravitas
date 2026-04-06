@@ -25,7 +25,7 @@ class Attachment
             this->config = config;
 
             // first of all we create an image
-            ImageUtil::createImage(vcsheet::getDevice(), vcsheet::getSwapChainExtent().width, vcsheet::getSwapChainExtent().height,
+            ImageUtil::createImage(vcsheet::getDevice(), config.width, config.height,
             config.format, config.tiling, config.imageUsageFlags, this->image);
 
             // then we allocate memory on the device

@@ -11,7 +11,7 @@
 class FrameManager 
 {
     public:
-        FrameManager();
+        explicit FrameManager(size_t frameOutputImageCount);
         ~FrameManager();
 
         FrameResources& getFrame(size_t frameIndex) { return frames[frameIndex]; }
@@ -35,8 +35,9 @@ class FrameManager
         VkSemaphore createSemaphore();
         VkFence createFence();
         VkCommandBuffer allocateCommandBuffer();
+        size_t frameOutputImageCount = 0;
 
         std::vector<FrameResources> frames;                // based per frame
-        std::vector<VkSemaphore> renderFinishedSemaphores; // based on swapchain image
-        std::vector<VkFence> imagesInFlight;               // based on swapchain image
+        std::vector<VkSemaphore> renderFinishedSemaphores; // based on frame output image
+        std::vector<VkFence> imagesInFlight;               // based on frame output image
 };

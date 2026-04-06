@@ -32,17 +32,20 @@ public:
     SceneRenderStage(RenderResourceManager* resources,
                      VkImageView            depthImageView,
                      VkFormat               depthFormat,
-                     GtsResourceHandle      swapchainHandle,
-                     GtsResourceHandle      depthHandle)
+                     GtsResourceHandle      outputHandle,
+                     GtsResourceHandle      depthHandle,
+                     VkImageLayout          colorFinalLayout)
         : GtsRenderStage("SceneRenderStage")
         , resources(resources)
-        , swapchainHandle(swapchainHandle)
+        , outputHandle(outputHandle)
         , depthHandle(depthHandle)
+        , colorFinalLayout(colorFinalLayout)
     {
         // Render pass
         VulkanRenderPassConfig rpConfig;
-        rpConfig.colorFormat = vcsheet::getSwapChainImageFormat();
+        rpConfig.colorFormat = vcsheet::getFrameOutputFormat();
         rpConfig.depthFormat = depthFormat;
+        rpConfig.colorFinalLayout = colorFinalLayout;
         renderPass = std::make_unique<VulkanRenderPass>(rpConfig);
 
         // Vertex input: binding 0 = per-vertex Vertex, binding 1 = per-instance objectSSBOSlot (uint32).
@@ -112,12 +115,12 @@ public:
     {
         graph.requestData<std::vector<RenderCommand>>(this);
 
-        // The scene render pass outputs the swapchain image in PRESENT_SRC_KHR
-        // (the render pass finalLayout) and the depth in DEPTH_STENCIL_ATTACHMENT_OPTIMAL.
-        graph.declareWrite(this, swapchainHandle,
+        // The scene render pass outputs the frame image in the layout chosen by the
+        // active frame output target and the depth in DEPTH_STENCIL_ATTACHMENT_OPTIMAL.
+        graph.declareWrite(this, outputHandle,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+            colorFinalLayout);
 
         graph.declareWrite(this, depthHandle,
             VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
@@ -135,7 +138,7 @@ public:
         renderPassInfo.renderPass        = renderPass->getRenderPass();
         renderPassInfo.framebuffer       = framebuffers->getFramebuffers()[imageIndex];
         renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = vcsheet::getSwapChainExtent();
+        renderPassInfo.renderArea.extent = vcsheet::getFrameOutputExtent();
 
         std::array<VkClearValue, 2> clearValues{};
         clearValues[0].color        = {{0.0f, 0.0f, 0.0f, 1.0f}};
@@ -149,15 +152,15 @@ public:
         VkViewport viewport{};
         viewport.x        = 0.0f;
         viewport.y        = 0.0f;
-        viewport.width    = static_cast<float>(vcsheet::getSwapChainExtent().width);
-        viewport.height   = static_cast<float>(vcsheet::getSwapChainExtent().height);
+        viewport.width    = static_cast<float>(vcsheet::getFrameOutputExtent().width);
+        viewport.height   = static_cast<float>(vcsheet::getFrameOutputExtent().height);
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(cmd, 0, 1, &viewport);
 
         VkRect2D scissor{};
         scissor.offset = {0, 0};
-        scissor.extent = vcsheet::getSwapChainExtent();
+        scissor.extent = vcsheet::getFrameOutputExtent();
         vkCmdSetScissor(cmd, 0, 1, &scissor);
 
         // No active camera yet — skip all draws this frame.
@@ -294,8 +297,9 @@ private:
     std::unique_ptr<VulkanPipeline>     pipelineDoubleSided; // no culling
     std::unique_ptr<FramebufferManager> framebuffers;
     RenderResourceManager*              resources;
-    GtsResourceHandle                   swapchainHandle;
+    GtsResourceHandle                   outputHandle;
     GtsResourceHandle                   depthHandle;
+    VkImageLayout                       colorFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
     // Per-frame host-visible instance data buffers: objectSSBOSlot (uint32) per instance.
     // Filled each frame before recording; one buffer per frame in flight so CPU writes

@@ -7,7 +7,10 @@
 class ScreenshotManager
 {
     public:
-        void saveSwapchainImage(uint32_t imageIndex) const;
+        void saveImage(VkImage image,
+                       VkFormat format,
+                       VkExtent2D extent,
+                       VkImageLayout currentLayout) const;
 
     private:
         static uint32_t bytesPerPixelForFormat(VkFormat format);

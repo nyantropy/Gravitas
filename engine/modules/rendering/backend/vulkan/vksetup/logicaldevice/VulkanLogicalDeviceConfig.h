@@ -11,6 +11,7 @@ struct VulkanLogicalDeviceConfig
     VkPhysicalDevice vkPhysicalDevice = VK_NULL_HANDLE;
     QueueFamilyIndices queueFamilyIndices;
     std::vector<const char*> physicalDeviceExtensions;
+    bool requirePresentQueue = true;
 
     bool enableValidationLayers;
     std::vector<const char*> vkInstanceValidationLayers;

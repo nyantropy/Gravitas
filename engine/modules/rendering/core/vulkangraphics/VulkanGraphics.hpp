@@ -32,6 +32,8 @@
 #include "GtsEventBus.hpp"
 #include "IGtsGraphicsModule.hpp"
 
+#include <iostream>
+
 class VulkanGraphics : public IGtsGraphicsModule
 {
 public:
@@ -50,7 +52,8 @@ public:
 
     VulkanGraphics(const GraphicsConfig& config): config(config)
     {
-        createWindow();
+        if (!config.headless)
+            createWindow();
         createContext();
         createRenderer();
     }
@@ -71,23 +74,55 @@ public:
     // create a concrete Vulkan Context object, accessible with an accessheet on a global basis
     void createContext()
     {
-        uint32_t glfwExtensionCount = 0;
-        const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
         VulkanContextConfig vcConfig;
         vcConfig.enableValidationLayers   = config.enableValidationLayers;
-        vcConfig.vulkanInstanceExtensions = std::vector<const char*>(glfwExtensions, glfwExtensions + glfwExtensionCount);
-        vcConfig.outputWindowPtr          = windowManager->getOutputWindow();
+        vcConfig.headless                 = config.headless;
+        vcConfig.enableSurfaceSupport     = !config.headless;
+        vcConfig.renderWidth              = config.window.width;
+        vcConfig.renderHeight             = config.window.height;
         vcConfig.presentModePreference    = config.presentModePreference;
+
+        if (!config.headless)
+        {
+            uint32_t glfwExtensionCount = 0;
+            const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+            vcConfig.vulkanInstanceExtensions =
+                std::vector<const char*>(glfwExtensions, glfwExtensions + glfwExtensionCount);
+            vcConfig.outputWindowPtr = windowManager->getOutputWindow();
+        }
+
         vContext = std::make_unique<VulkanContext>(vcConfig);
         vcsheet::SetContext(vContext.get());
+
+        if (config.headless)
+        {
+            std::cout << "Running in headless mode" << std::endl;
+            std::cout << "Headless output resolution: "
+                      << config.window.width << "x" << config.window.height << std::endl;
+        }
+        else
+        {
+            std::cout << "Running in windowed mode" << std::endl;
+        }
     }
 
     // create the forward renderer
     void createRenderer()
     {
         RendererConfig rConfig;
+        rConfig.headless = config.headless;
+        rConfig.renderWidth = config.window.width;
+        rConfig.renderHeight = config.window.height;
+        rConfig.maxScreenshotsPerRun = config.maxScreenshotsPerRun;
+        rConfig.minSecondsBetweenScreenshots = config.minSecondsBetweenScreenshots;
+        rConfig.captureScreenshotOnFirstFrame = false;
+        rConfig.autoScreenshotDelayFrames = config.headless ? 60u : 0u;
         renderer = std::make_unique<ForwardRenderer>(rConfig, eventBus);
+        if (config.headless)
+        {
+            std::cout << "Headless offscreen format: "
+                      << static_cast<int>(vcsheet::getFrameOutputFormat()) << std::endl;
+        }
     }
 
     void cleanup()
@@ -118,7 +153,8 @@ public:
 
     void pollWindowEvents() override
     {
-        windowManager->getOutputWindow()->pollEvents();
+        if (windowManager)
+            windowManager->getOutputWindow()->pollEvents();
     }
 
     void shutdown() override
@@ -129,16 +165,26 @@ public:
 
     bool isWindowOpen() const override
     {
+        if (!windowManager)
+            return true;
         return !windowManager->getOutputWindow()->shouldClose();
     }
 
     float getAspectRatio() const override
     {
+        if (!windowManager)
+            return static_cast<float>(config.window.width) / static_cast<float>(config.window.height);
         return windowManager->getOutputWindow()->getAspectRatio();
     }
 
     void getViewportSize(int& width, int& height) const override
     {
+        if (!windowManager)
+        {
+            width = static_cast<int>(config.window.width);
+            height = static_cast<int>(config.window.height);
+            return;
+        }
         windowManager->getOutputWindow()->getSize(width, height);
     }
 

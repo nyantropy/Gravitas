@@ -4,6 +4,9 @@
 
 struct AttachmentConfig 
 {
+    uint32_t width = 1;
+    uint32_t height = 1;
+
     // image 
     VkFormat format = VK_FORMAT_UNDEFINED;
     VkImageTiling tiling;

@@ -3,6 +3,8 @@
 VulkanPhysicalDevice::VulkanPhysicalDevice(VulkanPhysicalDeviceConfig config)
 {
     this->config = config;
+    if (this->config.requirePresentSupport)
+        physicalDeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     this->pickPhysicalDevice();
 }
 
@@ -63,19 +65,26 @@ void VulkanPhysicalDevice::pickPhysicalDevice()
 
 bool VulkanPhysicalDevice::isDeviceSuitable(VkPhysicalDevice device, QueueFamilyIndices indices) 
 {
-    bool extensionsSupported = checkDeviceExtensionSupport(device);
+    bool extensionsSupported = true;
+    bool swapChainAdequate = true;
 
-    bool swapChainAdequate = false;
-    if (extensionsSupported) 
+    if (config.requirePresentSupport)
     {
-        swapChainSupportDetails = querySwapChainSupport(device);
-        swapChainAdequate = !swapChainSupportDetails.formats.empty() && !swapChainSupportDetails.presentModes.empty();
+        extensionsSupported = checkDeviceExtensionSupport(device);
+        if (extensionsSupported) 
+        {
+            swapChainSupportDetails = querySwapChainSupport(device);
+            swapChainAdequate = !swapChainSupportDetails.formats.empty() && !swapChainSupportDetails.presentModes.empty();
+        }
     }
 
     VkPhysicalDeviceFeatures supportedFeatures;
     vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
-    return indices.isComplete() && extensionsSupported && swapChainAdequate  && supportedFeatures.samplerAnisotropy;
+    return indices.isComplete(config.requirePresentSupport)
+        && extensionsSupported
+        && swapChainAdequate
+        && supportedFeatures.samplerAnisotropy;
 }
 
 SwapChainSupportDetails VulkanPhysicalDevice::querySwapChainSupport(VkPhysicalDevice device) 
@@ -141,15 +150,16 @@ QueueFamilyIndices VulkanPhysicalDevice::findQueueFamilies(VkPhysicalDevice devi
             indices.graphicsFamily = i;
         }
 
-        VkBool32 presentSupport = false;
-        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, this->config.vkSurface, &presentSupport);
-
-        if (presentSupport) 
+        if (config.requirePresentSupport)
         {
-            indices.presentFamily = i;
+            VkBool32 presentSupport = false;
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, this->config.vkSurface, &presentSupport);
+
+            if (presentSupport) 
+                indices.presentFamily = i;
         }
 
-        if (indices.isComplete()) 
+        if (indices.isComplete(config.requirePresentSupport)) 
         {
             break;
         }

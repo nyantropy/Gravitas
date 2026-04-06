@@ -53,6 +53,7 @@ class GravitasEngine
         // the engine also has its own command buffer, which can be filled by lower level architectures, and will lead
         // to the engine executing pre defined functions like pausing, or changing the scene, etc..
         GtsCommandBuffer engineCommands;
+        bool engineRunning = true;
 
         void createSceneContext()
         {
@@ -169,6 +170,7 @@ class GravitasEngine
                         sceneManager->getActiveScene()->onLoad(sceneContext, cmd.transitionData.get());
                         break;
                     case GtsCommand::Type::Quit:
+                        engineRunning = false;
                         break;
                 }
             }
@@ -208,9 +210,10 @@ class GravitasEngine
         void start()
         {
             timer = std::make_unique<Timer>();
+            engineRunning = true;
 
             // order in the function calls matters a lot, especially for the input system!!!
-            while (platform.isWindowOpen())
+            while (engineRunning && platform.isWindowOpen())
             {
                 // tick the engine timer
                 float realDt = timer->tick();
@@ -221,7 +224,11 @@ class GravitasEngine
 
                 // engine-level actions (pause, quit) — run before tick advance.
                 auto* actions = platform.getActionManager();
-                if (actions->isActionPressed(GtsAction::CloseApplication)) break;
+                if (actions->isActionPressed(GtsAction::CloseApplication))
+                {
+                    engineRunning = false;
+                    break;
+                }
                 if (actions->isActionPressed(GtsAction::TogglePause))
                     gameLoop.paused = !gameLoop.paused;
                 if (actions->isActionPressed(GtsAction::DebugLayerToggle))
