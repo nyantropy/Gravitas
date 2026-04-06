@@ -22,8 +22,8 @@
 // active CameraGpuComponent.  No Vulkan types; no pointers into ECS memory.
 //
 // Camera selection is driven by CameraGpuComponent::active, which is written
-// by both CameraGpuSystem (default cameras) and custom override systems such
-// as TetrisCameraSystem.  No dependency on CameraDescriptionComponent.
+// by both CameraGpuSystem (default cameras) and scene-specific override
+// systems.  No dependency on CameraDescriptionComponent.
 //
 // Frustum culling is applied when frustumCullingEnabled is true (set at
 // construction time from EngineConfig).  Entities without a BoundsComponent

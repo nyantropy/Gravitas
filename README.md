@@ -1,6 +1,6 @@
 # Gravitas Engine
 
-A work-in-progress C++20 Vulkan game engine with an ECS core, a two-stage frame graph renderer, and a separate retained UI Graph. Four demo applications are included: Tetris, a dungeon crawler prototype, and two test scenes.
+A C++20 Vulkan engine with an ECS core, a two-stage frame graph renderer, and a retained UI graph. The repository now contains the reusable engine plus three bundled validation scenes: `GtsScene1`, `GtsScene2`, and `GtsScene3`.
 
 ---
 
@@ -11,7 +11,7 @@ A work-in-progress C++20 Vulkan game engine with an ECS core, a two-stage frame 
 - **Vulkan SDK** — install via package manager or from [vulkan.lunarg.com](https://vulkan.lunarg.com)
   - Arch: `sudo pacman -S vulkan-devel`
   - Ubuntu/Debian: `sudo apt install libvulkan-dev vulkan-tools`
-- **GLFW** — fetched and built automatically by CMake via FetchContent. No manual install needed.
+- **GLFW** — preferred from the system (`pkg-config` / CMake package). CMake falls back to `FetchContent` only when no local package is available.
 - **GLM** — bundled in `external/glm/`. No install needed.
 - GCC 10+ or Clang 12+
 
@@ -19,7 +19,7 @@ A work-in-progress C++20 Vulkan game engine with an ECS core, a two-stage frame 
 - **CMake 3.20+**
 - **Vulkan SDK** — download from [vulkan.lunarg.com](https://vulkan.lunarg.com). Install to the default location so the `VULKAN_SDK` environment variable is set automatically.
 - **Visual Studio 2022** with the "Desktop development with C++" workload, or MinGW-w64 (w64devkit / MSYS2)
-- **GLFW** — fetched automatically by CMake. No install needed.
+- **GLFW** — preferred from the system or an already-installed CMake package. CMake falls back to `FetchContent` when needed.
 - **GLM** — bundled. No install needed.
 
 ---
@@ -30,50 +30,45 @@ A work-in-progress C++20 Vulkan game engine with an ECS core, a two-stage frame 
 ```bash
 git clone https://github.com/nyantropy/Gravitas.git
 cd Gravitas
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build . --parallel
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
 ```
 
 ### Windows — MinGW
 ```bash
-mkdir build && cd build
-cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-cmake --build . --parallel
+cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+```
+
+### Engine Only
+```bash
+cd engine
+cmake -B build
+cmake --build build --parallel
 ```
 
 ---
 
 ## Running
 
-Shaders and engine-owned resources resolve relative to the engine directory, so the engine works both standalone and when included via `add_subdirectory(...)`.
+Shaders and engine-owned resources resolve relative to the engine root, so the engine works both standalone and when included via `add_subdirectory(engine)`.
 
 ```bash
-./build/applications/GravitasTetris/GravitasTetris
-./build/applications/DungeonCrawler/DungeonCrawler
 ./build/applications/GtsScene1/GtsScene1
 ./build/applications/GtsScene2/GtsScene2
+./build/applications/GtsScene3/GtsScene3
 ```
 
 ---
 
 ## Key Bindings
 
-### All Applications
+### All Scenes
 | Key | Action |
 |-----|--------|
 | Escape | Quit |
 | F3 | Toggle debug stats overlay |
 | P | Pause / Resume simulation |
-
-### Dungeon Crawler
-| Key | Action |
-|-----|--------|
-| W / S | Move forward / backward |
-| A / D | Strafe left / right |
-| Q / E | Turn left / right |
-| Space | Attack (1 damage, 0.4 s cooldown) |
-| T | Toggle debug bird's-eye camera |
 
 ### GtsScene2 — Frustum Culling Test
 | Key | Action |
@@ -105,7 +100,7 @@ If `glslc` is not found, CMake warns and the checked-in SPIRVs are used as-is.
 | Dependency | How provided |
 |------------|-------------|
 | Vulkan SDK | System — `find_package(Vulkan REQUIRED)` |
-| GLFW | CMake FetchContent (auto-downloaded at configure time) |
+| GLFW | System package when available, otherwise CMake FetchContent fallback |
 | GLM | Bundled — `external/glm/` |
 | stb_image | Bundled — `external/stb/` |
 | tinyobjloader | Bundled — `external/` |

@@ -17,7 +17,7 @@
 // Baseline orbit camera installed automatically by installRendererFeature().
 // Binds arrow keys to zoom/orbit on first update.
 // Skips any camera entity marked with CameraControlOverrideComponent so that
-// application-specific control systems (e.g. TetrisCameraControlSystem) take over.
+// application-specific control systems take over.
 // Note: CameraOverrideComponent (GPU matrix ownership) is orthogonal and not checked here.
 class DefaultCameraControlSystem : public ECSControllerSystem
 {

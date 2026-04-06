@@ -13,6 +13,6 @@
 //                                    CameraGpuSystem is NOT affected.
 //
 // A camera can hold both, one, or neither of these components independently.
-// Tetris uses both: a custom control system drives orbit/zoom intent, and a
-// custom GPU system computes the telephoto matrices from that intent.
+// Scene-specific camera systems can override input handling and matrix
+// generation separately.
 struct CameraControlOverrideComponent {};

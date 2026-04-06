@@ -92,7 +92,7 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent<AnimationComponent>(cube3, anim3);
         }
 
-        // gameplay-only camera setup — no GPU resource calls
+        // scene-level camera setup — no GPU resource calls
         void mainCamera()
         {
             Entity camera = ecsWorld.createEntity();

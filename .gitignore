@@ -6,6 +6,7 @@
 /.claude/
 CLAUDE.md
 AGENTS.md
+ARCHITECTURE.md
 /.codex/
 .bash_profile
 .bashrc
@@ -23,8 +24,7 @@ HEAD
 hooks
 objects
 refs
-/GtsScene3
-/DungeonCrawler
+
 /GtsScene1
 /GtsScene2
-/GravitasTetris
+/GtsScene3

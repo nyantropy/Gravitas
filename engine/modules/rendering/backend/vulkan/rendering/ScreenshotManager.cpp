@@ -53,7 +53,7 @@ std::string ScreenshotManager::allocateScreenshotPath()
 {
     namespace fs = std::filesystem;
 
-    const fs::path directory = fs::path(GRAVITAS_PROJECT_ROOT) / "screenshots";
+    const fs::path directory = fs::path(GRAVITAS_ENGINE_ROOT) / "screenshots";
     fs::create_directories(directory);
 
     for (uint32_t index = 0; index < 10000; ++index)

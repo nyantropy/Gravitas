@@ -5,11 +5,9 @@ PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$PROJECT_ROOT/build_release"
 
 EXECUTABLES=(
-    "DungeonCrawler"
     "GtsScene1"
     "GtsScene2"
     "GtsScene3"
-    "GravitasTetris"
 )
 
 CLEAN=0
