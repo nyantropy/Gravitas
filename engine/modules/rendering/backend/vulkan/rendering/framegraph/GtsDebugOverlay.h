@@ -8,6 +8,7 @@
 #include "GlmConfig.h"
 #include "BitmapFont.h"
 #include "BitmapFontLoader.h"
+#include "RetroFontAtlas.h"
 #include "GtsFrameStats.h"
 #include "UiCommand.h"
 #include "IResourceProvider.hpp"
@@ -29,12 +30,12 @@ public:
         GRAVITAS_ENGINE_RESOURCES "/fonts/retrofont.png";
 
     // Atlas layout constants — must match the font file.
-    static constexpr int   ATLAS_W     = 64;
-    static constexpr int   ATLAS_H     = 40;
-    static constexpr int   CELL_W      = 8;
-    static constexpr int   CELL_H      = 8;
-    static constexpr int   ATLAS_COLS  = 8;
-    static constexpr float LINE_HEIGHT = 1.2f;
+    static constexpr int   ATLAS_W     = RetroFontAtlas::ATLAS_W;
+    static constexpr int   ATLAS_H     = RetroFontAtlas::ATLAS_H;
+    static constexpr int   CELL_W      = RetroFontAtlas::CELL_W;
+    static constexpr int   CELL_H      = RetroFontAtlas::CELL_H;
+    static constexpr int   ATLAS_COLS  = RetroFontAtlas::ATLAS_COLS;
+    static constexpr float LINE_HEIGHT = RetroFontAtlas::LINE_HEIGHT;
     static constexpr float FONT_SCALE  = 0.026f;
 
     // Screen-space position of the debug overlay (normalized, top-right area).
@@ -48,7 +49,7 @@ public:
             DEBUG_FONT_PATH,
             ATLAS_W, ATLAS_H,
             CELL_W, CELL_H, ATLAS_COLS,
-            "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ []/.",
+            std::string(RetroFontAtlas::CHAR_ORDER),
             LINE_HEIGHT,
             true);
         initialised = true;

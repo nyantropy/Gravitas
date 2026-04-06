@@ -13,6 +13,7 @@
 #include "BitmapFontLoader.h"
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
+#include "RetroFontAtlas.h"
 #include "DebugCameraStateComponent.h"
 #include "ECSControllerSystem.hpp"
 #include "GtsAction.h"
@@ -274,9 +275,10 @@ inline void GtsScene3::createOverlay(SceneContext& ctx)
     overlayFont = BitmapFontLoader::load(
         ctx.resources,
         GraphicsConstants::ENGINE_RESOURCES + "/fonts/retrofont.png",
-        64, 40, 8, 8, 8,
-        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ []/:.-+",
-        1.2f, true);
+        RetroFontAtlas::ATLAS_W, RetroFontAtlas::ATLAS_H,
+        RetroFontAtlas::CELL_W, RetroFontAtlas::CELL_H, RetroFontAtlas::ATLAS_COLS,
+        std::string(RetroFontAtlas::CHAR_ORDER),
+        RetroFontAtlas::LINE_HEIGHT, true);
 
     overlayHandle = ctx.ui->createNode(UiNodeType::Text);
     UiLayoutSpec overlayLayout;

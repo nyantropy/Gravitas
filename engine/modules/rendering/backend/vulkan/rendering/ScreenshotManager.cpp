@@ -11,6 +11,7 @@
 #include <stb_image_write.h>
 
 #include "BufferUtil.hpp"
+#include "GtsPaths.h"
 #include "vcsheet.h"
 
 uint32_t ScreenshotManager::bytesPerPixelForFormat(VkFormat format)
@@ -53,7 +54,7 @@ std::string ScreenshotManager::allocateScreenshotPath()
 {
     namespace fs = std::filesystem;
 
-    const fs::path directory = fs::path(GRAVITAS_ENGINE_ROOT) / "screenshots";
+    const fs::path directory = GtsPaths::GetProjectRoot() / "screenshots";
     fs::create_directories(directory);
 
     for (uint32_t index = 0; index < 10000; ++index)
