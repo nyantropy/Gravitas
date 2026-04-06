@@ -160,8 +160,12 @@ class GravitasEngine
                         gameLoop.paused = !gameLoop.paused;
                         std::cout << (gameLoop.paused ? "Paused" : "Resumed") << std::endl;
                         break;
+                    case GtsCommand::Type::Screenshot:
+                        platform.getGraphics()->requestScreenshot();
+                        break;
                     case GtsCommand::Type::LoadScene:
                     case GtsCommand::Type::ChangeScene:
+                        platform.waitForGraphicsIdle();
                         uiSystem->clear();
                         sceneContext.physics = nullptr;
                         sceneContext.events = GtsEventBus{};

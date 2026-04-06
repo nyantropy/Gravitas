@@ -12,6 +12,4 @@ struct RendererConfig
     uint32_t renderHeight = 1;
     uint32_t maxScreenshotsPerRun = 64;
     float minSecondsBetweenScreenshots = 0.25f;
-    bool captureScreenshotOnFirstFrame = false;
-    uint32_t autoScreenshotDelayFrames = 0;
 };

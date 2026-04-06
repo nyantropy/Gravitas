@@ -10,6 +10,7 @@ struct GtsCommand
     enum class Type
     {
         TogglePause,
+        Screenshot,
         LoadScene,
         ChangeScene,
         Quit

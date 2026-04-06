@@ -35,5 +35,19 @@ struct GtsCommandBuffer
         commands.push_back(cmd);
     }
 
+    void requestScreenshot()
+    {
+        GtsCommand cmd;
+        cmd.type = GtsCommand::Type::Screenshot;
+        commands.push_back(std::move(cmd));
+    }
+
+    void requestQuit()
+    {
+        GtsCommand cmd;
+        cmd.type = GtsCommand::Type::Quit;
+        commands.push_back(std::move(cmd));
+    }
+
     std::vector<GtsCommand> commands;
 };

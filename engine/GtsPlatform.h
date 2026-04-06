@@ -82,6 +82,11 @@ class GtsPlatform
             graphics->toggleDebugOverlay();
         }
 
+        void waitForGraphicsIdle()
+        {
+            graphics->waitIdle();
+        }
+
         void dispatchGraphicsEvents()
         {
             graphics->getEventBus().dispatch();

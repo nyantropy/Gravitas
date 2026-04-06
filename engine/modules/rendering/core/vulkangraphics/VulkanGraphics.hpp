@@ -115,8 +115,6 @@ public:
         rConfig.renderHeight = config.window.height;
         rConfig.maxScreenshotsPerRun = config.maxScreenshotsPerRun;
         rConfig.minSecondsBetweenScreenshots = config.minSecondsBetweenScreenshots;
-        rConfig.captureScreenshotOnFirstFrame = false;
-        rConfig.autoScreenshotDelayFrames = config.autoScreenshotDelayFrames;
         renderer = std::make_unique<ForwardRenderer>(rConfig, eventBus);
         if (config.headless)
         {
@@ -149,6 +147,11 @@ public:
     void requestScreenshot() override
     {
         renderer->requestScreenshot();
+    }
+
+    void waitIdle() override
+    {
+        vkDeviceWaitIdle(vcsheet::getDevice());
     }
 
     void pollWindowEvents() override

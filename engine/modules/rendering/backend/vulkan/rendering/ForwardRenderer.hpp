@@ -68,7 +68,6 @@ class ForwardRenderer : Renderer
         bool screenshotRequested = false;
         uint32_t screenshotsTaken = 0;
         uint32_t renderedFrameCount = 0;
-        uint32_t autoScreenshotDelayFrames = 0;
         uint32_t diagnosticFramesLogged = 0;
         float secondsSinceLastScreenshot = 1000.0f;
         bool maxScreenshotWarningLogged = false;
@@ -283,8 +282,6 @@ class ForwardRenderer : Renderer
         ForwardRenderer(RendererConfig config, GtsEventBus& eventBus)
             : Renderer(config), eventBus(eventBus)
         {
-            screenshotRequested = config.captureScreenshotOnFirstFrame;
-            autoScreenshotDelayFrames = config.autoScreenshotDelayFrames;
             createResources();
         }
 
@@ -312,14 +309,6 @@ class ForwardRenderer : Renderer
         {
             const auto frameStart = std::chrono::steady_clock::now();
             renderedFrameCount += 1;
-
-            if (!screenshotRequested
-                && autoScreenshotDelayFrames > 0
-                && renderedFrameCount >= autoScreenshotDelayFrames)
-            {
-                screenshotRequested = true;
-                autoScreenshotDelayFrames = 0;
-            }
 
             // Store the pre-populated stats from the engine; triangleCount is
             // filled in after frameGraph.execute() inside recordCommandBuffer.

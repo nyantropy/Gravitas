@@ -21,6 +21,7 @@ public:
                              const GtsFrameStats& stats) = 0;
     virtual void toggleDebugOverlay() = 0;
     virtual void requestScreenshot() = 0;
+    virtual void waitIdle() = 0;
     virtual void pollWindowEvents() = 0;
     virtual void shutdown() = 0;
     virtual bool isWindowOpen() const = 0;

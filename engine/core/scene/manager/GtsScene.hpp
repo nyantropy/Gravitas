@@ -118,11 +118,11 @@ class GtsScene
                     meshGpu.ownsProceduralMeshResource = false;
                 });
 
-            ecsWorld.addControllerSystem<RenderGpuSystem>();
-            ecsWorld.addControllerSystem<CameraGpuSystem>();
             ecsWorld.addControllerSystem<StaticMeshBindingSystem>();
             ecsWorld.addControllerSystem<ProceduralMeshBindingSystem>();
             ecsWorld.addControllerSystem<WorldTextBindingSystem>();
+            ecsWorld.addControllerSystem<RenderGpuSystem>();
+            ecsWorld.addControllerSystem<CameraGpuSystem>();
             ecsWorld.addControllerSystem<DebugFreeCameraSystem>();
             ecsWorld.addControllerSystem<CameraBindingSystem>();
             ecsWorld.addControllerSystem<DefaultCameraControlSystem>();
