@@ -8,6 +8,7 @@ CLAUDE.md
 AGENTS.md
 ARCHITECTURE.md
 /.codex/
+.codex
 .bash_profile
 .bashrc
 .gitconfig
