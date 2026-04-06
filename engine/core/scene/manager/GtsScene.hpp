@@ -21,7 +21,8 @@
 #include "PhysicsDebugRenderer.h"
 
 
-// core idea: override this class in whatever application you are making, and create your own scene using entities and components
+// Override this class to define a reusable engine scene in terms of entities,
+// components, and engine systems.
 class GtsScene
 {
     protected:
@@ -45,7 +46,7 @@ class GtsScene
                             const GtsSceneTransitionData* data = nullptr) = 0;
 
         // Called once per simulation tick at the fixed tick rate.
-        // Game logic, AI, movement, and turn processing go here.
+        // Deterministic scene simulation goes here.
         virtual void onUpdateSimulation(SceneContext& ctx) = 0;
 
         // Called once per rendered frame regardless of tick rate.
@@ -78,7 +79,7 @@ class GtsScene
             physicsFeatureInstalled = true;
         }
 
-        // pre defined rendering systems - should be called once in the onLoad() function of whatever scene you design
+        // Predefined rendering systems. Call once from onLoad() after scene setup.
         inline void installRendererFeature(SceneContext& ctx)
         {
             if (rendererFeatureInstalled)

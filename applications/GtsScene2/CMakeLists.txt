@@ -20,7 +20,7 @@ target_include_directories(GtsScene2 PRIVATE
 target_link_libraries(GtsScene2 PRIVATE GravitasEngine)
 
 set_target_properties(GtsScene2 PROPERTIES
-    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    VS_DEBUGGER_WORKING_DIRECTORY "${GTS_ENGINE_ROOT}"
 )
 if (WIN32)
     set_target_properties(GtsScene2 PROPERTIES OUTPUT_NAME "GtsScene2.exe")

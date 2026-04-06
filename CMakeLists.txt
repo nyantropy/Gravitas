@@ -7,9 +7,12 @@ endif()
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release")
 set(GTS_ENGINE_ROOT "${CMAKE_CURRENT_LIST_DIR}")
+option(GTS_BUILD_TEST_SCENES "Build bundled engine validation scenes" ON)
 
 add_subdirectory(engine)
-add_subdirectory(applications)
+if(GTS_BUILD_TEST_SCENES AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/applications/CMakeLists.txt")
+    add_subdirectory(applications)
+endif()
 
 # ── Shader compilation ─────────────────────────────────────────────────────────
 find_program(GLSLC glslc

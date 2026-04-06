@@ -5,7 +5,7 @@
 // Wraps any IInputSource and gates all key queries to false when the
 // simulation is paused.
 //
-// Purpose: systems that drive game simulation (e.g. TetrisInputSystem)
+// Purpose: systems that drive scene simulation
 // call InputActionManager::update(*ctx.inputSource), so filtering here
 // prevents held keys from being seen by simulation-coupled controllers
 // while the simulation is paused.

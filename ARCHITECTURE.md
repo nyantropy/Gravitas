@@ -6,7 +6,7 @@ Written for a developer or AI agent with no prior context. All content reflects 
 
 ## 1. Engine Overview
 
-Gravitas is a C++20 Vulkan game engine built around two parallel systems: an **ECS** (Entity Component System) for game logic and world-space rendering, and a **UiTree** for retained screen-space UI elements. The renderer uses a two-stage frame graph (`SceneRenderStage` → `UiRenderStage`), driven by typed command extractors that read from the ECS and the UI tree respectively. The game loop runs simulation at a fixed timestep; controller systems and rendering run every frame regardless of pause state. GLFW handles windowing and input. GLM, stb_image, and tinyobjloader are bundled; GLFW is fetched by CMake at configure time.
+Gravitas is a C++20 Vulkan engine built around two parallel systems: an **ECS** (Entity Component System) for scene simulation and world-space rendering, and a **UiTree** for retained screen-space UI elements. The renderer uses a two-stage frame graph (`SceneRenderStage` → `UiRenderStage`), driven by typed command extractors that read from the ECS and the UI tree respectively. The game loop runs simulation at a fixed timestep; controller systems and rendering run every frame regardless of pause state. GLFW handles windowing and input. GLM, stb_image, and tinyobjloader are bundled; GLFW is resolved from the system when available and otherwise fetched by CMake.
 
 ---
 
@@ -14,11 +14,10 @@ Gravitas is a C++20 Vulkan game engine built around two parallel systems: an **E
 
 ```
 Gravitas/
-├── applications/           # Four standalone demo applications
-│   ├── GravitasTetris/     # Tetris — reference application pattern
-│   ├── DungeonCrawler/     # First-person dungeon prototype
+├── applications/           # Bundled validation scenes
 │   ├── GtsScene1/          # Basic scene / scratch pad
-│   └── GtsScene2/          # Frustum culling test scene
+│   ├── GtsScene2/          # Frustum culling test scene
+│   └── GtsScene3/          # Renderer stress test
 ├── engine/
 │   ├── GravitasEngine.hpp  # Engine entry point — owns everything
 │   ├── GtsPlatform.h       # OS subsystems (graphics, input, window)
@@ -33,14 +32,14 @@ Gravitas/
 │   └── modules/
 │       ├── rendering/      # gravitas_rendering + Vulkan backend
 │       │   ├── core/       # UiTree, font loader, windowing, interfaces
-│       │   ├── ecssetup/   # Binding systems, GPU components, GPU systems
+│       │   ├── ecssetup/   # Camera + geometry binding/GPU systems
 │       │   └── backend/vulkan/  # gravitas_vulkan_setup + gravitas_vulkan_backend
-│       ├── camera/         # CameraDescriptionComponent, CameraGpuSystem, CameraBindingSystem
+│       ├── physics/        # Physics world, simulation, debug rendering
 │       ├── transform/      # TransformComponent
 │       ├── hierarchy/      # HierarchyComponent, HierarchyHelper
 │       └── animation/      # AnimationComponent
 ├── external/               # Bundled: GLM, stb, tinyobjloader
-├── resources/              # Game assets: .obj models, .png textures, bitmap fonts
+├── resources/              # Minimal shared assets: .obj models, .png textures, bitmap font
 └── shaders/                # GLSL source + compiled SPIR-V blobs
 ```
 
@@ -48,11 +47,11 @@ Gravitas/
 
 ## 3. CMake Targets
 
-Applications link only `GravitasEngine` (an alias for `gravitas_engine`) and receive all engine headers and libraries transitively.
+Scenes and downstream applications link only `GravitasEngine` (an alias for `gravitas_engine`) and receive all engine headers and libraries transitively.
 
 | Target | Type | Description | Key dependencies |
 |--------|------|-------------|-----------------|
-| `gravitas_vulkan_setup` | STATIC | Vulkan instance, physical/logical device, swapchain, GLFW surface | Vulkan SDK, GLFW (FetchContent) |
+| `gravitas_vulkan_setup` | STATIC | Vulkan instance, physical/logical device, swapchain, GLFW surface | Vulkan SDK, GLFW |
 | `gravitas_vulkan_backend` | STATIC | Render passes, pipelines, frame graph, resource managers (mesh, texture, SSBO, camera UBO) | `gravitas_vulkan_setup`, `gravitas_core` |
 | `gravitas_rendering` | STATIC | UiTree, binding systems, GPU systems, windowing, font loader | `gravitas_vulkan_backend`, `gravitas_core` |
 | `gravitas_modules` | INTERFACE | Camera, transform, hierarchy, animation (all header-only) | `gravitas_core`, `gravitas_rendering` |
@@ -99,13 +98,13 @@ GravitasEngine::render()
 All world-space renderables follow the same three-layer pattern:
 
 ```
-Description component  (game code writes — asset paths and values only)
+Description component  (scene code writes — asset paths and values only)
         │
         ▼  read by
 Binding system  (ECSControllerSystem — runs every frame)
         │  writes to
         ▼
-GPU components  (engine-internal — game code never reads or writes these)
+GPU components  (engine-internal — scene code never reads or writes these)
         │
         ▼  read by
 RenderCommandExtractor  →  SceneRenderStage
@@ -120,7 +119,7 @@ RenderCommandExtractor  →  SceneRenderStage
 | `WorldTextComponent` | `WorldTextBindingSystem` | Same as above | Font atlas is the texture; mesh rebuilt when `dirty = true` |
 
 ### Rules
-- Game code **never** calls `requestMesh`, `requestTexture`, `requestObjectSlot`, or `uploadProceduralMesh`. Only binding systems do.
+- Scene code **never** calls `requestMesh`, `requestTexture`, `requestObjectSlot`, or `uploadProceduralMesh`. Only binding systems do.
 - All binding systems are registered by `GtsScene::installRendererFeature()`.
 - `RenderCommandExtractor` picks up any entity with `RenderGpuComponent` + `MeshGpuComponent` + `MaterialGpuComponent` automatically — no changes to the extractor or render stages are needed when adding a new type.
 - `RenderGpuComponent::objectSSBOSlot` starts at `RENDERABLE_SLOT_UNALLOCATED` (`numeric_limits<ssbo_id_type>::max()`). The extractor skips entities with the sentinel value.
@@ -211,7 +210,7 @@ public:
 4. `ProceduralMeshBindingSystem` — uploads runtime quad meshes
 5. `WorldTextBindingSystem` — rebuilds glyph mesh when `WorldTextComponent::dirty`
 6. `CameraBindingSystem` — allocates camera UBO, uploads matrices
-7. `RenderResourceClearSystem` — recycles freed SSBO slots
+7. `DebugFreeCameraSystem` — free-fly debug camera controls
 8. `DefaultCameraControlSystem` — basic camera movement (skipped by `CameraControlOverrideComponent`)
 
 ### SceneContext fields
@@ -239,7 +238,7 @@ public:
 
 **Winding order** — Front faces are counter-clockwise (`VK_FRONT_FACE_COUNTER_CLOCKWISE`). Quad index pattern: `0, 2, 1, 1, 2, 3` (TL → BL → TR, TR → BL → BR). Getting this wrong looks identical to a missing backface culling fix but has a different cause.
 
-**Coordinate system** — Y-up, right-handed. In the dungeon crawler: North = −Z, East = +X. Grid-to-world: `worldPos = (gridX + 0.5, eyeHeight, gridZ + 0.5)`.
+**Coordinate system** — Y-up, right-handed.
 
 **ECS pause behaviour** — `ECSSimulationSystem` (game logic) stops running when paused. `ECSControllerSystem` (rendering, input, GPU updates) runs every frame regardless. UI updates and camera movement must be in controller systems if they should continue while paused.
 
@@ -261,9 +260,9 @@ Object index into the SSBO is pushed via push constants (first 4 bytes) before e
 
 ---
 
-## 10. Application Pattern
+## 10. Scene Pattern
 
-All four applications follow the same structure. `GravitasTetris` is the canonical reference.
+The bundled validation scenes and downstream applications follow the same structure.
 
 ```cpp
 // main.cpp
@@ -287,8 +286,8 @@ public:
     {
         // 1. Load resources and create ECS entities
         // 2. Create singletons for global state
-        // 3. Register application-specific systems
-        // 4. Call installRendererFeature() — LAST, after app systems
+        // 3. Register scene-specific systems
+        // 4. Call installRendererFeature() — LAST, after scene systems
         installRendererFeature();
     }
 
@@ -304,4 +303,4 @@ public:
 };
 ```
 
-Application-specific files live entirely under `applications/<AppName>/` and are glob-compiled into a single executable. The application links only `GravitasEngine` and gets all engine headers transitively.
+Bundled validation scenes live under `applications/<SceneName>/` and are glob-compiled into standalone executables. Downstream projects can alternatively consume the engine directly with `add_subdirectory(engine)`.
