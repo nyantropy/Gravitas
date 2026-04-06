@@ -87,4 +87,4 @@ for path in "${COPIED_PATHS[@]}"; do
     echo "Path: $path"
     echo "Run with: ./$(basename "$path")"
 done
-echo "Run from the project root so shaders/resources resolve correctly."
+echo "Shaders and resources resolve relative to the engine directory."

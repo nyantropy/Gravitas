@@ -16,8 +16,8 @@ endif()
 
 # GRAVITAS_ENGINE_ROOT / RESOURCES macros (used by GraphicsConstants.h)
 target_compile_definitions(gravitas_core PUBLIC
-    GRAVITAS_ENGINE_ROOT="${CMAKE_SOURCE_DIR}"
-    GRAVITAS_ENGINE_RESOURCES="${CMAKE_SOURCE_DIR}/resources"
+    GRAVITAS_ENGINE_ROOT="${GTS_ENGINE_ROOT}"
+    GRAVITAS_ENGINE_RESOURCES="${GTS_ENGINE_ROOT}/resources"
 )
 
 target_include_directories(gravitas_core PUBLIC
@@ -67,5 +67,5 @@ target_include_directories(gravitas_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/ui"
 
     # Bundled GLM (GlmConfig.h uses #include <glm.hpp>)
-    "${CMAKE_SOURCE_DIR}/external/glm/glm"
+    "${GTS_ENGINE_ROOT}/external/glm/glm"
 )

@@ -60,10 +60,10 @@ target_include_directories(gravitas_vulkan_setup PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/swapchain"
 
     # VulkanSwapChainConfig.h and VulkanContextConfig.h include OutputWindow.hpp
-    "${CMAKE_SOURCE_DIR}/engine/modules/rendering/core/windowing/output"
+    "${GTS_ENGINE_ROOT}/engine/modules/rendering/core/windowing/output"
     # OutputWindow.hpp includes GtsEvent.hpp and GtsKeyEvent.h
-    "${CMAKE_SOURCE_DIR}/engine/core/event"
-    "${CMAKE_SOURCE_DIR}/engine/core/input/raw"
+    "${GTS_ENGINE_ROOT}/engine/core/event"
+    "${GTS_ENGINE_ROOT}/engine/core/input/raw"
 )
 
 target_link_libraries(gravitas_vulkan_setup PUBLIC
