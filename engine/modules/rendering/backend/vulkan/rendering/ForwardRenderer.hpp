@@ -196,7 +196,8 @@ class ForwardRenderer : Renderer
             createFrameOutputTarget();
             createDepthAttachment();
             resourceSystem = std::make_unique<RenderResourceManager>();
-            frameManager   = std::make_unique<FrameManager>(frameOutputTarget->getImages().size());
+            frameManager   = std::make_unique<FrameManager>(frameOutputTarget->getImages().size(),
+                                                            frameOutputTarget->requiresRenderFinishedSemaphore());
             buildFrameGraph();
         }
 
@@ -214,6 +215,7 @@ class ForwardRenderer : Renderer
                     std::cout << "Screenshot request ignored: maxScreenshotsPerRun reached." << std::endl;
                     maxScreenshotWarningLogged = true;
                 }
+                minIntervalWarningLogged = false;
                 screenshotRequested = false;
                 return false;
             }

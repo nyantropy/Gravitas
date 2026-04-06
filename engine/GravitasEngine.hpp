@@ -225,10 +225,7 @@ class GravitasEngine
                 // engine-level actions (pause, quit) — run before tick advance.
                 auto* actions = platform.getActionManager();
                 if (actions->isActionPressed(GtsAction::CloseApplication))
-                {
-                    engineRunning = false;
                     break;
-                }
                 if (actions->isActionPressed(GtsAction::TogglePause))
                     gameLoop.paused = !gameLoop.paused;
                 if (actions->isActionPressed(GtsAction::DebugLayerToggle))

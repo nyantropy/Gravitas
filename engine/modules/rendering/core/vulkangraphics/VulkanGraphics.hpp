@@ -116,7 +116,7 @@ public:
         rConfig.maxScreenshotsPerRun = config.maxScreenshotsPerRun;
         rConfig.minSecondsBetweenScreenshots = config.minSecondsBetweenScreenshots;
         rConfig.captureScreenshotOnFirstFrame = false;
-        rConfig.autoScreenshotDelayFrames = config.headless ? 60u : 0u;
+        rConfig.autoScreenshotDelayFrames = config.autoScreenshotDelayFrames;
         renderer = std::make_unique<ForwardRenderer>(rConfig, eventBus);
         if (config.headless)
         {

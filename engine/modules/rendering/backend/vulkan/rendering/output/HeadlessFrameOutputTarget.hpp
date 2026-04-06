@@ -43,7 +43,7 @@ class HeadlessFrameOutputTarget : public IFrameOutputTarget
         FrameOutputBeginResult beginFrame(uint32_t currentFrame, VkSemaphore imageAvailableSemaphore) override
         {
             (void)imageAvailableSemaphore;
-            return {.imageIndex = currentFrame % static_cast<uint32_t>(images.size()),
+            return {.imageIndex = currentFrame,
                     .waitSemaphore = VK_NULL_HANDLE};
         }
 

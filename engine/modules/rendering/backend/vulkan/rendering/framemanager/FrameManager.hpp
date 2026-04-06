@@ -11,7 +11,7 @@
 class FrameManager 
 {
     public:
-        explicit FrameManager(size_t frameOutputImageCount);
+        explicit FrameManager(size_t frameOutputImageCount, bool allocateRenderFinishedSemaphores = true);
         ~FrameManager();
 
         FrameResources& getFrame(size_t frameIndex) { return frames[frameIndex]; }
@@ -36,6 +36,7 @@ class FrameManager
         VkFence createFence();
         VkCommandBuffer allocateCommandBuffer();
         size_t frameOutputImageCount = 0;
+        bool allocateRenderFinishedSemaphores = true;
 
         std::vector<FrameResources> frames;                // based per frame
         std::vector<VkSemaphore> renderFinishedSemaphores; // based on frame output image

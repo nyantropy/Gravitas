@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <memory>
 #include <string>
 #include <vector>
@@ -199,8 +200,16 @@ class VulkanContext
             frameOutputPresentMode = presentMode;
         }
 
-        const std::vector<VkImage>& getFrameOutputImages() { return *frameOutputImages; }
-        const std::vector<VkImageView>& getFrameOutputImageViews() { return *frameOutputImageViews; }
+        const std::vector<VkImage>& getFrameOutputImages()
+        {
+            assert(frameOutputImages != nullptr && "registerFrameOutput() must be called before accessing frame output images");
+            return *frameOutputImages;
+        }
+        const std::vector<VkImageView>& getFrameOutputImageViews()
+        {
+            assert(frameOutputImageViews != nullptr && "registerFrameOutput() must be called before accessing frame output image views");
+            return *frameOutputImageViews;
+        }
         VkFormat getFrameOutputFormat() const { return frameOutputFormat; }
         VkExtent2D getFrameOutputExtent() const { return frameOutputExtent; }
         VkPresentModeKHR getFrameOutputPresentMode() const { return frameOutputPresentMode; }

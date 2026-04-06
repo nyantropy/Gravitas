@@ -1,7 +1,8 @@
 #include "FrameManager.hpp"
 
-FrameManager::FrameManager(size_t frameOutputImageCount) 
+FrameManager::FrameManager(size_t frameOutputImageCount, bool allocateRenderFinishedSemaphores)
     : frameOutputImageCount(frameOutputImageCount)
+    , allocateRenderFinishedSemaphores(allocateRenderFinishedSemaphores)
 {
     createFrameResources();
 }
@@ -34,11 +35,12 @@ void FrameManager::createFrameResources()
         frames[i].imageAvailableSemaphore = createSemaphore();
     }
 
-    // per-frame-output-image renderFinished semaphores
-    renderFinishedSemaphores.resize(frameOutputImageCount);
-    for (size_t i = 0; i < frameOutputImageCount; i++) 
+    // per-frame-output-image renderFinished semaphores (not needed for headless)
+    if (allocateRenderFinishedSemaphores)
     {
-        renderFinishedSemaphores[i] = createSemaphore();
+        renderFinishedSemaphores.resize(frameOutputImageCount);
+        for (size_t i = 0; i < frameOutputImageCount; i++)
+            renderFinishedSemaphores[i] = createSemaphore();
     }
 
     // images in flight can be all null handles
