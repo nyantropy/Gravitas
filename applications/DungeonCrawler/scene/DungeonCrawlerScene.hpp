@@ -23,22 +23,22 @@
 #include "BitmapFontLoader.h"
 
 // Dungeon components
-#include "DungeonMap.h"
-#include "DungeonInputComponent.h"
-#include "DungeonGameStateComponent.h"
-#include "PlayerComponent.h"
-#include "EnemyComponent.h"
-#include "KeyItemComponent.h"
-#include "ExitComponent.h"
-#include "HudMarkerComponent.h"
+#include "dungeon/DungeonMap.h"
+#include "components/DungeonInputComponent.h"
+#include "components/DungeonGameStateComponent.h"
+#include "components/PlayerComponent.h"
+#include "components/EnemyComponent.h"
+#include "components/KeyItemComponent.h"
+#include "components/ExitComponent.h"
+#include "components/HudMarkerComponent.h"
 
 // Dungeon systems
-#include "DungeonInputSystem.hpp"
-#include "PlayerMovementSystem.hpp"
-#include "PlayerCameraSystem.h"
-#include "EnemySystem.h"
-#include "CombatSystem.h"
-#include "HudSystem.h"
+#include "systems/DungeonInputSystem.hpp"
+#include "systems/PlayerMovementSystem.hpp"
+#include "systems/PlayerCameraSystem.h"
+#include "systems/EnemySystem.h"
+#include "systems/CombatSystem.h"
+#include "systems/HudSystem.h"
 
 // ─────────────────────────────────────────────────────────────
 // DungeonCrawlerScene

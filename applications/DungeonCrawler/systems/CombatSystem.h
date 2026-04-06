@@ -8,12 +8,12 @@
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
 
-#include "PlayerComponent.h"
-#include "EnemyComponent.h"
-#include "KeyItemComponent.h"
-#include "ExitComponent.h"
-#include "DungeonInputComponent.h"
-#include "DungeonGameStateComponent.h"
+#include "components/PlayerComponent.h"
+#include "components/EnemyComponent.h"
+#include "components/KeyItemComponent.h"
+#include "components/ExitComponent.h"
+#include "components/DungeonInputComponent.h"
+#include "components/DungeonGameStateComponent.h"
 
 // Controller system — player attacks and world interaction.
 //   Space : strike the cell directly ahead; deal 1 damage to any living enemy there.

@@ -5,13 +5,13 @@
 #include "ECSWorld.hpp"
 #include "SceneContext.h"
 
-#include "PlayerComponent.h"
+#include "components/PlayerComponent.h"
 #include "TransformComponent.h"
 #include "CameraDescriptionComponent.h"
-#include "DungeonInputComponent.h"
-#include "DungeonFloorSingleton.h"
+#include "components/DungeonInputComponent.h"
+#include "components/DungeonFloorSingleton.h"
 #include "DebugCameraStateComponent.h"
-#include "FloorTransitionStateComponent.h"
+#include "components/FloorTransitionStateComponent.h"
 
 // Handles player grid movement and facing turns.
 //

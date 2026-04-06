@@ -29,12 +29,14 @@
 #include "TransformComponent.h"
 
 #include "GraphicsConfig.h"
+#include "GtsEventBus.hpp"
 #include "IGtsGraphicsModule.hpp"
 
 class VulkanGraphics : public IGtsGraphicsModule
 {
 public:
     GraphicsConfig config;
+    GtsEventBus eventBus;
     // the window manager contains the window we render to
     std::unique_ptr<WindowManager> windowManager;
 
@@ -44,13 +46,7 @@ public:
     // the renderer, responsible for the core drawframe function
     std::unique_ptr<ForwardRenderer> renderer;
 
-    // window event propagation, but a lot more simple than before
-    GtsEvent<int, int>& onResize() override { return windowManager->onResize(); }
-    GtsEvent<GtsKeyEvent>& onKeyPressed() override { return windowManager->onKeyPressed(); }
-
-    // renderer event propagation
-    GtsEvent<int, uint32_t>& onFrameEnded() override { return renderer->onFrameEnded; }
-
+    GtsEventBus& getEventBus() override { return eventBus; }
 
     VulkanGraphics(const GraphicsConfig& config): config(config)
     {
@@ -69,7 +65,7 @@ public:
         wmConfig.windowTitle            = config.window.title;
         wmConfig.enableValidationLayers = config.enableValidationLayers;
         wmConfig.windowMode             = config.window.windowMode;
-        windowManager = std::make_unique<WindowManager>(wmConfig);
+        windowManager = std::make_unique<WindowManager>(wmConfig, eventBus);
     }
 
     // create a concrete Vulkan Context object, accessible with an accessheet on a global basis
@@ -91,7 +87,7 @@ public:
     void createRenderer()
     {
         RendererConfig rConfig;
-        renderer = std::make_unique<ForwardRenderer>(rConfig);
+        renderer = std::make_unique<ForwardRenderer>(rConfig, eventBus);
     }
 
     void cleanup()
@@ -113,6 +109,11 @@ public:
     void toggleDebugOverlay() override
     {
         renderer->toggleDebugOverlay();
+    }
+
+    void requestScreenshot() override
+    {
+        renderer->requestScreenshot();
     }
 
     void pollWindowEvents() override

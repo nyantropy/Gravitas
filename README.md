@@ -1,6 +1,6 @@
 # Gravitas Engine
 
-A work-in-progress C++20 Vulkan game engine with an ECS core, a two-stage frame graph renderer, and a separate retained UI tree. Four demo applications are included: Tetris, a dungeon crawler prototype, and two test scenes.
+A work-in-progress C++20 Vulkan game engine with an ECS core, a two-stage frame graph renderer, and a separate retained UI Graph. Four demo applications are included: Tetris, a dungeon crawler prototype, and two test scenes.
 
 ---
 
@@ -28,18 +28,11 @@ A work-in-progress C++20 Vulkan game engine with an ECS core, a two-stage frame 
 
 ### Linux
 ```bash
-git clone <repo>
+git clone https://github.com/nyantropy/Gravitas.git
 cd Gravitas
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . --parallel
-```
-
-### Windows — Visual Studio 2022
-```bash
-mkdir build && cd build
-cmake .. -G "Visual Studio 17 2022" -A x64
-cmake --build . --config Release
 ```
 
 ### Windows — MinGW

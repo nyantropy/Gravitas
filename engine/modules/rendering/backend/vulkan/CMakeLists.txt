@@ -16,11 +16,15 @@ file(GLOB_RECURSE VULKAN_BACKEND_SOURCES
 # External translation units — outside the owned directory tree
 list(APPEND VULKAN_BACKEND_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stb_image_impl.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stb_image_write_impl.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../external/tiny_obj_loader_impl.cpp"
 )
 add_library(gravitas_vulkan_backend STATIC ${VULKAN_BACKEND_SOURCES})
 
 target_compile_features(gravitas_vulkan_backend PUBLIC cxx_std_20)
+target_compile_definitions(gravitas_vulkan_backend PRIVATE
+    GRAVITAS_PROJECT_ROOT="${CMAKE_SOURCE_DIR}"
+)
 
 if(MSVC)
     target_compile_options(gravitas_vulkan_backend PRIVATE /W4 /WX- /utf-8)

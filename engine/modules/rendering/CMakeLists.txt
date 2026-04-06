@@ -43,8 +43,11 @@ target_include_directories(gravitas_rendering PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/core/windowing/windowmanager"
 
     # ECS rendering components and systems
-    "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/components"
-    "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/systems"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/camera/components"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/camera/debug"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/camera/systems"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/geometry/components"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/geometry/systems"
 
     # Engine UI system + renderer-side UI extraction
     "${CMAKE_CURRENT_SOURCE_DIR}/core/ui"

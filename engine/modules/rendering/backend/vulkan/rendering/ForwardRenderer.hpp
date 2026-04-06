@@ -1,8 +1,8 @@
 #pragma once
 
-#include <vector>
-#include <memory>
 #include <chrono>
+#include <memory>
+#include <vector>
 #include <vulkan/vulkan.h>
 
 #include "Renderer.hpp"
@@ -19,8 +19,10 @@
 #include "FormatUtil.hpp"
 
 #include "FrameManager.hpp"
+#include "ScreenshotManager.hpp"
 
-#include "GtsEvent.hpp"
+#include "GtsEventBus.hpp"
+#include "GtsEventTypes.h"
 
 #include <UiCommand.h>
 #include "GtsFrameStats.h"
@@ -60,6 +62,9 @@ class ForwardRenderer : Renderer
 
         uint32_t currentFrame = 0;
         bool framebufferResized = false;
+        bool screenshotRequested = false;
+        ScreenshotManager screenshotManager;
+        GtsEventBus& eventBus;
 
 
         VkFormat findDepthFormat()
@@ -171,11 +176,8 @@ class ForwardRenderer : Renderer
 
 
     public:
-        // render events
-        GtsEvent<int, uint32_t> onFrameEnded;
-
-
-        ForwardRenderer(RendererConfig config) : Renderer(config)
+        ForwardRenderer(RendererConfig config, GtsEventBus& eventBus)
+            : Renderer(config), eventBus(eventBus)
         {
             createResources();
         }
@@ -191,6 +193,11 @@ class ForwardRenderer : Renderer
         {
             if (uiStage)
                 uiStage->getDebugOverlay().toggle();
+        }
+
+        void requestScreenshot() override
+        {
+            screenshotRequested = true;
         }
 
         void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
@@ -317,10 +324,16 @@ class ForwardRenderer : Renderer
                 frameManager->setImageFence(imageIndex, frame.inFlightFence);
             }
 
+            if (screenshotRequested)
+            {
+                screenshotManager.saveSwapchainImage(imageIndex);
+                screenshotRequested = false;
+            }
+
             // fire the on frame ended event, currently non functional
             if (lastFrameTime >= frameInterval)
             {
-                onFrameEnded.notify(dt, imageIndex);
+                eventBus.emit(GtsFrameEndedEvent{dt, imageIndex});
                 lastFrameTime -= frameInterval;
                 frameCounter++;
             }

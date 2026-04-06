@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GtsEventBus.hpp"
 #include "WindowManagerConfig.h"
 #include "OutputWindowConfig.h"
 #include "GLFWOutputWindow.hpp"
@@ -8,6 +9,7 @@ class WindowManager
 {
     private:
         WindowManagerConfig config;
+        GtsEventBus& eventBus;
         std::unique_ptr<OutputWindow> outputWindow;
 
         void createWindow()
@@ -22,14 +24,15 @@ class WindowManager
             switch (config.windowBackend)
             {
                 case WindowBackend::GLFW:
-                    outputWindow = std::make_unique<GLFWOutputWindow>(owConfig);
+                    outputWindow = std::make_unique<GLFWOutputWindow>(owConfig, eventBus);
                     break;
             }
         }
 
 
     public:
-        WindowManager(const WindowManagerConfig& config)
+        WindowManager(const WindowManagerConfig& config, GtsEventBus& eventBus)
+            : eventBus(eventBus)
         {
             this->config = config;
             createWindow();
@@ -44,7 +47,4 @@ class WindowManager
         {
             return outputWindow.get();
         }
-
-        GtsEvent<int, int>& onResize() { return outputWindow->onResize; }
-        GtsEvent<GtsKeyEvent>& onKeyPressed() { return outputWindow->onKeyPressed; }
 };

@@ -2,12 +2,12 @@
 
 #include "ECSSimulationSystem.hpp"
 
-#include "BattleEncounterStateComponent.h"
+#include "components/BattleEncounterStateComponent.h"
 #include "CollisionEvent.h"
-#include "EnemyComponent.h"
+#include "components/EnemyComponent.h"
 #include "IGtsPhysicsModule.h"
-#include "PlayerComponent.h"
-#include "PlayerTagComponent.h"
+#include "components/PlayerComponent.h"
+#include "components/PlayerTagComponent.h"
 
 class EnemyInteractionSystem : public ECSSimulationSystem
 {

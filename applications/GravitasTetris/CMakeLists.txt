@@ -1,31 +1,32 @@
 cmake_minimum_required(VERSION 3.10)
-project(GravitasTetris LANGUAGES CXX)
+project(Tetris LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/*.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/*.h"
+file(GLOB_RECURSE GAME_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
 )
 
-add_executable(GravitasTetris ${APP_SOURCES})
+add_executable(Tetris ${GAME_SOURCES})
 
-target_include_directories(GravitasTetris PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/scene"
-    "${CMAKE_CURRENT_SOURCE_DIR}/systems"
-    "${CMAKE_CURRENT_SOURCE_DIR}/components"
-    "${CMAKE_CURRENT_SOURCE_DIR}/helpers"
-    "${CMAKE_CURRENT_SOURCE_DIR}/struct"
-    "${CMAKE_CURRENT_SOURCE_DIR}/ai"
+target_include_directories(Tetris PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
-target_link_libraries(GravitasTetris PRIVATE GravitasEngine)
 
-set_target_properties(GravitasTetris PROPERTIES
-    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+target_link_libraries(Tetris PRIVATE GravitasEngine)
+
+add_custom_command(TARGET Tetris POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources"
+    "$<TARGET_FILE_DIR:Tetris>/resources"
 )
+
+set_target_properties(Tetris PROPERTIES
+    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
 if (WIN32)
-    set_target_properties(GravitasTetris PROPERTIES OUTPUT_NAME "GravitasTetris.exe")
+    set_target_properties(Tetris PROPERTIES OUTPUT_NAME "Tetris.exe")
 endif()

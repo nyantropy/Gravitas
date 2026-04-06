@@ -3,6 +3,7 @@
 #include "IInputSource.hpp"
 #include "InputActionManager.hpp"
 #include "GtsAction.h"
+#include "GtsEventBus.hpp"
 #include "TimeContext.h"
 #include "GtsCommandBuffer.h"
 
@@ -25,4 +26,5 @@ struct SceneContext
     RenderCommandExtractor*         extractor         = nullptr;  // query visible/total counts, freeze frustum
     UiSystem*                       ui                = nullptr;  // retained engine UI system
     IGtsPhysicsModule*              physics           = nullptr;
+    GtsEventBus                     events;
 };

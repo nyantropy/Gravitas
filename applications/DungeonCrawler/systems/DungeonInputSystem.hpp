@@ -3,8 +3,8 @@
 #include "ECSControllerSystem.hpp"
 #include "InputActionManager.hpp"
 #include "GtsKey.h"
-#include "DungeonAction.h"
-#include "DungeonInputComponent.h"
+#include "utils/DungeonAction.h"
+#include "components/DungeonInputComponent.h"
 
 // Translates raw key presses into DungeonInputComponent singleton state.
 // Maintains its own InputActionManager<DungeonAction> so dungeon-specific

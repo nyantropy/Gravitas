@@ -19,4 +19,5 @@ class Renderer
                                  const UiCommandBuffer& uiBuffer,
                                  const GtsFrameStats& stats) = 0;
         virtual void toggleDebugOverlay() = 0;
+        virtual void requestScreenshot() = 0;
 };

@@ -1,5 +1,6 @@
 /build/
 /build_release/
+/screenshots/
 /lib/
 /.VSCodeCounter/
 /.claude/
@@ -22,8 +23,8 @@ HEAD
 hooks
 objects
 refs
-GtsScene3
-DungeonCrawler
-GtsScene1
-GtsScene2
-GravitasTetris
+/GtsScene3
+/DungeonCrawler
+/GtsScene1
+/GtsScene2
+/GravitasTetris

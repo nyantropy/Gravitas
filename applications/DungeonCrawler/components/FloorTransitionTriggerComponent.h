@@ -1,7 +1,7 @@
 #pragma once
 
 #include "GlmConfig.h"
-#include "FloorTransitionType.h"
+#include "components/FloorTransitionType.h"
 
 // Attach to a tile entity to make it a floor transition trigger.
 // When the player stands on this tile and is not mid-transition,

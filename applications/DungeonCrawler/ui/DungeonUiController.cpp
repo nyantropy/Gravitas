@@ -1,16 +1,23 @@
-#include "DungeonUiController.h"
+#include "ui/DungeonUiController.h"
 
 #include <algorithm>
 #include <cmath>
 #include <string>
 
 #include "BitmapFontLoader.h"
+#include "GraphicsConstants.h"
 #include "GtsDebugOverlay.h"
 #include "UiSystem.h"
 
 namespace
 {
     constexpr float UI_EDGE_MARGIN = 0.020f;
+    constexpr int ICON_MARGIN_PX = 16;
+    constexpr int ICON_SIZE_PX = 160;
+    constexpr int ICON_TEXT_GAP_PX = 14;
+    constexpr int ICON_TEXT_WIDTH_PX = 220;
+    constexpr int ICON_TEXT_HEIGHT_PX = 32;
+    constexpr const char* UI_ICON_PATH = "/pictures/Furina_Icon.png";
 
     constexpr float DEBUG_PANEL_WIDTH = 0.34f;
     constexpr float DEBUG_PANEL_PADDING = 0.016f;
@@ -69,6 +76,9 @@ void DungeonUiController::reset()
     minimapGridHandle = UI_INVALID_HANDLE;
     minimapPlayerHandle = UI_INVALID_HANDLE;
     minimapLabelHandle = UI_INVALID_HANDLE;
+    iconRootHandle = UI_INVALID_HANDLE;
+    iconHandle = UI_INVALID_HANDLE;
+    iconTextHandle = UI_INVALID_HANDLE;
     lastMinimapCellCount = 0;
 }
 
@@ -93,6 +103,7 @@ void DungeonUiController::initialize(SceneContext& ctx, const DungeonUiState& st
 
     buildDebugPanel(ctx);
     buildMinimapPanel(ctx);
+    buildIcon(ctx);
     update(ctx, state);
 }
 
@@ -100,6 +111,7 @@ void DungeonUiController::update(SceneContext& ctx, const DungeonUiState& state)
 {
     updateDebugPanel(ctx, state);
     updateMinimapPanel(ctx, state);
+    updateIcon(ctx);
 }
 
 void DungeonUiController::buildDebugPanel(SceneContext& ctx)
@@ -208,6 +220,30 @@ void DungeonUiController::buildMinimapPanel(SceneContext& ctx)
     ctx.ui->setLayout(minimapLabelHandle, labelLayout);
     ctx.ui->setState(minimapLabelHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
     ctx.ui->setTextFont(minimapLabelHandle, &uiFont);
+}
+
+void DungeonUiController::buildIcon(SceneContext& ctx)
+{
+    iconRootHandle = ctx.ui->createNode(UiNodeType::Container);
+    iconHandle = ctx.ui->createNode(UiNodeType::Image, iconRootHandle);
+    iconTextHandle = ctx.ui->createNode(UiNodeType::Text, iconRootHandle);
+
+    ctx.ui->setState(iconRootHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+    ctx.ui->setState(iconHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+    ctx.ui->setPayload(iconHandle, UiImageData{
+        GraphicsConstants::ENGINE_RESOURCES + UI_ICON_PATH,
+        uiColor(1.0f, 1.0f, 1.0f, 1.0f),
+        1.0f
+    });
+
+    ctx.ui->setState(iconTextHandle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+    ctx.ui->setTextFont(iconTextHandle, &uiFont);
+    ctx.ui->setPayload(iconTextHandle, UiTextData{
+        "NYANIKORE",
+        {},
+        uiColor(0.97f, 0.98f, 1.0f, 1.0f),
+        0.022f
+    });
 }
 
 void DungeonUiController::updateDebugPanel(SceneContext& ctx, const DungeonUiState& state)
@@ -374,4 +410,50 @@ void DungeonUiController::updateMinimapPanel(SceneContext& ctx, const DungeonUiS
         uiColor(0.95f, 0.96f, 1.0f, 1.0f),
         0.020f
     });
+}
+
+void DungeonUiController::updateIcon(SceneContext& ctx)
+{
+    const int viewportWidth = std::max(1, ctx.windowPixelWidth);
+    const int viewportHeight = std::max(1, ctx.windowPixelHeight);
+    const float iconWidth = toNormalizedWidth(ICON_SIZE_PX, viewportWidth);
+    const float iconHeight = toNormalizedHeight(ICON_SIZE_PX, viewportHeight);
+    const float textGap = toNormalizedWidth(ICON_TEXT_GAP_PX, viewportWidth);
+    const float textWidth = toNormalizedWidth(ICON_TEXT_WIDTH_PX, viewportWidth);
+    const float textHeight = toNormalizedHeight(ICON_TEXT_HEIGHT_PX, viewportHeight);
+    const float rootWidth = iconWidth + textGap + textWidth;
+    const float rootHeight = std::max(iconHeight, textHeight);
+
+    UiLayoutSpec rootLayout;
+    rootLayout.positionMode = UiPositionMode::Absolute;
+    rootLayout.widthMode = UiSizeMode::Fixed;
+    rootLayout.heightMode = UiSizeMode::Fixed;
+    rootLayout.offsetMin = {
+        toNormalizedWidth(ICON_MARGIN_PX, viewportWidth),
+        1.0f - rootHeight - toNormalizedHeight(ICON_MARGIN_PX, viewportHeight)
+    };
+    rootLayout.fixedWidth = rootWidth;
+    rootLayout.fixedHeight = rootHeight;
+    ctx.ui->setLayout(iconRootHandle, rootLayout);
+
+    UiLayoutSpec iconLayout;
+    iconLayout.positionMode = UiPositionMode::Absolute;
+    iconLayout.widthMode = UiSizeMode::Fixed;
+    iconLayout.heightMode = UiSizeMode::Fixed;
+    iconLayout.offsetMin = {0.0f, 0.0f};
+    iconLayout.fixedWidth = iconWidth;
+    iconLayout.fixedHeight = iconHeight;
+    ctx.ui->setLayout(iconHandle, iconLayout);
+
+    UiLayoutSpec textLayout;
+    textLayout.positionMode = UiPositionMode::Absolute;
+    textLayout.widthMode = UiSizeMode::Fixed;
+    textLayout.heightMode = UiSizeMode::Fixed;
+    textLayout.offsetMin = {
+        iconWidth + textGap,
+        (rootHeight - textHeight) * 0.5f
+    };
+    textLayout.fixedWidth = textWidth;
+    textLayout.fixedHeight = textHeight;
+    ctx.ui->setLayout(iconTextHandle, textLayout);
 }

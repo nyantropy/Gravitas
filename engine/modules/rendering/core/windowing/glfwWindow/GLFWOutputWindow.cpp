@@ -1,6 +1,7 @@
 #include "GLFWOutputWindow.hpp"
 
-GLFWOutputWindow::GLFWOutputWindow(OutputWindowConfig config): OutputWindow(config)
+GLFWOutputWindow::GLFWOutputWindow(OutputWindowConfig config, GtsEventBus& eventBus)
+    : OutputWindow(config, eventBus)
 {
     this->init();
     this->keyTranslator = std::make_unique<GLFWKeyTranslator>();

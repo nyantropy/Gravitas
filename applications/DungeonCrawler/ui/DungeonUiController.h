@@ -4,7 +4,7 @@
 #include "SceneContext.h"
 #include "UiHandle.h"
 
-#include "DungeonUiState.h"
+#include "ui/DungeonUiState.h"
 
 class DungeonUiController
 {
@@ -17,8 +17,10 @@ public:
 private:
     void buildDebugPanel(SceneContext& ctx);
     void buildMinimapPanel(SceneContext& ctx);
+    void buildIcon(SceneContext& ctx);
     void updateDebugPanel(SceneContext& ctx, const DungeonUiState& state);
     void updateMinimapPanel(SceneContext& ctx, const DungeonUiState& state);
+    void updateIcon(SceneContext& ctx);
 
     BitmapFont uiFont;
 
@@ -33,5 +35,8 @@ private:
     UiHandle minimapGridHandle = UI_INVALID_HANDLE;
     UiHandle minimapPlayerHandle = UI_INVALID_HANDLE;
     UiHandle minimapLabelHandle = UI_INVALID_HANDLE;
+    UiHandle iconRootHandle = UI_INVALID_HANDLE;
+    UiHandle iconHandle = UI_INVALID_HANDLE;
+    UiHandle iconTextHandle = UI_INVALID_HANDLE;
     uint32_t lastMinimapCellCount = 0;
 };

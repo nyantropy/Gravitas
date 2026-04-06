@@ -1,7 +1,7 @@
 #pragma once
 
 #include "GlmConfig.h"
-#include "GeneratedFloor.h"
+#include "dungeon/generator/GeneratedFloor.h"
 
 class DungeonManager;
 

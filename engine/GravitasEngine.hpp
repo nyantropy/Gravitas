@@ -163,6 +163,7 @@ class GravitasEngine
                     case GtsCommand::Type::ChangeScene:
                         uiSystem->clear();
                         sceneContext.physics = nullptr;
+                        sceneContext.events = GtsEventBus{};
                         sceneManager->setActiveScene(cmd.stringArg);
                         uiSystem->setEnabled(sceneContext.uiEnabled);
                         sceneManager->getActiveScene()->onLoad(sceneContext, cmd.transitionData.get());
@@ -198,6 +199,7 @@ class GravitasEngine
         {
             uiSystem->clear();
             sceneContext.physics = nullptr;
+            sceneContext.events = GtsEventBus{};
             sceneManager->setActiveScene(name);
             uiSystem->setEnabled(sceneContext.uiEnabled);
             sceneManager->getActiveScene()->onLoad(sceneContext, data.get());
@@ -224,6 +226,8 @@ class GravitasEngine
                     gameLoop.paused = !gameLoop.paused;
                 if (actions->isActionPressed(GtsAction::DebugLayerToggle))
                     platform.toggleDebugOverlay();
+                if (actions->isActionPressed(GtsAction::Screenshot))
+                    platform.getGraphics()->requestScreenshot();
                 if (actions->isActionPressed(GtsAction::ToggleUI))
                 {
                     sceneContext.uiEnabled = !sceneContext.uiEnabled;
@@ -243,6 +247,7 @@ class GravitasEngine
 
                 // controller systems and rendering run every frame
                 sceneManager->getActiveScene()->onUpdateControllers(sceneContext);
+                sceneContext.events.dispatch();
                 render(realDt);
                 applyCommands();
             }
