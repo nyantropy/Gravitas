@@ -100,7 +100,7 @@ class GtsPlatform
 
             keyEventToken = graphics->getEventBus().subscribe<GtsKeyEvent>([this](const GtsKeyEvent& e)
             {
-                inputManager->onKeyEvent(e.key, e.pressed);
+                inputManager->onKeyEvent(e.key, e.pressed, e.mods);
             });
 
             if (config.debugOverlayEnabledByDefault)

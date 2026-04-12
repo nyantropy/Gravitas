@@ -43,6 +43,6 @@ class GLFWOutputWindow : public OutputWindow
 
             GtsKey gtsKey = app->keyTranslator->fromPlatformScancode(scancode);
             bool   pressed = !app->keyTranslator->isReleaseAction(action);
-            app->eventBus.emit(GtsKeyEvent{gtsKey, pressed});
+            app->eventBus.emit(GtsKeyEvent{gtsKey, pressed, mods});
         }
 };

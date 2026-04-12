@@ -59,6 +59,8 @@ class GLFWKeyTranslator : public GtsKeyTranslator
         { GtsKey::RightCtrl,  GLFW_KEY_RIGHT_CONTROL },
         { GtsKey::LeftAlt,    GLFW_KEY_LEFT_ALT      },
         { GtsKey::RightAlt,   GLFW_KEY_RIGHT_ALT     },
+        { GtsKey::LeftSuper,  GLFW_KEY_LEFT_SUPER    },
+        { GtsKey::RightSuper, GLFW_KEY_RIGHT_SUPER   },
 
         // Function keys
         { GtsKey::F1,  GLFW_KEY_F1  }, { GtsKey::F2,  GLFW_KEY_F2  },

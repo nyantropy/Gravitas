@@ -15,7 +15,7 @@ namespace
         std::string_view name;
     };
 
-    constexpr std::array<KeyNameEntry, 63> kKeyNames{{
+    constexpr std::array<KeyNameEntry, 65> kKeyNames{{
         {static_cast<int>(GtsKey::A), "A"}, {static_cast<int>(GtsKey::B), "B"},
         {static_cast<int>(GtsKey::C), "C"}, {static_cast<int>(GtsKey::D), "D"},
         {static_cast<int>(GtsKey::E), "E"}, {static_cast<int>(GtsKey::F), "F"},
@@ -41,7 +41,8 @@ namespace
         {static_cast<int>(GtsKey::ArrowRight), "RIGHT"}, {static_cast<int>(GtsKey::LeftShift), "LEFT_SHIFT"},
         {static_cast<int>(GtsKey::RightShift), "RIGHT_SHIFT"}, {static_cast<int>(GtsKey::LeftCtrl), "LEFT_CONTROL"},
         {static_cast<int>(GtsKey::RightCtrl), "RIGHT_CONTROL"}, {static_cast<int>(GtsKey::LeftAlt), "LEFT_ALT"},
-        {static_cast<int>(GtsKey::RightAlt), "RIGHT_ALT"}, {static_cast<int>(GtsKey::F1), "F1"},
+        {static_cast<int>(GtsKey::RightAlt), "RIGHT_ALT"}, {static_cast<int>(GtsKey::LeftSuper), "LEFT_SUPER"},
+        {static_cast<int>(GtsKey::RightSuper), "RIGHT_SUPER"}, {static_cast<int>(GtsKey::F1), "F1"},
         {static_cast<int>(GtsKey::F2), "F2"}, {static_cast<int>(GtsKey::F3), "F3"},
         {static_cast<int>(GtsKey::F4), "F4"}, {static_cast<int>(GtsKey::F5), "F5"},
         {static_cast<int>(GtsKey::F6), "F6"}, {static_cast<int>(GtsKey::F7), "F7"},

@@ -13,6 +13,45 @@ namespace
     {
         seed ^= std::hash<T>{}(value) + 0x9e3779b9u + (seed << 6u) + (seed >> 2u);
     }
+
+    bool isModifierKey(GtsKey key)
+    {
+        switch (key)
+        {
+            case GtsKey::LeftShift:
+            case GtsKey::RightShift:
+            case GtsKey::LeftCtrl:
+            case GtsKey::RightCtrl:
+            case GtsKey::LeftAlt:
+            case GtsKey::RightAlt:
+            case GtsKey::LeftSuper:
+            case GtsKey::RightSuper:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    ModifierFlags modifierFlagForKey(GtsKey key)
+    {
+        switch (key)
+        {
+            case GtsKey::LeftShift:
+            case GtsKey::RightShift:
+                return ModifierFlags::Shift;
+            case GtsKey::LeftCtrl:
+            case GtsKey::RightCtrl:
+                return ModifierFlags::Ctrl;
+            case GtsKey::LeftAlt:
+            case GtsKey::RightAlt:
+                return ModifierFlags::Alt;
+            case GtsKey::LeftSuper:
+            case GtsKey::RightSuper:
+                return ModifierFlags::Super;
+            default:
+                return ModifierFlags::None;
+        }
+    }
 }
 
 bool InputTrigger::operator==(const InputTrigger& other) const
@@ -394,16 +433,7 @@ void InputBindingRegistry::applyPendingContextOps()
 
 ModifierFlags InputBindingRegistry::getCurrentModifiers(const InputSnapshot& rawInput)
 {
-    ModifierFlags modifiers = ModifierFlags::None;
-
-    if (rawInput.isKeyDown(GtsKey::LeftShift) || rawInput.isKeyDown(GtsKey::RightShift))
-        modifiers |= ModifierFlags::Shift;
-    if (rawInput.isKeyDown(GtsKey::LeftCtrl) || rawInput.isKeyDown(GtsKey::RightCtrl))
-        modifiers |= ModifierFlags::Ctrl;
-    if (rawInput.isKeyDown(GtsKey::LeftAlt) || rawInput.isKeyDown(GtsKey::RightAlt))
-        modifiers |= ModifierFlags::Alt;
-
-    return modifiers;
+    return rawInput.modifiers;
 }
 
 bool InputBindingRegistry::isTriggerSupported(const InputTrigger& trigger)
@@ -418,10 +448,14 @@ bool InputBindingRegistry::matchesTrigger(const InputSnapshot& rawInput,
     if (!isTriggerSupported(trigger))
         return false;
 
-    if (currentModifiers != trigger.modifiers)
+    const auto key = static_cast<GtsKey>(trigger.code);
+    ModifierFlags effectiveModifiers = currentModifiers;
+    if (isModifierKey(key))
+        effectiveModifiers = effectiveModifiers & ~modifierFlagForKey(key);
+
+    if (effectiveModifiers != trigger.modifiers)
         return false;
 
-    const auto key = static_cast<GtsKey>(trigger.code);
     switch (trigger.type)
     {
         case InputTrigger::Type::Key:

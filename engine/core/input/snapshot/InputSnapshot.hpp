@@ -1,5 +1,6 @@
 #pragma once
 
+#include "InputBinding.h"
 #include "IInputSource.hpp"
 #include "GtsKey.h"
 
@@ -19,6 +20,15 @@
 struct InputSnapshot
 {
     const IInputSource* source = nullptr;
+    ModifierFlags       modifiers = ModifierFlags::None;
+
+    InputSnapshot() = default;
+
+    explicit InputSnapshot(const IInputSource* source)
+        : source(source)
+        , modifiers(source != nullptr ? source->getModifiers() : ModifierFlags::None)
+    {
+    }
 
     bool isKeyDown(GtsKey key) const     { return source != nullptr && source->isKeyDown(key); }
     bool isKeyPressed(GtsKey key) const  { return source != nullptr && source->isKeyPressed(key); }

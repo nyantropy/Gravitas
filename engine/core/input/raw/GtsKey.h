@@ -22,6 +22,7 @@ enum class GtsKey
     LeftShift, RightShift,
     LeftCtrl,  RightCtrl,
     LeftAlt,   RightAlt,
+    LeftSuper, RightSuper,
 
     // Function keys
     F1, F2, F3, F4, F5,  F6,

@@ -1,4 +1,5 @@
 #pragma once
+#include "InputBinding.h"
 #include "GtsKey.h"
 
 // Abstract frame-based digital input source.
@@ -12,4 +13,5 @@ public:
     virtual bool isKeyDown(GtsKey key) const = 0;
     virtual bool isKeyPressed(GtsKey key) const = 0;
     virtual bool isKeyReleased(GtsKey key) const = 0;
+    virtual ModifierFlags getModifiers() const = 0;
 };
