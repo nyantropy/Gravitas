@@ -20,6 +20,7 @@
 
 #include "FrameManager.hpp"
 #include "ScreenshotManager.hpp"
+#include "threading/ThreadPool.h"
 
 #include "GtsPlatformEventBus.hpp"
 #include "GtsEventTypes.h"
@@ -41,6 +42,7 @@ class ForwardRenderer : Renderer
         std::unique_ptr<IFrameOutputTarget>    frameOutputTarget;
         std::unique_ptr<RenderResourceManager> resourceSystem;
         std::unique_ptr<FrameManager>          frameManager;
+        std::unique_ptr<ThreadPool>            threadPool;
 
         // Per-frame stats — populated in renderFrame, provided to the blackboard.
         GtsFrameStats frameStats;
@@ -169,6 +171,7 @@ class ForwardRenderer : Renderer
 
             auto ownedScene = std::make_unique<SceneRenderStage>(
                 resourceSystem.get(),
+                threadPool.get(),
                 depthAttachment->getImageView(),
                 depthFormat,
                 outputHandle0,
@@ -197,6 +200,7 @@ class ForwardRenderer : Renderer
             resourceSystem = std::make_unique<RenderResourceManager>();
             frameManager   = std::make_unique<FrameManager>(frameOutputTarget->getImages().size(),
                                                             frameOutputTarget->requiresRenderFinishedSemaphore());
+            threadPool     = std::make_unique<ThreadPool>();
             buildFrameGraph();
         }
 
@@ -288,6 +292,7 @@ class ForwardRenderer : Renderer
         ~ForwardRenderer()
         {
             if (frameManager)    frameManager.reset();
+            if (threadPool)      threadPool.reset();
             if (resourceSystem)  resourceSystem.reset();
             if (depthAttachment) depthAttachment.reset();
         }

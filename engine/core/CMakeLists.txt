@@ -2,6 +2,7 @@
 # Pure C++ core: ECS framework, input, scene management, options, time, RNG.
 # No Vulkan, no GLFW. All sub-directories are header-only except rng/.
 file(GLOB_RECURSE CORE_SOURCES
+    CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
 )
 add_library(gravitas_core STATIC ${CORE_SOURCES})
@@ -65,6 +66,9 @@ target_include_directories(gravitas_core PUBLIC
 
     # Time
     "${CMAKE_CURRENT_SOURCE_DIR}/time"
+
+    # Threading
+    "${CMAKE_CURRENT_SOURCE_DIR}/threading"
 
     # UI core model
     "${CMAKE_CURRENT_SOURCE_DIR}/ui"
