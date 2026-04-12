@@ -236,8 +236,10 @@ class ECSWorld
             forEachScratch.shrink_to_fit();
             nextEntityId = 0;
             // Clear any remaining subscriptions after systems are gone.
+            // Do NOT reset nextSubscriptionId — it must be monotonically increasing
+            // across the world's lifetime so that IDs from tokens held before clear()
+            // never collide with IDs assigned after clear().
             eventHandlers.clear();
-            nextSubscriptionId = 1;
         }
 
         // ------------------------------------------------------------

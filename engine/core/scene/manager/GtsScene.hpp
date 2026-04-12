@@ -43,6 +43,8 @@ class GtsScene
         virtual ~GtsScene() = default;
 
         // Called once whenever the scene is loaded.
+        // ctx is non-const because installPhysicsFeature() writes ctx.physics back
+        // to inform the caller (GravitasEngine) of the newly created physics world.
         virtual void onLoad(EcsControllerContext& ctx,
                             const GtsSceneTransitionData* data = nullptr) = 0;
 
@@ -66,6 +68,9 @@ class GtsScene
             return physicsWorld.get();
         }
 
+        // Call from onLoad() to enable physics for this scene. Idempotent —
+        // safe to call multiple times (e.g., on scene reload); subsequent calls
+        // are no-ops so the physics world is not reset or duplicated.
         inline void installPhysicsFeature(EcsControllerContext& ctx, bool enableDebugRenderer = false)
         {
             if (physicsFeatureInstalled)
@@ -80,7 +85,9 @@ class GtsScene
             physicsFeatureInstalled = true;
         }
 
-        // Predefined rendering systems. Call once from onLoad() after scene setup.
+        // Call from onLoad() to install the standard rendering systems (mesh binding,
+        // GPU sync, camera). Idempotent — safe to call multiple times; subsequent
+        // calls are no-ops so systems are not registered twice on scene reload.
         inline void installRendererFeature(const EcsControllerContext& ctx)
         {
             if (rendererFeatureInstalled)
