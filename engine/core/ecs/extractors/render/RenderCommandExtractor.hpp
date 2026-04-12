@@ -36,6 +36,7 @@ public:
         int totalRenderables   = 0;
         int visibleRenderables = 0;
         int updatedCommands    = 0;
+        bool visibilityStatesChanged = false;
 
         nextOpaqueEntityOrder.clear();
         nextTransparentEntityOrder.clear();
@@ -66,6 +67,9 @@ public:
                 || cached.command.cameraViewID != snapshot.cameraViewID
                 || cached.command.modelMatrix != renderable.modelMatrix;
 
+            if (!cached.initialised || cached.visible != visible)
+                visibilityStatesChanged = true;
+
             cached.visible = visible;
 
             if (needsUpdate)
@@ -94,7 +98,6 @@ public:
         }
 
         const bool staleEntriesPruned = invalidateStaleSlots();
-        const bool visibilityStatesChanged = visibilityStateDirty(snapshot);
         const bool visibilityChanged = !cacheInitialised
             || updatedCommands > 0
             || sortOrderDirty
@@ -207,22 +210,5 @@ private:
             sortOrderDirty = true;
 
         return pruned;
-    }
-
-    bool visibilityStateDirty(const RenderExtractionSnapshot& snapshot) const
-    {
-        for (const RenderableSnapshot& renderable : snapshot.renderables)
-        {
-            auto it = commandCache.find(renderable.id);
-            if (it == commandCache.end())
-                return true;
-
-            if (it->second.visible != renderable.visible)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 };

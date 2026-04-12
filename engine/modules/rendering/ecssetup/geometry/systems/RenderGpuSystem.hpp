@@ -5,6 +5,7 @@
 #include <unordered_set>
 
 #include "ECSControllerSystem.hpp"
+#include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
 #include "TransformComponent.h"
 #include "HierarchyComponent.h"
@@ -141,6 +142,9 @@ public:
             rc.dirty         = false;
             rc.readyToRender = true;
             rc.commandDirty  = true;
+            if (!ctx.world.hasComponent<RenderDirtyComponent>(e))
+                ctx.world.addComponent(e, RenderDirtyComponent{});
+            ctx.world.getComponent<RenderDirtyComponent>(e).transformDirty = true;
             updatedRenderables += 1;
         });
         const auto endTime = std::chrono::steady_clock::now();

@@ -5,6 +5,7 @@
 #include "MaterialComponent.h"
 #include "MeshGpuComponent.h"
 #include "MaterialGpuComponent.h"
+#include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
 
 // The exclusive broker between static mesh / material descriptions and renderer resources.
@@ -31,9 +32,12 @@ public:
                 ctx.world.addComponent(e, MaterialGpuComponent{});
             if (!ctx.world.hasComponent<RenderGpuComponent>(e))
                 ctx.world.addComponent(e, RenderGpuComponent{});
+            if (!ctx.world.hasComponent<RenderDirtyComponent>(e))
+                ctx.world.addComponent(e, RenderDirtyComponent{});
 
             auto& meshGpu = ctx.world.getComponent<MeshGpuComponent>(e);
             auto& matGpu  = ctx.world.getComponent<MaterialGpuComponent>(e);
+            auto& dirty   = ctx.world.getComponent<RenderDirtyComponent>(e);
             auto& rc      = ctx.world.getComponent<RenderGpuComponent>(e);
 
             // Allocate a GPU slot the first time this entity is seen
@@ -49,6 +53,7 @@ public:
                 meshGpu.meshID        = ctx.resources->requestMesh(mesh.meshPath);
                 meshGpu.ownsProceduralMeshResource = false;
                 meshGpu.boundMeshPath = mesh.meshPath;
+                dirty.meshDirty       = true;
                 rc.dirty              = true;
                 rc.readyToRender      = false;
                 rc.commandDirty       = true;
@@ -59,6 +64,7 @@ public:
             {
                 matGpu.textureID        = ctx.resources->requestTexture(mat.texturePath);
                 matGpu.boundTexturePath = mat.texturePath;
+                dirty.materialDirty     = true;
                 rc.dirty                = true;
                 rc.readyToRender        = false;
                 rc.commandDirty         = true;
@@ -69,6 +75,7 @@ public:
                 || matGpu.doubleSided != mat.doubleSided
                 || matGpu.tint != mat.tint)
             {
+                dirty.materialDirty = true;
                 rc.commandDirty = true;
             }
             matGpu.tint        = mat.tint;

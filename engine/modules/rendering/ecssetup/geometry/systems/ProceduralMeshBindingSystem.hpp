@@ -5,6 +5,7 @@
 #include "MaterialComponent.h"
 #include "MeshGpuComponent.h"
 #include "MaterialGpuComponent.h"
+#include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
 #include "Vertex.h"
 
@@ -32,9 +33,12 @@ public:
                 ctx.world.addComponent(e, MaterialGpuComponent{});
             if (!ctx.world.hasComponent<RenderGpuComponent>(e))
                 ctx.world.addComponent(e, RenderGpuComponent{});
+            if (!ctx.world.hasComponent<RenderDirtyComponent>(e))
+                ctx.world.addComponent(e, RenderDirtyComponent{});
 
             auto& meshGpu = ctx.world.getComponent<MeshGpuComponent>(e);
             auto& matGpu  = ctx.world.getComponent<MaterialGpuComponent>(e);
+            auto& dirty   = ctx.world.getComponent<RenderDirtyComponent>(e);
             auto& rc      = ctx.world.getComponent<RenderGpuComponent>(e);
 
             // Allocate a GPU slot on first bind
@@ -52,13 +56,17 @@ public:
             {
                 matGpu.textureID        = ctx.resources->requestTexture(mat.texturePath);
                 matGpu.boundTexturePath = mat.texturePath;
+                dirty.materialDirty     = true;
                 rc.dirty                = true;
                 rc.readyToRender        = false;
                 rc.commandDirty         = true;
             }
 
             if (matGpu.tint != mat.tint || matGpu.alpha != mat.alpha)
+            {
+                dirty.materialDirty = true;
                 rc.commandDirty = true;
+            }
             matGpu.tint  = mat.tint;
             matGpu.alpha = mat.alpha;
 
@@ -94,6 +102,7 @@ public:
                 meshGpu.boundWidth           = mesh.width;
                 meshGpu.boundHeight          = mesh.height;
                 meshGpu.boundGeometryVersion = mesh.geometryVersion;
+                dirty.meshDirty              = true;
                 rc.dirty                     = true;
                 rc.readyToRender             = false;
                 rc.commandDirty              = true;

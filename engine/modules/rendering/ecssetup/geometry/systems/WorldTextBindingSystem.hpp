@@ -4,6 +4,7 @@
 #include "WorldTextComponent.h"
 #include "MeshGpuComponent.h"
 #include "MaterialGpuComponent.h"
+#include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
 #include "TransformComponent.h"
 #include "GlyphLayoutEngine.h"
@@ -27,9 +28,12 @@ public:
                 ctx.world.addComponent(e, MaterialGpuComponent{});
             if (!ctx.world.hasComponent<RenderGpuComponent>(e))
                 ctx.world.addComponent(e, RenderGpuComponent{});
+            if (!ctx.world.hasComponent<RenderDirtyComponent>(e))
+                ctx.world.addComponent(e, RenderDirtyComponent{});
 
             auto& meshGpu = ctx.world.getComponent<MeshGpuComponent>(e);
             auto& matGpu  = ctx.world.getComponent<MaterialGpuComponent>(e);
+            auto& dirty   = ctx.world.getComponent<RenderDirtyComponent>(e);
             auto& rc      = ctx.world.getComponent<RenderGpuComponent>(e);
 
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
@@ -50,6 +54,8 @@ public:
                     meshGpu.ownsProceduralMeshResource = true;
                     matGpu.textureID   = wtc.font->atlasTexture;
                     matGpu.doubleSided = true;
+                    dirty.meshDirty    = true;
+                    dirty.materialDirty = true;
                     rc.dirty           = true;
                     rc.readyToRender   = false;
                     rc.commandDirty    = true;
