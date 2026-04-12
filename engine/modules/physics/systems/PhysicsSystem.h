@@ -12,7 +12,7 @@ public:
     {
     }
 
-    void update(ECSWorld& world, float dt) override;
+    void update(const EcsSimulationContext& ctx) override;
 
 private:
     PhysicsWorld* physicsWorld = nullptr;

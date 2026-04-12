@@ -1,11 +1,12 @@
 #pragma once
 
-class ECSWorld;
+#include "EcsSimulationContext.hpp"
 
-// a pure system, best suited for actual game simulation
-class ECSSimulationSystem 
+// Pure deterministic system — runs at the fixed simulation tick rate.
+// Suitable for physics, animation, and deterministic gameplay logic.
+class ECSSimulationSystem
 {
-    public:
-        virtual ~ECSSimulationSystem() = default;
-        virtual void update(class ECSWorld& world, float dt) = 0;
+public:
+    virtual ~ECSSimulationSystem() = default;
+    virtual void update(const EcsSimulationContext& ctx) = 0;
 };

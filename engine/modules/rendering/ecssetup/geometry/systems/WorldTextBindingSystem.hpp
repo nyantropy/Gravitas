@@ -8,30 +8,29 @@
 #include "TransformComponent.h"
 #include "GlyphLayoutEngine.h"
 #include "Vertex.h"
-#include "SceneContext.h"
 #include "ECSWorld.hpp"
 
 class WorldTextBindingSystem : public ECSControllerSystem
 {
 public:
-    void update(ECSWorld& world, SceneContext& ctx) override
+    void update(const EcsControllerContext& ctx) override
     {
-        world.forEach<WorldTextComponent, TransformComponent>(
+        ctx.world.forEach<WorldTextComponent, TransformComponent>(
             [&](Entity e, WorldTextComponent& wtc, TransformComponent&)
         {
             if (!wtc.font || wtc.text.empty()) return;
 
             // Ensure all three GPU components exist
-            if (!world.hasComponent<MeshGpuComponent>(e))
-                world.addComponent(e, MeshGpuComponent{});
-            if (!world.hasComponent<MaterialGpuComponent>(e))
-                world.addComponent(e, MaterialGpuComponent{});
-            if (!world.hasComponent<RenderGpuComponent>(e))
-                world.addComponent(e, RenderGpuComponent{});
+            if (!ctx.world.hasComponent<MeshGpuComponent>(e))
+                ctx.world.addComponent(e, MeshGpuComponent{});
+            if (!ctx.world.hasComponent<MaterialGpuComponent>(e))
+                ctx.world.addComponent(e, MaterialGpuComponent{});
+            if (!ctx.world.hasComponent<RenderGpuComponent>(e))
+                ctx.world.addComponent(e, RenderGpuComponent{});
 
-            auto& meshGpu = world.getComponent<MeshGpuComponent>(e);
-            auto& matGpu  = world.getComponent<MaterialGpuComponent>(e);
-            auto& rc      = world.getComponent<RenderGpuComponent>(e);
+            auto& meshGpu = ctx.world.getComponent<MeshGpuComponent>(e);
+            auto& matGpu  = ctx.world.getComponent<MaterialGpuComponent>(e);
+            auto& rc      = ctx.world.getComponent<RenderGpuComponent>(e);
 
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
             {

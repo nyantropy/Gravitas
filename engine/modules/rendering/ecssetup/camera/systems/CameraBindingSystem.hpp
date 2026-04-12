@@ -10,14 +10,14 @@
 class CameraBindingSystem : public ECSControllerSystem
 {
     public:
-        void update(ECSWorld& world, SceneContext& ctx) override
+        void update(const EcsControllerContext& ctx) override
         {
-            world.forEach<CameraDescriptionComponent>([&](Entity e, CameraDescriptionComponent&)
+            ctx.world.forEach<CameraDescriptionComponent>([&](Entity e, CameraDescriptionComponent&)
             {
-                if (!world.hasComponent<CameraGpuComponent>(e))
-                    world.addComponent(e, CameraGpuComponent{});
+                if (!ctx.world.hasComponent<CameraGpuComponent>(e))
+                    ctx.world.addComponent(e, CameraGpuComponent{});
 
-                auto& gpu = world.getComponent<CameraGpuComponent>(e);
+                auto& gpu = ctx.world.getComponent<CameraGpuComponent>(e);
 
                 if (gpu.viewID == 0)
                     gpu.viewID = ctx.resources->requestCameraBuffer();

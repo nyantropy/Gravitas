@@ -12,12 +12,12 @@
 class TransformAnimationSystem : public ECSSimulationSystem
 {
     public:
-        void update(ECSWorld& world, float dt) override
+        void update(const EcsSimulationContext& ctx) override
         {
-            for (Entity e : world.getAllEntitiesWith<TransformComponent, AnimationComponent>())
+            for (Entity e : ctx.world.getAllEntitiesWith<TransformComponent, AnimationComponent>())
             {
-                auto& transform = world.getComponent<TransformComponent>(e);
-                auto& anim = world.getComponent<AnimationComponent>(e);
+                auto& transform = ctx.world.getComponent<TransformComponent>(e);
+                auto& anim = ctx.world.getComponent<AnimationComponent>(e);
 
                 if (!anim.enabled)
                     continue;
@@ -31,7 +31,7 @@ class TransformAnimationSystem : public ECSSimulationSystem
                     anim.initialized = true;
                 }
 
-                anim.time += dt;
+                anim.time += ctx.dt;
 
                 // Translation
                 if (anim.hasMode(AnimationMode::Translate))

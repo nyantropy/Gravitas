@@ -14,7 +14,6 @@
 #include "Entity.h"
 #include "GtsAction.h"
 #include "GtsKey.h"
-#include "SceneContext.h"
 #include "TransformComponent.h"
 
 class DebugFreeCameraSystem : public ECSControllerSystem
@@ -25,21 +24,21 @@ public:
     static constexpr float MIN_PITCH    = glm::radians(-89.0f);
     static constexpr float MAX_PITCH    = glm::radians( 89.0f);
 
-    void update(ECSWorld& world, SceneContext& ctx) override
+    void update(const EcsControllerContext& ctx) override
     {
         bindDefaults(ctx);
 
-        auto& state = ensureState(world, ctx);
+        auto& state = ensureState(ctx);
 
         if (ctx.actions->isActionPressed(GtsAction::ToggleDebugCamera))
         {
-            if (!state.active) activate(world, ctx, state);
-            else deactivate(world, ctx, state);
+            if (!state.active) activate(ctx, state);
+            else deactivate(ctx, state);
         }
 
         if (!state.active) return;
 
-        updateActiveDebugCamera(world, ctx, state);
+        updateActiveDebugCamera(ctx, state);
     }
 
 private:
@@ -52,7 +51,7 @@ private:
         return Entity{ std::numeric_limits<entity_id_type>::max() };
     }
 
-    void bindDefaults(SceneContext& ctx)
+    void bindDefaults(const EcsControllerContext& ctx)
     {
         if (defaultsBound) return;
 
@@ -60,25 +59,25 @@ private:
         defaultsBound = true;
     }
 
-    DebugCameraStateComponent& ensureState(ECSWorld& world, SceneContext& ctx)
+    DebugCameraStateComponent& ensureState(const EcsControllerContext& ctx)
     {
-        if (!world.hasAny<DebugCameraStateComponent>())
+        if (!ctx.world.hasAny<DebugCameraStateComponent>())
         {
-            auto& state = world.createSingleton<DebugCameraStateComponent>();
-            state.debugCameraEntity = createDebugCameraEntity(world, ctx);
+            auto& state = ctx.world.createSingleton<DebugCameraStateComponent>();
+            state.debugCameraEntity = createDebugCameraEntity(ctx);
             return state;
         }
 
-        auto& state = world.getSingleton<DebugCameraStateComponent>();
-        if (!world.hasComponent<CameraDescriptionComponent>(state.debugCameraEntity))
-            state.debugCameraEntity = createDebugCameraEntity(world, ctx);
+        auto& state = ctx.world.getSingleton<DebugCameraStateComponent>();
+        if (!ctx.world.hasComponent<CameraDescriptionComponent>(state.debugCameraEntity))
+            state.debugCameraEntity = createDebugCameraEntity(ctx);
 
         return state;
     }
 
-    Entity createDebugCameraEntity(ECSWorld& world, SceneContext& ctx)
+    Entity createDebugCameraEntity(const EcsControllerContext& ctx)
     {
-        Entity e = world.createEntity();
+        Entity e = ctx.world.createEntity();
 
         CameraDescriptionComponent desc;
         desc.active      = false;
@@ -87,20 +86,20 @@ private:
         desc.nearClip    = 0.05f;
         desc.farClip     = 500.0f;
         desc.target      = {0.0f, 0.0f, -1.0f};
-        world.addComponent(e, desc);
+        ctx.world.addComponent(e, desc);
 
-        world.addComponent(e, TransformComponent{});
-        world.addComponent(e, CameraControlOverrideComponent{});
-        world.addComponent(e, CameraOverrideComponent{});
-        world.addComponent(e, CameraGpuComponent{});
+        ctx.world.addComponent(e, TransformComponent{});
+        ctx.world.addComponent(e, CameraControlOverrideComponent{});
+        ctx.world.addComponent(e, CameraOverrideComponent{});
+        ctx.world.addComponent(e, CameraGpuComponent{});
 
         return e;
     }
 
-    void activate(ECSWorld& world, SceneContext& ctx, DebugCameraStateComponent& state)
+    void activate(const EcsControllerContext& ctx, DebugCameraStateComponent& state)
     {
         Entity currentCamera = invalidEntity();
-        world.forEach<CameraDescriptionComponent>([&](Entity e, CameraDescriptionComponent& desc)
+        ctx.world.forEach<CameraDescriptionComponent>([&](Entity e, CameraDescriptionComponent& desc)
         {
             if (desc.active && e != state.debugCameraEntity && currentCamera == invalidEntity())
                 currentCamera = e;
@@ -111,12 +110,12 @@ private:
         state.previousActiveCamera = currentCamera;
         state.active = true;
 
-        auto& srcDesc = world.getComponent<CameraDescriptionComponent>(currentCamera);
-        auto& dstDesc = world.getComponent<CameraDescriptionComponent>(state.debugCameraEntity);
-        auto& dstTr   = world.getComponent<TransformComponent>(state.debugCameraEntity);
+        auto& srcDesc = ctx.world.getComponent<CameraDescriptionComponent>(currentCamera);
+        auto& dstDesc = ctx.world.getComponent<CameraDescriptionComponent>(state.debugCameraEntity);
+        auto& dstTr   = ctx.world.getComponent<TransformComponent>(state.debugCameraEntity);
 
-        glm::vec3 srcPos = world.hasComponent<TransformComponent>(currentCamera)
-            ? world.getComponent<TransformComponent>(currentCamera).position
+        glm::vec3 srcPos = ctx.world.hasComponent<TransformComponent>(currentCamera)
+            ? ctx.world.getComponent<TransformComponent>(currentCamera).position
             : glm::vec3(0.0f);
         const glm::vec3 forward = glm::normalize(srcDesc.target - srcPos);
 
@@ -130,9 +129,9 @@ private:
         dstDesc.target    = srcPos + forward;
         srcDesc.active    = false;
 
-        if (world.hasComponent<CameraGpuComponent>(currentCamera))
+        if (ctx.world.hasComponent<CameraGpuComponent>(currentCamera))
         {
-            auto& srcGpu = world.getComponent<CameraGpuComponent>(currentCamera);
+            auto& srcGpu = ctx.world.getComponent<CameraGpuComponent>(currentCamera);
             srcGpu.active = false;
             srcGpu.dirty  = true;
         }
@@ -141,37 +140,37 @@ private:
         pitch = glm::clamp(std::asin(glm::clamp(forward.y, -1.0f, 1.0f)), MIN_PITCH, MAX_PITCH);
     }
 
-    void deactivate(ECSWorld& world, SceneContext& ctx, DebugCameraStateComponent& state)
+    void deactivate(const EcsControllerContext& ctx, DebugCameraStateComponent& state)
     {
         state.active = false;
 
-        if (world.hasComponent<CameraDescriptionComponent>(state.debugCameraEntity))
-            world.getComponent<CameraDescriptionComponent>(state.debugCameraEntity).active = false;
+        if (ctx.world.hasComponent<CameraDescriptionComponent>(state.debugCameraEntity))
+            ctx.world.getComponent<CameraDescriptionComponent>(state.debugCameraEntity).active = false;
 
-        if (world.hasComponent<CameraGpuComponent>(state.debugCameraEntity))
+        if (ctx.world.hasComponent<CameraGpuComponent>(state.debugCameraEntity))
         {
-            auto& debugGpu = world.getComponent<CameraGpuComponent>(state.debugCameraEntity);
+            auto& debugGpu = ctx.world.getComponent<CameraGpuComponent>(state.debugCameraEntity);
             debugGpu.active = false;
             debugGpu.dirty  = true;
         }
 
         if (state.previousActiveCamera != invalidEntity()
-            && world.hasComponent<CameraDescriptionComponent>(state.previousActiveCamera))
+            && ctx.world.hasComponent<CameraDescriptionComponent>(state.previousActiveCamera))
         {
-            auto& restoredDesc = world.getComponent<CameraDescriptionComponent>(state.previousActiveCamera);
+            auto& restoredDesc = ctx.world.getComponent<CameraDescriptionComponent>(state.previousActiveCamera);
             restoredDesc.active      = true;
             restoredDesc.aspectRatio = ctx.windowAspectRatio;
 
-            if (world.hasComponent<CameraGpuComponent>(state.previousActiveCamera))
+            if (ctx.world.hasComponent<CameraGpuComponent>(state.previousActiveCamera))
             {
-                auto& restoredGpu = world.getComponent<CameraGpuComponent>(state.previousActiveCamera);
+                auto& restoredGpu = ctx.world.getComponent<CameraGpuComponent>(state.previousActiveCamera);
                 restoredGpu.active = true;
                 restoredGpu.dirty  = true;
 
-                if (!world.hasComponent<CameraOverrideComponent>(state.previousActiveCamera))
+                if (!ctx.world.hasComponent<CameraOverrideComponent>(state.previousActiveCamera))
                 {
-                    const glm::vec3 restoredPos = world.hasComponent<TransformComponent>(state.previousActiveCamera)
-                        ? world.getComponent<TransformComponent>(state.previousActiveCamera).position
+                    const glm::vec3 restoredPos = ctx.world.hasComponent<TransformComponent>(state.previousActiveCamera)
+                        ? ctx.world.getComponent<TransformComponent>(state.previousActiveCamera).position
                         : glm::vec3(0.0f);
 
                     restoredGpu.viewMatrix = glm::lookAt(restoredPos,
@@ -189,15 +188,15 @@ private:
         state.previousActiveCamera = invalidEntity();
     }
 
-    void updateActiveDebugCamera(ECSWorld& world, SceneContext& ctx, DebugCameraStateComponent& state)
+    void updateActiveDebugCamera(const EcsControllerContext& ctx, DebugCameraStateComponent& state)
     {
-        if (!world.hasComponent<CameraDescriptionComponent>(state.debugCameraEntity)
-            || !world.hasComponent<TransformComponent>(state.debugCameraEntity))
+        if (!ctx.world.hasComponent<CameraDescriptionComponent>(state.debugCameraEntity)
+            || !ctx.world.hasComponent<TransformComponent>(state.debugCameraEntity))
             return;
 
-        auto& desc = world.getComponent<CameraDescriptionComponent>(state.debugCameraEntity);
-        auto& tr   = world.getComponent<TransformComponent>(state.debugCameraEntity);
-        auto& gpu  = world.getComponent<CameraGpuComponent>(state.debugCameraEntity);
+        auto& desc = ctx.world.getComponent<CameraDescriptionComponent>(state.debugCameraEntity);
+        auto& tr   = ctx.world.getComponent<TransformComponent>(state.debugCameraEntity);
+        auto& gpu  = ctx.world.getComponent<CameraGpuComponent>(state.debugCameraEntity);
         auto* input = ctx.inputSource;
 
         const float dt = ctx.time->unscaledDeltaTime;

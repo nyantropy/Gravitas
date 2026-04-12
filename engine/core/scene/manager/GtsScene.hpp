@@ -1,7 +1,8 @@
 #pragma once
 
 #include "ECSWorld.hpp"
-#include "SceneContext.h"
+#include "EcsSimulationContext.hpp"
+#include "EcsControllerContext.hpp"
 #include "GtsSceneTransitionData.h"
 #include "GtsFrameStats.h"
 #include "PhysicsWorld.h"
@@ -41,17 +42,17 @@ class GtsScene
     public:
         virtual ~GtsScene() = default;
 
-        // call this once whenever the scene is loaded
-        virtual void onLoad(SceneContext& ctx,
+        // Called once whenever the scene is loaded.
+        virtual void onLoad(EcsControllerContext& ctx,
                             const GtsSceneTransitionData* data = nullptr) = 0;
 
         // Called once per simulation tick at the fixed tick rate.
         // Deterministic scene simulation goes here.
-        virtual void onUpdateSimulation(SceneContext& ctx) = 0;
+        virtual void onUpdateSimulation(const EcsSimulationContext& ctx) = 0;
 
         // Called once per rendered frame regardless of tick rate.
         // Input processing, visual updates, and rendering prep go here.
-        virtual void onUpdateControllers(SceneContext& ctx) {}
+        virtual void onUpdateControllers(const EcsControllerContext& ctx) {}
 
         virtual void populateFrameStats(GtsFrameStats& /*stats*/) const {}
 
@@ -65,7 +66,7 @@ class GtsScene
             return physicsWorld.get();
         }
 
-        inline void installPhysicsFeature(SceneContext& ctx, bool enableDebugRenderer = false)
+        inline void installPhysicsFeature(EcsControllerContext& ctx, bool enableDebugRenderer = false)
         {
             if (physicsFeatureInstalled)
                 return;
@@ -80,7 +81,7 @@ class GtsScene
         }
 
         // Predefined rendering systems. Call once from onLoad() after scene setup.
-        inline void installRendererFeature(SceneContext& ctx)
+        inline void installRendererFeature(const EcsControllerContext& ctx)
         {
             if (rendererFeatureInstalled)
                 return;

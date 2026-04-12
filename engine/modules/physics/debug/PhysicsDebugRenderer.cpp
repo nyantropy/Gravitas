@@ -6,6 +6,7 @@
 
 #include "BoundsComponent.h"
 #include "ECSWorld.hpp"
+#include "EcsControllerContext.hpp"
 #include "GraphicsConstants.h"
 #include "MaterialComponent.h"
 #include "PhysicsWorld.h"
@@ -113,7 +114,7 @@ namespace
     }
 }
 
-void PhysicsDebugRenderer::update(ECSWorld& world, SceneContext& ctx)
+void PhysicsDebugRenderer::update(const EcsControllerContext& ctx)
 {
     if (!enabled) return;
 
@@ -122,7 +123,7 @@ void PhysicsDebugRenderer::update(ECSWorld& world, SceneContext& ctx)
 
     std::unordered_set<entity_id_type> liveColliderIds;
 
-    world.forEach<TransformComponent, SphereColliderComponent>(
+    ctx.world.forEach<TransformComponent, SphereColliderComponent>(
         [&](Entity colliderEntity, TransformComponent& transform, SphereColliderComponent& collider)
     {
         liveColliderIds.insert(colliderEntity.id);
@@ -132,12 +133,12 @@ void PhysicsDebugRenderer::update(ECSWorld& world, SceneContext& ctx)
         {
             debugEntities.reserve(SEGMENTS_PER_COLLIDER);
             for (int i = 0; i < SEGMENTS_PER_COLLIDER; ++i)
-                debugEntities.push_back(createSegmentEntity(world));
+                debugEntities.push_back(createSegmentEntity(ctx.world));
         }
 
-        updateRing(world, debugEntities, 0, transform.position, collider.radius, {0.0f, 0.0f, 0.0f});
-        updateRing(world, debugEntities, SEGMENTS_PER_RING, transform.position, collider.radius, {-glm::half_pi<float>(), 0.0f, 0.0f});
-        updateRing(world, debugEntities, SEGMENTS_PER_RING * 2, transform.position, collider.radius, {0.0f, glm::half_pi<float>(), 0.0f});
+        updateRing(ctx.world, debugEntities, 0, transform.position, collider.radius, {0.0f, 0.0f, 0.0f});
+        updateRing(ctx.world, debugEntities, SEGMENTS_PER_RING, transform.position, collider.radius, {-glm::half_pi<float>(), 0.0f, 0.0f});
+        updateRing(ctx.world, debugEntities, SEGMENTS_PER_RING * 2, transform.position, collider.radius, {0.0f, glm::half_pi<float>(), 0.0f});
     });
 
     std::vector<entity_id_type> staleColliderIds;
@@ -149,7 +150,7 @@ void PhysicsDebugRenderer::update(ECSWorld& world, SceneContext& ctx)
         if (!liveColliderIds.contains(colliderId))
         {
             for (Entity entity : debugEntities)
-                releaseSegmentEntity(world, entity);
+                releaseSegmentEntity(ctx.world, entity);
             staleColliderIds.push_back(colliderId);
             continue;
         }

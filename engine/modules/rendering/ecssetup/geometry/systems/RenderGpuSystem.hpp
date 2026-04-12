@@ -35,7 +35,7 @@ public:
         return lastMetrics;
     }
 
-    void update(ECSWorld& world, SceneContext&) override
+    void update(const EcsControllerContext& ctx) override
     {
         const auto startTime = std::chrono::steady_clock::now();
 
@@ -71,9 +71,9 @@ public:
                 return {};
 
             CachedTransform* cached = nullptr;
-            if (world.hasComponent<RenderGpuComponent>(e))
+            if (ctx.world.hasComponent<RenderGpuComponent>(e))
             {
-                const auto& rc = world.getComponent<RenderGpuComponent>(e);
+                const auto& rc = ctx.world.getComponent<RenderGpuComponent>(e);
                 if (rc.objectSSBOSlot != RENDERABLE_SLOT_UNALLOCATED)
                     cached = &transformCache[rc.objectSSBOSlot];
             }
@@ -87,9 +87,9 @@ public:
             NodeState state;
             state.changed = false;
 
-            if (world.hasComponent<TransformComponent>(e))
+            if (ctx.world.hasComponent<TransformComponent>(e))
             {
-                const auto& transform = world.getComponent<TransformComponent>(e);
+                const auto& transform = ctx.world.getComponent<TransformComponent>(e);
 
                 // Detect whether the local transform has changed BEFORE calling
                 // getModelMatrix().  getModelMatrix() involves sin/cos and is the
@@ -113,9 +113,9 @@ public:
                 state.changed     = localChanged;
             }
 
-            if (world.hasComponent<HierarchyComponent>(e))
+            if (ctx.world.hasComponent<HierarchyComponent>(e))
             {
-                Entity parent = world.getComponent<HierarchyComponent>(e).parent;
+                Entity parent = ctx.world.getComponent<HierarchyComponent>(e).parent;
                 if (parent != INVALID_ENTITY)
                 {
                     const NodeState parentState = self(self, parent);
@@ -129,7 +129,7 @@ public:
             return state;
         };
 
-        world.forEach<RenderGpuComponent, TransformComponent>([&](Entity e, RenderGpuComponent& rc, TransformComponent&)
+        ctx.world.forEach<RenderGpuComponent, TransformComponent>([&](Entity e, RenderGpuComponent& rc, TransformComponent&)
         {
             totalRenderables += 1;
 

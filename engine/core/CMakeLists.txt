@@ -30,6 +30,7 @@ target_include_directories(gravitas_core PUBLIC
     # ECS framework
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/world"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/systems"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecs/context"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/extractors/interface"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/extractors/render"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/extractors/render/frustumcull"
@@ -41,6 +42,7 @@ target_include_directories(gravitas_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/input/raw"
     "${CMAKE_CURRENT_SOURCE_DIR}/input/action"
     "${CMAKE_CURRENT_SOURCE_DIR}/input/source"
+    "${CMAKE_CURRENT_SOURCE_DIR}/input/snapshot"
 
     # Options / constants / types
     "${CMAKE_CURRENT_SOURCE_DIR}/options"

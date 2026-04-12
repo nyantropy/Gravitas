@@ -5,7 +5,6 @@
 
 #include "GtsScene.hpp"
 #include "ECSWorld.hpp"
-#include "SceneContext.h"
 #include "RenderCommandExtractor.hpp"
 
 #include "TransformComponent.h"
@@ -90,7 +89,7 @@ class CullTestScene : public GtsScene
     }
 
 public:
-    void onLoad(SceneContext& ctx,
+    void onLoad(EcsControllerContext& ctx,
                 const GtsSceneTransitionData* data = nullptr) override
     {
         spawnGrid();
@@ -130,12 +129,12 @@ public:
         installRendererFeature(ctx);
     }
 
-    void onUpdateSimulation(SceneContext& ctx) override
+    void onUpdateSimulation(const EcsSimulationContext& ctx) override
     {
-        ecsWorld.updateSimulation(ctx.time->deltaTime);
+        ecsWorld.updateSimulation(ctx);
     }
 
-    void onUpdateControllers(SceneContext& ctx) override
+    void onUpdateControllers(const EcsControllerContext& ctx) override
     {
         ecsWorld.updateControllers(ctx);
 

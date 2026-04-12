@@ -17,25 +17,25 @@
 class ProceduralMeshBindingSystem : public ECSControllerSystem
 {
 public:
-    void update(ECSWorld& world, SceneContext& ctx) override
+    void update(const EcsControllerContext& ctx) override
     {
-        world.forEach<ProceduralMeshComponent, MaterialComponent>(
+        ctx.world.forEach<ProceduralMeshComponent, MaterialComponent>(
             [&](Entity e, ProceduralMeshComponent& mesh, MaterialComponent& mat)
         {
             if (mat.texturePath.empty())
                 return;
 
             // Ensure GPU components exist
-            if (!world.hasComponent<MeshGpuComponent>(e))
-                world.addComponent(e, MeshGpuComponent{});
-            if (!world.hasComponent<MaterialGpuComponent>(e))
-                world.addComponent(e, MaterialGpuComponent{});
-            if (!world.hasComponent<RenderGpuComponent>(e))
-                world.addComponent(e, RenderGpuComponent{});
+            if (!ctx.world.hasComponent<MeshGpuComponent>(e))
+                ctx.world.addComponent(e, MeshGpuComponent{});
+            if (!ctx.world.hasComponent<MaterialGpuComponent>(e))
+                ctx.world.addComponent(e, MaterialGpuComponent{});
+            if (!ctx.world.hasComponent<RenderGpuComponent>(e))
+                ctx.world.addComponent(e, RenderGpuComponent{});
 
-            auto& meshGpu = world.getComponent<MeshGpuComponent>(e);
-            auto& matGpu  = world.getComponent<MaterialGpuComponent>(e);
-            auto& rc      = world.getComponent<RenderGpuComponent>(e);
+            auto& meshGpu = ctx.world.getComponent<MeshGpuComponent>(e);
+            auto& matGpu  = ctx.world.getComponent<MaterialGpuComponent>(e);
+            auto& rc      = ctx.world.getComponent<RenderGpuComponent>(e);
 
             // Allocate a GPU slot on first bind
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)

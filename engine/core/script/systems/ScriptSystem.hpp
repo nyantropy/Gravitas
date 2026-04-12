@@ -3,18 +3,16 @@
 #include "ScriptComponent.h"
 
 // the script system runs update on every script component in the world
-class ScriptSystem : public ECSSimulationSystem 
+class ScriptSystem : public ECSSimulationSystem
 {
-    public:
-        void update(ECSWorld& world, float dt) override 
+public:
+    void update(const EcsSimulationContext& ctx) override
+    {
+        for (Entity e : ctx.world.getAllEntitiesWith<ScriptComponent>())
         {
-            for (Entity e : world.getAllEntitiesWith<ScriptComponent>()) 
-            {
-                auto& script = world.getComponent<ScriptComponent>(e);
-                if (script.script) 
-                {
-                    script.script->onUpdate(world, dt);
-                }
-            }
+            auto& script = ctx.world.getComponent<ScriptComponent>(e);
+            if (script.script)
+                script.script->onUpdate(ctx.world, ctx.dt);
         }
+    }
 };

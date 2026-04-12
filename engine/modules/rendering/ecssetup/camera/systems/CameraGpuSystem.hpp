@@ -27,21 +27,21 @@
 class CameraGpuSystem : public ECSControllerSystem
 {
 public:
-    void update(ECSWorld& world, SceneContext&) override
+    void update(const EcsControllerContext& ctx) override
     {
-        world.forEach<CameraDescriptionComponent>([&](Entity e, CameraDescriptionComponent& desc)
+        ctx.world.forEach<CameraDescriptionComponent>([&](Entity e, CameraDescriptionComponent& desc)
         {
             // custom camera systems own this entity — do not overwrite their matrices
-            if (world.hasComponent<CameraOverrideComponent>(e))
+            if (ctx.world.hasComponent<CameraOverrideComponent>(e))
                 return;
 
-            if (!world.hasComponent<CameraGpuComponent>(e))
-                world.addComponent(e, CameraGpuComponent{});
+            if (!ctx.world.hasComponent<CameraGpuComponent>(e))
+                ctx.world.addComponent(e, CameraGpuComponent{});
 
-            auto& gpu = world.getComponent<CameraGpuComponent>(e);
+            auto& gpu = ctx.world.getComponent<CameraGpuComponent>(e);
 
-            glm::vec3 position = world.hasComponent<TransformComponent>(e)
-                ? world.getComponent<TransformComponent>(e).position
+            glm::vec3 position = ctx.world.hasComponent<TransformComponent>(e)
+                ? ctx.world.getComponent<TransformComponent>(e).position
                 : glm::vec3(0.0f);
 
             gpu.viewMatrix = glm::lookAt(position, desc.target, desc.up);

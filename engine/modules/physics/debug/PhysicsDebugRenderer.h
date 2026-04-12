@@ -18,7 +18,7 @@ public:
     {
     }
 
-    void update(ECSWorld& world, SceneContext& ctx) override;
+    void update(const EcsControllerContext& ctx) override;
 
 private:
     bool enabled = true;

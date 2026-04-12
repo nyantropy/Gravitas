@@ -21,6 +21,10 @@
 #include "GtsFrameStats.h"
 #include "RenderGpuSystem.hpp"
 
+#include "EcsSimulationContext.hpp"
+#include "EcsControllerContext.hpp"
+#include "InputSnapshot.hpp"
+
 class GravitasEngine
 {
     private:
@@ -38,48 +42,39 @@ class GravitasEngine
         // used to extract all render commands from the currently active ecs world
         std::unique_ptr<RenderCommandExtractor> renderCommandExtractor;
 
-        // retained engine UI system — owned here, exposed to scenes via SceneContext::ui
+        // retained engine UI system
         std::unique_ptr<UiSystem> uiSystem;
 
         // the scene manager
-        // the whole world is a stage after all
         std::unique_ptr<SceneManager> sceneManager;
 
-        // the scene context and the time context should both be members of the engine, as they get updated
-        // constantly and need to not run out of scope
-        SceneContext sceneContext;
-        TimeContext  timeContext;
-
-        // the engine also has its own command buffer, which can be filled by lower level architectures, and will lead
-        // to the engine executing pre defined functions like pausing, or changing the scene, etc..
+        // Per-frame state — persistent fields for building EcsControllerContext
+        TimeContext     timeContext;
         GtsCommandBuffer engineCommands;
+        float            windowAspectRatio  = 1.0f;
+        int              windowPixelWidth   = 1;
+        int              windowPixelHeight  = 1;
+        bool             uiEnabled          = true;
+
         bool engineRunning = true;
 
-        void createSceneContext()
+        // Build an EcsControllerContext from the engine's current frame state.
+        // physics is sourced from the active scene so it is always up to date.
+        EcsControllerContext buildControllerContext(ECSWorld& world)
         {
-            int viewportWidth = 1;
-            int viewportHeight = 1;
-            platform.getViewportSize(viewportWidth, viewportHeight);
-
-            sceneContext.resources         = platform.getResourceProvider();
-            sceneContext.inputSource       = platform.getInputSource();   // pause-gated
-            sceneContext.actions           = platform.getActionManager(); // always live
-            sceneContext.time              = &timeContext;
-            sceneContext.engineCommands    = &engineCommands;
-            sceneContext.windowAspectRatio = platform.getAspectRatio();
-            sceneContext.windowPixelWidth  = viewportWidth;
-            sceneContext.windowPixelHeight = viewportHeight;
-            sceneContext.extractor         = renderCommandExtractor.get();
-            sceneContext.ui                = uiSystem.get();
-            sceneContext.uiEnabled         = true;
-            sceneContext.physics           = nullptr;
-        }
-
-        // its only a render system now, maybe this will move later
-        void createECSExtractors()
-        {
-            renderCommandExtractor = std::make_unique<RenderCommandExtractor>(engineConfig.frustumCullingEnabled);
-            uiSystem               = std::make_unique<UiSystem>(platform.getResourceProvider());
+            EcsControllerContext ctx{world};
+            ctx.resources         = platform.getResourceProvider();
+            ctx.inputSource       = platform.getInputSource();
+            ctx.actions           = platform.getActionManager();
+            ctx.time              = &timeContext;
+            ctx.engineCommands    = &engineCommands;
+            ctx.extractor         = renderCommandExtractor.get();
+            ctx.ui                = uiSystem.get();
+            ctx.physics           = sceneManager->getActiveScene()->getPhysicsModule();
+            ctx.windowAspectRatio = windowAspectRatio;
+            ctx.windowPixelWidth  = static_cast<float>(windowPixelWidth);
+            ctx.windowPixelHeight = static_cast<float>(windowPixelHeight);
+            return ctx;
         }
 
         // render call
@@ -87,12 +82,8 @@ class GravitasEngine
         {
             GtsScene* activeScene = sceneManager->getActiveScene();
             auto& world = activeScene->getWorld();
-            int viewportWidth = 1;
-            int viewportHeight = 1;
-            platform.getViewportSize(viewportWidth, viewportHeight);
-            sceneContext.windowAspectRatio = platform.getAspectRatio();
-            sceneContext.windowPixelWidth = viewportWidth;
-            sceneContext.windowPixelHeight = viewportHeight;
+            platform.getViewportSize(windowPixelWidth, windowPixelHeight);
+            windowAspectRatio = platform.getAspectRatio();
 
             GtsFrameStats stats;
             stats.fps            = (dt > 0.0f) ? 1.0f / dt : 0.0f;
@@ -107,18 +98,17 @@ class GravitasEngine
             // triangleCount is filled in by SceneRenderStage during execute
             activeScene->populateFrameStats(stats);
 
-            GtsExtractorContext extractCtx{world, sceneContext.windowAspectRatio};
+            GtsExtractorContext extractCtx{world, windowAspectRatio};
 
             const auto extractStart = std::chrono::steady_clock::now();
             const auto& renderList = renderCommandExtractor->extract(extractCtx);
             const auto extractEnd = std::chrono::steady_clock::now();
 
             UiCommandBuffer uiBuffer;
-            if (sceneContext.uiEnabled)
+            if (uiEnabled)
             {
                 uiSystem->setEnabled(true);
-                uiBuffer = uiSystem->extractCommands(sceneContext.windowPixelWidth,
-                                                     sceneContext.windowPixelHeight);
+                uiBuffer = uiSystem->extractCommands(windowPixelWidth, windowPixelHeight);
             }
             else
             {
@@ -165,14 +155,16 @@ class GravitasEngine
                         break;
                     case GtsCommand::Type::LoadScene:
                     case GtsCommand::Type::ChangeScene:
+                    {
                         platform.waitForGraphicsIdle();
                         uiSystem->clear();
-                        sceneContext.physics = nullptr;
-                        sceneContext.events = GtsEventBus{};
                         sceneManager->setActiveScene(cmd.stringArg);
-                        uiSystem->setEnabled(sceneContext.uiEnabled);
-                        sceneManager->getActiveScene()->onLoad(sceneContext, cmd.transitionData.get());
+                        uiSystem->setEnabled(uiEnabled);
+                        ECSWorld& world = sceneManager->getActiveScene()->getWorld();
+                        EcsControllerContext loadCtx = buildControllerContext(world);
+                        sceneManager->getActiveScene()->onLoad(loadCtx, cmd.transitionData.get());
                         break;
+                    }
                     case GtsCommand::Type::Quit:
                         engineRunning = false;
                         break;
@@ -189,8 +181,8 @@ class GravitasEngine
         {
             gameLoop.init(engineConfig);
             sceneManager = std::make_unique<SceneManager>();
-            createECSExtractors();
-            createSceneContext();
+            renderCommandExtractor = std::make_unique<RenderCommandExtractor>(engineConfig.frustumCullingEnabled);
+            uiSystem               = std::make_unique<UiSystem>(platform.getResourceProvider());
         }
 
         ~GravitasEngine() = default;
@@ -204,11 +196,11 @@ class GravitasEngine
                             std::shared_ptr<GtsSceneTransitionData> data = nullptr)
         {
             uiSystem->clear();
-            sceneContext.physics = nullptr;
-            sceneContext.events = GtsEventBus{};
             sceneManager->setActiveScene(name);
-            uiSystem->setEnabled(sceneContext.uiEnabled);
-            sceneManager->getActiveScene()->onLoad(sceneContext, data.get());
+            uiSystem->setEnabled(uiEnabled);
+            ECSWorld& world = sceneManager->getActiveScene()->getWorld();
+            EcsControllerContext loadCtx = buildControllerContext(world);
+            sceneManager->getActiveScene()->onLoad(loadCtx, data.get());
         }
 
         void start()
@@ -238,24 +230,36 @@ class GravitasEngine
                     platform.getGraphics()->requestScreenshot();
                 if (actions->isActionPressed(GtsAction::ToggleUI))
                 {
-                    sceneContext.uiEnabled = !sceneContext.uiEnabled;
-                    uiSystem->setEnabled(sceneContext.uiEnabled);
-                    std::cout << (sceneContext.uiEnabled ? "UI: ON" : "UI: OFF") << std::endl;
+                    uiEnabled = !uiEnabled;
+                    uiSystem->setEnabled(uiEnabled);
+                    std::cout << (uiEnabled ? "UI: ON" : "UI: OFF") << std::endl;
                 }
 
                 platform.setSimulationPaused(gameLoop.paused);
 
-                // fixed timestep simulation ticks
+                // Sample input once for all simulation ticks this frame.
+                InputSnapshot inputSnapshot{ platform.getInputSource() };
+
+                // Fixed timestep simulation ticks
                 int ticks             = gameLoop.advance(realDt);
                 timeContext.deltaTime = gameLoop.simulationDt();
                 timeContext.frame     = timer->getFrameCount();
 
-                for (int i = 0; i < ticks; ++i)
-                    sceneManager->getActiveScene()->onUpdateSimulation(sceneContext);
+                ECSWorld& world = sceneManager->getActiveScene()->getWorld();
 
-                // controller systems and rendering run every frame
-                sceneManager->getActiveScene()->onUpdateControllers(sceneContext);
-                sceneContext.events.dispatch();
+                for (int i = 0; i < ticks; ++i)
+                {
+                    EcsSimulationContext simCtx{ world, gameLoop.simulationDt(), &inputSnapshot };
+                    sceneManager->getActiveScene()->onUpdateSimulation(simCtx);
+                }
+
+                // Controller systems and rendering run every frame
+                {
+                    EcsControllerContext ctrlCtx = buildControllerContext(world);
+                    sceneManager->getActiveScene()->onUpdateControllers(ctrlCtx);
+                }
+
+                world.flushEvents();
                 render(realDt);
                 applyCommands();
             }

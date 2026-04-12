@@ -11,7 +11,6 @@
 
 #include "TransformAnimationSystem.hpp"
 
-#include "SceneContext.h"
 #include "GraphicsConstants.h"
 
 // a run of the mill default scene in the engine, for testing purposes
@@ -106,13 +105,13 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent(camera, ct);
         }
 
-        void addSystems(SceneContext& ctx)
+        void addSystems(const EcsControllerContext& ctx)
         {
             installRendererFeature(ctx);
             ecsWorld.addSimulationSystem<TransformAnimationSystem>();
         }
 
-        void onLoad(SceneContext& ctx,
+        void onLoad(EcsControllerContext& ctx,
                     const GtsSceneTransitionData* data = nullptr) override
         {
             firstCube();
@@ -122,12 +121,12 @@ class DefaultScene : public GtsScene
             addSystems(ctx);
         }
 
-        void onUpdateSimulation(SceneContext& ctx) override
+        void onUpdateSimulation(const EcsSimulationContext& ctx) override
         {
-            ecsWorld.updateSimulation(ctx.time->deltaTime);
+            ecsWorld.updateSimulation(ctx);
         }
 
-        void onUpdateControllers(SceneContext& ctx) override
+        void onUpdateControllers(const EcsControllerContext& ctx) override
         {
             ecsWorld.updateControllers(ctx);
         }

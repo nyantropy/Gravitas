@@ -6,27 +6,28 @@
 #include <vector>
 
 #include "ECSWorld.hpp"
+#include "EcsSimulationContext.hpp"
 #include "PhysicsWorld.h"
 #include "PhysicsBodyComponent.h"
 #include "SphereColliderComponent.h"
 #include "TransformComponent.h"
 
-void PhysicsSystem::update(ECSWorld& world, float dt)
+void PhysicsSystem::update(const EcsSimulationContext& ctx)
 {
     if (!physicsWorld) return;
 
     using Clock = std::chrono::steady_clock;
 
-    physicsWorld->setWorld(&world);
-    physicsWorld->update(dt);
+    physicsWorld->setWorld(&ctx.world);
+    physicsWorld->update(ctx.dt);
 
     PhysicsWorld::ProfileStats stats = physicsWorld->getProfileStats();
-    stats.totalEntities = world.getEntityCount();
+    stats.totalEntities = ctx.world.getEntityCount();
 
     const auto collectionStart = Clock::now();
-    const auto entities = world.getAllEntitiesWith<TransformComponent,
-                                                   PhysicsBodyComponent,
-                                                   SphereColliderComponent>();
+    const auto entities = ctx.world.getAllEntitiesWith<TransformComponent,
+                                                       PhysicsBodyComponent,
+                                                       SphereColliderComponent>();
     const auto collectionEnd = Clock::now();
     stats.physicsEntities = entities.size();
     stats.colliderCount   = entities.size();
@@ -40,18 +41,18 @@ void PhysicsSystem::update(ECSWorld& world, float dt)
     for (size_t i = 0; i < entities.size(); ++i)
     {
         const Entity a = entities[i];
-        const auto& transformA = world.getComponent<TransformComponent>(a);
-        const auto& bodyA = world.getComponent<PhysicsBodyComponent>(a);
-        const auto& colliderA = world.getComponent<SphereColliderComponent>(a);
+        const auto& transformA = ctx.world.getComponent<TransformComponent>(a);
+        const auto& bodyA = ctx.world.getComponent<PhysicsBodyComponent>(a);
+        const auto& colliderA = ctx.world.getComponent<SphereColliderComponent>(a);
 
         for (size_t j = i + 1; j < entities.size(); ++j)
         {
             ++stats.broadPhaseChecks;
 
             const Entity b = entities[j];
-            const auto& transformB = world.getComponent<TransformComponent>(b);
-            const auto& bodyB = world.getComponent<PhysicsBodyComponent>(b);
-            const auto& colliderB = world.getComponent<SphereColliderComponent>(b);
+            const auto& transformB = ctx.world.getComponent<TransformComponent>(b);
+            const auto& bodyB = ctx.world.getComponent<PhysicsBodyComponent>(b);
+            const auto& colliderB = ctx.world.getComponent<SphereColliderComponent>(b);
 
             if (!bodyA.dynamic && !bodyB.dynamic)
                 continue;
@@ -76,10 +77,10 @@ void PhysicsSystem::update(ECSWorld& world, float dt)
     {
         const Entity a = entities[i];
         const Entity b = entities[j];
-        const auto& transformA = world.getComponent<TransformComponent>(a);
-        const auto& transformB = world.getComponent<TransformComponent>(b);
-        const auto& colliderA = world.getComponent<SphereColliderComponent>(a);
-        const auto& colliderB = world.getComponent<SphereColliderComponent>(b);
+        const auto& transformA = ctx.world.getComponent<TransformComponent>(a);
+        const auto& transformB = ctx.world.getComponent<TransformComponent>(b);
+        const auto& colliderA = ctx.world.getComponent<SphereColliderComponent>(a);
+        const auto& colliderB = ctx.world.getComponent<SphereColliderComponent>(b);
 
         const float combinedRadius = colliderA.radius + colliderB.radius;
         const glm::vec3 delta = transformB.position - transformA.position;

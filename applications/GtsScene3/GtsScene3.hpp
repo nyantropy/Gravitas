@@ -55,10 +55,10 @@ class GtsScene3 : public GtsScene
 public:
     GtsScene3() = default;
 
-    void onLoad(SceneContext& ctx,
+    void onLoad(EcsControllerContext& ctx,
                 const GtsSceneTransitionData* data = nullptr) override;
-    void onUpdateSimulation(SceneContext& ctx) override;
-    void onUpdateControllers(SceneContext& ctx) override;
+    void onUpdateSimulation(const EcsSimulationContext& ctx) override;
+    void onUpdateControllers(const EcsControllerContext& ctx) override;
     void populateFrameStats(GtsFrameStats& stats) const override;
 
 private:
@@ -80,8 +80,8 @@ private:
     glm::vec3 computeCubePosition(uint32_t index) const;
     uint32_t maxCubeCount() const;
     void spawnCamera(float aspectRatio);
-    void createOverlay(SceneContext& ctx);
-    void updateOverlay(SceneContext& ctx) const;
+    void createOverlay(const EcsControllerContext& ctx);
+    void updateOverlay(const EcsControllerContext& ctx) const;
     void buildTextureSet();
     void applyTextureMode();
     void advanceMode();
@@ -98,17 +98,17 @@ constexpr float STRESS_PHASE_Z_STEP   = 0.18f;
 class StressMotionSystem : public ECSControllerSystem
 {
 public:
-    void update(ECSWorld& world, SceneContext& ctx) override
+    void update(const EcsControllerContext& ctx) override
     {
-        if (!world.hasAny<StressSettingsComponent>())
+        if (!ctx.world.hasAny<StressSettingsComponent>())
             return;
 
         const float dt = ctx.time ? ctx.time->unscaledDeltaTime : 0.0f;
         accumulatedTime += dt;
 
-        const auto& settings = world.getSingleton<StressSettingsComponent>();
+        const auto& settings = ctx.world.getSingleton<StressSettingsComponent>();
 
-        world.forEach<StressCubeComponent, TransformComponent>(
+        ctx.world.forEach<StressCubeComponent, TransformComponent>(
             [&](Entity, StressCubeComponent& cube, TransformComponent& tr)
         {
             if (!settings.movementEnabled)
@@ -132,7 +132,7 @@ private:
 };
 }
 
-inline void GtsScene3::onLoad(SceneContext& ctx, const GtsSceneTransitionData*)
+inline void GtsScene3::onLoad(EcsControllerContext& ctx, const GtsSceneTransitionData*)
 {
     resetSceneWorld();
     cubeEntities.clear();
@@ -151,12 +151,12 @@ inline void GtsScene3::onLoad(SceneContext& ctx, const GtsSceneTransitionData*)
     updateOverlay(ctx);
 }
 
-inline void GtsScene3::onUpdateSimulation(SceneContext& ctx)
+inline void GtsScene3::onUpdateSimulation(const EcsSimulationContext& ctx)
 {
-    ecsWorld.updateSimulation(ctx.time->deltaTime);
+    ecsWorld.updateSimulation(ctx);
 }
 
-inline void GtsScene3::onUpdateControllers(SceneContext& ctx)
+inline void GtsScene3::onUpdateControllers(const EcsControllerContext& ctx)
 {
     ecsWorld.updateControllers(ctx);
 
@@ -270,7 +270,7 @@ inline void GtsScene3::spawnCamera(float aspectRatio)
     ecsWorld.addComponent(camera, tr);
 }
 
-inline void GtsScene3::createOverlay(SceneContext& ctx)
+inline void GtsScene3::createOverlay(const EcsControllerContext& ctx)
 {
     overlayFont = BitmapFontLoader::load(
         ctx.resources,
@@ -295,7 +295,7 @@ inline void GtsScene3::createOverlay(SceneContext& ctx)
     ctx.ui->setTextFont(overlayHandle, &overlayFont);
 }
 
-inline void GtsScene3::updateOverlay(SceneContext& ctx) const
+inline void GtsScene3::updateOverlay(const EcsControllerContext& ctx) const
 {
     if (overlayHandle == UI_INVALID_HANDLE || !ecsWorld.hasAny<StressSettingsComponent>())
         return;

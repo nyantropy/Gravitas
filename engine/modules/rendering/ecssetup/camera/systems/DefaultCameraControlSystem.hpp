@@ -5,7 +5,6 @@
 
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
-#include "SceneContext.h"
 #include "GtsAction.h"
 #include "GtsKey.h"
 
@@ -23,7 +22,7 @@ class DefaultCameraControlSystem : public ECSControllerSystem
 {
     bool defaultsBound = false;
 
-    void bindDefaults(SceneContext& ctx)
+    void bindDefaults(const EcsControllerContext& ctx)
     {
         ctx.actions->bind(GtsAction::ZoomIn,     GtsKey::ArrowUp);
         ctx.actions->bind(GtsAction::ZoomOut,    GtsKey::ArrowDown);
@@ -32,7 +31,7 @@ class DefaultCameraControlSystem : public ECSControllerSystem
     }
 
 public:
-    void update(ECSWorld& world, SceneContext& ctx) override
+    void update(const EcsControllerContext& ctx) override
     {
         if (!defaultsBound)
         {
@@ -46,16 +45,16 @@ public:
         // use unscaled dt so the camera responds even when the scene is paused
         const float dt = ctx.time->unscaledDeltaTime;
 
-        if (world.hasAny<DebugCameraStateComponent>()
-            && world.getSingleton<DebugCameraStateComponent>().active)
+        if (ctx.world.hasAny<DebugCameraStateComponent>()
+            && ctx.world.getSingleton<DebugCameraStateComponent>().active)
             return;
 
-        for (Entity e : world.getAllEntitiesWith<CameraDescriptionComponent, TransformComponent>())
+        for (Entity e : ctx.world.getAllEntitiesWith<CameraDescriptionComponent, TransformComponent>())
         {
-            if (world.hasComponent<CameraControlOverrideComponent>(e))
+            if (ctx.world.hasComponent<CameraControlOverrideComponent>(e))
                 continue;
 
-            auto& transform = world.getComponent<TransformComponent>(e);
+            auto& transform = ctx.world.getComponent<TransformComponent>(e);
 
             glm::vec3 pos = transform.position;
             glm::vec3 dir = -pos;

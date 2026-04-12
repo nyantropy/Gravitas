@@ -5,7 +5,6 @@
 
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
-#include "SceneContext.h"
 #include "GtsKey.h"
 
 #include "CameraDescriptionComponent.h"
@@ -27,17 +26,17 @@ public:
     static constexpr float MOVE_SPEED   = 5.0f;               // units per second
     static constexpr float ROTATE_SPEED = glm::radians(90.0f); // radians per second
 
-    void update(ECSWorld& world, SceneContext& ctx) override
+    void update(const EcsControllerContext& ctx) override
     {
         const float dt  = ctx.time->unscaledDeltaTime;
         auto* input     = ctx.inputSource;
 
-        for (Entity e : world.getAllEntitiesWith<CameraDescriptionComponent,
-                                                 CameraControlOverrideComponent,
-                                                 TransformComponent>())
+        for (Entity e : ctx.world.getAllEntitiesWith<CameraDescriptionComponent,
+                                                     CameraControlOverrideComponent,
+                                                     TransformComponent>())
         {
-            auto& tr   = world.getComponent<TransformComponent>(e);
-            auto& desc = world.getComponent<CameraDescriptionComponent>(e);
+            auto& tr   = ctx.world.getComponent<TransformComponent>(e);
+            auto& desc = ctx.world.getComponent<CameraDescriptionComponent>(e);
 
             // Yaw rotation
             if (input->isKeyDown(GtsKey::Q)) yaw += ROTATE_SPEED * dt;

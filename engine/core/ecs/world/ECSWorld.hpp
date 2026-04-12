@@ -12,22 +12,51 @@
 #include <functional>
 #include <unordered_set>
 #include <cstring>
+#include <cstdint>
 
 #include "Entity.h"
 #include "ComponentStorage.hpp"
 #include "ECSSimulationSystem.hpp"
 #include "ECSControllerSystem.hpp"
-#include "SceneContext.h"
+#include "SubscriptionToken.hpp"
 
-// now updated to suit both simulation and controller systems
-// simulation systems may only depend on dt
-// controller systems have more power given through the scene context and a way to send commands back to the engine
-
-// component storages still work the same way, an entity can have multiple different components attached to it, and may be filtered by looking for
-// those components
+// Integrated ECS world with component storage, systems, and an event bus.
+// Simulation systems run at a fixed tick rate; controller systems run every frame.
+// The event bus uses immediate dispatch: publish<E>() calls handlers synchronously.
+// SubscriptionTokens RAII-unsubscribe on destruction — store them as system members.
 class ECSWorld
 {
     private:
+        // ── Event bus ─────────────────────────────────────────────────────────
+        // m_alive and eventHandlers are declared first so they are destroyed
+        // last (C++ destroys members in reverse declaration order).
+        //
+        // m_alive is a shared sentinel: the unsubscribe lambda in each
+        // SubscriptionToken holds a weak_ptr to it. If the ECSWorld is fully
+        // destroyed before a token (e.g., an external holder outlives the
+        // world), the weak_ptr expires and the lambda returns without touching
+        // the dead eventHandlers map.
+        //
+        // For tokens held inside the world (system members), the ordering
+        // guarantee alone is sufficient: controllerSystems/simulationSystems
+        // are destroyed before eventHandlers, so their token destructors always
+        // find a live map.
+
+        std::shared_ptr<bool> m_alive = std::make_shared<bool>(true);
+
+        using SubscriptionId = uint64_t;
+
+        struct HandlerEntry
+        {
+            SubscriptionId id;
+            std::function<void(const void*)> fn;
+        };
+
+        std::unordered_map<std::type_index, std::vector<HandlerEntry>> eventHandlers;
+        SubscriptionId nextSubscriptionId = 1;
+
+        // ── ECS core ──────────────────────────────────────────────────────────
+
         uint32_t nextEntityId = 0;
 
         std::vector<std::unique_ptr<ECSSimulationSystem>> simulationSystems;
@@ -151,16 +180,16 @@ class ECSWorld
             }
         }
 
-        void updateSimulation(float dt)
+        void updateSimulation(const EcsSimulationContext& ctx)
         {
             for (auto& system : simulationSystems)
-                system->update(*this, dt);
+                system->update(ctx);
         }
 
-        void updateControllers(SceneContext& ctx)
+        void updateControllers(const EcsControllerContext& ctx)
         {
             for (auto& system : controllerSystems)
-                system->update(*this, ctx);
+                system->update(ctx);
         }
 
         template<typename... Components>
@@ -187,7 +216,7 @@ class ECSWorld
             return result;
         }
         
-        // Destroy all entities, components, and systems.
+        // Destroy all entities, components, systems, and event subscriptions.
         // Call at the start of onLoad when a scene may be reloaded.
         void clear()
         {
@@ -199,11 +228,16 @@ class ECSWorld
             }
 
             storages.clear();
+            // Systems are destroyed here; their SubscriptionToken members call
+            // unsubscribe. The eventHandlers map is still valid at this point.
             simulationSystems.clear();
             controllerSystems.clear();
             forEachScratch.clear();
             forEachScratch.shrink_to_fit();
             nextEntityId = 0;
+            // Clear any remaining subscriptions after systems are gone.
+            eventHandlers.clear();
+            nextSubscriptionId = 1;
         }
 
         // ------------------------------------------------------------
@@ -296,5 +330,74 @@ class ECSWorld
                     cb(world, entity, *static_cast<Component*>(componentData));
                 };
         }
+
+        // ── Event bus ─────────────────────────────────────────────────────────
+
+        // Publish an event immediately. All subscribed handlers are called
+        // synchronously before publish() returns.
+        //
+        // Snapshot semantics: the handler list is copied before iteration.
+        //   - Handlers added during dispatch are NOT called in the current pass.
+        //   - Handlers removed during dispatch (token destroyed inside a handler)
+        //     still run for the current event; the live list is updated after the
+        //     snapshot was taken so iteration is unaffected.
+        //   - Recursive publish() calls (a handler calling publish()) work
+        //     correctly: each nested call takes its own independent snapshot.
+        //   - Publishing to a type with no subscribers is a no-op (no allocation).
+        template<typename E>
+        void publish(const E& event)
+        {
+            const std::type_index key = std::type_index(typeid(E));
+            auto it = eventHandlers.find(key);
+            if (it == eventHandlers.end())
+                return;
+
+            // Snapshot the handler list so subscribe/unsubscribe during dispatch
+            // does not invalidate the iteration.
+            const auto snapshot = it->second;
+            const void* payload = &event;
+            for (const HandlerEntry& entry : snapshot)
+                entry.fn(payload);
+        }
+
+        // Subscribe to event type E. Returns an RAII token that unsubscribes
+        // on destruction. Store the token as a member of the subscribing system.
+        template<typename E>
+        SubscriptionToken subscribe(std::function<void(const E&)> handler)
+        {
+            const std::type_index key = std::type_index(typeid(E));
+            const SubscriptionId id = nextSubscriptionId++;
+
+            eventHandlers[key].push_back(HandlerEntry{
+                id,
+                [h = std::move(handler)](const void* payload)
+                {
+                    h(*static_cast<const E*>(payload));
+                }
+            });
+
+            std::weak_ptr<bool> weakAlive = m_alive;
+            return SubscriptionToken([this, key, id, weakAlive = std::move(weakAlive)]()
+            {
+                // If the ECSWorld has been destroyed, m_alive's strong count
+                // has dropped to zero and expired() returns true. Skip the
+                // dereference to avoid a use-after-free.
+                if (weakAlive.expired())
+                    return;
+
+                auto it = eventHandlers.find(key);
+                if (it == eventHandlers.end())
+                    return;
+
+                auto& vec = it->second;
+                vec.erase(
+                    std::remove_if(vec.begin(), vec.end(),
+                        [id](const HandlerEntry& e) { return e.id == id; }),
+                    vec.end());
+            });
+        }
+
+        // No-op with immediate dispatch — kept for game-loop symmetry.
+        void flushEvents() {}
 
 };

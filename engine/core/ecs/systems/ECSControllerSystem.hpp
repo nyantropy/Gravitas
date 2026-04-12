@@ -1,12 +1,12 @@
 #pragma once
 
-class ECSWorld;
-struct SceneContext;
+#include "EcsControllerContext.hpp"
 
-// a more open system that can access the scene context - a "bridge" of sorts
-class ECSControllerSystem 
+// Per-frame system with access to all frame-dependent dependencies.
+// Suitable for input handling, camera, rendering prep, and UI updates.
+class ECSControllerSystem
 {
-    public:
-        virtual ~ECSControllerSystem() = default;
-        virtual void update(class ECSWorld& world, SceneContext& ctx) = 0;
+public:
+    virtual ~ECSControllerSystem() = default;
+    virtual void update(const EcsControllerContext& ctx) = 0;
 };
