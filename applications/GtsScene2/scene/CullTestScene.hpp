@@ -5,8 +5,6 @@
 
 #include "GtsScene.hpp"
 #include "ECSWorld.hpp"
-#include "IVisibilityStrategy.h"
-
 #include "TransformComponent.h"
 #include "StaticMeshComponent.h"
 #include "MaterialComponent.h"
@@ -38,6 +36,8 @@ class CullTestScene : public GtsScene
 
     BitmapFont overlayFont;
     UiHandle   overlayHandle = UI_INVALID_HANDLE;
+    bool       cullingEnabled = true;
+    bool       frustumFrozen = false;
 
     void spawnGrid()
     {
@@ -172,21 +172,21 @@ public:
     {
         ecsWorld.updateControllers(ctx);
 
-        auto* visibilityStrategy = ctx.visibilityStrategy;
-
         // C — toggle frustum culling
         if (ctx.input->isPressed("gts_scene2.toggle_culling"))
         {
-            visibilityStrategy->setEnabled(!visibilityStrategy->isEnabled());
+            cullingEnabled = !cullingEnabled;
+            ctx.engineCommands->requestSetFrustumCullingEnabled(cullingEnabled);
             printf("\n[CULLING] Frustum culling %s\n",
-                visibilityStrategy->isEnabled() ? "ON" : "OFF");
+                cullingEnabled ? "ON" : "OFF");
         }
 
         // F — freeze / unfreeze frustum (also used for camera down — one-frame overlap is acceptable)
         if (ctx.input->isPressed("gts_scene2.toggle_frustum_freeze"))
         {
-            visibilityStrategy->toggleFreeze();
-            if (visibilityStrategy->isFrozen())
+            frustumFrozen = !frustumFrozen;
+            ctx.engineCommands->requestSetFrustumFreeze(frustumFrozen);
+            if (frustumFrozen)
                 printf("\n[FRUSTUM] Frustum FROZEN at current camera position\n");
             else
                 printf("\n[FRUSTUM] Frustum LIVE\n");
@@ -197,8 +197,8 @@ public:
         {
             char buf[64];
             snprintf(buf, sizeof(buf), "CULLING %s\nFRUSTUM %s",
-                visibilityStrategy->isEnabled() ? "ON" : "OFF",
-                visibilityStrategy->isFrozen()  ? "FROZEN" : "LIVE");
+                cullingEnabled ? "ON" : "OFF",
+                frustumFrozen  ? "FROZEN" : "LIVE");
             ctx.ui->setPayload(overlayHandle, UiTextData{
                 buf,
                 {},

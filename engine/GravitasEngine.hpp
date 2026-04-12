@@ -12,10 +12,7 @@
 #include "GtsGameLoop.h"
 
 #include "FrustumCullingStrategy.h"
-#include "IVisibilityStrategy.h"
-#include "NoCullingStrategy.h"
-#include "RenderCommandExtractor.hpp"
-#include "RenderExtractionSnapshotBuilder.hpp"
+#include "RenderPipeline.h"
 #include "UiSystem.h"
 #include "SceneManager.hpp"
 
@@ -42,9 +39,7 @@ class GravitasEngine
         std::unique_ptr<Timer> timer;
 
         // used to extract all render commands from the currently active ecs world
-        std::unique_ptr<RenderCommandExtractor> renderCommandExtractor;
-        std::unique_ptr<IVisibilityStrategy>    visibilityStrategy;
-        RenderExtractionSnapshotBuilder         renderSnapshotBuilder;
+        std::unique_ptr<RenderPipeline>         renderPipeline;
 
         // retained engine UI system
         std::unique_ptr<UiSystem> uiSystem;
@@ -71,7 +66,6 @@ class GravitasEngine
             ctx.input             = platform.getInputBindingRegistry();
             ctx.time              = &timeContext;
             ctx.engineCommands    = &engineCommands;
-            ctx.visibilityStrategy = visibilityStrategy.get();
             ctx.ui                = uiSystem.get();
             ctx.physics           = sceneManager->getActiveScene()->getPhysicsModule();
             ctx.windowAspectRatio = windowAspectRatio;
@@ -91,8 +85,8 @@ class GravitasEngine
             GtsFrameStats stats;
             stats.fps            = (dt > 0.0f) ? 1.0f / dt : 0.0f;
             stats.frameTimeMs    = dt * 1000.0f;
-            stats.visibleObjects = static_cast<uint32_t>(renderCommandExtractor->getLastVisibleRenderables());
-            stats.totalObjects   = static_cast<uint32_t>(renderCommandExtractor->getLastTotalRenderables());
+            stats.visibleObjects = static_cast<uint32_t>(renderPipeline->getExtractor().getLastVisibleRenderables());
+            stats.totalObjects   = static_cast<uint32_t>(renderPipeline->getExtractor().getLastTotalRenderables());
             stats.controllerSystemCount = static_cast<uint32_t>(world.getControllerSystemCount());
             stats.simulationSystemCount = static_cast<uint32_t>(world.getSimulationSystemCount());
             const auto renderMetrics = RenderGpuSystem::getLastMetrics();
@@ -101,10 +95,8 @@ class GravitasEngine
             // triangleCount is filled in by SceneRenderStage during execute
             activeScene->populateFrameStats(stats);
 
-            RenderExtractionSnapshot& renderSnapshot = renderSnapshotBuilder.build(world);
-            visibilityStrategy->filter(renderSnapshot);
             const auto extractStart = std::chrono::steady_clock::now();
-            const auto& renderList = renderCommandExtractor->extract(renderSnapshot);
+            const auto& renderList = renderPipeline->build(world);
             const auto extractEnd = std::chrono::steady_clock::now();
 
             UiCommandBuffer uiBuffer;
@@ -118,7 +110,7 @@ class GravitasEngine
                 uiSystem->setEnabled(false);
             }
 
-            const auto extractorMetrics = renderCommandExtractor->getLastMetrics();
+            const auto extractorMetrics = renderPipeline->getExtractor().getLastMetrics();
             const auto uiMetrics = uiSystem->getLastMetrics();
             stats.renderExtractCpuMs = std::chrono::duration<float, std::milli>(extractEnd - extractStart).count();
             stats.renderExtractSortCpuMs = extractorMetrics.sortCpuMs;
@@ -143,6 +135,27 @@ class GravitasEngine
         }
 
         // command callback from lower level architectures
+        void applyPendingRenderCommands()
+        {
+            for (auto it = engineCommands.commands.begin(); it != engineCommands.commands.end(); )
+            {
+                switch (it->type)
+                {
+                    case GtsCommand::Type::SetFrustumCullingEnabled:
+                        renderPipeline->setVisibilityEnabled(it->floatArg != 0.0f);
+                        it = engineCommands.commands.erase(it);
+                        break;
+                    case GtsCommand::Type::SetFrustumFreeze:
+                        renderPipeline->setVisibilityFrozen(it->floatArg != 0.0f);
+                        it = engineCommands.commands.erase(it);
+                        break;
+                    default:
+                        ++it;
+                        break;
+                }
+            }
+        }
+
         void applyCommands()
         {
             for (auto& cmd : engineCommands.commands)
@@ -155,6 +168,9 @@ class GravitasEngine
                         break;
                     case GtsCommand::Type::Screenshot:
                         platform.getGraphics()->requestScreenshot();
+                        break;
+                    case GtsCommand::Type::SetFrustumCullingEnabled:
+                    case GtsCommand::Type::SetFrustumFreeze:
                         break;
                     case GtsCommand::Type::LoadScene:
                     case GtsCommand::Type::ChangeScene:
@@ -185,8 +201,8 @@ class GravitasEngine
         {
             gameLoop.init(engineConfig);
             sceneManager = std::make_unique<SceneManager>();
-            renderCommandExtractor = std::make_unique<RenderCommandExtractor>();
-            visibilityStrategy = std::make_unique<FrustumCullingStrategy>(engineConfig.frustumCullingEnabled);
+            renderPipeline = std::make_unique<RenderPipeline>(
+                std::make_unique<FrustumCullingStrategy>(engineConfig.frustumCullingEnabled));
             uiSystem               = std::make_unique<UiSystem>(platform.getResourceProvider());
         }
 
@@ -263,6 +279,7 @@ class GravitasEngine
                 }
 
                 world.flushEvents();
+                applyPendingRenderCommands();
                 render(realDt);
                 applyCommands();
             }

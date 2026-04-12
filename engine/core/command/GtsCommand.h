@@ -11,6 +11,8 @@ struct GtsCommand
     {
         TogglePause,
         Screenshot,
+        SetFrustumCullingEnabled,
+        SetFrustumFreeze,
         LoadScene,
         ChangeScene,
         Quit

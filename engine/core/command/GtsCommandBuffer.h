@@ -42,6 +42,22 @@ struct GtsCommandBuffer
         commands.push_back(std::move(cmd));
     }
 
+    void requestSetFrustumCullingEnabled(bool enabled)
+    {
+        GtsCommand cmd;
+        cmd.type = GtsCommand::Type::SetFrustumCullingEnabled;
+        cmd.floatArg = enabled ? 1.0f : 0.0f;
+        commands.push_back(std::move(cmd));
+    }
+
+    void requestSetFrustumFreeze(bool frozen)
+    {
+        GtsCommand cmd;
+        cmd.type = GtsCommand::Type::SetFrustumFreeze;
+        cmd.floatArg = frozen ? 1.0f : 0.0f;
+        commands.push_back(std::move(cmd));
+    }
+
     void requestQuit()
     {
         GtsCommand cmd;
