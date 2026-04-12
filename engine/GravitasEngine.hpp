@@ -13,6 +13,7 @@
 
 #include "GtsExtractorContext.h"
 #include "RenderCommandExtractor.hpp"
+#include "RenderExtractionSnapshotBuilder.hpp"
 #include "UiSystem.h"
 #include "SceneManager.hpp"
 
@@ -40,6 +41,7 @@ class GravitasEngine
 
         // used to extract all render commands from the currently active ecs world
         std::unique_ptr<RenderCommandExtractor> renderCommandExtractor;
+        RenderExtractionSnapshotBuilder         renderSnapshotBuilder;
 
         // retained engine UI system
         std::unique_ptr<UiSystem> uiSystem;
@@ -96,10 +98,9 @@ class GravitasEngine
             // triangleCount is filled in by SceneRenderStage during execute
             activeScene->populateFrameStats(stats);
 
-            GtsExtractorContext extractCtx{world, windowAspectRatio};
-
+            const RenderExtractionSnapshot& renderSnapshot = renderSnapshotBuilder.build(world);
             const auto extractStart = std::chrono::steady_clock::now();
-            const auto& renderList = renderCommandExtractor->extract(extractCtx);
+            const auto& renderList = renderCommandExtractor->extract(renderSnapshot);
             const auto extractEnd = std::chrono::steady_clock::now();
 
             UiCommandBuffer uiBuffer;
