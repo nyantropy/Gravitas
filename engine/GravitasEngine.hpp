@@ -64,6 +64,7 @@ class GravitasEngine
         {
             EcsControllerContext ctx{world};
             ctx.resources         = platform.getResourceProvider();
+            ctx.input             = platform.getInputBindingRegistry();
             ctx.inputSource       = platform.getInputSource();
             ctx.actions           = platform.getActionManager();
             ctx.time              = &timeContext;
@@ -158,6 +159,7 @@ class GravitasEngine
                     {
                         platform.waitForGraphicsIdle();
                         uiSystem->clear();
+                        platform.getInputBindingRegistry()->clearContextStack();
                         sceneManager->setActiveScene(cmd.stringArg);
                         uiSystem->setEnabled(uiEnabled);
                         ECSWorld& world = sceneManager->getActiveScene()->getWorld();
@@ -196,6 +198,7 @@ class GravitasEngine
                             std::shared_ptr<GtsSceneTransitionData> data = nullptr)
         {
             uiSystem->clear();
+            platform.getInputBindingRegistry()->clearContextStack();
             sceneManager->setActiveScene(name);
             uiSystem->setEnabled(uiEnabled);
             ECSWorld& world = sceneManager->getActiveScene()->getWorld();
@@ -219,16 +222,16 @@ class GravitasEngine
                 platform.beginFrame();
 
                 // engine-level actions (pause, quit) — run before tick advance.
-                auto* actions = platform.getActionManager();
-                if (actions->isActionPressed(GtsAction::CloseApplication))
+                auto* input = platform.getInputBindingRegistry();
+                if (input->isPressed("engine.close"))
                     break;
-                if (actions->isActionPressed(GtsAction::TogglePause))
+                if (input->isPressed("engine.pause"))
                     gameLoop.paused = !gameLoop.paused;
-                if (actions->isActionPressed(GtsAction::DebugLayerToggle))
+                if (input->isPressed("engine.debug_overlay"))
                     platform.toggleDebugOverlay();
-                if (actions->isActionPressed(GtsAction::Screenshot))
+                if (input->isPressed("engine.screenshot"))
                     platform.getGraphics()->requestScreenshot();
-                if (actions->isActionPressed(GtsAction::ToggleUI))
+                if (input->isPressed("engine.toggle_ui"))
                 {
                     uiEnabled = !uiEnabled;
                     uiSystem->setEnabled(uiEnabled);
@@ -236,6 +239,7 @@ class GravitasEngine
                 }
 
                 platform.setSimulationPaused(gameLoop.paused);
+                input->setPaused(gameLoop.paused);
 
                 // Sample input once for all simulation ticks this frame.
                 InputSnapshot inputSnapshot{ platform.getInputSource() };
@@ -249,7 +253,7 @@ class GravitasEngine
 
                 for (int i = 0; i < ticks; ++i)
                 {
-                    EcsSimulationContext simCtx{ world, gameLoop.simulationDt(), &inputSnapshot };
+                    EcsSimulationContext simCtx{ world, gameLoop.simulationDt(), input, &inputSnapshot };
                     sceneManager->getActiveScene()->onUpdateSimulation(simCtx);
                 }
 

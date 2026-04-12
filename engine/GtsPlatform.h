@@ -9,6 +9,7 @@
 #include "VulkanGraphics.hpp"
 #include "InputManager.hpp"
 #include "InputActionManager.hpp"
+#include "InputBindingRegistry.h"
 #include "PauseFilteredInputSource.hpp"
 #include "GtsAction.h"
 
@@ -21,6 +22,7 @@ class GtsPlatform
         {
             inputManager  = std::make_unique<InputManager>();
             actionManager = std::make_unique<InputActionManager<GtsAction>>();
+            bindingRegistry = std::make_unique<InputBindingRegistry>();
             filteredInputSource.setSource(*inputManager);
             createGraphicsModule(config);
             bindDefaultActions();
@@ -33,6 +35,7 @@ class GtsPlatform
             graphics->pollWindowEvents();
             graphics->getEventBus().dispatch();
             actionManager->update(*inputManager);
+            bindingRegistry->update(InputSnapshot{inputManager.get()});
         }
 
         void shutdown()
@@ -72,6 +75,11 @@ class GtsPlatform
             return actionManager.get();
         }
 
+        InputBindingRegistry* getInputBindingRegistry()
+        {
+            return bindingRegistry.get();
+        }
+
         // Exposes the graphics module for render calls.
         IGtsGraphicsModule* getGraphics()
         {
@@ -104,6 +112,7 @@ class GtsPlatform
         std::unique_ptr<IGtsGraphicsModule>        graphics;
         std::unique_ptr<InputManager>              inputManager;
         std::unique_ptr<InputActionManager<GtsAction>> actionManager;
+        std::unique_ptr<InputBindingRegistry>      bindingRegistry;
         PauseFilteredInputSource                   filteredInputSource;
         SubscriptionToken                          keyEventToken;
 
@@ -132,5 +141,41 @@ class GtsPlatform
             actionManager->bind(GtsAction::ToggleUI,          GtsKey::F2);
             actionManager->bind(GtsAction::DebugLayerToggle,  GtsKey::F3);
             actionManager->bind(GtsAction::Screenshot,        GtsKey::F12);
+
+            bindingRegistry->bind("engine.pause",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::X)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive);
+            bindingRegistry->bind("engine.close",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Escape)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive);
+            bindingRegistry->bind("engine.toggle_ui",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F2)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive);
+            bindingRegistry->bind("engine.debug_overlay",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F3)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive);
+            bindingRegistry->bind("engine.screenshot",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F12)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive);
+            bindingRegistry->bind("engine.zoom_in",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowUp)},
+                                  ActivationMode::Held,
+                                  "",
+                                  PausePolicy::Gameplay);
+            bindingRegistry->bind("engine.zoom_out",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowDown)},
+                                  ActivationMode::Held,
+                                  "",
+                                  PausePolicy::Gameplay);
         }
 };

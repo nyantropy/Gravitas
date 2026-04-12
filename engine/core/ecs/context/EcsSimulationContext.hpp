@@ -1,6 +1,7 @@
 #pragma once
 
 class ECSWorld;
+class InputBindingRegistry;
 struct InputSnapshot;
 
 // Context passed to ECSSimulationSystem::update each fixed-timestep tick.
@@ -18,5 +19,6 @@ struct EcsSimulationContext
 {
     ECSWorld&               world;
     float                   dt;             // fixed timestep delta
+    const InputBindingRegistry* bindings = nullptr;
     const InputSnapshot*    input = nullptr; // sampled once per frame, same for all ticks
 };

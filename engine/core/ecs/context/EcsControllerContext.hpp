@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GtsAction.h"
+#include "InputBindingRegistry.h"
 #include "IResourceProvider.hpp"
 #include "IInputSource.hpp"
 #include "InputActionManager.hpp"
@@ -29,6 +30,7 @@ struct EcsControllerContext
     ECSWorld&                       world;
 
     IResourceProvider*              resources         = nullptr;
+    InputBindingRegistry*           input             = nullptr;
     IInputSource*                   inputSource       = nullptr; // pause-gated
     InputActionManager<GtsAction>*  actions           = nullptr; // always live
     const TimeContext*              time              = nullptr;

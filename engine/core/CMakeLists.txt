@@ -41,6 +41,7 @@ target_include_directories(gravitas_core PUBLIC
     # Input
     "${CMAKE_CURRENT_SOURCE_DIR}/input/raw"
     "${CMAKE_CURRENT_SOURCE_DIR}/input/action"
+    "${CMAKE_CURRENT_SOURCE_DIR}/input/binding"
     "${CMAKE_CURRENT_SOURCE_DIR}/input/source"
     "${CMAKE_CURRENT_SOURCE_DIR}/input/snapshot"
 
