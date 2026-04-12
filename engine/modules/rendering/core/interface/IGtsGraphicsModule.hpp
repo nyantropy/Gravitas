@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "GtsEventBus.hpp"
+#include "GtsPlatformEventBus.hpp"
 #include "GtsKeyEvent.h"
 #include "GtsFrameStats.h"
 #include "IResourceProvider.hpp"
@@ -28,5 +28,5 @@ public:
     virtual float getAspectRatio() const = 0;
     virtual void getViewportSize(int& width, int& height) const = 0;
     virtual IResourceProvider* getResourceProvider() = 0;
-    virtual GtsEventBus& getEventBus() = 0;
+    virtual GtsPlatformEventBus& getEventBus() = 0;
 };

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GtsEventBus.hpp"
+#include "GtsPlatformEventBus.hpp"
 #include "WindowManagerConfig.h"
 #include "OutputWindowConfig.h"
 #include "GLFWOutputWindow.hpp"
@@ -9,7 +9,7 @@ class WindowManager
 {
     private:
         WindowManagerConfig config;
-        GtsEventBus& eventBus;
+        GtsPlatformEventBus& eventBus;
         std::unique_ptr<OutputWindow> outputWindow;
 
         void createWindow()
@@ -31,7 +31,7 @@ class WindowManager
 
 
     public:
-        WindowManager(const WindowManagerConfig& config, GtsEventBus& eventBus)
+        WindowManager(const WindowManagerConfig& config, GtsPlatformEventBus& eventBus)
             : eventBus(eventBus)
         {
             this->config = config;

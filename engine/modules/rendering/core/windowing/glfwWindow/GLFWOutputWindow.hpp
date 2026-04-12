@@ -9,7 +9,7 @@
 class GLFWOutputWindow : public OutputWindow
 {
     public:
-        GLFWOutputWindow(OutputWindowConfig config, GtsEventBus& eventBus);
+        GLFWOutputWindow(OutputWindowConfig config, GtsPlatformEventBus& eventBus);
         ~GLFWOutputWindow();
 
         bool shouldClose() const override;

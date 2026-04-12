@@ -73,20 +73,22 @@ The engine defines two system base classes with distinct contracts:
 
 #### ECSSimulationSystem
 ```
-update(ECSWorld& world, float dt)
+update(const EcsSimulationContext& ctx)
 ```
 - Runs at **fixed timestep** (default 20 Hz)
-- Receives only `dt` and world access — no engine context
+- Context provides: `world`, fixed `dt`, read-only `InputSnapshot`
 - Deterministic; suitable for physics, animation, game logic
-- Examples: `PhysicsSystem`, `AnimationSystem`
+- Systems run in registration order — document and maintain that order
+- Examples: `PhysicsSystem`, `TransformAnimationSystem`
 
 #### ECSControllerSystem
 ```
-update(ECSWorld& world, SceneContext& ctx)
+update(const EcsControllerContext& ctx)
 ```
 - Runs **every frame**
-- Full access to `SceneContext`: resources, input, time, physics, UI, event bus
-- Can issue engine commands (scene transitions, pause/resume)
+- Context provides: `world`, `resources`, `inputSource`, `actions`, `time`, `physics`, `ui`, `extractor`, `engineCommands`, window dimensions
+- All context pointers are valid for the duration of the `update()` call only — do not cache them
+- Can issue engine commands (scene transitions, pause/resume) via `ctx.engineCommands`
 - Examples: `CameraGpuSystem`, `RenderGpuSystem`, `StaticMeshBindingSystem`
 
 ---
@@ -121,20 +123,30 @@ update(ECSWorld& world, SceneContext& ctx)
 └────────────────────────────────────────────────────────┘
 ```
 
-**SceneContext** is the central data hub passed to every controller system each frame:
+**EcsControllerContext** is the data hub passed to every controller system each frame:
 
 ```
-SceneContext {
+EcsControllerContext {
+    ECSWorld&                   world
     IResourceProvider*          resources
-    IInputSource*               inputSource       (pause-gated)
+    IInputSource*               inputSource       (pause-gated — null when paused)
     InputActionManager*         actions           (always live)
     const TimeContext*          time
     GtsCommandBuffer*           engineCommands    (scene/pause requests)
     RenderCommandExtractor*     extractor
     UiSystem*                   ui
     IGtsPhysicsModule*          physics
-    GtsEventBus                 events
     float windowAspectRatio, windowPixelWidth/Height
+}
+```
+
+**EcsSimulationContext** is passed to every simulation system each fixed tick:
+
+```
+EcsSimulationContext {
+    ECSWorld&               world
+    float                   dt              (fixed timestep)
+    const InputSnapshot*    input           (sampled once per frame — null on first frame)
 }
 ```
 
@@ -207,21 +219,50 @@ The Vulkan backend uses a declarative frame graph:
 
 ---
 
-## 6. Input System
+## 6. Event Buses
+
+The engine has two event buses with distinct domains. Use the right one for the right layer.
+
+### GtsPlatformEventBus — platform/infrastructure events
+
+Owned by `VulkanGraphics`, passed by reference to `ForwardRenderer`, `WindowManager`, and `OutputWindow`. Dispatched once per frame in `GtsPlatform::beginFrame()`.
+
+- **Emit** from OS/GPU callbacks: `eventBus.emit(MyEvent{...})`
+- **Dispatch** on the main thread: `eventBus.dispatch()` — delivers all queued events
+- **Subscribe** via `SubscriptionToken`: `token = eventBus.subscribe<MyEvent>([](const MyEvent& e) { ... })`
+
+Dispatch is deferred because GLFW callbacks fire during `glfwPollEvents()`. Queueing ensures delivery always happens on the game thread at a predictable point.
+
+Current platform events: `GtsWindowResizeEvent`, `GtsKeyEvent`, `GtsFrameEndedEvent`.
+
+### ECSWorld — ECS gameplay events
+
+Integrated into `ECSWorld`, accessed via `ctx.world.publish/subscribe` from any system.
+
+- **Publish** (immediate): `ctx.world.publish(MyEvent{...})` — all handlers called before publish() returns
+- **Subscribe** via `SubscriptionToken`: `token = ctx.world.subscribe<MyEvent>([](const MyEvent& e) { ... })`
+
+Dispatch is immediate because ECS updates are single-threaded and sequential. Events published during a system's update are received by later systems in the same pass.
+
+**Rule of thumb:** if the event originates from hardware, a driver, or a GPU callback → `GtsPlatformEventBus`. If it originates from game logic during the ECS update loop → `ECSWorld`.
+
+---
+
+## 7. Input System
 
 Raw input is abstracted behind `IInputSource` and mapped to semantic actions via `InputActionManager`:
 
 ```
 Hardware → GtsPlatform → IInputSource → InputActionManager<GtsAction>
                                                   ↓
-                              Controller systems poll via SceneContext::actions
+                              Controller systems poll via EcsControllerContext::actions
 ```
 
 `GtsAction` defines engine-level semantics (Pause, ZoomIn, CloseApp, etc.). Applications extend this mapping for game-specific actions.
 
 ---
 
-## 7. Resource Model
+## 8. Resource Model
 
 Assets are accessed through `IResourceProvider` (passed in `SceneContext`). Binding systems call into this interface when descriptor components are first processed:
 
@@ -235,19 +276,19 @@ GPU resource handles (mesh IDs, texture IDs, SSBO slots) are allocated by bindin
 
 ---
 
-## 8. Extensibility
+## 9. Extensibility
 
 ### Adding a Simulation System
 
 1. Derive from `ECSSimulationSystem`
-2. Implement `update(ECSWorld& world, float dt)`
-3. Register with `world.addSimulationSystem<MySystem>()`
+2. Implement `update(const EcsSimulationContext& ctx)`
+3. Register with `world.addSimulationSystem<MySystem>()` from `onLoad()`
 
 ### Adding a Controller System
 
 1. Derive from `ECSControllerSystem`
-2. Implement `update(ECSWorld& world, SceneContext& ctx)`
-3. Register with `world.addControllerSystem<MySystem>()`
+2. Implement `update(const EcsControllerContext& ctx)`
+3. Register with `world.addControllerSystem<MySystem>()` from `onLoad()`
 
 ### Adding a New Component
 
@@ -266,7 +307,7 @@ Add a `CameraOverrideComponent` to replace the default camera behavior. Implemen
 
 ---
 
-## 9. Key Design Principles
+## 10. Key Design Principles
 
 - **ECS-first**: all state is components, all behavior is systems — no monolithic managers
 - **Deterministic simulation**: simulation systems run at fixed timestep, isolated from frame timing

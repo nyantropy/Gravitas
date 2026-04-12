@@ -29,7 +29,7 @@
 #include "TransformComponent.h"
 
 #include "GraphicsConfig.h"
-#include "GtsEventBus.hpp"
+#include "GtsPlatformEventBus.hpp"
 #include "IGtsGraphicsModule.hpp"
 
 #include <iostream>
@@ -38,7 +38,7 @@ class VulkanGraphics : public IGtsGraphicsModule
 {
 public:
     GraphicsConfig config;
-    GtsEventBus eventBus;
+    GtsPlatformEventBus eventBus;
     // the window manager contains the window we render to
     std::unique_ptr<WindowManager> windowManager;
 
@@ -48,7 +48,7 @@ public:
     // the renderer, responsible for the core drawframe function
     std::unique_ptr<ForwardRenderer> renderer;
 
-    GtsEventBus& getEventBus() override { return eventBus; }
+    GtsPlatformEventBus& getEventBus() override { return eventBus; }
 
     VulkanGraphics(const GraphicsConfig& config): config(config)
     {

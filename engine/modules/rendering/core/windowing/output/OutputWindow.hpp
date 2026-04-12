@@ -4,7 +4,7 @@
 #include <string>
 #include <memory>
 
-#include "GtsEventBus.hpp"
+#include "GtsPlatformEventBus.hpp"
 #include "GtsEventTypes.h"
 #include "OutputWindowConfig.h"
 #include "GtsKeyEvent.h"
@@ -13,14 +13,14 @@
 class OutputWindow
 {
     protected:
-        explicit OutputWindow(const OutputWindowConfig& config, GtsEventBus& eventBus)
+        explicit OutputWindow(const OutputWindowConfig& config, GtsPlatformEventBus& eventBus)
             : config(config), eventBus(eventBus) {};
         virtual void init() = 0;
 
         OutputWindowConfig config;
         void* window;
         std::unique_ptr<GtsKeyTranslator> keyTranslator;
-        GtsEventBus& eventBus;
+        GtsPlatformEventBus& eventBus;
 
     public:
 

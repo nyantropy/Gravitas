@@ -1,6 +1,6 @@
 #include "GLFWOutputWindow.hpp"
 
-GLFWOutputWindow::GLFWOutputWindow(OutputWindowConfig config, GtsEventBus& eventBus)
+GLFWOutputWindow::GLFWOutputWindow(OutputWindowConfig config, GtsPlatformEventBus& eventBus)
     : OutputWindow(config, eventBus)
 {
     this->init();

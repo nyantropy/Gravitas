@@ -21,7 +21,7 @@
 #include "FrameManager.hpp"
 #include "ScreenshotManager.hpp"
 
-#include "GtsEventBus.hpp"
+#include "GtsPlatformEventBus.hpp"
 #include "GtsEventTypes.h"
 
 #include <UiCommand.h>
@@ -73,7 +73,7 @@ class ForwardRenderer : Renderer
         bool maxScreenshotWarningLogged = false;
         bool minIntervalWarningLogged = false;
         ScreenshotManager screenshotManager;
-        GtsEventBus& eventBus;
+        GtsPlatformEventBus& eventBus;
 
 
         VkFormat findDepthFormat()
@@ -279,7 +279,7 @@ class ForwardRenderer : Renderer
 
 
     public:
-        ForwardRenderer(RendererConfig config, GtsEventBus& eventBus)
+        ForwardRenderer(RendererConfig config, GtsPlatformEventBus& eventBus)
             : Renderer(config), eventBus(eventBus)
         {
             createResources();

@@ -43,8 +43,9 @@ public:
     void release() { unsubscribeFn = nullptr; }
 
 private:
-    // Only ECSWorld may construct a valid token.
+    // Only authorized bus types may construct a valid token.
     friend class ECSWorld;
+    friend class GtsPlatformEventBus;
     explicit SubscriptionToken(std::function<void()> fn) : unsubscribeFn(std::move(fn)) {}
 
     std::function<void()> unsubscribeFn;

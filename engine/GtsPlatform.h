@@ -3,7 +3,8 @@
 #include <memory>
 
 #include "EngineConfig.h"
-#include "GtsEventBus.hpp"
+#include "GtsPlatformEventBus.hpp"
+#include "SubscriptionToken.hpp"
 #include "IGtsGraphicsModule.hpp"
 #include "VulkanGraphics.hpp"
 #include "InputManager.hpp"
@@ -104,6 +105,7 @@ class GtsPlatform
         std::unique_ptr<InputManager>              inputManager;
         std::unique_ptr<InputActionManager<GtsAction>> actionManager;
         PauseFilteredInputSource                   filteredInputSource;
+        SubscriptionToken                          keyEventToken;
 
         void createGraphicsModule(const EngineConfig& config)
         {
@@ -114,7 +116,7 @@ class GtsPlatform
                     break;
             }
 
-            graphics->getEventBus().subscribe<GtsKeyEvent>([this](const GtsKeyEvent& e)
+            keyEventToken = graphics->getEventBus().subscribe<GtsKeyEvent>([this](const GtsKeyEvent& e)
             {
                 inputManager->onKeyEvent(e.key, e.pressed);
             });
