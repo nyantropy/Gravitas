@@ -86,7 +86,7 @@ update(const EcsSimulationContext& ctx)
 update(const EcsControllerContext& ctx)
 ```
 - Runs **every frame**
-- Context provides: `world`, `resources`, `inputSource`, `actions`, `time`, `physics`, `ui`, `extractor`, `engineCommands`, window dimensions
+- Context provides: `world`, `resources`, `input`, `time`, `physics`, `ui`, `extractor`, `engineCommands`, window dimensions
 - All context pointers are valid for the duration of the `update()` call only — do not cache them
 - Can issue engine commands (scene transitions, pause/resume) via `ctx.engineCommands`
 - Examples: `CameraGpuSystem`, `RenderGpuSystem`, `StaticMeshBindingSystem`
@@ -129,8 +129,7 @@ update(const EcsControllerContext& ctx)
 EcsControllerContext {
     ECSWorld&                   world
     IResourceProvider*          resources
-    IInputSource*               inputSource       (pause-gated — null when paused)
-    InputActionManager*         actions           (always live)
+    InputBindingRegistry*       input             (always live; pause-aware queries)
     const TimeContext*          time
     GtsCommandBuffer*           engineCommands    (scene/pause requests)
     RenderCommandExtractor*     extractor
@@ -146,7 +145,7 @@ EcsControllerContext {
 EcsSimulationContext {
     ECSWorld&               world
     float                   dt              (fixed timestep)
-    const InputSnapshot*    input           (sampled once per frame — null on first frame)
+    const InputBindingRegistry* input       (query-only input registry)
 }
 ```
 
@@ -250,15 +249,15 @@ Dispatch is immediate because ECS updates are single-threaded and sequential. Ev
 
 ## 7. Input System
 
-Raw input is abstracted behind `IInputSource` and mapped to semantic actions via `InputActionManager`:
+Raw input is abstracted behind `IInputSource` and resolved to semantic actions via `InputBindingRegistry`:
 
 ```
-Hardware → GtsPlatform → IInputSource → InputActionManager<GtsAction>
+Hardware → GtsPlatform → IInputSource → InputBindingRegistry
                                                   ↓
-                              Controller systems poll via EcsControllerContext::actions
+                        Controller/simulation systems poll via Ecs*Context::input
 ```
 
-`GtsAction` defines engine-level semantics (Pause, ZoomIn, CloseApp, etc.). Applications extend this mapping for game-specific actions.
+Engine actions use string identifiers such as `engine.pause` and `engine.close`. Applications extend this with their own namespaced action strings.
 
 ---
 

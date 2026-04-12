@@ -2,7 +2,7 @@
 #include "GtsKey.h"
 
 // Abstract frame-based digital input source.
-// InputActionManager depends on this interface rather than on the concrete
+// InputBindingRegistry reads this interface rather than the concrete
 // InputManager, keeping the action layer decoupled from the device layer.
 class IInputSource
 {

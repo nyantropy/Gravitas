@@ -16,7 +16,6 @@
 #include "RetroFontAtlas.h"
 #include "DebugCameraStateComponent.h"
 #include "ECSControllerSystem.hpp"
-#include "GtsAction.h"
 #include "GtsKey.h"
 #include "GraphicsConstants.h"
 #include "EngineConfig.h"
@@ -138,8 +137,24 @@ inline void GtsScene3::onLoad(EcsControllerContext& ctx, const GtsSceneTransitio
     cubeEntities.clear();
 
     buildTextureSet();
-    ctx.actions->clearBindings(GtsAction::DebugLayerToggle);
-    ctx.actions->bind(GtsAction::DebugLayerToggle, GtsKey::F8);
+    if (ctx.input != nullptr)
+    {
+        ctx.input->bind("gts_scene3.advance_mode",
+                        InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F3)},
+                        ActivationMode::Pressed);
+        ctx.input->bind("gts_scene3.spawn_batch",
+                        InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Digit1)},
+                        ActivationMode::Pressed);
+        ctx.input->bind("gts_scene3.remove_batch",
+                        InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Digit2)},
+                        ActivationMode::Pressed);
+        ctx.input->unbindAll("engine.debug_overlay");
+        ctx.input->bind("engine.debug_overlay",
+                        InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F8)},
+                        ActivationMode::Pressed,
+                        "",
+                        PausePolicy::AlwaysActive);
+    }
     installRendererFeature(ctx);
     ecsWorld.addControllerSystem<StressMotionSystem>();
     ecsWorld.createSingleton<StressSettingsComponent>();
@@ -160,19 +175,19 @@ inline void GtsScene3::onUpdateControllers(const EcsControllerContext& ctx)
 {
     ecsWorld.updateControllers(ctx);
 
-    if (ctx.inputSource->isKeyPressed(GtsKey::F3))
+    if (ctx.input->isPressed("gts_scene3.advance_mode"))
     {
         advanceMode();
         applyTextureMode();
     }
 
-    if (ctx.inputSource->isKeyPressed(GtsKey::Digit1))
+    if (ctx.input->isPressed("gts_scene3.spawn_batch"))
     {
         spawnCubes(CUBE_BATCH_SIZE);
         applyTextureMode();
     }
 
-    if (ctx.inputSource->isKeyPressed(GtsKey::Digit2))
+    if (ctx.input->isPressed("gts_scene3.remove_batch"))
         removeCubes(CUBE_BATCH_SIZE);
 
     updateOverlay(ctx);

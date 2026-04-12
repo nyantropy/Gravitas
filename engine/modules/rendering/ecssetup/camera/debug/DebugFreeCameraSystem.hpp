@@ -12,8 +12,6 @@
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
 #include "Entity.h"
-#include "GtsAction.h"
-#include "GtsKey.h"
 #include "TransformComponent.h"
 
 class DebugFreeCameraSystem : public ECSControllerSystem
@@ -26,11 +24,9 @@ public:
 
     void update(const EcsControllerContext& ctx) override
     {
-        bindDefaults(ctx);
-
         auto& state = ensureState(ctx);
 
-        if (ctx.actions->isActionPressed(GtsAction::ToggleDebugCamera))
+        if (ctx.input->isPressed("engine.debug_camera_toggle"))
         {
             if (!state.active) activate(ctx, state);
             else deactivate(ctx, state);
@@ -42,21 +38,12 @@ public:
     }
 
 private:
-    bool defaultsBound = false;
     float yaw          = 0.0f;
     float pitch        = 0.0f;
 
     static Entity invalidEntity()
     {
         return Entity{ std::numeric_limits<entity_id_type>::max() };
-    }
-
-    void bindDefaults(const EcsControllerContext& ctx)
-    {
-        if (defaultsBound) return;
-
-        ctx.actions->bind(GtsAction::ToggleDebugCamera, GtsKey::F4);
-        defaultsBound = true;
     }
 
     DebugCameraStateComponent& ensureState(const EcsControllerContext& ctx)
@@ -197,14 +184,13 @@ private:
         auto& desc = ctx.world.getComponent<CameraDescriptionComponent>(state.debugCameraEntity);
         auto& tr   = ctx.world.getComponent<TransformComponent>(state.debugCameraEntity);
         auto& gpu  = ctx.world.getComponent<CameraGpuComponent>(state.debugCameraEntity);
-        auto* input = ctx.inputSource;
 
         const float dt = ctx.time->unscaledDeltaTime;
 
-        if (input->isKeyDown(GtsKey::Q)) yaw += ROTATE_SPEED * dt;
-        if (input->isKeyDown(GtsKey::E)) yaw -= ROTATE_SPEED * dt;
-        if (input->isKeyDown(GtsKey::ArrowUp))   pitch += ROTATE_SPEED * dt;
-        if (input->isKeyDown(GtsKey::ArrowDown)) pitch -= ROTATE_SPEED * dt;
+        if (ctx.input->isHeld("engine.debug_camera_yaw_left")) yaw += ROTATE_SPEED * dt;
+        if (ctx.input->isHeld("engine.debug_camera_yaw_right")) yaw -= ROTATE_SPEED * dt;
+        if (ctx.input->isHeld("engine.debug_camera_pitch_up"))   pitch += ROTATE_SPEED * dt;
+        if (ctx.input->isHeld("engine.debug_camera_pitch_down")) pitch -= ROTATE_SPEED * dt;
 
         pitch = glm::clamp(pitch, MIN_PITCH, MAX_PITCH);
 
@@ -216,12 +202,12 @@ private:
         const glm::vec3 hForward{-std::sin(yaw), 0.0f, -std::cos(yaw)};
         const glm::vec3 right = glm::normalize(glm::cross(hForward, glm::vec3(0.0f, 1.0f, 0.0f)));
 
-        if (input->isKeyDown(GtsKey::W)) tr.position += forward * MOVE_SPEED * dt;
-        if (input->isKeyDown(GtsKey::S)) tr.position -= forward * MOVE_SPEED * dt;
-        if (input->isKeyDown(GtsKey::A)) tr.position -= right   * MOVE_SPEED * dt;
-        if (input->isKeyDown(GtsKey::D)) tr.position += right   * MOVE_SPEED * dt;
-        if (input->isKeyDown(GtsKey::R)) tr.position.y += MOVE_SPEED * dt;
-        if (input->isKeyDown(GtsKey::F)) tr.position.y -= MOVE_SPEED * dt;
+        if (ctx.input->isHeld("engine.debug_camera_forward")) tr.position += forward * MOVE_SPEED * dt;
+        if (ctx.input->isHeld("engine.debug_camera_backward")) tr.position -= forward * MOVE_SPEED * dt;
+        if (ctx.input->isHeld("engine.debug_camera_left")) tr.position -= right   * MOVE_SPEED * dt;
+        if (ctx.input->isHeld("engine.debug_camera_right")) tr.position += right   * MOVE_SPEED * dt;
+        if (ctx.input->isHeld("engine.debug_camera_up")) tr.position.y += MOVE_SPEED * dt;
+        if (ctx.input->isHeld("engine.debug_camera_down")) tr.position.y -= MOVE_SPEED * dt;
 
         desc.active      = true;
         desc.aspectRatio = ctx.windowAspectRatio;

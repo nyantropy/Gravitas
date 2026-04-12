@@ -23,7 +23,6 @@
 
 #include "EcsSimulationContext.hpp"
 #include "EcsControllerContext.hpp"
-#include "InputSnapshot.hpp"
 
 class GravitasEngine
 {
@@ -65,8 +64,6 @@ class GravitasEngine
             EcsControllerContext ctx{world};
             ctx.resources         = platform.getResourceProvider();
             ctx.input             = platform.getInputBindingRegistry();
-            ctx.inputSource       = platform.getInputSource();
-            ctx.actions           = platform.getActionManager();
             ctx.time              = &timeContext;
             ctx.engineCommands    = &engineCommands;
             ctx.extractor         = renderCommandExtractor.get();
@@ -238,11 +235,7 @@ class GravitasEngine
                     std::cout << (uiEnabled ? "UI: ON" : "UI: OFF") << std::endl;
                 }
 
-                platform.setSimulationPaused(gameLoop.paused);
                 input->setPaused(gameLoop.paused);
-
-                // Sample input once for all simulation ticks this frame.
-                InputSnapshot inputSnapshot{ platform.getInputSource() };
 
                 // Fixed timestep simulation ticks
                 int ticks             = gameLoop.advance(realDt);
@@ -253,7 +246,7 @@ class GravitasEngine
 
                 for (int i = 0; i < ticks; ++i)
                 {
-                    EcsSimulationContext simCtx{ world, gameLoop.simulationDt(), input, &inputSnapshot };
+                    EcsSimulationContext simCtx{ world, gameLoop.simulationDt(), input };
                     sceneManager->getActiveScene()->onUpdateSimulation(simCtx);
                 }
 

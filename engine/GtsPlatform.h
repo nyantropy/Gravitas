@@ -8,10 +8,7 @@
 #include "IGtsGraphicsModule.hpp"
 #include "VulkanGraphics.hpp"
 #include "InputManager.hpp"
-#include "InputActionManager.hpp"
 #include "InputBindingRegistry.h"
-#include "PauseFilteredInputSource.hpp"
-#include "GtsAction.h"
 
 // Owns all OS-facing engine subsystems: graphics, windowing, and input.
 // GravitasEngine holds one GtsPlatform by value and delegates to it.
@@ -21,9 +18,7 @@ class GtsPlatform
         explicit GtsPlatform(const EngineConfig& config)
         {
             inputManager  = std::make_unique<InputManager>();
-            actionManager = std::make_unique<InputActionManager<GtsAction>>();
             bindingRegistry = std::make_unique<InputBindingRegistry>();
-            filteredInputSource.setSource(*inputManager);
             createGraphicsModule(config);
             bindDefaultActions();
         }
@@ -34,7 +29,6 @@ class GtsPlatform
             inputManager->beginFrame();
             graphics->pollWindowEvents();
             graphics->getEventBus().dispatch();
-            actionManager->update(*inputManager);
             bindingRegistry->update(InputSnapshot{inputManager.get()});
         }
 
@@ -63,18 +57,6 @@ class GtsPlatform
             return graphics->getResourceProvider();
         }
 
-        // Returns the pause-gated input source exposed to simulation-coupled
-        // controller systems. Engine-level action queries use getActionManager().
-        IInputSource* getInputSource()
-        {
-            return &filteredInputSource;
-        }
-
-        InputActionManager<GtsAction>* getActionManager()
-        {
-            return actionManager.get();
-        }
-
         InputBindingRegistry* getInputBindingRegistry()
         {
             return bindingRegistry.get();
@@ -101,19 +83,10 @@ class GtsPlatform
             graphics->getEventBus().dispatch();
         }
 
-        // Gates all key queries through the filtered input source to false
-        // while the simulation is paused.
-        void setSimulationPaused(bool paused)
-        {
-            filteredInputSource.setSimulationPaused(paused);
-        }
-
     private:
         std::unique_ptr<IGtsGraphicsModule>        graphics;
         std::unique_ptr<InputManager>              inputManager;
-        std::unique_ptr<InputActionManager<GtsAction>> actionManager;
         std::unique_ptr<InputBindingRegistry>      bindingRegistry;
-        PauseFilteredInputSource                   filteredInputSource;
         SubscriptionToken                          keyEventToken;
 
         void createGraphicsModule(const EngineConfig& config)
@@ -136,12 +109,6 @@ class GtsPlatform
 
         void bindDefaultActions()
         {
-            actionManager->bind(GtsAction::TogglePause,       GtsKey::X);
-            actionManager->bind(GtsAction::CloseApplication,  GtsKey::Escape);
-            actionManager->bind(GtsAction::ToggleUI,          GtsKey::F2);
-            actionManager->bind(GtsAction::DebugLayerToggle,  GtsKey::F3);
-            actionManager->bind(GtsAction::Screenshot,        GtsKey::F12);
-
             bindingRegistry->bind("engine.pause",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::X)},
                                   ActivationMode::Pressed,
@@ -171,9 +138,74 @@ class GtsPlatform
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowUp)},
                                   ActivationMode::Held,
                                   "",
-                                  PausePolicy::Gameplay);
+                                  PausePolicy::AlwaysActive);
             bindingRegistry->bind("engine.zoom_out",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowDown)},
+                                  ActivationMode::Held,
+                                  "",
+                                  PausePolicy::AlwaysActive);
+            bindingRegistry->bind("engine.orbit_left",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowLeft)},
+                                  ActivationMode::Held,
+                                  "",
+                                  PausePolicy::AlwaysActive);
+            bindingRegistry->bind("engine.orbit_right",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowRight)},
+                                  ActivationMode::Held,
+                                  "",
+                                  PausePolicy::AlwaysActive);
+            bindingRegistry->bind("engine.debug_camera_toggle",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F4)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive);
+            bindingRegistry->bind("engine.debug_camera_yaw_left",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Q)},
+                                  ActivationMode::Held,
+                                  "",
+                                  PausePolicy::Gameplay);
+            bindingRegistry->bind("engine.debug_camera_yaw_right",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::E)},
+                                  ActivationMode::Held,
+                                  "",
+                                  PausePolicy::Gameplay);
+            bindingRegistry->bind("engine.debug_camera_pitch_up",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowUp)},
+                                  ActivationMode::Held,
+                                  "",
+                                  PausePolicy::Gameplay);
+            bindingRegistry->bind("engine.debug_camera_pitch_down",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowDown)},
+                                  ActivationMode::Held,
+                                  "",
+                                  PausePolicy::Gameplay);
+            bindingRegistry->bind("engine.debug_camera_forward",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::W)},
+                                  ActivationMode::Held,
+                                  "",
+                                  PausePolicy::Gameplay);
+            bindingRegistry->bind("engine.debug_camera_backward",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::S)},
+                                  ActivationMode::Held,
+                                  "",
+                                  PausePolicy::Gameplay);
+            bindingRegistry->bind("engine.debug_camera_left",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::A)},
+                                  ActivationMode::Held,
+                                  "",
+                                  PausePolicy::Gameplay);
+            bindingRegistry->bind("engine.debug_camera_right",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::D)},
+                                  ActivationMode::Held,
+                                  "",
+                                  PausePolicy::Gameplay);
+            bindingRegistry->bind("engine.debug_camera_up",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::R)},
+                                  ActivationMode::Held,
+                                  "",
+                                  PausePolicy::Gameplay);
+            bindingRegistry->bind("engine.debug_camera_down",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F)},
                                   ActivationMode::Held,
                                   "",
                                   PausePolicy::Gameplay);

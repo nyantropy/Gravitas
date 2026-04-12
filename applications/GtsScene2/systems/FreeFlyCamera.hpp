@@ -29,7 +29,6 @@ public:
     void update(const EcsControllerContext& ctx) override
     {
         const float dt  = ctx.time->unscaledDeltaTime;
-        auto* input     = ctx.inputSource;
 
         for (Entity e : ctx.world.getAllEntitiesWith<CameraDescriptionComponent,
                                                      CameraControlOverrideComponent,
@@ -39,8 +38,8 @@ public:
             auto& desc = ctx.world.getComponent<CameraDescriptionComponent>(e);
 
             // Yaw rotation
-            if (input->isKeyDown(GtsKey::Q)) yaw += ROTATE_SPEED * dt;
-            if (input->isKeyDown(GtsKey::E)) yaw -= ROTATE_SPEED * dt;
+            if (ctx.input->isHeld("gts_scene2.camera_yaw_left")) yaw += ROTATE_SPEED * dt;
+            if (ctx.input->isHeld("gts_scene2.camera_yaw_right")) yaw -= ROTATE_SPEED * dt;
 
             // Look direction from yaw (XZ plane only — no pitch)
             glm::vec3 forward{
@@ -51,12 +50,12 @@ public:
             glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3(0.0f, 1.0f, 0.0f)));
 
             // Translate
-            if (input->isKeyDown(GtsKey::W)) tr.position += forward * MOVE_SPEED * dt;
-            if (input->isKeyDown(GtsKey::S)) tr.position -= forward * MOVE_SPEED * dt;
-            if (input->isKeyDown(GtsKey::A)) tr.position -= right   * MOVE_SPEED * dt;
-            if (input->isKeyDown(GtsKey::D)) tr.position += right   * MOVE_SPEED * dt;
-            if (input->isKeyDown(GtsKey::R)) tr.position.y += MOVE_SPEED * dt;
-            if (input->isKeyDown(GtsKey::T)) tr.position.y -= MOVE_SPEED * dt;
+            if (ctx.input->isHeld("gts_scene2.camera_forward")) tr.position += forward * MOVE_SPEED * dt;
+            if (ctx.input->isHeld("gts_scene2.camera_backward")) tr.position -= forward * MOVE_SPEED * dt;
+            if (ctx.input->isHeld("gts_scene2.camera_left")) tr.position -= right   * MOVE_SPEED * dt;
+            if (ctx.input->isHeld("gts_scene2.camera_right")) tr.position += right   * MOVE_SPEED * dt;
+            if (ctx.input->isHeld("gts_scene2.camera_up")) tr.position.y += MOVE_SPEED * dt;
+            if (ctx.input->isHeld("gts_scene2.camera_down")) tr.position.y -= MOVE_SPEED * dt;
 
             desc.target      = tr.position + forward;
             desc.up          = glm::vec3(0.0f, 1.0f, 0.0f);

@@ -95,6 +95,40 @@ public:
         spawnGrid();
         spawnCamera(ctx.windowAspectRatio);
 
+        if (ctx.input != nullptr)
+        {
+            ctx.input->bind("gts_scene2.toggle_culling",
+                            InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::C)},
+                            ActivationMode::Pressed);
+            ctx.input->bind("gts_scene2.toggle_frustum_freeze",
+                            InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F)},
+                            ActivationMode::Pressed);
+            ctx.input->bind("gts_scene2.camera_forward",
+                            InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::W)},
+                            ActivationMode::Held);
+            ctx.input->bind("gts_scene2.camera_backward",
+                            InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::S)},
+                            ActivationMode::Held);
+            ctx.input->bind("gts_scene2.camera_left",
+                            InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::A)},
+                            ActivationMode::Held);
+            ctx.input->bind("gts_scene2.camera_right",
+                            InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::D)},
+                            ActivationMode::Held);
+            ctx.input->bind("gts_scene2.camera_yaw_left",
+                            InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Q)},
+                            ActivationMode::Held);
+            ctx.input->bind("gts_scene2.camera_yaw_right",
+                            InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::E)},
+                            ActivationMode::Held);
+            ctx.input->bind("gts_scene2.camera_up",
+                            InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::R)},
+                            ActivationMode::Held);
+            ctx.input->bind("gts_scene2.camera_down",
+                            InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::T)},
+                            ActivationMode::Held);
+        }
+
         // Load font and create overlay entity for culling/frustum state text.
         overlayFont = BitmapFontLoader::load(
             ctx.resources,
@@ -138,11 +172,10 @@ public:
     {
         ecsWorld.updateControllers(ctx);
 
-        auto* input     = ctx.inputSource;
         auto* extractor = ctx.extractor;
 
         // C — toggle frustum culling
-        if (input->isKeyPressed(GtsKey::C))
+        if (ctx.input->isPressed("gts_scene2.toggle_culling"))
         {
             extractor->setFrustumCullingEnabled(!extractor->isFrustumCullingEnabled());
             printf("\n[CULLING] Frustum culling %s\n",
@@ -150,7 +183,7 @@ public:
         }
 
         // F — freeze / unfreeze frustum (also used for camera down — one-frame overlap is acceptable)
-        if (input->isKeyPressed(GtsKey::F))
+        if (ctx.input->isPressed("gts_scene2.toggle_frustum_freeze"))
         {
             extractor->toggleFrustumFreeze();
             if (extractor->isFrustumFrozen())

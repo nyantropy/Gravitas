@@ -5,8 +5,6 @@
 
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
-#include "GtsAction.h"
-#include "GtsKey.h"
 
 #include "CameraDescriptionComponent.h"
 #include "CameraControlOverrideComponent.h"
@@ -20,25 +18,9 @@
 // Note: CameraOverrideComponent (GPU matrix ownership) is orthogonal and not checked here.
 class DefaultCameraControlSystem : public ECSControllerSystem
 {
-    bool defaultsBound = false;
-
-    void bindDefaults(const EcsControllerContext& ctx)
-    {
-        ctx.actions->bind(GtsAction::ZoomIn,     GtsKey::ArrowUp);
-        ctx.actions->bind(GtsAction::ZoomOut,    GtsKey::ArrowDown);
-        ctx.actions->bind(GtsAction::OrbitLeft,  GtsKey::ArrowLeft);
-        ctx.actions->bind(GtsAction::OrbitRight, GtsKey::ArrowRight);
-    }
-
 public:
     void update(const EcsControllerContext& ctx) override
     {
-        if (!defaultsBound)
-        {
-            bindDefaults(ctx);
-            defaultsBound = true;
-        }
-
         const float zoomSpeed  = 6.0f;
         const float orbitSpeed = 1.5f;
 
@@ -62,16 +44,16 @@ public:
             if (dist > 0.0001f)
                 dir /= dist;
 
-            if (ctx.actions->isActionActive(GtsAction::ZoomIn))
+            if (ctx.input->isHeld("engine.zoom_in"))
                 pos += dir * zoomSpeed * dt;
 
-            if (ctx.actions->isActionActive(GtsAction::ZoomOut))
+            if (ctx.input->isHeld("engine.zoom_out"))
                 pos -= dir * zoomSpeed * dt;
 
             float angle = 0.0f;
-            if (ctx.actions->isActionActive(GtsAction::OrbitLeft))
+            if (ctx.input->isHeld("engine.orbit_left"))
                 angle += orbitSpeed * dt;
-            if (ctx.actions->isActionActive(GtsAction::OrbitRight))
+            if (ctx.input->isHeld("engine.orbit_right"))
                 angle -= orbitSpeed * dt;
 
             if (std::abs(angle) > 0.0f)
