@@ -11,7 +11,9 @@
 #include "GtsPlatform.h"
 #include "GtsGameLoop.h"
 
-#include "GtsExtractorContext.h"
+#include "FrustumCullingStrategy.h"
+#include "IVisibilityStrategy.h"
+#include "NoCullingStrategy.h"
 #include "RenderCommandExtractor.hpp"
 #include "RenderExtractionSnapshotBuilder.hpp"
 #include "UiSystem.h"
@@ -41,6 +43,7 @@ class GravitasEngine
 
         // used to extract all render commands from the currently active ecs world
         std::unique_ptr<RenderCommandExtractor> renderCommandExtractor;
+        std::unique_ptr<IVisibilityStrategy>    visibilityStrategy;
         RenderExtractionSnapshotBuilder         renderSnapshotBuilder;
 
         // retained engine UI system
@@ -68,7 +71,7 @@ class GravitasEngine
             ctx.input             = platform.getInputBindingRegistry();
             ctx.time              = &timeContext;
             ctx.engineCommands    = &engineCommands;
-            ctx.extractor         = renderCommandExtractor.get();
+            ctx.visibilityStrategy = visibilityStrategy.get();
             ctx.ui                = uiSystem.get();
             ctx.physics           = sceneManager->getActiveScene()->getPhysicsModule();
             ctx.windowAspectRatio = windowAspectRatio;
@@ -98,7 +101,8 @@ class GravitasEngine
             // triangleCount is filled in by SceneRenderStage during execute
             activeScene->populateFrameStats(stats);
 
-            const RenderExtractionSnapshot& renderSnapshot = renderSnapshotBuilder.build(world);
+            RenderExtractionSnapshot& renderSnapshot = renderSnapshotBuilder.build(world);
+            visibilityStrategy->filter(renderSnapshot);
             const auto extractStart = std::chrono::steady_clock::now();
             const auto& renderList = renderCommandExtractor->extract(renderSnapshot);
             const auto extractEnd = std::chrono::steady_clock::now();
@@ -181,7 +185,8 @@ class GravitasEngine
         {
             gameLoop.init(engineConfig);
             sceneManager = std::make_unique<SceneManager>();
-            renderCommandExtractor = std::make_unique<RenderCommandExtractor>(engineConfig.frustumCullingEnabled);
+            renderCommandExtractor = std::make_unique<RenderCommandExtractor>();
+            visibilityStrategy = std::make_unique<FrustumCullingStrategy>(engineConfig.frustumCullingEnabled);
             uiSystem               = std::make_unique<UiSystem>(platform.getResourceProvider());
         }
 

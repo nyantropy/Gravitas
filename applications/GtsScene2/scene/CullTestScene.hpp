@@ -5,7 +5,7 @@
 
 #include "GtsScene.hpp"
 #include "ECSWorld.hpp"
-#include "RenderCommandExtractor.hpp"
+#include "IVisibilityStrategy.h"
 
 #include "TransformComponent.h"
 #include "StaticMeshComponent.h"
@@ -172,21 +172,21 @@ public:
     {
         ecsWorld.updateControllers(ctx);
 
-        auto* extractor = ctx.extractor;
+        auto* visibilityStrategy = ctx.visibilityStrategy;
 
         // C — toggle frustum culling
         if (ctx.input->isPressed("gts_scene2.toggle_culling"))
         {
-            extractor->setFrustumCullingEnabled(!extractor->isFrustumCullingEnabled());
+            visibilityStrategy->setEnabled(!visibilityStrategy->isEnabled());
             printf("\n[CULLING] Frustum culling %s\n",
-                extractor->isFrustumCullingEnabled() ? "ON" : "OFF");
+                visibilityStrategy->isEnabled() ? "ON" : "OFF");
         }
 
         // F — freeze / unfreeze frustum (also used for camera down — one-frame overlap is acceptable)
         if (ctx.input->isPressed("gts_scene2.toggle_frustum_freeze"))
         {
-            extractor->toggleFrustumFreeze();
-            if (extractor->isFrustumFrozen())
+            visibilityStrategy->toggleFreeze();
+            if (visibilityStrategy->isFrozen())
                 printf("\n[FRUSTUM] Frustum FROZEN at current camera position\n");
             else
                 printf("\n[FRUSTUM] Frustum LIVE\n");
@@ -197,8 +197,8 @@ public:
         {
             char buf[64];
             snprintf(buf, sizeof(buf), "CULLING %s\nFRUSTUM %s",
-                extractor->isFrustumCullingEnabled() ? "ON" : "OFF",
-                extractor->isFrustumFrozen()         ? "FROZEN" : "LIVE");
+                visibilityStrategy->isEnabled() ? "ON" : "OFF",
+                visibilityStrategy->isFrozen()  ? "FROZEN" : "LIVE");
             ctx.ui->setPayload(overlayHandle, UiTextData{
                 buf,
                 {},

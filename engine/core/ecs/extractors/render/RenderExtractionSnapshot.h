@@ -32,6 +32,7 @@ struct RenderableSnapshot
 
     float         alpha = 1.0f;
     bool          doubleSided = false;
+    bool          visible = true;
     uint64_t      sortKey = 0;
 };
 

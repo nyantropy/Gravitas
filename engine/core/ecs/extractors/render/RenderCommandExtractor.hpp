@@ -2,18 +2,13 @@
 
 #include <algorithm>
 #include <chrono>
-#include <limits>
 #include <unordered_map>
 #include <vector>
 
-#include "EngineConfig.h"
-#include "FrustumCuller.h"
-#include "IGtsExtractor.h"
 #include "RenderCommand.h"
 #include "RenderExtractionSnapshot.h"
-#include "RenderExtractionSnapshotBuilder.hpp"
 
-class RenderCommandExtractor : public IGtsExtractor<std::vector<RenderCommand>>
+class RenderCommandExtractor
 {
 public:
     struct Metrics
@@ -28,19 +23,9 @@ public:
         bool     sortedThisFrame    = false;
     };
 
-    explicit RenderCommandExtractor(bool frustumCullingEnabled = true)
-        : frustumCullingEnabled(frustumCullingEnabled)
-    {}
-
     Metrics getLastMetrics() const
     {
         return lastMetrics;
-    }
-
-    const std::vector<RenderCommand>& extract(const GtsExtractorContext& ctx) override
-    {
-        const RenderExtractionSnapshot& snapshot = snapshotBuilder.build(ctx.world);
-        return extract(snapshot);
     }
 
     const std::vector<RenderCommand>& extract(const RenderExtractionSnapshot& snapshot)
@@ -51,8 +36,6 @@ public:
         int totalRenderables   = 0;
         int visibleRenderables = 0;
         int updatedCommands    = 0;
-
-        const FrustumPlanes& frustum = resolveFrustum(snapshot);
 
         nextOpaqueEntityOrder.clear();
         nextTransparentEntityOrder.clear();
@@ -70,7 +53,7 @@ public:
             cached.lastSeenFrame = frameStamp;
 
             const bool opaque = renderable.alpha >= 1.0f;
-            const bool visible = isRenderableVisible(frustum, renderable);
+            const bool visible = renderable.visible;
             const bool sortKeyChanged = !cached.initialised
                 || cached.sortKey != renderable.sortKey;
             const bool needsUpdate = !cacheInitialised
@@ -111,12 +94,12 @@ public:
         }
 
         const bool staleEntriesPruned = invalidateStaleSlots();
-        const bool frustumChanged = !lastFrustumValid || !frustumsEqual(frustum, lastEvaluatedFrustum);
+        const bool visibilityStatesChanged = visibilityStateDirty(snapshot);
         const bool visibilityChanged = !cacheInitialised
             || updatedCommands > 0
             || sortOrderDirty
             || staleEntriesPruned
-            || frustumChanged;
+            || visibilityStatesChanged;
         lastMetrics.sortCpuMs = 0.0f;
         lastMetrics.sortedThisFrame = false;
 
@@ -167,8 +150,6 @@ public:
         lastTotalRenderables   = totalRenderables;
         lastVisibleRenderables = visibleRenderables;
         cacheInitialised = true;
-        lastEvaluatedFrustum = frustum;
-        lastFrustumValid = true;
         const auto end = std::chrono::steady_clock::now();
         lastMetrics.extractCpuMs =
             std::chrono::duration<float, std::milli>(end - start).count();
@@ -181,19 +162,8 @@ public:
         return cachedVisibleCommands;
     }
 
-    void setFrustumCullingEnabled(bool enabled) { frustumCullingEnabled = enabled; }
-    bool isFrustumCullingEnabled() const { return frustumCullingEnabled; }
-
-    void toggleFrustumFreeze() { frustumFrozen = !frustumFrozen; }
-    bool isFrustumFrozen()  const { return frustumFrozen; }
-
     int  getLastTotalRenderables()   const { return lastTotalRenderables; }
     int  getLastVisibleRenderables() const { return lastVisibleRenderables; }
-
-    RenderExtractionSnapshotBuilder::Metrics getSnapshotBuildMetrics() const
-    {
-        return snapshotBuilder.getLastMetrics();
-    }
 
 private:
     struct CachedCommandState
@@ -205,13 +175,6 @@ private:
         bool          initialised   = false;
     };
 
-    bool                           frustumCullingEnabled;
-    bool                           frustumFrozen = false;
-    RenderExtractionSnapshotBuilder snapshotBuilder;
-    FrustumPlanes                  frozenFrustum{};
-    bool                           frozenFrustumValid = false;
-    FrustumPlanes                  lastEvaluatedFrustum{};
-    bool                           lastFrustumValid = false;
     int                            lastTotalRenderables = 0;
     int                            lastVisibleRenderables = 0;
     Metrics                        lastMetrics;
@@ -246,50 +209,20 @@ private:
         return pruned;
     }
 
-    const FrustumPlanes& resolveFrustum(const RenderExtractionSnapshot& snapshot)
+    bool visibilityStateDirty(const RenderExtractionSnapshot& snapshot) const
     {
-        if (!frustumFrozen)
+        for (const RenderableSnapshot& renderable : snapshot.renderables)
         {
-            frozenFrustum = snapshot.frustum;
-            frozenFrustumValid = true;
-            return snapshot.frustum;
-        }
+            auto it = commandCache.find(renderable.id);
+            if (it == commandCache.end())
+                return true;
 
-        if (!frozenFrustumValid)
-        {
-            frozenFrustum = snapshot.frustum;
-            frozenFrustumValid = true;
-        }
-
-        return frozenFrustum;
-    }
-
-    bool isRenderableVisible(const FrustumPlanes& frustum, const RenderableSnapshot& renderable) const
-    {
-        if (!frustumCullingEnabled)
-            return true;
-
-        if (!renderable.hasBounds)
-            return true;
-
-        return FrustumCuller::isVisible(frustum,
-                                        renderable.worldBounds.min,
-                                        renderable.worldBounds.max);
-    }
-
-    static bool frustumsEqual(const FrustumPlanes& lhs, const FrustumPlanes& rhs)
-    {
-        for (size_t i = 0; i < lhs.size(); ++i)
-        {
-            if (lhs[i].x != rhs[i].x
-                || lhs[i].y != rhs[i].y
-                || lhs[i].z != rhs[i].z
-                || lhs[i].w != rhs[i].w)
+            if (it->second.visible != renderable.visible)
             {
-                return false;
+                return true;
             }
         }
 
-        return true;
+        return false;
     }
 };

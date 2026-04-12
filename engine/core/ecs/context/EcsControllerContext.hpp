@@ -7,6 +7,7 @@
 
 class ECSWorld;
 class RenderCommandExtractor;
+class IVisibilityStrategy;
 class UiSystem;
 class IGtsPhysicsModule;
 
@@ -25,7 +26,7 @@ struct EcsControllerContext
     InputBindingRegistry*           input             = nullptr;
     const TimeContext*              time              = nullptr;
     GtsCommandBuffer*               engineCommands    = nullptr;
-    RenderCommandExtractor*         extractor         = nullptr;
+    IVisibilityStrategy*            visibilityStrategy = nullptr;
     UiSystem*                       ui                = nullptr;
     IGtsPhysicsModule*              physics           = nullptr;
     float                           windowAspectRatio  = 1.0f;

@@ -23,7 +23,7 @@ public:
         uint32_t renderableCount = 0;
     };
 
-    const RenderExtractionSnapshot& build(ECSWorld& world)
+    RenderExtractionSnapshot& build(ECSWorld& world)
     {
         const auto start = std::chrono::steady_clock::now();
 
@@ -62,6 +62,7 @@ public:
             renderable.objectSSBOSlot = rc.objectSSBOSlot;
             renderable.alpha = matGpu.alpha;
             renderable.doubleSided = matGpu.doubleSided;
+            renderable.visible = true;
             renderable.sortKey = makeSortKey(renderable);
 
             bool shouldBuildBounds = world.hasComponent<BoundsComponent>(e);
