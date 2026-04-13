@@ -364,7 +364,11 @@ inline void GtsScene3::applyTextureMode()
             : sharedTexture;
 
         if (mat.texturePath != targetTexture)
-            mat.texturePath = targetTexture;
+        {
+            MaterialComponent updated = mat;
+            updated.texturePath = targetTexture;
+            ecsWorld.addComponent<MaterialComponent>(e, updated);
+        }
     }
 }
 

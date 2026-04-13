@@ -93,8 +93,16 @@ class ECSWorld
         }
 
         mutable std::unordered_map<std::type_index, std::unique_ptr<IComponentStorage>> storages;
+        std::unordered_map<std::type_index, std::function<void(ECSWorld&, Entity, void*)>> addCallbacks;
         std::unordered_map<std::type_index, std::function<void(ECSWorld&, Entity, void*)>> removeCallbacks;
         std::vector<uint32_t> forEachScratch;
+
+        void invokeAddCallback(const std::type_index& type, Entity entity, void* componentData)
+        {
+            auto it = addCallbacks.find(type);
+            if (it != addCallbacks.end() && componentData != nullptr)
+                it->second(*this, entity, componentData);
+        }
 
     public:
         Entity createEntity()
@@ -117,7 +125,9 @@ class ECSWorld
         template<typename Component>
         void addComponent(Entity entity, const Component& component)
         {
-            getStorage<Component>().add(entity, component);
+            auto& storage = getStorage<Component>();
+            storage.add(entity, component);
+            invokeAddCallback(std::type_index(typeid(Component)), entity, storage.getRawPtr(entity));
         }
 
         template<typename Component>
@@ -301,6 +311,7 @@ class ECSWorld
             // unsubscribe. The eventHandlers map is still valid at this point.
             simulationSystems.clear();
             controllerSystems.clear();
+            addCallbacks.clear();
             controllerProfiles.clear();
             controllerProfilePrintScratch.clear();
             forEachScratch.clear();
@@ -392,6 +403,16 @@ class ECSWorld
         size_t getControllerSystemCount() const
         {
             return controllerSystems.size();
+        }
+
+        template<typename Component, typename Callback>
+        void registerAddCallback(Callback&& callback)
+        {
+            addCallbacks[std::type_index(typeid(Component))] =
+                [cb = std::forward<Callback>(callback)](ECSWorld& world, Entity entity, void* componentData)
+                {
+                    cb(world, entity, *static_cast<Component*>(componentData));
+                };
         }
 
         template<typename Component, typename Callback>

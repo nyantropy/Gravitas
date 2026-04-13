@@ -20,67 +20,8 @@
 class StaticMeshBindingSystem : public ECSControllerSystem
 {
 public:
-    void update(const EcsControllerContext& ctx) override
+    void update(const EcsControllerContext&) override
     {
-        ctx.world.forEach<StaticMeshComponent, MaterialComponent>(
-            [&](Entity e, StaticMeshComponent& mesh, MaterialComponent& mat)
-        {
-            // Ensure GPU components exist
-            if (!ctx.world.hasComponent<MeshGpuComponent>(e))
-                ctx.world.addComponent(e, MeshGpuComponent{});
-            if (!ctx.world.hasComponent<MaterialGpuComponent>(e))
-                ctx.world.addComponent(e, MaterialGpuComponent{});
-            if (!ctx.world.hasComponent<RenderGpuComponent>(e))
-                ctx.world.addComponent(e, RenderGpuComponent{});
-            if (!ctx.world.hasComponent<RenderDirtyComponent>(e))
-                ctx.world.addComponent(e, RenderDirtyComponent{});
-
-            auto& meshGpu = ctx.world.getComponent<MeshGpuComponent>(e);
-            auto& matGpu  = ctx.world.getComponent<MaterialGpuComponent>(e);
-            auto& dirty   = ctx.world.getComponent<RenderDirtyComponent>(e);
-            auto& rc      = ctx.world.getComponent<RenderGpuComponent>(e);
-
-            // Allocate a GPU slot the first time this entity is seen
-            if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
-            {
-                rc.objectSSBOSlot = ctx.resources->requestObjectSlot();
-                rc.commandDirty   = true;
-            }
-
-            // Resolve (or re-resolve) mesh if the path changed
-            if (mesh.meshPath != meshGpu.boundMeshPath)
-            {
-                meshGpu.meshID        = ctx.resources->requestMesh(mesh.meshPath);
-                meshGpu.ownsProceduralMeshResource = false;
-                meshGpu.boundMeshPath = mesh.meshPath;
-                dirty.meshDirty       = true;
-                rc.dirty              = true;
-                rc.readyToRender      = false;
-                rc.commandDirty       = true;
-            }
-
-            // Resolve (or re-resolve) texture if the path changed
-            if (mat.texturePath != matGpu.boundTexturePath)
-            {
-                matGpu.textureID        = ctx.resources->requestTexture(mat.texturePath);
-                matGpu.boundTexturePath = mat.texturePath;
-                dirty.materialDirty     = true;
-                rc.dirty                = true;
-                rc.readyToRender        = false;
-                rc.commandDirty         = true;
-            }
-
-            // Sync material properties (cheap copies; no GPU resource involved)
-            if (matGpu.alpha != mat.alpha
-                || matGpu.doubleSided != mat.doubleSided
-                || matGpu.tint != mat.tint)
-            {
-                dirty.materialDirty = true;
-                rc.commandDirty = true;
-            }
-            matGpu.tint        = mat.tint;
-            matGpu.alpha       = mat.alpha;
-            matGpu.doubleSided = mat.doubleSided;
-        });
+        // Static mesh binding is lifecycle-driven via ECS add/remove callbacks.
     }
 };

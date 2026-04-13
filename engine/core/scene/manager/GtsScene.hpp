@@ -13,6 +13,7 @@
 #include "StaticMeshBindingSystem.hpp"
 #include "ProceduralMeshBindingSystem.hpp"
 #include "WorldTextBindingSystem.hpp"
+#include "RenderBindingLifecycle.h"
 #include "CameraBindingSystem.hpp"
 #include "MeshGpuComponent.h"
 #include "RenderGpuComponent.h"
@@ -126,14 +127,65 @@ class GtsScene
                     meshGpu.ownsProceduralMeshResource = false;
                 });
 
-            ecsWorld.addControllerSystem<StaticMeshBindingSystem>();
-            ecsWorld.addControllerSystem<ProceduralMeshBindingSystem>();
             ecsWorld.addControllerSystem<WorldTextBindingSystem>();
             ecsWorld.addControllerSystem<RenderGpuSystem>();
             ecsWorld.addControllerSystem<CameraGpuSystem>();
             ecsWorld.addControllerSystem<DebugFreeCameraSystem>();
             ecsWorld.addControllerSystem<CameraBindingSystem>();
             ecsWorld.addControllerSystem<DefaultCameraControlSystem>();
+
+            ecsWorld.registerAddCallback<StaticMeshComponent>(
+                [resources](ECSWorld& world, Entity entity, StaticMeshComponent&)
+                {
+                    gts::rendering::syncStaticMeshBinding(world, entity, resources);
+                });
+            ecsWorld.registerAddCallback<ProceduralMeshComponent>(
+                [resources](ECSWorld& world, Entity entity, ProceduralMeshComponent&)
+                {
+                    gts::rendering::syncProceduralMeshBinding(world, entity, resources);
+                });
+            ecsWorld.registerAddCallback<MaterialComponent>(
+                [resources](ECSWorld& world, Entity entity, MaterialComponent&)
+                {
+                    if (world.hasComponent<ProceduralMeshComponent>(entity))
+                        gts::rendering::syncProceduralMeshBinding(world, entity, resources);
+                    else if (world.hasComponent<StaticMeshComponent>(entity))
+                        gts::rendering::syncStaticMeshBinding(world, entity, resources);
+                });
+
+            ecsWorld.registerRemoveCallback<StaticMeshComponent>(
+                [resources](ECSWorld& world, Entity entity, StaticMeshComponent&)
+                {
+                    gts::rendering::cleanupRenderableBinding(world, entity, resources);
+                });
+            ecsWorld.registerRemoveCallback<ProceduralMeshComponent>(
+                [resources](ECSWorld& world, Entity entity, ProceduralMeshComponent&)
+                {
+                    gts::rendering::cleanupRenderableBinding(world, entity, resources);
+                });
+            ecsWorld.registerRemoveCallback<MaterialComponent>(
+                [resources](ECSWorld& world, Entity entity, MaterialComponent&)
+                {
+                    if (world.hasComponent<StaticMeshComponent>(entity)
+                        || world.hasComponent<ProceduralMeshComponent>(entity))
+                    {
+                        gts::rendering::cleanupRenderableBinding(world, entity, resources);
+                    }
+                });
+
+            // Many scenes create renderable entities before installRendererFeature().
+            // Bootstrap those existing descriptors once at install time; all later
+            // changes are handled through add/remove callbacks.
+            ecsWorld.forEach<StaticMeshComponent, MaterialComponent>(
+                [this, resources](Entity entity, StaticMeshComponent&, MaterialComponent&)
+                {
+                    gts::rendering::syncStaticMeshBinding(ecsWorld, entity, resources);
+                });
+            ecsWorld.forEach<ProceduralMeshComponent, MaterialComponent>(
+                [this, resources](Entity entity, ProceduralMeshComponent&, MaterialComponent&)
+                {
+                    gts::rendering::syncProceduralMeshBinding(ecsWorld, entity, resources);
+                });
             rendererFeatureInstalled = true;
         }
 };

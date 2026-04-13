@@ -62,8 +62,13 @@ namespace
         transform.position = position;
         transform.rotation = rotation;
 
-        auto& mesh = world.getComponent<ProceduralMeshComponent>(entity);
-        mesh.width = length;
+        const auto& mesh = world.getComponent<ProceduralMeshComponent>(entity);
+        if (mesh.width != length)
+        {
+            ProceduralMeshComponent updatedMesh = mesh;
+            updatedMesh.width = length;
+            world.addComponent<ProceduralMeshComponent>(entity, updatedMesh);
+        }
 
         auto& bounds = world.getComponent<BoundsComponent>(entity);
         bounds.min = {-length * 0.5f, -LINE_THICKNESS * 0.5f, -LINE_THICKNESS * 0.5f};
