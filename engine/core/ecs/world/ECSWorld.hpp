@@ -13,6 +13,10 @@
 #include <unordered_set>
 #include <cstring>
 #include <cstdint>
+#include <chrono>
+#include <iomanip>
+#include <iostream>
+#include <string_view>
 
 #include "Entity.h"
 #include "ComponentStorage.hpp"
@@ -61,6 +65,14 @@ class ECSWorld
 
         std::vector<std::unique_ptr<ECSSimulationSystem>> simulationSystems;
         std::vector<std::unique_ptr<ECSControllerSystem>> controllerSystems;
+        struct SystemProfile
+        {
+            float totalMs = 0.0f;
+            float maxMs   = 0.0f;
+            int   calls   = 0;
+        };
+        std::unordered_map<std::string_view, SystemProfile> controllerProfiles;
+        std::vector<std::pair<std::string_view, SystemProfile>> controllerProfilePrintScratch;
 
         template<typename Component>
         ComponentStorage<Component>& getStorage() const
@@ -150,6 +162,7 @@ class ECSWorld
                             "SystemType must derive from ECSControllerSystem");
 
             auto system = std::make_unique<SystemType>(std::forward<Args>(args)...);
+            system->setDebugName(gts::detail::typeName<SystemType>());
             SystemType& ref = *system;
             controllerSystems.push_back(std::move(system));
             return ref;
@@ -189,7 +202,63 @@ class ECSWorld
         void updateControllers(const EcsControllerContext& ctx)
         {
             for (auto& system : controllerSystems)
+            {
+                const auto start = std::chrono::steady_clock::now();
                 system->update(ctx);
+                const auto end = std::chrono::steady_clock::now();
+                const float ms = std::chrono::duration<float, std::milli>(end - start).count();
+
+                auto& profile = controllerProfiles[system->getName()];
+                profile.totalMs += ms;
+                profile.maxMs = std::max(profile.maxMs, ms);
+                ++profile.calls;
+            }
+        }
+
+        void printControllerProfiles() const
+        {
+            const_cast<ECSWorld*>(this)->controllerProfilePrintScratch.clear();
+            const_cast<ECSWorld*>(this)->controllerProfilePrintScratch.reserve(controllerProfiles.size());
+
+            for (const auto& [name, profile] : controllerProfiles)
+            {
+                if (profile.calls <= 0)
+                    continue;
+
+                const_cast<ECSWorld*>(this)->controllerProfilePrintScratch.emplace_back(name, profile);
+            }
+
+            auto& rows = const_cast<ECSWorld*>(this)->controllerProfilePrintScratch;
+            std::sort(rows.begin(), rows.end(),
+                      [](const auto& a, const auto& b)
+                      {
+                          const float avgA = a.second.totalMs / static_cast<float>(a.second.calls);
+                          const float avgB = b.second.totalMs / static_cast<float>(b.second.calls);
+                          if (avgA != avgB)
+                              return avgA > avgB;
+                          return a.second.maxMs > b.second.maxMs;
+                      });
+
+            if (rows.empty())
+                return;
+
+            std::cout << "\n=== CONTROLLER PROFILE (5s avg) ===\n\n";
+            for (const auto& [name, profile] : rows)
+            {
+                const float avgMs = profile.totalMs / static_cast<float>(profile.calls);
+                std::cout << std::left << std::setw(24) << name
+                          << std::right << std::setw(6) << std::fixed << std::setprecision(2) << avgMs
+                          << " / "
+                          << std::setw(6) << profile.maxMs
+                          << '\n';
+            }
+            std::cout.flush();
+        }
+
+        void resetControllerProfiles()
+        {
+            for (auto& [_, profile] : controllerProfiles)
+                profile = {};
         }
 
         template<typename... Components>
@@ -232,6 +301,8 @@ class ECSWorld
             // unsubscribe. The eventHandlers map is still valid at this point.
             simulationSystems.clear();
             controllerSystems.clear();
+            controllerProfiles.clear();
+            controllerProfilePrintScratch.clear();
             forEachScratch.clear();
             forEachScratch.shrink_to_fit();
             nextEntityId = 0;

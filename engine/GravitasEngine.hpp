@@ -160,6 +160,8 @@ class GravitasEngine
             if (profiler.shouldPrint())
             {
                 printProfile(profiler);
+                world.printControllerProfiles();
+                world.resetControllerProfiles();
                 profiler.reset();
             }
         }
