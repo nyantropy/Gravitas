@@ -130,9 +130,19 @@ class RenderResourceManager : public IResourceProvider
             return objectSSBOManager->writeSlot(frameIndex, slot, data);
         }
 
+        uint32_t writeObjectSlotAllFrames(ssbo_id_type slot, const ObjectUBO& data)
+        {
+            return objectSSBOManager->writeSlotAllFrames(slot, data);
+        }
+
         void flushObjectSSBO(uint32_t frameIndex)
         {
             objectSSBOManager->flushFrame(frameIndex);
+        }
+
+        void flushAllObjectSSBO()
+        {
+            objectSSBOManager->flushAllFrames();
         }
 
         VkDescriptorSet getObjectSSBODescriptorSet(uint32_t frameIndex)

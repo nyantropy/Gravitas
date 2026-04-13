@@ -151,7 +151,12 @@ class GravitasEngine
             stats.renderCommandSortedCount  = extractorMetrics.sortedThisFrame ? 1u : 0u;
 
             const auto submitStart = std::chrono::steady_clock::now();
-            platform.getGraphics()->renderFrame(dt, renderList, uiBuffer, stats);
+            platform.getGraphics()->renderFrame(
+                dt,
+                renderList,
+                renderPipeline->getLatestSnapshot().objectUploads,
+                uiBuffer,
+                stats);
             const auto submitEnd = std::chrono::steady_clock::now();
             stats.renderSubmitCpuMs =
                 std::chrono::duration<float, std::milli>(submitEnd - submitStart).count();

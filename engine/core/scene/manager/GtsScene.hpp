@@ -21,6 +21,8 @@
 #include "DefaultCameraControlSystem.hpp"
 #include "PhysicsSystem.h"
 #include "PhysicsDebugRenderer.h"
+#include "TransformDirtyComponent.h"
+#include "TransformDirtyHelpers.h"
 
 
 // Override this class to define a reusable engine scene in terms of entities,
@@ -126,6 +128,11 @@ class GtsScene
                     meshGpu.meshID = 0;
                     meshGpu.ownsProceduralMeshResource = false;
                 });
+            ecsWorld.registerAddCallback<TransformComponent>(
+                [](ECSWorld& world, Entity entity, TransformComponent&)
+                {
+                    gts::transform::markDirty(world, entity);
+                });
 
             ecsWorld.addControllerSystem<WorldTextBindingSystem>();
             ecsWorld.addControllerSystem<RenderGpuSystem>();
@@ -185,6 +192,11 @@ class GtsScene
                 [this, resources](Entity entity, ProceduralMeshComponent&, MaterialComponent&)
                 {
                     gts::rendering::syncProceduralMeshBinding(ecsWorld, entity, resources);
+                });
+            ecsWorld.forEach<TransformComponent>(
+                [this](Entity entity, TransformComponent&)
+                {
+                    gts::transform::markDirty(ecsWorld, entity);
                 });
             rendererFeatureInstalled = true;
         }

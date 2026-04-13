@@ -22,6 +22,7 @@
 #include "MaterialComponent.h"
 #include "StaticMeshComponent.h"
 #include "TransformComponent.h"
+#include "TransformDirtyHelpers.h"
 #include "UiLayout.h"
 #include "UiNode.h"
 #include "UiHandle.h"
@@ -108,12 +109,13 @@ public:
         const auto& settings = ctx.world.getSingleton<StressSettingsComponent>();
 
         ctx.world.forEach<StressCubeComponent, TransformComponent>(
-            [&](Entity, StressCubeComponent& cube, TransformComponent& tr)
+            [&](Entity entity, StressCubeComponent& cube, TransformComponent& tr)
         {
             if (!settings.movementEnabled)
             {
                 tr.position = cube.staticPosition;
                 tr.rotation = glm::vec3(0.0f);
+                gts::transform::markDirty(ctx.world, entity);
                 return;
             }
 
@@ -123,6 +125,7 @@ public:
             tr.rotation.x = 0.0f;
             tr.rotation.z = 0.0f;
             tr.rotation.y = wave * 0.08f;
+            gts::transform::markDirty(ctx.world, entity);
         });
     }
 

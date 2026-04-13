@@ -4,6 +4,7 @@
 
 #include "ECSSimulationSystem.hpp"
 #include "TransformComponent.h"
+#include "TransformDirtyHelpers.h"
 #include "AnimationComponent.h"
 #include "AnimationMode.h"
 
@@ -38,12 +39,14 @@ class TransformAnimationSystem : public ECSSimulationSystem
                 {
                     float offset = std::sin(anim.time * anim.translationSpeed) * anim.translationAmplitude;
                     transform.position = anim.initialPosition + offset * anim.translationAxis;
+                    gts::transform::markDirty(ctx.world, e);
                 }
 
                 // Rotation
                 if (anim.hasMode(AnimationMode::Rotate))
                 {
                     transform.rotation = anim.initialRotation + anim.rotationAxis * anim.rotationSpeed * anim.time;
+                    gts::transform::markDirty(ctx.world, e);
                 }
 
                 // Scaling
@@ -51,6 +54,7 @@ class TransformAnimationSystem : public ECSSimulationSystem
                 {
                     float factor = 1.0f + std::sin(anim.time * anim.scaleSpeed);
                     transform.scale = anim.initialScale + anim.scaleAmplitude * factor;
+                    gts::transform::markDirty(ctx.world, e);
                 }
             }
         }

@@ -39,6 +39,7 @@ public:
 
         snapshot.cameraViewID = 0;
         snapshot.frustum.fill(glm::vec4(0.0f));
+        snapshot.objectUploads.clear();
         staticActiveIDs.clear();
         dynamicActiveIDs.clear();
         staticActiveIDs.reserve(staticSnapshotMap.size());
@@ -141,6 +142,7 @@ public:
             {
                 renderable.modelMatrix = rc.modelMatrix;
                 updateBounds(world, e, renderable);
+                snapshot.objectUploads.push_back({rc.objectSSBOSlot, rc.modelMatrix});
             }
 
             bool sortKeyNeedsUpdate = inserted;
@@ -217,6 +219,11 @@ public:
     Metrics getLastMetrics() const
     {
         return lastMetrics;
+    }
+
+    const RenderExtractionSnapshot& getLatestSnapshot() const
+    {
+        return snapshot;
     }
 
 private:

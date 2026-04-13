@@ -114,6 +114,18 @@ class ObjectSSBOManager
             return true;
         }
 
+        uint32_t writeSlotAllFrames(ssbo_id_type slot, const ObjectUBO& data)
+        {
+            uint32_t writes = 0;
+            for (uint32_t frameIndex = 0; frameIndex < static_cast<uint32_t>(ssboMapped.size()); ++frameIndex)
+            {
+                if (writeSlot(frameIndex, slot, data))
+                    writes += 1;
+            }
+
+            return writes;
+        }
+
         void flushFrame(uint32_t frameIndex)
         {
             VkMappedMemoryRange range{};
@@ -122,6 +134,12 @@ class ObjectSSBOManager
             range.offset = 0;
             range.size   = VK_WHOLE_SIZE;
             vkFlushMappedMemoryRanges(vcsheet::getDevice(), 1, &range);
+        }
+
+        void flushAllFrames()
+        {
+            for (uint32_t frameIndex = 0; frameIndex < static_cast<uint32_t>(ssboMemory.size()); ++frameIndex)
+                flushFrame(frameIndex);
         }
 
         // Returns the descriptor set for the given frame index (bound to set 1).

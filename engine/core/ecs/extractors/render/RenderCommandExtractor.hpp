@@ -64,8 +64,7 @@ public:
                 || cached.command.objectSSBOSlot != renderable.objectSSBOSlot
                 || cached.command.alpha != renderable.alpha
                 || cached.command.doubleSided != renderable.doubleSided
-                || cached.command.cameraViewID != snapshot.cameraViewID
-                || cached.command.modelMatrix != renderable.modelMatrix;
+                || cached.command.cameraViewID != snapshot.cameraViewID;
 
             if (!cached.initialised || cached.visible != visible)
                 visibilityStatesChanged = true;
@@ -81,7 +80,6 @@ public:
                 cached.command.textureID      = renderable.textureID;
                 cached.command.objectSSBOSlot = renderable.objectSSBOSlot;
                 cached.command.cameraViewID   = snapshot.cameraViewID;
-                cached.command.modelMatrix    = renderable.modelMatrix;
                 cached.command.alpha          = renderable.alpha;
                 cached.command.doubleSided    = renderable.doubleSided;
                 cached.sortKey                = renderable.sortKey;

@@ -17,6 +17,7 @@ public:
     virtual ~IGtsGraphicsModule() = default;
 
     virtual void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
+                             const std::vector<ObjectUploadCommand>& objectUploads,
                              const UiCommandBuffer& uiBuffer,
                              const GtsFrameStats& stats) = 0;
     virtual void toggleDebugOverlay() = 0;

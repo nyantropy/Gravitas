@@ -51,6 +51,7 @@ public:
     const RenderCommandExtractor& getExtractor() const { return extractor; }
 
     RenderExtractionSnapshotBuilder& getSnapshotBuilder() { return snapshotBuilder; }
+    const RenderExtractionSnapshot& getLatestSnapshot() const { return snapshotBuilder.getLatestSnapshot(); }
 
     void setVisibilityEnabled(bool enabled)
     {

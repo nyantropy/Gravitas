@@ -9,6 +9,8 @@
 #include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
 #include "StaticMeshComponent.h"
+#include "TransformComponent.h"
+#include "TransformDirtyHelpers.h"
 
 namespace gts::rendering
 {
@@ -39,6 +41,9 @@ namespace gts::rendering
             renderGpu.objectSSBOSlot = resources->requestObjectSlot();
             renderGpu.commandDirty   = true;
         }
+
+        if (world.hasComponent<TransformComponent>(entity))
+            gts::transform::markDirty(world, entity);
     }
 
     inline void cleanupRenderableBinding(ECSWorld& world,

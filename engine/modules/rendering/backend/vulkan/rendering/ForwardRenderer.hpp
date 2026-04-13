@@ -315,6 +315,7 @@ class ForwardRenderer : Renderer
         }
 
         void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
+                         const std::vector<ObjectUploadCommand>& objectUploads,
                          const UiCommandBuffer& uiBuffer,
                          const GtsFrameStats& stats) override
         {
@@ -362,21 +363,21 @@ class ForwardRenderer : Renderer
                     std::chrono::duration<float, std::milli>(imageWaitEnd - imageWaitStart).count();
             }
 
-            // Write each object's model matrix into its SSBO slot for this frame.
-            // The renderer owns the ObjectUBO packing; the ECS only supplies a plain glm::mat4.
+            // Object data is double/triple-buffered, so a changed transform must
+            // be propagated to every in-flight SSBO copy before we clear the dirty state.
             const auto objectWriteStart = std::chrono::steady_clock::now();
             frameStats.backendObjectWrites = 0;
             frameStats.backendObjectWritesSkipped = 0;
-            for (const auto& cmdData : renderList)
+            for (const auto& upload : objectUploads)
             {
                 ObjectUBO ubo;
-                ubo.model = cmdData.modelMatrix;
-                if (resourceSystem->writeObjectSlot(currentFrame, cmdData.objectSSBOSlot, ubo))
-                    frameStats.backendObjectWrites += 1;
-                else
+                ubo.model = upload.modelMatrix;
+                const uint32_t writes = resourceSystem->writeObjectSlotAllFrames(upload.objectSSBOSlot, ubo);
+                frameStats.backendObjectWrites += writes;
+                if (writes == 0)
                     frameStats.backendObjectWritesSkipped += 1;
             }
-            resourceSystem->flushObjectSSBO(currentFrame);
+            resourceSystem->flushAllObjectSSBO();
             const auto objectWriteEnd = std::chrono::steady_clock::now();
             frameStats.backendObjectWriteCpuMs =
                 std::chrono::duration<float, std::milli>(objectWriteEnd - objectWriteStart).count();

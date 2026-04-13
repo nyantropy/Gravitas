@@ -14,6 +14,7 @@
 #include "RenderGpuComponent.h"
 #include "SphereColliderComponent.h"
 #include "TransformComponent.h"
+#include "TransformDirtyHelpers.h"
 
 namespace
 {
@@ -61,6 +62,7 @@ namespace
         auto& transform = world.getComponent<TransformComponent>(entity);
         transform.position = position;
         transform.rotation = rotation;
+        gts::transform::markDirty(world, entity);
 
         const auto& mesh = world.getComponent<ProceduralMeshComponent>(entity);
         if (mesh.width != length)

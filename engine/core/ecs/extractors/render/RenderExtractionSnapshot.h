@@ -39,6 +39,7 @@ struct RenderableSnapshot
 struct RenderExtractionSnapshot
 {
     std::vector<RenderableSnapshot> renderables;
+    std::vector<ObjectUploadCommand> objectUploads;
     FrustumPlanes                   frustum{};
     view_id_type                    cameraViewID = 0;
 };

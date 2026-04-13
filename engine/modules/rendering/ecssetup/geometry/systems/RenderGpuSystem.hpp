@@ -136,7 +136,9 @@ public:
 
             const NodeState state = computeWorldState(computeWorldState, e);
             if (!state.changed && !rc.dirty && rc.readyToRender)
+            {
                 return;
+            }
 
             rc.modelMatrix   = state.worldMatrix;
             rc.dirty         = false;
