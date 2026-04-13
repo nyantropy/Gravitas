@@ -16,16 +16,21 @@
 #include "RenderDirtyComponent.h"
 #include "RenderExtractionSnapshot.h"
 #include "RenderGpuComponent.h"
+#include "RenderStaticTag.h"
 
 class RenderExtractionSnapshotBuilder
 {
 public:
     struct Metrics
     {
-        float    buildCpuMs       = 0.0f;
-        uint32_t renderableCount  = 0;
-        uint32_t dirtyUpdatedCount = 0;
-        uint32_t reusedCount      = 0;
+        float    buildCpuMs             = 0.0f;
+        uint32_t renderableCount        = 0;
+        uint32_t dirtyUpdatedCount      = 0;
+        uint32_t reusedCount            = 0;
+        uint32_t staticRenderableCount  = 0;
+        uint32_t dynamicRenderableCount = 0;
+        uint32_t staticUpdatedCount     = 0;
+        uint32_t dynamicUpdatedCount    = 0;
     };
 
     RenderExtractionSnapshot& build(ECSWorld& world)
@@ -34,10 +39,14 @@ public:
 
         snapshot.cameraViewID = 0;
         snapshot.frustum.fill(glm::vec4(0.0f));
-        activeIDs.clear();
-        activeIDs.reserve(snapshotMap.size());
-        uint32_t dirtyUpdatedCount = 0;
-        uint32_t reusedCount = 0;
+        staticActiveIDs.clear();
+        dynamicActiveIDs.clear();
+        staticActiveIDs.reserve(staticSnapshotMap.size());
+        dynamicActiveIDs.reserve(dynamicSnapshotMap.size());
+        uint32_t dirtyUpdatedCount  = 0;
+        uint32_t reusedCount        = 0;
+        uint32_t staticUpdatedCount = 0;
+        uint32_t dynamicUpdatedCount = 0;
 
         world.forEach<CameraGpuComponent>([&](Entity, CameraGpuComponent& gpu)
         {
@@ -61,14 +70,35 @@ public:
                 return;
 
             const RenderableID id = e.id;
-            activeIDs.push_back(id);
+            const bool isStatic = world.hasComponent<RenderStaticTag>(e);
 
-            auto [it, inserted] = snapshotMap.try_emplace(id);
+            // Move entity to the correct store if its classification changed
+            if (isStatic)
+            {
+                auto it = dynamicSnapshotMap.find(id);
+                if (it != dynamicSnapshotMap.end())
+                    dynamicSnapshotMap.erase(it);
+            }
+            else
+            {
+                auto it = staticSnapshotMap.find(id);
+                if (it != staticSnapshotMap.end())
+                    staticSnapshotMap.erase(it);
+            }
+
+            auto& targetMap = isStatic ? staticSnapshotMap : dynamicSnapshotMap;
+
+            if (isStatic)
+                staticActiveIDs.push_back(id);
+            else
+                dynamicActiveIDs.push_back(id);
+
+            auto [it, inserted] = targetMap.try_emplace(id);
             RenderableSnapshot& renderable = it->second;
 
             bool transformDirty = true;
-            bool materialDirty = true;
-            bool meshDirty = true;
+            bool materialDirty  = true;
+            bool meshDirty      = true;
             if (world.hasComponent<RenderDirtyComponent>(e))
             {
                 auto& dirty = world.getComponent<RenderDirtyComponent>(e);
@@ -84,6 +114,8 @@ public:
                 else
                 {
                     dirtyUpdatedCount += 1;
+                    if (isStatic) staticUpdatedCount  += 1;
+                    else          dynamicUpdatedCount += 1;
                 }
 
                 dirty.transformDirty = false;
@@ -93,15 +125,17 @@ public:
             else
             {
                 dirtyUpdatedCount += 1;
+                if (isStatic) staticUpdatedCount  += 1;
+                else          dynamicUpdatedCount += 1;
             }
 
             if (!inserted && !transformDirty && !materialDirty && !meshDirty)
                 return;
 
-            renderable.id = id;
-            renderable.entity = e;
+            renderable.id             = id;
+            renderable.entity         = e;
             renderable.objectSSBOSlot = rc.objectSSBOSlot;
-            renderable.visible = true;
+            renderable.visible        = true;
 
             if (inserted || transformDirty)
             {
@@ -112,49 +146,71 @@ public:
             bool sortKeyNeedsUpdate = inserted;
             if (inserted || meshDirty)
             {
-                renderable.meshID = meshGpu.meshID;
+                renderable.meshID  = meshGpu.meshID;
                 sortKeyNeedsUpdate = true;
             }
 
             if (inserted || materialDirty)
             {
-                renderable.textureID = matGpu.textureID;
-                renderable.alpha = matGpu.alpha;
+                renderable.textureID   = matGpu.textureID;
+                renderable.alpha       = matGpu.alpha;
                 renderable.doubleSided = matGpu.doubleSided;
-                sortKeyNeedsUpdate = true;
+                sortKeyNeedsUpdate     = true;
             }
 
             if (sortKeyNeedsUpdate)
                 renderable.sortKey = makeSortKey(renderable);
         });
 
-        activeIDSet.clear();
-        activeIDSet.reserve(activeIDs.size());
-        for (RenderableID id : activeIDs)
-            activeIDSet.insert(id);
-
-        for (auto it = snapshotMap.begin(); it != snapshotMap.end(); )
+        // Prune stale entries from the static store
         {
-            if (activeIDSet.find(it->first) == activeIDSet.end())
-            {
-                it = snapshotMap.erase(it);
-                continue;
-            }
+            staticActiveIDSet.clear();
+            staticActiveIDSet.reserve(staticActiveIDs.size());
+            for (RenderableID id : staticActiveIDs)
+                staticActiveIDSet.insert(id);
 
-            ++it;
+            for (auto it = staticSnapshotMap.begin(); it != staticSnapshotMap.end(); )
+            {
+                if (staticActiveIDSet.find(it->first) == staticActiveIDSet.end())
+                    it = staticSnapshotMap.erase(it);
+                else
+                    ++it;
+            }
         }
 
+        // Prune stale entries from the dynamic store
+        {
+            dynamicActiveIDSet.clear();
+            dynamicActiveIDSet.reserve(dynamicActiveIDs.size());
+            for (RenderableID id : dynamicActiveIDs)
+                dynamicActiveIDSet.insert(id);
+
+            for (auto it = dynamicSnapshotMap.begin(); it != dynamicSnapshotMap.end(); )
+            {
+                if (dynamicActiveIDSet.find(it->first) == dynamicActiveIDSet.end())
+                    it = dynamicSnapshotMap.erase(it);
+                else
+                    ++it;
+            }
+        }
+
+        // Rebuild output: static renderables first, then dynamic
         snapshot.renderables.clear();
-        snapshot.renderables.reserve(snapshotMap.size());
-        for (RenderableID id : activeIDs)
-            snapshot.renderables.push_back(snapshotMap.at(id));
+        snapshot.renderables.reserve(staticSnapshotMap.size() + dynamicSnapshotMap.size());
+        for (RenderableID id : staticActiveIDs)
+            snapshot.renderables.push_back(staticSnapshotMap.at(id));
+        for (RenderableID id : dynamicActiveIDs)
+            snapshot.renderables.push_back(dynamicSnapshotMap.at(id));
 
         const auto end = std::chrono::steady_clock::now();
-        lastMetrics.buildCpuMs =
-            std::chrono::duration<float, std::milli>(end - start).count();
-        lastMetrics.renderableCount = static_cast<uint32_t>(snapshot.renderables.size());
-        lastMetrics.dirtyUpdatedCount = dirtyUpdatedCount;
-        lastMetrics.reusedCount = reusedCount;
+        lastMetrics.buildCpuMs             = std::chrono::duration<float, std::milli>(end - start).count();
+        lastMetrics.renderableCount        = static_cast<uint32_t>(snapshot.renderables.size());
+        lastMetrics.dirtyUpdatedCount      = dirtyUpdatedCount;
+        lastMetrics.reusedCount            = reusedCount;
+        lastMetrics.staticRenderableCount  = static_cast<uint32_t>(staticSnapshotMap.size());
+        lastMetrics.dynamicRenderableCount = static_cast<uint32_t>(dynamicSnapshotMap.size());
+        lastMetrics.staticUpdatedCount     = staticUpdatedCount;
+        lastMetrics.dynamicUpdatedCount    = dynamicUpdatedCount;
         return snapshot;
     }
 
@@ -166,9 +222,14 @@ public:
 private:
     RenderExtractionSnapshot snapshot;
     Metrics                  lastMetrics;
-    std::unordered_map<RenderableID, RenderableSnapshot> snapshotMap;
-    std::vector<RenderableID> activeIDs;
-    std::unordered_set<RenderableID> activeIDSet;
+
+    std::unordered_map<RenderableID, RenderableSnapshot> staticSnapshotMap;
+    std::unordered_map<RenderableID, RenderableSnapshot> dynamicSnapshotMap;
+
+    std::vector<RenderableID>        staticActiveIDs;
+    std::vector<RenderableID>        dynamicActiveIDs;
+    std::unordered_set<RenderableID> staticActiveIDSet;
+    std::unordered_set<RenderableID> dynamicActiveIDSet;
 
     static AABB transformBounds(const BoundsComponent& bounds, const glm::mat4& modelMatrix)
     {
