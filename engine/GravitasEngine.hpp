@@ -19,6 +19,7 @@
 #include "GtsCommand.h"
 #include "GtsCommandBuffer.h"
 #include "GtsFrameStats.h"
+#include "ProfileAccumulator.h"
 #include "RenderGpuSystem.hpp"
 
 #include "EcsSimulationContext.hpp"
@@ -61,6 +62,7 @@ class GravitasEngine
         float lastSimCpuMs   = 0.0f;
         float lastCtrlCpuMs  = 0.0f;
         float lastFrameCpuMs = 0.0f;
+        ProfileAccumulator profiler;
 
         // Build an EcsControllerContext from the engine's current frame state.
         // physics is sourced from the active scene so it is always up to date.
@@ -153,6 +155,13 @@ class GravitasEngine
             const auto submitEnd = std::chrono::steady_clock::now();
             stats.renderSubmitCpuMs =
                 std::chrono::duration<float, std::milli>(submitEnd - submitStart).count();
+
+            profiler.add(stats, dt);
+            if (profiler.shouldPrint())
+            {
+                printProfile(profiler);
+                profiler.reset();
+            }
         }
 
         // command callback from lower level architectures
