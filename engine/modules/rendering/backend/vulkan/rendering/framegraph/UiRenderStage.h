@@ -119,6 +119,10 @@ public:
     {
         UiCommandBuffer uiBuffer = graph.getData<UiCommandBuffer>();
 
+        // Always update rolling stats so averages are warm when overlay is toggled on.
+        if (frameStats)
+            debugOverlay.update(*frameStats);
+
         if (debugOverlay.isEnabled() && frameStats)
             debugOverlay.appendToBuffer(uiBuffer, *frameStats);
 

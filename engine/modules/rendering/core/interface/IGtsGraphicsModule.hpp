@@ -20,6 +20,7 @@ public:
                              const UiCommandBuffer& uiBuffer,
                              const GtsFrameStats& stats) = 0;
     virtual void toggleDebugOverlay() = 0;
+    virtual void cycleDebugOverlayPage() = 0;
     virtual void requestScreenshot() = 0;
     virtual void waitIdle() = 0;
     virtual void pollWindowEvents() = 0;

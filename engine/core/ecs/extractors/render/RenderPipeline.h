@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <memory>
 #include <vector>
 
@@ -13,34 +14,43 @@ class ECSWorld;
 class RenderPipeline
 {
 public:
+    // Per-stage timing from the most recent build() call.
+    struct PipelineMetrics
+    {
+        float snapshotBuildCpuMs = 0.0f;
+        float visibilityCpuMs    = 0.0f;
+    };
+
     explicit RenderPipeline(std::unique_ptr<IVisibilityStrategy> strategy)
         : visibilityStrategy(std::move(strategy))
     {}
 
     const std::vector<RenderCommand>& build(ECSWorld& world)
     {
+        const auto t0 = std::chrono::steady_clock::now();
         RenderExtractionSnapshot& snapshot = snapshotBuilder.build(world);
+        const auto t1 = std::chrono::steady_clock::now();
 
         if (visibilityStrategy)
             visibilityStrategy->filter(snapshot);
+        const auto t2 = std::chrono::steady_clock::now();
 
-        return extractor.extract(snapshot);
+        const auto& result = extractor.extract(snapshot);
+
+        lastPipelineMetrics.snapshotBuildCpuMs =
+            std::chrono::duration<float, std::milli>(t1 - t0).count();
+        lastPipelineMetrics.visibilityCpuMs =
+            std::chrono::duration<float, std::milli>(t2 - t1).count();
+
+        return result;
     }
 
-    RenderCommandExtractor& getExtractor()
-    {
-        return extractor;
-    }
+    PipelineMetrics getLastPipelineMetrics() const { return lastPipelineMetrics; }
 
-    const RenderCommandExtractor& getExtractor() const
-    {
-        return extractor;
-    }
+    RenderCommandExtractor& getExtractor()             { return extractor; }
+    const RenderCommandExtractor& getExtractor() const { return extractor; }
 
-    RenderExtractionSnapshotBuilder& getSnapshotBuilder()
-    {
-        return snapshotBuilder;
-    }
+    RenderExtractionSnapshotBuilder& getSnapshotBuilder() { return snapshotBuilder; }
 
     void setVisibilityEnabled(bool enabled)
     {
@@ -71,4 +81,5 @@ private:
     RenderExtractionSnapshotBuilder      snapshotBuilder;
     std::unique_ptr<IVisibilityStrategy> visibilityStrategy;
     RenderCommandExtractor               extractor;
+    PipelineMetrics                      lastPipelineMetrics;
 };

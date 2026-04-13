@@ -144,6 +144,11 @@ public:
         renderer->toggleDebugOverlay();
     }
 
+    void cycleDebugOverlayPage() override
+    {
+        renderer->cycleDebugOverlayPage();
+    }
+
     void requestScreenshot() override
     {
         renderer->requestScreenshot();

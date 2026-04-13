@@ -55,7 +55,12 @@ class GravitasEngine
         int              windowPixelHeight  = 1;
         bool             uiEnabled          = true;
 
-        bool engineRunning = true;
+        bool  engineRunning   = true;
+
+        // Per-frame CPU timing buckets accumulated in start(), consumed in render()
+        float lastSimCpuMs   = 0.0f;
+        float lastCtrlCpuMs  = 0.0f;
+        float lastFrameCpuMs = 0.0f;
 
         // Build an EcsControllerContext from the engine's current frame state.
         // physics is sourced from the active scene so it is always up to date.
@@ -92,12 +97,14 @@ class GravitasEngine
             const auto renderMetrics = RenderGpuSystem::getLastMetrics();
             stats.renderGpuUpdatedCount = renderMetrics.updatedRenderables;
             stats.renderGpuCpuMs        = renderMetrics.cpuTimeMs;
+            stats.simulationCpuMs       = lastSimCpuMs;
+            stats.controllerCpuMs       = lastCtrlCpuMs;
+            stats.frameCpuMs            = lastFrameCpuMs;
+            stats.frameIndex            = timeContext.frame;
             // triangleCount is filled in by SceneRenderStage during execute
             activeScene->populateFrameStats(stats);
 
-            const auto extractStart = std::chrono::steady_clock::now();
             const auto& renderList = renderPipeline->build(world);
-            const auto extractEnd = std::chrono::steady_clock::now();
 
             UiCommandBuffer uiBuffer;
             if (uiEnabled)
@@ -110,16 +117,30 @@ class GravitasEngine
                 uiSystem->setEnabled(false);
             }
 
-            const auto extractorMetrics = renderPipeline->getExtractor().getLastMetrics();
-            const auto uiMetrics = uiSystem->getLastMetrics();
-            stats.renderExtractCpuMs = std::chrono::duration<float, std::milli>(extractEnd - extractStart).count();
+            // Per-stage pipeline metrics (snapshot / visibility / extraction / sort)
+            const auto& pipelineMetrics = renderPipeline->getLastPipelineMetrics();
+            const auto  extractorMetrics = renderPipeline->getExtractor().getLastMetrics();
+            const auto& snapMetrics = renderPipeline->getSnapshotBuilder().getLastMetrics();
+            const auto  uiMetrics   = uiSystem->getLastMetrics();
+
+            stats.snapshotBuildCpuMs     = pipelineMetrics.snapshotBuildCpuMs;
+            stats.visibilityCpuMs        = pipelineMetrics.visibilityCpuMs;
+            stats.renderExtractCpuMs     = extractorMetrics.extractCpuMs;
             stats.renderExtractSortCpuMs = extractorMetrics.sortCpuMs;
+
+            stats.snapshotStaticCount  = snapMetrics.staticRenderableCount;
+            stats.snapshotDynamicCount = snapMetrics.dynamicRenderableCount;
+            stats.snapshotDirtyCount   = snapMetrics.dirtyUpdatedCount;
+            stats.snapshotReusedCount  = snapMetrics.reusedCount;
+
             stats.uiLayoutCpuMs      = uiMetrics.layoutMs;
             stats.uiVisualCpuMs      = uiMetrics.visualMs;
             stats.uiCommandCpuMs     = uiMetrics.commandBuildMs;
+            stats.uiCpuMs            = uiMetrics.layoutMs + uiMetrics.visualMs + uiMetrics.commandBuildMs;
             stats.uiNodeCount        = uiMetrics.nodeCount;
             stats.uiPrimitiveCount   = uiMetrics.primitiveCount;
             stats.uiCommandCount     = uiMetrics.commandCount;
+
             stats.totalObjects       = extractorMetrics.totalRenderables;
             stats.visibleObjects     = extractorMetrics.visibleRenderables;
             stats.renderCommandVisitedCount = extractorMetrics.visitedRenderables;
@@ -233,6 +254,8 @@ class GravitasEngine
             // order in the function calls matters a lot, especially for the input system!!!
             while (engineRunning && platform.isWindowOpen())
             {
+                const auto loopStart = std::chrono::steady_clock::now();
+
                 // tick the engine timer
                 float realDt = timer->tick();
                 timeContext.unscaledDeltaTime = realDt;
@@ -248,6 +271,8 @@ class GravitasEngine
                     gameLoop.paused = !gameLoop.paused;
                 if (input->isPressed("engine.debug_overlay"))
                     platform.toggleDebugOverlay();
+                if (input->isPressed("engine.debug_overlay_page"))
+                    platform.cycleDebugOverlayPage();
                 if (input->isPressed("engine.screenshot"))
                     platform.getGraphics()->requestScreenshot();
                 if (input->isPressed("engine.toggle_ui"))
@@ -259,29 +284,41 @@ class GravitasEngine
 
                 input->setPaused(gameLoop.paused);
 
-                // Fixed timestep simulation ticks
+                // Fixed timestep simulation ticks — timed for CPU profiling
                 int ticks             = gameLoop.advance(realDt);
                 timeContext.deltaTime = gameLoop.simulationDt();
                 timeContext.frame     = timer->getFrameCount();
 
                 ECSWorld& world = sceneManager->getActiveScene()->getWorld();
 
-                for (int i = 0; i < ticks; ++i)
                 {
-                    EcsSimulationContext simCtx{ world, gameLoop.simulationDt(), input };
-                    sceneManager->getActiveScene()->onUpdateSimulation(simCtx);
+                    const auto simStart = std::chrono::steady_clock::now();
+                    for (int i = 0; i < ticks; ++i)
+                    {
+                        EcsSimulationContext simCtx{ world, gameLoop.simulationDt(), input };
+                        sceneManager->getActiveScene()->onUpdateSimulation(simCtx);
+                    }
+                    const auto simEnd = std::chrono::steady_clock::now();
+                    lastSimCpuMs = std::chrono::duration<float, std::milli>(simEnd - simStart).count();
                 }
 
-                // Controller systems and rendering run every frame
+                // Controller systems — timed for CPU profiling
                 {
+                    const auto ctrlStart = std::chrono::steady_clock::now();
                     EcsControllerContext ctrlCtx = buildControllerContext(world);
                     sceneManager->getActiveScene()->onUpdateControllers(ctrlCtx);
+                    const auto ctrlEnd = std::chrono::steady_clock::now();
+                    lastCtrlCpuMs = std::chrono::duration<float, std::milli>(ctrlEnd - ctrlStart).count();
                 }
 
                 world.flushEvents();
                 applyPendingRenderCommands();
                 render(realDt);
                 applyCommands();
+
+                // Store total loop time for next frame's frameCpuMs stat
+                const auto loopEnd = std::chrono::steady_clock::now();
+                lastFrameCpuMs = std::chrono::duration<float, std::milli>(loopEnd - loopStart).count();
             }
 
             // shutdown graphics module after we close the window

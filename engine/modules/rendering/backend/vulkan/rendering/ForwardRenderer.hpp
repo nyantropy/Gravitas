@@ -303,6 +303,12 @@ class ForwardRenderer : Renderer
                 uiStage->getDebugOverlay().toggle();
         }
 
+        void cycleDebugOverlayPage()
+        {
+            if (uiStage)
+                uiStage->getDebugOverlay().nextPage();
+        }
+
         void requestScreenshot() override
         {
             screenshotRequested = true;

@@ -73,6 +73,11 @@ class GtsPlatform
             graphics->toggleDebugOverlay();
         }
 
+        void cycleDebugOverlayPage()
+        {
+            graphics->cycleDebugOverlayPage();
+        }
+
         void waitForGraphicsIdle()
         {
             graphics->waitIdle();
@@ -126,6 +131,11 @@ class GtsPlatform
                                   PausePolicy::AlwaysActive);
             bindingRegistry->bind("engine.debug_overlay",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F3)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive);
+            bindingRegistry->bind("engine.debug_overlay_page",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Tab)},
                                   ActivationMode::Pressed,
                                   "",
                                   PausePolicy::AlwaysActive);

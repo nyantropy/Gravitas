@@ -49,4 +49,22 @@ struct GtsFrameStats
     uint32_t backendPresentMode     = 0;
     uint32_t physicsCollisionCount  = 0;
     uint32_t playerCollisionCount   = 0;
+
+    // Per-stage CPU timings — populated by GravitasEngine each frame
+    float    simulationCpuMs    = 0.0f;
+    float    controllerCpuMs    = 0.0f;
+    float    snapshotBuildCpuMs = 0.0f;
+    float    visibilityCpuMs    = 0.0f;
+    float    uiCpuMs            = 0.0f;   // layout + visual + command total
+    float    frameCpuMs         = 0.0f;   // total main-loop iteration time
+    float    gpuFrameMs         = 0.0f;   // GPU frame time (placeholder, always 0 until query support added)
+
+    // Frame counter
+    uint64_t frameIndex         = 0;
+
+    // Snapshot builder breakdown (from RenderExtractionSnapshotBuilder::Metrics)
+    uint32_t snapshotStaticCount  = 0;
+    uint32_t snapshotDynamicCount = 0;
+    uint32_t snapshotDirtyCount   = 0;
+    uint32_t snapshotReusedCount  = 0;
 };
