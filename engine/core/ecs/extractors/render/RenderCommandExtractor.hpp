@@ -2,9 +2,9 @@
 
 #include <algorithm>
 #include <chrono>
-#include <unordered_map>
 #include <vector>
 
+#include "EngineConfig.h"
 #include "RenderCommand.h"
 #include "RenderExtractionSnapshot.h"
 
@@ -38,19 +38,20 @@ public:
         int updatedCommands    = 0;
         bool visibilityStatesChanged = false;
 
-        nextOpaqueEntityOrder.clear();
-        nextTransparentEntityOrder.clear();
-        nextOpaqueEntityOrder.reserve(snapshot.renderables.size());
-        nextTransparentEntityOrder.reserve(snapshot.renderables.size());
-        commandCache.reserve(snapshot.renderables.size());
+        nextOpaqueSlotOrder.clear();
+        nextTransparentSlotOrder.clear();
+        nextOpaqueSlotOrder.reserve(snapshot.renderables.size());
+        nextTransparentSlotOrder.reserve(snapshot.renderables.size());
 
         for (const RenderableSnapshot& renderable : snapshot.renderables)
         {
-            const RenderableID renderableID = renderable.id;
+            const ssbo_id_type slot = renderable.objectSSBOSlot;
 
             ++totalRenderables;
 
-            CachedCommandState& cached = commandCache[renderableID];
+            CachedCommandState& cached = commandCache[slot];
+            if (!cached.initialised)
+                occupiedSlots.push_back(slot);
             cached.lastSeenFrame = frameStamp;
 
             const bool opaque = renderable.alpha >= 1.0f;
@@ -90,12 +91,12 @@ public:
             if (visible)
                 ++visibleRenderables;
             if (opaque)
-                nextOpaqueEntityOrder.push_back(renderableID);
+                nextOpaqueSlotOrder.push_back(slot);
             else
-                nextTransparentEntityOrder.push_back(renderableID);
+                nextTransparentSlotOrder.push_back(slot);
         }
 
-        const bool staleEntriesPruned = invalidateStaleSlots();
+        const bool staleEntriesPruned = pruneStaleSlots();
         const bool visibilityChanged = !cacheInitialised
             || updatedCommands > 0
             || sortOrderDirty
@@ -107,12 +108,12 @@ public:
         if (sortOrderDirty || !cacheInitialised)
         {
             const auto sortStart = std::chrono::steady_clock::now();
-            opaqueEntityOrder = nextOpaqueEntityOrder;
-            transparentEntityOrder = nextTransparentEntityOrder;
+            opaqueSlotOrder = nextOpaqueSlotOrder;
+            transparentSlotOrder = nextTransparentSlotOrder;
 
             // sortKey encodes (doubleSided << 63 | meshID << 32 | textureID) — no fallback needed.
-            std::sort(opaqueEntityOrder.begin(), opaqueEntityOrder.end(),
-                [&](RenderableID lhs, RenderableID rhs)
+            std::sort(opaqueSlotOrder.begin(), opaqueSlotOrder.end(),
+                [&](ssbo_id_type lhs, ssbo_id_type rhs)
                 {
                     return commandCache[lhs].sortKey < commandCache[rhs].sortKey;
                 });
@@ -121,22 +122,22 @@ public:
             const auto sortEnd = std::chrono::steady_clock::now();
             lastMetrics.sortCpuMs =
                 std::chrono::duration<float, std::milli>(sortEnd - sortStart).count();
-            lastMetrics.sortedThisFrame = !opaqueEntityOrder.empty();
+            lastMetrics.sortedThisFrame = !opaqueSlotOrder.empty();
         }
 
         if (visibilityChanged || !cacheInitialised)
         {
             cachedVisibleCommands.clear();
-            cachedVisibleCommands.reserve(opaqueEntityOrder.size() + transparentEntityOrder.size());
-            for (RenderableID renderableID : opaqueEntityOrder)
+            cachedVisibleCommands.reserve(opaqueSlotOrder.size() + transparentSlotOrder.size());
+            for (ssbo_id_type slot : opaqueSlotOrder)
             {
-                if (commandCache[renderableID].visible)
-                    cachedVisibleCommands.push_back(commandCache[renderableID].command);
+                if (commandCache[slot].visible)
+                    cachedVisibleCommands.push_back(commandCache[slot].command);
             }
-            for (RenderableID renderableID : transparentEntityOrder)
+            for (ssbo_id_type slot : transparentSlotOrder)
             {
-                if (commandCache[renderableID].visible)
-                    cachedVisibleCommands.push_back(commandCache[renderableID].command);
+                if (commandCache[slot].visible)
+                    cachedVisibleCommands.push_back(commandCache[slot].command);
             }
         }
 
@@ -171,30 +172,37 @@ private:
     int                            lastTotalRenderables = 0;
     int                            lastVisibleRenderables = 0;
     Metrics                        lastMetrics;
-    std::unordered_map<RenderableID, CachedCommandState> commandCache;
-    std::vector<RenderableID>      opaqueEntityOrder;
-    std::vector<RenderableID>      transparentEntityOrder;
-    std::vector<RenderableID>      nextOpaqueEntityOrder;
-    std::vector<RenderableID>      nextTransparentEntityOrder;
+    // Flat cache indexed by SSBO slot — O(1) access, contiguous memory, no hash overhead.
+    // Sized to MAX_RENDERABLE_OBJECTS; stale entries detected via frame-stamp, pruned via occupiedSlots.
+    std::vector<CachedCommandState> commandCache =
+        std::vector<CachedCommandState>(EngineConfig::MAX_RENDERABLE_OBJECTS);
+    std::vector<ssbo_id_type>      occupiedSlots;
+    std::vector<ssbo_id_type>      opaqueSlotOrder;
+    std::vector<ssbo_id_type>      transparentSlotOrder;
+    std::vector<ssbo_id_type>      nextOpaqueSlotOrder;
+    std::vector<ssbo_id_type>      nextTransparentSlotOrder;
     std::vector<RenderCommand>     cachedVisibleCommands;
     uint64_t                       frameStamp = 0;
     bool                           cacheInitialised = false;
     bool                           sortOrderDirty = true;
 
-    bool invalidateStaleSlots()
+    bool pruneStaleSlots()
     {
         bool pruned = false;
-        for (auto it = commandCache.begin(); it != commandCache.end(); )
+        size_t write = 0;
+        for (size_t read = 0; read < occupiedSlots.size(); ++read)
         {
-            if (it->second.lastSeenFrame == frameStamp)
+            const ssbo_id_type slot = occupiedSlots[read];
+            if (commandCache[slot].lastSeenFrame == frameStamp)
             {
-                ++it;
+                occupiedSlots[write++] = slot;
                 continue;
             }
 
-            it = commandCache.erase(it);
+            commandCache[slot] = CachedCommandState{};
             pruned = true;
         }
+        occupiedSlots.resize(write);
 
         if (pruned)
             sortOrderDirty = true;
