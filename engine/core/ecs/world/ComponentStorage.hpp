@@ -78,6 +78,26 @@ public:
         return &data[sparseGet(entity.id)];
     }
 
+    Component& getAssumePresent(Entity entity)
+    {
+        const uint32_t index = sparseGet(entity.id);
+        assert(index != INVALID
+            && index < static_cast<uint32_t>(dense.size())
+            && dense[index] == entity.id
+            && "ComponentStorage::getAssumePresent - signature/storage mismatch");
+        return data[index];
+    }
+
+    const Component& getAssumePresent(Entity entity) const
+    {
+        const uint32_t index = sparseGet(entity.id);
+        assert(index != INVALID
+            && index < static_cast<uint32_t>(dense.size())
+            && dense[index] == entity.id
+            && "ComponentStorage::getAssumePresent - signature/storage mismatch");
+        return data[index];
+    }
+
     void remove(Entity entity) override
     {
         if (!has(entity))

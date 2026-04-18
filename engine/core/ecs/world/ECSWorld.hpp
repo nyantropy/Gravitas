@@ -17,6 +17,7 @@
 #include <chrono>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <string_view>
 
 #include "Entity.h"
@@ -37,6 +38,10 @@ class ECSWorld
     private:
         template<typename... Components>
         friend class ECSQuery;
+
+        using ComponentSignature = uint64_t;
+        static constexpr uint32_t MAX_SIGNATURE_BITS =
+            static_cast<uint32_t>(std::numeric_limits<ComponentSignature>::digits);
 
         // ── Event bus ─────────────────────────────────────────────────────────
         // m_alive and eventHandlers are declared first so they are destroyed
@@ -69,6 +74,7 @@ class ECSWorld
         // ── ECS core ──────────────────────────────────────────────────────────
 
         uint32_t nextEntityId = 0;
+        std::vector<ComponentSignature> entitySignatures;
 
         std::vector<std::unique_ptr<ECSSimulationSystem>> simulationSystems;
         std::vector<std::unique_ptr<ECSControllerSystem>> controllerSystems;
@@ -113,13 +119,19 @@ class ECSWorld
         template<typename Component>
         Component* tryGetComponentPtr(Entity entity)
         {
-            return getStorage<Component>().tryGetPtr(entity);
+            if (!hasSignatureBit<Component>(entity))
+                return nullptr;
+
+            return &getStorage<Component>().getAssumePresent(entity);
         }
 
         template<typename Component>
         const Component* tryGetComponentPtr(Entity entity) const
         {
-            return getStorage<Component>().tryGetPtr(entity);
+            if (!hasSignatureBit<Component>(entity))
+                return nullptr;
+
+            return &getStorage<Component>().getAssumePresent(entity);
         }
 
         template<typename Driver>
@@ -142,10 +154,83 @@ class ECSWorld
                 it->second(*this, entity, componentData);
         }
 
+        void ensureEntitySignatureCapacity(entity_id_type id)
+        {
+            if (entitySignatures.size() <= id)
+                entitySignatures.resize(id + 1, 0);
+        }
+
+        template<typename Component>
+        static uint32_t componentBitIndex()
+        {
+            static const uint32_t bitIndex = allocateComponentBit();
+            return bitIndex;
+        }
+
+        static uint32_t allocateComponentBit()
+        {
+            static uint32_t nextBit = 0;
+            assert(nextBit < MAX_SIGNATURE_BITS && "Component signature bit budget exceeded");
+            return nextBit++;
+        }
+
+        template<typename Component>
+        static ComponentSignature componentBitMask()
+        {
+            return ComponentSignature{1} << componentBitIndex<Component>();
+        }
+
+        ComponentSignature getEntitySignature(Entity entity) const
+        {
+            if (entity.id >= entitySignatures.size())
+                return 0;
+
+            return entitySignatures[entity.id];
+        }
+
+        template<typename Component>
+        bool hasSignatureBit(Entity entity) const
+        {
+            return (getEntitySignature(entity) & componentBitMask<Component>()) != 0;
+        }
+
+        template<typename Component>
+        void setSignatureBit(Entity entity)
+        {
+            ensureEntitySignatureCapacity(entity.id);
+            entitySignatures[entity.id] |= componentBitMask<Component>();
+        }
+
+        template<typename Component>
+        void clearSignatureBit(Entity entity)
+        {
+            if (entity.id >= entitySignatures.size())
+                return;
+
+            entitySignatures[entity.id] &= ~componentBitMask<Component>();
+        }
+
+        template<typename... Components>
+        static ComponentSignature requiredSignatureMask()
+        {
+            ComponentSignature mask = 0;
+            ((mask |= componentBitMask<Components>()), ...);
+            return mask;
+        }
+
+        bool matchesSignature(Entity entity, ComponentSignature requiredMask) const
+        {
+            const ComponentSignature signature = getEntitySignature(entity);
+            return (signature & requiredMask) == requiredMask;
+        }
+
     public:
         Entity createEntity()
         {
-            return Entity{ nextEntityId++ };
+            Entity entity{ nextEntityId++ };
+            ensureEntitySignatureCapacity(entity.id);
+            entitySignatures[entity.id] = 0;
+            return entity;
         }
 
         void destroyEntity(Entity e)
@@ -158,43 +243,58 @@ class ECSWorld
                 invokeRemoveCallback(type, e, storage->getRawPtr(e));
                 storage->remove(e);
             }
+
+            if (e.id < entitySignatures.size())
+                entitySignatures[e.id] = 0;
         }
 
         template<typename Component>
         void addComponent(Entity entity, const Component& component)
         {
+            ensureEntitySignatureCapacity(entity.id);
             auto& storage = getStorage<Component>();
             storage.add(entity, component);
+            setSignatureBit<Component>(entity);
             invokeAddCallback(std::type_index(typeid(Component)), entity, storage.getRawPtr(entity));
         }
 
         template<typename Component>
         bool hasComponent(Entity entity) const
         {
+            if (!hasSignatureBit<Component>(entity))
+                return false;
+
+#ifndef NDEBUG
             return getStorage<Component>().has(entity);
+#else
+            return true;
+#endif
         }
 
         template<typename Component>
         Component& getComponent(Entity entity)
         {
+            assert(hasSignatureBit<Component>(entity) && "Component signature missing for entity");
             return getStorage<Component>().get(entity);
         }
 
         template<typename Component>
         const Component& getComponent(Entity entity) const
         {
+            assert(hasSignatureBit<Component>(entity) && "Component signature missing for entity");
             return getStorage<Component>().get(entity);
         }
 
         template<typename Component>
         void removeComponent(Entity entity)
         {
-            auto& storage = getStorage<Component>();
-            if (!storage.has(entity))
+            if (!hasSignatureBit<Component>(entity))
                 return;
 
+            auto& storage = getStorage<Component>();
             invokeRemoveCallback(std::type_index(typeid(Component)), entity, storage.getRawPtr(entity));
             storage.remove(entity);
+            clearSignatureBit<Component>(entity);
         }
 
         template<typename SystemType, typename... Args>
@@ -335,6 +435,7 @@ class ECSWorld
             controllerProfilePrintScratch.clear();
             forEachScratch.clear();
             forEachScratch.shrink_to_fit();
+            entitySignatures.clear();
             nextEntityId = 0;
             // Clear any remaining subscriptions after systems are gone.
             // Do NOT reset nextSubscriptionId — it must be monotonically increasing
@@ -398,6 +499,7 @@ class ECSWorld
 
             Entity e = createEntity();
             getStorage<Component>().add(e, Component{ std::forward<Args>(args)... });
+            setSignatureBit<Component>(e);
             return getComponent<Component>(e);
         }
 
@@ -530,6 +632,7 @@ public:
 
         constexpr size_t componentCount = sizeof...(Components);
         const std::array<uint32_t, componentCount> counts{world.template storageSize<Components>()...};
+        const auto requiredMask = ECSWorld::template requiredSignatureMask<Components...>();
 
         size_t driverIndex = 0;
         for (size_t i = 1; i < componentCount; ++i)
@@ -538,7 +641,7 @@ public:
                 driverIndex = i;
         }
 
-        dispatchEach(driverIndex, std::forward<Func>(fn));
+        dispatchEach(driverIndex, requiredMask, std::forward<Func>(fn));
     }
 
     uint32_t estimatedIterationCount() const
@@ -561,23 +664,23 @@ private:
     ECSWorld& world;
 
     template<size_t I = 0, typename Func>
-    void dispatchEach(size_t driverIndex, Func&& fn)
+    void dispatchEach(size_t driverIndex, ECSWorld::ComponentSignature requiredMask, Func&& fn)
     {
         if constexpr (I < sizeof...(Components))
         {
             if (driverIndex == I)
             {
                 using Driver = typename std::tuple_element<I, ComponentTuple>::type;
-                iterateWithDriver<Driver>(std::forward<Func>(fn));
+                iterateWithDriver<Driver>(requiredMask, std::forward<Func>(fn));
                 return;
             }
 
-            dispatchEach<I + 1>(driverIndex, std::forward<Func>(fn));
+            dispatchEach<I + 1>(driverIndex, requiredMask, std::forward<Func>(fn));
         }
     }
 
     template<typename Driver, typename Func>
-    void iterateWithDriver(Func&& fn)
+    void iterateWithDriver(ECSWorld::ComponentSignature requiredMask, Func&& fn)
     {
         uint32_t count = 0;
         const uint32_t* ids = world.template copyDenseIdsForQuery<Driver>(count);
@@ -585,26 +688,16 @@ private:
         for (uint32_t i = 0; i < count; ++i)
         {
             const Entity entity{ids[i]};
-            auto components = std::tuple<Components*...>{
-                world.template tryGetComponentPtr<Components>(entity)...
-            };
-
-            if (!allPresent(components, std::index_sequence_for<Components...>{}))
+            if (!world.matchesSignature(entity, requiredMask))
                 continue;
 
-            invoke(std::forward<Func>(fn), entity, components, std::index_sequence_for<Components...>{});
+            invoke(std::forward<Func>(fn), entity, std::index_sequence_for<Components...>{});
         }
     }
 
-    template<typename Tuple, size_t... I>
-    static bool allPresent(const Tuple& tuple, std::index_sequence<I...>)
+    template<typename Func, size_t... I>
+    void invoke(Func&& fn, Entity entity, std::index_sequence<I...>)
     {
-        return ((std::get<I>(tuple) != nullptr) && ...);
-    }
-
-    template<typename Func, typename Tuple, size_t... I>
-    static void invoke(Func&& fn, Entity entity, Tuple& tuple, std::index_sequence<I...>)
-    {
-        fn(entity, *std::get<I>(tuple)...);
+        fn(entity, world.template tryGetComponentPtr<typename std::tuple_element<I, ComponentTuple>::type>(entity)[0]...);
     }
 };
