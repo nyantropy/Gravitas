@@ -56,6 +56,28 @@ public:
         return data[sparseGet(entity.id)];
     }
 
+    const Component& get(Entity entity) const
+    {
+        assert(has(entity) && "ComponentStorage::get - entity does not have this component");
+        return data[sparseGet(entity.id)];
+    }
+
+    Component* tryGetPtr(Entity entity)
+    {
+        if (!has(entity))
+            return nullptr;
+
+        return &data[sparseGet(entity.id)];
+    }
+
+    const Component* tryGetPtr(Entity entity) const
+    {
+        if (!has(entity))
+            return nullptr;
+
+        return &data[sparseGet(entity.id)];
+    }
+
     void remove(Entity entity) override
     {
         if (!has(entity))

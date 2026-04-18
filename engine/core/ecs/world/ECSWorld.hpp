@@ -4,6 +4,7 @@
 #include <memory>
 #include <typeindex>
 #include <typeinfo>
+#include <array>
 #include <vector>
 #include <algorithm>
 #include <tuple>
@@ -28,9 +29,15 @@
 // Simulation systems run at a fixed tick rate; controller systems run every frame.
 // The event bus uses immediate dispatch: publish<E>() calls handlers synchronously.
 // SubscriptionTokens RAII-unsubscribe on destruction — store them as system members.
+template<typename... Components>
+class ECSQuery;
+
 class ECSWorld
 {
     private:
+        template<typename... Components>
+        friend class ECSQuery;
+
         // ── Event bus ─────────────────────────────────────────────────────────
         // m_alive and eventHandlers are declared first so they are destroyed
         // last (C++ destroys members in reverse declaration order).
@@ -97,6 +104,37 @@ class ECSWorld
         std::unordered_map<std::type_index, std::function<void(ECSWorld&, Entity, void*)>> removeCallbacks;
         std::vector<uint32_t> forEachScratch;
 
+        template<typename Component>
+        uint32_t storageSize() const
+        {
+            return getStorage<Component>().size();
+        }
+
+        template<typename Component>
+        Component* tryGetComponentPtr(Entity entity)
+        {
+            return getStorage<Component>().tryGetPtr(entity);
+        }
+
+        template<typename Component>
+        const Component* tryGetComponentPtr(Entity entity) const
+        {
+            return getStorage<Component>().tryGetPtr(entity);
+        }
+
+        template<typename Driver>
+        const uint32_t* copyDenseIdsForQuery(uint32_t& count)
+        {
+            auto& storage = getStorage<Driver>();
+            count = storage.size();
+
+            forEachScratch.resize(count);
+            if (count > 0)
+                std::memcpy(forEachScratch.data(), storage.denseIds(), count * sizeof(uint32_t));
+
+            return forEachScratch.data();
+        }
+
         void invokeAddCallback(const std::type_index& type, Entity entity, void* componentData)
         {
             auto it = addCallbacks.find(type);
@@ -143,6 +181,12 @@ class ECSWorld
         }
 
         template<typename Component>
+        const Component& getComponent(Entity entity) const
+        {
+            return getStorage<Component>().get(entity);
+        }
+
+        template<typename Component>
         void removeComponent(Entity entity)
         {
             auto& storage = getStorage<Component>();
@@ -181,26 +225,13 @@ class ECSWorld
         template<typename... Components, typename Func>
         void forEach(Func&& fn)
         {
-            static_assert(sizeof...(Components) > 0);
+            query<Components...>().each(std::forward<Func>(fn));
+        }
 
-            using First = typename std::tuple_element<0, std::tuple<Components...>>::type;
-
-            auto& firstStorage = getStorage<First>();
-            const uint32_t count = firstStorage.size();
-
-            forEachScratch.resize(count);
-            if (count > 0)
-                std::memcpy(forEachScratch.data(), firstStorage.denseIds(), count * sizeof(uint32_t));
-
-            for (uint32_t i = 0; i < count; ++i)
-            {
-                Entity e{forEachScratch[i]};
-
-                if (!(hasComponent<Components>(e) && ...))
-                    continue;
-
-                fn(e, getComponent<Components>(e)...);
-            }
+        template<typename... Components>
+        ECSQuery<Components...> query()
+        {
+            return ECSQuery<Components...>(*this);
         }
 
         void updateSimulation(const EcsSimulationContext& ctx)
@@ -274,24 +305,12 @@ class ECSWorld
         template<typename... Components>
         std::vector<Entity> getAllEntitiesWith()
         {
-            static_assert(sizeof...(Components) > 0);
-            using First = typename std::tuple_element<0, std::tuple<Components...>>::type;
-
-            auto& firstStorage = getStorage<First>();
-
             std::vector<Entity> result;
-            result.reserve(firstStorage.size());
-
-            const uint32_t count = firstStorage.size();
-            const uint32_t* ids = firstStorage.denseIds();
-
-            for (uint32_t i = 0; i < count; ++i)
+            result.reserve(query<Components...>().estimatedIterationCount());
+            query<Components...>().each([&](Entity entity, Components&...)
             {
-                Entity e{ids[i]};
-                if ((hasComponent<Components>(e) && ...))
-                    result.push_back(e);
-            }
-
+                result.push_back(entity);
+            });
             return result;
         }
         
@@ -494,4 +513,98 @@ class ECSWorld
         // No-op with immediate dispatch — kept for game-loop symmetry.
         void flushEvents() {}
 
+};
+
+template<typename... Components>
+class ECSQuery
+{
+public:
+    explicit ECSQuery(ECSWorld& world)
+        : world(world)
+    {}
+
+    template<typename Func>
+    void each(Func&& fn)
+    {
+        static_assert(sizeof...(Components) > 0);
+
+        constexpr size_t componentCount = sizeof...(Components);
+        const std::array<uint32_t, componentCount> counts{world.template storageSize<Components>()...};
+
+        size_t driverIndex = 0;
+        for (size_t i = 1; i < componentCount; ++i)
+        {
+            if (counts[i] < counts[driverIndex])
+                driverIndex = i;
+        }
+
+        dispatchEach(driverIndex, std::forward<Func>(fn));
+    }
+
+    uint32_t estimatedIterationCount() const
+    {
+        static_assert(sizeof...(Components) > 0);
+
+        const std::array<uint32_t, sizeof...(Components)> counts{
+            world.template storageSize<Components>()...
+        };
+
+        uint32_t best = counts[0];
+        for (size_t i = 1; i < counts.size(); ++i)
+            best = std::min(best, counts[i]);
+        return best;
+    }
+
+private:
+    using ComponentTuple = std::tuple<Components...>;
+
+    ECSWorld& world;
+
+    template<size_t I = 0, typename Func>
+    void dispatchEach(size_t driverIndex, Func&& fn)
+    {
+        if constexpr (I < sizeof...(Components))
+        {
+            if (driverIndex == I)
+            {
+                using Driver = typename std::tuple_element<I, ComponentTuple>::type;
+                iterateWithDriver<Driver>(std::forward<Func>(fn));
+                return;
+            }
+
+            dispatchEach<I + 1>(driverIndex, std::forward<Func>(fn));
+        }
+    }
+
+    template<typename Driver, typename Func>
+    void iterateWithDriver(Func&& fn)
+    {
+        uint32_t count = 0;
+        const uint32_t* ids = world.template copyDenseIdsForQuery<Driver>(count);
+
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const Entity entity{ids[i]};
+            auto components = std::tuple<Components*...>{
+                world.template tryGetComponentPtr<Components>(entity)...
+            };
+
+            if (!allPresent(components, std::index_sequence_for<Components...>{}))
+                continue;
+
+            invoke(std::forward<Func>(fn), entity, components, std::index_sequence_for<Components...>{});
+        }
+    }
+
+    template<typename Tuple, size_t... I>
+    static bool allPresent(const Tuple& tuple, std::index_sequence<I...>)
+    {
+        return ((std::get<I>(tuple) != nullptr) && ...);
+    }
+
+    template<typename Func, typename Tuple, size_t... I>
+    static void invoke(Func&& fn, Entity entity, Tuple& tuple, std::index_sequence<I...>)
+    {
+        fn(entity, *std::get<I>(tuple)...);
+    }
 };
