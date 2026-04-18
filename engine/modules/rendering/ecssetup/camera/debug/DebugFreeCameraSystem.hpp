@@ -66,7 +66,6 @@ public:
         world.addComponent(e, TransformComponent{});
         world.addComponent(e, CameraControlOverrideComponent{});
         world.addComponent(e, CameraOverrideComponent{});
-        world.addComponent(e, CameraGpuComponent{});
 
         return e;
     }

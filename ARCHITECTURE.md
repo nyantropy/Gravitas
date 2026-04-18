@@ -178,6 +178,8 @@ RenderCommandExtractor reads both         ← emits RenderCommand
 
 GPU resource release still happens through component removal callbacks, but descriptor add/remove no longer performs recursive ECS mutation. Binding/cleanup decisions are queued and executed by explicit lifecycle systems.
 
+For cameras, application code should only author `CameraDescriptionComponent` plus transform/control descriptors. The engine-owned camera lifecycle creates/removes `CameraGpuComponent`, and engine consumers that need final matrices outside the renderer should read the read-only `ActiveCameraViewStateComponent` singleton instead of touching GPU companion components directly.
+
 ### Descriptor Components (application-facing)
 
 | Component | Purpose |
@@ -197,6 +199,12 @@ GPU resource release still happens through component removal callbacks, but desc
 | `MaterialGpuComponent` | geometry binding lifecycle systems |
 | `RenderGpuComponent` | geometry binding lifecycle systems + `RenderGpuSystem` |
 | `CameraGpuComponent` | `CameraGpuSystem` + `CameraBindingSystem` |
+
+### Engine-Exported Frame State
+
+| Component | Purpose |
+|-----------|---------|
+| `ActiveCameraViewStateComponent` | Read-only current camera view/projection snapshot for non-renderer consumers such as UI projection |
 
 ### RenderCommand
 

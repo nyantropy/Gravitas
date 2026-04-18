@@ -2,6 +2,8 @@
 
 #include "ECSWorld.hpp"
 #include "IResourceProvider.hpp"
+#include "CameraDescriptionComponent.h"
+#include "CameraGpuComponent.h"
 #include "MaterialComponent.h"
 #include "MaterialGpuComponent.h"
 #include "MeshGpuComponent.h"
@@ -22,6 +24,8 @@ namespace gts::rendering
         std::unordered_set<entity_id_type> staticMeshRefreshEntities;
         std::unordered_set<entity_id_type> proceduralRefreshEntities;
         std::unordered_set<entity_id_type> cleanupEntities;
+        std::unordered_set<entity_id_type> cameraRefreshEntities;
+        std::unordered_set<entity_id_type> cameraCleanupEntities;
     };
 
     inline auto& bindingLifecycleRegistry()
@@ -64,6 +68,22 @@ namespace gts::rendering
         return pending;
     }
 
+    inline std::unordered_set<entity_id_type> takeCameraRefreshes(ECSWorld& world)
+    {
+        auto& state = bindingLifecycleState(world);
+        std::unordered_set<entity_id_type> pending;
+        pending.swap(state.cameraRefreshEntities);
+        return pending;
+    }
+
+    inline std::unordered_set<entity_id_type> takeCameraCleanupEntities(ECSWorld& world)
+    {
+        auto& state = bindingLifecycleState(world);
+        std::unordered_set<entity_id_type> pending;
+        pending.swap(state.cameraCleanupEntities);
+        return pending;
+    }
+
     inline void queueStaticMeshRefresh(ECSWorld& world, Entity entity)
     {
         bindingLifecycleState(world).staticMeshRefreshEntities.insert(entity.id);
@@ -77,6 +97,16 @@ namespace gts::rendering
     inline void queueCleanup(ECSWorld& world, Entity entity)
     {
         bindingLifecycleState(world).cleanupEntities.insert(entity.id);
+    }
+
+    inline void queueCameraRefresh(ECSWorld& world, Entity entity)
+    {
+        bindingLifecycleState(world).cameraRefreshEntities.insert(entity.id);
+    }
+
+    inline void queueCameraCleanup(ECSWorld& world, Entity entity)
+    {
+        bindingLifecycleState(world).cameraCleanupEntities.insert(entity.id);
     }
 
     inline void markRenderableDirty(RenderDirtyComponent& dirty, RenderGpuComponent& renderGpu)

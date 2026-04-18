@@ -8,8 +8,11 @@
 #include "PhysicsWorld.h"
 
 #include "RenderGpuSystem.hpp"
+#include "CameraLifecycleSystem.hpp"
 #include "CameraGpuSystem.hpp"
 #include "CameraGpuComponent.h"
+#include "CameraDescriptionComponent.h"
+#include "ActiveCameraViewSystem.hpp"
 #include "StaticMeshBindingSystem.hpp"
 #include "ProceduralMeshBindingSystem.hpp"
 #include "WorldTextBindingSystem.hpp"
@@ -177,6 +180,16 @@ class GtsScene
                 {
                     gts::rendering::queueCleanup(world, entity);
                 });
+            ecsWorld.registerAddCallback<CameraDescriptionComponent>(
+                [](ECSWorld& world, Entity entity, CameraDescriptionComponent&)
+                {
+                    gts::rendering::queueCameraRefresh(world, entity);
+                });
+            ecsWorld.registerRemoveCallback<CameraDescriptionComponent>(
+                [](ECSWorld& world, Entity entity, CameraDescriptionComponent&)
+                {
+                    gts::rendering::queueCameraCleanup(world, entity);
+                });
 
             DebugFreeCameraSystem::ensureDebugCameraState(ecsWorld, ctx.windowAspectRatio);
 
@@ -184,9 +197,11 @@ class GtsScene
             ecsWorld.addControllerSystem<ProceduralMeshBindingSystem>();
             ecsWorld.addControllerSystem<WorldTextBindingSystem>();
             ecsWorld.addControllerSystem<RenderGpuSystem>();
+            ecsWorld.addControllerSystem<CameraLifecycleSystem>();
             ecsWorld.addControllerSystem<CameraGpuSystem>();
             ecsWorld.addControllerSystem<DebugFreeCameraSystem>();
             ecsWorld.addControllerSystem<CameraBindingSystem>();
+            ecsWorld.addControllerSystem<ActiveCameraViewSystem>();
             ecsWorld.addControllerSystem<DefaultCameraControlSystem>();
             ecsWorld.forEachSnapshot<StaticMeshComponent, MaterialComponent>(
                 [this](Entity entity, StaticMeshComponent&, MaterialComponent&)
@@ -200,6 +215,11 @@ class GtsScene
                 [this](Entity entity, ProceduralMeshComponent&, MaterialComponent&)
                 {
                     gts::rendering::queueProceduralRefresh(ecsWorld, entity);
+                });
+            ecsWorld.forEachSnapshot<CameraDescriptionComponent>(
+                [this](Entity entity, CameraDescriptionComponent&)
+                {
+                    gts::rendering::queueCameraRefresh(ecsWorld, entity);
                 });
             rendererFeatureInstalled = true;
         }

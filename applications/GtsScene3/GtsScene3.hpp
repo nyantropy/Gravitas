@@ -10,27 +10,15 @@
 #include "GtsScene.hpp"
 
 #include "BoundsComponent.h"
-#include "CameraBindingSystem.hpp"
 #include "CameraDescriptionComponent.h"
-#include "CameraGpuComponent.h"
-#include "CameraGpuSystem.hpp"
 #include "CubeAnimationComponent.h"
 #include "CubeAnimationSystem.hpp"
-#include "DebugFreeCameraSystem.hpp"
-#include "DefaultCameraControlSystem.hpp"
 #include "EngineConfig.h"
 #include "Entity.h"
 #include "GraphicsConstants.h"
 #include "MaterialComponent.h"
-#include "MeshGpuComponent.h"
-#include "RenderBindingLifecycle.h"
-#include "RenderExtractionSnapshotBuilder.hpp"
-#include "RenderGpuComponent.h"
-#include "RenderGpuSystem.hpp"
-#include "StaticMeshBindingSystem.hpp"
 #include "StaticMeshComponent.h"
 #include "TransformComponent.h"
-#include "TransformDirtyHelpers.h"
 
 class GtsScene3 : public GtsScene
 {
@@ -55,7 +43,6 @@ private:
     std::vector<std::string> texturePaths;
 
     void buildTextureSet();
-    void installStressRendererFeature(const EcsControllerContext& ctx);
     void spawnStressCubes();
     glm::vec3 computeCubePosition(uint32_t index) const;
     void spawnCamera(float aspectRatio);
@@ -66,7 +53,7 @@ inline void GtsScene3::onLoad(EcsControllerContext& ctx, const GtsSceneTransitio
     resetSceneWorld();
     buildTextureSet();
     ecsWorld.addSimulationSystem<CubeAnimationSystem>();
-    installStressRendererFeature(ctx);
+    installRendererFeature(ctx);
 
     const auto loadStart = std::chrono::steady_clock::now();
     spawnStressCubes();
@@ -104,80 +91,6 @@ inline void GtsScene3::buildTextureSet()
         GraphicsConstants::ENGINE_RESOURCES + "/textures/red_texture.png",
         GraphicsConstants::ENGINE_RESOURCES + "/textures/yellow_texture.png"
     };
-}
-
-inline void GtsScene3::installStressRendererFeature(const EcsControllerContext& ctx)
-{
-    if (rendererFeatureInstalled)
-        return;
-
-    auto* resources = ctx.resources;
-    ecsWorld.registerRemoveCallback<CameraGpuComponent>(
-        [resources](ECSWorld&, Entity, CameraGpuComponent& cameraGpu)
-        {
-            if (cameraGpu.viewID == 0 || resources == nullptr)
-                return;
-
-            resources->releaseCameraBuffer(cameraGpu.viewID);
-            cameraGpu.viewID = 0;
-        });
-    ecsWorld.registerRemoveCallback<RenderGpuComponent>(
-        [resources](ECSWorld& world, Entity entity, RenderGpuComponent& renderGpu)
-        {
-            RenderExtractionSnapshotBuilder::notifyRenderableRemoved(world, entity, renderGpu);
-
-            if (renderGpu.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED || resources == nullptr)
-                return;
-
-            resources->releaseObjectSlot(renderGpu.objectSSBOSlot);
-            renderGpu.objectSSBOSlot = RENDERABLE_SLOT_UNALLOCATED;
-        });
-    ecsWorld.registerRemoveCallback<MeshGpuComponent>(
-        [resources](ECSWorld&, Entity, MeshGpuComponent& meshGpu)
-        {
-            if (!meshGpu.ownsProceduralMeshResource || meshGpu.meshID == 0 || resources == nullptr)
-                return;
-
-            resources->releaseProceduralMesh(meshGpu.meshID);
-            meshGpu.meshID = 0;
-            meshGpu.ownsProceduralMeshResource = false;
-        });
-    ecsWorld.registerAddCallback<TransformComponent>(
-        [](ECSWorld& world, Entity entity, TransformComponent&)
-        {
-            gts::transform::markDirty(world, entity);
-        });
-    ecsWorld.registerAddCallback<StaticMeshComponent>(
-        [](ECSWorld& world, Entity entity, StaticMeshComponent&)
-        {
-            gts::rendering::queueStaticMeshRefresh(world, entity);
-        });
-    ecsWorld.registerRemoveCallback<StaticMeshComponent>(
-        [](ECSWorld& world, Entity entity, StaticMeshComponent&)
-        {
-            gts::rendering::queueCleanup(world, entity);
-        });
-    ecsWorld.registerAddCallback<MaterialComponent>(
-        [](ECSWorld& world, Entity entity, MaterialComponent&)
-        {
-            gts::rendering::queueStaticMeshRefresh(world, entity);
-        });
-    ecsWorld.registerRemoveCallback<MaterialComponent>(
-        [](ECSWorld& world, Entity entity, MaterialComponent&)
-        {
-            gts::rendering::queueCleanup(world, entity);
-        });
-
-    DebugFreeCameraSystem::ensureDebugCameraState(ecsWorld, ctx.windowAspectRatio);
-
-    ecsWorld.addControllerSystem<StaticMeshBindingSystem>();
-    ecsWorld.addControllerSystem<RenderGpuSystem>();
-    ecsWorld.addControllerSystem<CameraGpuSystem>();
-    ecsWorld.addControllerSystem<DebugFreeCameraSystem>();
-    ecsWorld.addControllerSystem<CameraBindingSystem>();
-    ecsWorld.addControllerSystem<DefaultCameraControlSystem>();
-
-    rendererFeatureInstalled = true;
 }
 
 inline void GtsScene3::spawnStressCubes()
@@ -272,7 +185,6 @@ inline void GtsScene3::spawnCamera(float aspectRatio)
     description.farClip = 500.0f;
     description.target = glm::vec3(0.0f, 0.0f, 0.0f);
     ecsWorld.addComponent(camera, description);
-    ecsWorld.addComponent(camera, CameraGpuComponent{});
 
     TransformComponent transform;
     transform.position = glm::vec3(0.0f, 35.0f, 120.0f);
