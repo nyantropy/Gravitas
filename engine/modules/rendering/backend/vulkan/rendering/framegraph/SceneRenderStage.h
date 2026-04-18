@@ -142,12 +142,15 @@ public:
             return;
         }
 
-        resetSecondaryCommandPools(currentFrame);
-
         if (shouldRecordInParallel(renderList))
+        {
+            resetSecondaryCommandPools(currentFrame);
             recordParallel(cmd, imageIndex, currentFrame, renderList);
+        }
         else
+        {
             recordInline(cmd, imageIndex, currentFrame, renderList);
+        }
     }
 
     uint32_t getLastTriangleCount() const
@@ -163,6 +166,16 @@ public:
     uint32_t getLastPipelineSwitches() const
     {
         return lastPipelineSwitches;
+    }
+
+    uint32_t getLastPipelineBinds() const
+    {
+        return lastPipelineBinds;
+    }
+
+    uint32_t getLastDescriptorBinds() const
+    {
+        return lastDescriptorBinds;
     }
 
     uint32_t getLastTextureSwitches() const
@@ -193,6 +206,8 @@ private:
     {
         uint32_t triangles = 0;
         uint32_t drawCalls = 0;
+        uint32_t pipelineBinds = 0;
+        uint32_t descriptorBinds = 0;
         uint32_t pipelineSwitches = 0;
         uint32_t textureSwitches = 0;
     };
@@ -221,6 +236,8 @@ private:
 
     uint32_t                            lastTriangleCount = 0;
     uint32_t                            lastDrawCalls = 0;
+    uint32_t                            lastPipelineBinds = 0;
+    uint32_t                            lastDescriptorBinds = 0;
     uint32_t                            lastPipelineSwitches = 0;
     uint32_t                            lastTextureSwitches = 0;
 
@@ -293,6 +310,8 @@ private:
     {
         lastTriangleCount = 0;
         lastDrawCalls = 0;
+        lastPipelineBinds = 0;
+        lastDescriptorBinds = 0;
         lastPipelineSwitches = 0;
         lastTextureSwitches = 0;
     }
@@ -407,12 +426,15 @@ private:
         };
     }
 
-    void bindGlobalDescriptorSets(VkCommandBuffer cmd, const GlobalDescriptorSets& globalSets) const
+    void bindGlobalDescriptorSets(VkCommandBuffer cmd,
+                                  const GlobalDescriptorSets& globalSets,
+                                  ChunkStats& stats) const
     {
         VkDescriptorSet sets[2] = {globalSets.camera, globalSets.object};
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 pipeline->getPipelineLayout(),
                                 0, 2, sets, 0, nullptr);
+        stats.descriptorBinds += 1;
     }
 
     void recordBatchRange(VkCommandBuffer cmd,
@@ -439,6 +461,7 @@ private:
             {
                 vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, activePipeline->getPipeline());
                 boundPipeline = activePipeline;
+                stats.pipelineBinds += 1;
                 stats.pipelineSwitches += 1;
             }
 
@@ -456,6 +479,7 @@ private:
                                         2, 1, &tex->descriptorSets[currentFrame],
                                         0, nullptr);
                 boundTexture = batch.textureID;
+                stats.descriptorBinds += 1;
                 stats.textureSwitches += 1;
             }
 
@@ -481,6 +505,8 @@ private:
         {
             lastTriangleCount += chunkStats[i].triangles;
             lastDrawCalls += chunkStats[i].drawCalls;
+            lastPipelineBinds += chunkStats[i].pipelineBinds;
+            lastDescriptorBinds += chunkStats[i].descriptorBinds;
             lastPipelineSwitches += chunkStats[i].pipelineSwitches;
             lastTextureSwitches += chunkStats[i].textureSwitches;
         }
@@ -569,8 +595,8 @@ private:
 
         const GlobalDescriptorSets globalSets =
             resolveGlobalDescriptorSets(currentFrame, renderList[0].cameraViewID);
-        bindGlobalDescriptorSets(cmd, globalSets);
         ChunkStats inlineStats{};
+        bindGlobalDescriptorSets(cmd, globalSets, inlineStats);
         recordBatchRange(cmd, currentFrame, 0, static_cast<uint32_t>(preparedBatches.size()), inlineStats);
         chunkStats[0] = inlineStats;
         aggregateChunkStats(1);
@@ -605,7 +631,7 @@ private:
 
             beginSecondaryCommandBuffer(secondary, imageIndex);
             setViewportAndScissor(secondary);
-            bindGlobalDescriptorSets(secondary, globalSets);
+            bindGlobalDescriptorSets(secondary, globalSets, chunkStats[chunkIndex]);
             recordBatchRange(secondary, currentFrame,
                              chunkRanges[chunkIndex].start,
                              chunkRanges[chunkIndex].end,

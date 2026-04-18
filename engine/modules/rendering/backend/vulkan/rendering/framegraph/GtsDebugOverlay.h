@@ -286,6 +286,11 @@ private:
         snprintf(ln, sizeof(ln), "DC   %d", static_cast<int>(s.drawCalls));
         appendLine(buf, ln, OVERLAY_X, y); y += la * 1.3f;
 
+        snprintf(ln, sizeof(ln), "PB/DB %d/%d",
+                 static_cast<int>(s.pipelineBinds),
+                 static_cast<int>(s.descriptorBinds));
+        appendLine(buf, ln, OVERLAY_X, y); y += la;
+
         // Render command cache breakdown
         snprintf(ln, sizeof(ln), "CMD V/T %d/%d",
                  static_cast<int>(s.renderCommandVisitedCount),

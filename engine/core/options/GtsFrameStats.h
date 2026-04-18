@@ -30,6 +30,8 @@ struct GtsFrameStats
     uint32_t totalObjects           = 0;
     uint32_t triangleCount          = 0;
     uint32_t drawCalls              = 0;
+    uint32_t pipelineBinds          = 0;
+    uint32_t descriptorBinds        = 0;
     uint32_t pipelineSwitches       = 0;
     uint32_t textureSwitches        = 0;
     uint32_t renderGpuUpdatedCount  = 0;

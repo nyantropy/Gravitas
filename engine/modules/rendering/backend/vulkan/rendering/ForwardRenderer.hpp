@@ -249,6 +249,8 @@ class ForwardRenderer : Renderer
                 << " visibleObjects=" << frameStats.visibleObjects
                 << " totalObjects=" << frameStats.totalObjects
                 << " drawCalls=" << frameStats.drawCalls
+                << " pipelineBinds=" << frameStats.pipelineBinds
+                << " descriptorBinds=" << frameStats.descriptorBinds
                 << " triangles=" << frameStats.triangleCount
                 << std::endl;
         }
@@ -273,6 +275,8 @@ class ForwardRenderer : Renderer
             {
                 frameStats.triangleCount    = sceneStage->getLastTriangleCount();
                 frameStats.drawCalls        = sceneStage->getLastDrawCalls();
+                frameStats.pipelineBinds    = sceneStage->getLastPipelineBinds();
+                frameStats.descriptorBinds  = sceneStage->getLastDescriptorBinds();
                 frameStats.pipelineSwitches = sceneStage->getLastPipelineSwitches();
                 frameStats.textureSwitches  = sceneStage->getLastTextureSwitches();
             }
