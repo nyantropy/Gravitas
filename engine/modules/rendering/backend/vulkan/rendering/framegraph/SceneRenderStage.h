@@ -445,8 +445,9 @@ private:
     {
         const VkDeviceSize zeroOffset = 0;
         VulkanPipeline* boundPipeline = nullptr;
-        mesh_id_type boundMesh = static_cast<mesh_id_type>(-1);
-        texture_id_type boundTexture = static_cast<texture_id_type>(-1);
+        mesh_id_type    boundMesh     = static_cast<mesh_id_type>(-1);
+        texture_id_type boundTexture  = static_cast<texture_id_type>(-1);
+        float           boundAlpha    = -1.0f;
 
         for (uint32_t batchIndex = batchStart; batchIndex < batchEnd; ++batchIndex)
         {
@@ -483,10 +484,13 @@ private:
                 stats.textureSwitches += 1;
             }
 
-            float alpha = batch.alpha;
-            vkCmdPushConstants(cmd, activePipeline->getPipelineLayout(),
-                               VK_SHADER_STAGE_FRAGMENT_BIT,
-                               0, sizeof(float), &alpha);
+            if (batch.alpha != boundAlpha)
+            {
+                vkCmdPushConstants(cmd, activePipeline->getPipelineLayout(),
+                                   VK_SHADER_STAGE_FRAGMENT_BIT,
+                                   0, sizeof(float), &batch.alpha);
+                boundAlpha = batch.alpha;
+            }
 
             VkDeviceSize instanceOffset = static_cast<VkDeviceSize>(batch.instanceOffset) * sizeof(uint32_t);
             vkCmdBindVertexBuffers(cmd, 1, 1, &instanceBuffers[currentFrame], &instanceOffset);
