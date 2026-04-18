@@ -1,54 +1,35 @@
 #pragma once
 
-#include <array>
-#include <cmath>
+#include <chrono>
 #include <cstdio>
+#include <cstdint>
+#include <random>
 #include <string>
 #include <vector>
 
 #include "GtsScene.hpp"
 
-#include "Entity.h"
-#include "BitmapFont.h"
-#include "BitmapFontLoader.h"
 #include "BoundsComponent.h"
+#include "CameraBindingSystem.hpp"
 #include "CameraDescriptionComponent.h"
-#include "RetroFontAtlas.h"
-#include "DebugCameraStateComponent.h"
-#include "ECSControllerSystem.hpp"
-#include "GtsKey.h"
-#include "GraphicsConstants.h"
+#include "CameraGpuComponent.h"
+#include "CameraGpuSystem.hpp"
+#include "CubeAnimationComponent.h"
+#include "CubeAnimationSystem.hpp"
+#include "DebugFreeCameraSystem.hpp"
+#include "DefaultCameraControlSystem.hpp"
 #include "EngineConfig.h"
+#include "Entity.h"
+#include "GraphicsConstants.h"
 #include "MaterialComponent.h"
+#include "MeshGpuComponent.h"
+#include "RenderBindingLifecycle.h"
+#include "RenderGpuComponent.h"
+#include "RenderGpuSystem.hpp"
+#include "StaticMeshBindingSystem.hpp"
 #include "StaticMeshComponent.h"
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
-#include "UiLayout.h"
-#include "UiNode.h"
-#include "UiHandle.h"
-
-enum class StressMode
-{
-    Static = 0,
-    Moving,
-    SameTexture,
-    RandomTextures
-};
-
-struct StressCubeComponent
-{
-    glm::vec3 staticPosition = glm::vec3(0.0f);
-    float     baseHeight     = 0.0f;
-    uint32_t  textureVariant = 0;
-    float     phaseOffset    = 0.0f;
-};
-
-struct StressSettingsComponent
-{
-    StressMode mode             = StressMode::Static;
-    bool       movementEnabled  = false;
-    bool       randomTextures   = false;
-};
 
 class GtsScene3 : public GtsScene
 {
@@ -62,111 +43,37 @@ public:
     void populateFrameStats(GtsFrameStats& stats) const override;
 
 private:
-    static constexpr uint32_t INITIAL_CUBE_COUNT = 3000;
-    static constexpr uint32_t CUBE_BATCH_SIZE    = 1000;
-    static constexpr uint32_t GRID_COLUMNS       = 100;
-    static constexpr float    GRID_SPACING       = 2.15f;
-    static constexpr float    CUBE_SCALE         = 0.9f;
-    static constexpr uint32_t RENDERABLE_HEADROOM = 128;
-    static constexpr float    GRID_Z_OFFSET      = -106.0f;
+    static constexpr uint32_t CubeCount = 15000;
+    static constexpr uint32_t GridColumns = 25;
+    static constexpr uint32_t GridRows = 24;
+    static constexpr uint32_t GridLayers = 25;
+    static constexpr float GridSpacing = 2.5f;
+    static constexpr float CubeScale = 1.0f;
+    static constexpr uint32_t RandomSeed = 1337u;
 
-    BitmapFont overlayFont;
-    UiHandle   overlayHandle = UI_INVALID_HANDLE;
-    std::vector<Entity> cubeEntities;
     std::vector<std::string> texturePaths;
 
-    void spawnCubes(uint32_t count);
-    void removeCubes(uint32_t count);
-    glm::vec3 computeCubePosition(uint32_t index) const;
-    uint32_t maxCubeCount() const;
-    void spawnCamera(float aspectRatio);
-    void createOverlay(const EcsControllerContext& ctx);
-    void updateOverlay(const EcsControllerContext& ctx) const;
     void buildTextureSet();
-    void applyTextureMode();
-    void advanceMode();
-    const char* describeCurrentScenario() const;
+    void installStressRendererFeature(const EcsControllerContext& ctx);
+    void spawnStressCubes();
+    glm::vec3 computeCubePosition(uint32_t index) const;
+    void spawnCamera(float aspectRatio);
 };
-
-namespace
-{
-constexpr float STRESS_WAVE_AMPLITUDE = 0.7f;
-constexpr float STRESS_WAVE_SPEED     = 0.9f;
-constexpr float STRESS_PHASE_X_STEP   = 0.14f;
-constexpr float STRESS_PHASE_Z_STEP   = 0.18f;
-
-class StressMotionSystem : public ECSControllerSystem
-{
-public:
-    void update(const EcsControllerContext& ctx) override
-    {
-        if (!ctx.world.hasAny<StressSettingsComponent>())
-            return;
-
-        const float dt = ctx.time ? ctx.time->unscaledDeltaTime : 0.0f;
-        accumulatedTime += dt;
-
-        const auto& settings = ctx.world.getSingleton<StressSettingsComponent>();
-
-        ctx.world.forEach<StressCubeComponent, TransformComponent>(
-            [&](Entity entity, StressCubeComponent& cube, TransformComponent& tr)
-        {
-            if (!settings.movementEnabled)
-            {
-                tr.position = cube.staticPosition;
-                tr.rotation = glm::vec3(0.0f);
-                gts::transform::markDirty(ctx.world, entity);
-                return;
-            }
-
-            const float wave = std::sin(accumulatedTime * STRESS_WAVE_SPEED + cube.phaseOffset);
-            tr.position = cube.staticPosition;
-            tr.position.y = cube.baseHeight + wave * STRESS_WAVE_AMPLITUDE;
-            tr.rotation.x = 0.0f;
-            tr.rotation.z = 0.0f;
-            tr.rotation.y = wave * 0.08f;
-            gts::transform::markDirty(ctx.world, entity);
-        });
-    }
-
-private:
-    float accumulatedTime = 0.0f;
-};
-}
 
 inline void GtsScene3::onLoad(EcsControllerContext& ctx, const GtsSceneTransitionData*)
 {
     resetSceneWorld();
-    cubeEntities.clear();
-
     buildTextureSet();
-    if (ctx.input != nullptr)
-    {
-        ctx.input->bind("gts_scene3.advance_mode",
-                        InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F3)},
-                        ActivationMode::Pressed);
-        ctx.input->bind("gts_scene3.spawn_batch",
-                        InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Digit1)},
-                        ActivationMode::Pressed);
-        ctx.input->bind("gts_scene3.remove_batch",
-                        InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Digit2)},
-                        ActivationMode::Pressed);
-        ctx.input->unbindAll("engine.debug_overlay");
-        ctx.input->bind("engine.debug_overlay",
-                        InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F8)},
-                        ActivationMode::Pressed,
-                        "",
-                        PausePolicy::AlwaysActive);
-    }
-    installRendererFeature(ctx);
-    ecsWorld.addControllerSystem<StressMotionSystem>();
-    ecsWorld.createSingleton<StressSettingsComponent>();
+    ecsWorld.addSimulationSystem<CubeAnimationSystem>();
+    installStressRendererFeature(ctx);
 
-    spawnCubes(INITIAL_CUBE_COUNT);
+    const auto loadStart = std::chrono::steady_clock::now();
+    spawnStressCubes();
     spawnCamera(ctx.windowAspectRatio);
-    createOverlay(ctx);
-    applyTextureMode();
-    updateOverlay(ctx);
+    const auto loadEnd = std::chrono::steady_clock::now();
+
+    const float loadMs = std::chrono::duration<float, std::milli>(loadEnd - loadStart).count();
+    std::printf("GtsScene3: spawned %u cubes in %.2f ms\n", CubeCount, loadMs);
 }
 
 inline void GtsScene3::onUpdateSimulation(const EcsSimulationContext& ctx)
@@ -177,160 +84,11 @@ inline void GtsScene3::onUpdateSimulation(const EcsSimulationContext& ctx)
 inline void GtsScene3::onUpdateControllers(const EcsControllerContext& ctx)
 {
     ecsWorld.updateControllers(ctx);
-
-    if (ctx.input->isPressed("gts_scene3.advance_mode"))
-    {
-        advanceMode();
-        applyTextureMode();
-    }
-
-    if (ctx.input->isPressed("gts_scene3.spawn_batch"))
-    {
-        spawnCubes(CUBE_BATCH_SIZE);
-        applyTextureMode();
-    }
-
-    if (ctx.input->isPressed("gts_scene3.remove_batch"))
-        removeCubes(CUBE_BATCH_SIZE);
-
-    updateOverlay(ctx);
 }
 
 inline void GtsScene3::populateFrameStats(GtsFrameStats& stats) const
 {
-    stats.sceneEntityCount = static_cast<uint32_t>(cubeEntities.size());
-}
-
-inline glm::vec3 GtsScene3::computeCubePosition(uint32_t index) const
-{
-    const uint32_t gridX = index % GRID_COLUMNS;
-    const uint32_t gridZ = index / GRID_COLUMNS;
-    const float halfX = (static_cast<float>(GRID_COLUMNS) - 1.0f) * 0.5f;
-    const float worldX = (static_cast<float>(gridX) - halfX) * GRID_SPACING;
-    const float worldZ = GRID_Z_OFFSET + static_cast<float>(gridZ) * GRID_SPACING;
-    return {worldX, 0.0f, worldZ};
-}
-
-inline uint32_t GtsScene3::maxCubeCount() const
-{
-    const uint32_t limit = EngineConfig::MAX_RENDERABLE_OBJECTS;
-    return limit > RENDERABLE_HEADROOM ? limit - RENDERABLE_HEADROOM : limit;
-}
-
-inline void GtsScene3::spawnCubes(uint32_t count)
-{
-    const uint32_t currentCount = static_cast<uint32_t>(cubeEntities.size());
-    const uint32_t targetCount = std::min(maxCubeCount(), currentCount + count);
-    const std::string cubeMesh = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
-
-    cubeEntities.reserve(targetCount);
-
-    for (uint32_t index = currentCount; index < targetCount; ++index)
-    {
-        const glm::vec3 staticPos = computeCubePosition(index);
-        const uint32_t gridX = index % GRID_COLUMNS;
-        const uint32_t gridZ = index / GRID_COLUMNS;
-
-        Entity e = ecsWorld.createEntity();
-        cubeEntities.push_back(e);
-
-        TransformComponent tr;
-        tr.position = staticPos;
-        tr.scale    = glm::vec3(CUBE_SCALE);
-        ecsWorld.addComponent(e, tr);
-
-        StaticMeshComponent mesh;
-        mesh.meshPath = cubeMesh;
-        ecsWorld.addComponent(e, mesh);
-
-        MaterialComponent mat;
-        mat.texturePath = texturePaths.front();
-        ecsWorld.addComponent(e, mat);
-
-        StressCubeComponent cube;
-        cube.staticPosition = staticPos;
-        cube.baseHeight     = staticPos.y;
-        cube.textureVariant = index % static_cast<uint32_t>(texturePaths.size());
-        cube.phaseOffset    = static_cast<float>(gridX) * STRESS_PHASE_X_STEP
-                            + static_cast<float>(gridZ) * STRESS_PHASE_Z_STEP;
-        ecsWorld.addComponent(e, cube);
-
-        ecsWorld.addComponent(e, BoundsComponent{});
-    }
-}
-
-inline void GtsScene3::removeCubes(uint32_t count)
-{
-    const uint32_t removeCount = std::min<uint32_t>(count, static_cast<uint32_t>(cubeEntities.size()));
-    for (uint32_t i = 0; i < removeCount; ++i)
-    {
-        const Entity e = cubeEntities.back();
-        cubeEntities.pop_back();
-        ecsWorld.destroyEntity(e);
-    }
-}
-
-inline void GtsScene3::spawnCamera(float aspectRatio)
-{
-    Entity camera = ecsWorld.createEntity();
-
-    CameraDescriptionComponent desc;
-    desc.active      = true;
-    desc.fov         = glm::radians(70.0f);
-    desc.aspectRatio = aspectRatio;
-    desc.nearClip    = 0.1f;
-    desc.farClip     = 1000.0f;
-    desc.target      = glm::vec3(0.0f, 0.0f, 0.0f);
-    ecsWorld.addComponent(camera, desc);
-
-    TransformComponent tr;
-    tr.position = glm::vec3(0.0f, 60.0f, 170.0f);
-    ecsWorld.addComponent(camera, tr);
-}
-
-inline void GtsScene3::createOverlay(const EcsControllerContext& ctx)
-{
-    overlayFont = BitmapFontLoader::load(
-        ctx.resources,
-        GraphicsConstants::ENGINE_RESOURCES + "/fonts/retrofont.png",
-        RetroFontAtlas::ATLAS_W, RetroFontAtlas::ATLAS_H,
-        RetroFontAtlas::CELL_W, RetroFontAtlas::CELL_H, RetroFontAtlas::ATLAS_COLS,
-        std::string(RetroFontAtlas::CHAR_ORDER),
-        RetroFontAtlas::LINE_HEIGHT, true);
-
-    overlayHandle = ctx.ui->createNode(UiNodeType::Text);
-    UiLayoutSpec overlayLayout;
-    overlayLayout.positionMode = UiPositionMode::Absolute;
-    overlayLayout.widthMode    = UiSizeMode::Fixed;
-    overlayLayout.heightMode   = UiSizeMode::Fixed;
-    overlayLayout.offsetMin    = {0.01f, 0.01f};
-    ctx.ui->setLayout(overlayHandle, overlayLayout);
-    ctx.ui->setState(overlayHandle, UiStateFlags{
-        .visible = true,
-        .enabled = false,
-        .interactable = false
-    });
-    ctx.ui->setTextFont(overlayHandle, &overlayFont);
-}
-
-inline void GtsScene3::updateOverlay(const EcsControllerContext& ctx) const
-{
-    if (overlayHandle == UI_INVALID_HANDLE || !ecsWorld.hasAny<StressSettingsComponent>())
-        return;
-
-    char buf[192];
-    std::snprintf(buf, sizeof(buf),
-                  "GTSSCENE3\nCUBES %u / %u\nMODE %s\n1 +1000  2 -1000\nF3 NEXT MODE\nF4 DEBUG CAM\nF8 OVERLAY",
-                  static_cast<uint32_t>(cubeEntities.size()),
-                  maxCubeCount(),
-                  describeCurrentScenario());
-
-    ctx.ui->setPayload(overlayHandle, UiTextData{
-        buf,
-        {},
-        {1.0f, 1.0f, 1.0f, 1.0f},
-        0.028f
-    });
+    stats.sceneEntityCount = CubeCount;
 }
 
 inline void GtsScene3::buildTextureSet()
@@ -339,83 +97,191 @@ inline void GtsScene3::buildTextureSet()
         GraphicsConstants::ENGINE_RESOURCES + "/textures/blue_texture.png",
         GraphicsConstants::ENGINE_RESOURCES + "/textures/cyan_texture.png",
         GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png",
+        GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png",
         GraphicsConstants::ENGINE_RESOURCES + "/textures/orange_texture.png",
         GraphicsConstants::ENGINE_RESOURCES + "/textures/purple_texture.png",
         GraphicsConstants::ENGINE_RESOURCES + "/textures/red_texture.png",
-        GraphicsConstants::ENGINE_RESOURCES + "/textures/yellow_texture.png",
-        GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png"
+        GraphicsConstants::ENGINE_RESOURCES + "/textures/yellow_texture.png"
     };
 }
 
-inline void GtsScene3::applyTextureMode()
+inline void GtsScene3::installStressRendererFeature(const EcsControllerContext& ctx)
 {
-    if (!ecsWorld.hasAny<StressSettingsComponent>())
+    if (rendererFeatureInstalled)
         return;
 
-    const auto& settings = ecsWorld.getSingleton<StressSettingsComponent>();
-    const std::string& sharedTexture = texturePaths.front();
-
-    for (Entity e : cubeEntities)
-    {
-        if (!ecsWorld.hasComponent<MaterialComponent>(e) || !ecsWorld.hasComponent<StressCubeComponent>(e))
-            continue;
-
-        auto& mat = ecsWorld.getComponent<MaterialComponent>(e);
-        const auto& cube = ecsWorld.getComponent<StressCubeComponent>(e);
-        const std::string& targetTexture = settings.randomTextures
-            ? texturePaths[cube.textureVariant % texturePaths.size()]
-            : sharedTexture;
-
-        if (mat.texturePath != targetTexture)
+    auto* resources = ctx.resources;
+    ecsWorld.registerRemoveCallback<CameraGpuComponent>(
+        [resources](ECSWorld&, Entity, CameraGpuComponent& cameraGpu)
         {
-            MaterialComponent updated = mat;
-            updated.texturePath = targetTexture;
-            ecsWorld.addComponent<MaterialComponent>(e, updated);
-        }
+            if (cameraGpu.viewID == 0 || resources == nullptr)
+                return;
+
+            resources->releaseCameraBuffer(cameraGpu.viewID);
+            cameraGpu.viewID = 0;
+        });
+    ecsWorld.registerRemoveCallback<RenderGpuComponent>(
+        [resources](ECSWorld&, Entity, RenderGpuComponent& renderGpu)
+        {
+            if (renderGpu.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED || resources == nullptr)
+                return;
+
+            resources->releaseObjectSlot(renderGpu.objectSSBOSlot);
+            renderGpu.objectSSBOSlot = RENDERABLE_SLOT_UNALLOCATED;
+        });
+    ecsWorld.registerRemoveCallback<MeshGpuComponent>(
+        [resources](ECSWorld&, Entity, MeshGpuComponent& meshGpu)
+        {
+            if (!meshGpu.ownsProceduralMeshResource || meshGpu.meshID == 0 || resources == nullptr)
+                return;
+
+            resources->releaseProceduralMesh(meshGpu.meshID);
+            meshGpu.meshID = 0;
+            meshGpu.ownsProceduralMeshResource = false;
+        });
+    ecsWorld.registerAddCallback<TransformComponent>(
+        [](ECSWorld& world, Entity entity, TransformComponent&)
+        {
+            gts::transform::markDirty(world, entity);
+        });
+    ecsWorld.registerAddCallback<StaticMeshComponent>(
+        [resources](ECSWorld& world, Entity entity, StaticMeshComponent&)
+        {
+            gts::rendering::syncStaticMeshBinding(world, entity, resources);
+        });
+    ecsWorld.registerAddCallback<MaterialComponent>(
+        [resources](ECSWorld& world, Entity entity, MaterialComponent&)
+        {
+            if (world.hasComponent<StaticMeshComponent>(entity))
+                gts::rendering::syncStaticMeshBinding(world, entity, resources);
+        });
+    ecsWorld.registerRemoveCallback<StaticMeshComponent>(
+        [resources](ECSWorld& world, Entity entity, StaticMeshComponent&)
+        {
+            gts::rendering::cleanupRenderableBinding(world, entity, resources);
+        });
+    ecsWorld.registerRemoveCallback<MaterialComponent>(
+        [resources](ECSWorld& world, Entity entity, MaterialComponent&)
+        {
+            if (world.hasComponent<StaticMeshComponent>(entity))
+                gts::rendering::cleanupRenderableBinding(world, entity, resources);
+        });
+
+    ecsWorld.addControllerSystem<StaticMeshBindingSystem>();
+    ecsWorld.addControllerSystem<RenderGpuSystem>();
+    ecsWorld.addControllerSystem<CameraGpuSystem>();
+    ecsWorld.addControllerSystem<DebugFreeCameraSystem>();
+    ecsWorld.addControllerSystem<CameraBindingSystem>();
+    ecsWorld.addControllerSystem<DefaultCameraControlSystem>();
+
+    ecsWorld.forEach<StaticMeshComponent, MaterialComponent>(
+        [this, resources](Entity entity, StaticMeshComponent&, MaterialComponent&)
+        {
+            gts::rendering::syncStaticMeshBinding(ecsWorld, entity, resources);
+        });
+    ecsWorld.forEach<TransformComponent>(
+        [this](Entity entity, TransformComponent&)
+        {
+            gts::transform::markDirty(ecsWorld, entity);
+        });
+
+    rendererFeatureInstalled = true;
+}
+
+inline void GtsScene3::spawnStressCubes()
+{
+    if (texturePaths.empty())
+        return;
+
+    static_assert(GridColumns * GridRows * GridLayers == CubeCount,
+                  "CubeCount must match the 3D stress grid dimensions");
+    static_assert(CubeCount < EngineConfig::MAX_RENDERABLE_OBJECTS,
+                  "CubeCount exceeds the renderer object budget");
+
+    constexpr float pi = 3.14159265358979323846f;
+    const std::string cubeMesh = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+
+    std::mt19937 rng(RandomSeed);
+    std::uniform_int_distribution<int> animationTypeDist(0, 3);
+    std::uniform_int_distribution<size_t> textureDist(0, texturePaths.size() - 1);
+    std::uniform_real_distribution<float> phaseDist(0.0f, pi * 2.0f);
+    std::uniform_real_distribution<float> speedDist(0.7f, 1.8f);
+    std::uniform_real_distribution<float> amplitudeDist(0.35f, 1.05f);
+    std::uniform_real_distribution<float> orbitRadiusDist(0.5f, 1.5f);
+    std::uniform_real_distribution<float> rotationAmountDist(0.4f, 1.35f);
+    std::uniform_real_distribution<float> axisDist(-1.0f, 1.0f);
+
+    for (uint32_t index = 0; index < CubeCount; ++index)
+    {
+        Entity entity = ecsWorld.createEntity();
+        const glm::vec3 homePosition = computeCubePosition(index);
+
+        TransformComponent transform;
+        transform.position = homePosition;
+        transform.scale = glm::vec3(CubeScale);
+        ecsWorld.addComponent(entity, transform);
+
+        StaticMeshComponent mesh;
+        mesh.meshPath = cubeMesh;
+        ecsWorld.addComponent(entity, mesh);
+
+        MaterialComponent material;
+        material.texturePath = texturePaths[textureDist(rng)];
+        ecsWorld.addComponent(entity, material);
+
+        CubeAnimationComponent animation;
+        animation.animationType = animationTypeDist(rng);
+        animation.homePosition = homePosition;
+        animation.phase = phaseDist(rng);
+        animation.speed = speedDist(rng);
+        animation.axis = glm::vec3(axisDist(rng), axisDist(rng), axisDist(rng));
+        if (glm::dot(animation.axis, animation.axis) <= 0.0001f)
+            animation.axis = glm::vec3(0.0f, 1.0f, 0.0f);
+        else
+            animation.axis = glm::normalize(animation.axis);
+        animation.amplitude = amplitudeDist(rng);
+        animation.orbitRadius = orbitRadiusDist(rng);
+        animation.rotationAmount = rotationAmountDist(rng);
+        ecsWorld.addComponent(entity, animation);
+
+        BoundsComponent bounds;
+        bounds.min = glm::vec3(-0.5f, -0.5f, -0.5f);
+        bounds.max = glm::vec3(0.5f, 0.5f, 0.5f);
+        ecsWorld.addComponent(entity, bounds);
     }
 }
 
-inline void GtsScene3::advanceMode()
+inline glm::vec3 GtsScene3::computeCubePosition(uint32_t index) const
 {
-    auto& settings = ecsWorld.getSingleton<StressSettingsComponent>();
+    const uint32_t x = index % GridColumns;
+    const uint32_t y = (index / GridColumns) % GridRows;
+    const uint32_t z = index / (GridColumns * GridRows);
 
-    switch (settings.mode)
-    {
-        case StressMode::Static:
-            settings.mode = StressMode::Moving;
-            settings.movementEnabled = true;
-            settings.randomTextures  = false;
-            break;
-        case StressMode::Moving:
-            settings.mode = StressMode::SameTexture;
-            settings.movementEnabled = false;
-            settings.randomTextures  = true;
-            break;
-        case StressMode::SameTexture:
-            settings.mode = StressMode::RandomTextures;
-            settings.movementEnabled = true;
-            settings.randomTextures  = true;
-            break;
-        case StressMode::RandomTextures:
-            settings.mode = StressMode::Static;
-            settings.movementEnabled = false;
-            settings.randomTextures  = false;
-            break;
-    }
+    const float halfColumns = (static_cast<float>(GridColumns) - 1.0f) * 0.5f;
+    const float halfRows = (static_cast<float>(GridRows) - 1.0f) * 0.5f;
+    const float halfLayers = (static_cast<float>(GridLayers) - 1.0f) * 0.5f;
+
+    return {
+        (static_cast<float>(x) - halfColumns) * GridSpacing,
+        (static_cast<float>(y) - halfRows) * GridSpacing,
+        (static_cast<float>(z) - halfLayers) * GridSpacing
+    };
 }
 
-inline const char* GtsScene3::describeCurrentScenario() const
+inline void GtsScene3::spawnCamera(float aspectRatio)
 {
-    if (!ecsWorld.hasAny<StressSettingsComponent>())
-        return "STATIC SAME";
+    Entity camera = ecsWorld.createEntity();
 
-    switch (ecsWorld.getSingleton<StressSettingsComponent>().mode)
-    {
-        case StressMode::Static:         return "STATIC SAME";
-        case StressMode::Moving:         return "MOVING SAME";
-        case StressMode::SameTexture:    return "STATIC RANDOM";
-        case StressMode::RandomTextures: return "MOVING RANDOM";
-    }
+    CameraDescriptionComponent description;
+    description.active = true;
+    description.fov = glm::radians(70.0f);
+    description.aspectRatio = aspectRatio;
+    description.nearClip = 0.1f;
+    description.farClip = 500.0f;
+    description.target = glm::vec3(0.0f, 0.0f, 0.0f);
+    ecsWorld.addComponent(camera, description);
 
-    return "STATIC SAME";
+    TransformComponent transform;
+    transform.position = glm::vec3(0.0f, 35.0f, 120.0f);
+    ecsWorld.addComponent(camera, transform);
 }

@@ -1,11 +1,12 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include <vector>
 #include <array>
 #include <cassert>
-#include <stdexcept>
 #include <cstring>
+#include <limits>
+#include <stdexcept>
+#include <vector>
 
 #include "vcsheet.h"
 #include "dssheet.h"
@@ -56,6 +57,12 @@ class ObjectSSBOManager
             }
 
             descriptorSets = dssheet::getManager().allocateForObjectSSBO(ssboBuffers, bufferSize);
+
+            for (uint32_t i = 0; i < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; ++i)
+            {
+                m_dirtyMin[i] = std::numeric_limits<uint32_t>::max();
+                m_dirtyMax[i] = 0;
+            }
         }
 
         ~ObjectSSBOManager()
@@ -111,6 +118,11 @@ class ObjectSSBOManager
             lastWrittenMatrix[frameIndex][slot] = data.model;
             ObjectUBO* base = reinterpret_cast<ObjectUBO*>(ssboMapped[frameIndex]);
             base[slot] = data;
+
+            const uint32_t slotU32 = static_cast<uint32_t>(slot);
+            m_dirtyMin[frameIndex] = std::min(m_dirtyMin[frameIndex], slotU32);
+            m_dirtyMax[frameIndex] = std::max(m_dirtyMax[frameIndex], slotU32);
+
             return true;
         }
 
@@ -128,12 +140,31 @@ class ObjectSSBOManager
 
         void flushFrame(uint32_t frameIndex)
         {
+            // Dirty-range tracking: part of the engine's dirty-notification pattern.
+            // Only the modified slot range is flushed to GPU each frame.
+            // See also: sortOrderDirty in RenderCommandExtractor (sort path).
+            if (m_dirtyMin[frameIndex] > m_dirtyMax[frameIndex])
+                return;
+
+            const VkDeviceSize slotSize  = sizeof(ObjectUBO);
+            const VkDeviceSize totalSize = static_cast<VkDeviceSize>(MAX_OBJECTS) * slotSize;
+            const VkDeviceSize atomSize  = nonCoherentAtomSize > 0 ? nonCoherentAtomSize : slotSize;
+
+            const VkDeviceSize rawOffset = static_cast<VkDeviceSize>(m_dirtyMin[frameIndex]) * slotSize;
+            const VkDeviceSize rawEnd    = static_cast<VkDeviceSize>(m_dirtyMax[frameIndex] + 1) * slotSize;
+
+            const VkDeviceSize alignedOffset = (rawOffset / atomSize) * atomSize;
+            const VkDeviceSize alignedEnd    = std::min(((rawEnd + atomSize - 1) / atomSize) * atomSize, totalSize);
+
             VkMappedMemoryRange range{};
             range.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
             range.memory = ssboMemory[frameIndex];
-            range.offset = 0;
-            range.size   = VK_WHOLE_SIZE;
+            range.offset = alignedOffset;
+            range.size   = alignedEnd - alignedOffset;
             vkFlushMappedMemoryRanges(vcsheet::getDevice(), 1, &range);
+
+            m_dirtyMin[frameIndex] = std::numeric_limits<uint32_t>::max();
+            m_dirtyMax[frameIndex] = 0;
         }
 
         void flushAllFrames()
@@ -171,6 +202,11 @@ class ObjectSSBOManager
         std::vector<VkDescriptorSet> descriptorSets;
         std::array<std::vector<glm::mat4>, GraphicsConstants::MAX_FRAMES_IN_FLIGHT> lastWrittenMatrix;
         VkDeviceSize                 nonCoherentAtomSize = sizeof(ObjectUBO);
+
+        // Dirty-range tracking — initialised to "empty" (min > max).
+        // Updated by writeSlot; consumed and reset by flushFrame.
+        std::array<uint32_t, GraphicsConstants::MAX_FRAMES_IN_FLIGHT> m_dirtyMin;
+        std::array<uint32_t, GraphicsConstants::MAX_FRAMES_IN_FLIGHT> m_dirtyMax;
 
         std::vector<ssbo_id_type> freeList;
         ssbo_id_type              nextSlot = 0;
