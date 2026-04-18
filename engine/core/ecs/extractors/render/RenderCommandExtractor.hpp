@@ -110,19 +110,11 @@ public:
             opaqueEntityOrder = nextOpaqueEntityOrder;
             transparentEntityOrder = nextTransparentEntityOrder;
 
+            // sortKey encodes (doubleSided << 63 | meshID << 32 | textureID) — no fallback needed.
             std::sort(opaqueEntityOrder.begin(), opaqueEntityOrder.end(),
                 [&](RenderableID lhs, RenderableID rhs)
                 {
-                    const auto& a = commandCache[lhs];
-                    const auto& b = commandCache[rhs];
-                    if (a.sortKey != b.sortKey)
-                        return a.sortKey < b.sortKey;
-
-                    const auto& cmdA = a.command;
-                    const auto& cmdB = b.command;
-                    if (cmdA.doubleSided != cmdB.doubleSided) return !cmdA.doubleSided && cmdB.doubleSided;
-                    if (cmdA.meshID      != cmdB.meshID)      return cmdA.meshID < cmdB.meshID;
-                    return cmdA.textureID < cmdB.textureID;
+                    return commandCache[lhs].sortKey < commandCache[rhs].sortKey;
                 });
             sortOrderDirty = false;
 
