@@ -41,7 +41,7 @@ public:
         const auto startTime = std::chrono::steady_clock::now();
 
         // Per-frame cache used only for hierarchy traversal: entity id → resolved NodeState.
-        // Kept small — most entities in a dungeon scene have no parent.
+        // Kept small — most scenes are dominated by root renderables.
         traversalCache.clear();
         traversalCache.reserve(nonRenderableTransformCache.size());
 
@@ -130,23 +130,60 @@ public:
             return state;
         };
 
-        ctx.world.forEach<RenderGpuComponent, TransformComponent>([&](Entity e, RenderGpuComponent& rc, TransformComponent&)
+        ctx.world.forEach<RenderGpuComponent, RenderDirtyComponent, TransformComponent>(
+            [&](Entity e,
+                RenderGpuComponent& rc,
+                RenderDirtyComponent& dirty,
+                TransformComponent& transform)
         {
             totalRenderables += 1;
 
-            const NodeState state = computeWorldState(computeWorldState, e);
-            if (!state.changed && !rc.dirty && rc.readyToRender)
+            const bool hasHierarchy = ctx.world.hasComponent<HierarchyComponent>(e);
+
+            if (!hasHierarchy)
             {
+                CachedTransform& cached = transformCache[rc.objectSSBOSlot];
+
+                if (cached.lastSeenFrame != 0 && cached.lastSeenFrame != frameStamp - 1)
+                    cached.initialized = false;
+                cached.lastSeenFrame = frameStamp;
+
+                const bool localChanged = dirty.transformDirty
+                    || !cached.initialized
+                    || differs(cached.position, transform.position)
+                    || differs(cached.rotation, transform.rotation)
+                    || differs(cached.scale,    transform.scale);
+
+                if (!localChanged && !rc.dirty && rc.readyToRender)
+                    return;
+
+                if (localChanged)
+                {
+                    cached.modelMatrix = transform.getModelMatrix();
+                    cached.position    = transform.position;
+                    cached.rotation    = transform.rotation;
+                    cached.scale       = transform.scale;
+                    cached.initialized = true;
+                }
+
+                rc.modelMatrix   = cached.modelMatrix;
+                rc.dirty         = false;
+                rc.readyToRender = true;
+                rc.commandDirty  = true;
+                dirty.transformDirty = true;
+                updatedRenderables += 1;
                 return;
             }
+
+            const NodeState state = computeWorldState(computeWorldState, e);
+            if (!state.changed && !rc.dirty && rc.readyToRender)
+                return;
 
             rc.modelMatrix   = state.worldMatrix;
             rc.dirty         = false;
             rc.readyToRender = true;
             rc.commandDirty  = true;
-            assert(ctx.world.hasComponent<RenderDirtyComponent>(e)
-                && "RenderGpuSystem requires RenderDirtyComponent to be created during binding lifecycle");
-            ctx.world.getComponent<RenderDirtyComponent>(e).transformDirty = true;
+            dirty.transformDirty = true;
             updatedRenderables += 1;
         });
         const auto endTime = std::chrono::steady_clock::now();
