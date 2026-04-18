@@ -42,12 +42,12 @@ public:
 
         // Per-frame cache used only for hierarchy traversal: entity id → resolved NodeState.
         // Kept small — most entities in a dungeon scene have no parent.
-        std::unordered_map<entity_id_type, NodeState> cache;
-        cache.reserve(nonRenderableTransformCache.size());
+        traversalCache.clear();
+        traversalCache.reserve(nonRenderableTransformCache.size());
 
         // In-progress set for cycle detection during hierarchy traversal.
-        std::unordered_set<entity_id_type> visiting;
-        visiting.reserve(transformCache.size());
+        traversalVisiting.clear();
+        traversalVisiting.reserve(transformCache.size());
 
         frameStamp += 1;
         uint32_t totalRenderables   = 0;
@@ -63,12 +63,12 @@ public:
         auto computeWorldState = [&](auto& self, Entity e) -> NodeState
         {
             // Return cached result if available (deduplication for shared parents).
-            auto it = cache.find(e.id);
-            if (it != cache.end())
+            auto it = traversalCache.find(e.id);
+            if (it != traversalCache.end())
                 return it->second;
 
             // Cycle guard: if we are already visiting this entity, we have a cycle — break with identity.
-            if (!visiting.insert(e.id).second)
+            if (!traversalVisiting.insert(e.id).second)
                 return {};
 
             CachedTransform* cached = nullptr;
@@ -125,8 +125,8 @@ public:
                 }
             }
 
-            visiting.erase(e.id);
-            cache[e.id] = state;
+            traversalVisiting.erase(e.id);
+            traversalCache[e.id] = state;
             return state;
         };
 
@@ -189,6 +189,9 @@ private:
     std::vector<CachedTransform> transformCache =
         std::vector<CachedTransform>(EngineConfig::MAX_RENDERABLE_OBJECTS);
     std::unordered_map<entity_id_type, CachedTransform> nonRenderableTransformCache;
+    // Promoted from locals — capacity retained across frames, eliminating per-frame heap allocation.
+    std::unordered_map<entity_id_type, NodeState>  traversalCache;
+    std::unordered_set<entity_id_type>             traversalVisiting;
     uint64_t frameStamp = 0;
 
     static bool differs(const glm::vec3& lhs, const glm::vec3& rhs)
