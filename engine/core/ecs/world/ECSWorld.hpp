@@ -20,6 +20,7 @@
 #include <limits>
 #include <string_view>
 
+#include "Archetype.h"
 #include "Entity.h"
 #include "ComponentStorage.hpp"
 #include "ECSSimulationSystem.hpp"
@@ -39,9 +40,7 @@ class ECSWorld
         template<typename... Components>
         friend class ECSQuery;
 
-        using ComponentSignature = uint64_t;
-        static constexpr uint32_t MAX_SIGNATURE_BITS =
-            static_cast<uint32_t>(std::numeric_limits<ComponentSignature>::digits);
+        static constexpr uint32_t MAX_SIGNATURE_BITS = ComponentSignature::BitCapacity;
 
         // ── Event bus ─────────────────────────────────────────────────────────
         // m_alive and eventHandlers are declared first so they are destroyed
@@ -74,7 +73,9 @@ class ECSWorld
         // ── ECS core ──────────────────────────────────────────────────────────
 
         uint32_t nextEntityId = 0;
-        std::vector<ComponentSignature> entitySignatures;
+        std::vector<EntityLocation> entityLocations;
+        std::vector<Archetype> archetypes;
+        std::unordered_map<ComponentSignature, uint32_t, ComponentSignatureHash> archetypeIndexBySignature;
 
         std::vector<std::unique_ptr<ECSSimulationSystem>> simulationSystems;
         std::vector<std::unique_ptr<ECSControllerSystem>> controllerSystems;
@@ -154,10 +155,10 @@ class ECSWorld
                 it->second(*this, entity, componentData);
         }
 
-        void ensureEntitySignatureCapacity(entity_id_type id)
+        void ensureEntityLocationCapacity(entity_id_type id)
         {
-            if (entitySignatures.size() <= id)
-                entitySignatures.resize(id + 1, 0);
+            if (entityLocations.size() <= id)
+                entityLocations.resize(id + 1);
         }
 
         template<typename Component>
@@ -177,59 +178,122 @@ class ECSWorld
         template<typename Component>
         static ComponentSignature componentBitMask()
         {
-            return ComponentSignature{1} << componentBitIndex<Component>();
+            ComponentSignature signature;
+            signature.set(componentBitIndex<Component>());
+            return signature;
         }
 
         ComponentSignature getEntitySignature(Entity entity) const
         {
-            if (entity.id >= entitySignatures.size())
-                return 0;
+            if (entity.id >= entityLocations.size())
+                return {};
 
-            return entitySignatures[entity.id];
+            return entityLocations[entity.id].signature;
         }
 
         template<typename Component>
         bool hasSignatureBit(Entity entity) const
         {
-            return (getEntitySignature(entity) & componentBitMask<Component>()) != 0;
+            return getEntitySignature(entity).test(componentBitIndex<Component>());
         }
 
         template<typename Component>
         void setSignatureBit(Entity entity)
         {
-            ensureEntitySignatureCapacity(entity.id);
-            entitySignatures[entity.id] |= componentBitMask<Component>();
+            ensureEntityLocationCapacity(entity.id);
+            entityLocations[entity.id].signature.set(componentBitIndex<Component>());
         }
 
         template<typename Component>
         void clearSignatureBit(Entity entity)
         {
-            if (entity.id >= entitySignatures.size())
+            if (entity.id >= entityLocations.size())
                 return;
 
-            entitySignatures[entity.id] &= ~componentBitMask<Component>();
+            entityLocations[entity.id].signature.clear(componentBitIndex<Component>());
         }
 
         template<typename... Components>
         static ComponentSignature requiredSignatureMask()
         {
-            ComponentSignature mask = 0;
-            ((mask |= componentBitMask<Components>()), ...);
+            ComponentSignature mask{};
+            ((mask.set(componentBitIndex<Components>())), ...);
             return mask;
         }
 
         bool matchesSignature(Entity entity, ComponentSignature requiredMask) const
         {
             const ComponentSignature signature = getEntitySignature(entity);
-            return (signature & requiredMask) == requiredMask;
+            return signature.containsAll(requiredMask);
+        }
+
+        uint32_t getOrCreateArchetype(ComponentSignature signature)
+        {
+            auto it = archetypeIndexBySignature.find(signature);
+            if (it != archetypeIndexBySignature.end())
+                return it->second;
+
+            const uint32_t archetypeIndex = static_cast<uint32_t>(archetypes.size());
+            Archetype archetype;
+            archetype.signature = signature;
+            archetypes.push_back(std::move(archetype));
+            archetypeIndexBySignature.emplace(signature, archetypeIndex);
+            return archetypeIndex;
+        }
+
+        void detachEntityFromArchetype(Entity entity)
+        {
+            if (entity.id >= entityLocations.size())
+                return;
+
+            auto& location = entityLocations[entity.id];
+            if (!location.isAssigned())
+                return;
+
+            Archetype& archetype = archetypes[location.archetypeIndex];
+            const uint32_t removedRow = location.rowIndex;
+            const uint32_t lastRow = static_cast<uint32_t>(archetype.entities.size() - 1);
+
+            if (removedRow != lastRow)
+            {
+                const Entity movedEntity = archetype.entities[lastRow];
+                archetype.entities[removedRow] = movedEntity;
+                entityLocations[movedEntity.id].rowIndex = removedRow;
+            }
+
+            archetype.entities.pop_back();
+            location.archetypeIndex = EntityLocation::InvalidIndex;
+            location.rowIndex = EntityLocation::InvalidIndex;
+        }
+
+        void moveEntityToArchetype(Entity entity, ComponentSignature signature)
+        {
+            ensureEntityLocationCapacity(entity.id);
+            detachEntityFromArchetype(entity);
+
+            const uint32_t archetypeIndex = getOrCreateArchetype(signature);
+            Archetype& archetype = archetypes[archetypeIndex];
+            const uint32_t rowIndex = static_cast<uint32_t>(archetype.entities.size());
+            archetype.entities.push_back(entity);
+
+            auto& location = entityLocations[entity.id];
+            location.signature = signature;
+            location.archetypeIndex = archetypeIndex;
+            location.rowIndex = rowIndex;
+        }
+
+        void refreshEntityArchetype(Entity entity)
+        {
+            moveEntityToArchetype(entity, getEntitySignature(entity));
         }
 
     public:
         Entity createEntity()
         {
             Entity entity{ nextEntityId++ };
-            ensureEntitySignatureCapacity(entity.id);
-            entitySignatures[entity.id] = 0;
+            ensureEntityLocationCapacity(entity.id);
+            entityLocations[entity.id] = EntityLocation{};
+            moveEntityToArchetype(entity, {});
             return entity;
         }
 
@@ -244,17 +308,19 @@ class ECSWorld
                 storage->remove(e);
             }
 
-            if (e.id < entitySignatures.size())
-                entitySignatures[e.id] = 0;
+            detachEntityFromArchetype(e);
+            if (e.id < entityLocations.size())
+                entityLocations[e.id] = EntityLocation{};
         }
 
         template<typename Component>
         void addComponent(Entity entity, const Component& component)
         {
-            ensureEntitySignatureCapacity(entity.id);
+            ensureEntityLocationCapacity(entity.id);
             auto& storage = getStorage<Component>();
             storage.add(entity, component);
             setSignatureBit<Component>(entity);
+            refreshEntityArchetype(entity);
             invokeAddCallback(std::type_index(typeid(Component)), entity, storage.getRawPtr(entity));
         }
 
@@ -295,6 +361,7 @@ class ECSWorld
             invokeRemoveCallback(std::type_index(typeid(Component)), entity, storage.getRawPtr(entity));
             storage.remove(entity);
             clearSignatureBit<Component>(entity);
+            refreshEntityArchetype(entity);
         }
 
         template<typename SystemType, typename... Args>
@@ -435,7 +502,9 @@ class ECSWorld
             controllerProfilePrintScratch.clear();
             forEachScratch.clear();
             forEachScratch.shrink_to_fit();
-            entitySignatures.clear();
+            entityLocations.clear();
+            archetypes.clear();
+            archetypeIndexBySignature.clear();
             nextEntityId = 0;
             // Clear any remaining subscriptions after systems are gone.
             // Do NOT reset nextSubscriptionId — it must be monotonically increasing
@@ -500,6 +569,7 @@ class ECSWorld
             Entity e = createEntity();
             getStorage<Component>().add(e, Component{ std::forward<Args>(args)... });
             setSignatureBit<Component>(e);
+            refreshEntityArchetype(e);
             return getComponent<Component>(e);
         }
 
@@ -664,7 +734,7 @@ private:
     ECSWorld& world;
 
     template<size_t I = 0, typename Func>
-    void dispatchEach(size_t driverIndex, ECSWorld::ComponentSignature requiredMask, Func&& fn)
+    void dispatchEach(size_t driverIndex, ComponentSignature requiredMask, Func&& fn)
     {
         if constexpr (I < sizeof...(Components))
         {
@@ -680,7 +750,7 @@ private:
     }
 
     template<typename Driver, typename Func>
-    void iterateWithDriver(ECSWorld::ComponentSignature requiredMask, Func&& fn)
+    void iterateWithDriver(ComponentSignature requiredMask, Func&& fn)
     {
         uint32_t count = 0;
         const uint32_t* ids = world.template copyDenseIdsForQuery<Driver>(count);
