@@ -11,9 +11,74 @@
 #include "StaticMeshComponent.h"
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
+#include "WorldTextComponent.h"
+#include <unordered_map>
+#include <unordered_set>
 
 namespace gts::rendering
 {
+    struct BindingLifecycleState
+    {
+        std::unordered_set<entity_id_type> staticMeshRefreshEntities;
+        std::unordered_set<entity_id_type> proceduralRefreshEntities;
+        std::unordered_set<entity_id_type> cleanupEntities;
+    };
+
+    inline auto& bindingLifecycleRegistry()
+    {
+        static std::unordered_map<ECSWorld*, BindingLifecycleState> registry;
+        return registry;
+    }
+
+    inline BindingLifecycleState& bindingLifecycleState(ECSWorld& world)
+    {
+        return bindingLifecycleRegistry()[&world];
+    }
+
+    inline void resetBindingLifecycleState(ECSWorld& world)
+    {
+        bindingLifecycleRegistry().erase(&world);
+    }
+
+    inline std::unordered_set<entity_id_type> takeStaticMeshRefreshes(ECSWorld& world)
+    {
+        auto& state = bindingLifecycleState(world);
+        std::unordered_set<entity_id_type> pending;
+        pending.swap(state.staticMeshRefreshEntities);
+        return pending;
+    }
+
+    inline std::unordered_set<entity_id_type> takeProceduralRefreshes(ECSWorld& world)
+    {
+        auto& state = bindingLifecycleState(world);
+        std::unordered_set<entity_id_type> pending;
+        pending.swap(state.proceduralRefreshEntities);
+        return pending;
+    }
+
+    inline std::unordered_set<entity_id_type> takeCleanupEntities(ECSWorld& world)
+    {
+        auto& state = bindingLifecycleState(world);
+        std::unordered_set<entity_id_type> pending;
+        pending.swap(state.cleanupEntities);
+        return pending;
+    }
+
+    inline void queueStaticMeshRefresh(ECSWorld& world, Entity entity)
+    {
+        bindingLifecycleState(world).staticMeshRefreshEntities.insert(entity.id);
+    }
+
+    inline void queueProceduralRefresh(ECSWorld& world, Entity entity)
+    {
+        bindingLifecycleState(world).proceduralRefreshEntities.insert(entity.id);
+    }
+
+    inline void queueCleanup(ECSWorld& world, Entity entity)
+    {
+        bindingLifecycleState(world).cleanupEntities.insert(entity.id);
+    }
+
     inline void markRenderableDirty(RenderDirtyComponent& dirty, RenderGpuComponent& renderGpu)
     {
         renderGpu.dirty         = true;
@@ -22,28 +87,18 @@ namespace gts::rendering
         dirty.transformDirty    = true;
     }
 
-    inline void ensureRenderableGpuState(ECSWorld& world,
-                                         Entity entity,
-                                         IResourceProvider* resources)
+    inline void scheduleRenderableCleanup(ECSWorld& world,
+                                          ECSWorld::EntityCommandBuffer& commands,
+                                          Entity entity)
     {
-        if (!world.hasComponent<MeshGpuComponent>(entity))
-            world.addComponent(entity, MeshGpuComponent{});
-        if (!world.hasComponent<MaterialGpuComponent>(entity))
-            world.addComponent(entity, MaterialGpuComponent{});
-        if (!world.hasComponent<RenderGpuComponent>(entity))
-            world.addComponent(entity, RenderGpuComponent{});
-        if (!world.hasComponent<RenderDirtyComponent>(entity))
-            world.addComponent(entity, RenderDirtyComponent{});
-
-        auto& renderGpu = world.getComponent<RenderGpuComponent>(entity);
-        if (renderGpu.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
-        {
-            renderGpu.objectSSBOSlot = resources->requestObjectSlot();
-            renderGpu.commandDirty   = true;
-        }
-
-        if (world.hasComponent<TransformComponent>(entity))
-            gts::transform::markDirty(world, entity);
+        if (world.hasComponent<MeshGpuComponent>(entity))
+            commands.removeComponent<MeshGpuComponent>(entity);
+        if (world.hasComponent<MaterialGpuComponent>(entity))
+            commands.removeComponent<MaterialGpuComponent>(entity);
+        if (world.hasComponent<RenderDirtyComponent>(entity))
+            commands.removeComponent<RenderDirtyComponent>(entity);
+        if (world.hasComponent<RenderGpuComponent>(entity))
+            commands.removeComponent<RenderGpuComponent>(entity);
     }
 
     inline void cleanupRenderableBinding(ECSWorld& world,
@@ -61,21 +116,58 @@ namespace gts::rendering
             world.removeComponent<RenderGpuComponent>(entity);
     }
 
+    inline bool hasRenderableDescriptor(ECSWorld& world, Entity entity)
+    {
+        if (world.hasComponent<StaticMeshComponent>(entity)
+            && world.hasComponent<MaterialComponent>(entity))
+        {
+            return true;
+        }
+
+        if (world.hasComponent<ProceduralMeshComponent>(entity)
+            && world.hasComponent<MaterialComponent>(entity))
+        {
+            const auto& material = world.getComponent<MaterialComponent>(entity);
+            if (!material.texturePath.empty())
+                return true;
+        }
+
+        if (world.hasComponent<WorldTextComponent>(entity)
+            && world.hasComponent<TransformComponent>(entity))
+        {
+            const auto& text = world.getComponent<WorldTextComponent>(entity);
+            if (text.font != nullptr && !text.text.empty())
+                return true;
+        }
+
+        return false;
+    }
+
     inline void syncStaticMeshBinding(ECSWorld& world,
                                       Entity entity,
-                                      IResourceProvider* resources)
+                                      IResourceProvider* resources,
+                                      ECSWorld::EntityCommandBuffer& commands)
     {
         if (!world.hasComponent<StaticMeshComponent>(entity) || !world.hasComponent<MaterialComponent>(entity))
             return;
 
-        ensureRenderableGpuState(world, entity, resources);
-
         const auto& mesh = world.getComponent<StaticMeshComponent>(entity);
         const auto& mat  = world.getComponent<MaterialComponent>(entity);
-        auto& meshGpu    = world.getComponent<MeshGpuComponent>(entity);
-        auto& matGpu     = world.getComponent<MaterialGpuComponent>(entity);
-        auto& dirty      = world.getComponent<RenderDirtyComponent>(entity);
-        auto& renderGpu  = world.getComponent<RenderGpuComponent>(entity);
+        const bool hasMeshGpu = world.hasComponent<MeshGpuComponent>(entity);
+        const bool hasMatGpu = world.hasComponent<MaterialGpuComponent>(entity);
+        const bool hasRenderGpu = world.hasComponent<RenderGpuComponent>(entity);
+        const bool hasDirty = world.hasComponent<RenderDirtyComponent>(entity);
+
+        MeshGpuComponent meshGpu = hasMeshGpu ? world.getComponent<MeshGpuComponent>(entity) : MeshGpuComponent{};
+        MaterialGpuComponent matGpu = hasMatGpu ? world.getComponent<MaterialGpuComponent>(entity) : MaterialGpuComponent{};
+        RenderGpuComponent renderGpu = hasRenderGpu ? world.getComponent<RenderGpuComponent>(entity) : RenderGpuComponent{};
+        RenderDirtyComponent dirty = hasDirty ? world.getComponent<RenderDirtyComponent>(entity) : RenderDirtyComponent{};
+
+        if (renderGpu.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
+        {
+            renderGpu.objectSSBOSlot = resources->requestObjectSlot();
+            renderGpu.commandDirty   = true;
+        }
 
         if (mesh.meshPath != meshGpu.boundMeshPath || meshGpu.meshID == 0 || meshGpu.ownsProceduralMeshResource)
         {
@@ -111,29 +203,62 @@ namespace gts::rendering
         matGpu.tint        = mat.tint;
         matGpu.alpha       = mat.alpha;
         matGpu.doubleSided = mat.doubleSided;
+
+        if (hasMeshGpu)
+            world.getComponent<MeshGpuComponent>(entity) = meshGpu;
+        else
+            commands.addComponent<MeshGpuComponent>(entity, meshGpu);
+
+        if (hasMatGpu)
+            world.getComponent<MaterialGpuComponent>(entity) = matGpu;
+        else
+            commands.addComponent<MaterialGpuComponent>(entity, matGpu);
+
+        if (hasRenderGpu)
+            world.getComponent<RenderGpuComponent>(entity) = renderGpu;
+        else
+            commands.addComponent<RenderGpuComponent>(entity, renderGpu);
+
+        if (hasDirty)
+            world.getComponent<RenderDirtyComponent>(entity) = dirty;
+        else
+            commands.addComponent<RenderDirtyComponent>(entity, dirty);
+
+        if (world.hasComponent<TransformComponent>(entity))
+            gts::transform::markDirty(world, entity);
     }
 
     inline void syncProceduralMeshBinding(ECSWorld& world,
                                           Entity entity,
-                                          IResourceProvider* resources)
+                                          IResourceProvider* resources,
+                                          ECSWorld::EntityCommandBuffer& commands)
     {
         if (!world.hasComponent<ProceduralMeshComponent>(entity) || !world.hasComponent<MaterialComponent>(entity))
             return;
 
-        const auto& mat = world.getComponent<MaterialComponent>(entity);
-        if (mat.texturePath.empty())
+        if (world.getComponent<MaterialComponent>(entity).texturePath.empty())
         {
-            cleanupRenderableBinding(world, entity, resources);
+            scheduleRenderableCleanup(world, commands, entity);
             return;
         }
 
-        ensureRenderableGpuState(world, entity, resources);
-
         const auto& mesh = world.getComponent<ProceduralMeshComponent>(entity);
-        auto& meshGpu    = world.getComponent<MeshGpuComponent>(entity);
-        auto& matGpu     = world.getComponent<MaterialGpuComponent>(entity);
-        auto& dirty      = world.getComponent<RenderDirtyComponent>(entity);
-        auto& renderGpu  = world.getComponent<RenderGpuComponent>(entity);
+        const auto& mat  = world.getComponent<MaterialComponent>(entity);
+        const bool hasMeshGpu = world.hasComponent<MeshGpuComponent>(entity);
+        const bool hasMatGpu = world.hasComponent<MaterialGpuComponent>(entity);
+        const bool hasRenderGpu = world.hasComponent<RenderGpuComponent>(entity);
+        const bool hasDirty = world.hasComponent<RenderDirtyComponent>(entity);
+
+        MeshGpuComponent meshGpu = hasMeshGpu ? world.getComponent<MeshGpuComponent>(entity) : MeshGpuComponent{};
+        MaterialGpuComponent matGpu = hasMatGpu ? world.getComponent<MaterialGpuComponent>(entity) : MaterialGpuComponent{};
+        RenderGpuComponent renderGpu = hasRenderGpu ? world.getComponent<RenderGpuComponent>(entity) : RenderGpuComponent{};
+        RenderDirtyComponent dirty = hasDirty ? world.getComponent<RenderDirtyComponent>(entity) : RenderDirtyComponent{};
+
+        if (renderGpu.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
+        {
+            renderGpu.objectSSBOSlot = resources->requestObjectSlot();
+            renderGpu.commandDirty   = true;
+        }
 
         if (mat.texturePath != matGpu.boundTexturePath || matGpu.textureID == 0)
         {
@@ -190,5 +315,28 @@ namespace gts::rendering
             dirty.meshDirty              = true;
             markRenderableDirty(dirty, renderGpu);
         }
+
+        if (hasMeshGpu)
+            world.getComponent<MeshGpuComponent>(entity) = meshGpu;
+        else
+            commands.addComponent<MeshGpuComponent>(entity, meshGpu);
+
+        if (hasMatGpu)
+            world.getComponent<MaterialGpuComponent>(entity) = matGpu;
+        else
+            commands.addComponent<MaterialGpuComponent>(entity, matGpu);
+
+        if (hasRenderGpu)
+            world.getComponent<RenderGpuComponent>(entity) = renderGpu;
+        else
+            commands.addComponent<RenderGpuComponent>(entity, renderGpu);
+
+        if (hasDirty)
+            world.getComponent<RenderDirtyComponent>(entity) = dirty;
+        else
+            commands.addComponent<RenderDirtyComponent>(entity, dirty);
+
+        if (world.hasComponent<TransformComponent>(entity))
+            gts::transform::markDirty(world, entity);
     }
 }

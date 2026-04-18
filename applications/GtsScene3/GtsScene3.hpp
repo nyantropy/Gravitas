@@ -148,27 +148,27 @@ inline void GtsScene3::installStressRendererFeature(const EcsControllerContext& 
             gts::transform::markDirty(world, entity);
         });
     ecsWorld.registerAddCallback<StaticMeshComponent>(
-        [resources](ECSWorld& world, Entity entity, StaticMeshComponent&)
+        [](ECSWorld& world, Entity entity, StaticMeshComponent&)
         {
-            gts::rendering::syncStaticMeshBinding(world, entity, resources);
-        });
-    ecsWorld.registerAddCallback<MaterialComponent>(
-        [resources](ECSWorld& world, Entity entity, MaterialComponent&)
-        {
-            if (world.hasComponent<StaticMeshComponent>(entity))
-                gts::rendering::syncStaticMeshBinding(world, entity, resources);
+            gts::rendering::queueStaticMeshRefresh(world, entity);
         });
     ecsWorld.registerRemoveCallback<StaticMeshComponent>(
-        [resources](ECSWorld& world, Entity entity, StaticMeshComponent&)
+        [](ECSWorld& world, Entity entity, StaticMeshComponent&)
         {
-            gts::rendering::cleanupRenderableBinding(world, entity, resources);
+            gts::rendering::queueCleanup(world, entity);
+        });
+    ecsWorld.registerAddCallback<MaterialComponent>(
+        [](ECSWorld& world, Entity entity, MaterialComponent&)
+        {
+            gts::rendering::queueStaticMeshRefresh(world, entity);
         });
     ecsWorld.registerRemoveCallback<MaterialComponent>(
-        [resources](ECSWorld& world, Entity entity, MaterialComponent&)
+        [](ECSWorld& world, Entity entity, MaterialComponent&)
         {
-            if (world.hasComponent<StaticMeshComponent>(entity))
-                gts::rendering::cleanupRenderableBinding(world, entity, resources);
+            gts::rendering::queueCleanup(world, entity);
         });
+
+    DebugFreeCameraSystem::ensureDebugCameraState(ecsWorld, ctx.windowAspectRatio);
 
     ecsWorld.addControllerSystem<StaticMeshBindingSystem>();
     ecsWorld.addControllerSystem<RenderGpuSystem>();
@@ -176,17 +176,6 @@ inline void GtsScene3::installStressRendererFeature(const EcsControllerContext& 
     ecsWorld.addControllerSystem<DebugFreeCameraSystem>();
     ecsWorld.addControllerSystem<CameraBindingSystem>();
     ecsWorld.addControllerSystem<DefaultCameraControlSystem>();
-
-    ecsWorld.forEach<StaticMeshComponent, MaterialComponent>(
-        [this, resources](Entity entity, StaticMeshComponent&, MaterialComponent&)
-        {
-            gts::rendering::syncStaticMeshBinding(ecsWorld, entity, resources);
-        });
-    ecsWorld.forEach<TransformComponent>(
-        [this](Entity entity, TransformComponent&)
-        {
-            gts::transform::markDirty(ecsWorld, entity);
-        });
 
     rendererFeatureInstalled = true;
 }
@@ -283,6 +272,7 @@ inline void GtsScene3::spawnCamera(float aspectRatio)
     description.farClip = 500.0f;
     description.target = glm::vec3(0.0f, 0.0f, 0.0f);
     ecsWorld.addComponent(camera, description);
+    ecsWorld.addComponent(camera, CameraGpuComponent{});
 
     TransformComponent transform;
     transform.position = glm::vec3(0.0f, 35.0f, 120.0f);

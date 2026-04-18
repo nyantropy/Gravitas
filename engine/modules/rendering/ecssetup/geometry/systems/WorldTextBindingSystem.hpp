@@ -10,36 +10,38 @@
 #include "GlyphLayoutEngine.h"
 #include "Vertex.h"
 #include "ECSWorld.hpp"
+#include "RenderBindingLifecycle.h"
 
 class WorldTextBindingSystem : public ECSControllerSystem
 {
 public:
     void update(const EcsControllerContext& ctx) override
     {
-        ctx.world.forEach<WorldTextComponent, TransformComponent>(
+        auto& commands = ctx.world.commands();
+        ctx.world.forEachSnapshot<WorldTextComponent, TransformComponent>(
             [&](Entity e, WorldTextComponent& wtc, TransformComponent&)
         {
-            if (!wtc.font || wtc.text.empty()) return;
+            if (!wtc.font || wtc.text.empty())
+            {
+                if (ctx.world.hasComponent<RenderGpuComponent>(e))
+                    gts::rendering::scheduleRenderableCleanup(ctx.world, commands, e);
+                return;
+            }
 
-            // Ensure all three GPU components exist
-            if (!ctx.world.hasComponent<MeshGpuComponent>(e))
-                ctx.world.addComponent(e, MeshGpuComponent{});
-            if (!ctx.world.hasComponent<MaterialGpuComponent>(e))
-                ctx.world.addComponent(e, MaterialGpuComponent{});
-            if (!ctx.world.hasComponent<RenderGpuComponent>(e))
-                ctx.world.addComponent(e, RenderGpuComponent{});
-            if (!ctx.world.hasComponent<RenderDirtyComponent>(e))
-                ctx.world.addComponent(e, RenderDirtyComponent{});
+            const bool hasMeshGpu = ctx.world.hasComponent<MeshGpuComponent>(e);
+            const bool hasMatGpu = ctx.world.hasComponent<MaterialGpuComponent>(e);
+            const bool hasRenderGpu = ctx.world.hasComponent<RenderGpuComponent>(e);
+            const bool hasDirty = ctx.world.hasComponent<RenderDirtyComponent>(e);
 
-            auto& meshGpu = ctx.world.getComponent<MeshGpuComponent>(e);
-            auto& matGpu  = ctx.world.getComponent<MaterialGpuComponent>(e);
-            auto& dirty   = ctx.world.getComponent<RenderDirtyComponent>(e);
-            auto& rc      = ctx.world.getComponent<RenderGpuComponent>(e);
+            MeshGpuComponent meshGpu = hasMeshGpu ? ctx.world.getComponent<MeshGpuComponent>(e) : MeshGpuComponent{};
+            MaterialGpuComponent matGpu = hasMatGpu ? ctx.world.getComponent<MaterialGpuComponent>(e) : MaterialGpuComponent{};
+            RenderGpuComponent rc = hasRenderGpu ? ctx.world.getComponent<RenderGpuComponent>(e) : RenderGpuComponent{};
+            RenderDirtyComponent dirty = hasDirty ? ctx.world.getComponent<RenderDirtyComponent>(e) : RenderDirtyComponent{};
 
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
             {
                 rc.objectSSBOSlot = ctx.resources->requestObjectSlot();
-                rc.commandDirty   = true;
+                rc.commandDirty = true;
             }
 
             if (wtc.dirty)
@@ -63,6 +65,26 @@ public:
 
                 wtc.dirty = false;
             }
+
+            if (hasMeshGpu)
+                ctx.world.getComponent<MeshGpuComponent>(e) = meshGpu;
+            else
+                commands.addComponent<MeshGpuComponent>(e, meshGpu);
+
+            if (hasMatGpu)
+                ctx.world.getComponent<MaterialGpuComponent>(e) = matGpu;
+            else
+                commands.addComponent<MaterialGpuComponent>(e, matGpu);
+
+            if (hasRenderGpu)
+                ctx.world.getComponent<RenderGpuComponent>(e) = rc;
+            else
+                commands.addComponent<RenderGpuComponent>(e, rc);
+
+            if (hasDirty)
+                ctx.world.getComponent<RenderDirtyComponent>(e) = dirty;
+            else
+                commands.addComponent<RenderDirtyComponent>(e, dirty);
         });
     }
 };

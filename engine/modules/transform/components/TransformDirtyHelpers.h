@@ -1,18 +1,22 @@
 #pragma once
 
 #include "ECSWorld.hpp"
-#include "TransformDirtyComponent.h"
+#include "RenderDirtyComponent.h"
+#include "RenderGpuComponent.h"
 
 namespace gts::transform
 {
     inline void markDirty(ECSWorld& world, Entity entity)
     {
-        if (!world.hasComponent<TransformDirtyComponent>(entity))
+        if (world.hasComponent<RenderGpuComponent>(entity))
         {
-            world.addComponent(entity, TransformDirtyComponent{});
-            return;
+            auto& renderGpu = world.getComponent<RenderGpuComponent>(entity);
+            renderGpu.dirty         = true;
+            renderGpu.readyToRender = false;
+            renderGpu.commandDirty  = true;
         }
 
-        world.getComponent<TransformDirtyComponent>(entity).dirty = true;
+        if (world.hasComponent<RenderDirtyComponent>(entity))
+            world.getComponent<RenderDirtyComponent>(entity).transformDirty = true;
     }
 }

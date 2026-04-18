@@ -7,8 +7,9 @@
 #include "MaterialGpuComponent.h"
 #include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
+#include "RenderBindingLifecycle.h"
 
-// The exclusive broker between static mesh / material descriptions and renderer resources.
+// Explicit lifecycle pass for static mesh renderables.
 // Reads StaticMeshComponent + MaterialComponent and is the only system permitted to call
 // ctx.resources->requestMesh / requestTexture / requestObjectSlot for static entities.
 //
@@ -16,12 +17,39 @@
 //   - Creates MeshGpuComponent, MaterialGpuComponent, RenderGpuComponent on first frame
 //   - Allocates an SSBO slot on first bind
 //   - Resolves mesh/texture paths to GPU IDs on first bind and whenever they change
-//   - Sets dirty = true so RenderGpuSystem re-uploads the model matrix
+//   - Sets dirty state so RenderGpuSystem re-uploads the model matrix
 class StaticMeshBindingSystem : public ECSControllerSystem
 {
 public:
-    void update(const EcsControllerContext&) override
+    void update(const EcsControllerContext& ctx) override
     {
-        // Static mesh binding is lifecycle-driven via ECS add/remove callbacks.
+        auto pendingCleanup = gts::rendering::takeCleanupEntities(ctx.world);
+        auto pendingStatic = gts::rendering::takeStaticMeshRefreshes(ctx.world);
+        if (pendingCleanup.empty() && pendingStatic.empty())
+            return;
+
+        auto& commands = ctx.world.commands();
+
+        for (entity_id_type entityId : pendingCleanup)
+        {
+            Entity entity{entityId};
+            if (ctx.world.hasComponent<RenderGpuComponent>(entity)
+                && !gts::rendering::hasRenderableDescriptor(ctx.world, entity))
+            {
+                gts::rendering::scheduleRenderableCleanup(ctx.world, commands, entity);
+            }
+        }
+
+        for (entity_id_type entityId : pendingStatic)
+        {
+            Entity entity{entityId};
+            if (!ctx.world.hasComponent<StaticMeshComponent>(entity)
+                || !ctx.world.hasComponent<MaterialComponent>(entity))
+            {
+                continue;
+            }
+
+            gts::rendering::syncStaticMeshBinding(ctx.world, entity, ctx.resources, commands);
+        }
     }
 };

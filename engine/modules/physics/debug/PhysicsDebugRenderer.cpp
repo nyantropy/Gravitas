@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <limits>
 #include <unordered_set>
 
 #include "BoundsComponent.h"
@@ -46,11 +47,6 @@ namespace
         world.addComponent(e, transform);
         world.addComponent(e, bounds);
         return e;
-    }
-
-    void releaseSegmentEntity(ECSWorld& world, Entity entity)
-    {
-        world.destroyEntity(entity);
     }
 
     void updateSegment(ECSWorld& world,
@@ -128,14 +124,27 @@ void PhysicsDebugRenderer::update(const EcsControllerContext& ctx)
     using Clock = std::chrono::steady_clock;
     const auto debugStart = Clock::now();
 
+    struct ColliderSnapshot
+    {
+        entity_id_type colliderId = std::numeric_limits<entity_id_type>::max();
+        glm::vec3 position = glm::vec3(0.0f);
+        float radius = 0.0f;
+    };
+
     std::unordered_set<entity_id_type> liveColliderIds;
+    std::vector<ColliderSnapshot> colliderSnapshots;
+    colliderSnapshots.reserve(debugEntitiesByCollider.size());
 
     ctx.world.forEach<TransformComponent, SphereColliderComponent>(
         [&](Entity colliderEntity, TransformComponent& transform, SphereColliderComponent& collider)
     {
         liveColliderIds.insert(colliderEntity.id);
+        colliderSnapshots.push_back({colliderEntity.id, transform.position, collider.radius});
+    });
 
-        auto& debugEntities = debugEntitiesByCollider[colliderEntity.id];
+    for (const ColliderSnapshot& snapshot : colliderSnapshots)
+    {
+        auto& debugEntities = debugEntitiesByCollider[snapshot.colliderId];
         if (debugEntities.empty())
         {
             debugEntities.reserve(SEGMENTS_PER_COLLIDER);
@@ -143,10 +152,10 @@ void PhysicsDebugRenderer::update(const EcsControllerContext& ctx)
                 debugEntities.push_back(createSegmentEntity(ctx.world));
         }
 
-        updateRing(ctx.world, debugEntities, 0, transform.position, collider.radius, {0.0f, 0.0f, 0.0f});
-        updateRing(ctx.world, debugEntities, SEGMENTS_PER_RING, transform.position, collider.radius, {-glm::half_pi<float>(), 0.0f, 0.0f});
-        updateRing(ctx.world, debugEntities, SEGMENTS_PER_RING * 2, transform.position, collider.radius, {0.0f, glm::half_pi<float>(), 0.0f});
-    });
+        updateRing(ctx.world, debugEntities, 0, snapshot.position, snapshot.radius, {0.0f, 0.0f, 0.0f});
+        updateRing(ctx.world, debugEntities, SEGMENTS_PER_RING, snapshot.position, snapshot.radius, {-glm::half_pi<float>(), 0.0f, 0.0f});
+        updateRing(ctx.world, debugEntities, SEGMENTS_PER_RING * 2, snapshot.position, snapshot.radius, {0.0f, glm::half_pi<float>(), 0.0f});
+    }
 
     std::vector<entity_id_type> staleColliderIds;
     staleColliderIds.reserve(debugEntitiesByCollider.size());
@@ -157,7 +166,7 @@ void PhysicsDebugRenderer::update(const EcsControllerContext& ctx)
         if (!liveColliderIds.contains(colliderId))
         {
             for (Entity entity : debugEntities)
-                releaseSegmentEntity(ctx.world, entity);
+                ctx.world.commands().destroyEntity(entity);
             staleColliderIds.push_back(colliderId);
             continue;
         }

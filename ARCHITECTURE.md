@@ -48,10 +48,17 @@ Gravitas/
 
 **Entity** — a lightweight `uint32_t` ID. No metadata.
 
-**Component Storage** — each component type gets its own sparse-dense array:
-- Sparse layer (paged, 4096 entries/page) for O(1) lookup by entity ID
-- Dense layer (contiguous) for cache-friendly iteration
-- Swap-remove deletion is O(1)
+**Component Storage** — archetype-based, signature-driven storage:
+- Each entity belongs to exactly one archetype identified by its component signature
+- Each archetype stores entities plus one tightly packed column per component type (SoA layout)
+- Adding/removing a component migrates the entity between archetypes
+- Hot-path iteration walks matching archetypes directly instead of probing sparse component stores per entity
+
+**Queries and Structural Mutation**
+- `forEach<C1, C2, ...>(fn)` is the normal hot-path query API and is intended for non-structural iteration
+- `forEachSnapshot<C1, C2, ...>(fn)` snapshots entity IDs up front and is used when mutation-safe traversal is required
+- Structural ECS changes from systems should go through `world.commands()` and are flushed at controlled points
+- Valid structural operations are: `createEntity`, `destroyEntity`, `addComponent`, `removeComponent`, `createSingleton`
 
 **ECSWorld** — the central registry. Key operations:
 
@@ -60,6 +67,8 @@ Gravitas/
 | `createEntity()` / `destroyEntity(e)` | Lifecycle management |
 | `addComponent<C>(e, c)` / `getComponent<C>(e)` | Per-entity component access |
 | `forEach<C1, C2, ...>(fn)` | Iterate all entities with a component set |
+| `forEachSnapshot<C1, C2, ...>(fn)` | Mutation-safe snapshot iteration |
+| `commands()` / `flushCommands()` | Deferred structural mutation path |
 | `createSingleton<C>()` / `getSingleton<C>()` | Enforce single-instance components |
 | `registerRemoveCallback<C>(fn)` | Hook fired when a component is removed |
 
@@ -103,7 +112,7 @@ update(const EcsControllerContext& ctx)
 ├────────────────────────────────────────────────────────┤
 │  Per-Frame Controller Pass                             │
 │  ECSControllerSystem::update(ctx)                      │
-│    └─ Binding systems (alloc GPU resources)            │
+│    └─ Binding systems (descriptor/GPU lifecycle)       │
 │    └─ RenderGpuSystem (sync transforms)                │
 │    └─ CameraGpuSystem (compute view/proj matrices)     │
 │    └─ [user systems] (input handling, gameplay logic)  │
@@ -155,7 +164,7 @@ EcsSimulationContext {
 
 ### Descriptor → GPU Component Split
 
-Application code writes **descriptor components** (high-level intent). Engine systems translate these into **GPU components** (backend handles).
+Application code writes **descriptor components** (high-level intent). Engine systems translate these into **GPU components** (backend handles) through explicit lifecycle passes.
 
 ```
 StaticMeshComponent("path/to/mesh.obj")   ← written by application
@@ -167,7 +176,7 @@ MeshGpuComponent { mesh_id_type meshID }  ← written by engine
 RenderCommandExtractor reads both         ← emits RenderCommand
 ```
 
-Removal callbacks on descriptor components automatically free GPU resources when entities are destroyed.
+GPU resource release still happens through component removal callbacks, but descriptor add/remove no longer performs recursive ECS mutation. Binding/cleanup decisions are queued and executed by explicit lifecycle systems.
 
 ### Descriptor Components (application-facing)
 
@@ -185,8 +194,8 @@ Removal callbacks on descriptor components automatically free GPU resources when
 | Component | Managed By |
 |-----------|-----------|
 | `MeshGpuComponent` | `StaticMeshBindingSystem` |
-| `MaterialGpuComponent` | `MaterialBindingSystem` |
-| `RenderGpuComponent` | `RenderGpuSystem` |
+| `MaterialGpuComponent` | geometry binding lifecycle systems |
+| `RenderGpuComponent` | geometry binding lifecycle systems + `RenderGpuSystem` |
 | `CameraGpuComponent` | `CameraGpuSystem` + `CameraBindingSystem` |
 
 ### RenderCommand
@@ -271,7 +280,10 @@ Assets are accessed through `IResourceProvider` (passed in `SceneContext`). Bind
 - **Shaders**: pre-compiled SPIR-V stored in `/shaders/`
 - **Engine assets**: minimal shared resources in `/resources/`
 
-GPU resource handles (mesh IDs, texture IDs, SSBO slots) are allocated by binding systems and stored in GPU components. Resources are freed via removal callbacks when their owner entity is destroyed.
+GPU resource handles (mesh IDs, texture IDs, SSBO slots) are allocated by binding systems and stored in GPU components. The steady-state contract is:
+- binding systems do near-zero work when no descriptor lifecycle work is pending
+- structural GPU companion-component changes are deferred through `world.commands()`
+- cleanup of backend resources still happens via removal callbacks on GPU components
 
 ---
 
@@ -291,7 +303,7 @@ GPU resource handles (mesh IDs, texture IDs, SSBO slots) are allocated by bindin
 
 ### Adding a New Component
 
-Define a plain struct. Add it to entities with `world.addComponent<MyComp>(e, val)`. No registration required unless you need removal callbacks.
+Define a plain struct. Add it to entities with `world.addComponent<MyComp>(e, val)`. No registration is required unless you need lifecycle callbacks.
 
 ### Adding a Render Stage
 
@@ -310,8 +322,9 @@ Add a `CameraOverrideComponent` to replace the default camera behavior. Implemen
 
 - **ECS-first**: all state is components, all behavior is systems — no monolithic managers
 - **Deterministic simulation**: simulation systems run at fixed timestep, isolated from frame timing
-- **CPU/GPU separation**: descriptor components are game-logic; GPU components are backend state; binding systems bridge them
+- **CPU/GPU separation**: descriptor components are game-logic; GPU components are backend state; binding systems bridge them explicitly
 - **Lazy updates**: render commands and GPU state are cached and only rebuilt on change
 - **Data extraction over direct coupling**: the renderer never reads ECS directly; the extractor produces an immutable command list
-- **RAII resource management**: GPU resources tied to component lifecycle via removal callbacks
+- **Explicit structural mutation**: hot-path queries stay non-structural; lifecycle mutation is deferred and flushed at controlled points
+- **RAII resource management**: backend resources tied to GPU component lifecycle via removal callbacks
 - **Modular assembly**: scenes are built by adding systems and components — the engine imposes no mandatory scene structure

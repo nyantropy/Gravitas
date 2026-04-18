@@ -12,10 +12,9 @@
 // Runs every frame regardless of pause state so camera matrices stay current.
 // Mirrors RenderGpuSystem for the default camera pipeline.
 //
-// Each frame, for every entity with CameraDescriptionComponent:
+// Each frame, for every entity with CameraDescriptionComponent + CameraGpuComponent:
 //   - Skips the entity if CameraOverrideComponent is present (owned by a custom
 //     camera system that already wrote its matrices this frame)
-//   - Ensures CameraGpuComponent exists (creates with viewID=0 if absent)
 //   - Reads TransformComponent.position (falls back to origin if absent)
 //   - Computes view matrix via glm::lookAt
 //   - Computes projection matrix via glm::perspective with Vulkan Y-flip
@@ -29,16 +28,12 @@ class CameraGpuSystem : public ECSControllerSystem
 public:
     void update(const EcsControllerContext& ctx) override
     {
-        ctx.world.forEach<CameraDescriptionComponent>([&](Entity e, CameraDescriptionComponent& desc)
+        ctx.world.forEach<CameraDescriptionComponent, CameraGpuComponent>(
+            [&](Entity e, CameraDescriptionComponent& desc, CameraGpuComponent& gpu)
         {
             // custom camera systems own this entity — do not overwrite their matrices
             if (ctx.world.hasComponent<CameraOverrideComponent>(e))
                 return;
-
-            if (!ctx.world.hasComponent<CameraGpuComponent>(e))
-                ctx.world.addComponent(e, CameraGpuComponent{});
-
-            auto& gpu = ctx.world.getComponent<CameraGpuComponent>(e);
 
             glm::vec3 position = ctx.world.hasComponent<TransformComponent>(e)
                 ? ctx.world.getComponent<TransformComponent>(e).position

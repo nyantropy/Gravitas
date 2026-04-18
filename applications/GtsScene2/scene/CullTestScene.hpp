@@ -10,6 +10,7 @@
 #include "MaterialComponent.h"
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
+#include "CameraGpuComponent.h"
 #include "RetroFontAtlas.h"
 #include "CameraControlOverrideComponent.h"
 #include "GraphicsConstants.h"
@@ -78,6 +79,7 @@ class CullTestScene : public GtsScene
         desc.nearClip    = 0.1f;
         desc.farClip     = 500.0f;
         ecsWorld.addComponent(camera, desc);
+        ecsWorld.addComponent(camera, CameraGpuComponent{});
 
         // Start position: elevated, looking toward the grid
         TransformComponent tc;

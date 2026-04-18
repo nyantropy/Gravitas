@@ -6,6 +6,7 @@
 #include "StaticMeshComponent.h"
 #include "MaterialComponent.h"
 #include "CameraDescriptionComponent.h"
+#include "CameraGpuComponent.h"
 #include "TransformComponent.h"
 #include "AnimationComponent.h"
 
@@ -99,6 +100,7 @@ class DefaultScene : public GtsScene
             CameraDescriptionComponent desc;
             desc.active = true;
             ecsWorld.addComponent(camera, desc);
+            ecsWorld.addComponent(camera, CameraGpuComponent{});
 
             TransformComponent ct;
             ct.position = glm::vec3(0.0f, 0.0f, 10.0f);
@@ -114,11 +116,11 @@ class DefaultScene : public GtsScene
         void onLoad(EcsControllerContext& ctx,
                     const GtsSceneTransitionData* data = nullptr) override
         {
+            addSystems(ctx);
             firstCube();
             secondCube();
             thirdCube();
             mainCamera();
-            addSystems(ctx);
         }
 
         void onUpdateSimulation(const EcsSimulationContext& ctx) override

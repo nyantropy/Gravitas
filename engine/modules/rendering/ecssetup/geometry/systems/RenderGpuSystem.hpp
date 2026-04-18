@@ -144,8 +144,8 @@ public:
             rc.dirty         = false;
             rc.readyToRender = true;
             rc.commandDirty  = true;
-            if (!ctx.world.hasComponent<RenderDirtyComponent>(e))
-                ctx.world.addComponent(e, RenderDirtyComponent{});
+            assert(ctx.world.hasComponent<RenderDirtyComponent>(e)
+                && "RenderGpuSystem requires RenderDirtyComponent to be created during binding lifecycle");
             ctx.world.getComponent<RenderDirtyComponent>(e).transformDirty = true;
             updatedRenderables += 1;
         });

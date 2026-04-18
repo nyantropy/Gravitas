@@ -8,8 +8,9 @@
 #include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
 #include "Vertex.h"
+#include "RenderBindingLifecycle.h"
 
-// Controller system that allocates and updates GPU resources for entities
+// Explicit lifecycle pass that allocates and updates GPU resources for entities
 // carrying a ProceduralMeshComponent + MaterialComponent.
 // Generates a procedural flat quad mesh instead of loading one from disk.
 //
@@ -18,8 +19,23 @@
 class ProceduralMeshBindingSystem : public ECSControllerSystem
 {
 public:
-    void update(const EcsControllerContext&) override
+    void update(const EcsControllerContext& ctx) override
     {
-        // Procedural mesh binding is lifecycle-driven via ECS add/remove callbacks.
+        auto pendingProcedural = gts::rendering::takeProceduralRefreshes(ctx.world);
+        if (pendingProcedural.empty())
+            return;
+
+        auto& commands = ctx.world.commands();
+        for (entity_id_type entityId : pendingProcedural)
+        {
+            Entity entity{entityId};
+            if (!ctx.world.hasComponent<ProceduralMeshComponent>(entity)
+                || !ctx.world.hasComponent<MaterialComponent>(entity))
+            {
+                continue;
+            }
+
+            gts::rendering::syncProceduralMeshBinding(ctx.world, entity, ctx.resources, commands);
+        }
     }
 };

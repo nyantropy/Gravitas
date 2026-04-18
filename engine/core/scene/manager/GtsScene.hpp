@@ -22,7 +22,6 @@
 #include "PhysicsSystem.h"
 #include "PhysicsDebugRenderer.h"
 #include "RenderExtractionSnapshotBuilder.hpp"
-#include "TransformDirtyComponent.h"
 #include "TransformDirtyHelpers.h"
 
 
@@ -38,6 +37,7 @@ class GtsScene
 
         void resetSceneWorld()
         {
+            gts::rendering::resetBindingLifecycleState(ecsWorld);
             ecsWorld.clear();
             physicsWorld.reset();
             rendererFeatureInstalled = false;
@@ -136,70 +136,70 @@ class GtsScene
                 {
                     gts::transform::markDirty(world, entity);
                 });
+            ecsWorld.registerAddCallback<StaticMeshComponent>(
+                [](ECSWorld& world, Entity entity, StaticMeshComponent&)
+                {
+                    gts::rendering::queueStaticMeshRefresh(world, entity);
+                });
+            ecsWorld.registerRemoveCallback<StaticMeshComponent>(
+                [](ECSWorld& world, Entity entity, StaticMeshComponent&)
+                {
+                    gts::rendering::queueCleanup(world, entity);
+                });
+            ecsWorld.registerAddCallback<ProceduralMeshComponent>(
+                [](ECSWorld& world, Entity entity, ProceduralMeshComponent&)
+                {
+                    gts::rendering::queueProceduralRefresh(world, entity);
+                });
+            ecsWorld.registerRemoveCallback<ProceduralMeshComponent>(
+                [](ECSWorld& world, Entity entity, ProceduralMeshComponent&)
+                {
+                    gts::rendering::queueCleanup(world, entity);
+                });
+            ecsWorld.registerAddCallback<MaterialComponent>(
+                [](ECSWorld& world, Entity entity, MaterialComponent&)
+                {
+                    gts::rendering::queueStaticMeshRefresh(world, entity);
+                    gts::rendering::queueProceduralRefresh(world, entity);
+                });
+            ecsWorld.registerRemoveCallback<MaterialComponent>(
+                [](ECSWorld& world, Entity entity, MaterialComponent&)
+                {
+                    gts::rendering::queueCleanup(world, entity);
+                });
+            ecsWorld.registerAddCallback<WorldTextComponent>(
+                [](ECSWorld& world, Entity entity, WorldTextComponent&)
+                {
+                    gts::rendering::queueProceduralRefresh(world, entity);
+                });
+            ecsWorld.registerRemoveCallback<WorldTextComponent>(
+                [](ECSWorld& world, Entity entity, WorldTextComponent&)
+                {
+                    gts::rendering::queueCleanup(world, entity);
+                });
 
+            DebugFreeCameraSystem::ensureDebugCameraState(ecsWorld, ctx.windowAspectRatio);
+
+            ecsWorld.addControllerSystem<StaticMeshBindingSystem>();
+            ecsWorld.addControllerSystem<ProceduralMeshBindingSystem>();
             ecsWorld.addControllerSystem<WorldTextBindingSystem>();
             ecsWorld.addControllerSystem<RenderGpuSystem>();
             ecsWorld.addControllerSystem<CameraGpuSystem>();
             ecsWorld.addControllerSystem<DebugFreeCameraSystem>();
             ecsWorld.addControllerSystem<CameraBindingSystem>();
             ecsWorld.addControllerSystem<DefaultCameraControlSystem>();
-
-            ecsWorld.registerAddCallback<StaticMeshComponent>(
-                [resources](ECSWorld& world, Entity entity, StaticMeshComponent&)
+            ecsWorld.forEachSnapshot<StaticMeshComponent, MaterialComponent>(
+                [this](Entity entity, StaticMeshComponent&, MaterialComponent&)
                 {
-                    gts::rendering::syncStaticMeshBinding(world, entity, resources);
+                    // Some legacy scenes still spawn descriptors before installing
+                    // the renderer feature. Queue a one-time bootstrap rather than
+                    // reintroducing a full steady-state scan.
+                    gts::rendering::queueStaticMeshRefresh(ecsWorld, entity);
                 });
-            ecsWorld.registerAddCallback<ProceduralMeshComponent>(
-                [resources](ECSWorld& world, Entity entity, ProceduralMeshComponent&)
+            ecsWorld.forEachSnapshot<ProceduralMeshComponent, MaterialComponent>(
+                [this](Entity entity, ProceduralMeshComponent&, MaterialComponent&)
                 {
-                    gts::rendering::syncProceduralMeshBinding(world, entity, resources);
-                });
-            ecsWorld.registerAddCallback<MaterialComponent>(
-                [resources](ECSWorld& world, Entity entity, MaterialComponent&)
-                {
-                    if (world.hasComponent<ProceduralMeshComponent>(entity))
-                        gts::rendering::syncProceduralMeshBinding(world, entity, resources);
-                    else if (world.hasComponent<StaticMeshComponent>(entity))
-                        gts::rendering::syncStaticMeshBinding(world, entity, resources);
-                });
-
-            ecsWorld.registerRemoveCallback<StaticMeshComponent>(
-                [resources](ECSWorld& world, Entity entity, StaticMeshComponent&)
-                {
-                    gts::rendering::cleanupRenderableBinding(world, entity, resources);
-                });
-            ecsWorld.registerRemoveCallback<ProceduralMeshComponent>(
-                [resources](ECSWorld& world, Entity entity, ProceduralMeshComponent&)
-                {
-                    gts::rendering::cleanupRenderableBinding(world, entity, resources);
-                });
-            ecsWorld.registerRemoveCallback<MaterialComponent>(
-                [resources](ECSWorld& world, Entity entity, MaterialComponent&)
-                {
-                    if (world.hasComponent<StaticMeshComponent>(entity)
-                        || world.hasComponent<ProceduralMeshComponent>(entity))
-                    {
-                        gts::rendering::cleanupRenderableBinding(world, entity, resources);
-                    }
-                });
-
-            // Many scenes create renderable entities before installRendererFeature().
-            // Bootstrap those existing descriptors once at install time; all later
-            // changes are handled through add/remove callbacks.
-            ecsWorld.forEach<StaticMeshComponent, MaterialComponent>(
-                [this, resources](Entity entity, StaticMeshComponent&, MaterialComponent&)
-                {
-                    gts::rendering::syncStaticMeshBinding(ecsWorld, entity, resources);
-                });
-            ecsWorld.forEach<ProceduralMeshComponent, MaterialComponent>(
-                [this, resources](Entity entity, ProceduralMeshComponent&, MaterialComponent&)
-                {
-                    gts::rendering::syncProceduralMeshBinding(ecsWorld, entity, resources);
-                });
-            ecsWorld.forEach<TransformComponent>(
-                [this](Entity entity, TransformComponent&)
-                {
-                    gts::transform::markDirty(ecsWorld, entity);
+                    gts::rendering::queueProceduralRefresh(ecsWorld, entity);
                 });
             rendererFeatureInstalled = true;
         }

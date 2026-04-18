@@ -24,7 +24,10 @@ public:
 
     void update(const EcsControllerContext& ctx) override
     {
-        auto& state = ensureState(ctx);
+        if (!ctx.world.hasAny<DebugCameraStateComponent>())
+            return;
+
+        auto& state = ctx.world.getSingleton<DebugCameraStateComponent>();
 
         if (ctx.input->isPressed("engine.debug_camera_toggle"))
         {
@@ -46,42 +49,38 @@ private:
         return Entity{ std::numeric_limits<entity_id_type>::max() };
     }
 
-    DebugCameraStateComponent& ensureState(const EcsControllerContext& ctx)
+public:
+    static Entity createDebugCameraEntity(ECSWorld& world, float aspectRatio)
     {
-        if (!ctx.world.hasAny<DebugCameraStateComponent>())
-        {
-            auto& state = ctx.world.createSingleton<DebugCameraStateComponent>();
-            state.debugCameraEntity = createDebugCameraEntity(ctx);
-            return state;
-        }
-
-        auto& state = ctx.world.getSingleton<DebugCameraStateComponent>();
-        if (!ctx.world.hasComponent<CameraDescriptionComponent>(state.debugCameraEntity))
-            state.debugCameraEntity = createDebugCameraEntity(ctx);
-
-        return state;
-    }
-
-    Entity createDebugCameraEntity(const EcsControllerContext& ctx)
-    {
-        Entity e = ctx.world.createEntity();
+        Entity e = world.createEntity();
 
         CameraDescriptionComponent desc;
         desc.active      = false;
         desc.fov         = glm::radians(70.0f);
-        desc.aspectRatio = ctx.windowAspectRatio;
+        desc.aspectRatio = aspectRatio;
         desc.nearClip    = 0.05f;
         desc.farClip     = 500.0f;
         desc.target      = {0.0f, 0.0f, -1.0f};
-        ctx.world.addComponent(e, desc);
+        world.addComponent(e, desc);
 
-        ctx.world.addComponent(e, TransformComponent{});
-        ctx.world.addComponent(e, CameraControlOverrideComponent{});
-        ctx.world.addComponent(e, CameraOverrideComponent{});
-        ctx.world.addComponent(e, CameraGpuComponent{});
+        world.addComponent(e, TransformComponent{});
+        world.addComponent(e, CameraControlOverrideComponent{});
+        world.addComponent(e, CameraOverrideComponent{});
+        world.addComponent(e, CameraGpuComponent{});
 
         return e;
     }
+
+    static void ensureDebugCameraState(ECSWorld& world, float aspectRatio)
+    {
+        if (world.hasAny<DebugCameraStateComponent>())
+            return;
+
+        auto& state = world.createSingleton<DebugCameraStateComponent>();
+        state.debugCameraEntity = createDebugCameraEntity(world, aspectRatio);
+    }
+
+private:
 
     void activate(const EcsControllerContext& ctx, DebugCameraStateComponent& state)
     {

@@ -11,7 +11,6 @@
 #include <type_traits>
 #include <cassert>
 #include <functional>
-#include <unordered_set>
 #include <cstring>
 #include <cstdint>
 #include <chrono>
@@ -22,7 +21,6 @@
 
 #include "Archetype.h"
 #include "Entity.h"
-#include "ComponentStorage.hpp"
 #include "ECSSimulationSystem.hpp"
 #include "ECSControllerSystem.hpp"
 #include "SubscriptionToken.hpp"
@@ -36,11 +34,86 @@ class ECSQuery;
 
 class ECSWorld
 {
+    public:
+        class EntityCommandBuffer
+        {
+        public:
+            explicit EntityCommandBuffer(ECSWorld& world)
+                : world(world)
+            {
+            }
+
+            Entity createEntity()
+            {
+                return world.reserveDeferredEntity();
+            }
+
+            void destroyEntity(Entity entity)
+            {
+                world.enqueueStructuralCommand(
+                    [entity](ECSWorld& w)
+                    {
+                        w.destroyEntity(entity);
+                    });
+            }
+
+            template<typename Component>
+            void addComponent(Entity entity, const Component& component)
+            {
+                world.enqueueStructuralCommand(
+                    [entity, component](ECSWorld& w)
+                    {
+                        w.addComponent<Component>(entity, component);
+                    });
+            }
+
+            template<typename Component>
+            void removeComponent(Entity entity)
+            {
+                world.enqueueStructuralCommand(
+                    [entity](ECSWorld& w)
+                    {
+                        w.removeComponent<Component>(entity);
+                    });
+            }
+
+            template<typename Component, typename... Args>
+            Entity createSingleton(Args&&... args)
+            {
+                Entity entity = createEntity();
+                addComponent<Component>(entity, Component{std::forward<Args>(args)...});
+                return entity;
+            }
+
+            bool empty() const
+            {
+                return world.deferredStructuralCommands.empty();
+            }
+
+            void flush()
+            {
+                world.flushDeferredStructuralCommands();
+            }
+
+        private:
+            ECSWorld& world;
+        };
+
     private:
         template<typename... Components>
         friend class ECSQuery;
 
         static constexpr uint32_t MAX_SIGNATURE_BITS = ComponentSignature::BitCapacity;
+
+        struct ComponentTypeOps
+        {
+            std::type_index type = typeid(void);
+            std::function<std::unique_ptr<IArchetypeColumn>()> createColumn;
+            std::function<void(Archetype&, const void*)> appendValue;
+            std::function<void(Archetype&, uint32_t, Archetype&, uint32_t)> moveValue;
+            std::function<void*(Archetype&, uint32_t)> getPtr;
+            std::function<const void*(const Archetype&, uint32_t)> getConstPtr;
+        };
 
         // ── Event bus ─────────────────────────────────────────────────────────
         // m_alive and eventHandlers are declared first so they are destroyed
@@ -76,6 +149,7 @@ class ECSWorld
         std::vector<EntityLocation> entityLocations;
         std::vector<Archetype> archetypes;
         std::unordered_map<ComponentSignature, uint32_t, ComponentSignatureHash> archetypeIndexBySignature;
+        std::vector<ComponentTypeOps> componentTypeOps;
 
         std::vector<std::unique_ptr<ECSSimulationSystem>> simulationSystems;
         std::vector<std::unique_ptr<ECSControllerSystem>> controllerSystems;
@@ -88,17 +162,6 @@ class ECSWorld
         std::unordered_map<std::string_view, SystemProfile> controllerProfiles;
         std::vector<std::pair<std::string_view, SystemProfile>> controllerProfilePrintScratch;
 
-        template<typename Component>
-        ComponentStorage<Component>& getStorage() const
-        {
-            auto type = std::type_index(typeid(Component));
-            if (storages.find(type) == storages.end())
-            {
-                storages[type] = std::make_unique<ComponentStorage<Component>>();
-            }
-            return *static_cast<ComponentStorage<Component>*>(storages[type].get());
-        }
-
         void invokeRemoveCallback(const std::type_index& type, Entity entity, void* componentData)
         {
             auto it = removeCallbacks.find(type);
@@ -106,15 +169,45 @@ class ECSWorld
                 it->second(*this, entity, componentData);
         }
 
-        mutable std::unordered_map<std::type_index, std::unique_ptr<IComponentStorage>> storages;
         std::unordered_map<std::type_index, std::function<void(ECSWorld&, Entity, void*)>> addCallbacks;
         std::unordered_map<std::type_index, std::function<void(ECSWorld&, Entity, void*)>> removeCallbacks;
         std::vector<uint32_t> forEachScratch;
+        std::vector<std::function<void(ECSWorld&)>> deferredStructuralCommands;
+        bool flushingDeferredStructuralCommands = false;
+        EntityCommandBuffer commandBuffer;
 
-        template<typename Component>
-        uint32_t storageSize() const
+        Entity reserveDeferredEntity()
         {
-            return getStorage<Component>().size();
+            Entity entity{ nextEntityId++ };
+            ensureEntityLocationCapacity(entity.id);
+            entityLocations[entity.id] = EntityLocation{};
+            enqueueStructuralCommand(
+                [entity](ECSWorld& w)
+                {
+                    w.moveEntityToArchetype(entity, {});
+                });
+            return entity;
+        }
+
+        void enqueueStructuralCommand(std::function<void(ECSWorld&)> command)
+        {
+            deferredStructuralCommands.push_back(std::move(command));
+        }
+
+        void flushDeferredStructuralCommands()
+        {
+            if (flushingDeferredStructuralCommands || deferredStructuralCommands.empty())
+                return;
+
+            flushingDeferredStructuralCommands = true;
+            while (!deferredStructuralCommands.empty())
+            {
+                auto commands = std::move(deferredStructuralCommands);
+                deferredStructuralCommands.clear();
+                for (auto& command : commands)
+                    command(*this);
+            }
+            flushingDeferredStructuralCommands = false;
         }
 
         template<typename Component>
@@ -123,7 +216,19 @@ class ECSWorld
             if (!hasSignatureBit<Component>(entity))
                 return nullptr;
 
-            return &getStorage<Component>().getAssumePresent(entity);
+            if (entity.id >= entityLocations.size())
+                return nullptr;
+
+            auto& location = entityLocations[entity.id];
+            if (!location.isAssigned())
+                return nullptr;
+
+            Archetype& archetype = archetypes[location.archetypeIndex];
+            auto it = archetype.columns.find(std::type_index(typeid(Component)));
+            if (it == archetype.columns.end())
+                return nullptr;
+
+            return static_cast<Component*>(it->second->rawPtr(location.rowIndex));
         }
 
         template<typename Component>
@@ -132,20 +237,19 @@ class ECSWorld
             if (!hasSignatureBit<Component>(entity))
                 return nullptr;
 
-            return &getStorage<Component>().getAssumePresent(entity);
-        }
+            if (entity.id >= entityLocations.size())
+                return nullptr;
 
-        template<typename Driver>
-        const uint32_t* copyDenseIdsForQuery(uint32_t& count)
-        {
-            auto& storage = getStorage<Driver>();
-            count = storage.size();
+            const auto& location = entityLocations[entity.id];
+            if (!location.isAssigned())
+                return nullptr;
 
-            forEachScratch.resize(count);
-            if (count > 0)
-                std::memcpy(forEachScratch.data(), storage.denseIds(), count * sizeof(uint32_t));
+            const Archetype& archetype = archetypes[location.archetypeIndex];
+            auto it = archetype.columns.find(std::type_index(typeid(Component)));
+            if (it == archetype.columns.end())
+                return nullptr;
 
-            return forEachScratch.data();
+            return static_cast<const Component*>(it->second->rawPtr(location.rowIndex));
         }
 
         void invokeAddCallback(const std::type_index& type, Entity entity, void* componentData)
@@ -161,10 +265,16 @@ class ECSWorld
                 entityLocations.resize(id + 1);
         }
 
+        void ensureComponentOpsCapacity(uint32_t bitIndex)
+        {
+            if (componentTypeOps.size() <= bitIndex)
+                componentTypeOps.resize(bitIndex + 1);
+        }
+
         template<typename Component>
         static uint32_t componentBitIndex()
         {
-            static const uint32_t bitIndex = allocateComponentBit();
+            static const uint32_t bitIndex = registerComponentType<Component>();
             return bitIndex;
         }
 
@@ -173,6 +283,62 @@ class ECSWorld
             static uint32_t nextBit = 0;
             assert(nextBit < MAX_SIGNATURE_BITS && "Component signature bit budget exceeded");
             return nextBit++;
+        }
+
+        template<typename Component>
+        static uint32_t registerComponentType()
+        {
+            const uint32_t bitIndex = allocateComponentBit();
+            componentTypeInfoInitializer<Component>(bitIndex);
+            return bitIndex;
+        }
+
+        template<typename Component>
+        static void componentTypeInfoInitializer(uint32_t bitIndex)
+        {
+            auto& ops = componentOpsRegistry();
+            if (ops.size() <= bitIndex)
+                ops.resize(bitIndex + 1);
+
+            ComponentTypeOps info;
+            info.type = std::type_index(typeid(Component));
+            info.createColumn = []()
+            {
+                return std::make_unique<ArchetypeColumn<Component>>();
+            };
+            info.appendValue = [](Archetype& archetype, const void* componentData)
+            {
+                auto& column = static_cast<ArchetypeColumn<Component>&>(
+                    *archetype.columns.at(std::type_index(typeid(Component))));
+                column.append(*static_cast<const Component*>(componentData));
+            };
+            info.moveValue = [](Archetype& source, uint32_t sourceRow, Archetype& destination, uint32_t)
+            {
+                auto& sourceColumn = static_cast<ArchetypeColumn<Component>&>(
+                    *source.columns.at(std::type_index(typeid(Component))));
+                auto& destinationColumn = static_cast<ArchetypeColumn<Component>&>(
+                    *destination.columns.at(std::type_index(typeid(Component))));
+                destinationColumn.append(sourceColumn.get(sourceRow));
+            };
+            info.getPtr = [](Archetype& archetype, uint32_t rowIndex) -> void*
+            {
+                auto& column = static_cast<ArchetypeColumn<Component>&>(
+                    *archetype.columns.at(std::type_index(typeid(Component))));
+                return &column.get(rowIndex);
+            };
+            info.getConstPtr = [](const Archetype& archetype, uint32_t rowIndex) -> const void*
+            {
+                const auto& column = static_cast<const ArchetypeColumn<Component>&>(
+                    *archetype.columns.at(std::type_index(typeid(Component))));
+                return &column.get(rowIndex);
+            };
+            ops[bitIndex] = std::move(info);
+        }
+
+        static std::vector<ComponentTypeOps>& componentOpsRegistry()
+        {
+            static std::vector<ComponentTypeOps> ops;
+            return ops;
         }
 
         template<typename Component>
@@ -227,6 +393,25 @@ class ECSWorld
             return signature.containsAll(requiredMask);
         }
 
+        const ComponentTypeOps& componentOpsForBit(uint32_t bitIndex) const
+        {
+            const auto& registry = componentOpsRegistry();
+            assert(bitIndex < registry.size() && "Component ops not registered");
+            return registry[bitIndex];
+        }
+
+        void initialiseArchetypeColumns(Archetype& archetype)
+        {
+            for (uint32_t bit = 0; bit < MAX_SIGNATURE_BITS; ++bit)
+            {
+                if (!archetype.signature.test(bit))
+                    continue;
+
+                const auto& ops = componentOpsForBit(bit);
+                archetype.columns.emplace(ops.type, ops.createColumn());
+            }
+        }
+
         uint32_t getOrCreateArchetype(ComponentSignature signature)
         {
             auto it = archetypeIndexBySignature.find(signature);
@@ -236,23 +421,22 @@ class ECSWorld
             const uint32_t archetypeIndex = static_cast<uint32_t>(archetypes.size());
             Archetype archetype;
             archetype.signature = signature;
+            initialiseArchetypeColumns(archetype);
             archetypes.push_back(std::move(archetype));
             archetypeIndexBySignature.emplace(signature, archetypeIndex);
             return archetypeIndex;
         }
 
-        void detachEntityFromArchetype(Entity entity)
+        void detachEntityFromArchetype(Entity entity, const EntityLocation& location)
         {
-            if (entity.id >= entityLocations.size())
-                return;
-
-            auto& location = entityLocations[entity.id];
             if (!location.isAssigned())
                 return;
 
             Archetype& archetype = archetypes[location.archetypeIndex];
             const uint32_t removedRow = location.rowIndex;
             const uint32_t lastRow = static_cast<uint32_t>(archetype.entities.size() - 1);
+            assert(removedRow < archetype.entities.size() && "Archetype row out of bounds");
+            assert(archetype.entities[removedRow] == entity && "Entity location/archetype row mismatch");
 
             if (removedRow != lastRow)
             {
@@ -261,20 +445,80 @@ class ECSWorld
                 entityLocations[movedEntity.id].rowIndex = removedRow;
             }
 
+            for (auto& [_, column] : archetype.columns)
+                column->swapRemove(removedRow);
             archetype.entities.pop_back();
+        }
+
+        void detachEntityFromArchetype(Entity entity)
+        {
+            if (entity.id >= entityLocations.size())
+                return;
+
+            const EntityLocation previousLocation = entityLocations[entity.id];
+            if (!previousLocation.isAssigned())
+                return;
+
+            detachEntityFromArchetype(entity, previousLocation);
+
+            auto& location = entityLocations[entity.id];
             location.archetypeIndex = EntityLocation::InvalidIndex;
             location.rowIndex = EntityLocation::InvalidIndex;
         }
 
-        void moveEntityToArchetype(Entity entity, ComponentSignature signature)
+        void moveEntityToArchetype(Entity entity,
+                                   ComponentSignature signature,
+                                   std::type_index modifiedType = std::type_index(typeid(void)),
+                                   const void* addedComponentData = nullptr)
         {
             ensureEntityLocationCapacity(entity.id);
-            detachEntityFromArchetype(entity);
+            EntityLocation previousLocation{};
+            uint32_t sourceArchetypeIndex = EntityLocation::InvalidIndex;
+            uint32_t sourceRow = EntityLocation::InvalidIndex;
+            if (entity.id < entityLocations.size())
+            {
+                previousLocation = entityLocations[entity.id];
+                if (previousLocation.isAssigned())
+                {
+                    sourceArchetypeIndex = previousLocation.archetypeIndex;
+                    sourceRow = previousLocation.rowIndex;
+                }
+            }
+
+            if (previousLocation.isAssigned()
+                && previousLocation.signature == signature
+                && modifiedType == std::type_index(typeid(void)))
+            {
+                return;
+            }
 
             const uint32_t archetypeIndex = getOrCreateArchetype(signature);
             Archetype& archetype = archetypes[archetypeIndex];
             const uint32_t rowIndex = static_cast<uint32_t>(archetype.entities.size());
             archetype.entities.push_back(entity);
+
+            for (uint32_t bit = 0; bit < MAX_SIGNATURE_BITS; ++bit)
+            {
+                if (!signature.test(bit))
+                    continue;
+
+                const auto& ops = componentOpsForBit(bit);
+                if (ops.type == modifiedType && addedComponentData != nullptr)
+                {
+                    ops.appendValue(archetype, addedComponentData);
+                    continue;
+                }
+
+                assert(sourceArchetypeIndex != EntityLocation::InvalidIndex
+                    && "Source archetype index invalid for migrated component");
+                Archetype& sourceArchetype = archetypes[sourceArchetypeIndex];
+                assert(sourceArchetype.signature.test(bit)
+                    && "Source archetype missing migrated component");
+                ops.moveValue(sourceArchetype, sourceRow, archetype, rowIndex);
+            }
+
+            if (previousLocation.isAssigned())
+                detachEntityFromArchetype(entity, previousLocation);
 
             auto& location = entityLocations[entity.id];
             location.signature = signature;
@@ -282,12 +526,25 @@ class ECSWorld
             location.rowIndex = rowIndex;
         }
 
-        void refreshEntityArchetype(Entity entity)
+        void refreshEntityArchetype(Entity entity,
+                                    std::type_index modifiedType = std::type_index(typeid(void)),
+                                    const void* addedComponentData = nullptr)
         {
-            moveEntityToArchetype(entity, getEntitySignature(entity));
+            moveEntityToArchetype(entity, getEntitySignature(entity), modifiedType, addedComponentData);
+        }
+
+        template<typename Component>
+        Component* getArchetypeComponentPtr(Entity entity)
+        {
+            return tryGetComponentPtr<Component>(entity);
         }
 
     public:
+        ECSWorld()
+            : commandBuffer(*this)
+        {
+        }
+
         Entity createEntity()
         {
             Entity entity{ nextEntityId++ };
@@ -299,13 +556,23 @@ class ECSWorld
 
         void destroyEntity(Entity e)
         {
-            for (auto& [type, storage] : storages)
+            if (e.id >= entityLocations.size())
+                return;
+
+            const EntityLocation location = entityLocations[e.id];
+            if (!location.isAssigned())
+                return;
+
+            Archetype& archetype = archetypes[location.archetypeIndex];
+            const ComponentSignature signature = location.signature;
+
+            for (uint32_t bit = 0; bit < MAX_SIGNATURE_BITS; ++bit)
             {
-                if (!storage->has(e))
+                if (!signature.test(bit))
                     continue;
 
-                invokeRemoveCallback(type, e, storage->getRawPtr(e));
-                storage->remove(e);
+                const auto& ops = componentOpsForBit(bit);
+                invokeRemoveCallback(ops.type, e, ops.getPtr(archetype, location.rowIndex));
             }
 
             detachEntityFromArchetype(e);
@@ -317,38 +584,33 @@ class ECSWorld
         void addComponent(Entity entity, const Component& component)
         {
             ensureEntityLocationCapacity(entity.id);
-            auto& storage = getStorage<Component>();
-            storage.add(entity, component);
             setSignatureBit<Component>(entity);
-            refreshEntityArchetype(entity);
-            invokeAddCallback(std::type_index(typeid(Component)), entity, storage.getRawPtr(entity));
+            refreshEntityArchetype(entity, std::type_index(typeid(Component)), &component);
+            invokeAddCallback(std::type_index(typeid(Component)), entity, getArchetypeComponentPtr<Component>(entity));
         }
 
         template<typename Component>
         bool hasComponent(Entity entity) const
         {
-            if (!hasSignatureBit<Component>(entity))
-                return false;
-
-#ifndef NDEBUG
-            return getStorage<Component>().has(entity);
-#else
-            return true;
-#endif
+            return hasSignatureBit<Component>(entity);
         }
 
         template<typename Component>
         Component& getComponent(Entity entity)
         {
             assert(hasSignatureBit<Component>(entity) && "Component signature missing for entity");
-            return getStorage<Component>().get(entity);
+            auto* component = getArchetypeComponentPtr<Component>(entity);
+            assert(component != nullptr && "Archetype component missing for entity");
+            return *component;
         }
 
         template<typename Component>
         const Component& getComponent(Entity entity) const
         {
             assert(hasSignatureBit<Component>(entity) && "Component signature missing for entity");
-            return getStorage<Component>().get(entity);
+            const auto* component = tryGetComponentPtr<Component>(entity);
+            assert(component != nullptr && "Archetype component missing for entity");
+            return *component;
         }
 
         template<typename Component>
@@ -357,11 +619,9 @@ class ECSWorld
             if (!hasSignatureBit<Component>(entity))
                 return;
 
-            auto& storage = getStorage<Component>();
-            invokeRemoveCallback(std::type_index(typeid(Component)), entity, storage.getRawPtr(entity));
-            storage.remove(entity);
+            invokeRemoveCallback(std::type_index(typeid(Component)), entity, getArchetypeComponentPtr<Component>(entity));
             clearSignatureBit<Component>(entity);
-            refreshEntityArchetype(entity);
+            refreshEntityArchetype(entity, std::type_index(typeid(Component)), nullptr);
         }
 
         template<typename SystemType, typename... Args>
@@ -395,16 +655,47 @@ class ECSWorld
             query<Components...>().each(std::forward<Func>(fn));
         }
 
+        // Snapshot iteration explicitly supports structural mutation inside the
+        // callback by collecting entity IDs up front. Use this when a system
+        // must create/destroy entities or add/remove components while walking a
+        // component set. Hot-path systems should migrate to plain query/forEach
+        // and remain non-structural.
+        template<typename... Components, typename Func>
+        void forEachSnapshot(Func&& fn)
+        {
+            auto entities = getAllEntitiesWith<Components...>();
+            for (Entity entity : entities)
+            {
+                if (!(hasComponent<Components>(entity) && ...))
+                    continue;
+
+                fn(entity, getComponent<Components>(entity)...);
+            }
+        }
+
         template<typename... Components>
         ECSQuery<Components...> query()
         {
             return ECSQuery<Components...>(*this);
         }
 
+        EntityCommandBuffer& commands()
+        {
+            return commandBuffer;
+        }
+
+        void flushCommands()
+        {
+            flushDeferredStructuralCommands();
+        }
+
         void updateSimulation(const EcsSimulationContext& ctx)
         {
             for (auto& system : simulationSystems)
+            {
                 system->update(ctx);
+                flushDeferredStructuralCommands();
+            }
         }
 
         void updateControllers(const EcsControllerContext& ctx)
@@ -420,6 +711,8 @@ class ECSWorld
                 profile.totalMs += ms;
                 profile.maxMs = std::max(profile.maxMs, ms);
                 ++profile.calls;
+
+                flushDeferredStructuralCommands();
             }
         }
 
@@ -485,14 +778,15 @@ class ECSWorld
         // Call at the start of onLoad when a scene may be reloaded.
         void clear()
         {
-            for (auto& [type, storage] : storages)
+            std::vector<Entity> entities;
+            for (const Archetype& archetype : archetypes)
             {
-                const std::vector<Entity> entities = storage->getAllEntities();
-                for (Entity entity : entities)
-                    invokeRemoveCallback(type, entity, storage->getRawPtr(entity));
+                entities.insert(entities.end(), archetype.entities.begin(), archetype.entities.end());
             }
 
-            storages.clear();
+            for (Entity entity : entities)
+                destroyEntity(entity);
+
             // Systems are destroyed here; their SubscriptionToken members call
             // unsubscribe. The eventHandlers map is still valid at this point.
             simulationSystems.clear();
@@ -502,6 +796,7 @@ class ECSWorld
             controllerProfilePrintScratch.clear();
             forEachScratch.clear();
             forEachScratch.shrink_to_fit();
+            deferredStructuralCommands.clear();
             entityLocations.clear();
             archetypes.clear();
             archetypeIndexBySignature.clear();
@@ -524,23 +819,32 @@ class ECSWorld
         template<typename Component>
         bool hasAny() const
         {
-            auto& storage = getStorage<Component>();
-            return storage.size() > 0;
+            const auto requiredMask = requiredSignatureMask<Component>();
+            for (const Archetype& archetype : archetypes)
+            {
+                if (archetype.signature.containsAll(requiredMask) && !archetype.entities.empty())
+                    return true;
+            }
+            return false;
         }
 
         template<typename Component>
         Entity getSingletonEntity() const
         {
-            auto& storage = getStorage<Component>();
-            const uint32_t count = storage.size();
-
-            // must exist
+            const auto requiredMask = requiredSignatureMask<Component>();
+            uint32_t count = 0;
+            Entity result{};
+            for (const Archetype& archetype : archetypes)
+            {
+                if (!archetype.signature.containsAll(requiredMask))
+                    continue;
+                count += static_cast<uint32_t>(archetype.entities.size());
+                if (!archetype.entities.empty())
+                    result = archetype.entities[0];
+            }
             assert(count > 0 && "Singleton component does not exist");
-
-            // must be unique
             assert(count == 1 && "More than one singleton component exists");
-
-            return Entity{storage.denseIds()[0]};
+            return result;
         }
 
         template<typename Component>
@@ -554,7 +858,7 @@ class ECSWorld
         const Component& getSingleton() const
         {
             Entity e = getSingletonEntity<Component>();
-            return getStorage<Component>().get(e);
+            return getComponent<Component>(e);
         }
 
         // convenience helper for scene/world setup
@@ -567,9 +871,7 @@ class ECSWorld
             assert(!hasAny<Component>() && "Singleton component already exists");
 
             Entity e = createEntity();
-            getStorage<Component>().add(e, Component{ std::forward<Args>(args)... });
-            setSignatureBit<Component>(e);
-            refreshEntityArchetype(e);
+            addComponent<Component>(e, Component{ std::forward<Args>(args)... });
             return getComponent<Component>(e);
         }
 
@@ -577,13 +879,10 @@ class ECSWorld
 
         size_t getEntityCount() const
         {
-            std::unordered_set<entity_id_type> uniqueEntities;
-            for (const auto& [type, storage] : storages)
-            {
-                for (Entity e : storage->getAllEntities())
-                    uniqueEntities.insert(e.id);
-            }
-            return uniqueEntities.size();
+            size_t count = 0;
+            for (const Archetype& archetype : archetypes)
+                count += archetype.entities.size();
+            return count;
         }
 
         size_t getSimulationSystemCount() const
@@ -700,64 +999,27 @@ public:
     {
         static_assert(sizeof...(Components) > 0);
 
-        constexpr size_t componentCount = sizeof...(Components);
-        const std::array<uint32_t, componentCount> counts{world.template storageSize<Components>()...};
         const auto requiredMask = ECSWorld::template requiredSignatureMask<Components...>();
+        world.forEachScratch.clear();
+        world.forEachScratch.reserve(estimatedIterationCount());
 
-        size_t driverIndex = 0;
-        for (size_t i = 1; i < componentCount; ++i)
+        for (Archetype& archetype : world.archetypes)
         {
-            if (counts[i] < counts[driverIndex])
-                driverIndex = i;
+            if (!archetype.signature.containsAll(requiredMask))
+                continue;
+
+            for (Entity entity : archetype.entities)
+                world.forEachScratch.push_back(entity.id);
         }
 
-        dispatchEach(driverIndex, requiredMask, std::forward<Func>(fn));
-    }
-
-    uint32_t estimatedIterationCount() const
-    {
-        static_assert(sizeof...(Components) > 0);
-
-        const std::array<uint32_t, sizeof...(Components)> counts{
-            world.template storageSize<Components>()...
-        };
-
-        uint32_t best = counts[0];
-        for (size_t i = 1; i < counts.size(); ++i)
-            best = std::min(best, counts[i]);
-        return best;
-    }
-
-private:
-    using ComponentTuple = std::tuple<Components...>;
-
-    ECSWorld& world;
-
-    template<size_t I = 0, typename Func>
-    void dispatchEach(size_t driverIndex, ComponentSignature requiredMask, Func&& fn)
-    {
-        if constexpr (I < sizeof...(Components))
+        // Preserve the legacy forEach contract: structural changes inside the
+        // callback must not invalidate iteration or crash the world. The
+        // snapshot only stores entity IDs; component payloads are still fetched
+        // from archetype columns on demand, so the hot path stays off the legacy
+        // sparse storage while remaining mutation-safe.
+        for (uint32_t entityId : world.forEachScratch)
         {
-            if (driverIndex == I)
-            {
-                using Driver = typename std::tuple_element<I, ComponentTuple>::type;
-                iterateWithDriver<Driver>(requiredMask, std::forward<Func>(fn));
-                return;
-            }
-
-            dispatchEach<I + 1>(driverIndex, requiredMask, std::forward<Func>(fn));
-        }
-    }
-
-    template<typename Driver, typename Func>
-    void iterateWithDriver(ComponentSignature requiredMask, Func&& fn)
-    {
-        uint32_t count = 0;
-        const uint32_t* ids = world.template copyDenseIdsForQuery<Driver>(count);
-
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            const Entity entity{ids[i]};
+            Entity entity{entityId};
             if (!world.matchesSignature(entity, requiredMask))
                 continue;
 
@@ -765,9 +1027,26 @@ private:
         }
     }
 
+    uint32_t estimatedIterationCount() const
+    {
+        const auto requiredMask = ECSWorld::template requiredSignatureMask<Components...>();
+        uint32_t total = 0;
+        for (const Archetype& archetype : world.archetypes)
+        {
+            if (archetype.signature.containsAll(requiredMask))
+                total += static_cast<uint32_t>(archetype.entities.size());
+        }
+        return total;
+    }
+
+private:
+    using ComponentTuple = std::tuple<Components...>;
+
+    ECSWorld& world;
+
     template<typename Func, size_t... I>
     void invoke(Func&& fn, Entity entity, std::index_sequence<I...>)
     {
-        fn(entity, world.template tryGetComponentPtr<typename std::tuple_element<I, ComponentTuple>::type>(entity)[0]...);
+        fn(entity, world.template getComponent<typename std::tuple_element<I, ComponentTuple>::type>(entity)...);
     }
 };
