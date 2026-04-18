@@ -6,6 +6,7 @@
 
 #include "Entity.h"
 #include "GlmConfig.h"
+#include "RenderCommand.h"
 #include "Types.h"
 
 struct AABB
@@ -38,8 +39,13 @@ struct RenderableSnapshot
 
 struct RenderExtractionSnapshot
 {
-    std::vector<RenderableSnapshot> renderables;
+    // Persistent dense array of live renderables maintained incrementally by
+    // RenderExtractionSnapshotBuilder. Entries are updated in place and
+    // swap-removed on destruction rather than rebuilt every frame.
+    std::vector<RenderableSnapshot>  renderables;
+    // Parallel compact list of live SSBO slots for the same dense ordering.
+    std::vector<ssbo_id_type>        occupiedSlots;
     std::vector<ObjectUploadCommand> objectUploads;
-    FrustumPlanes                   frustum{};
-    view_id_type                    cameraViewID = 0;
+    FrustumPlanes                    frustum{};
+    view_id_type                     cameraViewID = 0;
 };

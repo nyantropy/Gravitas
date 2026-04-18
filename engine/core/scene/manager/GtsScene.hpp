@@ -21,6 +21,7 @@
 #include "DefaultCameraControlSystem.hpp"
 #include "PhysicsSystem.h"
 #include "PhysicsDebugRenderer.h"
+#include "RenderExtractionSnapshotBuilder.hpp"
 #include "TransformDirtyComponent.h"
 #include "TransformDirtyHelpers.h"
 
@@ -107,8 +108,10 @@ class GtsScene
                     cameraGpu.viewID = 0;
                 });
             ecsWorld.registerRemoveCallback<RenderGpuComponent>(
-                [resources](ECSWorld&, Entity, RenderGpuComponent& renderGpu)
+                [resources](ECSWorld& world, Entity entity, RenderGpuComponent& renderGpu)
                 {
+                    RenderExtractionSnapshotBuilder::notifyRenderableRemoved(world, entity, renderGpu);
+
                     if (renderGpu.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED
                         || resources == nullptr)
                         return;

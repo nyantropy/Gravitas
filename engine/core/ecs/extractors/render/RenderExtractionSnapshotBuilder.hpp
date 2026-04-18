@@ -1,9 +1,9 @@
 #pragma once
 
+#include <algorithm>
 #include <chrono>
 #include <limits>
 #include <unordered_map>
-#include <unordered_set>
 
 #include "BoundsComponent.h"
 #include "CameraGpuComponent.h"
@@ -33,17 +33,29 @@ public:
         uint32_t dynamicUpdatedCount    = 0;
     };
 
+    RenderExtractionSnapshotBuilder()
+        : slotToIndex(EngineConfig::MAX_RENDERABLE_OBJECTS, InvalidIndex)
+    {
+        snapshot.renderables.reserve(1024);
+        snapshot.occupiedSlots.reserve(1024);
+        entryMetadata.reserve(1024);
+    }
+
+    ~RenderExtractionSnapshotBuilder()
+    {
+        unregisterFromWorld();
+    }
+
     RenderExtractionSnapshot& build(ECSWorld& world)
     {
         const auto start = std::chrono::steady_clock::now();
+        registerWithWorld(world);
 
+        m_snapshotDirty = m_pendingSnapshotDirty;
+        m_pendingSnapshotDirty = false;
         snapshot.cameraViewID = 0;
         snapshot.frustum.fill(glm::vec4(0.0f));
         snapshot.objectUploads.clear();
-        staticActiveIDs.clear();
-        dynamicActiveIDs.clear();
-        staticActiveIDs.reserve(staticSnapshotMap.size());
-        dynamicActiveIDs.reserve(dynamicSnapshotMap.size());
         uint32_t dirtyUpdatedCount  = 0;
         uint32_t reusedCount        = 0;
         uint32_t staticUpdatedCount = 0;
@@ -61,8 +73,12 @@ public:
             snapshot.frustum = FrustumCuller::extractPlanesFromMatrix(gpu.projMatrix * gpu.viewMatrix);
         });
 
-        world.forEach<RenderGpuComponent, MeshGpuComponent, MaterialGpuComponent>(
-            [&](Entity e, RenderGpuComponent& rc, MeshGpuComponent& meshGpu, MaterialGpuComponent& matGpu)
+        world.forEach<RenderDirtyComponent, RenderGpuComponent, MeshGpuComponent, MaterialGpuComponent>(
+            [&](Entity e,
+                RenderDirtyComponent& dirty,
+                RenderGpuComponent& rc,
+                MeshGpuComponent& meshGpu,
+                MaterialGpuComponent& matGpu)
         {
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
                 return;
@@ -72,65 +88,53 @@ public:
 
             const RenderableID id = e.id;
             const bool isStatic = world.hasComponent<RenderStaticTag>(e);
+            const bool transformDirty = dirty.transformDirty;
+            const bool materialDirty  = dirty.materialDirty;
+            const bool meshDirty      = dirty.meshDirty;
+            const bool anyDirty = transformDirty || materialDirty || meshDirty;
+            const uint32_t existingIndex = slotToIndex[rc.objectSSBOSlot];
+            const bool inserted = existingIndex == InvalidIndex;
 
-            // Move entity to the correct store if its classification changed
-            if (isStatic)
+            if (!inserted && !anyDirty)
             {
-                auto it = dynamicSnapshotMap.find(id);
-                if (it != dynamicSnapshotMap.end())
-                    dynamicSnapshotMap.erase(it);
+                snapshot.renderables[existingIndex].visible = true;
+                reusedCount += 1;
+                return;
             }
-            else
+
+            uint32_t index = existingIndex;
+            if (inserted)
             {
-                auto it = staticSnapshotMap.find(id);
-                if (it != staticSnapshotMap.end())
-                    staticSnapshotMap.erase(it);
+                index = appendRenderable(id, e, rc.objectSSBOSlot, isStatic);
+                m_snapshotDirty = true;
             }
-
-            auto& targetMap = isStatic ? staticSnapshotMap : dynamicSnapshotMap;
-
-            if (isStatic)
-                staticActiveIDs.push_back(id);
-            else
-                dynamicActiveIDs.push_back(id);
-
-            auto [it, inserted] = targetMap.try_emplace(id);
-            RenderableSnapshot& renderable = it->second;
-
-            bool transformDirty = true;
-            bool materialDirty  = true;
-            bool meshDirty      = true;
-            if (world.hasComponent<RenderDirtyComponent>(e))
+            else if (entryMetadata[index].isStatic != isStatic)
             {
-                auto& dirty = world.getComponent<RenderDirtyComponent>(e);
-                transformDirty = dirty.transformDirty;
-                materialDirty  = dirty.materialDirty;
-                meshDirty      = dirty.meshDirty;
-
-                if (!inserted && !transformDirty && !materialDirty && !meshDirty)
+                if (entryMetadata[index].isStatic)
                 {
-                    renderable.visible = true;
-                    reusedCount += 1;
+                    if (staticRenderableCount > 0)
+                        staticRenderableCount -= 1;
+                    dynamicRenderableCount += 1;
                 }
                 else
                 {
-                    dirtyUpdatedCount += 1;
-                    if (isStatic) staticUpdatedCount  += 1;
-                    else          dynamicUpdatedCount += 1;
+                    if (dynamicRenderableCount > 0)
+                        dynamicRenderableCount -= 1;
+                    staticRenderableCount += 1;
                 }
-
-                dirty.transformDirty = false;
-                dirty.materialDirty  = false;
-                dirty.meshDirty      = false;
+                entryMetadata[index].isStatic = isStatic;
             }
-            else
+
+            if (anyDirty)
             {
+                m_snapshotDirty = true;
                 dirtyUpdatedCount += 1;
                 if (isStatic) staticUpdatedCount  += 1;
                 else          dynamicUpdatedCount += 1;
             }
 
-            if (!inserted && !transformDirty && !materialDirty && !meshDirty)
+            RenderableSnapshot& renderable = snapshot.renderables[index];
+            if (!inserted && !anyDirty)
                 return;
 
             renderable.id             = id;
@@ -162,55 +166,19 @@ public:
 
             if (sortKeyNeedsUpdate)
                 renderable.sortKey = makeSortKey(renderable);
+
+            dirty.transformDirty = false;
+            dirty.materialDirty  = false;
+            dirty.meshDirty      = false;
         });
-
-        // Prune stale entries from the static store
-        {
-            staticActiveIDSet.clear();
-            staticActiveIDSet.reserve(staticActiveIDs.size());
-            for (RenderableID id : staticActiveIDs)
-                staticActiveIDSet.insert(id);
-
-            for (auto it = staticSnapshotMap.begin(); it != staticSnapshotMap.end(); )
-            {
-                if (staticActiveIDSet.find(it->first) == staticActiveIDSet.end())
-                    it = staticSnapshotMap.erase(it);
-                else
-                    ++it;
-            }
-        }
-
-        // Prune stale entries from the dynamic store
-        {
-            dynamicActiveIDSet.clear();
-            dynamicActiveIDSet.reserve(dynamicActiveIDs.size());
-            for (RenderableID id : dynamicActiveIDs)
-                dynamicActiveIDSet.insert(id);
-
-            for (auto it = dynamicSnapshotMap.begin(); it != dynamicSnapshotMap.end(); )
-            {
-                if (dynamicActiveIDSet.find(it->first) == dynamicActiveIDSet.end())
-                    it = dynamicSnapshotMap.erase(it);
-                else
-                    ++it;
-            }
-        }
-
-        // Rebuild output: static renderables first, then dynamic
-        snapshot.renderables.clear();
-        snapshot.renderables.reserve(staticSnapshotMap.size() + dynamicSnapshotMap.size());
-        for (RenderableID id : staticActiveIDs)
-            snapshot.renderables.push_back(staticSnapshotMap.at(id));
-        for (RenderableID id : dynamicActiveIDs)
-            snapshot.renderables.push_back(dynamicSnapshotMap.at(id));
 
         const auto end = std::chrono::steady_clock::now();
         lastMetrics.buildCpuMs             = std::chrono::duration<float, std::milli>(end - start).count();
         lastMetrics.renderableCount        = static_cast<uint32_t>(snapshot.renderables.size());
         lastMetrics.dirtyUpdatedCount      = dirtyUpdatedCount;
         lastMetrics.reusedCount            = reusedCount;
-        lastMetrics.staticRenderableCount  = static_cast<uint32_t>(staticSnapshotMap.size());
-        lastMetrics.dynamicRenderableCount = static_cast<uint32_t>(dynamicSnapshotMap.size());
+        lastMetrics.staticRenderableCount  = staticRenderableCount;
+        lastMetrics.dynamicRenderableCount = dynamicRenderableCount;
         lastMetrics.staticUpdatedCount     = staticUpdatedCount;
         lastMetrics.dynamicUpdatedCount    = dynamicUpdatedCount;
         return snapshot;
@@ -226,17 +194,173 @@ public:
         return snapshot;
     }
 
+    bool isSnapshotDirty() const
+    {
+        return m_snapshotDirty;
+    }
+
+    static void notifyRenderableRemoved(ECSWorld& world, Entity entity, const RenderGpuComponent& renderGpu)
+    {
+        auto& builders = builderRegistry();
+        auto it = builders.find(&world);
+        if (it == builders.end() || it->second == nullptr)
+            return;
+
+        it->second->removeRenderable(entity, renderGpu.objectSSBOSlot);
+    }
+
 private:
+    struct SnapshotEntryMetadata
+    {
+        RenderableID id = 0;
+        bool         isStatic = false;
+    };
+
+    static constexpr uint32_t InvalidIndex = std::numeric_limits<uint32_t>::max();
+
     RenderExtractionSnapshot snapshot;
     Metrics                  lastMetrics;
+    // Persistent dense snapshot storage.
+    // Indexing contract:
+    //   - snapshot.renderables[i], snapshot.occupiedSlots[i], and entryMetadata[i]
+    //     describe the same live renderable.
+    //   - slotToIndex provides O(1) lookup from SSBO slot to dense index.
+    //   - entityToIndex mirrors that lookup for removal safety during teardown.
+    // Incremental update contract:
+    //   - build() only rewrites entries for renderables whose RenderDirtyComponent
+    //     flags are set or that do not yet exist in the persistent vectors.
+    //   - removals are authoritative via the RenderGpuComponent removal callback,
+    //     which swap-removes the dense entry and marks m_snapshotDirty.
+    //   - m_snapshotDirty is raised on add/remove/update so downstream stages can
+    //     skip command regeneration when the extraction snapshot is unchanged.
+    std::vector<SnapshotEntryMetadata>   entryMetadata;
+    std::vector<uint32_t>                slotToIndex;
+    std::unordered_map<RenderableID, uint32_t> entityToIndex;
+    ECSWorld*                            registeredWorld = nullptr;
+    uint32_t                             staticRenderableCount = 0;
+    uint32_t                             dynamicRenderableCount = 0;
+    bool                                 m_pendingSnapshotDirty = true;
+    bool                                 m_snapshotDirty = true;
 
-    std::unordered_map<RenderableID, RenderableSnapshot> staticSnapshotMap;
-    std::unordered_map<RenderableID, RenderableSnapshot> dynamicSnapshotMap;
+    static std::unordered_map<ECSWorld*, RenderExtractionSnapshotBuilder*>& builderRegistry()
+    {
+        static std::unordered_map<ECSWorld*, RenderExtractionSnapshotBuilder*> registry;
+        return registry;
+    }
 
-    std::vector<RenderableID>        staticActiveIDs;
-    std::vector<RenderableID>        dynamicActiveIDs;
-    std::unordered_set<RenderableID> staticActiveIDSet;
-    std::unordered_set<RenderableID> dynamicActiveIDSet;
+    void registerWithWorld(ECSWorld& world)
+    {
+        if (registeredWorld == &world)
+            return;
+
+        unregisterFromWorld();
+        resetPersistentState();
+        builderRegistry()[&world] = this;
+        registeredWorld = &world;
+        m_pendingSnapshotDirty = true;
+        m_snapshotDirty = true;
+    }
+
+    void unregisterFromWorld()
+    {
+        if (registeredWorld == nullptr)
+            return;
+
+        auto& registry = builderRegistry();
+        auto it = registry.find(registeredWorld);
+        if (it != registry.end() && it->second == this)
+            registry.erase(it);
+        registeredWorld = nullptr;
+    }
+
+    void resetPersistentState()
+    {
+        snapshot.renderables.clear();
+        snapshot.occupiedSlots.clear();
+        snapshot.objectUploads.clear();
+        entryMetadata.clear();
+        entityToIndex.clear();
+        std::fill(slotToIndex.begin(), slotToIndex.end(), InvalidIndex);
+        staticRenderableCount = 0;
+        dynamicRenderableCount = 0;
+        m_pendingSnapshotDirty = true;
+    }
+
+    uint32_t appendRenderable(RenderableID id, Entity entity, ssbo_id_type slot, bool isStatic)
+    {
+        const uint32_t index = static_cast<uint32_t>(snapshot.renderables.size());
+        snapshot.renderables.emplace_back();
+        snapshot.occupiedSlots.push_back(slot);
+        entryMetadata.push_back(SnapshotEntryMetadata{id, isStatic});
+        entityToIndex[id] = index;
+        slotToIndex[slot] = index;
+
+        if (isStatic)
+            staticRenderableCount += 1;
+        else
+            dynamicRenderableCount += 1;
+
+        auto& renderable = snapshot.renderables.back();
+        renderable.id = id;
+        renderable.entity = entity;
+        renderable.objectSSBOSlot = slot;
+        renderable.visible = true;
+        return index;
+    }
+
+    void removeRenderable(Entity entity, ssbo_id_type slot)
+    {
+        if (snapshot.renderables.empty())
+            return;
+
+        uint32_t index = InvalidIndex;
+        if (slot != RENDERABLE_SLOT_UNALLOCATED && slot < slotToIndex.size())
+            index = slotToIndex[slot];
+
+        if (index == InvalidIndex)
+        {
+            auto it = entityToIndex.find(entity.id);
+            if (it == entityToIndex.end())
+                return;
+            index = it->second;
+        }
+
+        const uint32_t lastIndex = static_cast<uint32_t>(snapshot.renderables.size() - 1);
+        const SnapshotEntryMetadata removedMeta = entryMetadata[index];
+        const ssbo_id_type removedSlot = snapshot.occupiedSlots[index];
+
+        if (removedMeta.isStatic)
+        {
+            if (staticRenderableCount > 0)
+                staticRenderableCount -= 1;
+        }
+        else if (dynamicRenderableCount > 0)
+        {
+            dynamicRenderableCount -= 1;
+        }
+
+        if (index != lastIndex)
+        {
+            snapshot.renderables[index] = std::move(snapshot.renderables.back());
+            snapshot.occupiedSlots[index] = snapshot.occupiedSlots.back();
+            entryMetadata[index] = entryMetadata.back();
+
+            const RenderableID movedID = entryMetadata[index].id;
+            const ssbo_id_type movedSlot = snapshot.occupiedSlots[index];
+            entityToIndex[movedID] = index;
+            slotToIndex[movedSlot] = index;
+        }
+
+        snapshot.renderables.pop_back();
+        snapshot.occupiedSlots.pop_back();
+        entryMetadata.pop_back();
+        entityToIndex.erase(removedMeta.id);
+        if (removedSlot != RENDERABLE_SLOT_UNALLOCATED && removedSlot < slotToIndex.size())
+            slotToIndex[removedSlot] = InvalidIndex;
+
+        m_pendingSnapshotDirty = true;
+        m_snapshotDirty = true;
+    }
 
     static AABB transformBounds(const BoundsComponent& bounds, const glm::mat4& modelMatrix)
     {

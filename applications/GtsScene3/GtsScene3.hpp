@@ -24,6 +24,7 @@
 #include "MaterialComponent.h"
 #include "MeshGpuComponent.h"
 #include "RenderBindingLifecycle.h"
+#include "RenderExtractionSnapshotBuilder.hpp"
 #include "RenderGpuComponent.h"
 #include "RenderGpuSystem.hpp"
 #include "StaticMeshBindingSystem.hpp"
@@ -121,8 +122,10 @@ inline void GtsScene3::installStressRendererFeature(const EcsControllerContext& 
             cameraGpu.viewID = 0;
         });
     ecsWorld.registerRemoveCallback<RenderGpuComponent>(
-        [resources](ECSWorld&, Entity, RenderGpuComponent& renderGpu)
+        [resources](ECSWorld& world, Entity entity, RenderGpuComponent& renderGpu)
         {
+            RenderExtractionSnapshotBuilder::notifyRenderableRemoved(world, entity, renderGpu);
+
             if (renderGpu.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED || resources == nullptr)
                 return;
 
