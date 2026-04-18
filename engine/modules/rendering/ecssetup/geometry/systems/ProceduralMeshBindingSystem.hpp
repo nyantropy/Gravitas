@@ -8,7 +8,7 @@
 #include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
 #include "Vertex.h"
-#include "RenderBindingLifecycle.h"
+#include "GeometryBindingLifecycle.h"
 
 // Explicit lifecycle pass that allocates and updates GPU resources for entities
 // carrying a ProceduralMeshComponent + MaterialComponent.

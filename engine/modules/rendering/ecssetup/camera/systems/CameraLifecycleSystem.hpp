@@ -2,8 +2,8 @@
 
 #include "CameraDescriptionComponent.h"
 #include "CameraGpuComponent.h"
+#include "CameraBindingLifecycle.h"
 #include "ECSControllerSystem.hpp"
-#include "RenderBindingLifecycle.h"
 
 // Controller system that owns the descriptor -> GPU companion lifecycle for cameras.
 // It only processes queued camera entities and performs structural mutation through
@@ -24,6 +24,16 @@ public:
         for (entity_id_type entityId : pendingCleanup)
         {
             Entity entity{ entityId };
+            const bool refreshQueued = pendingRefresh.contains(entityId);
+            const bool hasDescriptor = ctx.world.hasComponent<CameraDescriptionComponent>(entity);
+
+            // Descriptor churn can queue cleanup + refresh in the same frame.
+            // Keep the existing GPU companion alive when the descriptor still
+            // exists so we do not create a one-frame gap between removal and
+            // re-creation after deferred commands flush.
+            if (refreshQueued && hasDescriptor)
+                continue;
+
             if (ctx.world.hasComponent<CameraGpuComponent>(entity))
                 commands.removeComponent<CameraGpuComponent>(entity);
         }

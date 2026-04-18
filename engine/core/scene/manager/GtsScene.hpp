@@ -13,10 +13,12 @@
 #include "CameraGpuComponent.h"
 #include "CameraDescriptionComponent.h"
 #include "ActiveCameraViewSystem.hpp"
+#include "RenderableCleanupSystem.hpp"
 #include "StaticMeshBindingSystem.hpp"
 #include "ProceduralMeshBindingSystem.hpp"
 #include "WorldTextBindingSystem.hpp"
-#include "RenderBindingLifecycle.h"
+#include "GeometryBindingLifecycle.h"
+#include "CameraBindingLifecycle.h"
 #include "CameraBindingSystem.hpp"
 #include "MeshGpuComponent.h"
 #include "RenderGpuComponent.h"
@@ -40,7 +42,8 @@ class GtsScene
 
         void resetSceneWorld()
         {
-            gts::rendering::resetBindingLifecycleState(ecsWorld);
+            gts::rendering::resetGeometryBindingLifecycleState(ecsWorld);
+            gts::rendering::resetCameraBindingLifecycleState(ecsWorld);
             ecsWorld.clear();
             physicsWorld.reset();
             rendererFeatureInstalled = false;
@@ -147,7 +150,7 @@ class GtsScene
             ecsWorld.registerRemoveCallback<StaticMeshComponent>(
                 [](ECSWorld& world, Entity entity, StaticMeshComponent&)
                 {
-                    gts::rendering::queueCleanup(world, entity);
+                    gts::rendering::queueRenderableCleanup(world, entity);
                 });
             ecsWorld.registerAddCallback<ProceduralMeshComponent>(
                 [](ECSWorld& world, Entity entity, ProceduralMeshComponent&)
@@ -157,7 +160,7 @@ class GtsScene
             ecsWorld.registerRemoveCallback<ProceduralMeshComponent>(
                 [](ECSWorld& world, Entity entity, ProceduralMeshComponent&)
                 {
-                    gts::rendering::queueCleanup(world, entity);
+                    gts::rendering::queueRenderableCleanup(world, entity);
                 });
             ecsWorld.registerAddCallback<MaterialComponent>(
                 [](ECSWorld& world, Entity entity, MaterialComponent&)
@@ -168,7 +171,7 @@ class GtsScene
             ecsWorld.registerRemoveCallback<MaterialComponent>(
                 [](ECSWorld& world, Entity entity, MaterialComponent&)
                 {
-                    gts::rendering::queueCleanup(world, entity);
+                    gts::rendering::queueRenderableCleanup(world, entity);
                 });
             ecsWorld.registerAddCallback<WorldTextComponent>(
                 [](ECSWorld& world, Entity entity, WorldTextComponent&)
@@ -178,7 +181,7 @@ class GtsScene
             ecsWorld.registerRemoveCallback<WorldTextComponent>(
                 [](ECSWorld& world, Entity entity, WorldTextComponent&)
                 {
-                    gts::rendering::queueCleanup(world, entity);
+                    gts::rendering::queueRenderableCleanup(world, entity);
                 });
             ecsWorld.registerAddCallback<CameraDescriptionComponent>(
                 [](ECSWorld& world, Entity entity, CameraDescriptionComponent&)
@@ -196,13 +199,14 @@ class GtsScene
             ecsWorld.addControllerSystem<StaticMeshBindingSystem>();
             ecsWorld.addControllerSystem<ProceduralMeshBindingSystem>();
             ecsWorld.addControllerSystem<WorldTextBindingSystem>();
+            ecsWorld.addControllerSystem<RenderableCleanupSystem>();
             ecsWorld.addControllerSystem<RenderGpuSystem>();
             ecsWorld.addControllerSystem<CameraLifecycleSystem>();
+            ecsWorld.addControllerSystem<DefaultCameraControlSystem>();
             ecsWorld.addControllerSystem<CameraGpuSystem>();
             ecsWorld.addControllerSystem<DebugFreeCameraSystem>();
             ecsWorld.addControllerSystem<CameraBindingSystem>();
             ecsWorld.addControllerSystem<ActiveCameraViewSystem>();
-            ecsWorld.addControllerSystem<DefaultCameraControlSystem>();
             ecsWorld.forEachSnapshot<StaticMeshComponent, MaterialComponent>(
                 [this](Entity entity, StaticMeshComponent&, MaterialComponent&)
                 {

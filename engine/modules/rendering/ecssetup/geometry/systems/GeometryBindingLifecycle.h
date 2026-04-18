@@ -1,9 +1,10 @@
 #pragma once
 
+#include <unordered_map>
+#include <unordered_set>
+
 #include "ECSWorld.hpp"
 #include "IResourceProvider.hpp"
-#include "CameraDescriptionComponent.h"
-#include "CameraGpuComponent.h"
 #include "MaterialComponent.h"
 #include "MaterialGpuComponent.h"
 #include "MeshGpuComponent.h"
@@ -14,39 +15,35 @@
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
 #include "WorldTextComponent.h"
-#include <unordered_map>
-#include <unordered_set>
 
 namespace gts::rendering
 {
-    struct BindingLifecycleState
+    struct GeometryBindingLifecycleState
     {
         std::unordered_set<entity_id_type> staticMeshRefreshEntities;
         std::unordered_set<entity_id_type> proceduralRefreshEntities;
         std::unordered_set<entity_id_type> cleanupEntities;
-        std::unordered_set<entity_id_type> cameraRefreshEntities;
-        std::unordered_set<entity_id_type> cameraCleanupEntities;
     };
 
-    inline auto& bindingLifecycleRegistry()
+    inline auto& geometryBindingLifecycleRegistry()
     {
-        static std::unordered_map<ECSWorld*, BindingLifecycleState> registry;
+        static std::unordered_map<ECSWorld*, GeometryBindingLifecycleState> registry;
         return registry;
     }
 
-    inline BindingLifecycleState& bindingLifecycleState(ECSWorld& world)
+    inline GeometryBindingLifecycleState& geometryBindingLifecycleState(ECSWorld& world)
     {
-        return bindingLifecycleRegistry()[&world];
+        return geometryBindingLifecycleRegistry()[&world];
     }
 
-    inline void resetBindingLifecycleState(ECSWorld& world)
+    inline void resetGeometryBindingLifecycleState(ECSWorld& world)
     {
-        bindingLifecycleRegistry().erase(&world);
+        geometryBindingLifecycleRegistry().erase(&world);
     }
 
     inline std::unordered_set<entity_id_type> takeStaticMeshRefreshes(ECSWorld& world)
     {
-        auto& state = bindingLifecycleState(world);
+        auto& state = geometryBindingLifecycleState(world);
         std::unordered_set<entity_id_type> pending;
         pending.swap(state.staticMeshRefreshEntities);
         return pending;
@@ -54,59 +51,33 @@ namespace gts::rendering
 
     inline std::unordered_set<entity_id_type> takeProceduralRefreshes(ECSWorld& world)
     {
-        auto& state = bindingLifecycleState(world);
+        auto& state = geometryBindingLifecycleState(world);
         std::unordered_set<entity_id_type> pending;
         pending.swap(state.proceduralRefreshEntities);
         return pending;
     }
 
-    inline std::unordered_set<entity_id_type> takeCleanupEntities(ECSWorld& world)
+    inline std::unordered_set<entity_id_type> takeRenderableCleanupEntities(ECSWorld& world)
     {
-        auto& state = bindingLifecycleState(world);
+        auto& state = geometryBindingLifecycleState(world);
         std::unordered_set<entity_id_type> pending;
         pending.swap(state.cleanupEntities);
         return pending;
     }
 
-    inline std::unordered_set<entity_id_type> takeCameraRefreshes(ECSWorld& world)
-    {
-        auto& state = bindingLifecycleState(world);
-        std::unordered_set<entity_id_type> pending;
-        pending.swap(state.cameraRefreshEntities);
-        return pending;
-    }
-
-    inline std::unordered_set<entity_id_type> takeCameraCleanupEntities(ECSWorld& world)
-    {
-        auto& state = bindingLifecycleState(world);
-        std::unordered_set<entity_id_type> pending;
-        pending.swap(state.cameraCleanupEntities);
-        return pending;
-    }
-
     inline void queueStaticMeshRefresh(ECSWorld& world, Entity entity)
     {
-        bindingLifecycleState(world).staticMeshRefreshEntities.insert(entity.id);
+        geometryBindingLifecycleState(world).staticMeshRefreshEntities.insert(entity.id);
     }
 
     inline void queueProceduralRefresh(ECSWorld& world, Entity entity)
     {
-        bindingLifecycleState(world).proceduralRefreshEntities.insert(entity.id);
+        geometryBindingLifecycleState(world).proceduralRefreshEntities.insert(entity.id);
     }
 
-    inline void queueCleanup(ECSWorld& world, Entity entity)
+    inline void queueRenderableCleanup(ECSWorld& world, Entity entity)
     {
-        bindingLifecycleState(world).cleanupEntities.insert(entity.id);
-    }
-
-    inline void queueCameraRefresh(ECSWorld& world, Entity entity)
-    {
-        bindingLifecycleState(world).cameraRefreshEntities.insert(entity.id);
-    }
-
-    inline void queueCameraCleanup(ECSWorld& world, Entity entity)
-    {
-        bindingLifecycleState(world).cameraCleanupEntities.insert(entity.id);
+        geometryBindingLifecycleState(world).cleanupEntities.insert(entity.id);
     }
 
     inline void markRenderableDirty(RenderDirtyComponent& dirty, RenderGpuComponent& renderGpu)
@@ -129,21 +100,6 @@ namespace gts::rendering
             commands.removeComponent<RenderDirtyComponent>(entity);
         if (world.hasComponent<RenderGpuComponent>(entity))
             commands.removeComponent<RenderGpuComponent>(entity);
-    }
-
-    inline void cleanupRenderableBinding(ECSWorld& world,
-                                         Entity entity,
-                                         IResourceProvider*)
-    {
-        if (world.hasComponent<MeshGpuComponent>(entity))
-            world.removeComponent<MeshGpuComponent>(entity);
-
-        if (world.hasComponent<MaterialGpuComponent>(entity))
-            world.removeComponent<MaterialGpuComponent>(entity);
-        if (world.hasComponent<RenderDirtyComponent>(entity))
-            world.removeComponent<RenderDirtyComponent>(entity);
-        if (world.hasComponent<RenderGpuComponent>(entity))
-            world.removeComponent<RenderGpuComponent>(entity);
     }
 
     inline bool hasRenderableDescriptor(ECSWorld& world, Entity entity)
@@ -226,7 +182,7 @@ namespace gts::rendering
             || matGpu.alpha != mat.alpha
             || matGpu.doubleSided != mat.doubleSided)
         {
-            dirty.materialDirty = true;
+            dirty.materialDirty   = true;
             renderGpu.commandDirty = true;
         }
 

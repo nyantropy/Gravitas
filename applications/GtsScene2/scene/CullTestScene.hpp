@@ -158,7 +158,8 @@ public:
         });
         ctx.ui->setTextFont(overlayHandle, &overlayFont);
 
-        // FreeFlyCamera must run before CameraBindingSystem (installed by installRendererFeature)
+        // FreeFlyCamera must run before the shared camera pipeline so its
+        // transform/description updates feed the same-frame matrix upload.
         ecsWorld.addControllerSystem<FreeFlyCamera>();
         installRendererFeature(ctx);
     }

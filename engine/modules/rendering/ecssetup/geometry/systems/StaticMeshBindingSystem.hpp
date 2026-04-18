@@ -7,7 +7,7 @@
 #include "MaterialGpuComponent.h"
 #include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
-#include "RenderBindingLifecycle.h"
+#include "GeometryBindingLifecycle.h"
 
 // Explicit lifecycle pass for static mesh renderables.
 // Reads StaticMeshComponent + MaterialComponent and is the only system permitted to call
@@ -23,22 +23,11 @@ class StaticMeshBindingSystem : public ECSControllerSystem
 public:
     void update(const EcsControllerContext& ctx) override
     {
-        auto pendingCleanup = gts::rendering::takeCleanupEntities(ctx.world);
         auto pendingStatic = gts::rendering::takeStaticMeshRefreshes(ctx.world);
-        if (pendingCleanup.empty() && pendingStatic.empty())
+        if (pendingStatic.empty())
             return;
 
         auto& commands = ctx.world.commands();
-
-        for (entity_id_type entityId : pendingCleanup)
-        {
-            Entity entity{entityId};
-            if (ctx.world.hasComponent<RenderGpuComponent>(entity)
-                && !gts::rendering::hasRenderableDescriptor(ctx.world, entity))
-            {
-                gts::rendering::scheduleRenderableCleanup(ctx.world, commands, entity);
-            }
-        }
 
         for (entity_id_type entityId : pendingStatic)
         {

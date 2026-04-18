@@ -10,7 +10,7 @@
 #include "GlyphLayoutEngine.h"
 #include "Vertex.h"
 #include "ECSWorld.hpp"
-#include "RenderBindingLifecycle.h"
+#include "GeometryBindingLifecycle.h"
 
 class WorldTextBindingSystem : public ECSControllerSystem
 {
