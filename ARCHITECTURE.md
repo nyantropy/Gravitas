@@ -9,6 +9,7 @@ Gravitas is a C++20 Vulkan game engine built around a two-tier ECS (Entity-Compo
 - Strict separation between CPU logic and GPU state
 - Modular subsystems assembled at scene construction time
 - Descriptor/GPU component split: application writes descriptors, engine manages GPU resources
+- Lifecycle work is explicit: descriptor changes queue intent, lifecycle systems perform structural mutation
 
 ---
 
@@ -29,7 +30,7 @@ Gravitas/
 │   │   ├── animation/      # Keyframe animation
 │   │   ├── physics/        # Physics world, PhysicsSystem, body components
 │   │   └── rendering/      # Vulkan backend, GPU components, binding systems
-│   │       ├── ecssetup/   # Camera and geometry GPU components + binding systems
+│   │       ├── ecssetup/   # Camera and geometry GPU components, lifecycle, cleanup, sync systems
 │   │       └── backend/    # Vulkan device, frame graph, render stages, resources
 │   ├── GravitasEngine.hpp  # Main engine class
 │   ├── GtsGameLoop.h       # Fixed-timestep accumulator
@@ -112,9 +113,10 @@ update(const EcsControllerContext& ctx)
 ├────────────────────────────────────────────────────────┤
 │  Per-Frame Controller Pass                             │
 │  ECSControllerSystem::update(ctx)                      │
-│    └─ Binding systems (descriptor/GPU lifecycle)       │
-│    └─ RenderGpuSystem (sync transforms)                │
-│    └─ CameraGpuSystem (compute view/proj matrices)     │
+│    └─ Lifecycle systems (descriptor → GPU companions)  │
+│    └─ Cleanup systems (GPU companion teardown)         │
+│    └─ RenderGpuSystem (sync world matrices)            │
+│    └─ Camera control / CameraGpuSystem / upload        │
 │    └─ [user systems] (input handling, gameplay logic)  │
 ├────────────────────────────────────────────────────────┤
 │  Data Extraction                                       │
@@ -178,6 +180,11 @@ RenderCommandExtractor reads both         ← emits RenderCommand
 
 GPU resource release still happens through component removal callbacks, but descriptor add/remove no longer performs recursive ECS mutation. Binding/cleanup decisions are queued and executed by explicit lifecycle systems.
 
+The render lifecycle is now split by concern:
+- **Geometry lifecycle** queues and resolves static mesh / procedural mesh companion state
+- **Renderable cleanup** tears down geometry GPU companions regardless of descriptor source
+- **Camera lifecycle** owns `CameraGpuComponent` creation/removal independently of geometry lifecycle
+
 For cameras, application code should only author `CameraDescriptionComponent` plus transform/control descriptors. The engine-owned camera lifecycle creates/removes `CameraGpuComponent`, and engine consumers that need final matrices outside the renderer should read the read-only `ActiveCameraViewStateComponent` singleton instead of touching GPU companion components directly.
 
 ### Descriptor Components (application-facing)
@@ -196,15 +203,32 @@ For cameras, application code should only author `CameraDescriptionComponent` pl
 | Component | Managed By |
 |-----------|-----------|
 | `MeshGpuComponent` | `StaticMeshBindingSystem` |
-| `MaterialGpuComponent` | geometry binding lifecycle systems |
-| `RenderGpuComponent` | geometry binding lifecycle systems + `RenderGpuSystem` |
-| `CameraGpuComponent` | `CameraGpuSystem` + `CameraBindingSystem` |
+| `MaterialGpuComponent` | geometry lifecycle systems |
+| `RenderGpuComponent` | geometry lifecycle systems + `RenderableCleanupSystem` + `RenderGpuSystem` |
+| `CameraGpuComponent` | `CameraLifecycleSystem` + `CameraGpuSystem` + `CameraBindingSystem` |
 
 ### Engine-Exported Frame State
 
 | Component | Purpose |
 |-----------|---------|
 | `ActiveCameraViewStateComponent` | Read-only current camera view/projection snapshot for non-renderer consumers such as UI projection |
+
+### Controller Order Contract
+
+The shared renderer feature installs controller systems in this order:
+
+1. Geometry binding systems
+2. `RenderableCleanupSystem`
+3. `RenderGpuSystem`
+4. `CameraLifecycleSystem`
+5. camera control systems
+6. `CameraGpuSystem`
+7. camera upload / active-camera export systems
+
+This order is intentional:
+- lifecycle runs before per-frame sync so newly created GPU companions participate immediately
+- camera control runs before `CameraGpuSystem` so same-frame transform/description changes feed matrix generation
+- upload/export runs after matrix generation so both rendering and UI see the current frame's active camera state
 
 ### RenderCommand
 
@@ -225,6 +249,16 @@ Sorted by (double-sided, meshID, textureID) to minimize state changes. Cached ac
 ### Frustum Culling
 
 `FrustumCuller` extracts 6 planes from the view-projection matrix (Gribb-Hartmann) and tests entity AABBs from `BoundsComponent`. Entities without bounds are always rendered. Culling can be frozen (debug feature) to inspect which objects are culled while the camera moves.
+
+### Transform Sync
+
+`RenderGpuSystem` owns world-matrix propagation into `RenderGpuComponent::modelMatrix`.
+
+- Root renderables take a flat fast path keyed by `objectSSBOSlot`
+- Hierarchical entities use a cached recursive path with cycle protection
+- `RenderDirtyComponent` is the bridge to extraction: `RenderGpuSystem` marks transform dirtiness, then `RenderExtractionSnapshotBuilder` consumes and clears those flags
+
+This split gives strong single-threaded performance for flat scenes such as large cube benchmarks without removing hierarchy support.
 
 ### Frame Graph
 
@@ -288,10 +322,11 @@ Assets are accessed through `IResourceProvider` (passed in `SceneContext`). Bind
 - **Shaders**: pre-compiled SPIR-V stored in `/shaders/`
 - **Engine assets**: minimal shared resources in `/resources/`
 
-GPU resource handles (mesh IDs, texture IDs, SSBO slots) are allocated by binding systems and stored in GPU components. The steady-state contract is:
-- binding systems do near-zero work when no descriptor lifecycle work is pending
+GPU resource handles (mesh IDs, texture IDs, SSBO slots, camera view IDs) are allocated by lifecycle/binding systems and stored in GPU components. The steady-state contract is:
+- lifecycle systems do near-zero work when no descriptor lifecycle work is pending
 - structural GPU companion-component changes are deferred through `world.commands()`
 - cleanup of backend resources still happens via removal callbacks on GPU components
+- application/game code does not create, remove, or read GPU companion components directly
 
 ---
 
@@ -324,6 +359,8 @@ Define a plain struct. Add it to entities with `world.addComponent<MyComp>(e, va
 
 Add a `CameraOverrideComponent` to replace the default camera behavior. Implement a controller system that writes custom view/projection matrices to `CameraGpuComponent`.
 
+Application code should still author only descriptor/control components. Direct writes to `CameraGpuComponent` are reserved for engine-owned override paths.
+
 ---
 
 ## 10. Key Design Principles
@@ -331,8 +368,10 @@ Add a `CameraOverrideComponent` to replace the default camera behavior. Implemen
 - **ECS-first**: all state is components, all behavior is systems — no monolithic managers
 - **Deterministic simulation**: simulation systems run at fixed timestep, isolated from frame timing
 - **CPU/GPU separation**: descriptor components are game-logic; GPU components are backend state; binding systems bridge them explicitly
+- **Descriptor-only app boundary**: applications and gameplay/UI code operate on descriptors or engine-exported frame state, not GPU companion components
 - **Lazy updates**: render commands and GPU state are cached and only rebuilt on change
 - **Data extraction over direct coupling**: the renderer never reads ECS directly; the extractor produces an immutable command list
 - **Explicit structural mutation**: hot-path queries stay non-structural; lifecycle mutation is deferred and flushed at controlled points
+- **Separation of lifecycle concerns**: geometry lifecycle, camera lifecycle, cleanup, transform sync, and extraction are distinct stages with distinct ownership
 - **RAII resource management**: backend resources tied to GPU component lifecycle via removal callbacks
 - **Modular assembly**: scenes are built by adding systems and components — the engine imposes no mandatory scene structure
