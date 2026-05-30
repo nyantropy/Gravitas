@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <unordered_map>
 
 #include "UiNode.h"
@@ -35,6 +36,7 @@ public:
 
     const UiVisualList& getVisualList() const { return visualList; }
     UiDirtyFlags        getDirtyFlags() const { return dirtyFlags; }
+    uint64_t            getVisualRevision() const { return visualRevision; }
     size_t              getNodeCount() const { return nodes.size(); }
     UiHandle            hitTest(float x, float y) const;
 
@@ -50,6 +52,7 @@ private:
     UiHandle                             nextHandle  = 1;
     UiHandle                             rootHandle  = UI_INVALID_HANDLE;
     UiDirtyFlags                         dirtyFlags  = UiDirtyFlags::Structure | UiDirtyFlags::Layout | UiDirtyFlags::Visual;
+    uint64_t                             visualRevision = 1;
     std::unordered_map<UiHandle, UiNode> nodes;
     UiVisualList                         visualList;
     float                                viewportWidth  = 0.0f;

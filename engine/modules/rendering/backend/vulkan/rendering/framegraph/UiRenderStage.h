@@ -117,28 +117,43 @@ public:
     void record(VkCommandBuffer cmd, GtsFrameGraph& graph,
                 uint32_t imageIndex, uint32_t currentFrame) override
     {
-        UiCommandBuffer uiBuffer = graph.getData<UiCommandBuffer>();
+        const UiCommandBuffer& baseUiBuffer = graph.getData<UiCommandBuffer>();
+
+        if (frameStats)
+        {
+            frameStats->uiVertexCount = static_cast<uint32_t>(baseUiBuffer.vertices.size());
+            frameStats->uiIndexCount = static_cast<uint32_t>(baseUiBuffer.indices.size());
+            frameStats->uiRenderDrawCalls = static_cast<uint32_t>(baseUiBuffer.commands.size());
+            frameStats->uiUploadBytes = static_cast<uint32_t>(
+                baseUiBuffer.vertices.size() * sizeof(UiVertex)
+                + baseUiBuffer.indices.size() * sizeof(uint32_t));
+        }
 
         // Always update rolling stats so averages are warm when overlay is toggled on.
         if (frameStats)
             debugOverlay.update(*frameStats);
 
+        const UiCommandBuffer* uiBuffer = &baseUiBuffer;
         if (debugOverlay.isEnabled() && frameStats)
-            debugOverlay.appendToBuffer(uiBuffer, *frameStats);
+        {
+            overlayScratch = baseUiBuffer;
+            debugOverlay.appendToBuffer(overlayScratch, *frameStats);
+            uiBuffer = &overlayScratch;
+        }
 
-        if (uiBuffer.empty())
+        if (uiBuffer->empty())
             return;
 
         // Upload vertices and indices.
-        vertexBuffer.ensureCapacity(uiBuffer.vertices.size() * sizeof(UiVertex));
-        indexBuffer.ensureCapacity(uiBuffer.indices.size()   * sizeof(uint32_t));
+        vertexBuffer.ensureCapacity(uiBuffer->vertices.size() * sizeof(UiVertex));
+        indexBuffer.ensureCapacity(uiBuffer->indices.size()   * sizeof(uint32_t));
 
         std::memcpy(vertexBuffer.getMapped(),
-                    uiBuffer.vertices.data(),
-                    uiBuffer.vertices.size() * sizeof(UiVertex));
+                    uiBuffer->vertices.data(),
+                    uiBuffer->vertices.size() * sizeof(UiVertex));
         std::memcpy(indexBuffer.getMapped(),
-                    uiBuffer.indices.data(),
-                    uiBuffer.indices.size() * sizeof(uint32_t));
+                    uiBuffer->indices.data(),
+                    uiBuffer->indices.size() * sizeof(uint32_t));
 
         // Begin render pass.
         VkRenderPassBeginInfo rpInfo{};
@@ -179,8 +194,12 @@ public:
         VkBuffer ib = indexBuffer.getBuffer();
         vkCmdBindIndexBuffer(cmd, ib, 0, VK_INDEX_TYPE_UINT32);
 
-        // One draw call per UiDrawCommand.
-        for (const auto& drawCmd : uiBuffer.commands)
+        texture_id_type boundTextureID = 0;
+        float boundUseTexture = -1.0f;
+
+        // One draw call per UiDrawCommand. Adjacent commands are merged earlier
+        // by UiCommandBuffer, so this loop avoids redundant state updates.
+        for (const auto& drawCmd : uiBuffer->commands)
         {
             // Resolve texture — fall back for ColoredQuad (useTexture=0 in shader).
             texture_id_type resolvedID =
@@ -192,15 +211,23 @@ public:
             if (!tex) tex = resources->getTexture(fallbackTextureID);
             if (!tex) continue;
 
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    pipeline->getPipelineLayout(), 0, 1,
-                                    &tex->descriptorSets[currentFrame],
-                                    0, nullptr);
+            if (resolvedID != boundTextureID)
+            {
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        pipeline->getPipelineLayout(), 0, 1,
+                                        &tex->descriptorSets[currentFrame],
+                                        0, nullptr);
+                boundTextureID = resolvedID;
+            }
 
             float useTexture = (drawCmd.type == UiDrawType::TexturedQuad) ? 1.0f : 0.0f;
-            vkCmdPushConstants(cmd, pipeline->getPipelineLayout(),
-                               VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                               sizeof(glm::mat4), sizeof(float), &useTexture);
+            if (useTexture != boundUseTexture)
+            {
+                vkCmdPushConstants(cmd, pipeline->getPipelineLayout(),
+                                   VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                                   sizeof(glm::mat4), sizeof(float), &useTexture);
+                boundUseTexture = useTexture;
+            }
 
             vkCmdDrawIndexed(cmd, drawCmd.indexCount, 1, drawCmd.indexOffset, 0, 0);
         }
@@ -217,6 +244,7 @@ private:
     texture_id_type                       fallbackTextureID = 0;
     GtsFrameStats*                        frameStats        = nullptr;
     GtsDebugOverlay                       debugOverlay;
+    UiCommandBuffer                       overlayScratch;
     VkImageLayout                         colorInitialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     VkImageLayout                         colorFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 

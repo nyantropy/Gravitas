@@ -52,6 +52,7 @@ void UiDocument::clear()
     visualList.primitives.clear();
     nextHandle = 1;
     dirtyFlags = UiDirtyFlags::Structure | UiDirtyFlags::Layout | UiDirtyFlags::Visual;
+    ++visualRevision;
 
     rootHandle = allocHandle();
 
@@ -105,7 +106,7 @@ bool UiDocument::removeNode(UiHandle handle)
 
     detachFromParent(handle);
     removeNodeRecursive(handle);
-    dirtyFlags |= UiDirtyFlags::Structure | UiDirtyFlags::Layout | UiDirtyFlags::Visual;
+    markDirty(handle, UiDirtyFlags::Structure | UiDirtyFlags::Layout | UiDirtyFlags::Visual);
     return true;
 }
 
@@ -179,18 +180,24 @@ bool UiDocument::setPayload(UiHandle handle, const UiNodePayload& payload)
 
 void UiDocument::markDirty(UiHandle /*handle*/, UiDirtyFlags flags)
 {
+    if (hasFlag(flags, UiDirtyFlags::Structure)
+        || hasFlag(flags, UiDirtyFlags::Layout)
+        || hasFlag(flags, UiDirtyFlags::Visual))
+    {
+        ++visualRevision;
+    }
     dirtyFlags |= flags;
 }
 
 void UiDocument::markSubtreeDirty(UiHandle handle, UiDirtyFlags flags)
 {
     if (findNode(handle) == nullptr) return;
-    dirtyFlags |= flags;
+    markDirty(handle, flags);
 }
 
 void UiDocument::markAllDirty(UiDirtyFlags flags)
 {
-    dirtyFlags |= flags;
+    markDirty(rootHandle, flags);
 }
 
 void UiDocument::setViewportSize(float inViewportWidth, float inViewportHeight)
@@ -200,7 +207,7 @@ void UiDocument::setViewportSize(float inViewportWidth, float inViewportHeight)
 
     viewportWidth  = inViewportWidth;
     viewportHeight = inViewportHeight;
-    dirtyFlags |= UiDirtyFlags::Layout | UiDirtyFlags::Visual;
+    markDirty(rootHandle, UiDirtyFlags::Layout | UiDirtyFlags::Visual);
 }
 
 void UiDocument::updateLayout(float inViewportWidth, float inViewportHeight)

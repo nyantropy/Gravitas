@@ -21,6 +21,9 @@ public:
         uint32_t nodeCount       = 0;
         uint32_t primitiveCount  = 0;
         uint32_t commandCount    = 0;
+        uint32_t vertexCount     = 0;
+        uint32_t indexCount      = 0;
+        uint32_t commandCacheHit = 0;
     };
 
     explicit UiSystem(IResourceProvider* resources);
@@ -52,6 +55,7 @@ public:
     UiInteractionResult getLastInteraction() const;
 
     UiCommandBuffer extractCommands(int viewportWidth, int viewportHeight);
+    const UiCommandBuffer& extractCommandsRef(int viewportWidth, int viewportHeight);
 
 private:
     void removeTextBindingsRecursive(UiHandle handle);
@@ -65,6 +69,14 @@ private:
     UiDocument                                 document;
     UiRenderResolver                           resolver;
     std::unordered_map<UiHandle, BitmapFont*>  textBindings;
+    uint64_t                                   textBindingRevision = 1;
+    UiCommandBuffer                            commandCache;
+    UiCommandBuffer                            emptyCommandBuffer;
+    uint64_t                                   cachedDocumentRevision = 0;
+    uint64_t                                   cachedTextBindingRevision = 0;
+    int                                        cachedViewportWidth = 0;
+    int                                        cachedViewportHeight = 0;
+    bool                                       commandCacheValid = false;
     Metrics                                    lastMetrics;
     UiInteractionResult                        lastInteraction;
     UiHandle                                   activeHandle = UI_INVALID_HANDLE;

@@ -11,7 +11,8 @@
 class UiRenderResolver
 {
 public:
-    UiCommandBuffer buildCommandBuffer(
+    void buildCommandBuffer(
+        UiCommandBuffer& buffer,
         const UiVisualList& visualList,
         IResourceProvider* resources,
         const std::unordered_map<UiHandle, BitmapFont*>& textBindings,

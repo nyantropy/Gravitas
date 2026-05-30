@@ -65,6 +65,11 @@ struct ProfileAccumulator
         sum.uiNodeCount               += s.uiNodeCount;
         sum.uiPrimitiveCount          += s.uiPrimitiveCount;
         sum.uiCommandCount            += s.uiCommandCount;
+        sum.uiVertexCount             += s.uiVertexCount;
+        sum.uiIndexCount              += s.uiIndexCount;
+        sum.uiCommandCacheHit         += s.uiCommandCacheHit;
+        sum.uiRenderDrawCalls         += s.uiRenderDrawCalls;
+        sum.uiUploadBytes             += s.uiUploadBytes;
         sum.minimapCellCount          += s.minimapCellCount;
         sum.physicsCollisionCount     += s.physicsCollisionCount;
         sum.playerCollisionCount      += s.playerCollisionCount;
@@ -119,6 +124,11 @@ struct ProfileAccumulator
         max.uiNodeCount               = s.uiNodeCount;
         max.uiPrimitiveCount          = s.uiPrimitiveCount;
         max.uiCommandCount            = s.uiCommandCount;
+        max.uiVertexCount             = s.uiVertexCount;
+        max.uiIndexCount              = s.uiIndexCount;
+        max.uiCommandCacheHit         = s.uiCommandCacheHit;
+        max.uiRenderDrawCalls         = s.uiRenderDrawCalls;
+        max.uiUploadBytes             = s.uiUploadBytes;
         max.minimapCellCount          = s.minimapCellCount;
         max.backendPresentMode        = s.backendPresentMode;
         max.physicsCollisionCount     = s.physicsCollisionCount;

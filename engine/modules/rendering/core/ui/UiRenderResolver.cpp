@@ -38,14 +38,15 @@ namespace
     }
 }
 
-UiCommandBuffer UiRenderResolver::buildCommandBuffer(
+void UiRenderResolver::buildCommandBuffer(
+    UiCommandBuffer& buffer,
     const UiVisualList& visualList,
     IResourceProvider* resources,
     const std::unordered_map<UiHandle, BitmapFont*>& textBindings,
     int viewportWidth,
     int viewportHeight) const
 {
-    UiCommandBuffer buffer;
+    buffer.clear();
 
     for (const UiVisualPrimitive& primitive : visualList.primitives)
     {
@@ -95,6 +96,4 @@ UiCommandBuffer UiRenderResolver::buildCommandBuffer(
             }
         }, primitive);
     }
-
-    return buffer;
 }

@@ -363,6 +363,16 @@ private:
                  static_cast<int>(s.uiCommandCount));
         appendLine(buf, ln, OVERLAY_X, y); y += la;
 
+        snprintf(ln, sizeof(ln), "V/I %d/%d",
+                 static_cast<int>(s.uiVertexCount),
+                 static_cast<int>(s.uiIndexCount));
+        appendLine(buf, ln, OVERLAY_X, y); y += la;
+
+        snprintf(ln, sizeof(ln), "D/H %d/%d",
+                 static_cast<int>(s.uiRenderDrawCalls),
+                 static_cast<int>(s.uiCommandCacheHit));
+        appendLine(buf, ln, OVERLAY_X, y); y += la;
+
         snprintf(ln, sizeof(ln), "MMAP %d", static_cast<int>(s.minimapCellCount));
         appendLine(buf, ln, OVERLAY_X, y); y += la * 1.3f;
 

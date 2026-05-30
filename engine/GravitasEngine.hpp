@@ -109,11 +109,12 @@ class GravitasEngine
 
             const auto& renderList = renderPipeline->build(world);
 
-            UiCommandBuffer uiBuffer;
+            static const UiCommandBuffer emptyUiBuffer;
+            const UiCommandBuffer* uiBuffer = &emptyUiBuffer;
             if (uiEnabled)
             {
                 uiSystem->setEnabled(true);
-                uiBuffer = uiSystem->extractCommands(windowPixelWidth, windowPixelHeight);
+                uiBuffer = &uiSystem->extractCommandsRef(windowPixelWidth, windowPixelHeight);
             }
             else
             {
@@ -149,6 +150,9 @@ class GravitasEngine
             stats.uiNodeCount        = uiMetrics.nodeCount;
             stats.uiPrimitiveCount   = uiMetrics.primitiveCount;
             stats.uiCommandCount     = uiMetrics.commandCount;
+            stats.uiVertexCount      = uiMetrics.vertexCount;
+            stats.uiIndexCount       = uiMetrics.indexCount;
+            stats.uiCommandCacheHit  = uiMetrics.commandCacheHit;
 
             stats.totalObjects       = extractorMetrics.totalRenderables;
             stats.visibleObjects     = extractorMetrics.visibleRenderables;
@@ -163,7 +167,7 @@ class GravitasEngine
                 renderList,
                 renderPipeline->getLatestSnapshot().objectUploads,
                 particleData,
-                uiBuffer,
+                *uiBuffer,
                 stats);
             const auto submitEnd = std::chrono::steady_clock::now();
             stats.renderSubmitCpuMs =

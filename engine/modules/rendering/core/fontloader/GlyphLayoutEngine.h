@@ -89,11 +89,9 @@ namespace GlyphLayoutEngine
                              float x, float y, float scale,
                              glm::vec4 color = {1.0f, 1.0f, 1.0f, 1.0f})
     {
-        std::vector<UiVertex>   verts;
-        std::vector<uint32_t>   indices;
-
         float cursorX = x;
         float cursorY = y;
+        const uint32_t indexStart = static_cast<uint32_t>(buffer.indices.size());
 
         for (char ch : text)
         {
@@ -120,25 +118,28 @@ namespace GlyphLayoutEngine
                 float x1 = x0 + g.size.x * scale;
                 float y1 = y0 + g.size.y * scale;
 
-                auto base = static_cast<uint32_t>(verts.size());
+                auto base = static_cast<uint32_t>(buffer.vertices.size());
 
-                verts.push_back({{x0, y0}, {g.uvMin.x, g.uvMin.y}, color}); // TL
-                verts.push_back({{x1, y0}, {g.uvMax.x, g.uvMin.y}, color}); // TR
-                verts.push_back({{x0, y1}, {g.uvMin.x, g.uvMax.y}, color}); // BL
-                verts.push_back({{x1, y1}, {g.uvMax.x, g.uvMax.y}, color}); // BR
+                buffer.vertices.push_back({{x0, y0}, {g.uvMin.x, g.uvMin.y}, color}); // TL
+                buffer.vertices.push_back({{x1, y0}, {g.uvMax.x, g.uvMin.y}, color}); // TR
+                buffer.vertices.push_back({{x0, y1}, {g.uvMin.x, g.uvMax.y}, color}); // BL
+                buffer.vertices.push_back({{x1, y1}, {g.uvMax.x, g.uvMax.y}, color}); // BR
 
                 // Two CCW triangles (TL→BL→TR, TR→BL→BR) — cull mode NONE.
-                indices.push_back(base + 0);
-                indices.push_back(base + 2);
-                indices.push_back(base + 1);
-                indices.push_back(base + 1);
-                indices.push_back(base + 2);
-                indices.push_back(base + 3);
+                buffer.indices.push_back(base + 0);
+                buffer.indices.push_back(base + 2);
+                buffer.indices.push_back(base + 1);
+                buffer.indices.push_back(base + 1);
+                buffer.indices.push_back(base + 2);
+                buffer.indices.push_back(base + 3);
             }
 
             cursorX += g.advance * scale;
         }
 
-        buffer.addGlyphBatch(verts, indices, font.atlasTexture);
+        buffer.addDrawCommand(UiDrawType::TexturedQuad,
+                              font.atlasTexture,
+                              indexStart,
+                              static_cast<uint32_t>(buffer.indices.size()) - indexStart);
     }
 }

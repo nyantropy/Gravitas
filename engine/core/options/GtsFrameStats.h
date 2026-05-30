@@ -49,6 +49,11 @@ struct GtsFrameStats
     uint32_t uiNodeCount            = 0;
     uint32_t uiPrimitiveCount       = 0;
     uint32_t uiCommandCount         = 0;
+    uint32_t uiVertexCount          = 0;
+    uint32_t uiIndexCount           = 0;
+    uint32_t uiCommandCacheHit      = 0;
+    uint32_t uiRenderDrawCalls      = 0;
+    uint32_t uiUploadBytes          = 0;
     uint32_t minimapCellCount       = 0;
     uint32_t backendPresentMode     = 0;
     uint32_t physicsCollisionCount  = 0;

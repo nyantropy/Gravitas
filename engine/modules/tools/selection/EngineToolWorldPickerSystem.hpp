@@ -27,6 +27,7 @@ namespace gts::tools
             if (!state.visible)
             {
                 state.hoveredEntity = invalidToolEntity();
+                cacheValid = false;
                 return;
             }
 
@@ -34,6 +35,7 @@ namespace gts::tools
                 || !ctx.world.hasAny<ActiveCameraViewStateComponent>())
             {
                 state.hoveredEntity = invalidToolEntity();
+                cacheValid = false;
                 return;
             }
 
@@ -42,6 +44,7 @@ namespace gts::tools
             if (capture.pointerOverToolUi || capture.toolUiPressed || capture.worldConsumed)
             {
                 state.hoveredEntity = invalidToolEntity();
+                cacheValid = false;
                 return;
             }
 
@@ -50,18 +53,46 @@ namespace gts::tools
             if (!camera.valid)
             {
                 state.hoveredEntity = invalidToolEntity();
+                cacheValid = false;
                 return;
             }
 
-            const std::optional<EngineToolPickRay> ray = buildToolPickRay(camera, capture.pointerX, capture.pointerY);
+            const bool pointerChanged =
+                !cacheValid
+                || capture.pointerX != cachedPointerX
+                || capture.pointerY != cachedPointerY;
+            const bool cameraChanged =
+                !cacheValid
+                || !sameMatrix(camera.viewProjMatrix, cachedViewProjMatrix);
+            const bool shouldPick = pointerChanged || cameraChanged || capture.primaryPressed;
+
+            if (!shouldPick)
+            {
+                if (cachedEntityStillPickable(ctx.world, cachedHoveredEntity))
+                {
+                    state.hoveredEntity = cachedHoveredEntity;
+                    return;
+                }
+
+                cacheValid = false;
+            }
+
+            const std::optional<EngineToolPickRay> ray =
+                buildToolPickRay(camera, capture.pointerX, capture.pointerY);
             if (!ray)
             {
                 state.hoveredEntity = invalidToolEntity();
+                cacheValid = false;
                 return;
             }
 
             const PickResult pick = pickEntity(ctx.world, *ray);
             state.hoveredEntity = pick.entity;
+            cachedHoveredEntity = pick.entity;
+            cachedPointerX = capture.pointerX;
+            cachedPointerY = capture.pointerY;
+            cachedViewProjMatrix = camera.viewProjMatrix;
+            cacheValid = true;
 
             if (capture.primaryPressed && isValidToolEntity(pick.entity))
             {
@@ -78,6 +109,37 @@ namespace gts::tools
             Entity entity{InvalidToolEntityId};
             float distance = std::numeric_limits<float>::max();
         };
+
+        bool cacheValid = false;
+        float cachedPointerX = 0.0f;
+        float cachedPointerY = 0.0f;
+        glm::mat4 cachedViewProjMatrix = glm::mat4(1.0f);
+        Entity cachedHoveredEntity{InvalidToolEntityId};
+
+        static bool sameMatrix(const glm::mat4& lhs, const glm::mat4& rhs)
+        {
+            for (int column = 0; column < 4; ++column)
+            {
+                for (int row = 0; row < 4; ++row)
+                {
+                    if (lhs[column][row] != rhs[column][row])
+                        return false;
+                }
+            }
+
+            return true;
+        }
+
+        static bool cachedEntityStillPickable(ECSWorld& world, Entity entity)
+        {
+            if (!isValidToolEntity(entity))
+                return true;
+
+            return world.hasComponent<TransformComponent>(entity)
+                && world.hasComponent<BoundsComponent>(entity)
+                && !isToolInternalEntity(world, entity)
+                && entitySelectable(world, entity);
+        }
 
         static PickResult pickEntity(ECSWorld& world, const EngineToolPickRay& ray)
         {

@@ -11,6 +11,9 @@ void UiSystem::clear()
 {
     document.clear();
     textBindings.clear();
+    ++textBindingRevision;
+    commandCache.clear();
+    commandCacheValid = false;
     lastInteraction = {};
     activeHandle = UI_INVALID_HANDLE;
     focusedHandle = UI_INVALID_HANDLE;
@@ -98,7 +101,13 @@ bool UiSystem::setTextFont(UiHandle handle, BitmapFont* font)
     const UiNode* node = document.findNode(handle);
     if (!node || node->type != UiNodeType::Text) return false;
 
+    const auto it = textBindings.find(handle);
+    if (it != textBindings.end() && it->second == font)
+        return true;
+
     textBindings[handle] = font;
+    ++textBindingRevision;
+    commandCacheValid = false;
     return true;
 }
 
@@ -183,11 +192,16 @@ UiInteractionResult UiSystem::getLastInteraction() const
 
 UiCommandBuffer UiSystem::extractCommands(int viewportWidth, int viewportHeight)
 {
+    return extractCommandsRef(viewportWidth, viewportHeight);
+}
+
+const UiCommandBuffer& UiSystem::extractCommandsRef(int viewportWidth, int viewportHeight)
+{
     if (!enabled)
     {
         lastMetrics = {};
         lastMetrics.nodeCount = static_cast<uint32_t>(document.getNodeCount());
-        return {};
+        return emptyCommandBuffer;
     }
 
     document.setViewportSize(1.0f, 1.0f);
@@ -216,18 +230,41 @@ UiCommandBuffer UiSystem::extractCommands(int viewportWidth, int viewportHeight)
     lastMetrics.primitiveCount =
         static_cast<uint32_t>(document.getVisualList().primitives.size());
 
+    const uint64_t documentRevision = document.getVisualRevision();
+    if (commandCacheValid
+        && cachedDocumentRevision == documentRevision
+        && cachedTextBindingRevision == textBindingRevision
+        && cachedViewportWidth == viewportWidth
+        && cachedViewportHeight == viewportHeight)
+    {
+        lastMetrics.commandCacheHit = 1;
+        lastMetrics.commandCount = static_cast<uint32_t>(commandCache.commands.size());
+        lastMetrics.vertexCount = static_cast<uint32_t>(commandCache.vertices.size());
+        lastMetrics.indexCount = static_cast<uint32_t>(commandCache.indices.size());
+        return commandCache;
+    }
+
     const auto commandStart = std::chrono::steady_clock::now();
-    UiCommandBuffer buffer = resolver.buildCommandBuffer(document.getVisualList(),
-                                                         resources,
-                                                         textBindings,
-                                                         viewportWidth,
-                                                         viewportHeight);
+    resolver.buildCommandBuffer(commandCache,
+                                document.getVisualList(),
+                                resources,
+                                textBindings,
+                                viewportWidth,
+                                viewportHeight);
     const auto commandEnd = std::chrono::steady_clock::now();
     lastMetrics.commandBuildMs =
         std::chrono::duration<float, std::milli>(commandEnd - commandStart).count();
-    lastMetrics.commandCount = static_cast<uint32_t>(buffer.commands.size());
+    lastMetrics.commandCount = static_cast<uint32_t>(commandCache.commands.size());
+    lastMetrics.vertexCount = static_cast<uint32_t>(commandCache.vertices.size());
+    lastMetrics.indexCount = static_cast<uint32_t>(commandCache.indices.size());
 
-    return buffer;
+    commandCacheValid = true;
+    cachedDocumentRevision = documentRevision;
+    cachedTextBindingRevision = textBindingRevision;
+    cachedViewportWidth = viewportWidth;
+    cachedViewportHeight = viewportHeight;
+
+    return commandCache;
 }
 
 void UiSystem::removeTextBindingsRecursive(UiHandle handle)
@@ -239,7 +276,12 @@ void UiSystem::removeTextBindingsRecursive(UiHandle handle)
     for (UiHandle child : children)
         removeTextBindingsRecursive(child);
 
-    textBindings.erase(handle);
+    const size_t erased = textBindings.erase(handle);
+    if (erased > 0)
+    {
+        ++textBindingRevision;
+        commandCacheValid = false;
+    }
 }
 
 void UiSystem::applyInteractionState(UiHandle handle,

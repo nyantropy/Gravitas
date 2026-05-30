@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <string>
 #include <vector>
@@ -56,8 +57,24 @@ namespace gts::debugdraw
                 }
 
                 const DebugDrawColor color = colorFromIndex(i);
+                const bool hadValidBatch = validBatchEntity(ctx.world, batchEntities[i]);
                 Entity entity = ensureBatchEntity(ctx.world, color, i);
+                if (!hadValidBatch)
+                    batchCacheValid[i] = false;
+
+                const size_t signature = hashLines(batches[i]);
+                if (batchCacheValid[i]
+                    && batchHashes[i] == signature
+                    && batchLineCounts[i] == batches[i].size()
+                    && validBatchEntity(ctx.world, entity))
+                {
+                    continue;
+                }
+
                 syncBatch(ctx.world, entity, color, batches[i]);
+                batchCacheValid[i] = true;
+                batchHashes[i] = signature;
+                batchLineCounts[i] = batches[i].size();
             }
 
             queue.lines.clear();
@@ -78,6 +95,31 @@ namespace gts::debugdraw
             Entity{InvalidEntityId},
             Entity{InvalidEntityId}
         };
+        std::array<bool, ColorCount> batchCacheValid{};
+        std::array<size_t, ColorCount> batchHashes{};
+        std::array<size_t, ColorCount> batchLineCounts{};
+
+        static void hashCombine(size_t& seed, size_t value)
+        {
+            seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
+        }
+
+        static size_t hashLines(const std::vector<DebugDrawLine>& lines)
+        {
+            size_t seed = std::hash<size_t>{}(lines.size());
+            for (const DebugDrawLine& line : lines)
+            {
+                hashCombine(seed, std::hash<float>{}(line.start.x));
+                hashCombine(seed, std::hash<float>{}(line.start.y));
+                hashCombine(seed, std::hash<float>{}(line.start.z));
+                hashCombine(seed, std::hash<float>{}(line.end.x));
+                hashCombine(seed, std::hash<float>{}(line.end.y));
+                hashCombine(seed, std::hash<float>{}(line.end.z));
+                hashCombine(seed, std::hash<int>{}(static_cast<int>(line.color)));
+                hashCombine(seed, std::hash<float>{}(line.thickness));
+            }
+            return seed;
+        }
 
         static size_t colorIndex(DebugDrawColor color)
         {
@@ -100,6 +142,9 @@ namespace gts::debugdraw
             if (validBatchEntity(world, entity))
                 world.destroyEntity(entity);
             batchEntities[index] = Entity{InvalidEntityId};
+            batchCacheValid[index] = false;
+            batchHashes[index] = 0;
+            batchLineCounts[index] = 0;
         }
 
         void destroyAll(ECSWorld& world)
@@ -137,7 +182,6 @@ namespace gts::debugdraw
             world.addComponent(entity, mesh);
             world.addComponent(entity, bounds);
             world.addComponent(entity, renderable);
-            gts::rendering::queueProceduralRefresh(world, entity);
             return entity;
         }
 

@@ -36,6 +36,36 @@ struct UiCommandBuffer
 
     bool empty() const { return commands.empty(); }
 
+    void clear()
+    {
+        vertices.clear();
+        indices.clear();
+        commands.clear();
+    }
+
+    void addDrawCommand(UiDrawType type,
+                        texture_id_type textureID,
+                        uint32_t indexOffset,
+                        uint32_t indexCount)
+    {
+        if (indexCount == 0)
+            return;
+
+        if (!commands.empty())
+        {
+            UiDrawCommand& last = commands.back();
+            if (last.type == type
+                && last.textureID == textureID
+                && last.indexOffset + last.indexCount == indexOffset)
+            {
+                last.indexCount += indexCount;
+                return;
+            }
+        }
+
+        commands.push_back({type, textureID, indexOffset, indexCount});
+    }
+
     void addTexturedQuad(float x, float y, float w, float h,
                          texture_id_type texID,
                          glm::vec4 tint = {1.0f, 1.0f, 1.0f, 1.0f})
@@ -52,7 +82,7 @@ struct UiCommandBuffer
         indices.push_back(base + 1); indices.push_back(base + 1);
         indices.push_back(base + 2); indices.push_back(base + 3);
 
-        commands.push_back({UiDrawType::TexturedQuad, texID, idxBase, 6});
+        addDrawCommand(UiDrawType::TexturedQuad, texID, idxBase, 6);
     }
 
     void addGlyphBatch(const std::vector<UiVertex>& glyphVerts,
@@ -68,12 +98,10 @@ struct UiCommandBuffer
         for (uint32_t idx : glyphIndices)
             indices.push_back(vertBase + idx);
 
-        commands.push_back({
-            UiDrawType::TexturedQuad,
-            atlasTexture,
-            idxBase,
-            static_cast<uint32_t>(glyphIndices.size())
-        });
+        addDrawCommand(UiDrawType::TexturedQuad,
+                       atlasTexture,
+                       idxBase,
+                       static_cast<uint32_t>(glyphIndices.size()));
     }
 
     void addColoredQuad(float x, float y, float w, float h, glm::vec4 color)
@@ -90,6 +118,6 @@ struct UiCommandBuffer
         indices.push_back(base + 1); indices.push_back(base + 1);
         indices.push_back(base + 2); indices.push_back(base + 3);
 
-        commands.push_back({UiDrawType::ColoredQuad, 0, idxBase, 6});
+        addDrawCommand(UiDrawType::ColoredQuad, 0, idxBase, 6);
     }
 };
