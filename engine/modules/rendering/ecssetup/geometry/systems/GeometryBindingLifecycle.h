@@ -11,6 +11,7 @@
 #include "ProceduralMeshComponent.h"
 #include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
+#include "RenderInvalidationLifecycle.h"
 #include "StaticMeshComponent.h"
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
@@ -39,6 +40,7 @@ namespace gts::rendering
     inline void resetGeometryBindingLifecycleState(ECSWorld& world)
     {
         geometryBindingLifecycleRegistry().erase(&world);
+        resetRenderInvalidationState(world);
     }
 
     inline std::unordered_set<entity_id_type> takeStaticMeshRefreshes(ECSWorld& world)

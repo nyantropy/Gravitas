@@ -107,6 +107,14 @@ class RenderResourceManager : public IResourceProvider
             cameraBufferManager->uploadView(id, view, proj);
         }
 
+        void uploadCameraViewFrame(uint32_t frameIndex,
+                                   view_id_type id,
+                                   const glm::mat4& view,
+                                   const glm::mat4& proj)
+        {
+            cameraBufferManager->uploadViewFrame(frameIndex, id, view, proj);
+        }
+
         // Backend-only: returns raw GPU resource for descriptor-set binding.
         // Called only from ForwardRenderer (backend), which holds RenderResourceManager*.
         CameraBufferResource* getCameraView(view_id_type id)

@@ -4,7 +4,7 @@
 #include "CameraDescriptionComponent.h"
 #include "CameraGpuComponent.h"
 
-// Controller system — GPU resource management only, no matrix math.
+// Controller system — camera resource lifetime only, no matrix math.
 // Matrix calculations can be found in the CameraGpuSystem.
 // CameraGpuComponent must already exist when this system runs.
 class CameraBindingSystem : public ECSControllerSystem
@@ -18,11 +18,10 @@ class CameraBindingSystem : public ECSControllerSystem
                 if (gpu.viewID == 0)
                     gpu.viewID = ctx.resources->requestCameraBuffer();
 
-                if (gpu.dirty)
-                {
-                    ctx.resources->uploadCameraView(gpu.viewID, gpu.viewMatrix, gpu.projMatrix);
-                    gpu.dirty = false;
-                }
+                // Matrix uploads are performed by the renderer after the
+                // current frame's fence has been waited. Clearing this keeps
+                // the component's "CPU matrix changed" flag from accumulating.
+                gpu.dirty = false;
             });
         }
 };

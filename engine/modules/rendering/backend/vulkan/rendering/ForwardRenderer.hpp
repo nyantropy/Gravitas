@@ -343,6 +343,7 @@ class ForwardRenderer : Renderer
 
         void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
                          const std::vector<ObjectUploadCommand>& objectUploads,
+                         const std::vector<CameraUploadCommand>& cameraUploads,
                          const ParticleFrameData& particleData,
                          const UiCommandBuffer& uiBuffer,
                          const GtsFrameStats& stats) override
@@ -367,6 +368,15 @@ class ForwardRenderer : Renderer
             const auto fenceWaitEnd = std::chrono::steady_clock::now();
             frameStats.backendFenceWaitCpuMs =
                 std::chrono::duration<float, std::milli>(fenceWaitEnd - fenceWaitStart).count();
+
+            for (const auto& upload : cameraUploads)
+            {
+                resourceSystem->uploadCameraViewFrame(
+                    currentFrame,
+                    upload.cameraViewID,
+                    upload.viewMatrix,
+                    upload.projMatrix);
+            }
 
             // Acquire frame output image
             const auto acquireStart = std::chrono::steady_clock::now();

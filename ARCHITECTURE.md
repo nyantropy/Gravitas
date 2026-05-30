@@ -118,18 +118,20 @@ update(const EcsControllerContext& ctx)
 │    └─ Lifecycle systems (descriptor → GPU companions)  │
 │    └─ Cleanup systems (GPU companion teardown)         │
 │    └─ RenderGpuSystem (sync world matrices)            │
-│    └─ Camera control / CameraGpuSystem / upload        │
+│    └─ Camera control / CameraGpuSystem / view IDs      │
 │    └─ ParticleEmitterSystem (particle frame data)       │
 │    └─ [user systems] (input handling, gameplay logic)  │
 ├────────────────────────────────────────────────────────┤
 │  Data Extraction                                       │
-│  RenderCommandExtractor::extract()                     │
+│  RenderPipeline build stages                          │
 │    └─ Frustum cull against camera planes               │
-│    └─ Emit sorted RenderCommand list                   │
+│    └─ Emit sorted RenderCommand list + upload commands │
 │  UiSystem::extractCommands()                           │
 │    └─ Flatten retained UI tree → draw calls            │
 ├────────────────────────────────────────────────────────┤
 │  Vulkan Render                                         │
+│    └─ Wait current-frame fence                         │
+│    └─ Upload current-frame camera UBO                  │
 │  Frame Graph execute()                                 │
 │    └─ SceneRenderStage (geometry + materials)          │
 │    └─ ParticleRenderStage (billboard particles)         │
@@ -184,12 +186,23 @@ RenderCommandExtractor reads both         ← emits RenderCommand
 
 GPU resource release still happens through component removal callbacks, but descriptor add/remove no longer performs recursive ECS mutation. Binding/cleanup decisions are queued and executed by explicit lifecycle systems.
 
-The render lifecycle is now split by concern:
+The render lifecycle is split by concern:
 - **Geometry lifecycle** queues and resolves static mesh / procedural mesh companion state
 - **Renderable cleanup** tears down geometry GPU companions regardless of descriptor source
 - **Camera lifecycle** owns `CameraGpuComponent` creation/removal independently of geometry lifecycle
+- **Render invalidation** queues transform and snapshot dirtiness explicitly so steady-state extraction does not scan every renderable
 
-For cameras, application code should only author `CameraDescriptionComponent` plus transform/control descriptors. The engine-owned camera lifecycle creates/removes `CameraGpuComponent`, and engine consumers that need final matrices outside the renderer should read the read-only `ActiveCameraViewStateComponent` singleton instead of touching GPU companion components directly.
+For cameras, application code should only author `CameraDescriptionComponent`
+plus transform/control descriptors. The engine-owned camera lifecycle
+creates/removes `CameraGpuComponent`, `CameraGpuSystem` computes matrices, and
+`CameraBindingSystem` allocates the stable camera view ID. The renderer owns the
+actual camera UBO upload: extraction packages the active camera matrices into
+`CameraUploadCommand`, and `ForwardRenderer` writes the current frame's camera
+UBO only after waiting for that frame's fence. This keeps camera data in sync
+with uncapped rendering without racing frames in flight. Engine consumers that
+need final matrices outside the renderer should read the read-only
+`ActiveCameraViewStateComponent` singleton instead of touching GPU companion
+components directly.
 
 ### Descriptor Components (application-facing)
 
@@ -210,7 +223,7 @@ For cameras, application code should only author `CameraDescriptionComponent` pl
 | `MeshGpuComponent` | `StaticMeshBindingSystem` |
 | `MaterialGpuComponent` | geometry lifecycle systems |
 | `RenderGpuComponent` | geometry lifecycle systems + `RenderableCleanupSystem` + `RenderGpuSystem` |
-| `CameraGpuComponent` | `CameraLifecycleSystem` + `CameraGpuSystem` + `CameraBindingSystem` |
+| `CameraGpuComponent` | `CameraLifecycleSystem` + `CameraGpuSystem` + `CameraBindingSystem` for view IDs; renderer for UBO upload |
 
 Particle emitters use a runtime companion component (`ParticleEmitterRuntimeComponent`)
 for simulation state, but particles are extracted into `ParticleFrameDataComponent`
@@ -233,13 +246,13 @@ The shared renderer feature installs controller systems in this order:
 5. camera control systems
 6. `CameraGpuSystem`
 7. debug free camera control
-8. camera upload / active-camera export systems
+8. camera view ID allocation / active-camera export systems
 9. particle effect hot reload and particle emitter simulation
 
 This order is intentional:
 - lifecycle runs before per-frame sync so newly created GPU companions participate immediately
 - camera control runs before `CameraGpuSystem` so same-frame transform/description changes feed matrix generation
-- upload/export runs after matrix generation so both rendering and UI see the current frame's active camera state
+- camera view ID allocation/export runs after matrix generation so rendering and UI see the current frame's active camera state
 - particle simulation runs after camera matrix generation so extracted billboards can use the current view
 
 ### RenderCommand
@@ -256,7 +269,26 @@ RenderCommand {
     bool               vertexColorOnly
 }
 ```
-Sorted by (double-sided, vertex-color-only, meshID, textureID) to minimize state changes. Cached across frames; only rebuilt when dirty.
+Sorted by (double-sided, vertex-color-only, meshID, textureID) to minimize state changes. Cached across frames; only rebuilt when renderable content, visibility, camera version, or active camera view changes.
+
+Render extraction also emits upload command side channels:
+
+```
+ObjectUploadCommand {
+    ssbo_id_type objectSSBOSlot
+    glm::mat4    modelMatrix
+}
+
+CameraUploadCommand {
+    view_id_type cameraViewID
+    glm::mat4    viewMatrix
+    glm::mat4    projMatrix
+}
+```
+
+Object uploads are generated only for renderables marked dirty by the render
+invalidation queue. Camera uploads are generated every extracted frame for the
+active camera and consumed by the renderer after the current-frame fence wait.
 
 `vertexColorOnly` is a material/render-command flag for tool and debug meshes
 that should render from authored vertex colors without sampling a color texture.
@@ -303,7 +335,14 @@ and save them back through the asset IO path.
 
 ### Frustum Culling
 
-`FrustumCuller` extracts 6 planes from the view-projection matrix (Gribb-Hartmann) and tests entity AABBs from `BoundsComponent`. Entities without bounds are always rendered. Culling can be frozen (debug feature) to inspect which objects are culled while the camera moves.
+`FrustumCuller` extracts 6 planes from the view-projection matrix
+(Gribb-Hartmann) and tests entity AABBs from `BoundsComponent`. Entities
+without bounds are always rendered. Culling can be frozen (debug feature) to
+inspect which objects are culled while the camera moves.
+
+Visibility results are cached by content version and frustum. The snapshot also
+tracks a camera version so command extraction does not reuse cached commands
+across camera changes, even when the visible set happens to stay the same.
 
 ### Transform Sync
 
@@ -311,7 +350,9 @@ and save them back through the asset IO path.
 
 - Root renderables take a flat fast path keyed by `objectSSBOSlot`
 - Hierarchical entities use a cached recursive path with cycle protection
-- `RenderDirtyComponent` is the bridge to extraction: `RenderGpuSystem` marks transform dirtiness, then `RenderExtractionSnapshotBuilder` consumes and clears those flags
+- `gts::transform::markDirty(...)` queues render transform dirtiness through `RenderInvalidationLifecycle`
+- `RenderGpuSystem` consumes transform-dirty entities, updates world matrices, and queues snapshot dirtiness
+- `RenderDirtyComponent` is the bridge to extraction: `RenderExtractionSnapshotBuilder` consumes queued snapshot-dirty entities and clears the per-renderable dirty flags
 
 This split gives strong single-threaded performance for flat scenes such as large cube benchmarks without removing hierarchy support.
 
@@ -456,6 +497,13 @@ GPU resource handles (mesh IDs, texture IDs, SSBO slots, camera view IDs) are al
 - structural GPU companion-component changes are deferred through `world.commands()`
 - cleanup of backend resources still happens via removal callbacks on GPU components
 - application/game code does not create, remove, or read GPU companion components directly
+- camera view IDs are allocated by the camera binding lifecycle, but camera
+  matrix UBO writes are renderer-owned and occur after the current frame's fence
+  wait
+
+`GraphicsConfig::window.vsync` is authoritative for swapchain present mode:
+when true the Vulkan module requests FIFO; when false it uses
+`GraphicsConfig::presentModePreference` (Immediate by default).
 
 ---
 
@@ -509,6 +557,7 @@ one-off retained UI interaction code inside a panel.
 - **CPU/GPU separation**: descriptor components are game-logic; GPU components are backend state; binding systems bridge them explicitly
 - **Descriptor-only app boundary**: applications and gameplay/UI code operate on descriptors or engine-exported frame state, not GPU companion components
 - **Lazy updates**: render commands and GPU state are cached and only rebuilt on change
+- **Fence-safe frame data**: per-frame camera data is uploaded by the renderer after the matching frame fence has been waited
 - **Data extraction over direct coupling**: the renderer never reads ECS directly; the extractor produces an immutable command list
 - **Explicit structural mutation**: hot-path queries stay non-structural; lifecycle mutation is deferred and flushed at controlled points
 - **Separation of lifecycle concerns**: geometry lifecycle, camera lifecycle, cleanup, transform sync, and extraction are distinct stages with distinct ownership

@@ -31,6 +31,24 @@ public:
     const std::vector<RenderCommand>& extract(const RenderExtractionSnapshot& snapshot)
     {
         const auto start = std::chrono::steady_clock::now();
+        if (cacheInitialised
+            && lastSnapshotContentVersion == snapshot.contentVersion
+            && lastSnapshotVisibilityVersion == snapshot.visibilityVersion
+            && lastSnapshotCameraVersion == snapshot.cameraVersion
+            && lastCameraViewID == snapshot.cameraViewID)
+        {
+            const auto end = std::chrono::steady_clock::now();
+            lastMetrics.extractCpuMs =
+                std::chrono::duration<float, std::milli>(end - start).count();
+            lastMetrics.sortCpuMs = 0.0f;
+            lastMetrics.visitedRenderables = 0;
+            lastMetrics.totalRenderables = static_cast<uint32_t>(lastTotalRenderables);
+            lastMetrics.visibleRenderables = static_cast<uint32_t>(lastVisibleRenderables);
+            lastMetrics.updatedCommands = 0;
+            lastMetrics.cachedCommands = static_cast<uint32_t>(cachedVisibleCommands.size());
+            lastMetrics.sortedThisFrame = false;
+            return cachedVisibleCommands;
+        }
 
         frameStamp += 1;
         int totalRenderables   = 0;
@@ -145,6 +163,10 @@ public:
 
         lastTotalRenderables   = totalRenderables;
         lastVisibleRenderables = visibleRenderables;
+        lastSnapshotContentVersion = snapshot.contentVersion;
+        lastSnapshotVisibilityVersion = snapshot.visibilityVersion;
+        lastSnapshotCameraVersion = snapshot.cameraVersion;
+        lastCameraViewID = snapshot.cameraViewID;
         cacheInitialised = true;
         const auto end = std::chrono::steady_clock::now();
         lastMetrics.extractCpuMs =
@@ -185,6 +207,10 @@ private:
     std::vector<ssbo_id_type>      nextTransparentSlotOrder;
     std::vector<RenderCommand>     cachedVisibleCommands;
     uint64_t                       frameStamp = 0;
+    uint64_t                       lastSnapshotContentVersion = 0;
+    uint64_t                       lastSnapshotVisibilityVersion = 0;
+    uint64_t                       lastSnapshotCameraVersion = 0;
+    view_id_type                   lastCameraViewID = 0;
     bool                           cacheInitialised = false;
     bool                           sortOrderDirty = true;
 

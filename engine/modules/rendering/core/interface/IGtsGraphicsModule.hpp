@@ -19,6 +19,7 @@ public:
 
     virtual void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
                              const std::vector<ObjectUploadCommand>& objectUploads,
+                             const std::vector<CameraUploadCommand>& cameraUploads,
                              const ParticleFrameData& particleData,
                              const UiCommandBuffer& uiBuffer,
                              const GtsFrameStats& stats) = 0;

@@ -20,10 +20,11 @@
 //     CameraGpuSystem never touches these entities.
 //
 //   CameraBindingSystem (controller):
-//     Allocates viewID on first encounter, uploads matrices to the camera UBO
-//     when dirty == true, then resets dirty = false. viewID is owned by this
-//     component and is released automatically when the component or entity is
-//     removed from the ECS world.
+//     Allocates viewID on first encounter. The renderer uploads active camera
+//     matrices per frame after waiting for the matching frame fence, so UBO
+//     writes never race with the GPU. viewID is owned by this component and is
+//     released automatically when the component or entity is removed from the
+//     ECS world.
 //
 // Gameplay and application systems must not write to this component directly.
 struct CameraGpuComponent

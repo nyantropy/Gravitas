@@ -11,6 +11,7 @@
 #include "Vertex.h"
 #include "ECSWorld.hpp"
 #include "GeometryBindingLifecycle.h"
+#include "TransformDirtyHelpers.h"
 
 class WorldTextBindingSystem : public ECSControllerSystem
 {
@@ -37,11 +38,13 @@ public:
             MaterialGpuComponent matGpu = hasMatGpu ? ctx.world.getComponent<MaterialGpuComponent>(e) : MaterialGpuComponent{};
             RenderGpuComponent rc = hasRenderGpu ? ctx.world.getComponent<RenderGpuComponent>(e) : RenderGpuComponent{};
             RenderDirtyComponent dirty = hasDirty ? ctx.world.getComponent<RenderDirtyComponent>(e) : RenderDirtyComponent{};
+            bool renderStateChanged = false;
 
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
             {
                 rc.objectSSBOSlot = ctx.resources->requestObjectSlot();
                 rc.commandDirty = true;
+                renderStateChanged = true;
             }
 
             if (wtc.dirty)
@@ -61,6 +64,7 @@ public:
                     rc.dirty           = true;
                     rc.readyToRender   = false;
                     rc.commandDirty    = true;
+                    renderStateChanged = true;
                 }
 
                 wtc.dirty = false;
@@ -85,6 +89,9 @@ public:
                 ctx.world.getComponent<RenderDirtyComponent>(e) = dirty;
             else
                 commands.addComponent<RenderDirtyComponent>(e, dirty);
+
+            if (renderStateChanged)
+                gts::transform::markDirty(ctx.world, e);
         });
     }
 };

@@ -48,6 +48,13 @@ public:
     // the renderer, responsible for the core drawframe function
     std::unique_ptr<ForwardRenderer> renderer;
 
+    PresentModePreference resolvePresentModePreference() const
+    {
+        return config.window.vsync
+            ? PresentModePreference::Fifo
+            : config.presentModePreference;
+    }
+
     GtsPlatformEventBus& getEventBus() override { return eventBus; }
 
     VulkanGraphics(const GraphicsConfig& config): config(config)
@@ -80,7 +87,7 @@ public:
         vcConfig.enableSurfaceSupport     = !config.headless;
         vcConfig.renderWidth              = config.window.width;
         vcConfig.renderHeight             = config.window.height;
-        vcConfig.presentModePreference    = config.presentModePreference;
+        vcConfig.presentModePreference    = resolvePresentModePreference();
 
         if (!config.headless)
         {
@@ -134,11 +141,12 @@ public:
     // the draw call to the renderer
     void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
                      const std::vector<ObjectUploadCommand>& objectUploads,
+                     const std::vector<CameraUploadCommand>& cameraUploads,
                      const ParticleFrameData& particleData,
                      const UiCommandBuffer& uiBuffer,
                      const GtsFrameStats& stats) override
     {
-        renderer->renderFrame(dt, renderList, objectUploads, particleData, uiBuffer, stats);
+        renderer->renderFrame(dt, renderList, objectUploads, cameraUploads, particleData, uiBuffer, stats);
     }
 
     void toggleDebugOverlay() override

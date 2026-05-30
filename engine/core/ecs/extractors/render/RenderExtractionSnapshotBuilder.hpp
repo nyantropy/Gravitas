@@ -16,6 +16,7 @@
 #include "RenderDirtyComponent.h"
 #include "RenderExtractionSnapshot.h"
 #include "RenderGpuComponent.h"
+#include "RenderInvalidationLifecycle.h"
 #include "RenderStaticTag.h"
 
 class RenderExtractionSnapshotBuilder
@@ -56,10 +57,14 @@ public:
         snapshot.cameraViewID = 0;
         snapshot.frustum.fill(glm::vec4(0.0f));
         snapshot.objectUploads.clear();
+        snapshot.cameraUploads.clear();
         uint32_t dirtyUpdatedCount  = 0;
         uint32_t reusedCount        = 0;
         uint32_t staticUpdatedCount = 0;
         uint32_t dynamicUpdatedCount = 0;
+        gts::rendering::RenderInvalidationState& invalidation =
+            gts::rendering::renderInvalidationState(world);
+        snapshot.objectUploads.reserve(invalidation.snapshotDirtyEntities.size());
 
         world.forEach<CameraGpuComponent>([&](Entity, CameraGpuComponent& gpu)
         {
@@ -71,20 +76,38 @@ public:
 
             snapshot.cameraViewID = gpu.viewID;
             snapshot.frustum = FrustumCuller::extractPlanesFromMatrix(gpu.projMatrix * gpu.viewMatrix);
+            if (gpu.viewID != 0)
+            {
+                snapshot.cameraUploads.push_back({
+                    gpu.viewID,
+                    gpu.viewMatrix,
+                    gpu.projMatrix
+                });
+            }
         });
+        updateCameraVersion();
 
-        world.forEach<RenderDirtyComponent, RenderGpuComponent, MeshGpuComponent, MaterialGpuComponent>(
-            [&](Entity e,
-                RenderDirtyComponent& dirty,
-                RenderGpuComponent& rc,
-                MeshGpuComponent& meshGpu,
-                MaterialGpuComponent& matGpu)
+        for (entity_id_type entityId : invalidation.snapshotDirtyEntities)
         {
+            Entity e{entityId};
+            if (!world.hasComponent<RenderDirtyComponent>(e)
+                || !world.hasComponent<RenderGpuComponent>(e)
+                || !world.hasComponent<MeshGpuComponent>(e)
+                || !world.hasComponent<MaterialGpuComponent>(e))
+            {
+                continue;
+            }
+
+            RenderDirtyComponent& dirty = world.getComponent<RenderDirtyComponent>(e);
+            RenderGpuComponent& rc = world.getComponent<RenderGpuComponent>(e);
+            MeshGpuComponent& meshGpu = world.getComponent<MeshGpuComponent>(e);
+            MaterialGpuComponent& matGpu = world.getComponent<MaterialGpuComponent>(e);
+
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
-                return;
+                continue;
 
             if (!rc.readyToRender)
-                return;
+                continue;
 
             const RenderableID id = e.id;
             const bool isStatic = world.hasComponent<RenderStaticTag>(e);
@@ -99,7 +122,7 @@ public:
             {
                 snapshot.renderables[existingIndex].visible = true;
                 reusedCount += 1;
-                return;
+                continue;
             }
 
             uint32_t index = existingIndex;
@@ -135,7 +158,7 @@ public:
 
             RenderableSnapshot& renderable = snapshot.renderables[index];
             if (!inserted && !anyDirty)
-                return;
+                continue;
 
             renderable.id             = id;
             renderable.entity         = e;
@@ -171,13 +194,19 @@ public:
             dirty.transformDirty = false;
             dirty.materialDirty  = false;
             dirty.meshDirty      = false;
-        });
+        }
+        gts::rendering::clearSnapshotDirtyQueue(invalidation);
+        if (m_snapshotDirty)
+            snapshot.contentVersion = ++contentVersion;
 
         const auto end = std::chrono::steady_clock::now();
         lastMetrics.buildCpuMs             = std::chrono::duration<float, std::milli>(end - start).count();
         lastMetrics.renderableCount        = static_cast<uint32_t>(snapshot.renderables.size());
         lastMetrics.dirtyUpdatedCount      = dirtyUpdatedCount;
-        lastMetrics.reusedCount            = reusedCount;
+        lastMetrics.reusedCount            = static_cast<uint32_t>(
+            snapshot.renderables.size() >= dirtyUpdatedCount
+                ? snapshot.renderables.size() - dirtyUpdatedCount
+                : reusedCount);
         lastMetrics.staticRenderableCount  = staticRenderableCount;
         lastMetrics.dynamicRenderableCount = dynamicRenderableCount;
         lastMetrics.staticUpdatedCount     = staticUpdatedCount;
@@ -238,6 +267,11 @@ private:
     std::vector<uint32_t>                slotToIndex;
     std::unordered_map<RenderableID, uint32_t> entityToIndex;
     ECSWorld*                            registeredWorld = nullptr;
+    uint64_t                             contentVersion = 0;
+    uint64_t                             cameraVersion = 0;
+    FrustumPlanes                        lastFrustum{};
+    view_id_type                         lastCameraViewID = 0;
+    bool                                 cameraCacheValid = false;
     uint32_t                             staticRenderableCount = 0;
     uint32_t                             dynamicRenderableCount = 0;
     bool                                 m_pendingSnapshotDirty = true;
@@ -279,11 +313,14 @@ private:
         snapshot.renderables.clear();
         snapshot.occupiedSlots.clear();
         snapshot.objectUploads.clear();
+        snapshot.cameraUploads.clear();
         entryMetadata.clear();
         entityToIndex.clear();
         std::fill(slotToIndex.begin(), slotToIndex.end(), InvalidIndex);
         staticRenderableCount = 0;
         dynamicRenderableCount = 0;
+        snapshot.visibilityVersion = 0;
+        cameraCacheValid = false;
         m_pendingSnapshotDirty = true;
     }
 
@@ -365,28 +402,44 @@ private:
 
     static AABB transformBounds(const BoundsComponent& bounds, const glm::mat4& modelMatrix)
     {
-        glm::vec3 corners[8] = {
-            { bounds.min.x, bounds.min.y, bounds.min.z },
-            { bounds.max.x, bounds.min.y, bounds.min.z },
-            { bounds.min.x, bounds.max.y, bounds.min.z },
-            { bounds.max.x, bounds.max.y, bounds.min.z },
-            { bounds.min.x, bounds.min.y, bounds.max.z },
-            { bounds.max.x, bounds.min.y, bounds.max.z },
-            { bounds.min.x, bounds.max.y, bounds.max.z },
-            { bounds.max.x, bounds.max.y, bounds.max.z }
+        const glm::vec3 localCenter = (bounds.min + bounds.max) * 0.5f;
+        const glm::vec3 localExtents = (bounds.max - bounds.min) * 0.5f;
+        const glm::vec3 worldCenter = glm::vec3(modelMatrix * glm::vec4(localCenter, 1.0f));
+
+        const glm::mat3 linear(modelMatrix);
+        const glm::mat3 absLinear{
+            glm::abs(linear[0]),
+            glm::abs(linear[1]),
+            glm::abs(linear[2])
         };
+        const glm::vec3 worldExtents = absLinear * localExtents;
 
-        glm::vec3 worldMin{std::numeric_limits<float>::max()};
-        glm::vec3 worldMax{std::numeric_limits<float>::lowest()};
+        return {worldCenter - worldExtents, worldCenter + worldExtents};
+    }
 
-        for (const glm::vec3& corner : corners)
+    static bool sameFrustum(const FrustumPlanes& lhs, const FrustumPlanes& rhs)
+    {
+        for (size_t i = 0; i < lhs.size(); ++i)
         {
-            const glm::vec3 worldCorner = glm::vec3(modelMatrix * glm::vec4(corner, 1.0f));
-            worldMin = glm::min(worldMin, worldCorner);
-            worldMax = glm::max(worldMax, worldCorner);
+            if (lhs[i] != rhs[i])
+                return false;
+        }
+        return true;
+    }
+
+    void updateCameraVersion()
+    {
+        if (cameraCacheValid
+            && lastCameraViewID == snapshot.cameraViewID
+            && sameFrustum(lastFrustum, snapshot.frustum))
+        {
+            return;
         }
 
-        return {worldMin, worldMax};
+        lastCameraViewID = snapshot.cameraViewID;
+        lastFrustum = snapshot.frustum;
+        cameraCacheValid = true;
+        snapshot.cameraVersion = ++cameraVersion;
     }
 
     static uint64_t makeSortKey(const RenderableSnapshot& renderable)

@@ -41,9 +41,8 @@ class IResourceProvider
         virtual view_id_type requestCameraBuffer() = 0;
         virtual void         releaseCameraBuffer(view_id_type id) = 0;
 
-        // Upload view/proj matrices to all frames-in-flight slots for the given view.
-        // Called by CameraBindingSystem when dirty = true; writes to persistently-mapped
-        // UBO memory so the GPU reads current matrices for whichever frame it renders next.
+        // Legacy all-frame camera upload. Frame-loop rendering should prefer
+        // renderer-owned per-frame uploads after the matching frame fence.
         virtual void uploadCameraView(view_id_type id, const glm::mat4& view, const glm::mat4& proj) = 0;
 
         // Object SSBO slot allocation.

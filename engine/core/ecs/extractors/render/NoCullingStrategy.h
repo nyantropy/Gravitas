@@ -5,7 +5,27 @@
 class NoCullingStrategy : public IVisibilityStrategy
 {
 public:
-    void filter(RenderExtractionSnapshot&) override
+    void filter(RenderExtractionSnapshot& snapshot) override
     {
+        if (cacheValid && cachedContentVersion == snapshot.contentVersion)
+            return;
+
+        bool visibilityChanged = !cacheValid;
+        for (RenderableSnapshot& renderable : snapshot.renderables)
+        {
+            if (!renderable.visible)
+                visibilityChanged = true;
+            renderable.visible = true;
+        }
+
+        if (visibilityChanged)
+            snapshot.visibilityVersion += 1;
+
+        cachedContentVersion = snapshot.contentVersion;
+        cacheValid = true;
     }
+
+private:
+    uint64_t cachedContentVersion = 0;
+    bool     cacheValid = false;
 };

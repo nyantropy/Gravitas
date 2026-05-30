@@ -113,6 +113,23 @@ class CameraBufferManager
                 memcpy(mapped, &ubo, sizeof(CameraUBO));
         }
 
+        // Writes view/proj matrices only to the frame slot whose fence has
+        // already been waited by the renderer.
+        void uploadViewFrame(uint32_t frameIndex,
+                             view_id_type id,
+                             const glm::mat4& view,
+                             const glm::mat4& proj)
+        {
+            CameraBufferResource* res = getView(id);
+            if (!res || frameIndex >= res->uniformBuffersMapped.size())
+                return;
+
+            CameraUBO ubo;
+            ubo.view = view;
+            ubo.proj = proj;
+            memcpy(res->uniformBuffersMapped[frameIndex], &ubo, sizeof(CameraUBO));
+        }
+
     private:
         std::unordered_map<view_id_type, std::unique_ptr<CameraBufferResource>> idToView;
         view_id_type nextID = 1; // 0 = invalid

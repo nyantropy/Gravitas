@@ -166,6 +166,7 @@ class GravitasEngine
                 dt,
                 renderList,
                 renderPipeline->getLatestSnapshot().objectUploads,
+                renderPipeline->getLatestSnapshot().cameraUploads,
                 particleData,
                 *uiBuffer,
                 stats);

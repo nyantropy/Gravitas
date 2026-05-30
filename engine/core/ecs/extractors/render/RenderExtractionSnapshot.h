@@ -47,6 +47,12 @@ struct RenderExtractionSnapshot
     // Parallel compact list of live SSBO slots for the same dense ordering.
     std::vector<ssbo_id_type>        occupiedSlots;
     std::vector<ObjectUploadCommand> objectUploads;
+    std::vector<CameraUploadCommand> cameraUploads;
     FrustumPlanes                    frustum{};
     view_id_type                     cameraViewID = 0;
+    // Monotonic versions let downstream render stages skip full scans when
+    // renderable data and visibility results are unchanged.
+    uint64_t                         contentVersion = 0;
+    uint64_t                         visibilityVersion = 0;
+    uint64_t                         cameraVersion = 0;
 };

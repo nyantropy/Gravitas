@@ -3,11 +3,14 @@
 #include "ECSWorld.hpp"
 #include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
+#include "RenderInvalidationLifecycle.h"
 
 namespace gts::transform
 {
     inline void markDirty(ECSWorld& world, Entity entity)
     {
+        gts::rendering::queueRenderTransformDirty(world, entity);
+
         if (world.hasComponent<RenderGpuComponent>(entity))
         {
             auto& renderGpu = world.getComponent<RenderGpuComponent>(entity);
