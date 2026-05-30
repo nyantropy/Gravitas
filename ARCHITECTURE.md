@@ -28,9 +28,11 @@ Gravitas/
 │   │   ├── transform/      # TransformComponent (position, rotation, scale)
 │   │   ├── hierarchy/      # Parent-child transform hierarchy
 │   │   ├── animation/      # Keyframe animation
+│   │   ├── debugdraw/      # Feature-local line/bounds/frustum debug primitives
 │   │   ├── physics/        # Physics world, PhysicsSystem, body components
+│   │   ├── tools/          # Optional in-engine inspection/editing toolchain
 │   │   └── rendering/      # Vulkan backend, GPU components, binding systems
-│   │       ├── ecssetup/   # Camera and geometry GPU components, lifecycle, cleanup, sync systems
+│   │       ├── ecssetup/   # Camera, geometry, text, and particle ECS setup
 │   │       └── backend/    # Vulkan device, frame graph, render stages, resources
 │   ├── GravitasEngine.hpp  # Main engine class
 │   ├── GtsGameLoop.h       # Fixed-timestep accumulator
@@ -117,6 +119,7 @@ update(const EcsControllerContext& ctx)
 │    └─ Cleanup systems (GPU companion teardown)         │
 │    └─ RenderGpuSystem (sync world matrices)            │
 │    └─ Camera control / CameraGpuSystem / upload        │
+│    └─ ParticleEmitterSystem (particle frame data)       │
 │    └─ [user systems] (input handling, gameplay logic)  │
 ├────────────────────────────────────────────────────────┤
 │  Data Extraction                                       │
@@ -129,6 +132,7 @@ update(const EcsControllerContext& ctx)
 │  Vulkan Render                                         │
 │  Frame Graph execute()                                 │
 │    └─ SceneRenderStage (geometry + materials)          │
+│    └─ ParticleRenderStage (billboard particles)         │
 │    └─ UiRenderStage (overlay)                          │
 │    └─ Swapchain present                                │
 └────────────────────────────────────────────────────────┘
@@ -193,10 +197,11 @@ For cameras, application code should only author `CameraDescriptionComponent` pl
 |-----------|---------|
 | `TransformComponent` | Position, rotation, scale |
 | `StaticMeshComponent` | Asset path to mesh |
-| `MaterialComponent` | Texture path and surface parameters |
+| `MaterialComponent` | Texture path, tint, alpha, culling, and optional vertex-color-only rendering |
 | `BoundsComponent` | Local AABB used for frustum culling |
 | `CameraDescriptionComponent` | FOV, near/far clip planes |
 | `PhysicsBodyComponent` | Dynamic vs static body flag |
+| `ParticleEmitterComponent` | Game-facing particle emitter descriptor paired with `TransformComponent` |
 
 ### GPU Components (engine-managed)
 
@@ -206,6 +211,10 @@ For cameras, application code should only author `CameraDescriptionComponent` pl
 | `MaterialGpuComponent` | geometry lifecycle systems |
 | `RenderGpuComponent` | geometry lifecycle systems + `RenderableCleanupSystem` + `RenderGpuSystem` |
 | `CameraGpuComponent` | `CameraLifecycleSystem` + `CameraGpuSystem` + `CameraBindingSystem` |
+
+Particle emitters use a runtime companion component (`ParticleEmitterRuntimeComponent`)
+for simulation state, but particles are extracted into `ParticleFrameDataComponent`
+instead of flowing through `RenderCommand`.
 
 ### Engine-Exported Frame State
 
@@ -217,18 +226,21 @@ For cameras, application code should only author `CameraDescriptionComponent` pl
 
 The shared renderer feature installs controller systems in this order:
 
-1. Geometry binding systems
+1. Geometry and text binding systems
 2. `RenderableCleanupSystem`
 3. `RenderGpuSystem`
 4. `CameraLifecycleSystem`
 5. camera control systems
 6. `CameraGpuSystem`
-7. camera upload / active-camera export systems
+7. debug free camera control
+8. camera upload / active-camera export systems
+9. particle effect hot reload and particle emitter simulation
 
 This order is intentional:
 - lifecycle runs before per-frame sync so newly created GPU companions participate immediately
 - camera control runs before `CameraGpuSystem` so same-frame transform/description changes feed matrix generation
 - upload/export runs after matrix generation so both rendering and UI see the current frame's active camera state
+- particle simulation runs after camera matrix generation so extracted billboards can use the current view
 
 ### RenderCommand
 
@@ -239,12 +251,55 @@ RenderCommand {
     texture_id_type    textureID
     ssbo_id_type       objectSSBOSlot    (per-object transform)
     view_id_type       cameraViewID      (camera UBO)
-    glm::mat4          modelMatrix
     float              alpha
     bool               doubleSided
+    bool               vertexColorOnly
 }
 ```
-Sorted by (double-sided, meshID, textureID) to minimize state changes. Cached across frames; only rebuilt when dirty.
+Sorted by (double-sided, vertex-color-only, meshID, textureID) to minimize state changes. Cached across frames; only rebuilt when dirty.
+
+`vertexColorOnly` is a material/render-command flag for tool and debug meshes
+that should render from authored vertex colors without sampling a color texture.
+The regular material texture path remains the default for game geometry.
+
+### Particle Rendering
+
+Particles are an engine rendering feature with ECS-facing authoring and a
+separate Vulkan render stage.
+
+Feature layout:
+
+- `modules/rendering/ecssetup/particles/components/`: authoring descriptors,
+  runtime particles, curves, shapes, bursts, flipbooks, and force module data
+- `modules/rendering/ecssetup/particles/assets/`: JSON particle effect
+  load/save and hot-reload registry
+- `modules/rendering/ecssetup/particles/systems/`: emitter simulation and
+  effect hot reload
+- `modules/rendering/ecssetup/particles/extraction/`: per-frame particle draw data
+- `modules/rendering/backend/vulkan/rendering/particles/`: billboard particle
+  render stage
+
+Application code authors `ParticleEmitterComponent` plus `TransformComponent`.
+The engine creates `ParticleEmitterRuntimeComponent`, simulates particles every
+controller frame, sorts alpha particles by camera depth, batches by texture and
+blend mode, and renders billboards in `ParticleRenderStage`.
+
+Particle controls currently include:
+
+- local-space or world-space simulation
+- sphere, box, disc, cylinder, and ring emit shapes
+- alpha and additive blend modes
+- base tint, color over lifetime, alpha over lifetime, and size over lifetime
+- emission rate, max particles, lifetime range, duration, delay, and intensity
+- initial velocity, spread, radial/tangent velocity, drag, spin, and random size
+- hue/value variation
+- bursts, flipbooks, softness, wind/acceleration/vortex/radial/noise forces
+- texture path and JSON effect path
+
+`ParticleEffectHotReloadSystem` loads effect files into a singleton registry and
+copies asset values onto emitters whose `effectPath` is set and
+`reloadFromEffect` is true. The tools inspector can edit live emitter descriptors
+and save them back through the asset IO path.
 
 ### Frustum Culling
 
@@ -266,6 +321,17 @@ The Vulkan backend uses a declarative frame graph:
 - Stages declare their image/buffer read-write access patterns at `compile()` time
 - `execute()` records command buffers with automatic resource layout transitions
 - Resource types: external (swapchain), transient (render targets)
+
+### Debug Draw
+
+`modules/debugdraw/` is a standalone feature for transient visual diagnostics.
+Callers enqueue world-space primitives through helpers in
+`DebugDrawPrimitives.h`; `DebugDrawSystem` batches those lines by color into
+procedural meshes. Debug draw uses `MaterialComponent::vertexColorOnly` so axes,
+bounds, rays, and frusta are not dependent on sampled debug textures.
+
+Debug draw is intentionally generic. Tool-specific policy, such as drawing the
+selected entity bounds or pick ray, lives under `modules/tools/debugdraw/`.
 
 ---
 
@@ -310,9 +376,72 @@ Hardware → GtsPlatform → IInputSource → InputBindingRegistry
 
 Engine actions use string identifiers such as `engine.pause` and `engine.close`. Applications extend this with their own namespaced action strings.
 
+Input contexts are stack-like named scopes. The engine tools and debug camera use
+their own contexts (`engine.tools`, `engine.debug_camera`) so UI clicking,
+world-picking, gizmo dragging, and free-camera input are mediated through the
+same input abstraction as keyboard actions instead of reaching into GLFW.
+
+Mouse position, buttons, scroll deltas, and cursor capture flow through
+`IInputSource` and `InputBindingRegistry`; engine systems should consume those
+values from `EcsControllerContext::input`.
+
 ---
 
-## 8. Resource Model
+## 8. Retained UI and Engine Tooling
+
+The retained UI model is an engine core service. `UiDocument` stores retained
+nodes, `UiSystem` owns per-frame extraction and interaction evaluation, and
+tool widgets in `modules/tools/ui/` provide reusable engine-editor controls
+on top of that UI system.
+
+Tooling is optional and installed per scene through `GtsScene::installToolingFeature()`.
+It is deliberately separate from `installRendererFeature()` so shipping scenes
+can opt out.
+
+Current tool feature layout:
+
+- `modules/tools/core/`: panel interface, registry, context, and shared state
+- `modules/tools/ui/`: tool widget helpers built on retained UI
+- `modules/tools/inspectors/`: entity and particle emitter inspector panels
+- `modules/tools/assets/`: particle asset/hot-reload status panel
+- `modules/tools/selection/`: input capture, world picking, selection labels,
+  selection highlight, and shared raycast helpers
+- `modules/tools/gizmos/`: translation gizmo state, panel, picking, snapping,
+  and transform edits
+- `modules/tools/debugdraw/`: debug-draw settings panel and tool-driven bounds,
+  axes, frustum, and pick-ray drawing
+
+Tooling state is held in singleton ECS components:
+
+- `EngineToolStateComponent`: visibility, active panel, selected entity, status
+- `EngineToolInputCaptureComponent`: pointer/UI/world-consumption state
+- `EngineGizmoStateComponent`: gizmo mode, hovered/active axis, snap settings
+- `DebugDrawSettingsComponent`: debug primitive toggles and sizing
+
+Selection can come from either inspector panels or world picking. The world
+picker uses `ActiveCameraViewStateComponent` plus `BoundsComponent` to raycast
+against live entities. `ToolEntityLabelComponent` gives entities human-readable
+names/categories and can mark internal tool entities as non-selectable.
+
+The translation gizmo is currently position-only. It draws X/Y/Z axes through
+debug draw, follows Unreal-style colors (X red, Y green, Z blue), supports world
+or local axes, and writes selected entity `TransformComponent::position` while
+marking the transform dirty.
+
+The debug free camera is renderer-installed and tool-friendly. It uses
+`engine.debug_camera` input bindings, right-mouse look, and context push/pop
+through the input registry.
+
+### Engine Font
+
+Engine debug/tool overlays use `resources/fonts/gravitasfont.png` with
+`GravitasFontAtlas`. This replaced the older generated retro font for engine UI
+because the upscaled cell grid gives readable lowercase letters, digits, and
+symbols without introducing image-filter noise.
+
+---
+
+## 9. Resource Model
 
 Assets are accessed through `IResourceProvider` (passed in `SceneContext`). Binding systems call into this interface when descriptor components are first processed:
 
@@ -330,7 +459,7 @@ GPU resource handles (mesh IDs, texture IDs, SSBO slots, camera view IDs) are al
 
 ---
 
-## 9. Extensibility
+## 10. Extensibility
 
 ### Adding a Simulation System
 
@@ -361,9 +490,19 @@ Add a `CameraOverrideComponent` to replace the default camera behavior. Implemen
 
 Application code should still author only descriptor/control components. Direct writes to `CameraGpuComponent` are reserved for engine-owned override paths.
 
+### Adding a Tool Panel
+
+1. Derive from `gts::tools::EngineToolPanel`
+2. Build retained UI nodes in `build(...)`
+3. Read/write only the state or descriptors owned by that panel's feature
+4. Register the panel in `EngineToolShellSystem`
+
+Prefer extending `ToolWidgets` for reusable controls instead of building
+one-off retained UI interaction code inside a panel.
+
 ---
 
-## 10. Key Design Principles
+## 11. Key Design Principles
 
 - **ECS-first**: all state is components, all behavior is systems — no monolithic managers
 - **Deterministic simulation**: simulation systems run at fixed timestep, isolated from frame timing
@@ -375,3 +514,4 @@ Application code should still author only descriptor/control components. Direct 
 - **Separation of lifecycle concerns**: geometry lifecycle, camera lifecycle, cleanup, transform sync, and extraction are distinct stages with distinct ownership
 - **RAII resource management**: backend resources tied to GPU component lifecycle via removal callbacks
 - **Modular assembly**: scenes are built by adding systems and components — the engine imposes no mandatory scene structure
+- **Feature-first tooling**: editor/tooling panels live under `modules/tools/`, generic visualization under `modules/debugdraw/`, and runtime particle simulation under rendering particle ECS setup
