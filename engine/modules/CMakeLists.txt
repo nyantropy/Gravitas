@@ -2,6 +2,7 @@
 # gravitas_vulkan_backend + gravitas_vulkan_setup) before other modules reference graphics types.
 add_subdirectory(rendering)
 add_subdirectory(physics)
+add_subdirectory(debugdraw)
 add_subdirectory(tools)
 
 # ── gravitas_modules — INTERFACE aggregator for ECS feature modules ────────────
@@ -34,16 +35,22 @@ target_include_directories(gravitas_modules INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/physics/debug"
 
     # Engine tooling
+    "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw/components"
+    "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw/primitives"
+    "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw/systems"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/core"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/ui"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/inspectors"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/assets"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/selection"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/debugdraw"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/gizmos"
 )
 
 target_link_libraries(gravitas_modules INTERFACE
     gravitas_core
     gravitas_rendering
     gravitas_physics
+    gravitas_debugdraw
     gravitas_tools
 )

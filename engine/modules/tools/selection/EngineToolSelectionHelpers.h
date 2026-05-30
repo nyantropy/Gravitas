@@ -7,6 +7,7 @@
 
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
+#include "DebugDrawRenderableComponent.h"
 #include "ECSWorld.hpp"
 #include "Entity.h"
 #include "MaterialComponent.h"
@@ -68,8 +69,13 @@ namespace gts::tools
 
     inline bool isToolInternalEntity(ECSWorld& world, Entity entity)
     {
-        return isValidToolEntity(entity)
-            && world.hasComponent<ToolEntityLabelComponent>(entity)
+        if (!isValidToolEntity(entity))
+            return false;
+
+        if (world.hasComponent<gts::debugdraw::DebugDrawRenderableComponent>(entity))
+            return true;
+
+        return world.hasComponent<ToolEntityLabelComponent>(entity)
             && world.getComponent<ToolEntityLabelComponent>(entity).category == "Tools";
     }
 

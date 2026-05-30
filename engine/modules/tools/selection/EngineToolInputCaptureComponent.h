@@ -8,6 +8,7 @@ namespace gts::tools
     {
         bool pointerOverToolUi = false;
         bool toolUiPressed = false;
+        bool worldConsumed = false;
         bool primaryDown = false;
         bool primaryPressed = false;
         bool primaryReleased = false;

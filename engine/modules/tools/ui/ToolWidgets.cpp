@@ -201,6 +201,26 @@ namespace gts::tools
         setText(ui, button.label, label);
     }
 
+    void updateToggleButton(UiSystem& ui,
+                            const ToolButton& button,
+                            const std::string& label,
+                            bool enabled)
+    {
+        const UiNode* node = ui.findNode(button.rect);
+        const bool hovered = node != nullptr && node->state.hovered;
+        const bool pressed = node != nullptr && node->state.pressed;
+        UiColor buttonColor = enabled
+            ? color(0.17f, 0.31f, 0.24f, 1.0f)
+            : color(0.105f, 0.125f, 0.145f, 0.95f);
+        if (hovered)
+            buttonColor = enabled ? color(0.21f, 0.39f, 0.30f, 1.0f) : color(0.14f, 0.19f, 0.23f, 1.0f);
+        if (pressed)
+            buttonColor = color(0.23f, 0.32f, 0.36f, 1.0f);
+
+        setRectColor(ui, button.rect, buttonColor);
+        setText(ui, button.label, label + (enabled ? " ON" : " OFF"));
+    }
+
     void updateSlider(UiSystem& ui,
                       const ToolSlider& slider,
                       float value,

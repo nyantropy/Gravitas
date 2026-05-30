@@ -28,11 +28,15 @@
 #include "PhysicsDebugRenderer.h"
 #include "ParticleEffectHotReloadSystem.hpp"
 #include "ParticleEmitterSystem.hpp"
+#include "DebugDrawSystem.hpp"
+#include "EngineGizmoSystem.hpp"
+#include "EngineToolDebugDrawSystem.hpp"
 #include "EngineToolSelectionHighlightSystem.hpp"
 #include "EngineToolShellSystem.hpp"
 #include "EngineToolWorldPickerSystem.hpp"
 #include "RenderExtractionSnapshotBuilder.hpp"
 #include "TransformDirtyHelpers.h"
+#include "InputBindingRegistry.h"
 
 
 // Override this class to define a reusable engine scene in terms of entities,
@@ -45,6 +49,7 @@ class GtsScene
         bool rendererFeatureInstalled = false;
         bool physicsFeatureInstalled  = false;
         bool toolingFeatureInstalled  = false;
+        bool debugDrawFeatureInstalled = false;
 
         void resetSceneWorld()
         {
@@ -55,6 +60,7 @@ class GtsScene
             rendererFeatureInstalled = false;
             physicsFeatureInstalled  = false;
             toolingFeatureInstalled  = false;
+            debugDrawFeatureInstalled = false;
         }
     public:
         virtual ~GtsScene() = default;
@@ -202,6 +208,8 @@ class GtsScene
                 });
 
             DebugFreeCameraSystem::ensureDebugCameraState(ecsWorld, ctx.windowAspectRatio);
+            if (ctx.input != nullptr)
+                ctx.input->popContext(DebugFreeCameraSystem::InputContext);
 
             ecsWorld.addControllerSystem<StaticMeshBindingSystem>();
             ecsWorld.addControllerSystem<ProceduralMeshBindingSystem>();
@@ -237,16 +245,28 @@ class GtsScene
             rendererFeatureInstalled = true;
         }
 
+        inline void installDebugDrawFeature(const EcsControllerContext&)
+        {
+            if (debugDrawFeatureInstalled)
+                return;
+
+            ecsWorld.addControllerSystem<gts::debugdraw::DebugDrawSystem>();
+            debugDrawFeatureInstalled = true;
+        }
+
         // Optional developer tooling surface. Kept separate from renderer setup so
         // shipping scenes can opt out while development scenes get inspectors.
-        inline void installToolingFeature(const EcsControllerContext&)
+        inline void installToolingFeature(const EcsControllerContext& ctx)
         {
             if (toolingFeatureInstalled)
                 return;
 
             ecsWorld.addControllerSystem<gts::tools::EngineToolShellSystem>();
+            ecsWorld.addControllerSystem<gts::tools::EngineGizmoSystem>();
+            ecsWorld.addControllerSystem<gts::tools::EngineToolDebugDrawSystem>();
             ecsWorld.addControllerSystem<gts::tools::EngineToolWorldPickerSystem>();
             ecsWorld.addControllerSystem<gts::tools::EngineToolSelectionHighlightSystem>();
+            installDebugDrawFeature(ctx);
             toolingFeatureInstalled = true;
         }
 };

@@ -19,8 +19,10 @@ class DebugFreeCameraSystem : public ECSControllerSystem
 public:
     static constexpr float MOVE_SPEED   = 5.0f;
     static constexpr float ROTATE_SPEED = glm::radians(90.0f);
+    static constexpr float MOUSE_LOOK_SPEED = 0.0025f;
     static constexpr float MIN_PITCH    = glm::radians(-89.0f);
     static constexpr float MAX_PITCH    = glm::radians( 89.0f);
+    static constexpr const char* InputContext = "engine.debug_camera";
 
     void update(const EcsControllerContext& ctx) override
     {
@@ -28,6 +30,12 @@ public:
             return;
 
         auto& state = ctx.world.getSingleton<DebugCameraStateComponent>();
+        if (ctx.input == nullptr)
+        {
+            if (state.active)
+                deactivate(ctx, state);
+            return;
+        }
 
         if (ctx.input->isPressed("engine.debug_camera_toggle"))
         {
@@ -43,6 +51,10 @@ public:
 private:
     float yaw          = 0.0f;
     float pitch        = 0.0f;
+    double previousMouseX = 0.0;
+    double previousMouseY = 0.0;
+    bool mouseLookReady = false;
+    bool inputContextRequested = false;
 
     static Entity invalidEntity()
     {
@@ -94,6 +106,7 @@ private:
 
         state.previousActiveCamera = currentCamera;
         state.active = true;
+        requestInputContext(ctx);
 
         auto& srcDesc = ctx.world.getComponent<CameraDescriptionComponent>(currentCamera);
         auto& dstDesc = ctx.world.getComponent<CameraDescriptionComponent>(state.debugCameraEntity);
@@ -123,11 +136,14 @@ private:
 
         yaw   = std::atan2(-forward.x, -forward.z);
         pitch = glm::clamp(std::asin(glm::clamp(forward.y, -1.0f, 1.0f)), MIN_PITCH, MAX_PITCH);
+        mouseLookReady = false;
     }
 
     void deactivate(const EcsControllerContext& ctx, DebugCameraStateComponent& state)
     {
         state.active = false;
+        releaseInputContext(ctx);
+        mouseLookReady = false;
 
         if (ctx.world.hasComponent<CameraDescriptionComponent>(state.debugCameraEntity))
             ctx.world.getComponent<CameraDescriptionComponent>(state.debugCameraEntity).active = false;
@@ -176,7 +192,8 @@ private:
     void updateActiveDebugCamera(const EcsControllerContext& ctx, DebugCameraStateComponent& state)
     {
         if (!ctx.world.hasComponent<CameraDescriptionComponent>(state.debugCameraEntity)
-            || !ctx.world.hasComponent<TransformComponent>(state.debugCameraEntity))
+            || !ctx.world.hasComponent<TransformComponent>(state.debugCameraEntity)
+            || !ctx.world.hasComponent<CameraGpuComponent>(state.debugCameraEntity))
             return;
 
         auto& desc = ctx.world.getComponent<CameraDescriptionComponent>(state.debugCameraEntity);
@@ -189,6 +206,7 @@ private:
         if (ctx.input->isHeld("engine.debug_camera_yaw_right")) yaw -= ROTATE_SPEED * dt;
         if (ctx.input->isHeld("engine.debug_camera_pitch_up"))   pitch += ROTATE_SPEED * dt;
         if (ctx.input->isHeld("engine.debug_camera_pitch_down")) pitch -= ROTATE_SPEED * dt;
+        updateMouseLook(ctx);
 
         pitch = glm::clamp(pitch, MIN_PITCH, MAX_PITCH);
 
@@ -220,5 +238,46 @@ private:
         gpu.projMatrix[1][1] *= -1.0f;
         gpu.active = true;
         gpu.dirty  = true;
+    }
+
+    void requestInputContext(const EcsControllerContext& ctx)
+    {
+        if (ctx.input == nullptr || inputContextRequested)
+            return;
+
+        ctx.input->pushContext(InputContext);
+        inputContextRequested = true;
+    }
+
+    void releaseInputContext(const EcsControllerContext& ctx)
+    {
+        if (ctx.input == nullptr || !inputContextRequested)
+            return;
+
+        ctx.input->popContext(InputContext);
+        inputContextRequested = false;
+    }
+
+    void updateMouseLook(const EcsControllerContext& ctx)
+    {
+        if (ctx.input == nullptr || !ctx.input->isHeld("engine.debug_camera_look"))
+        {
+            mouseLookReady = false;
+            return;
+        }
+
+        const double mouseX = ctx.input->mouseX();
+        const double mouseY = ctx.input->mouseY();
+        if (mouseLookReady)
+        {
+            const double dx = mouseX - previousMouseX;
+            const double dy = mouseY - previousMouseY;
+            yaw -= static_cast<float>(dx) * MOUSE_LOOK_SPEED;
+            pitch -= static_cast<float>(dy) * MOUSE_LOOK_SPEED;
+        }
+
+        previousMouseX = mouseX;
+        previousMouseY = mouseY;
+        mouseLookReady = true;
     }
 };

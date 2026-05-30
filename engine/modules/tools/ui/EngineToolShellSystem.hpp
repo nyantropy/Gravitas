@@ -6,6 +6,7 @@
 
 #include "AssetStatusPanel.hpp"
 #include "BitmapFontLoader.h"
+#include "DebugDrawPanel.hpp"
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
 #include "EngineToolContext.h"
@@ -15,6 +16,7 @@
 #include "GravitasFontAtlas.h"
 #include "GraphicsConstants.h"
 #include "ParticleEmitterInspectorPanel.hpp"
+#include "SceneGizmoPanel.hpp"
 #include "ToolWidgets.h"
 #include "UiSystem.h"
 
@@ -26,7 +28,9 @@ namespace gts::tools
         EngineToolShellSystem()
         {
             registry.addPanel<EntityInspectorPanel>();
+            registry.addPanel<SceneGizmoPanel>();
             registry.addPanel<ParticleEmitterInspectorPanel>();
+            registry.addPanel<DebugDrawPanel>();
             registry.addPanel<AssetStatusPanel>();
         }
 
@@ -91,7 +95,7 @@ namespace gts::tools
     private:
         static constexpr float RootX = 0.018f;
         static constexpr float RootY = 0.055f;
-        static constexpr float RootW = 0.415f;
+        static constexpr float RootW = 0.500f;
         static constexpr float RootH = 0.925f;
         static constexpr float Pad = 0.014f;
 
@@ -187,8 +191,8 @@ namespace gts::tools
                                "GRAVITAS TOOLS", color(0.95f, 0.98f, 1.0f), 0.018f);
 
             buildTabs(ctx, state);
-            contentRoot = createContainer(ctx.ui, root, {Pad, 0.128f, 0.390f, 0.760f});
-            footer = createText(ctx.ui, root, {Pad, RootH - 0.035f, 0.380f, 0.024f}, &font,
+            contentRoot = createContainer(ctx.ui, root, {Pad, 0.128f, 0.470f, 0.760f});
+            footer = createText(ctx.ui, root, {Pad, RootH - 0.035f, 0.462f, 0.024f}, &font,
                                 state.status, color(0.80f, 0.86f, 0.92f), 0.0125f);
 
             for (auto& panel : registry.all())
@@ -274,6 +278,7 @@ namespace gts::tools
             EngineToolInputCaptureComponent& capture = ensureInputCapture(world);
             capture.pointerOverToolUi = interaction.hovered != UI_INVALID_HANDLE;
             capture.toolUiPressed = interaction.pressed != UI_INVALID_HANDLE;
+            capture.worldConsumed = false;
             capture.pointerX = interaction.pointerX;
             capture.pointerY = interaction.pointerY;
             capture.hoveredUi = interaction.hovered;

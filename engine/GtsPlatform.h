@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 #include "EngineConfig.h"
 #include "GtsPlatformEventBus.hpp"
@@ -201,55 +202,105 @@ class GtsPlatform
                                   ActivationMode::Pressed,
                                   "",
                                   PausePolicy::AlwaysActive);
+            bindCameraKeyAction("engine.tools", "engine.debug_camera_toggle", GtsKey::F4, ActivationMode::Pressed);
+            bindCameraKeyAction("engine.debug_camera", "engine.debug_camera_toggle", GtsKey::F4, ActivationMode::Pressed);
             bindingRegistry->bind("engine.debug_camera_yaw_left",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Q)},
                                   ActivationMode::Held,
                                   "",
                                   PausePolicy::Gameplay);
+            bindCameraKeyAction("engine.tools", "engine.debug_camera_yaw_left", GtsKey::Q);
+            bindCameraKeyAction("engine.debug_camera", "engine.debug_camera_yaw_left", GtsKey::Q);
             bindingRegistry->bind("engine.debug_camera_yaw_right",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::E)},
                                   ActivationMode::Held,
                                   "",
                                   PausePolicy::Gameplay);
+            bindCameraKeyAction("engine.tools", "engine.debug_camera_yaw_right", GtsKey::E);
+            bindCameraKeyAction("engine.debug_camera", "engine.debug_camera_yaw_right", GtsKey::E);
             bindingRegistry->bind("engine.debug_camera_pitch_up",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowUp)},
                                   ActivationMode::Held,
                                   "",
                                   PausePolicy::Gameplay);
+            bindCameraKeyAction("engine.tools", "engine.debug_camera_pitch_up", GtsKey::ArrowUp);
+            bindCameraKeyAction("engine.debug_camera", "engine.debug_camera_pitch_up", GtsKey::ArrowUp);
             bindingRegistry->bind("engine.debug_camera_pitch_down",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowDown)},
                                   ActivationMode::Held,
                                   "",
                                   PausePolicy::Gameplay);
+            bindCameraKeyAction("engine.tools", "engine.debug_camera_pitch_down", GtsKey::ArrowDown);
+            bindCameraKeyAction("engine.debug_camera", "engine.debug_camera_pitch_down", GtsKey::ArrowDown);
             bindingRegistry->bind("engine.debug_camera_forward",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::W)},
                                   ActivationMode::Held,
                                   "",
                                   PausePolicy::Gameplay);
+            bindCameraKeyAction("engine.tools", "engine.debug_camera_forward", GtsKey::W);
+            bindCameraKeyAction("engine.debug_camera", "engine.debug_camera_forward", GtsKey::W);
             bindingRegistry->bind("engine.debug_camera_backward",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::S)},
                                   ActivationMode::Held,
                                   "",
                                   PausePolicy::Gameplay);
+            bindCameraKeyAction("engine.tools", "engine.debug_camera_backward", GtsKey::S);
+            bindCameraKeyAction("engine.debug_camera", "engine.debug_camera_backward", GtsKey::S);
             bindingRegistry->bind("engine.debug_camera_left",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::A)},
                                   ActivationMode::Held,
                                   "",
                                   PausePolicy::Gameplay);
+            bindCameraKeyAction("engine.tools", "engine.debug_camera_left", GtsKey::A);
+            bindCameraKeyAction("engine.debug_camera", "engine.debug_camera_left", GtsKey::A);
             bindingRegistry->bind("engine.debug_camera_right",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::D)},
                                   ActivationMode::Held,
                                   "",
                                   PausePolicy::Gameplay);
+            bindCameraKeyAction("engine.tools", "engine.debug_camera_right", GtsKey::D);
+            bindCameraKeyAction("engine.debug_camera", "engine.debug_camera_right", GtsKey::D);
             bindingRegistry->bind("engine.debug_camera_up",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::R)},
                                   ActivationMode::Held,
                                   "",
                                   PausePolicy::Gameplay);
+            bindCameraKeyAction("engine.tools", "engine.debug_camera_up", GtsKey::R);
+            bindCameraKeyAction("engine.debug_camera", "engine.debug_camera_up", GtsKey::R);
             bindingRegistry->bind("engine.debug_camera_down",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F)},
                                   ActivationMode::Held,
                                   "",
                                   PausePolicy::Gameplay);
+            bindCameraKeyAction("engine.tools", "engine.debug_camera_down", GtsKey::F);
+            bindCameraKeyAction("engine.debug_camera", "engine.debug_camera_down", GtsKey::F);
+            bindCameraMouseAction("engine.tools", "engine.debug_camera_look");
+            bindCameraMouseAction("engine.debug_camera", "engine.debug_camera_look");
+        }
+
+        void bindCameraKeyAction(const std::string& context,
+                                 const std::string& action,
+                                 GtsKey key,
+                                 ActivationMode mode = ActivationMode::Held)
+        {
+            bindingRegistry->bind(InputBinding{
+                                  action,
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(key)},
+                                  mode,
+                                  context,
+                                  PausePolicy::AlwaysActive,
+                                  false});
+        }
+
+        void bindCameraMouseAction(const std::string& context,
+                                   const std::string& action)
+        {
+            bindingRegistry->bind(InputBinding{
+                                  action,
+                                  InputTrigger{InputTrigger::Type::MouseButton, 1},
+                                  ActivationMode::Held,
+                                  context,
+                                  PausePolicy::AlwaysActive,
+                                  false});
         }
 };

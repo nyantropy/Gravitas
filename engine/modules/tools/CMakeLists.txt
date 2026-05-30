@@ -19,9 +19,12 @@ target_include_directories(gravitas_tools PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/inspectors"
     "${CMAKE_CURRENT_SOURCE_DIR}/assets"
     "${CMAKE_CURRENT_SOURCE_DIR}/selection"
+    "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw"
+    "${CMAKE_CURRENT_SOURCE_DIR}/gizmos"
 )
 
 target_link_libraries(gravitas_tools PUBLIC
     gravitas_core
     gravitas_rendering
+    gravitas_debugdraw
 )

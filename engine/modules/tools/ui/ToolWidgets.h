@@ -79,6 +79,10 @@ namespace gts::tools
     bool wasClicked(const UiInteractionResult& interaction, UiHandle handle);
     bool isPressed(const UiInteractionResult& interaction, UiHandle handle);
     void updateButton(UiSystem& ui, const ToolButton& button, const std::string& label);
+    void updateToggleButton(UiSystem& ui,
+                            const ToolButton& button,
+                            const std::string& label,
+                            bool enabled);
     void updateSlider(UiSystem& ui,
                       const ToolSlider& slider,
                       float value,
