@@ -93,6 +93,9 @@ class GtsPlatform
         std::unique_ptr<InputManager>              inputManager;
         std::unique_ptr<InputBindingRegistry>      bindingRegistry;
         SubscriptionToken                          keyEventToken;
+        SubscriptionToken                          mouseButtonEventToken;
+        SubscriptionToken                          cursorPositionEventToken;
+        SubscriptionToken                          scrollEventToken;
 
         void createGraphicsModule(const EngineConfig& config)
         {
@@ -106,6 +109,18 @@ class GtsPlatform
             keyEventToken = graphics->getEventBus().subscribe<GtsKeyEvent>([this](const GtsKeyEvent& e)
             {
                 inputManager->onKeyEvent(e.key, e.pressed, e.mods);
+            });
+            mouseButtonEventToken = graphics->getEventBus().subscribe<GtsMouseButtonEvent>([this](const GtsMouseButtonEvent& e)
+            {
+                inputManager->onMouseButtonEvent(e.button, e.pressed, e.mods);
+            });
+            cursorPositionEventToken = graphics->getEventBus().subscribe<GtsCursorPositionEvent>([this](const GtsCursorPositionEvent& e)
+            {
+                inputManager->onCursorPositionEvent(e.x, e.y);
+            });
+            scrollEventToken = graphics->getEventBus().subscribe<GtsScrollEvent>([this](const GtsScrollEvent& e)
+            {
+                inputManager->onScrollEvent(e.x, e.y);
             });
 
             if (config.debugOverlayEnabledByDefault)
@@ -142,6 +157,16 @@ class GtsPlatform
             bindingRegistry->bind("engine.screenshot",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F12)},
                                   ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive);
+            bindingRegistry->bind("engine.particle_editor",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F6)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive);
+            bindingRegistry->bind("engine.ui_primary",
+                                  InputTrigger{InputTrigger::Type::MouseButton, 0},
+                                  ActivationMode::Held,
                                   "",
                                   PausePolicy::AlwaysActive);
             bindingRegistry->bind("engine.zoom_in",

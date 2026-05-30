@@ -4,6 +4,14 @@
 
 namespace
 {
+    bool containsPoint(const UiRect& rect, float x, float y)
+    {
+        return x >= rect.x
+            && y >= rect.y
+            && x <= rect.x + rect.width
+            && y <= rect.y + rect.height;
+    }
+
     UiRect intersectRect(const UiRect& a, const UiRect& b)
     {
         const float left   = std::max(a.x, b.x);
@@ -222,6 +230,11 @@ void UiDocument::rebuildVisualList()
         & ~static_cast<uint8_t>(UiDirtyFlags::Visual));
 }
 
+UiHandle UiDocument::hitTest(float x, float y) const
+{
+    return hitTestRecursive(rootHandle, x, y, true);
+}
+
 UiHandle UiDocument::allocHandle()
 {
     return nextHandle++;
@@ -394,4 +407,34 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, con
 
     for (UiHandle child : node.children)
         rebuildVisualRecursive(child, visible, effectiveClip);
+}
+
+UiHandle UiDocument::hitTestRecursive(UiHandle handle, float x, float y, bool parentVisible) const
+{
+    const auto it = nodes.find(handle);
+    if (it == nodes.end())
+        return UI_INVALID_HANDLE;
+
+    const UiNode& node = it->second;
+    const bool visible = parentVisible && node.isVisible();
+    if (!visible || !node.state.enabled)
+        return UI_INVALID_HANDLE;
+
+    if (node.layout.clipMode == UiClipMode::ClipChildren
+        && !containsPoint(node.computedLayout.clipRect, x, y))
+    {
+        return UI_INVALID_HANDLE;
+    }
+
+    for (auto childIt = node.children.rbegin(); childIt != node.children.rend(); ++childIt)
+    {
+        const UiHandle hit = hitTestRecursive(*childIt, x, y, visible);
+        if (hit != UI_INVALID_HANDLE)
+            return hit;
+    }
+
+    if (node.state.interactable && containsPoint(node.computedLayout.bounds, x, y))
+        return handle;
+
+    return UI_INVALID_HANDLE;
 }

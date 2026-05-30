@@ -11,6 +11,9 @@ void UiSystem::clear()
 {
     document.clear();
     textBindings.clear();
+    lastInteraction = {};
+    activeHandle = UI_INVALID_HANDLE;
+    focusedHandle = UI_INVALID_HANDLE;
 }
 
 void UiSystem::setEnabled(bool inEnabled)
@@ -36,7 +39,23 @@ UiHandle UiSystem::createNode(UiNodeType type, UiHandle parent)
 bool UiSystem::removeNode(UiHandle handle)
 {
     removeTextBindingsRecursive(handle);
-    return document.removeNode(handle);
+    const bool removed = document.removeNode(handle);
+    if (!removed)
+        return false;
+
+    if (activeHandle != UI_INVALID_HANDLE && document.findNode(activeHandle) == nullptr)
+        activeHandle = UI_INVALID_HANDLE;
+    if (focusedHandle != UI_INVALID_HANDLE && document.findNode(focusedHandle) == nullptr)
+        focusedHandle = UI_INVALID_HANDLE;
+    if (lastInteraction.hovered != UI_INVALID_HANDLE && document.findNode(lastInteraction.hovered) == nullptr)
+        lastInteraction.hovered = UI_INVALID_HANDLE;
+    if (lastInteraction.pressed != UI_INVALID_HANDLE && document.findNode(lastInteraction.pressed) == nullptr)
+        lastInteraction.pressed = UI_INVALID_HANDLE;
+    if (lastInteraction.focused != UI_INVALID_HANDLE && document.findNode(lastInteraction.focused) == nullptr)
+        lastInteraction.focused = UI_INVALID_HANDLE;
+    if (lastInteraction.clicked != UI_INVALID_HANDLE && document.findNode(lastInteraction.clicked) == nullptr)
+        lastInteraction.clicked = UI_INVALID_HANDLE;
+    return true;
 }
 
 bool UiSystem::reparentNode(UiHandle handle, UiHandle newParent)
@@ -98,6 +117,70 @@ UiSystem::Metrics UiSystem::getLastMetrics() const
     return lastMetrics;
 }
 
+UiInteractionResult UiSystem::updateInteraction(const UiInputFrame& input)
+{
+    if (!enabled)
+    {
+        lastInteraction = {};
+        activeHandle = UI_INVALID_HANDLE;
+        focusedHandle = UI_INVALID_HANDLE;
+        return lastInteraction;
+    }
+
+    document.setViewportSize(1.0f, 1.0f);
+    if (hasFlag(document.getDirtyFlags(), UiDirtyFlags::Layout))
+        document.updateLayout(1.0f, 1.0f);
+
+    const UiHandle previousHovered = lastInteraction.hovered;
+    const UiHandle previousPressed = lastInteraction.pressed;
+    const UiHandle previousFocused = focusedHandle;
+
+    const UiHandle hovered = document.hitTest(input.pointerX, input.pointerY);
+    if (input.primaryPressed)
+    {
+        activeHandle = hovered;
+        if (hovered != UI_INVALID_HANDLE)
+            focusedHandle = hovered;
+    }
+
+    UiHandle clicked = UI_INVALID_HANDLE;
+    if (input.primaryReleased)
+    {
+        if (activeHandle != UI_INVALID_HANDLE && activeHandle == hovered)
+            clicked = activeHandle;
+        activeHandle = UI_INVALID_HANDLE;
+    }
+
+    const UiHandle pressed = input.primaryDown ? activeHandle : UI_INVALID_HANDLE;
+
+    applyInteractionState(previousHovered, false, previousHovered == focusedHandle, false);
+    applyInteractionState(previousPressed, previousPressed == hovered, previousPressed == focusedHandle, false);
+    applyInteractionState(previousFocused, previousFocused == hovered, previousFocused == focusedHandle, false);
+    applyInteractionState(hovered, true, hovered == focusedHandle, hovered == pressed);
+    applyInteractionState(pressed, pressed == hovered, pressed == focusedHandle, pressed != UI_INVALID_HANDLE);
+    applyInteractionState(focusedHandle,
+                          focusedHandle == hovered,
+                          focusedHandle != UI_INVALID_HANDLE,
+                          focusedHandle == pressed);
+
+    lastInteraction = {
+        hovered,
+        focusedHandle,
+        pressed,
+        clicked,
+        input.pointerX,
+        input.pointerY,
+        input.scrollX,
+        input.scrollY
+    };
+    return lastInteraction;
+}
+
+UiInteractionResult UiSystem::getLastInteraction() const
+{
+    return lastInteraction;
+}
+
 UiCommandBuffer UiSystem::extractCommands(int viewportWidth, int viewportHeight)
 {
     if (!enabled)
@@ -157,4 +240,23 @@ void UiSystem::removeTextBindingsRecursive(UiHandle handle)
         removeTextBindingsRecursive(child);
 
     textBindings.erase(handle);
+}
+
+void UiSystem::applyInteractionState(UiHandle handle,
+                                     bool hovered,
+                                     bool focused,
+                                     bool pressed)
+{
+    if (handle == UI_INVALID_HANDLE)
+        return;
+
+    UiNode* node = document.findNode(handle);
+    if (node == nullptr)
+        return;
+
+    UiStateFlags state = node->state;
+    state.hovered = hovered;
+    state.focused = focused;
+    state.pressed = pressed;
+    document.setState(handle, state);
 }

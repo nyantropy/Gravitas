@@ -20,4 +20,5 @@ struct VulkanRenderPassConfig
     VkAttachmentLoadOp depthLoadOp       = VK_ATTACHMENT_LOAD_OP_CLEAR;
     VkImageLayout      depthInitialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     VkImageLayout      depthFinalLayout   = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    VkImageLayout      depthAttachmentLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 };

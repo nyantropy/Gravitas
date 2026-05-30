@@ -36,6 +36,7 @@ public:
     const UiVisualList& getVisualList() const { return visualList; }
     UiDirtyFlags        getDirtyFlags() const { return dirtyFlags; }
     size_t              getNodeCount() const { return nodes.size(); }
+    UiHandle            hitTest(float x, float y) const;
 
 private:
     UiHandle allocHandle();
@@ -44,6 +45,7 @@ private:
     void     appendChild(UiHandle parent, UiHandle child);
     void     computeLayoutRecursive(UiHandle handle, const UiComputedLayout* parentLayout);
     void     rebuildVisualRecursive(UiHandle handle, bool parentVisible, const UiRect& inheritedClip);
+    UiHandle hitTestRecursive(UiHandle handle, float x, float y, bool parentVisible) const;
 
     UiHandle                             nextHandle  = 1;
     UiHandle                             rootHandle  = UI_INVALID_HANDLE;

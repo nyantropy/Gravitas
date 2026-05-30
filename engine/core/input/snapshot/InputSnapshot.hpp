@@ -33,4 +33,11 @@ struct InputSnapshot
     bool isKeyDown(GtsKey key) const     { return source != nullptr && source->isKeyDown(key); }
     bool isKeyPressed(GtsKey key) const  { return source != nullptr && source->isKeyPressed(key); }
     bool isKeyReleased(GtsKey key) const { return source != nullptr && source->isKeyReleased(key); }
+    bool isMouseButtonDown(int button) const { return source != nullptr && source->isMouseButtonDown(button); }
+    bool isMouseButtonPressed(int button) const { return source != nullptr && source->isMouseButtonPressed(button); }
+    bool isMouseButtonReleased(int button) const { return source != nullptr && source->isMouseButtonReleased(button); }
+    double mouseX() const { return source != nullptr ? source->mouseX() : 0.0; }
+    double mouseY() const { return source != nullptr ? source->mouseY() : 0.0; }
+    double scrollX() const { return source != nullptr ? source->scrollX() : 0.0; }
+    double scrollY() const { return source != nullptr ? source->scrollY() : 0.0; }
 };

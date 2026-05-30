@@ -13,5 +13,12 @@ public:
     virtual bool isKeyDown(GtsKey key) const = 0;
     virtual bool isKeyPressed(GtsKey key) const = 0;
     virtual bool isKeyReleased(GtsKey key) const = 0;
+    virtual bool isMouseButtonDown(int button) const = 0;
+    virtual bool isMouseButtonPressed(int button) const = 0;
+    virtual bool isMouseButtonReleased(int button) const = 0;
+    virtual double mouseX() const = 0;
+    virtual double mouseY() const = 0;
+    virtual double scrollX() const = 0;
+    virtual double scrollY() const = 0;
     virtual ModifierFlags getModifiers() const = 0;
 };

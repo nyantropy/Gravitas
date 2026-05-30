@@ -12,8 +12,10 @@ struct ParticleInstance
     glm::vec3 worldPosition = {0.0f, 0.0f, 0.0f};
     float     size          = 1.0f;
     glm::vec4 color         = {1.0f, 1.0f, 1.0f, 1.0f};
+    glm::vec4 uvRect        = {0.0f, 0.0f, 1.0f, 1.0f};
     float     rotation      = 0.0f;
     float     depth         = 0.0f;
+    float     softness      = 0.0f;
 };
 
 struct ParticleDrawCommand
@@ -50,4 +52,3 @@ struct ParticleFrameDataComponent
 {
     ParticleFrameData frameData;
 };
-

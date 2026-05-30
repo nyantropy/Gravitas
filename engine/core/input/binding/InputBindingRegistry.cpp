@@ -251,6 +251,26 @@ float InputBindingRegistry::axisValue(const std::string& action) const
     return std::fabs(alwaysValue) > std::fabs(gameplayValue) ? alwaysValue : gameplayValue;
 }
 
+double InputBindingRegistry::mouseX() const
+{
+    return currentMouseX;
+}
+
+double InputBindingRegistry::mouseY() const
+{
+    return currentMouseY;
+}
+
+double InputBindingRegistry::scrollX() const
+{
+    return currentScrollX;
+}
+
+double InputBindingRegistry::scrollY() const
+{
+    return currentScrollY;
+}
+
 void InputBindingRegistry::setPaused(bool pausedValue)
 {
     paused = pausedValue;
@@ -264,6 +284,10 @@ bool InputBindingRegistry::isPaused() const
 void InputBindingRegistry::update(const InputSnapshot& rawInput)
 {
     applyPendingContextOps();
+    currentMouseX = rawInput.mouseX();
+    currentMouseY = rawInput.mouseY();
+    currentScrollX = rawInput.scrollX();
+    currentScrollY = rawInput.scrollY();
 
     for (auto& [action, state] : actionStates)
     {
@@ -438,7 +462,8 @@ ModifierFlags InputBindingRegistry::getCurrentModifiers(const InputSnapshot& raw
 
 bool InputBindingRegistry::isTriggerSupported(const InputTrigger& trigger)
 {
-    return trigger.type == InputTrigger::Type::Key;
+    return trigger.type == InputTrigger::Type::Key
+        || trigger.type == InputTrigger::Type::MouseButton;
 }
 
 bool InputBindingRegistry::matchesTrigger(const InputSnapshot& rawInput,
@@ -448,10 +473,13 @@ bool InputBindingRegistry::matchesTrigger(const InputSnapshot& rawInput,
     if (!isTriggerSupported(trigger))
         return false;
 
-    const auto key = static_cast<GtsKey>(trigger.code);
     ModifierFlags effectiveModifiers = currentModifiers;
-    if (isModifierKey(key))
-        effectiveModifiers = effectiveModifiers & ~modifierFlagForKey(key);
+    if (trigger.type == InputTrigger::Type::Key)
+    {
+        const auto key = static_cast<GtsKey>(trigger.code);
+        if (isModifierKey(key))
+            effectiveModifiers = effectiveModifiers & ~modifierFlagForKey(key);
+    }
 
     if (effectiveModifiers != trigger.modifiers)
         return false;
@@ -459,10 +487,16 @@ bool InputBindingRegistry::matchesTrigger(const InputSnapshot& rawInput,
     switch (trigger.type)
     {
         case InputTrigger::Type::Key:
+        {
+            const auto key = static_cast<GtsKey>(trigger.code);
             return rawInput.isKeyDown(key)
                 || rawInput.isKeyPressed(key)
                 || rawInput.isKeyReleased(key);
+        }
         case InputTrigger::Type::MouseButton:
+            return rawInput.isMouseButtonDown(trigger.code)
+                || rawInput.isMouseButtonPressed(trigger.code)
+                || rawInput.isMouseButtonReleased(trigger.code);
         case InputTrigger::Type::GamepadButton:
         case InputTrigger::Type::GamepadAxis:
             return false;
@@ -476,15 +510,20 @@ bool InputBindingRegistry::signalActive(const InputSnapshot& rawInput, const Inp
     if (!isTriggerSupported(binding.trigger))
         return false;
 
-    const auto key = static_cast<GtsKey>(binding.trigger.code);
     switch (binding.mode)
     {
         case ActivationMode::Pressed:
-            return rawInput.isKeyPressed(key);
+            if (binding.trigger.type == InputTrigger::Type::MouseButton)
+                return rawInput.isMouseButtonPressed(binding.trigger.code);
+            return rawInput.isKeyPressed(static_cast<GtsKey>(binding.trigger.code));
         case ActivationMode::Released:
-            return rawInput.isKeyReleased(key);
+            if (binding.trigger.type == InputTrigger::Type::MouseButton)
+                return rawInput.isMouseButtonReleased(binding.trigger.code);
+            return rawInput.isKeyReleased(static_cast<GtsKey>(binding.trigger.code));
         case ActivationMode::Held:
-            return rawInput.isKeyDown(key);
+            if (binding.trigger.type == InputTrigger::Type::MouseButton)
+                return rawInput.isMouseButtonDown(binding.trigger.code);
+            return rawInput.isKeyDown(static_cast<GtsKey>(binding.trigger.code));
         case ActivationMode::Repeated:
             return false;
     }

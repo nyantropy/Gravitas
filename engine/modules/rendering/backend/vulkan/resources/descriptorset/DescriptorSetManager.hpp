@@ -128,6 +128,13 @@ class DescriptorSetManager
 
         std::vector<VkDescriptorSet> allocateForTexture(VkImageView imageView, VkSampler sampler)
         {
+            return allocateForSampledImage(imageView, sampler, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        }
+
+        std::vector<VkDescriptorSet> allocateForSampledImage(VkImageView imageView,
+                                                             VkSampler sampler,
+                                                             VkImageLayout imageLayout)
+        {
             std::vector<VkDescriptorSet> descriptorSets(framesInFlight);
 
             std::vector<VkDescriptorSetLayout> layouts(framesInFlight, descriptorSetLayouts[2]);
@@ -143,7 +150,7 @@ class DescriptorSetManager
             for (size_t i = 0; i < framesInFlight; i++)
             {
                 VkDescriptorImageInfo imageInfo{};
-                imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                imageInfo.imageLayout = imageLayout;
                 imageInfo.imageView   = imageView;
                 imageInfo.sampler     = sampler;
 

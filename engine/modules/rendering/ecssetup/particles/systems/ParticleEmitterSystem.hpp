@@ -329,12 +329,28 @@ private:
                               float dt)
     {
         bindTextureIfNeeded(ctx, emitter, runtime);
+        const float previousEmitterAge = runtime.emitterAge;
+        runtime.emitterAge += dt;
+
+        bool loopWrapped = false;
+        float previousLocalAge = std::max(0.0f, previousEmitterAge - emitter.startDelay);
+        float localAge = std::max(0.0f, runtime.emitterAge - emitter.startDelay);
+        if (emitter.looping && emitter.duration > 0.0f)
+        {
+            previousLocalAge = std::fmod(previousLocalAge, emitter.duration);
+            localAge = std::fmod(localAge, emitter.duration);
+            loopWrapped = localAge < previousLocalAge;
+            if (loopWrapped)
+                runtime.burstRepeatCounts.clear();
+        }
 
         const uint32_t maxParticles = std::max(1u, emitter.maxParticles);
         if (runtime.particles.capacity() < maxParticles)
             runtime.particles.reserve(maxParticles);
         if (runtime.particles.size() > maxParticles)
             runtime.particles.resize(maxParticles);
+        if (runtime.burstRepeatCounts.size() != emitter.bursts.size())
+            runtime.burstRepeatCounts.assign(emitter.bursts.size(), 0u);
 
         for (size_t i = 0; i < runtime.particles.size();)
         {
@@ -347,6 +363,7 @@ private:
                 continue;
             }
 
+            applyForces(emitter, transform, particle, dt);
             const float dragFactor = std::max(0.0f, 1.0f - emitter.drag * dt);
             particle.velocity *= dragFactor;
             particle.position += particle.velocity * dt;
@@ -354,18 +371,112 @@ private:
             ++i;
         }
 
-        if (!emitter.enabled || emitter.emissionRate <= 0.0f || emitter.intensity <= 0.0f)
+        if (!emitter.enabled || emitter.intensity <= 0.0f)
+            return;
+        if (runtime.emitterAge < emitter.startDelay)
+            return;
+        if (!emitter.looping && emitter.duration > 0.0f && localAge > emitter.duration)
             return;
 
-        runtime.spawnAccumulator += emitter.emissionRate * emitter.intensity * dt;
-        uint32_t spawnCount = static_cast<uint32_t>(runtime.spawnAccumulator);
-        runtime.spawnAccumulator -= static_cast<float>(spawnCount);
+        if (emitter.emissionRate > 0.0f)
+        {
+            runtime.spawnAccumulator += emitter.emissionRate * emitter.intensity * dt;
+            uint32_t spawnCount = static_cast<uint32_t>(runtime.spawnAccumulator);
+            runtime.spawnAccumulator -= static_cast<float>(spawnCount);
+            spawnParticles(emitter, runtime, transform, spawnCount, maxParticles);
+        }
 
+        spawnBursts(emitter,
+                    runtime,
+                    transform,
+                    previousLocalAge,
+                    localAge,
+                    loopWrapped,
+                    maxParticles);
+    }
+
+    static void spawnParticles(const ParticleEmitterComponent& emitter,
+                               ParticleEmitterRuntimeComponent& runtime,
+                               const TransformComponent& transform,
+                               uint32_t count,
+                               uint32_t maxParticles)
+    {
         const uint32_t available = maxParticles - static_cast<uint32_t>(runtime.particles.size());
-        spawnCount = std::min(spawnCount, available);
+        count = std::min(count, available);
 
-        for (uint32_t i = 0; i < spawnCount; ++i)
+        for (uint32_t i = 0; i < count; ++i)
             spawnParticle(emitter, runtime, transform);
+    }
+
+    static void spawnBursts(const ParticleEmitterComponent& emitter,
+                            ParticleEmitterRuntimeComponent& runtime,
+                            const TransformComponent& transform,
+                            float previousLocalAge,
+                            float localAge,
+                            bool loopWrapped,
+                            uint32_t maxParticles)
+    {
+        for (size_t i = 0; i < emitter.bursts.size(); ++i)
+        {
+            const ParticleBurst& burst = emitter.bursts[i];
+            uint32_t& repeatIndex = runtime.burstRepeatCounts[i];
+            const uint32_t maxRepeats = std::max(1u, burst.repeatCount + 1u);
+
+            while (repeatIndex < maxRepeats)
+            {
+                const float triggerTime = burst.time
+                    + static_cast<float>(repeatIndex) * std::max(0.0f, burst.repeatInterval);
+                const bool firstBurstWindow = repeatIndex == 0u && previousLocalAge <= 0.0f;
+                const bool triggered = loopWrapped
+                    ? (triggerTime > previousLocalAge || triggerTime <= localAge)
+                    : ((triggerTime > previousLocalAge && triggerTime <= localAge)
+                        || (firstBurstWindow && triggerTime <= localAge));
+                if (!triggered)
+                    break;
+
+                const uint32_t count = burst.countMax > burst.countMin
+                    ? static_cast<uint32_t>(
+                        randomRange(runtime.rngState,
+                                    static_cast<float>(burst.countMin),
+                                    static_cast<float>(burst.countMax + 1u)))
+                    : burst.countMin;
+                spawnParticles(emitter, runtime, transform, count, maxParticles);
+                repeatIndex += 1;
+
+                if (burst.repeatInterval <= 0.0f)
+                    break;
+            }
+        }
+    }
+
+    static void applyForces(const ParticleEmitterComponent& emitter,
+                            const TransformComponent& transform,
+                            ParticleState& particle,
+                            float dt)
+    {
+        glm::vec3 acceleration = emitter.forces.acceleration + emitter.forces.wind;
+        const glm::vec3 localPosition = emitter.localSpace
+            ? particle.position
+            : glm::vec3(glm::inverse(transform.getModelMatrix()) * glm::vec4(particle.position, 1.0f));
+        glm::vec3 radial = radialDirection(localPosition);
+
+        if (emitter.forces.radial != 0.0f)
+            acceleration += radial * emitter.forces.radial;
+
+        if (emitter.forces.vortex != 0.0f)
+            acceleration += tangentDirection(radial) * emitter.forces.vortex;
+
+        if (emitter.forces.noiseStrength != 0.0f)
+        {
+            const float scale = std::max(0.0001f, emitter.forces.noiseScale);
+            const float n1 = std::sin((localPosition.x + particle.age) * 12.9898f * scale);
+            const float n2 = std::sin((localPosition.y + particle.age) * 78.2330f * scale);
+            const float n3 = std::sin((localPosition.z + particle.age) * 37.7190f * scale);
+            acceleration += glm::normalize(glm::vec3(n1, n2, n3) + glm::vec3(0.001f))
+                * emitter.forces.noiseStrength;
+        }
+
+        particle.velocity += acceleration * dt;
     }
 
     static void bindTextureIfNeeded(const EcsControllerContext& ctx,
@@ -426,6 +537,9 @@ private:
         particle.spin = randomRange(runtime.rngState, emitter.spinMin, emitter.spinMax);
         particle.sizeScale =
             randomRange(runtime.rngState, 1.0f - emitter.sizeRandomness, 1.0f + emitter.sizeRandomness);
+        particle.frameOffset = emitter.flipbook.randomStart
+            ? randomRange(runtime.rngState, 0.0f, static_cast<float>(std::max(1u, emitter.flipbook.frameCount)))
+            : 0.0f;
 
         runtime.particles.push_back(particle);
     }
@@ -456,8 +570,10 @@ private:
                 std::max(0.001f, evaluateFloatCurve(emitter.sizeOverLifetime, normalizedAge, 0.5f))
                 * particle.sizeScale;
             instance.color = color;
+            instance.uvRect = computeFlipbookUv(emitter, particle, normalizedAge);
             instance.rotation = particle.rotation;
             instance.depth = -viewPosition.z;
+            instance.softness = std::max(0.0f, emitter.softness);
 
             ExtractedParticle extracted;
             extracted.instance = instance;
@@ -469,6 +585,40 @@ private:
             else
                 alphaParticles.push_back(extracted);
         }
+    }
+
+    static glm::vec4 computeFlipbookUv(const ParticleEmitterComponent& emitter,
+                                       const ParticleState& particle,
+                                       float normalizedAge)
+    {
+        const uint32_t columns = std::max(1u, emitter.flipbook.columns);
+        const uint32_t rows = std::max(1u, emitter.flipbook.rows);
+        const uint32_t maxFrames = columns * rows;
+        const uint32_t frameCount = glm::clamp(emitter.flipbook.frameCount, 1u, maxFrames);
+        uint32_t frame = 0;
+
+        if (frameCount > 1)
+        {
+            if (emitter.flipbook.lifetimeDriven)
+            {
+                frame = static_cast<uint32_t>(
+                    glm::clamp(normalizedAge, 0.0f, 0.9999f) * static_cast<float>(frameCount));
+            }
+            else
+            {
+                const float animated =
+                    particle.age * std::max(0.0f, emitter.flipbook.frameRate) + particle.frameOffset;
+                frame = static_cast<uint32_t>(animated) % frameCount;
+            }
+        }
+
+        const uint32_t column = frame % columns;
+        const uint32_t row = frame / columns;
+        const float invColumns = 1.0f / static_cast<float>(columns);
+        const float invRows = 1.0f / static_cast<float>(rows);
+        const float u0 = static_cast<float>(column) * invColumns;
+        const float v0 = static_cast<float>(row) * invRows;
+        return {u0, v0, u0 + invColumns, v0 + invRows};
     }
 
     void buildFrameData(ParticleFrameData& frameData)
@@ -521,4 +671,3 @@ private:
         }
     }
 };
-

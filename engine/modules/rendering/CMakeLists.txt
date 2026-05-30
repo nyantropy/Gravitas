@@ -48,12 +48,15 @@ target_include_directories(gravitas_rendering PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/camera/systems"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/geometry/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/geometry/systems"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/particles/assets"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/particles/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/particles/extraction"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/particles/systems"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/particles/tools"
 
     # Engine UI system + renderer-side UI extraction
     "${CMAKE_CURRENT_SOURCE_DIR}/core/ui"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/ui/widgets"
 )
 
 target_link_libraries(gravitas_rendering PUBLIC

@@ -37,6 +37,10 @@ public:
     bool isHeld(const std::string& action) const;
     bool isReleased(const std::string& action) const;
     float axisValue(const std::string& action) const;
+    double mouseX() const;
+    double mouseY() const;
+    double scrollX() const;
+    double scrollY() const;
 
     void setPaused(bool paused);
     bool isPaused() const;
@@ -120,6 +124,10 @@ private:
     std::unordered_map<std::string, ActionState> actionStates;
     std::unordered_map<std::string, std::vector<size_t>> bindingsByAction;
     bool paused = false;
+    double currentMouseX = 0.0;
+    double currentMouseY = 0.0;
+    double currentScrollX = 0.0;
+    double currentScrollY = 0.0;
 
     void rebuildActionIndex();
     void ensureActionState(const std::string& action);

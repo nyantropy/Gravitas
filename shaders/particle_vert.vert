@@ -2,10 +2,13 @@
 
 layout(location = 0) in vec4 inPositionSize;
 layout(location = 1) in vec4 inColor;
-layout(location = 2) in vec4 inRotationDepth;
+layout(location = 2) in vec4 inUvRect;
+layout(location = 3) in vec4 inRotationDepth;
 
 layout(location = 0) out vec2 fragTexCoord;
 layout(location = 1) out vec4 fragColor;
+layout(location = 2) out float fragSoftness;
+layout(location = 3) out vec2 fragLocalCoord;
 
 layout(set = 0, binding = 0) uniform CameraUBO {
     mat4 view;
@@ -26,8 +29,11 @@ vec2 cornerForVertex(int index) {
 
 void main() {
     vec2 corner = cornerForVertex(gl_VertexIndex);
-    fragTexCoord = corner + vec2(0.5);
+    vec2 normalizedUv = corner + vec2(0.5);
+    fragTexCoord = mix(inUvRect.xy, inUvRect.zw, normalizedUv);
+    fragLocalCoord = normalizedUv;
     fragColor = inColor;
+    fragSoftness = inRotationDepth.z;
 
     float s = sin(inRotationDepth.x);
     float c = cos(inRotationDepth.x);
@@ -40,4 +46,3 @@ void main() {
     vec4 viewPosition = viewCenter + vec4(rotated, 0.0, 0.0);
     gl_Position = cam.proj * viewPosition;
 }
-

@@ -58,7 +58,7 @@ void VulkanRenderPass::createRenderPass()
         depthAttachment.finalLayout    = this->config.depthFinalLayout;
 
         depthAttachmentRef.attachment = 1;
-        depthAttachmentRef.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        depthAttachmentRef.layout     = this->config.depthAttachmentLayout;
 
         subpass.pDepthStencilAttachment = &depthAttachmentRef;
 

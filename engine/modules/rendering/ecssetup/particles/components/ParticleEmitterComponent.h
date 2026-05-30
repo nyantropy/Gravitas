@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "GlmConfig.h"
 #include "ParticleTypes.h"
@@ -12,10 +13,13 @@ struct ParticleEmitterComponent
 {
     bool enabled    = true;
     bool localSpace = true;
+    bool looping    = true;
+    bool reloadFromEffect = true;
 
     ParticleEmitterShape shape = ParticleEmitterShape::Sphere;
     ParticleBlendMode    blend = ParticleBlendMode::Alpha;
 
+    std::string effectPath;
     std::string texturePath;
     glm::vec4   baseTint = {1.0f, 1.0f, 1.0f, 1.0f};
 
@@ -38,6 +42,8 @@ struct ParticleEmitterComponent
     uint32_t maxParticles  = 128;
     float    lifetimeMin   = 1.0f;
     float    lifetimeMax   = 2.0f;
+    float    duration      = 0.0f;
+    float    startDelay    = 0.0f;
     float    intensity     = 1.0f;
 
     glm::vec3 initialVelocity = {0.0f, 0.25f, 0.0f};
@@ -50,6 +56,7 @@ struct ParticleEmitterComponent
     float spinMin = -0.8f;
     float spinMax = 0.8f;
     float sizeRandomness = 0.15f;
+    float softness = 80.0f;
 
     float hueVariation   = 0.0f;
     float valueVariation = 0.0f;
@@ -63,6 +70,10 @@ struct ParticleEmitterComponent
     float     cylinderRadius = 0.5f;
     float     cylinderHeight = 1.0f;
 
-    uint32_t randomSeed = 1u;
-};
+    std::vector<ParticleBurst> bursts;
+    ParticleFlipbook           flipbook;
+    ParticleForceModule        forces;
 
+    uint32_t randomSeed = 1u;
+    uint64_t appliedEffectVersion = 0;
+};

@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstring>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 #include <vulkan/vulkan.h>
@@ -49,7 +50,9 @@ public:
         rpConfig.colorInitialLayout = colorInitialLayout;
         rpConfig.colorFinalLayout   = colorFinalLayout;
         rpConfig.depthLoadOp        = VK_ATTACHMENT_LOAD_OP_LOAD;
-        rpConfig.depthInitialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        rpConfig.depthInitialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        rpConfig.depthFinalLayout   = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        rpConfig.depthAttachmentLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
         rpConfig.hasDepthAttachment = true;
         renderPass = std::make_unique<VulkanRenderPass>(rpConfig);
 
@@ -68,6 +71,21 @@ public:
         fbConfig.attachmentImageView = depthImageView;
         fbConfig.hasDepthAttachment  = true;
         framebuffers = std::make_unique<FramebufferManager>(fbConfig);
+
+        createDepthSampler();
+        depthDescriptorSets = dssheet::getManager().allocateForSampledImage(
+            depthImageView,
+            depthSampler,
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+    }
+
+    ~ParticleRenderStage() override
+    {
+        if (depthSampler != VK_NULL_HANDLE)
+        {
+            vkDestroySampler(vcsheet::getDevice(), depthSampler, nullptr);
+            depthSampler = VK_NULL_HANDLE;
+        }
     }
 
     void declareResources(GtsFrameGraph& graph) override
@@ -80,9 +98,9 @@ public:
             colorFinalLayout);
 
         graph.declareRead(this, depthHandle,
-            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-            VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_SHADER_READ_BIT,
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
     }
 
     void record(VkCommandBuffer cmd, GtsFrameGraph& graph,
@@ -150,6 +168,11 @@ public:
                                         0, 1,
                                         &cameraView->descriptorSets[currentFrame],
                                         0, nullptr);
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        pipeline->getPipelineLayout(),
+                                        2, 1,
+                                        &depthDescriptorSets[currentFrame],
+                                        0, nullptr);
                 boundPipeline = pipeline;
                 boundTexture = 0;
             }
@@ -186,6 +209,7 @@ private:
     {
         glm::vec4 positionSize = {0.0f, 0.0f, 0.0f, 1.0f};
         glm::vec4 color        = {1.0f, 1.0f, 1.0f, 1.0f};
+        glm::vec4 uvRect       = {0.0f, 0.0f, 1.0f, 1.0f};
         glm::vec4 rotationPad  = {0.0f, 0.0f, 0.0f, 0.0f};
     };
 
@@ -193,11 +217,13 @@ private:
     std::unique_ptr<VulkanPipeline>     pipelineAlpha;
     std::unique_ptr<VulkanPipeline>     pipelineAdditive;
     std::unique_ptr<FramebufferManager> framebuffers;
+    std::vector<VkDescriptorSet>        depthDescriptorSets;
     RenderResourceManager*              resources = nullptr;
     GtsResourceHandle                   outputHandle;
     GtsResourceHandle                   depthHandle;
     VkImageLayout                       colorInitialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     VkImageLayout                       colorFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    VkSampler                           depthSampler = VK_NULL_HANDLE;
 
     VulkanDynamicBuffer instanceBuffer{
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
@@ -214,7 +240,7 @@ private:
         instanceBinding.stride    = sizeof(ParticleGpuInstance);
         instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
-        std::array<VkVertexInputAttributeDescription, 3> attrs{};
+        std::array<VkVertexInputAttributeDescription, 4> attrs{};
         attrs[0].binding  = 0;
         attrs[0].location = 0;
         attrs[0].format   = VK_FORMAT_R32G32B32A32_SFLOAT;
@@ -228,7 +254,12 @@ private:
         attrs[2].binding  = 0;
         attrs[2].location = 2;
         attrs[2].format   = VK_FORMAT_R32G32B32A32_SFLOAT;
-        attrs[2].offset   = offsetof(ParticleGpuInstance, rotationPad);
+        attrs[2].offset   = offsetof(ParticleGpuInstance, uvRect);
+
+        attrs[3].binding  = 0;
+        attrs[3].location = 3;
+        attrs[3].format   = VK_FORMAT_R32G32B32A32_SFLOAT;
+        attrs[3].offset   = offsetof(ParticleGpuInstance, rotationPad);
 
         VulkanPipelineConfig config;
         config.vertexShaderPath   = GraphicsConstants::PARTICLE_V_SHADER_PATH;
@@ -248,8 +279,32 @@ private:
         config.descriptorSetLayouts = {
             dssheet::getDescriptorSetLayouts()[0],
             dssheet::getDescriptorSetLayouts()[2],
+            dssheet::getDescriptorSetLayouts()[2],
         };
         return config;
+    }
+
+    void createDepthSampler()
+    {
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = VK_FILTER_NEAREST;
+        samplerInfo.minFilter = VK_FILTER_NEAREST;
+        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        samplerInfo.anisotropyEnable = VK_FALSE;
+        samplerInfo.maxAnisotropy = 1.0f;
+        samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+        samplerInfo.unnormalizedCoordinates = VK_FALSE;
+        samplerInfo.compareEnable = VK_FALSE;
+        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        samplerInfo.minLod = 0.0f;
+        samplerInfo.maxLod = 0.0f;
+
+        if (vkCreateSampler(vcsheet::getDevice(), &samplerInfo, nullptr, &depthSampler) != VK_SUCCESS)
+            throw std::runtime_error("failed to create particle depth sampler!");
     }
 
     void uploadInstances(const ParticleFrameData& frameData)
@@ -262,7 +317,8 @@ private:
             uploadScratch.push_back({
                 {instance.worldPosition, instance.size},
                 instance.color,
-                {instance.rotation, instance.depth, 0.0f, 0.0f}
+                instance.uvRect,
+                {instance.rotation, instance.depth, instance.softness, 0.0f}
             });
         }
 
@@ -272,4 +328,3 @@ private:
         std::memcpy(instanceBuffer.getMapped(), uploadScratch.data(), static_cast<size_t>(bytes));
     }
 };
-

@@ -45,4 +45,28 @@ class GLFWOutputWindow : public OutputWindow
             bool   pressed = !app->keyTranslator->isReleaseAction(action);
             app->eventBus.emit(GtsKeyEvent{gtsKey, pressed, mods});
         }
+
+        static void onMouseButtonCallbackStatic(GLFWwindow* window, int button, int action, int mods)
+        {
+            auto app = reinterpret_cast<GLFWOutputWindow*>(glfwGetWindowUserPointer(window));
+            if (!app) return;
+
+            app->eventBus.emit(GtsMouseButtonEvent{button, action != GLFW_RELEASE, mods});
+        }
+
+        static void onCursorPositionCallbackStatic(GLFWwindow* window, double xpos, double ypos)
+        {
+            auto app = reinterpret_cast<GLFWOutputWindow*>(glfwGetWindowUserPointer(window));
+            if (!app) return;
+
+            app->eventBus.emit(GtsCursorPositionEvent{xpos, ypos});
+        }
+
+        static void onScrollCallbackStatic(GLFWwindow* window, double xoffset, double yoffset)
+        {
+            auto app = reinterpret_cast<GLFWOutputWindow*>(glfwGetWindowUserPointer(window));
+            if (!app) return;
+
+            app->eventBus.emit(GtsScrollEvent{xoffset, yoffset});
+        }
 };

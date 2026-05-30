@@ -6,6 +6,7 @@
 #include "IResourceProvider.hpp"
 #include "UiCommand.h"
 #include "UiDocument.h"
+#include "UiInteraction.h"
 #include "UiRenderResolver.h"
 
 // Engine-owned retained UI model plus render-side text/resource bindings.
@@ -47,10 +48,17 @@ public:
     const UiDocument& getDocument() const;
     Metrics           getLastMetrics() const;
 
+    UiInteractionResult updateInteraction(const UiInputFrame& input);
+    UiInteractionResult getLastInteraction() const;
+
     UiCommandBuffer extractCommands(int viewportWidth, int viewportHeight);
 
 private:
     void removeTextBindingsRecursive(UiHandle handle);
+    void applyInteractionState(UiHandle handle,
+                               bool hovered,
+                               bool focused,
+                               bool pressed);
 
     IResourceProvider*                         resources = nullptr;
     bool                                       enabled   = true;
@@ -58,4 +66,7 @@ private:
     UiRenderResolver                           resolver;
     std::unordered_map<UiHandle, BitmapFont*>  textBindings;
     Metrics                                    lastMetrics;
+    UiInteractionResult                        lastInteraction;
+    UiHandle                                   activeHandle = UI_INVALID_HANDLE;
+    UiHandle                                   focusedHandle = UI_INVALID_HANDLE;
 };

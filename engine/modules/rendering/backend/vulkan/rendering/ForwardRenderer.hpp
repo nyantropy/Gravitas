@@ -135,7 +135,8 @@ class ForwardRenderer : Renderer
             attachConfig.height = frameOutputTarget->getExtent().height;
             attachConfig.format = depthFormat;
             attachConfig.tiling = VK_IMAGE_TILING_OPTIMAL;
-            attachConfig.imageUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+            attachConfig.imageUsageFlags =
+                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
             attachConfig.memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
             attachConfig.imageAspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
             depthAttachment = std::make_unique<Attachment>(attachConfig);
@@ -167,7 +168,7 @@ class ForwardRenderer : Renderer
                 depthAttachment->getImage(),
                 depthAttachment->getImageView(),
                 depthFormat, extent,
-                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK_IMAGE_ASPECT_DEPTH_BIT,
                 VK_IMAGE_LAYOUT_UNDEFINED);
 

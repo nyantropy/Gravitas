@@ -26,6 +26,9 @@ void GLFWOutputWindow::init()
     glfwSetWindowUserPointer(static_cast<GLFWwindow*>(this->window), this);
     glfwSetFramebufferSizeCallback(static_cast<GLFWwindow*>(this->window), framebufferResizeCallbackStatic);
     glfwSetKeyCallback(static_cast<GLFWwindow*>(this->window), onKeyPressedCallbackStatic);
+    glfwSetMouseButtonCallback(static_cast<GLFWwindow*>(this->window), onMouseButtonCallbackStatic);
+    glfwSetCursorPosCallback(static_cast<GLFWwindow*>(this->window), onCursorPositionCallbackStatic);
+    glfwSetScrollCallback(static_cast<GLFWwindow*>(this->window), onScrollCallbackStatic);
 
     switch (config.windowMode)
     {
