@@ -14,12 +14,12 @@
 #include "BitmapFontLoader.h"
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
+#include "GravitasFontAtlas.h"
 #include "GraphicsConstants.h"
 #include "InputBindingRegistry.h"
 #include "ParticleEffectAssetIO.h"
 #include "ParticleEmitterComponent.h"
 #include "ParticleEmitterRuntimeComponent.h"
-#include "RetroFontAtlas.h"
 #include "UiSystem.h"
 #include "widgets/UiToolWidgets.h"
 
@@ -148,14 +148,14 @@ private:
 
         editorFont = BitmapFontLoader::load(
             ctx.resources,
-            GraphicsConstants::ENGINE_RESOURCES + "/fonts/retrofont.png",
-            RetroFontAtlas::ATLAS_W,
-            RetroFontAtlas::ATLAS_H,
-            RetroFontAtlas::CELL_W,
-            RetroFontAtlas::CELL_H,
-            RetroFontAtlas::ATLAS_COLS,
-            std::string(RetroFontAtlas::CHAR_ORDER),
-            RetroFontAtlas::LINE_HEIGHT,
+            GraphicsConstants::ENGINE_RESOURCES + "/fonts/gravitasfont.png",
+            GravitasFontAtlas::ATLAS_W,
+            GravitasFontAtlas::ATLAS_H,
+            GravitasFontAtlas::CELL_W,
+            GravitasFontAtlas::CELL_H,
+            GravitasFontAtlas::ATLAS_COLS,
+            std::string(GravitasFontAtlas::CHAR_ORDER),
+            GravitasFontAtlas::LINE_HEIGHT,
             true);
         fontReady = true;
         return true;

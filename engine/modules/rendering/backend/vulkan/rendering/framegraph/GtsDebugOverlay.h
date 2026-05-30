@@ -7,7 +7,7 @@
 #include "GlmConfig.h"
 #include "BitmapFont.h"
 #include "BitmapFontLoader.h"
-#include "RetroFontAtlas.h"
+#include "GravitasFontAtlas.h"
 #include "GtsFrameStats.h"
 #include "UiCommand.h"
 #include "IResourceProvider.hpp"
@@ -73,14 +73,14 @@ class GtsDebugOverlay
 {
 public:
     static constexpr const char* DEBUG_FONT_PATH =
-        GRAVITAS_ENGINE_RESOURCES "/fonts/retrofont.png";
+        GRAVITAS_ENGINE_RESOURCES "/fonts/gravitasfont.png";
 
-    static constexpr int   ATLAS_W    = RetroFontAtlas::ATLAS_W;
-    static constexpr int   ATLAS_H    = RetroFontAtlas::ATLAS_H;
-    static constexpr int   CELL_W     = RetroFontAtlas::CELL_W;
-    static constexpr int   CELL_H     = RetroFontAtlas::CELL_H;
-    static constexpr int   ATLAS_COLS = RetroFontAtlas::ATLAS_COLS;
-    static constexpr float LINE_HEIGHT = RetroFontAtlas::LINE_HEIGHT;
+    static constexpr int   ATLAS_W    = GravitasFontAtlas::ATLAS_W;
+    static constexpr int   ATLAS_H    = GravitasFontAtlas::ATLAS_H;
+    static constexpr int   CELL_W     = GravitasFontAtlas::CELL_W;
+    static constexpr int   CELL_H     = GravitasFontAtlas::CELL_H;
+    static constexpr int   ATLAS_COLS = GravitasFontAtlas::ATLAS_COLS;
+    static constexpr float LINE_HEIGHT = GravitasFontAtlas::LINE_HEIGHT;
     static constexpr float FONT_SCALE  = 0.026f;
 
     static constexpr float OVERLAY_X = 0.60f;
@@ -93,7 +93,7 @@ public:
             DEBUG_FONT_PATH,
             ATLAS_W, ATLAS_H,
             CELL_W, CELL_H, ATLAS_COLS,
-            std::string(RetroFontAtlas::CHAR_ORDER),
+            std::string(GravitasFontAtlas::CHAR_ORDER),
             LINE_HEIGHT,
             true);
         initialised = true;

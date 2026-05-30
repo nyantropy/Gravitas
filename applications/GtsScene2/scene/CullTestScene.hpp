@@ -10,7 +10,7 @@
 #include "MaterialComponent.h"
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
-#include "RetroFontAtlas.h"
+#include "GravitasFontAtlas.h"
 #include "CameraControlOverrideComponent.h"
 #include "GraphicsConstants.h"
 #include "GtsKey.h"
@@ -132,11 +132,11 @@ public:
         // Load font and create overlay entity for culling/frustum state text.
         overlayFont = BitmapFontLoader::load(
             ctx.resources,
-            GraphicsConstants::ENGINE_RESOURCES + "/fonts/retrofont.png",
-            RetroFontAtlas::ATLAS_W, RetroFontAtlas::ATLAS_H,
-            RetroFontAtlas::CELL_W, RetroFontAtlas::CELL_H, RetroFontAtlas::ATLAS_COLS,
-            std::string(RetroFontAtlas::CHAR_ORDER),
-            RetroFontAtlas::LINE_HEIGHT, true);
+            GraphicsConstants::ENGINE_RESOURCES + "/fonts/gravitasfont.png",
+            GravitasFontAtlas::ATLAS_W, GravitasFontAtlas::ATLAS_H,
+            GravitasFontAtlas::CELL_W, GravitasFontAtlas::CELL_H, GravitasFontAtlas::ATLAS_COLS,
+            std::string(GravitasFontAtlas::CHAR_ORDER),
+            GravitasFontAtlas::LINE_HEIGHT, true);
 
         overlayHandle = ctx.ui->createNode(UiNodeType::Text);
         UiLayoutSpec overlayLayout;
