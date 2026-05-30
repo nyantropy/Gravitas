@@ -159,7 +159,7 @@ class GtsPlatform
                                   ActivationMode::Pressed,
                                   "",
                                   PausePolicy::AlwaysActive);
-            bindingRegistry->bind("engine.particle_editor",
+            bindingRegistry->bind("engine.tools_toggle",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F6)},
                                   ActivationMode::Pressed,
                                   "",

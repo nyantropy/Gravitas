@@ -28,7 +28,7 @@
 #include "PhysicsDebugRenderer.h"
 #include "ParticleEffectHotReloadSystem.hpp"
 #include "ParticleEmitterSystem.hpp"
-#include "ParticleEditorSystem.hpp"
+#include "EngineToolShellSystem.hpp"
 #include "RenderExtractionSnapshotBuilder.hpp"
 #include "TransformDirtyHelpers.h"
 
@@ -42,6 +42,7 @@ class GtsScene
         std::unique_ptr<PhysicsWorld> physicsWorld;
         bool rendererFeatureInstalled = false;
         bool physicsFeatureInstalled  = false;
+        bool toolingFeatureInstalled  = false;
 
         void resetSceneWorld()
         {
@@ -51,6 +52,7 @@ class GtsScene
             physicsWorld.reset();
             rendererFeatureInstalled = false;
             physicsFeatureInstalled  = false;
+            toolingFeatureInstalled  = false;
         }
     public:
         virtual ~GtsScene() = default;
@@ -212,7 +214,6 @@ class GtsScene
             ecsWorld.addControllerSystem<ActiveCameraViewSystem>();
             ecsWorld.addControllerSystem<ParticleEffectHotReloadSystem>();
             ecsWorld.addControllerSystem<ParticleEmitterSystem>();
-            ecsWorld.addControllerSystem<ParticleEditorSystem>();
             ecsWorld.forEachSnapshot<StaticMeshComponent, MaterialComponent>(
                 [this](Entity entity, StaticMeshComponent&, MaterialComponent&)
                 {
@@ -232,5 +233,16 @@ class GtsScene
                     gts::rendering::queueCameraRefresh(ecsWorld, entity);
                 });
             rendererFeatureInstalled = true;
+        }
+
+        // Optional developer tooling surface. Kept separate from renderer setup so
+        // shipping scenes can opt out while development scenes get inspectors.
+        inline void installToolingFeature(const EcsControllerContext&)
+        {
+            if (toolingFeatureInstalled)
+                return;
+
+            ecsWorld.addControllerSystem<gts::tools::EngineToolShellSystem>();
+            toolingFeatureInstalled = true;
         }
 };
