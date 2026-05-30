@@ -117,9 +117,10 @@ namespace gts::debugdraw
             batchEntities[index] = entity;
 
             MaterialComponent material;
-            material.texturePath = texturePath(color);
+            material.texturePath = texturePath();
             material.alpha = alpha(color);
             material.doubleSided = true;
+            material.vertexColorOnly = true;
 
             DebugDrawRenderableComponent renderable;
             renderable.color = color;
@@ -140,22 +141,26 @@ namespace gts::debugdraw
             return entity;
         }
 
-        static std::string texturePath(DebugDrawColor color)
+        static std::string texturePath()
         {
-            const char* texture = "grey_texture.png";
+            return GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png";
+        }
+
+        static glm::vec3 colorValue(DebugDrawColor color)
+        {
             switch (color)
             {
-                case DebugDrawColor::White: texture = "grey_texture.png"; break;
-                case DebugDrawColor::Red: texture = "red_texture.png"; break;
-                case DebugDrawColor::Green: texture = "green_texture.png"; break;
-                case DebugDrawColor::Blue: texture = "blue_texture.png"; break;
-                case DebugDrawColor::Cyan: texture = "cyan_texture.png"; break;
-                case DebugDrawColor::Yellow: texture = "yellow_texture.png"; break;
-                case DebugDrawColor::Orange: texture = "orange_texture.png"; break;
-                case DebugDrawColor::Purple: texture = "purple_texture.png"; break;
-                case DebugDrawColor::Grey: texture = "grey_texture.png"; break;
+                case DebugDrawColor::White:  return {1.0f, 1.0f, 1.0f};
+                case DebugDrawColor::Red:    return {1.0f, 0.02f, 0.02f};
+                case DebugDrawColor::Green:  return {0.0f, 0.82f, 0.18f};
+                case DebugDrawColor::Blue:   return {0.02f, 0.28f, 1.0f};
+                case DebugDrawColor::Cyan:   return {0.0f, 0.88f, 1.0f};
+                case DebugDrawColor::Yellow: return {1.0f, 0.78f, 0.08f};
+                case DebugDrawColor::Orange: return {1.0f, 0.38f, 0.02f};
+                case DebugDrawColor::Purple: return {0.68f, 0.24f, 1.0f};
+                case DebugDrawColor::Grey:   return {0.55f, 0.58f, 0.62f};
             }
-            return GraphicsConstants::ENGINE_RESOURCES + "/textures/" + std::string(texture);
+            return {1.0f, 1.0f, 1.0f};
         }
 
         static float alpha(DebugDrawColor color)
@@ -211,9 +216,10 @@ namespace gts::debugdraw
 
             ++renderable.geometryVersion;
             mesh.geometryVersion = renderable.geometryVersion;
-            material.texturePath = texturePath(color);
+            material.texturePath = texturePath();
             material.alpha = alpha(color);
             material.doubleSided = true;
+            material.vertexColorOnly = true;
 
             markExtractionDirty(world, entity);
             gts::rendering::queueProceduralRefresh(world, entity);
@@ -258,9 +264,10 @@ namespace gts::debugdraw
             };
 
             const uint32_t start = static_cast<uint32_t>(vertices.size());
+            const glm::vec3 color = colorValue(line.color);
             for (const glm::vec3& corner : corners)
             {
-                vertices.push_back({corner, glm::vec3(1.0f), {0.0f, 0.0f}});
+                vertices.push_back({corner, color, {0.0f, 0.0f}});
                 bounds.add(corner);
             }
 

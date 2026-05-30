@@ -42,7 +42,7 @@ namespace gts::tools
                 drawSelectedBounds(ctx.world, state, thickness * 1.35f);
 
             if (settings.transformAxes && !gizmoOwnsSelectedAxes(ctx.world, state))
-                drawSelectedAxes(ctx.world, state, settings.axisLength, thickness * 1.45f);
+                drawSelectedAxes(ctx.world, state, settings, thickness * 1.45f);
 
             if (settings.cameraFrustum && ctx.world.hasAny<ActiveCameraViewStateComponent>())
             {
@@ -100,7 +100,7 @@ namespace gts::tools
 
         static void drawSelectedAxes(ECSWorld& world,
                                      const EngineToolStateComponent& state,
-                                     float length,
+                                     const gts::debugdraw::DebugDrawSettingsComponent& settings,
                                      float thickness)
         {
             if (!isValidToolEntity(state.selectedEntity)
@@ -110,11 +110,20 @@ namespace gts::tools
                 return;
             }
 
+            bool localSpace = false;
+            float length = settings.axisLength;
+            if (world.hasAny<EngineGizmoStateComponent>())
+            {
+                const EngineGizmoStateComponent& gizmo = world.getSingleton<EngineGizmoStateComponent>();
+                localSpace = gizmo.space == EngineGizmoSpace::Local;
+                length = gizmo.handleLength;
+            }
+
             gts::debugdraw::basis(world,
                                   world.getComponent<TransformComponent>(state.selectedEntity),
                                   length,
                                   thickness,
-                                  true);
+                                  localSpace);
         }
 
         static bool gizmoOwnsSelectedAxes(ECSWorld& world,

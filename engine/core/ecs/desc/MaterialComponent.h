@@ -15,4 +15,5 @@ struct MaterialComponent
     glm::vec4   tint        = {1.0f, 1.0f, 1.0f, 1.0f};
     float       alpha       = 1.0f;
     bool        doubleSided = false;
+    bool        vertexColorOnly = false;
 };

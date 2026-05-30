@@ -161,6 +161,7 @@ public:
                 renderable.textureID   = matGpu.textureID;
                 renderable.alpha       = matGpu.alpha;
                 renderable.doubleSided = matGpu.doubleSided;
+                renderable.vertexColorOnly = matGpu.vertexColorOnly;
                 sortKeyNeedsUpdate     = true;
             }
 
@@ -391,7 +392,9 @@ private:
     static uint64_t makeSortKey(const RenderableSnapshot& renderable)
     {
         const uint64_t sidedness = renderable.doubleSided ? 1ull : 0ull;
+        const uint64_t vertexColor = renderable.vertexColorOnly ? 1ull : 0ull;
         return (sidedness << 63)
+            | (vertexColor << 62)
             | (static_cast<uint64_t>(renderable.meshID) << 32)
             | static_cast<uint64_t>(renderable.textureID);
     }

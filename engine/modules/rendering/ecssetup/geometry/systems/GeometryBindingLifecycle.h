@@ -180,15 +180,17 @@ namespace gts::rendering
 
         if (matGpu.tint != mat.tint
             || matGpu.alpha != mat.alpha
-            || matGpu.doubleSided != mat.doubleSided)
+            || matGpu.doubleSided != mat.doubleSided
+            || matGpu.vertexColorOnly != mat.vertexColorOnly)
         {
             dirty.materialDirty   = true;
             renderGpu.commandDirty = true;
         }
 
-        matGpu.tint        = mat.tint;
-        matGpu.alpha       = mat.alpha;
-        matGpu.doubleSided = mat.doubleSided;
+        matGpu.tint            = mat.tint;
+        matGpu.alpha           = mat.alpha;
+        matGpu.doubleSided     = mat.doubleSided;
+        matGpu.vertexColorOnly = mat.vertexColorOnly;
 
         if (hasMeshGpu)
             world.getComponent<MeshGpuComponent>(entity) = meshGpu;
@@ -254,15 +256,19 @@ namespace gts::rendering
             markRenderableDirty(dirty, renderGpu);
         }
 
-        if (matGpu.tint != mat.tint || matGpu.alpha != mat.alpha || !matGpu.doubleSided)
+        if (matGpu.tint != mat.tint
+            || matGpu.alpha != mat.alpha
+            || !matGpu.doubleSided
+            || matGpu.vertexColorOnly != mat.vertexColorOnly)
         {
             dirty.materialDirty   = true;
             renderGpu.commandDirty = true;
         }
 
-        matGpu.tint        = mat.tint;
-        matGpu.alpha       = mat.alpha;
-        matGpu.doubleSided = true;
+        matGpu.tint            = mat.tint;
+        matGpu.alpha           = mat.alpha;
+        matGpu.doubleSided     = true;
+        matGpu.vertexColorOnly = mat.vertexColorOnly;
 
         const bool customGeometryChanged =
             mesh.useCustomGeometry

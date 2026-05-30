@@ -65,6 +65,7 @@ public:
                 || cached.command.objectSSBOSlot != renderable.objectSSBOSlot
                 || cached.command.alpha != renderable.alpha
                 || cached.command.doubleSided != renderable.doubleSided
+                || cached.command.vertexColorOnly != renderable.vertexColorOnly
                 || cached.command.cameraViewID != snapshot.cameraViewID;
 
             if (!cached.initialised || cached.visible != visible)
@@ -83,6 +84,7 @@ public:
                 cached.command.cameraViewID   = snapshot.cameraViewID;
                 cached.command.alpha          = renderable.alpha;
                 cached.command.doubleSided    = renderable.doubleSided;
+                cached.command.vertexColorOnly = renderable.vertexColorOnly;
                 cached.sortKey                = renderable.sortKey;
                 cached.initialised            = true;
                 updatedCommands += 1;
@@ -111,7 +113,7 @@ public:
             opaqueSlotOrder = nextOpaqueSlotOrder;
             transparentSlotOrder = nextTransparentSlotOrder;
 
-            // sortKey encodes (doubleSided << 63 | meshID << 32 | textureID) — no fallback needed.
+            // sortKey encodes (doubleSided << 63 | vertexColorOnly << 62 | meshID << 32 | textureID).
             std::sort(opaqueSlotOrder.begin(), opaqueSlotOrder.end(),
                 [&](ssbo_id_type lhs, ssbo_id_type rhs)
                 {

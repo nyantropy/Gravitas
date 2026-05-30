@@ -17,6 +17,7 @@ struct RenderCommand
 
     float     alpha       = 1.0f;   // pushed to fragment shader; opaque objects use 1.0
     bool      doubleSided = false;  // selects the no-cull pipeline variant in SceneRenderStage
+    bool      vertexColorOnly = false; // uses mesh vertex color instead of sampling the material texture
 };
 
 struct ObjectUploadCommand

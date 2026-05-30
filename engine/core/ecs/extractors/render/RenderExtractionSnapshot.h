@@ -33,6 +33,7 @@ struct RenderableSnapshot
 
     float         alpha = 1.0f;
     bool          doubleSided = false;
+    bool          vertexColorOnly = false;
     bool          visible = true;
     uint64_t      sortKey = 0;
 };

@@ -27,6 +27,12 @@
 
 class SceneRenderStage : public GtsRenderStage
 {
+    struct ScenePushConstants
+    {
+        float alpha = 1.0f;
+        int32_t vertexColorOnly = 0;
+    };
+
 public:
     SceneRenderStage(RenderResourceManager* resources,
                      ThreadPool*            threadPool,
@@ -63,6 +69,7 @@ public:
         pConfig.vertexShaderPath   = GraphicsConstants::V_SHADER_PATH;
         pConfig.fragmentShaderPath = GraphicsConstants::F_SHADER_PATH;
         pConfig.vkRenderPass       = renderPass->getRenderPass();
+        pConfig.pushConstantSize   = sizeof(ScenePushConstants);
         pConfig.vertexBindings.push_back(instanceBinding);
         pConfig.vertexAttributes.push_back(instanceAttr);
         pipeline = std::make_unique<VulkanPipeline>(pConfig);
@@ -190,6 +197,7 @@ private:
         texture_id_type textureID = 0;
         float           alpha = 1.0f;
         bool            doubleSided = false;
+        bool            vertexColorOnly = false;
         uint32_t        instanceOffset = 0;
         uint32_t        instanceCount = 0;
         MeshResource*   mesh = nullptr;
@@ -392,6 +400,7 @@ private:
             batch.textureID = first.textureID;
             batch.alpha = first.alpha;
             batch.doubleSided = first.doubleSided;
+            batch.vertexColorOnly = first.vertexColorOnly;
             batch.instanceOffset = instanceHead;
             batch.mesh = resources->getMesh(first.meshID);
             batch.texture = resources->getTexture(first.textureID);
@@ -402,7 +411,8 @@ private:
                 if (current.meshID != batch.meshID
                     || current.textureID != batch.textureID
                     || current.alpha != batch.alpha
-                    || current.doubleSided != batch.doubleSided)
+                    || current.doubleSided != batch.doubleSided
+                    || current.vertexColorOnly != batch.vertexColorOnly)
                 {
                     break;
                 }
@@ -448,6 +458,8 @@ private:
         mesh_id_type    boundMesh     = static_cast<mesh_id_type>(-1);
         texture_id_type boundTexture  = static_cast<texture_id_type>(-1);
         float           boundAlpha    = -1.0f;
+        bool            boundVertexColorOnly = false;
+        bool            hasBoundPushConstants = false;
 
         for (uint32_t batchIndex = batchStart; batchIndex < batchEnd; ++batchIndex)
         {
@@ -484,12 +496,20 @@ private:
                 stats.textureSwitches += 1;
             }
 
-            if (batch.alpha != boundAlpha)
+            if (!hasBoundPushConstants
+                || batch.alpha != boundAlpha
+                || batch.vertexColorOnly != boundVertexColorOnly)
             {
+                const ScenePushConstants pushConstants{
+                    batch.alpha,
+                    batch.vertexColorOnly ? 1 : 0
+                };
                 vkCmdPushConstants(cmd, activePipeline->getPipelineLayout(),
                                    VK_SHADER_STAGE_FRAGMENT_BIT,
-                                   0, sizeof(float), &batch.alpha);
+                                   0, sizeof(ScenePushConstants), &pushConstants);
                 boundAlpha = batch.alpha;
+                boundVertexColorOnly = batch.vertexColorOnly;
+                hasBoundPushConstants = true;
             }
 
             VkDeviceSize instanceOffset = static_cast<VkDeviceSize>(batch.instanceOffset) * sizeof(uint32_t);

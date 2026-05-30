@@ -83,10 +83,11 @@ namespace gts::tools
             highlight.targetEntity = invalidToolEntity();
 
             MaterialComponent material;
-            material.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/yellow_texture.png";
+            material.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png";
             material.tint = {1.0f, 0.86f, 0.12f, 1.0f};
             material.alpha = 0.92f;
             material.doubleSided = true;
+            material.vertexColorOnly = true;
 
             ToolEntityLabelComponent label;
             label.name = "Tool Selection Highlight";
@@ -188,7 +189,7 @@ namespace gts::tools
                            const glm::vec3& max)
         {
             const uint32_t start = static_cast<uint32_t>(vertices.size());
-            const glm::vec3 color{1.0f, 1.0f, 1.0f};
+            const glm::vec3 color{1.0f, 0.78f, 0.08f};
             vertices.push_back({{min.x, min.y, min.z}, color, {0.0f, 0.0f}});
             vertices.push_back({{max.x, min.y, min.z}, color, {1.0f, 0.0f}});
             vertices.push_back({{max.x, max.y, min.z}, color, {1.0f, 1.0f}});
