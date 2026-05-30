@@ -38,6 +38,7 @@ target_include_directories(gravitas_modules INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/ui"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/inspectors"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/assets"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tools/selection"
 )
 
 target_link_libraries(gravitas_modules INTERFACE

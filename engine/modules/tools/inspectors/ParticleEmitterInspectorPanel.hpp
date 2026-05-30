@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "EngineToolPanel.h"
+#include "EngineToolSelectionHelpers.h"
 #include "ParticleEffectAssetIO.h"
 #include "ParticleEmitterComponent.h"
 #include "ParticleEmitterRuntimeComponent.h"
@@ -151,8 +152,6 @@ namespace gts::tools
             ToolButton button;
         };
 
-        static constexpr entity_id_type InvalidEntityId = std::numeric_limits<entity_id_type>::max();
-
         UiHandle root = UI_INVALID_HANDLE;
         UiHandle header = UI_INVALID_HANDLE;
         UiHandle summary = UI_INVALID_HANDLE;
@@ -215,20 +214,24 @@ namespace gts::tools
         {
             if (emitters.empty())
             {
-                if (state.selectedEntity.id == InvalidEntityId)
+                if (!isValidToolEntity(state.selectedEntity))
                     return;
                 return;
             }
 
             const auto it = std::find(emitters.begin(), emitters.end(), state.selectedEntity);
             if (it == emitters.end())
+            {
                 state.selectedEntity = emitters.front();
+                state.selectionSource = EngineToolSelectionSource::Inspector;
+                state.selectionChangedThisFrame = true;
+            }
         }
 
         static ParticleEmitterComponent* selectedEmitter(ECSWorld& world,
                                                          const EngineToolStateComponent& state)
         {
-            if (state.selectedEntity.id == InvalidEntityId
+            if (!isValidToolEntity(state.selectedEntity)
                 || !world.hasComponent<ParticleEmitterComponent>(state.selectedEntity))
             {
                 return nullptr;
@@ -322,13 +325,15 @@ namespace gts::tools
             if (next < 0)
                 next += count;
             state.selectedEntity = emitters[static_cast<size_t>(next)];
-            state.status = "SELECTED ENTITY " + std::to_string(state.selectedEntity.id);
+            state.selectionSource = EngineToolSelectionSource::Inspector;
+            state.selectionChangedThisFrame = true;
+            state.status = "SELECTED " + entityDisplayNameForStatus(state);
         }
 
         static void restartEmitter(ECSWorld& world,
                                    const EngineToolStateComponent& state)
         {
-            if (state.selectedEntity.id == InvalidEntityId
+            if (!isValidToolEntity(state.selectedEntity)
                 || !world.hasComponent<ParticleEmitterRuntimeComponent>(state.selectedEntity))
             {
                 return;
@@ -385,7 +390,7 @@ namespace gts::tools
                            const std::vector<Entity>& emitters,
                            ParticleEmitterComponent* emitter)
         {
-            setText(ctx.ui, summary, emitterSummary(state, emitters, emitter));
+            setText(ctx.ui, summary, emitterSummary(ctx.world, state, emitters, emitter));
 
             for (const ButtonBinding& binding : buttons)
                 updateButton(ctx.ui, binding.button, buttonLabel(binding.action, emitter));
@@ -409,8 +414,10 @@ namespace gts::tools
                              sliderColor(binding.field));
             }
 
-            std::string footerText = state.status;
-            if (state.selectedEntity.id != InvalidEntityId
+            std::string footerText = isValidToolEntity(state.hoveredEntity)
+                ? "HOVER " + entityDisplayName(ctx.world, state.hoveredEntity)
+                : state.status;
+            if (isValidToolEntity(state.selectedEntity)
                 && ctx.world.hasComponent<ParticleEmitterRuntimeComponent>(state.selectedEntity))
             {
                 const auto& runtime =
@@ -420,7 +427,8 @@ namespace gts::tools
             setText(ctx.ui, footer, footerText);
         }
 
-        static std::string emitterSummary(const EngineToolStateComponent& state,
+        static std::string emitterSummary(ECSWorld& world,
+                                          const EngineToolStateComponent& state,
                                           const std::vector<Entity>& emitters,
                                           const ParticleEmitterComponent* emitter)
         {
@@ -435,8 +443,14 @@ namespace gts::tools
                 path = "DESCRIPTOR ONLY";
 
             std::ostringstream out;
-            out << "ENTITY " << state.selectedEntity.id << " / " << emitters.size() << "  " << path;
+            out << entityDisplayName(world, state.selectedEntity)
+                << " #" << state.selectedEntity.id << " / " << emitters.size() << "  " << path;
             return out.str();
+        }
+
+        static std::string entityDisplayNameForStatus(const EngineToolStateComponent& state)
+        {
+            return "ENTITY " + std::to_string(state.selectedEntity.id);
         }
 
         static std::string buttonLabel(ButtonAction action,

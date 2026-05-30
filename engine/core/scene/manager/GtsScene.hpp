@@ -28,7 +28,9 @@
 #include "PhysicsDebugRenderer.h"
 #include "ParticleEffectHotReloadSystem.hpp"
 #include "ParticleEmitterSystem.hpp"
+#include "EngineToolSelectionHighlightSystem.hpp"
 #include "EngineToolShellSystem.hpp"
+#include "EngineToolWorldPickerSystem.hpp"
 #include "RenderExtractionSnapshotBuilder.hpp"
 #include "TransformDirtyHelpers.h"
 
@@ -243,6 +245,8 @@ class GtsScene
                 return;
 
             ecsWorld.addControllerSystem<gts::tools::EngineToolShellSystem>();
+            ecsWorld.addControllerSystem<gts::tools::EngineToolWorldPickerSystem>();
+            ecsWorld.addControllerSystem<gts::tools::EngineToolSelectionHighlightSystem>();
             toolingFeatureInstalled = true;
         }
 };

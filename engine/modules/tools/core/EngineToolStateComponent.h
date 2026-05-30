@@ -8,11 +8,21 @@
 
 namespace gts::tools
 {
+    enum class EngineToolSelectionSource
+    {
+        None,
+        Inspector,
+        WorldPick
+    };
+
     struct EngineToolStateComponent
     {
         bool visible = false;
         size_t activePanelIndex = 0;
         Entity selectedEntity{std::numeric_limits<entity_id_type>::max()};
+        Entity hoveredEntity{std::numeric_limits<entity_id_type>::max()};
+        EngineToolSelectionSource selectionSource = EngineToolSelectionSource::None;
+        bool selectionChangedThisFrame = false;
         std::string status = "F6 TO HIDE";
     };
 }

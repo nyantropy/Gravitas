@@ -9,6 +9,7 @@
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
 #include "EngineToolContext.h"
+#include "EngineToolInputCaptureComponent.h"
 #include "EngineToolRegistry.h"
 #include "EntityInspectorPanel.hpp"
 #include "GravitasFontAtlas.h"
@@ -35,15 +36,27 @@ namespace gts::tools
                 return;
 
             EngineToolStateComponent& state = ensureState(ctx.world);
+            state.selectionChangedThisFrame = false;
             if (ctx.input != nullptr && ctx.input->isPressed("engine.tools_toggle"))
             {
                 state.visible = !state.visible;
+                setToolsInputContext(ctx, state.visible);
                 if (!state.visible)
+                {
+                    clearInputCapture(ctx.world);
                     destroyUi(*ctx.ui);
+                }
             }
 
+            if (state.visible)
+                setToolsInputContext(ctx, true);
+
             if (!state.visible)
+            {
+                setToolsInputContext(ctx, false);
+                clearInputCapture(ctx.world);
                 return;
+            }
 
             if (!ensureFont(ctx))
                 return;
@@ -52,7 +65,8 @@ namespace gts::tools
             if (!ensureUi(toolCtx, state))
                 return;
 
-            UiInteractionResult interaction = updateInteraction(ctx);
+            UiInteractionResult interaction = updateInteraction(ctx, state);
+            updateInputCapture(ctx.world, state, interaction, ctx);
             updateTabs(toolCtx, state, interaction);
 
             if (registry.empty())
@@ -90,12 +104,47 @@ namespace gts::tools
         UiHandle contentRoot = UI_INVALID_HANDLE;
         UiHandle footer = UI_INVALID_HANDLE;
         std::vector<ToolButton> tabs;
+        bool toolsContextRequested = false;
+
+        static constexpr const char* ToolsInputContext = "engine.tools";
+        static constexpr const char* ToolsSelectAction = "engine.tools_select";
 
         static EngineToolStateComponent& ensureState(ECSWorld& world)
         {
             if (!world.hasAny<EngineToolStateComponent>())
                 return world.createSingleton<EngineToolStateComponent>();
             return world.getSingleton<EngineToolStateComponent>();
+        }
+
+        static EngineToolInputCaptureComponent& ensureInputCapture(ECSWorld& world)
+        {
+            if (!world.hasAny<EngineToolInputCaptureComponent>())
+                return world.createSingleton<EngineToolInputCaptureComponent>();
+            return world.getSingleton<EngineToolInputCaptureComponent>();
+        }
+
+        void setToolsInputContext(const EcsControllerContext& ctx, bool enabled)
+        {
+            if (ctx.input == nullptr)
+                return;
+
+            if (enabled)
+            {
+                if (!toolsContextRequested && !ctx.input->isContextActive(ToolsInputContext))
+                    ctx.input->pushContext(ToolsInputContext);
+                toolsContextRequested = true;
+                return;
+            }
+
+            if (toolsContextRequested || ctx.input->isContextActive(ToolsInputContext))
+                ctx.input->popContext(ToolsInputContext);
+            toolsContextRequested = enabled;
+        }
+
+        static void clearInputCapture(ECSWorld& world)
+        {
+            EngineToolInputCaptureComponent& capture = ensureInputCapture(world);
+            capture = {};
         }
 
         bool ensureFont(const EcsControllerContext& ctx)
@@ -194,7 +243,8 @@ namespace gts::tools
             tabs.clear();
         }
 
-        UiInteractionResult updateInteraction(const EcsControllerContext& ctx)
+        UiInteractionResult updateInteraction(const EcsControllerContext& ctx,
+                                              const EngineToolStateComponent&)
         {
             if (ctx.input == nullptr || ctx.ui == nullptr)
                 return {};
@@ -205,12 +255,44 @@ namespace gts::tools
             UiInputFrame frame;
             frame.pointerX = std::clamp(static_cast<float>(ctx.input->mouseX()) / width, 0.0f, 1.0f);
             frame.pointerY = std::clamp(static_cast<float>(ctx.input->mouseY()) / height, 0.0f, 1.0f);
-            frame.primaryDown = ctx.input->isHeld("engine.ui_primary");
-            frame.primaryPressed = ctx.input->isPressed("engine.ui_primary");
-            frame.primaryReleased = ctx.input->isReleased("engine.ui_primary");
+            const char* primaryAction = ctx.input->isContextActive(ToolsInputContext)
+                ? ToolsSelectAction
+                : "engine.ui_primary";
+            frame.primaryDown = ctx.input->isHeld(primaryAction);
+            frame.primaryPressed = ctx.input->isPressed(primaryAction);
+            frame.primaryReleased = ctx.input->isReleased(primaryAction);
             frame.scrollX = static_cast<float>(ctx.input->scrollX());
             frame.scrollY = static_cast<float>(ctx.input->scrollY());
             return ctx.ui->updateInteraction(frame);
+        }
+
+        void updateInputCapture(ECSWorld& world,
+                                const EngineToolStateComponent&,
+                                const UiInteractionResult& interaction,
+                                const EcsControllerContext& ctx)
+        {
+            EngineToolInputCaptureComponent& capture = ensureInputCapture(world);
+            capture.pointerOverToolUi = interaction.hovered != UI_INVALID_HANDLE;
+            capture.toolUiPressed = interaction.pressed != UI_INVALID_HANDLE;
+            capture.pointerX = interaction.pointerX;
+            capture.pointerY = interaction.pointerY;
+            capture.hoveredUi = interaction.hovered;
+            capture.pressedUi = interaction.pressed;
+
+            if (ctx.input == nullptr)
+            {
+                capture.primaryDown = false;
+                capture.primaryPressed = false;
+                capture.primaryReleased = false;
+                return;
+            }
+
+            const char* primaryAction = ctx.input->isContextActive(ToolsInputContext)
+                ? ToolsSelectAction
+                : "engine.ui_primary";
+            capture.primaryDown = ctx.input->isHeld(primaryAction);
+            capture.primaryPressed = ctx.input->isPressed(primaryAction);
+            capture.primaryReleased = ctx.input->isReleased(primaryAction);
         }
 
         void updateTabs(EngineToolContext& ctx,

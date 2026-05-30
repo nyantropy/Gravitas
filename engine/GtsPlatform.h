@@ -169,6 +169,13 @@ class GtsPlatform
                                   ActivationMode::Held,
                                   "",
                                   PausePolicy::AlwaysActive);
+            bindingRegistry->bind(InputBinding{
+                                  "engine.tools_select",
+                                  InputTrigger{InputTrigger::Type::MouseButton, 0},
+                                  ActivationMode::Held,
+                                  "engine.tools",
+                                  PausePolicy::AlwaysActive,
+                                  false});
             bindingRegistry->bind("engine.zoom_in",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowUp)},
                                   ActivationMode::Held,

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "EngineToolPanel.h"
+#include "EngineToolSelectionHelpers.h"
 #include "ToolWidgets.h"
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
@@ -128,8 +129,6 @@ namespace gts::tools
             ToolSlider slider;
         };
 
-        static constexpr entity_id_type InvalidEntityId = std::numeric_limits<entity_id_type>::max();
-
         UiHandle root = UI_INVALID_HANDLE;
         UiHandle header = UI_INVALID_HANDLE;
         UiHandle summary = UI_INVALID_HANDLE;
@@ -160,6 +159,8 @@ namespace gts::tools
             world.forEach<TransformComponent>(
                 [&](Entity entity, TransformComponent&)
                 {
+                    if (isToolInternalEntity(world, entity))
+                        return;
                     entities.push_back(entity);
                 });
             std::sort(entities.begin(), entities.end(),
@@ -178,13 +179,17 @@ namespace gts::tools
 
             const auto it = std::find(entities.begin(), entities.end(), state.selectedEntity);
             if (it == entities.end())
+            {
                 state.selectedEntity = entities.front();
+                state.selectionSource = EngineToolSelectionSource::Inspector;
+                state.selectionChangedThisFrame = true;
+            }
         }
 
         static TransformComponent* selectedTransform(ECSWorld& world,
                                                      const EngineToolStateComponent& state)
         {
-            if (state.selectedEntity.id == InvalidEntityId
+            if (!isValidToolEntity(state.selectedEntity)
                 || !world.hasComponent<TransformComponent>(state.selectedEntity))
             {
                 return nullptr;
@@ -208,7 +213,9 @@ namespace gts::tools
             if (next < 0)
                 next += count;
             state.selectedEntity = entities[static_cast<size_t>(next)];
-            state.status = "SELECTED ENTITY " + std::to_string(state.selectedEntity.id);
+            state.selectionSource = EngineToolSelectionSource::Inspector;
+            state.selectionChangedThisFrame = true;
+            state.status = "SELECTED " + entityDisplayNameForStatus(state);
         }
 
         void updateDisplay(EngineToolContext& ctx,
@@ -229,12 +236,13 @@ namespace gts::tools
                     setText(ctx.ui, binding.slider.value, "--");
                     setRect(ctx.ui, binding.slider.fill, {0.0f, 0.0f, 0.001f, 0.012f});
                 }
-                setText(ctx.ui, footer, state.status);
+                setText(ctx.ui, footer, footerText(ctx, state));
                 return;
             }
 
             std::ostringstream label;
-            label << "ENTITY " << state.selectedEntity.id << " / " << entities.size();
+            label << entityDisplayName(ctx.world, state.selectedEntity)
+                  << " #" << state.selectedEntity.id << " / " << entities.size();
             setText(ctx.ui, summary, label.str());
 
             for (const SliderBinding& binding : sliders)
@@ -244,7 +252,23 @@ namespace gts::tools
                              readField(*transform, binding.field),
                              sliderColor(binding.field));
             }
-            setText(ctx.ui, footer, state.status);
+            const std::string badges = entityComponentBadges(ctx.world, state.selectedEntity);
+            if (isValidToolEntity(state.hoveredEntity) && state.hoveredEntity.id != state.selectedEntity.id)
+                setText(ctx.ui, footer, footerText(ctx, state));
+            else
+                setText(ctx.ui, footer, badges.empty() ? footerText(ctx, state) : badges);
+        }
+
+        static std::string entityDisplayNameForStatus(const EngineToolStateComponent& state)
+        {
+            return "ENTITY " + std::to_string(state.selectedEntity.id);
+        }
+
+        static std::string footerText(EngineToolContext& ctx, const EngineToolStateComponent& state)
+        {
+            if (isValidToolEntity(state.hoveredEntity))
+                return "HOVER " + entityDisplayName(ctx.world, state.hoveredEntity);
+            return state.status;
         }
 
         static float readField(const TransformComponent& transform, Field field)
