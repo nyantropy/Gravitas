@@ -19,6 +19,7 @@
 #include "GtsCommand.h"
 #include "GtsCommandBuffer.h"
 #include "GtsFrameStats.h"
+#include "ParticleFrameData.h"
 #include "ProfileAccumulator.h"
 #include "RenderGpuSystem.hpp"
 
@@ -119,6 +120,12 @@ class GravitasEngine
                 uiSystem->setEnabled(false);
             }
 
+            ParticleFrameData emptyParticleData;
+            const ParticleFrameData& particleData =
+                world.hasAny<ParticleFrameDataComponent>()
+                    ? world.getSingleton<ParticleFrameDataComponent>().frameData
+                    : emptyParticleData;
+
             // Per-stage pipeline metrics (snapshot / visibility / extraction / sort)
             const auto& pipelineMetrics = renderPipeline->getLastPipelineMetrics();
             const auto  extractorMetrics = renderPipeline->getExtractor().getLastMetrics();
@@ -155,6 +162,7 @@ class GravitasEngine
                 dt,
                 renderList,
                 renderPipeline->getLatestSnapshot().objectUploads,
+                particleData,
                 uiBuffer,
                 stats);
             const auto submitEnd = std::chrono::steady_clock::now();

@@ -6,6 +6,7 @@
 #include "GtsKeyEvent.h"
 #include "GtsFrameStats.h"
 #include "IResourceProvider.hpp"
+#include "ParticleFrameData.h"
 #include "RenderCommand.h"
 #include "UiCommand.h"
 
@@ -18,6 +19,7 @@ public:
 
     virtual void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
                              const std::vector<ObjectUploadCommand>& objectUploads,
+                             const ParticleFrameData& particleData,
                              const UiCommandBuffer& uiBuffer,
                              const GtsFrameStats& stats) = 0;
     virtual void toggleDebugOverlay() = 0;

@@ -31,7 +31,12 @@ class GraphicsConstants
         static inline const std::string UI_V_SHADER_PATH = UI_V_SHADER_PATH_CSTR;
         static inline const std::string UI_F_SHADER_PATH = UI_F_SHADER_PATH_CSTR;
 
+        static inline const char* PARTICLE_V_SHADER_PATH_CSTR = GRAVITAS_ENGINE_ROOT "/shaders/particle_vert.spv";
+        static inline const char* PARTICLE_F_SHADER_PATH_CSTR = GRAVITAS_ENGINE_ROOT "/shaders/particle_frag.spv";
+
+        static inline const std::string PARTICLE_V_SHADER_PATH = PARTICLE_V_SHADER_PATH_CSTR;
+        static inline const std::string PARTICLE_F_SHADER_PATH = PARTICLE_F_SHADER_PATH_CSTR;
+
         static inline const char* ENGINE_RESOURCES_CSTR = GRAVITAS_ENGINE_RESOURCES "";
         static inline const std::string ENGINE_RESOURCES = ENGINE_RESOURCES_CSTR;
 };
-

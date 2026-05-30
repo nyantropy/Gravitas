@@ -50,12 +50,12 @@ void VulkanRenderPass::createRenderPass()
     {
         depthAttachment.format         = this->config.depthFormat;
         depthAttachment.samples        = VK_SAMPLE_COUNT_1_BIT;
-        depthAttachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depthAttachment.loadOp         = this->config.depthLoadOp;
         depthAttachment.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         depthAttachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depthAttachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-        depthAttachment.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        depthAttachment.initialLayout  = this->config.depthInitialLayout;
+        depthAttachment.finalLayout    = this->config.depthFinalLayout;
 
         depthAttachmentRef.attachment = 1;
         depthAttachmentRef.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -65,7 +65,9 @@ void VulkanRenderPass::createRenderPass()
         dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
         dependency.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
         dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+            | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
+            | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
         attachments.push_back(depthAttachment);
     }

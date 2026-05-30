@@ -17,4 +17,7 @@ struct VulkanRenderPassConfig
     // ── depth attachment ──────────────────────────────────────────────────
     // Set to false for passes that have no depth attachment (e.g. UI pass).
     bool hasDepthAttachment = true;
+    VkAttachmentLoadOp depthLoadOp       = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    VkImageLayout      depthInitialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VkImageLayout      depthFinalLayout   = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 };

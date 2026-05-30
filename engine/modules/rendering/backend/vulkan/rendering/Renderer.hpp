@@ -4,6 +4,7 @@
 #include <vector>
 #include "RendererConfig.h"
 #include "RenderCommand.h"
+#include "ParticleFrameData.h"
 #include <UiCommand.h>
 #include "GtsFrameStats.h"
 
@@ -17,6 +18,7 @@ class Renderer
         virtual ~Renderer() = default;
         virtual void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
                                  const std::vector<ObjectUploadCommand>& objectUploads,
+                                 const ParticleFrameData& particleData,
                                  const UiCommandBuffer& uiBuffer,
                                  const GtsFrameStats& stats) = 0;
         virtual void toggleDebugOverlay() = 0;

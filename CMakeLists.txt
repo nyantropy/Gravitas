@@ -27,6 +27,8 @@ if(GLSLC)
     add_custom_target(compile_shaders
         COMMAND ${GLSLC} "${SHADER_DIR}/fragmentshader.frag" -o "${SHADER_DIR}/frag.spv"
         COMMAND ${GLSLC} "${SHADER_DIR}/vertexshader.vert"  -o "${SHADER_DIR}/vert.spv"
+        COMMAND ${GLSLC} "${SHADER_DIR}/particle_frag.frag" -o "${SHADER_DIR}/particle_frag.spv"
+        COMMAND ${GLSLC} "${SHADER_DIR}/particle_vert.vert" -o "${SHADER_DIR}/particle_vert.spv"
         COMMAND ${GLSLC} "${SHADER_DIR}/ui_frag.frag"       -o "${SHADER_DIR}/ui_frag.spv"
         COMMAND ${GLSLC} "${SHADER_DIR}/ui_vert.vert"       -o "${SHADER_DIR}/ui_vert.spv"
         COMMENT "Compiling GLSL shaders to SPIR-V"

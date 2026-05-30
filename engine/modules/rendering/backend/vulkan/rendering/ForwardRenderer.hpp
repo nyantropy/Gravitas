@@ -30,6 +30,7 @@
 
 #include "GtsFrameGraph.h"
 #include "SceneRenderStage.h"
+#include "ParticleRenderStage.h"
 #include "UiRenderStage.h"
 #include "output/HeadlessFrameOutputTarget.hpp"
 #include "output/WindowedFrameOutputTarget.hpp"
@@ -49,6 +50,7 @@ class ForwardRenderer : Renderer
 
         // Raw pointers into the frame graph — set during buildFrameGraph().
         SceneRenderStage* sceneStage = nullptr;
+        ParticleRenderStage* particleStage = nullptr;
         UiRenderStage*    uiStage    = nullptr;
 
         // Depth format — resolved once in createDepthAttachment(), reused by
@@ -180,6 +182,17 @@ class ForwardRenderer : Renderer
             sceneStage = ownedScene.get();
             frameGraph.addStage(std::move(ownedScene));
 
+            auto ownedParticles = std::make_unique<ParticleRenderStage>(
+                resourceSystem.get(),
+                depthAttachment->getImageView(),
+                depthFormat,
+                outputHandle0,
+                depthHandle,
+                frameOutputTarget->getSceneFinalLayout(),
+                frameOutputTarget->getUiInitialLayout());
+            particleStage = ownedParticles.get();
+            frameGraph.addStage(std::move(ownedParticles));
+
             auto ownedUi = std::make_unique<UiRenderStage>(
                 resourceSystem.get(),
                 outputHandle0,
@@ -256,6 +269,7 @@ class ForwardRenderer : Renderer
         }
 
         void recordCommandBuffer(const std::vector<RenderCommand>& renderList,
+                                 const ParticleFrameData& particleData,
                                  const UiCommandBuffer& uiBuffer,
                                  VkCommandBuffer commandBuffer, uint32_t imageIndex)
         {
@@ -266,6 +280,7 @@ class ForwardRenderer : Renderer
                 throw std::runtime_error("failed to begin recording command buffer!");
 
             frameGraph.provideData(&renderList);
+            frameGraph.provideData(&particleData);
             frameGraph.provideData(&uiBuffer);
             frameGraph.provideData(&frameStats);
             frameGraph.execute(commandBuffer, imageIndex, currentFrame);
@@ -279,6 +294,13 @@ class ForwardRenderer : Renderer
                 frameStats.descriptorBinds  = sceneStage->getLastDescriptorBinds();
                 frameStats.pipelineSwitches = sceneStage->getLastPipelineSwitches();
                 frameStats.textureSwitches  = sceneStage->getLastTextureSwitches();
+            }
+
+            if (particleStage)
+            {
+                frameStats.particleCount     = particleStage->getLastParticleCount();
+                frameStats.particleDrawCalls = particleStage->getLastDrawCalls();
+                frameStats.drawCalls        += frameStats.particleDrawCalls;
             }
 
             if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
@@ -320,6 +342,7 @@ class ForwardRenderer : Renderer
 
         void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
                          const std::vector<ObjectUploadCommand>& objectUploads,
+                         const ParticleFrameData& particleData,
                          const UiCommandBuffer& uiBuffer,
                          const GtsFrameStats& stats) override
         {
@@ -400,7 +423,7 @@ class ForwardRenderer : Renderer
                 std::chrono::duration<float, std::milli>(cmdResetEnd - cmdResetStart).count();
 
             const auto cmdRecordStart = std::chrono::steady_clock::now();
-            recordCommandBuffer(renderList, uiBuffer, frame.commandBuffer, imageIndex);
+            recordCommandBuffer(renderList, particleData, uiBuffer, frame.commandBuffer, imageIndex);
             const auto cmdRecordEnd = std::chrono::steady_clock::now();
             frameStats.backendCmdRecordCpuMs =
                 std::chrono::duration<float, std::milli>(cmdRecordEnd - cmdRecordStart).count();

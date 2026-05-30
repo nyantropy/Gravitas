@@ -26,6 +26,7 @@
 #include "DefaultCameraControlSystem.hpp"
 #include "PhysicsSystem.h"
 #include "PhysicsDebugRenderer.h"
+#include "ParticleEmitterSystem.hpp"
 #include "RenderExtractionSnapshotBuilder.hpp"
 #include "TransformDirtyHelpers.h"
 
@@ -207,6 +208,7 @@ class GtsScene
             ecsWorld.addControllerSystem<DebugFreeCameraSystem>();
             ecsWorld.addControllerSystem<CameraBindingSystem>();
             ecsWorld.addControllerSystem<ActiveCameraViewSystem>();
+            ecsWorld.addControllerSystem<ParticleEmitterSystem>();
             ecsWorld.forEachSnapshot<StaticMeshComponent, MaterialComponent>(
                 [this](Entity entity, StaticMeshComponent&, MaterialComponent&)
                 {
