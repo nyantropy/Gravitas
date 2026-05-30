@@ -31,8 +31,20 @@ namespace gts::debugdraw
     inline void clear(ECSWorld& world)
     {
         DebugDrawQueueComponent& queue = ensureQueue(world);
-        queue.lines.clear();
-        ++queue.version;
+        queue.clear();
+    }
+
+    inline void line(DebugDrawQueueComponent& queue,
+                     const glm::vec3& start,
+                     const glm::vec3& end,
+                     DebugDrawColor color,
+                     float thickness)
+    {
+        const glm::vec3 delta = end - start;
+        if (glm::dot(delta, delta) <= 0.00000001f)
+            return;
+
+        queue.pushLine({start, end, color, std::max(0.001f, thickness)});
     }
 
     inline void line(ECSWorld& world,
@@ -41,12 +53,8 @@ namespace gts::debugdraw
                      DebugDrawColor color,
                      float thickness)
     {
-        if (glm::length(end - start) <= 0.0001f)
-            return;
-
         DebugDrawQueueComponent& queue = ensureQueue(world);
-        queue.lines.push_back({start, end, color, std::max(0.001f, thickness)});
-        ++queue.version;
+        line(queue, start, end, color, thickness);
     }
 
     inline glm::vec3 transformPoint(const glm::mat4& matrix, const glm::vec3& point)
@@ -71,21 +79,54 @@ namespace gts::debugdraw
         };
     }
 
-    inline void bounds(ECSWorld& world,
-                       const TransformComponent& transform,
-                       const BoundsComponent& bounds,
-                       DebugDrawColor color,
-                       float thickness)
+    inline size_t buildBoundsLines(const TransformComponent& transform,
+                                   const BoundsComponent& localBounds,
+                                   DebugDrawColor color,
+                                   float thickness,
+                                   std::array<DebugDrawLine, 12>& outLines)
     {
-        const auto corners = boundsCorners(bounds, transform.getModelMatrix());
+        const auto corners = boundsCorners(localBounds, transform.getModelMatrix());
         constexpr std::array<std::array<int, 2>, 12> edges{{
             {{0, 1}}, {{1, 2}}, {{2, 3}}, {{3, 0}},
             {{4, 5}}, {{5, 6}}, {{6, 7}}, {{7, 4}},
             {{0, 4}}, {{1, 5}}, {{2, 6}}, {{3, 7}}
         }};
 
+        size_t count = 0;
+        const float safeThickness = std::max(0.001f, thickness);
         for (const auto& edge : edges)
-            line(world, corners[static_cast<size_t>(edge[0])], corners[static_cast<size_t>(edge[1])], color, thickness);
+        {
+            const glm::vec3& start = corners[static_cast<size_t>(edge[0])];
+            const glm::vec3& end = corners[static_cast<size_t>(edge[1])];
+            const glm::vec3 delta = end - start;
+            if (glm::dot(delta, delta) <= 0.00000001f)
+                continue;
+
+            outLines[count++] = {start, end, color, safeThickness};
+        }
+
+        return count;
+    }
+
+    inline void bounds(DebugDrawQueueComponent& queue,
+                       const TransformComponent& transform,
+                       const BoundsComponent& localBounds,
+                       DebugDrawColor color,
+                       float thickness)
+    {
+        std::array<DebugDrawLine, 12> lines{};
+        const size_t lineCount = buildBoundsLines(transform, localBounds, color, thickness, lines);
+        queue.appendLines(color, lines.data(), lineCount);
+    }
+
+    inline void bounds(ECSWorld& world,
+                       const TransformComponent& transform,
+                       const BoundsComponent& localBounds,
+                       DebugDrawColor color,
+                       float thickness)
+    {
+        DebugDrawQueueComponent& queue = ensureQueue(world);
+        bounds(queue, transform, localBounds, color, thickness);
     }
 
     inline glm::mat3 rotationBasis(const TransformComponent& transform)

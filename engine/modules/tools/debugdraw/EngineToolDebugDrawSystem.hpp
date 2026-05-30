@@ -1,6 +1,8 @@
 #pragma once
 
+#include <array>
 #include <optional>
+#include <unordered_map>
 
 #include "ActiveCameraViewStateComponent.h"
 #include "BoundsComponent.h"
@@ -34,12 +36,14 @@ namespace gts::tools
             if (!settings.enabled)
                 return;
 
+            gts::debugdraw::DebugDrawQueueComponent& queue =
+                gts::debugdraw::ensureQueue(ctx.world);
             const float thickness = settings.lineThickness;
             if (settings.allBounds)
-                drawAllBounds(ctx.world, state, thickness);
+                drawAllBounds(ctx.world, queue, state, thickness);
 
             if (settings.selectedBounds)
-                drawSelectedBounds(ctx.world, state, thickness * 1.35f);
+                drawSelectedBounds(ctx.world, queue, state, thickness * 1.35f);
 
             if (settings.transformAxes && !gizmoOwnsSelectedAxes(ctx.world, state))
                 drawSelectedAxes(ctx.world, state, settings, thickness * 1.45f);
@@ -57,10 +61,28 @@ namespace gts::tools
         }
 
     private:
-        static void drawAllBounds(ECSWorld& world,
-                                  const EngineToolStateComponent& state,
-                                  float thickness)
+        struct CachedBoundsLines
         {
+            TransformComponent transform;
+            BoundsComponent bounds;
+            gts::debugdraw::DebugDrawColor color = gts::debugdraw::DebugDrawColor::Grey;
+            float thickness = 0.0f;
+            std::array<gts::debugdraw::DebugDrawLine, 12> lines{};
+            size_t lineCount = 0;
+            size_t signature = 0;
+            uint64_t lastSeenFrame = 0;
+            bool valid = false;
+        };
+
+        std::unordered_map<entity_id_type, CachedBoundsLines> boundsLineCache;
+        uint64_t boundsCacheFrame = 0;
+
+        void drawAllBounds(ECSWorld& world,
+                           gts::debugdraw::DebugDrawQueueComponent& queue,
+                           const EngineToolStateComponent& state,
+                           float thickness)
+        {
+            ++boundsCacheFrame;
             world.forEach<TransformComponent, BoundsComponent>(
                 [&](Entity entity, TransformComponent& transform, BoundsComponent& bounds)
                 {
@@ -69,17 +91,18 @@ namespace gts::tools
 
                     const bool selected = isValidToolEntity(state.selectedEntity)
                         && entity.id == state.selectedEntity.id;
-                    gts::debugdraw::bounds(world,
-                                           transform,
-                                           bounds,
-                                           selected
-                                               ? gts::debugdraw::DebugDrawColor::Yellow
-                                               : gts::debugdraw::DebugDrawColor::Grey,
-                                           selected ? thickness * 1.35f : thickness);
+                    const gts::debugdraw::DebugDrawColor color = selected
+                        ? gts::debugdraw::DebugDrawColor::Yellow
+                        : gts::debugdraw::DebugDrawColor::Grey;
+                    const float effectiveThickness = selected ? thickness * 1.35f : thickness;
+                    appendCachedBounds(queue, entity, transform, bounds, color, effectiveThickness);
                 });
+
+            pruneBoundsCache();
         }
 
         static void drawSelectedBounds(ECSWorld& world,
+                                       gts::debugdraw::DebugDrawQueueComponent& queue,
                                        const EngineToolStateComponent& state,
                                        float thickness)
         {
@@ -91,7 +114,7 @@ namespace gts::tools
                 return;
             }
 
-            gts::debugdraw::bounds(world,
+            gts::debugdraw::bounds(queue,
                                    world.getComponent<TransformComponent>(state.selectedEntity),
                                    world.getComponent<BoundsComponent>(state.selectedEntity),
                                    gts::debugdraw::DebugDrawColor::Yellow,
@@ -166,6 +189,69 @@ namespace gts::tools
                                 settings.pickRayLength,
                                 gts::debugdraw::DebugDrawColor::Cyan,
                                 settings.lineThickness);
+        }
+
+        void appendCachedBounds(gts::debugdraw::DebugDrawQueueComponent& queue,
+                                Entity entity,
+                                const TransformComponent& transform,
+                                const BoundsComponent& bounds,
+                                gts::debugdraw::DebugDrawColor color,
+                                float thickness)
+        {
+            CachedBoundsLines& cached = boundsLineCache[entity.id];
+            if (!cached.valid
+                || !sameTransform(cached.transform, transform)
+                || !sameBounds(cached.bounds, bounds)
+                || cached.color != color
+                || cached.thickness != thickness)
+            {
+                cached.transform = transform;
+                cached.bounds = bounds;
+                cached.color = color;
+                cached.thickness = thickness;
+                cached.lineCount = gts::debugdraw::buildBoundsLines(transform,
+                                                                    bounds,
+                                                                    color,
+                                                                    thickness,
+                                                                    cached.lines);
+                cached.signature = gts::debugdraw::debugDrawHashLines(cached.lines.data(),
+                                                                      cached.lineCount);
+                cached.valid = true;
+            }
+
+            cached.lastSeenFrame = boundsCacheFrame;
+            queue.appendLines(color, cached.lines.data(), cached.lineCount, cached.signature);
+        }
+
+        void pruneBoundsCache()
+        {
+            for (auto it = boundsLineCache.begin(); it != boundsLineCache.end();)
+            {
+                if (it->second.lastSeenFrame == boundsCacheFrame)
+                {
+                    ++it;
+                    continue;
+                }
+
+                it = boundsLineCache.erase(it);
+            }
+        }
+
+        static bool sameVec3(const glm::vec3& lhs, const glm::vec3& rhs)
+        {
+            return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
+        }
+
+        static bool sameTransform(const TransformComponent& lhs, const TransformComponent& rhs)
+        {
+            return sameVec3(lhs.position, rhs.position)
+                && sameVec3(lhs.rotation, rhs.rotation)
+                && sameVec3(lhs.scale, rhs.scale);
+        }
+
+        static bool sameBounds(const BoundsComponent& lhs, const BoundsComponent& rhs)
+        {
+            return sameVec3(lhs.min, rhs.min) && sameVec3(lhs.max, rhs.max);
         }
     };
 }

@@ -4,7 +4,6 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
-#include <functional>
 #include <limits>
 #include <string>
 #include <vector>
@@ -38,19 +37,16 @@ namespace gts::debugdraw
             }
 
             DebugDrawQueueComponent& queue = ctx.world.getSingleton<DebugDrawQueueComponent>();
-            if (queue.lines.empty())
+            if (queue.empty())
             {
                 destroyAll(ctx.world);
                 return;
             }
 
-            std::array<std::vector<DebugDrawLine>, ColorCount> batches{};
-            for (const DebugDrawLine& line : queue.lines)
-                batches[colorIndex(line.color)].push_back(line);
-
-            for (size_t i = 0; i < batches.size(); ++i)
+            for (size_t i = 0; i < DebugDrawColorCount; ++i)
             {
-                if (batches[i].empty())
+                const std::vector<DebugDrawLine>& batch = queue.lineBatches[i];
+                if (batch.empty())
                 {
                     destroyBatch(ctx.world, i);
                     continue;
@@ -62,27 +58,27 @@ namespace gts::debugdraw
                 if (!hadValidBatch)
                     batchCacheValid[i] = false;
 
-                const size_t signature = hashLines(batches[i]);
+                const size_t signature = queue.batchSignatures[i];
                 if (batchCacheValid[i]
                     && batchHashes[i] == signature
-                    && batchLineCounts[i] == batches[i].size()
+                    && batchLineCounts[i] == queue.batchLineCounts[i]
                     && validBatchEntity(ctx.world, entity))
                 {
                     continue;
                 }
 
-                syncBatch(ctx.world, entity, color, batches[i]);
+                syncBatch(ctx.world, entity, color, batch);
                 batchCacheValid[i] = true;
                 batchHashes[i] = signature;
-                batchLineCounts[i] = batches[i].size();
+                batchLineCounts[i] = queue.batchLineCounts[i];
             }
 
-            queue.lines.clear();
+            queue.clear();
         }
 
     private:
         static constexpr entity_id_type InvalidEntityId = std::numeric_limits<entity_id_type>::max();
-        static constexpr size_t ColorCount = 9;
+        static constexpr size_t ColorCount = DebugDrawColorCount;
 
         std::array<Entity, ColorCount> batchEntities{
             Entity{InvalidEntityId},
@@ -99,31 +95,9 @@ namespace gts::debugdraw
         std::array<size_t, ColorCount> batchHashes{};
         std::array<size_t, ColorCount> batchLineCounts{};
 
-        static void hashCombine(size_t& seed, size_t value)
-        {
-            seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-        }
-
-        static size_t hashLines(const std::vector<DebugDrawLine>& lines)
-        {
-            size_t seed = std::hash<size_t>{}(lines.size());
-            for (const DebugDrawLine& line : lines)
-            {
-                hashCombine(seed, std::hash<float>{}(line.start.x));
-                hashCombine(seed, std::hash<float>{}(line.start.y));
-                hashCombine(seed, std::hash<float>{}(line.start.z));
-                hashCombine(seed, std::hash<float>{}(line.end.x));
-                hashCombine(seed, std::hash<float>{}(line.end.y));
-                hashCombine(seed, std::hash<float>{}(line.end.z));
-                hashCombine(seed, std::hash<int>{}(static_cast<int>(line.color)));
-                hashCombine(seed, std::hash<float>{}(line.thickness));
-            }
-            return seed;
-        }
-
         static size_t colorIndex(DebugDrawColor color)
         {
-            return static_cast<size_t>(color);
+            return debugDrawColorIndex(color);
         }
 
         static DebugDrawColor colorFromIndex(size_t index)
