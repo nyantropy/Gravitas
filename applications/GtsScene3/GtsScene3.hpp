@@ -32,10 +32,10 @@ public:
     void populateFrameStats(GtsFrameStats& stats) const override;
 
 private:
-    static constexpr uint32_t CubeCount = 15000;
-    static constexpr uint32_t GridColumns = 25;
-    static constexpr uint32_t GridRows = 24;
-    static constexpr uint32_t GridLayers = 25;
+    static constexpr uint32_t CubeCount = 64000;
+    static constexpr uint32_t GridColumns = 40;
+    static constexpr uint32_t GridRows = 40;
+    static constexpr uint32_t GridLayers = 40;
     static constexpr float GridSpacing = 2.5f;
     static constexpr float CubeScale = 1.0f;
     static constexpr uint32_t RandomSeed = 1337u;

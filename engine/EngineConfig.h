@@ -4,7 +4,7 @@
 
 struct EngineConfig
 {
-    static constexpr uint32_t MAX_RENDERABLE_OBJECTS = 16384;
+    static constexpr uint32_t MAX_RENDERABLE_OBJECTS = 65536;
 
     GraphicsConfig graphics;
 
