@@ -5,6 +5,7 @@
 #include "GtsPlatformEventBus.hpp"
 #include "GtsKeyEvent.h"
 #include "GtsFrameStats.h"
+#include "GraphicsConfig.h"
 #include "IResourceProvider.hpp"
 #include "ParticleFrameData.h"
 #include "RenderCommand.h"
@@ -32,6 +33,8 @@ public:
     virtual bool isWindowOpen() const = 0;
     virtual float getAspectRatio() const = 0;
     virtual void getViewportSize(int& width, int& height) const = 0;
+    virtual RuntimeGraphicsSettings getRuntimeGraphicsSettings() const = 0;
+    virtual bool applyRuntimeGraphicsSettings(const RuntimeGraphicsSettings& settings) = 0;
     virtual IResourceProvider* getResourceProvider() = 0;
     virtual GtsPlatformEventBus& getEventBus() = 0;
 };

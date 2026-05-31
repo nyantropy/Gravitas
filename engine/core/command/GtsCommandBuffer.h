@@ -5,6 +5,7 @@
 
 #include "GtsCommand.h"
 #include "GtsSceneTransitionData.h"
+#include "GraphicsConfig.h"
 
 struct GtsCommandBuffer
 {
@@ -55,6 +56,14 @@ struct GtsCommandBuffer
         GtsCommand cmd;
         cmd.type = GtsCommand::Type::SetFrustumFreeze;
         cmd.floatArg = frozen ? 1.0f : 0.0f;
+        commands.push_back(std::move(cmd));
+    }
+
+    void requestApplyGraphicsSettings(const RuntimeGraphicsSettings& settings)
+    {
+        GtsCommand cmd;
+        cmd.type = GtsCommand::Type::ApplyGraphicsSettings;
+        cmd.graphicsSettings = settings;
         commands.push_back(std::move(cmd));
     }
 

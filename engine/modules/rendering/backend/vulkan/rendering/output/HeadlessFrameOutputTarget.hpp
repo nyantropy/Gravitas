@@ -47,10 +47,11 @@ class HeadlessFrameOutputTarget : public IFrameOutputTarget
                     .waitSemaphore = VK_NULL_HANDLE};
         }
 
-        void endFrame(uint32_t imageIndex, VkSemaphore renderFinishedSemaphore) override
+        bool endFrame(uint32_t imageIndex, VkSemaphore renderFinishedSemaphore) override
         {
             (void)imageIndex;
             (void)renderFinishedSemaphore;
+            return false;
         }
 
         const std::vector<VkImage>& getImages() const override { return images; }

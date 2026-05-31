@@ -20,6 +20,8 @@ class GLFWOutputWindow : public OutputWindow
         void setWindowed()             override;
         void setBorderlessFullscreen() override;
         void setFullscreen()           override;
+        void setWindowMode(WindowMode mode) override;
+        void setWindowSize(int width, int height) override;
 
     private:
         void init() override;

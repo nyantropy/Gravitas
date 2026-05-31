@@ -53,6 +53,16 @@ class GtsPlatform
             graphics->getViewportSize(width, height);
         }
 
+        RuntimeGraphicsSettings getRuntimeGraphicsSettings() const
+        {
+            return graphics->getRuntimeGraphicsSettings();
+        }
+
+        bool applyRuntimeGraphicsSettings(const RuntimeGraphicsSettings& settings)
+        {
+            return graphics->applyRuntimeGraphicsSettings(settings);
+        }
+
         IResourceProvider* getResourceProvider()
         {
             return graphics->getResourceProvider();

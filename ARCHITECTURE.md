@@ -516,6 +516,23 @@ GPU resource handles (mesh IDs, texture IDs, SSBO slots, camera view IDs) are al
 when true the Vulkan module requests FIFO; when false it uses
 `GraphicsConfig::presentModePreference` (Immediate by default).
 
+Runtime graphics changes are engine-owned and travel through engine-facing
+types only:
+
+- `RuntimeGraphicsSettings` carries windowed resolution, window mode, vsync,
+  present-mode preference, and optional max frame rate.
+- Game/UI code requests changes through `GtsCommandBuffer::requestApplyGraphicsSettings`.
+- `IGtsGraphicsModule::applyRuntimeGraphicsSettings` applies the graphics
+  portion; the main engine loop applies frame pacing from `maxFrameRate`.
+
+For Vulkan window output, framebuffer resize and out-of-date/suboptimal present
+paths request swapchain recreation. Recreation waits for the device to go idle,
+refreshes surface capabilities, recreates the swapchain and image views, and
+then rebuilds swapchain-dependent frame resources: frame output target, depth
+attachment, frame graph imports/stages, framebuffers, and frame manager. Long
+lived resource managers for meshes, textures, camera buffers, and SSBO slots
+are preserved across the rebuild.
+
 ---
 
 ## 10. Extensibility

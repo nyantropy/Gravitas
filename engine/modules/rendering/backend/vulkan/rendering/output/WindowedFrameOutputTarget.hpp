@@ -30,7 +30,7 @@ class WindowedFrameOutputTarget : public IFrameOutputTarget
             return {.imageIndex = imageIndex, .waitSemaphore = imageAvailableSemaphore};
         }
 
-        void endFrame(uint32_t imageIndex, VkSemaphore renderFinishedSemaphore) override
+        bool endFrame(uint32_t imageIndex, VkSemaphore renderFinishedSemaphore) override
         {
             VkPresentInfoKHR presentInfo{};
             presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -43,8 +43,11 @@ class WindowedFrameOutputTarget : public IFrameOutputTarget
             presentInfo.pImageIndices = &imageIndex;
 
             VkResult result = vkQueuePresentKHR(vcsheet::getPresentQueue(), &presentInfo);
-            if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR && result != VK_ERROR_OUT_OF_DATE_KHR)
+            if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
+                return true;
+            if (result != VK_SUCCESS)
                 throw std::runtime_error("failed to present swap chain image!");
+            return false;
         }
 
         const std::vector<VkImage>& getImages() const override { return vcsheet::getSwapChainImages(); }

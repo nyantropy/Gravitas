@@ -11,6 +11,8 @@ FrameManager::~FrameManager()
 {
     for (auto& frame : frames) 
     {
+        if (frame.commandBuffer != VK_NULL_HANDLE)
+            vkFreeCommandBuffers(vcsheet::getDevice(), vcsheet::getCommandPool(), 1, &frame.commandBuffer);
         if (frame.inFlightFence != VK_NULL_HANDLE)
             vkDestroyFence(vcsheet::getDevice(), frame.inFlightFence, nullptr);
         if (frame.imageAvailableSemaphore != VK_NULL_HANDLE)

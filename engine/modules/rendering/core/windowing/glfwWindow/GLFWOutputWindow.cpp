@@ -1,5 +1,7 @@
 #include "GLFWOutputWindow.hpp"
 
+#include <algorithm>
+
 GLFWOutputWindow::GLFWOutputWindow(OutputWindowConfig config, GtsPlatformEventBus& eventBus)
     : OutputWindow(config, eventBus)
 {
@@ -41,9 +43,11 @@ void GLFWOutputWindow::init()
 void GLFWOutputWindow::setWindowed()
 {
     GLFWwindow* gw = static_cast<GLFWwindow*>(this->window);
+    const int targetWidth = std::max(1, config.width);
+    const int targetHeight = std::max(1, config.height);
     glfwSetWindowAttrib(gw, GLFW_DECORATED, GLFW_TRUE);
     glfwSetWindowAttrib(gw, GLFW_RESIZABLE, GLFW_TRUE);
-    glfwSetWindowMonitor(gw, nullptr, savedX, savedY, config.width, config.height, 0);
+    glfwSetWindowMonitor(gw, nullptr, savedX, savedY, targetWidth, targetHeight, 0);
     config.windowMode = WindowMode::Windowed;
 }
 
@@ -75,6 +79,27 @@ void GLFWOutputWindow::setFullscreen()
     }
     glfwSetWindowMonitor(gw, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
     config.windowMode = WindowMode::Fullscreen;
+}
+
+void GLFWOutputWindow::setWindowMode(WindowMode mode)
+{
+    switch (mode)
+    {
+        case WindowMode::Windowed:             setWindowed();             break;
+        case WindowMode::BorderlessFullscreen: setBorderlessFullscreen(); break;
+        case WindowMode::Fullscreen:           setFullscreen();           break;
+    }
+}
+
+void GLFWOutputWindow::setWindowSize(int width, int height)
+{
+    config.width = std::max(1, width);
+    config.height = std::max(1, height);
+    savedW = config.width;
+    savedH = config.height;
+
+    if (config.windowMode == WindowMode::Windowed)
+        glfwSetWindowSize(static_cast<GLFWwindow*>(this->window), config.width, config.height);
 }
 
 bool GLFWOutputWindow::shouldClose() const 

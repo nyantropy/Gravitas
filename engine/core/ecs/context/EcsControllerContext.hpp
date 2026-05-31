@@ -8,6 +8,7 @@
 class ECSWorld;
 class UiSystem;
 class IGtsPhysicsModule;
+class IGtsGraphicsModule;
 
 // Context passed to ECSControllerSystem::update every rendered frame.
 // Contains all frame-dependent dependencies. NOT available to simulation systems.
@@ -24,6 +25,7 @@ struct EcsControllerContext
     InputBindingRegistry*           input             = nullptr;
     const TimeContext*              time              = nullptr;
     GtsCommandBuffer*               engineCommands    = nullptr;
+    IGtsGraphicsModule*             graphics          = nullptr;
     UiSystem*                       ui                = nullptr;
     IGtsPhysicsModule*              physics           = nullptr;
     float                           windowAspectRatio  = 1.0f;

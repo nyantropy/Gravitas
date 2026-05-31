@@ -16,7 +16,7 @@ class IFrameOutputTarget
         virtual ~IFrameOutputTarget() = default;
 
         virtual FrameOutputBeginResult beginFrame(uint32_t currentFrame, VkSemaphore imageAvailableSemaphore) = 0;
-        virtual void endFrame(uint32_t imageIndex, VkSemaphore renderFinishedSemaphore) = 0;
+        virtual bool endFrame(uint32_t imageIndex, VkSemaphore renderFinishedSemaphore) = 0;
 
         virtual const std::vector<VkImage>& getImages() const = 0;
         virtual const std::vector<VkImageView>& getImageViews() const = 0;

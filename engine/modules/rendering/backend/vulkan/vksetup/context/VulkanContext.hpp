@@ -109,7 +109,7 @@ class VulkanContext
             vscConfig.vkInstance = this->getInstance();
             vscConfig.vkSurface = this->getSurface();
             vscConfig.vkDevice = this->getDevice();
-            vscConfig.swapChainSupportDetails = this->getSwapChainSupportDetails();
+            vscConfig.swapChainSupportDetails = vphysicaldevice->refreshSwapChainSupportDetails();
             vscConfig.queueFamilyIndices = this->getQueueFamilyIndices();
             vscConfig.outputWindowPtr = this->config.outputWindowPtr;
             vscConfig.presentModePreference = this->config.presentModePreference;
@@ -186,6 +186,25 @@ class VulkanContext
         VkPresentModeKHR getPresentMode() const { return vswapchain->getPresentMode(); }
         bool hasSurfaceSupport() const { return config.enableSurfaceSupport; }
         bool isHeadless() const { return config.headless; }
+
+        void recreateSwapChain(PresentModePreference presentModePreference)
+        {
+            if (!config.enableSurfaceSupport)
+                return;
+
+            config.presentModePreference = presentModePreference;
+            frameOutputImages = nullptr;
+            frameOutputImageViews = nullptr;
+            if (vswapchain)
+                vswapchain.reset();
+
+            setupVkSwapChain();
+            registerFrameOutput(vswapchain->getSwapChainImages(),
+                                vswapchain->getSwapChainImageViews(),
+                                vswapchain->getSwapChainImageFormat(),
+                                vswapchain->getSwapChainExtent(),
+                                vswapchain->getPresentMode());
+        }
 
         void registerFrameOutput(const std::vector<VkImage>& images,
                                  const std::vector<VkImageView>& imageViews,

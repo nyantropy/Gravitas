@@ -27,6 +27,13 @@ SwapChainSupportDetails& VulkanPhysicalDevice::getSwapChainSupportDetails()
     return swapChainSupportDetails;
 }
 
+SwapChainSupportDetails& VulkanPhysicalDevice::refreshSwapChainSupportDetails()
+{
+    if (config.requirePresentSupport && physicalDevice != VK_NULL_HANDLE)
+        swapChainSupportDetails = querySwapChainSupport(physicalDevice);
+    return swapChainSupportDetails;
+}
+
 const std::vector<const char*>& VulkanPhysicalDevice::getPhysicalDeviceExtensions()
 {
     return physicalDeviceExtensions;

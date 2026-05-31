@@ -31,6 +31,8 @@ class OutputWindow
         virtual void pollEvents() = 0;
         virtual void getSize(int& width, int& height) const = 0;
         virtual void* getWindow() const = 0;
+        virtual WindowMode getWindowMode() const { return config.windowMode; }
+        virtual OutputWindowConfig getConfig() const { return config; }
 
         float getAspectRatio() const
         {
@@ -44,4 +46,18 @@ class OutputWindow
         virtual void setWindowed()             {}
         virtual void setBorderlessFullscreen() {}
         virtual void setFullscreen()           {}
+        virtual void setWindowMode(WindowMode mode)
+        {
+            switch (mode)
+            {
+                case WindowMode::Windowed:             setWindowed();             break;
+                case WindowMode::BorderlessFullscreen: setBorderlessFullscreen(); break;
+                case WindowMode::Fullscreen:           setFullscreen();           break;
+            }
+        }
+        virtual void setWindowSize(int width, int height)
+        {
+            config.width = width;
+            config.height = height;
+        }
 };

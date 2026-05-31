@@ -98,6 +98,19 @@ void GtsFrameGraph::addStage(std::unique_ptr<GtsRenderStage> stage)
     stages.push_back(std::move(stage));
 }
 
+void GtsFrameGraph::clear()
+{
+    freeTransientResources();
+    stages.clear();
+    resources.clear();
+    swapchainHandles.clear();
+    accesses.clear();
+    compiledOrder.clear();
+    barriers.clear();
+    dataBlackboard.clear();
+    compiled = false;
+}
+
 // ── Access declaration ────────────────────────────────────────────────────
 
 void GtsFrameGraph::declareRead(GtsRenderStage*      stage,

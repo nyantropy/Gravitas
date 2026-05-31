@@ -69,6 +69,8 @@ class ForwardRenderer : Renderer
 
         uint32_t currentFrame = 0;
         bool framebufferResized = false;
+        bool frameOutputRecreateRequested = false;
+        bool debugOverlayEnabled = false;
         bool screenshotRequested = false;
         uint32_t screenshotsTaken = 0;
         uint32_t renderedFrameCount = 0;
@@ -198,7 +200,7 @@ class ForwardRenderer : Renderer
                 resourceSystem.get(),
                 outputHandle0,
                 &frameStats,
-                false,
+                debugOverlayEnabled,
                 frameOutputTarget->getUiInitialLayout(),
                 frameOutputTarget->getUiFinalLayout());
             uiStage = ownedUi.get();
@@ -207,15 +209,34 @@ class ForwardRenderer : Renderer
             frameGraph.compile();
         }
 
-        void createResources() override
+        void createFrameResources()
         {
             createFrameOutputTarget();
             createDepthAttachment();
-            resourceSystem = std::make_unique<RenderResourceManager>();
             frameManager   = std::make_unique<FrameManager>(frameOutputTarget->getImages().size(),
                                                             frameOutputTarget->requiresRenderFinishedSemaphore());
             threadPool     = std::make_unique<ThreadPool>();
             buildFrameGraph();
+        }
+
+        void createResources() override
+        {
+            resourceSystem = std::make_unique<RenderResourceManager>();
+            createFrameResources();
+        }
+
+        void destroyFrameResources()
+        {
+            frameGraph.clear();
+            sceneStage = nullptr;
+            particleStage = nullptr;
+            uiStage = nullptr;
+            if (threadPool) threadPool.reset();
+            if (frameManager) frameManager.reset();
+            if (depthAttachment) depthAttachment.reset();
+            if (frameOutputTarget) frameOutputTarget.reset();
+            currentFrame = 0;
+            framebufferResized = false;
         }
 
         bool tryConsumeScreenshotRequest(float dt)
@@ -318,16 +339,15 @@ class ForwardRenderer : Renderer
 
         ~ForwardRenderer()
         {
-            if (frameManager)    frameManager.reset();
-            if (threadPool)      threadPool.reset();
+            destroyFrameResources();
             if (resourceSystem)  resourceSystem.reset();
-            if (depthAttachment) depthAttachment.reset();
         }
 
         void toggleDebugOverlay() override
         {
+            debugOverlayEnabled = !debugOverlayEnabled;
             if (uiStage)
-                uiStage->getDebugOverlay().toggle();
+                uiStage->getDebugOverlay().setEnabled(debugOverlayEnabled);
         }
 
         void cycleDebugOverlayPage()
@@ -339,6 +359,31 @@ class ForwardRenderer : Renderer
         void requestScreenshot() override
         {
             screenshotRequested = true;
+        }
+
+        void recreateFrameResources()
+        {
+            destroyFrameResources();
+            createFrameResources();
+            frameOutputRecreateRequested = false;
+        }
+
+        void releaseFrameResources()
+        {
+            destroyFrameResources();
+        }
+
+        void rebuildFrameResources()
+        {
+            createFrameResources();
+            frameOutputRecreateRequested = false;
+        }
+
+        bool consumeFrameOutputRecreateRequested()
+        {
+            const bool requested = frameOutputRecreateRequested;
+            frameOutputRecreateRequested = false;
+            return requested;
         }
 
         void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
@@ -387,7 +432,10 @@ class ForwardRenderer : Renderer
                 std::chrono::duration<float, std::milli>(acquireEnd - acquireStart).count();
 
             if (beginResult.imageIndex == UINT32_MAX)
+            {
+                frameOutputRecreateRequested = true;
                 return;
+            }
 
             const uint32_t imageIndex = beginResult.imageIndex;
 
@@ -505,7 +553,8 @@ class ForwardRenderer : Renderer
             }
 
             const auto presentStart = std::chrono::steady_clock::now();
-            frameOutputTarget->endFrame(imageIndex, renderFinishedSemaphore);
+            if (frameOutputTarget->endFrame(imageIndex, renderFinishedSemaphore))
+                frameOutputRecreateRequested = true;
             const auto presentEnd = std::chrono::steady_clock::now();
             frameStats.backendPresentCpuMs =
                 std::chrono::duration<float, std::milli>(presentEnd - presentStart).count();

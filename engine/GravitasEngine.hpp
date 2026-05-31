@@ -3,6 +3,7 @@
 #include <memory>
 #include <iostream>
 #include <chrono>
+#include <thread>
 
 #include "EngineConfig.h"
 #include "Timer.hpp"
@@ -56,6 +57,7 @@ class GravitasEngine
         int              windowPixelWidth   = 1;
         int              windowPixelHeight  = 1;
         bool             uiEnabled          = true;
+        int              maxFrameRate       = 0;
 
         bool  engineRunning   = true;
 
@@ -74,6 +76,7 @@ class GravitasEngine
             ctx.input             = platform.getInputBindingRegistry();
             ctx.time              = &timeContext;
             ctx.engineCommands    = &engineCommands;
+            ctx.graphics          = platform.getGraphics();
             ctx.ui                = uiSystem.get();
             ctx.physics           = sceneManager->getActiveScene()->getPhysicsModule();
             ctx.windowAspectRatio = windowAspectRatio;
@@ -222,6 +225,20 @@ class GravitasEngine
                     case GtsCommand::Type::SetFrustumCullingEnabled:
                     case GtsCommand::Type::SetFrustumFreeze:
                         break;
+                    case GtsCommand::Type::ApplyGraphicsSettings:
+                    {
+                        if (platform.applyRuntimeGraphicsSettings(cmd.graphicsSettings))
+                        {
+                            engineConfig.graphics.window.width = cmd.graphicsSettings.width;
+                            engineConfig.graphics.window.height = cmd.graphicsSettings.height;
+                            engineConfig.graphics.window.windowMode = cmd.graphicsSettings.windowMode;
+                            engineConfig.graphics.window.vsync = cmd.graphicsSettings.vsync;
+                            engineConfig.graphics.presentModePreference = cmd.graphicsSettings.presentModePreference;
+                            engineConfig.graphics.maxFrameRate = cmd.graphicsSettings.maxFrameRate;
+                            maxFrameRate = cmd.graphicsSettings.maxFrameRate;
+                        }
+                        break;
+                    }
                     case GtsCommand::Type::LoadScene:
                     case GtsCommand::Type::ChangeScene:
                     {
@@ -250,6 +267,7 @@ class GravitasEngine
             , platform(engineConfig)
         {
             gameLoop.init(engineConfig);
+            maxFrameRate = engineConfig.graphics.maxFrameRate;
             sceneManager = std::make_unique<SceneManager>();
             renderPipeline = std::make_unique<RenderPipeline>(
                 std::make_unique<FrustumCullingStrategy>(engineConfig.frustumCullingEnabled));
@@ -344,6 +362,20 @@ class GravitasEngine
                 applyPendingRenderCommands();
                 render(realDt);
                 applyCommands();
+
+                const auto preSleepLoopEnd = std::chrono::steady_clock::now();
+                if (maxFrameRate > 0)
+                {
+                    const auto targetFrameDuration =
+                        std::chrono::duration<float>(1.0f / static_cast<float>(maxFrameRate));
+                    const auto elapsed = preSleepLoopEnd - loopStart;
+                    if (elapsed < targetFrameDuration)
+                    {
+                        std::this_thread::sleep_for(
+                            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                targetFrameDuration - elapsed));
+                    }
+                }
 
                 // Store total loop time for next frame's frameCpuMs stat
                 const auto loopEnd = std::chrono::steady_clock::now();

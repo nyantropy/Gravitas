@@ -30,8 +30,11 @@
 
 #include "GraphicsConfig.h"
 #include "GtsPlatformEventBus.hpp"
+#include "SubscriptionToken.hpp"
+#include "GtsEventTypes.h"
 #include "IGtsGraphicsModule.hpp"
 
+#include <algorithm>
 #include <iostream>
 
 class VulkanGraphics : public IGtsGraphicsModule
@@ -47,6 +50,8 @@ public:
 
     // the renderer, responsible for the core drawframe function
     std::unique_ptr<ForwardRenderer> renderer;
+    SubscriptionToken resizeEventToken;
+    bool swapchainRecreatePending = false;
 
     PresentModePreference resolvePresentModePreference() const
     {
@@ -63,6 +68,19 @@ public:
             createWindow();
         createContext();
         createRenderer();
+        resizeEventToken = eventBus.subscribe<GtsWindowResizeEvent>(
+            [this](const GtsWindowResizeEvent& event)
+            {
+                if (event.width > 0 && event.height > 0 && windowManager)
+                {
+                    if (windowManager->getOutputWindow()->getWindowMode() == WindowMode::Windowed)
+                    {
+                        this->config.window.width = event.width;
+                        this->config.window.height = event.height;
+                    }
+                }
+                swapchainRecreatePending = true;
+            });
     }
 
     // create a new output window wrapped in a window manager
@@ -146,7 +164,16 @@ public:
                      const UiCommandBuffer& uiBuffer,
                      const GtsFrameStats& stats) override
     {
+        if (swapchainRecreatePending && !recreateSwapchainResourcesIfPossible())
+            return;
+
         renderer->renderFrame(dt, renderList, objectUploads, cameraUploads, particleData, uiBuffer, stats);
+
+        if (renderer->consumeFrameOutputRecreateRequested())
+        {
+            swapchainRecreatePending = true;
+            recreateSwapchainResourcesIfPossible();
+        }
     }
 
     void toggleDebugOverlay() override
@@ -206,8 +233,74 @@ public:
         windowManager->getOutputWindow()->getSize(width, height);
     }
 
+    RuntimeGraphicsSettings getRuntimeGraphicsSettings() const override
+    {
+        return RuntimeGraphicsSettings{
+            config.window.width,
+            config.window.height,
+            config.window.windowMode,
+            config.window.vsync,
+            config.presentModePreference,
+            config.maxFrameRate
+        };
+    }
+
+    bool applyRuntimeGraphicsSettings(const RuntimeGraphicsSettings& settings) override
+    {
+        if (settings.width <= 0 || settings.height <= 0)
+            return false;
+
+        config.window.width = settings.width;
+        config.window.height = settings.height;
+        config.window.windowMode = settings.windowMode;
+        config.window.vsync = settings.vsync;
+        config.presentModePreference = settings.presentModePreference;
+        config.maxFrameRate = std::max(0, settings.maxFrameRate);
+
+        if (!config.headless && windowManager)
+        {
+            OutputWindow* window = windowManager->getOutputWindow();
+            window->setWindowSize(config.window.width, config.window.height);
+            window->setWindowMode(config.window.windowMode);
+        }
+
+        swapchainRecreatePending = true;
+        recreateSwapchainResourcesIfPossible();
+        return true;
+    }
+
     IResourceProvider* getResourceProvider() override
     {
         return renderer->getResourceSystem();
+    }
+
+private:
+    bool currentWindowExtentValid() const
+    {
+        int width = 0;
+        int height = 0;
+        getViewportSize(width, height);
+        return width > 0 && height > 0;
+    }
+
+    bool recreateSwapchainResourcesIfPossible()
+    {
+        if (config.headless)
+        {
+            swapchainRecreatePending = false;
+            return true;
+        }
+
+        if (!swapchainRecreatePending)
+            return true;
+        if (!currentWindowExtentValid() || vContext == nullptr || renderer == nullptr)
+            return false;
+
+        vkDeviceWaitIdle(vcsheet::getDevice());
+        renderer->releaseFrameResources();
+        vContext->recreateSwapChain(resolvePresentModePreference());
+        renderer->rebuildFrameResources();
+        swapchainRecreatePending = false;
+        return true;
     }
 };

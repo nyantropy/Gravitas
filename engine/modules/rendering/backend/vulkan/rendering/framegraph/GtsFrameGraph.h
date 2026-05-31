@@ -113,6 +113,7 @@ public:
 
     // ── Cleanup ───────────────────────────────────────────────────────────
 
+    void clear();
     void freeTransientResources();
 
 private:
