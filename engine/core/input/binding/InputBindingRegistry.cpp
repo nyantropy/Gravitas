@@ -271,6 +271,11 @@ double InputBindingRegistry::scrollY() const
     return currentScrollY;
 }
 
+std::optional<InputTrigger> InputBindingRegistry::getLastPressedTrigger() const
+{
+    return lastPressedTrigger;
+}
+
 void InputBindingRegistry::setPaused(bool pausedValue)
 {
     paused = pausedValue;
@@ -289,6 +294,45 @@ void InputBindingRegistry::update(const InputSnapshot& rawInput)
     currentScrollX = rawInput.scrollX();
     currentScrollY = rawInput.scrollY();
 
+    const ModifierFlags currentModifiers = getCurrentModifiers(rawInput);
+    lastPressedTrigger.reset();
+    for (int keyCode = static_cast<int>(GtsKey::Unknown) + 1;
+         keyCode < static_cast<int>(GtsKey::COUNT);
+         ++keyCode)
+    {
+        const auto key = static_cast<GtsKey>(keyCode);
+        if (!rawInput.isKeyPressed(key))
+            continue;
+
+        ModifierFlags modifiers = currentModifiers;
+        if (isModifierKey(key))
+            modifiers = modifiers & ~modifierFlagForKey(key);
+
+        lastPressedTrigger = InputTrigger{
+            InputTrigger::Type::Key,
+            keyCode,
+            modifiers
+        };
+        break;
+    }
+
+    if (!lastPressedTrigger.has_value())
+    {
+        constexpr int MaxMouseButtons = 8;
+        for (int button = 0; button < MaxMouseButtons; ++button)
+        {
+            if (!rawInput.isMouseButtonPressed(button))
+                continue;
+
+            lastPressedTrigger = InputTrigger{
+                InputTrigger::Type::MouseButton,
+                button,
+                currentModifiers
+            };
+            break;
+        }
+    }
+
     for (auto& [action, state] : actionStates)
     {
         state.gameplay.previous = state.gameplay.current;
@@ -302,7 +346,6 @@ void InputBindingRegistry::update(const InputSnapshot& rawInput)
         state.alwaysActive.axisCurrent = 0.0f;
     }
 
-    const ModifierFlags currentModifiers = getCurrentModifiers(rawInput);
     std::unordered_set<ConsumedInput, ConsumedInputHash> consumed;
     consumed.reserve(bindings.size());
 

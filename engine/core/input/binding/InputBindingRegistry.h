@@ -41,6 +41,7 @@ public:
     double mouseY() const;
     double scrollX() const;
     double scrollY() const;
+    std::optional<InputTrigger> getLastPressedTrigger() const;
 
     void setPaused(bool paused);
     bool isPaused() const;
@@ -128,6 +129,7 @@ private:
     double currentMouseY = 0.0;
     double currentScrollX = 0.0;
     double currentScrollY = 0.0;
+    std::optional<InputTrigger> lastPressedTrigger;
 
     void rebuildActionIndex();
     void ensureActionState(const std::string& action);
