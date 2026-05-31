@@ -50,7 +50,16 @@ struct UiLinePrimitive
     float    thickness = 0.002f;
 };
 
-using UiVisualPrimitive = std::variant<UiRectPrimitive, UiImagePrimitive, UiTextPrimitive, UiLinePrimitive>;
+struct UiCirclePrimitive
+{
+    UiHandle source = UI_INVALID_HANDLE;
+    UiRect   bounds;
+    UiRect   clipRect;
+    UiColor  color;
+    int      segments = 32;
+};
+
+using UiVisualPrimitive = std::variant<UiRectPrimitive, UiImagePrimitive, UiTextPrimitive, UiLinePrimitive, UiCirclePrimitive>;
 
 struct UiVisualList
 {

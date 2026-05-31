@@ -72,6 +72,7 @@ public:
         }
         pConfig.depthTestEnable      = false;
         pConfig.depthWriteEnable     = false;
+        pConfig.cullMode             = VK_CULL_MODE_NONE;
         pConfig.blendEnable          = true;
         pConfig.srcColorBlendFactor  = VK_BLEND_FACTOR_SRC_ALPHA;
         pConfig.dstColorBlendFactor  = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;

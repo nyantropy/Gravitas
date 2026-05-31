@@ -443,7 +443,8 @@ horizontal/vertical alignment, and max-line limits when authored with nonzero
 layout bounds. Legacy text nodes with zero bounds still render from their
 top-left position to preserve existing tool and game overlays. The UI primitive
 set also includes retained line nodes, which render thick colored screen-space
-segments for graph-like widgets such as skill-tree links.
+segments for graph-like widgets such as skill-tree links, and retained circle
+nodes for icon buttons or graph nodes that need circular hit targets.
 
 Tooling is optional and installed per scene through `GtsScene::installToolingFeature()`.
 It is deliberately separate from `installRendererFeature()` so shipping scenes

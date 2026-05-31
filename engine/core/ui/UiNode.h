@@ -54,6 +54,14 @@ struct UiLineData
     bool operator==(const UiLineData&) const = default;
 };
 
+struct UiCircleData
+{
+    UiColor color = {1.0f, 1.0f, 1.0f, 1.0f};
+    int     segments = 32;
+
+    bool operator==(const UiCircleData&) const = default;
+};
+
 struct UiGridCellData
 {
     UiColor color   = {0.0f, 0.0f, 0.0f, 1.0f};
@@ -81,7 +89,7 @@ struct UiGridData
     }
 };
 
-using UiNodePayload = std::variant<UiContainerData, UiRectData, UiImageData, UiTextData, UiGridData, UiLineData>;
+using UiNodePayload = std::variant<UiContainerData, UiRectData, UiImageData, UiTextData, UiGridData, UiLineData, UiCircleData>;
 
 struct UiNode
 {

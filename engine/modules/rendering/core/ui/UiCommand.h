@@ -131,6 +131,33 @@ struct UiCommandBuffer
         addDrawCommand(UiDrawType::ColoredQuad, 0, idxBase, 6);
     }
 
+    void addColoredPolygon(const std::vector<glm::vec2>& points, glm::vec4 color)
+    {
+        if (points.size() < 3)
+            return;
+
+        glm::vec2 center{0.0f, 0.0f};
+        for (glm::vec2 point : points)
+            center += point;
+        center /= static_cast<float>(points.size());
+
+        const uint32_t base = static_cast<uint32_t>(vertices.size());
+        vertices.push_back({center, {0.5f, 0.5f}, color});
+        for (glm::vec2 point : points)
+            vertices.push_back({point, {0.0f, 0.0f}, color});
+
+        const uint32_t idxBase = static_cast<uint32_t>(indices.size());
+        for (uint32_t i = 0; i < static_cast<uint32_t>(points.size()); ++i)
+        {
+            const uint32_t next = (i + 1) % static_cast<uint32_t>(points.size());
+            indices.push_back(base);
+            indices.push_back(base + 1 + i);
+            indices.push_back(base + 1 + next);
+        }
+
+        addDrawCommand(UiDrawType::ColoredQuad, 0, idxBase, static_cast<uint32_t>(points.size() * 3));
+    }
+
     void addColoredLine(glm::vec2 start, glm::vec2 end, float thickness, glm::vec4 color)
     {
         const glm::vec2 delta = end - start;

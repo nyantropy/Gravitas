@@ -13,6 +13,19 @@ namespace
             && y <= rect.y + rect.height;
     }
 
+    bool containsCirclePoint(const UiRect& rect, float x, float y)
+    {
+        const float radius = std::min(rect.width, rect.height) * 0.5f;
+        if (radius <= 0.0f)
+            return false;
+
+        const float centerX = rect.x + rect.width * 0.5f;
+        const float centerY = rect.y + rect.height * 0.5f;
+        const float dx = x - centerX;
+        const float dy = y - centerY;
+        return dx * dx + dy * dy <= radius * radius;
+    }
+
     UiRect intersectRect(const UiRect& a, const UiRect& b)
     {
         const float left   = std::max(a.x, b.x);
@@ -90,6 +103,7 @@ UiHandle UiDocument::createNode(UiNodeType type, UiHandle parent)
             case UiNodeType::Text:      return UiTextData{};
             case UiNodeType::Grid:      return UiGridData{};
             case UiNodeType::Line:      return UiLineData{};
+            case UiNodeType::Circle:    return UiCircleData{};
         }
 
         return UiContainerData{};
@@ -444,6 +458,19 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, con
             });
             break;
         }
+
+        case UiNodeType::Circle:
+        {
+            const auto& data = std::get<UiCircleData>(node.payload);
+            visualList.primitives.push_back(UiCirclePrimitive{
+                node.handle,
+                node.computedLayout.bounds,
+                effectiveClip,
+                data.color,
+                data.segments
+            });
+            break;
+        }
     }
 
     for (UiHandle child : node.children)
@@ -474,7 +501,10 @@ UiHandle UiDocument::hitTestRecursive(UiHandle handle, float x, float y, bool pa
             return hit;
     }
 
-    if (node.state.interactable && containsPoint(node.computedLayout.bounds, x, y))
+    const bool hit = node.type == UiNodeType::Circle
+        ? containsCirclePoint(node.computedLayout.bounds, x, y)
+        : containsPoint(node.computedLayout.bounds, x, y);
+    if (node.state.interactable && hit)
         return handle;
 
     return UI_INVALID_HANDLE;

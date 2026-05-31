@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <type_traits>
+#include <vector>
 
 #include "GlyphLayoutEngine.h"
 
@@ -107,6 +108,135 @@ namespace
         end = originalStart + delta * t1;
         return true;
     }
+
+    enum class ClipEdge
+    {
+        Left,
+        Right,
+        Top,
+        Bottom
+    };
+
+    bool insideEdge(glm::vec2 point, ClipEdge edge, const UiRect& clip)
+    {
+        switch (edge)
+        {
+            case ClipEdge::Left:   return point.x >= clip.x;
+            case ClipEdge::Right:  return point.x <= clip.x + clip.width;
+            case ClipEdge::Top:    return point.y >= clip.y;
+            case ClipEdge::Bottom: return point.y <= clip.y + clip.height;
+        }
+        return false;
+    }
+
+    glm::vec2 edgeIntersection(glm::vec2 start, glm::vec2 end, ClipEdge edge, const UiRect& clip)
+    {
+        const glm::vec2 delta = end - start;
+        float t = 0.0f;
+
+        switch (edge)
+        {
+            case ClipEdge::Left:
+                if (std::abs(delta.x) <= 0.000001f) return start;
+                t = (clip.x - start.x) / delta.x;
+                break;
+            case ClipEdge::Right:
+                if (std::abs(delta.x) <= 0.000001f) return start;
+                t = (clip.x + clip.width - start.x) / delta.x;
+                break;
+            case ClipEdge::Top:
+                if (std::abs(delta.y) <= 0.000001f) return start;
+                t = (clip.y - start.y) / delta.y;
+                break;
+            case ClipEdge::Bottom:
+                if (std::abs(delta.y) <= 0.000001f) return start;
+                t = (clip.y + clip.height - start.y) / delta.y;
+                break;
+        }
+
+        return start + delta * std::clamp(t, 0.0f, 1.0f);
+    }
+
+    std::vector<glm::vec2> clipPolygonEdge(const std::vector<glm::vec2>& polygon,
+                                           ClipEdge edge,
+                                           const UiRect& clip)
+    {
+        std::vector<glm::vec2> result;
+        if (polygon.empty())
+            return result;
+
+        glm::vec2 previous = polygon.back();
+        bool previousInside = insideEdge(previous, edge, clip);
+
+        for (glm::vec2 current : polygon)
+        {
+            const bool currentInside = insideEdge(current, edge, clip);
+            if (currentInside)
+            {
+                if (!previousInside)
+                    result.push_back(edgeIntersection(previous, current, edge, clip));
+                result.push_back(current);
+            }
+            else if (previousInside)
+            {
+                result.push_back(edgeIntersection(previous, current, edge, clip));
+            }
+
+            previous = current;
+            previousInside = currentInside;
+        }
+
+        return result;
+    }
+
+    std::vector<glm::vec2> clipPolygonToRect(std::vector<glm::vec2> polygon, const UiRect& clip)
+    {
+        polygon = clipPolygonEdge(polygon, ClipEdge::Left, clip);
+        polygon = clipPolygonEdge(polygon, ClipEdge::Right, clip);
+        polygon = clipPolygonEdge(polygon, ClipEdge::Top, clip);
+        polygon = clipPolygonEdge(polygon, ClipEdge::Bottom, clip);
+        return polygon;
+    }
+
+    void emitClippedCircle(UiCommandBuffer& buffer,
+                           const UiCirclePrimitive& value,
+                           int viewportWidth,
+                           int viewportHeight)
+    {
+        const UiRect clippedBounds = intersectRect(value.bounds, value.clipRect);
+        if (isEmptyRect(clippedBounds))
+            return;
+
+        if (value.bounds.width <= 0.0f || value.bounds.height <= 0.0f)
+            return;
+
+        constexpr float TwoPi = 6.28318530717958647692f;
+        const float centerX = value.bounds.x + value.bounds.width * 0.5f;
+        const float centerY = value.bounds.y + value.bounds.height * 0.5f;
+        const float radiusX = value.bounds.width * 0.5f;
+        const float radiusY = value.bounds.height * 0.5f;
+        const int segments = std::clamp(value.segments, 12, 96);
+
+        std::vector<glm::vec2> points;
+        points.reserve(static_cast<size_t>(segments));
+        for (int i = 0; i < segments; ++i)
+        {
+            const float angle = TwoPi * static_cast<float>(i) / static_cast<float>(segments);
+            points.push_back({
+                centerX + std::cos(angle) * radiusX,
+                centerY + std::sin(angle) * radiusY
+            });
+        }
+
+        std::vector<glm::vec2> clipped = clipPolygonToRect(std::move(points), value.clipRect);
+        if (clipped.size() < 3)
+            return;
+
+        for (glm::vec2& point : clipped)
+            point = snapPointToPixels(point, viewportWidth, viewportHeight);
+
+        buffer.addColoredPolygon(clipped, toGlm(value.color));
+    }
 }
 
 void UiRenderResolver::buildCommandBuffer(
@@ -190,6 +320,10 @@ void UiRenderResolver::buildCommandBuffer(
                 start = snapPointToPixels(start, viewportWidth, viewportHeight);
                 end = snapPointToPixels(end, viewportWidth, viewportHeight);
                 buffer.addColoredLine(start, end, value.thickness, toGlm(value.color));
+            }
+            else if constexpr (std::is_same_v<T, UiCirclePrimitive>)
+            {
+                emitClippedCircle(buffer, value, viewportWidth, viewportHeight);
             }
         }, primitive);
     }
