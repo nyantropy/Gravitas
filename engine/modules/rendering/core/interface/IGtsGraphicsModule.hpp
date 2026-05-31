@@ -34,6 +34,7 @@ public:
     virtual float getAspectRatio() const = 0;
     virtual void getViewportSize(int& width, int& height) const = 0;
     virtual RuntimeGraphicsSettings getRuntimeGraphicsSettings() const = 0;
+    virtual std::vector<GraphicsMonitorInfo> getAvailableMonitors() const = 0;
     virtual bool applyRuntimeGraphicsSettings(const RuntimeGraphicsSettings& settings) = 0;
     virtual IResourceProvider* getResourceProvider() = 0;
     virtual GtsPlatformEventBus& getEventBus() = 0;

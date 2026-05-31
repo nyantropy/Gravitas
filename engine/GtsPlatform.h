@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "EngineConfig.h"
 #include "GtsPlatformEventBus.hpp"
@@ -56,6 +57,11 @@ class GtsPlatform
         RuntimeGraphicsSettings getRuntimeGraphicsSettings() const
         {
             return graphics->getRuntimeGraphicsSettings();
+        }
+
+        std::vector<GraphicsMonitorInfo> getAvailableMonitors() const
+        {
+            return graphics->getAvailableMonitors();
         }
 
         bool applyRuntimeGraphicsSettings(const RuntimeGraphicsSettings& settings)

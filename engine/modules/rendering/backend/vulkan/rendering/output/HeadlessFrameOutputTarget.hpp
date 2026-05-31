@@ -60,7 +60,6 @@ class HeadlessFrameOutputTarget : public IFrameOutputTarget
         VkExtent2D getExtent() const override { return extent; }
         VkPresentModeKHR getPresentMode() const override { return VK_PRESENT_MODE_IMMEDIATE_KHR; }
         bool requiresRenderFinishedSemaphore() const override { return false; }
-        VkImageLayout getSceneFinalLayout() const override { return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; }
         VkImageLayout getUiInitialLayout() const override { return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; }
         VkImageLayout getUiFinalLayout() const override { return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; }
 

@@ -36,6 +36,10 @@ class SceneRenderStage : public GtsRenderStage
 public:
     SceneRenderStage(RenderResourceManager* resources,
                      ThreadPool*            threadPool,
+                     const std::vector<VkImageView>& colorImageViews,
+                     uint32_t               framebufferCount,
+                     VkFormat               colorFormat,
+                     VkExtent2D             renderExtent,
                      VkImageView            depthImageView,
                      VkFormat               depthFormat,
                      GtsResourceHandle      outputHandle,
@@ -44,12 +48,13 @@ public:
         : GtsRenderStage("SceneRenderStage")
         , resources(resources)
         , threadPool(threadPool)
+        , renderExtent(renderExtent)
         , outputHandle(outputHandle)
         , depthHandle(depthHandle)
         , colorFinalLayout(colorFinalLayout)
     {
         VulkanRenderPassConfig rpConfig;
-        rpConfig.colorFormat = vcsheet::getFrameOutputFormat();
+        rpConfig.colorFormat = colorFormat;
         rpConfig.depthFormat = depthFormat;
         rpConfig.colorFinalLayout = colorFinalLayout;
         renderPass = std::make_unique<VulkanRenderPass>(rpConfig);
@@ -79,8 +84,12 @@ public:
         pipelineDoubleSided = std::make_unique<VulkanPipeline>(pConfigDS);
 
         FramebufferManagerConfig fbConfig;
+        fbConfig.colorImageViews     = colorImageViews;
         fbConfig.attachmentImageView = depthImageView;
         fbConfig.vkRenderpass        = renderPass->getRenderPass();
+        fbConfig.width               = renderExtent.width;
+        fbConfig.height              = renderExtent.height;
+        fbConfig.framebufferCount    = framebufferCount;
         framebuffers = std::make_unique<FramebufferManager>(fbConfig);
 
         const VkDeviceSize instanceBufSize =
@@ -234,6 +243,7 @@ private:
     std::unique_ptr<FramebufferManager> framebuffers;
     RenderResourceManager*              resources = nullptr;
     ThreadPool*                         threadPool = nullptr;
+    VkExtent2D                          renderExtent{1, 1};
     GtsResourceHandle                   outputHandle;
     GtsResourceHandle                   depthHandle;
     VkImageLayout                       colorFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
@@ -341,7 +351,7 @@ private:
         renderPassInfo.renderPass = renderPass->getRenderPass();
         renderPassInfo.framebuffer = framebuffers->getFramebuffers()[imageIndex];
         renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = vcsheet::getFrameOutputExtent();
+        renderPassInfo.renderArea.extent = renderExtent;
 
         clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         clearValues[1].depthStencil = {1.0f, 0};
@@ -355,15 +365,15 @@ private:
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = static_cast<float>(vcsheet::getFrameOutputExtent().width);
-        viewport.height = static_cast<float>(vcsheet::getFrameOutputExtent().height);
+        viewport.width = static_cast<float>(renderExtent.width);
+        viewport.height = static_cast<float>(renderExtent.height);
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(cmd, 0, 1, &viewport);
 
         VkRect2D scissor{};
         scissor.offset = {0, 0};
-        scissor.extent = vcsheet::getFrameOutputExtent();
+        scissor.extent = renderExtent;
         vkCmdSetScissor(cmd, 0, 1, &scissor);
     }
 

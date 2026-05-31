@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <chrono>
 #include <memory>
 #include <vector>
@@ -31,6 +32,7 @@
 #include "GtsFrameGraph.h"
 #include "SceneRenderStage.h"
 #include "ParticleRenderStage.h"
+#include "UpscaleRenderStage.h"
 #include "UiRenderStage.h"
 #include "output/HeadlessFrameOutputTarget.hpp"
 #include "output/WindowedFrameOutputTarget.hpp"
@@ -39,6 +41,7 @@ class ForwardRenderer : Renderer
 {
     private:
         // Frame-level resources shared across all stages.
+        std::unique_ptr<Attachment>            sceneColorAttachment;
         std::unique_ptr<Attachment>            depthAttachment;
         std::unique_ptr<IFrameOutputTarget>    frameOutputTarget;
         std::unique_ptr<RenderResourceManager> resourceSystem;
@@ -56,6 +59,7 @@ class ForwardRenderer : Renderer
         // Depth format — resolved once in createDepthAttachment(), reused by
         // buildFrameGraph() and SceneRenderStage.
         VkFormat depthFormat = VK_FORMAT_UNDEFINED;
+        VkExtent2D sceneRenderExtent{1, 1};
 
         // Frame graph — built once in createResources(), executed every frame.
         // Declared last so it destructs first (stages reference depthAttachment).
@@ -106,6 +110,11 @@ class ForwardRenderer : Renderer
                 VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT);
         }
 
+        bool useInternalScaling() const
+        {
+            return !config.headless && config.internalScalingEnabled;
+        }
+
         void createFrameOutputTarget()
         {
             if (config.headless)
@@ -133,8 +142,8 @@ class ForwardRenderer : Renderer
         {
             depthFormat = findDepthFormat();
             AttachmentConfig attachConfig;
-            attachConfig.width = frameOutputTarget->getExtent().width;
-            attachConfig.height = frameOutputTarget->getExtent().height;
+            attachConfig.width = sceneRenderExtent.width;
+            attachConfig.height = sceneRenderExtent.height;
             attachConfig.format = depthFormat;
             attachConfig.tiling = VK_IMAGE_TILING_OPTIMAL;
             attachConfig.imageUsageFlags =
@@ -144,12 +153,33 @@ class ForwardRenderer : Renderer
             depthAttachment = std::make_unique<Attachment>(attachConfig);
         }
 
+        void createSceneTargets()
+        {
+            sceneRenderExtent = useInternalScaling()
+                ? VkExtent2D{std::max(1u, config.renderWidth), std::max(1u, config.renderHeight)}
+                : frameOutputTarget->getExtent();
+
+            if (!useInternalScaling())
+                return;
+
+            AttachmentConfig attachConfig;
+            attachConfig.width = sceneRenderExtent.width;
+            attachConfig.height = sceneRenderExtent.height;
+            attachConfig.format = frameOutputTarget->getFormat();
+            attachConfig.tiling = VK_IMAGE_TILING_OPTIMAL;
+            attachConfig.imageUsageFlags =
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+            attachConfig.memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+            attachConfig.imageAspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
+            sceneColorAttachment = std::make_unique<Attachment>(attachConfig);
+        }
+
         void buildFrameGraph()
         {
             const auto& images     = frameOutputTarget->getImages();
             const auto& imageViews = frameOutputTarget->getImageViews();
             const auto  format     = frameOutputTarget->getFormat();
-            const auto  extent     = frameOutputTarget->getExtent();
+            const auto  outputExtent = frameOutputTarget->getExtent();
 
             GtsResourceHandle outputHandle0 = GTS_INVALID_RESOURCE;
             for (uint32_t i = 0; i < static_cast<uint32_t>(images.size()); ++i)
@@ -157,7 +187,7 @@ class ForwardRenderer : Renderer
                 GtsResourceHandle h = frameGraph.importResource(
                     "frame_output_" + std::to_string(i),
                     images[i], imageViews[i],
-                    format, extent,
+                    format, outputExtent,
                     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
                     VK_IMAGE_ASPECT_COLOR_BIT,
                     VK_IMAGE_LAYOUT_UNDEFINED);
@@ -165,11 +195,30 @@ class ForwardRenderer : Renderer
                 if (i == 0) outputHandle0 = h;
             }
 
+            GtsResourceHandle sceneColorHandle = outputHandle0;
+            std::vector<VkImageView> sceneColorViews(imageViews.begin(), imageViews.end());
+            VkImageLayout sceneColorInitialLayout = frameOutputTarget->getUiInitialLayout();
+            VkImageLayout sceneColorFinalLayout = frameOutputTarget->getUiInitialLayout();
+            if (useInternalScaling())
+            {
+                sceneColorHandle = frameGraph.importResource(
+                    "scene_color",
+                    sceneColorAttachment->getImage(),
+                    sceneColorAttachment->getImageView(),
+                    format, sceneRenderExtent,
+                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_IMAGE_ASPECT_COLOR_BIT,
+                    VK_IMAGE_LAYOUT_UNDEFINED);
+                sceneColorViews = {sceneColorAttachment->getImageView()};
+                sceneColorInitialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                sceneColorFinalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            }
+
             GtsResourceHandle depthHandle = frameGraph.importResource(
                 "depth",
                 depthAttachment->getImage(),
                 depthAttachment->getImageView(),
-                depthFormat, extent,
+                depthFormat, sceneRenderExtent,
                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK_IMAGE_ASPECT_DEPTH_BIT,
                 VK_IMAGE_LAYOUT_UNDEFINED);
@@ -177,24 +226,43 @@ class ForwardRenderer : Renderer
             auto ownedScene = std::make_unique<SceneRenderStage>(
                 resourceSystem.get(),
                 threadPool.get(),
+                sceneColorViews,
+                static_cast<uint32_t>(images.size()),
+                format,
+                sceneRenderExtent,
                 depthAttachment->getImageView(),
                 depthFormat,
-                outputHandle0,
+                sceneColorHandle,
                 depthHandle,
-                frameOutputTarget->getSceneFinalLayout());
+                sceneColorFinalLayout);
             sceneStage = ownedScene.get();
             frameGraph.addStage(std::move(ownedScene));
 
             auto ownedParticles = std::make_unique<ParticleRenderStage>(
                 resourceSystem.get(),
+                sceneColorViews,
+                static_cast<uint32_t>(images.size()),
+                format,
+                sceneRenderExtent,
                 depthAttachment->getImageView(),
                 depthFormat,
-                outputHandle0,
+                sceneColorHandle,
                 depthHandle,
-                frameOutputTarget->getSceneFinalLayout(),
-                frameOutputTarget->getUiInitialLayout());
+                sceneColorInitialLayout,
+                sceneColorFinalLayout);
             particleStage = ownedParticles.get();
             frameGraph.addStage(std::move(ownedParticles));
+
+            if (useInternalScaling())
+            {
+                auto ownedUpscale = std::make_unique<UpscaleRenderStage>(
+                    sceneColorAttachment->getImageView(),
+                    format,
+                    sceneColorHandle,
+                    outputHandle0,
+                    frameOutputTarget->getUiInitialLayout());
+                frameGraph.addStage(std::move(ownedUpscale));
+            }
 
             auto ownedUi = std::make_unique<UiRenderStage>(
                 resourceSystem.get(),
@@ -212,6 +280,7 @@ class ForwardRenderer : Renderer
         void createFrameResources()
         {
             createFrameOutputTarget();
+            createSceneTargets();
             createDepthAttachment();
             frameManager   = std::make_unique<FrameManager>(frameOutputTarget->getImages().size(),
                                                             frameOutputTarget->requiresRenderFinishedSemaphore());
@@ -234,6 +303,7 @@ class ForwardRenderer : Renderer
             if (threadPool) threadPool.reset();
             if (frameManager) frameManager.reset();
             if (depthAttachment) depthAttachment.reset();
+            if (sceneColorAttachment) sceneColorAttachment.reset();
             if (frameOutputTarget) frameOutputTarget.reset();
             currentFrame = 0;
             framebufferResized = false;
@@ -366,6 +436,17 @@ class ForwardRenderer : Renderer
             destroyFrameResources();
             createFrameResources();
             frameOutputRecreateRequested = false;
+        }
+
+        void setRenderResolution(uint32_t width, uint32_t height)
+        {
+            config.renderWidth = std::max(1u, width);
+            config.renderHeight = std::max(1u, height);
+        }
+
+        void setInternalScalingEnabled(bool enabled)
+        {
+            config.internalScalingEnabled = enabled;
         }
 
         void releaseFrameResources()

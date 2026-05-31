@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "../windowing/output/OutputWindowConfig.h"
+#include "../windowing/output/GraphicsMonitorInfo.h"
 #include "../../../../core/options/GraphicsBackend.h"
 
 enum class PresentModePreference
@@ -18,6 +19,8 @@ struct GraphicsConfig
     bool               enableValidationLayers = true;
     bool               headless = false;
     OutputWindowConfig window;
+    uint32_t           renderWidth = 0;  // 0 = follow initial window size
+    uint32_t           renderHeight = 0; // 0 = follow initial window size
     PresentModePreference presentModePreference = PresentModePreference::Immediate;
     int                maxFrameRate = 0; // 0 = uncapped
     uint32_t           maxScreenshotsPerRun = 64;
@@ -27,10 +30,14 @@ struct GraphicsConfig
 
 struct RuntimeGraphicsSettings
 {
+    // Requested game/render resolution. Windowed and exclusive fullscreen use
+    // this as the output size too; borderless keeps desktop output and upscales
+    // this internal render target to the swapchain.
     int width = 1920;
     int height = 1080;
     WindowMode windowMode = WindowMode::Windowed;
     bool vsync = true;
     PresentModePreference presentModePreference = PresentModePreference::Immediate;
     int maxFrameRate = 0; // 0 = uncapped
+    int monitorIndex = 0;
 };

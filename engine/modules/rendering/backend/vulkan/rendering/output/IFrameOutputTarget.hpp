@@ -24,7 +24,6 @@ class IFrameOutputTarget
         virtual VkExtent2D getExtent() const = 0;
         virtual VkPresentModeKHR getPresentMode() const = 0;
         virtual bool requiresRenderFinishedSemaphore() const = 0;
-        virtual VkImageLayout getSceneFinalLayout() const = 0;
         virtual VkImageLayout getUiInitialLayout() const = 0;
         virtual VkImageLayout getUiFinalLayout() const = 0;
 };

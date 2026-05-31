@@ -519,19 +519,30 @@ when true the Vulkan module requests FIFO; when false it uses
 Runtime graphics changes are engine-owned and travel through engine-facing
 types only:
 
-- `RuntimeGraphicsSettings` carries windowed resolution, window mode, vsync,
-  present-mode preference, and optional max frame rate.
+- `RuntimeGraphicsSettings` carries requested render resolution, window mode,
+  monitor index, vsync, present-mode preference, and optional max frame rate.
 - Game/UI code requests changes through `GtsCommandBuffer::requestApplyGraphicsSettings`.
 - `IGtsGraphicsModule::applyRuntimeGraphicsSettings` applies the graphics
   portion; the main engine loop applies frame pacing from `maxFrameRate`.
 
+The renderer can separate scene render resolution from output resolution.
+Windowed and exclusive fullscreen render directly to the selected output
+resolution. Borderless fullscreen keeps the desktop-sized swapchain, renders
+scene and particles into an offscreen color target at the requested render
+resolution, composites that image into the current frame output, and then
+renders UI at output/swapchain resolution.
+
 For Vulkan window output, framebuffer resize and out-of-date/suboptimal present
 paths request swapchain recreation. Recreation waits for the device to go idle,
 refreshes surface capabilities, recreates the swapchain and image views, and
-then rebuilds swapchain-dependent frame resources: frame output target, depth
-attachment, frame graph imports/stages, framebuffers, and frame manager. Long
-lived resource managers for meshes, textures, camera buffers, and SSBO slots
-are preserved across the rebuild.
+then rebuilds swapchain-dependent frame resources: frame output target,
+optional offscreen scene target, depth attachment, frame graph imports/stages,
+framebuffers, and frame manager. Long-lived resource managers for meshes,
+textures, camera buffers, and SSBO slots are preserved across the rebuild.
+
+Monitor enumeration/selection is exposed through the generic window/graphics
+abstraction so game menus can choose which display owns windowed, borderless,
+or exclusive fullscreen output without depending on GLFW directly.
 
 ---
 

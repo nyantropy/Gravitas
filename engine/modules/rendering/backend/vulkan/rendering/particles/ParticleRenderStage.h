@@ -30,6 +30,10 @@ class ParticleRenderStage : public GtsRenderStage
 {
 public:
     ParticleRenderStage(RenderResourceManager* resources,
+                        const std::vector<VkImageView>& colorImageViews,
+                        uint32_t               framebufferCount,
+                        VkFormat               colorFormat,
+                        VkExtent2D             renderExtent,
                         VkImageView            depthImageView,
                         VkFormat               depthFormat,
                         GtsResourceHandle      outputHandle,
@@ -38,13 +42,14 @@ public:
                         VkImageLayout          colorFinalLayout)
         : GtsRenderStage("ParticleRenderStage")
         , resources(resources)
+        , renderExtent(renderExtent)
         , outputHandle(outputHandle)
         , depthHandle(depthHandle)
         , colorInitialLayout(colorInitialLayout)
         , colorFinalLayout(colorFinalLayout)
     {
         VulkanRenderPassConfig rpConfig;
-        rpConfig.colorFormat        = vcsheet::getFrameOutputFormat();
+        rpConfig.colorFormat        = colorFormat;
         rpConfig.depthFormat        = depthFormat;
         rpConfig.colorLoadOp        = VK_ATTACHMENT_LOAD_OP_LOAD;
         rpConfig.colorInitialLayout = colorInitialLayout;
@@ -68,7 +73,11 @@ public:
 
         FramebufferManagerConfig fbConfig;
         fbConfig.vkRenderpass        = renderPass->getRenderPass();
+        fbConfig.colorImageViews     = colorImageViews;
         fbConfig.attachmentImageView = depthImageView;
+        fbConfig.width               = renderExtent.width;
+        fbConfig.height              = renderExtent.height;
+        fbConfig.framebufferCount    = framebufferCount;
         fbConfig.hasDepthAttachment  = true;
         framebuffers = std::make_unique<FramebufferManager>(fbConfig);
 
@@ -81,6 +90,12 @@ public:
 
     ~ParticleRenderStage() override
     {
+        if (!depthDescriptorSets.empty())
+        {
+            dssheet::getManager().freeSampledImageSets(depthDescriptorSets);
+            depthDescriptorSets.clear();
+        }
+
         if (depthSampler != VK_NULL_HANDLE)
         {
             vkDestroySampler(vcsheet::getDevice(), depthSampler, nullptr);
@@ -124,7 +139,7 @@ public:
         rpInfo.renderPass        = renderPass->getRenderPass();
         rpInfo.framebuffer       = framebuffers->getFramebuffers()[imageIndex];
         rpInfo.renderArea.offset = {0, 0};
-        rpInfo.renderArea.extent = vcsheet::getFrameOutputExtent();
+        rpInfo.renderArea.extent = renderExtent;
         rpInfo.clearValueCount   = 0;
         rpInfo.pClearValues      = nullptr;
         vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -132,15 +147,15 @@ public:
         VkViewport viewport{};
         viewport.x        = 0.0f;
         viewport.y        = 0.0f;
-        viewport.width    = static_cast<float>(vcsheet::getFrameOutputExtent().width);
-        viewport.height   = static_cast<float>(vcsheet::getFrameOutputExtent().height);
+        viewport.width    = static_cast<float>(renderExtent.width);
+        viewport.height   = static_cast<float>(renderExtent.height);
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(cmd, 0, 1, &viewport);
 
         VkRect2D scissor{};
         scissor.offset = {0, 0};
-        scissor.extent = vcsheet::getFrameOutputExtent();
+        scissor.extent = renderExtent;
         vkCmdSetScissor(cmd, 0, 1, &scissor);
 
         const VkDeviceSize offset = 0;
@@ -219,6 +234,7 @@ private:
     std::unique_ptr<FramebufferManager> framebuffers;
     std::vector<VkDescriptorSet>        depthDescriptorSets;
     RenderResourceManager*              resources = nullptr;
+    VkExtent2D                          renderExtent{1, 1};
     GtsResourceHandle                   outputHandle;
     GtsResourceHandle                   depthHandle;
     VkImageLayout                       colorInitialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;

@@ -56,7 +56,6 @@ class WindowedFrameOutputTarget : public IFrameOutputTarget
         VkExtent2D getExtent() const override { return vcsheet::getSwapChainExtent(); }
         VkPresentModeKHR getPresentMode() const override { return vcsheet::getPresentMode(); }
         bool requiresRenderFinishedSemaphore() const override { return true; }
-        VkImageLayout getSceneFinalLayout() const override { return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; }
         VkImageLayout getUiInitialLayout() const override { return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; }
         VkImageLayout getUiFinalLayout() const override { return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; }
 };

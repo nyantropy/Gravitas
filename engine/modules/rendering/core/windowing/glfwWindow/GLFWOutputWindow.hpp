@@ -22,9 +22,17 @@ class GLFWOutputWindow : public OutputWindow
         void setFullscreen()           override;
         void setWindowMode(WindowMode mode) override;
         void setWindowSize(int width, int height) override;
+        void applyWindowSettings(int width, int height, WindowMode mode, int monitorIndex) override;
+        std::vector<GraphicsMonitorInfo> getAvailableMonitors() const override;
 
     private:
         void init() override;
+        GLFWmonitor* resolveMonitor(int monitorIndex) const;
+        int clampMonitorIndex(int monitorIndex) const;
+        void getMonitorWorkArea(GLFWmonitor* monitor, int& x, int& y, int& width, int& height) const;
+        void applyWindowed(GLFWmonitor* monitor, bool centerOnMonitor);
+        void applyBorderless(GLFWmonitor* monitor);
+        void applyFullscreen(GLFWmonitor* monitor);
 
         // saved windowed state for restoring after fullscreen
         int savedX = 0, savedY = 0, savedW = 0, savedH = 0;

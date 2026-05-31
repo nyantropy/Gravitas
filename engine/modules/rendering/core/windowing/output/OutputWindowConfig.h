@@ -14,4 +14,5 @@ struct OutputWindowConfig
     bool       enableValidationLayers = false;
     WindowMode windowMode             = WindowMode::Windowed;
     bool       vsync                  = true;
+    int        monitorIndex           = 0;
 };

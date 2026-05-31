@@ -22,7 +22,6 @@ public:
     virtual uint32_t getImageCount() const = 0;
     virtual VkExtent2D getExtent() const = 0;
     virtual VkFormat getColorFormat() const = 0;
-    virtual VkImageLayout getSceneFinalLayout() const = 0;
     virtual VkImageLayout getUiInitialLayout() const = 0;
     virtual VkImageLayout getUiFinalLayout() const = 0;
     virtual const std::vector<VkImage>& getImages() const = 0;

@@ -188,6 +188,23 @@ class GravitasEngine
         }
 
         // command callback from lower level architectures
+        void applyGraphicsSettingsCommand(const RuntimeGraphicsSettings& settings)
+        {
+            if (platform.applyRuntimeGraphicsSettings(settings))
+            {
+                engineConfig.graphics.renderWidth = static_cast<uint32_t>(settings.width);
+                engineConfig.graphics.renderHeight = static_cast<uint32_t>(settings.height);
+                engineConfig.graphics.window.width = settings.width;
+                engineConfig.graphics.window.height = settings.height;
+                engineConfig.graphics.window.windowMode = settings.windowMode;
+                engineConfig.graphics.window.monitorIndex = settings.monitorIndex;
+                engineConfig.graphics.window.vsync = settings.vsync;
+                engineConfig.graphics.presentModePreference = settings.presentModePreference;
+                engineConfig.graphics.maxFrameRate = settings.maxFrameRate;
+                maxFrameRate = settings.maxFrameRate;
+            }
+        }
+
         void applyPendingRenderCommands()
         {
             for (auto it = engineCommands.commands.begin(); it != engineCommands.commands.end(); )
@@ -200,6 +217,10 @@ class GravitasEngine
                         break;
                     case GtsCommand::Type::SetFrustumFreeze:
                         renderPipeline->setVisibilityFrozen(it->floatArg != 0.0f);
+                        it = engineCommands.commands.erase(it);
+                        break;
+                    case GtsCommand::Type::ApplyGraphicsSettings:
+                        applyGraphicsSettingsCommand(it->graphicsSettings);
                         it = engineCommands.commands.erase(it);
                         break;
                     default:
@@ -224,21 +245,8 @@ class GravitasEngine
                         break;
                     case GtsCommand::Type::SetFrustumCullingEnabled:
                     case GtsCommand::Type::SetFrustumFreeze:
-                        break;
                     case GtsCommand::Type::ApplyGraphicsSettings:
-                    {
-                        if (platform.applyRuntimeGraphicsSettings(cmd.graphicsSettings))
-                        {
-                            engineConfig.graphics.window.width = cmd.graphicsSettings.width;
-                            engineConfig.graphics.window.height = cmd.graphicsSettings.height;
-                            engineConfig.graphics.window.windowMode = cmd.graphicsSettings.windowMode;
-                            engineConfig.graphics.window.vsync = cmd.graphicsSettings.vsync;
-                            engineConfig.graphics.presentModePreference = cmd.graphicsSettings.presentModePreference;
-                            engineConfig.graphics.maxFrameRate = cmd.graphicsSettings.maxFrameRate;
-                            maxFrameRate = cmd.graphicsSettings.maxFrameRate;
-                        }
                         break;
-                    }
                     case GtsCommand::Type::LoadScene:
                     case GtsCommand::Type::ChangeScene:
                     {

@@ -20,6 +20,7 @@ class WindowManager
             owConfig.height                 = config.windowHeight;
             owConfig.title                  = config.windowTitle;
             owConfig.windowMode             = config.windowMode;
+            owConfig.monitorIndex           = config.monitorIndex;
 
             switch (config.windowBackend)
             {

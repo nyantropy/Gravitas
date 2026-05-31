@@ -8,6 +8,7 @@
 struct RendererConfig 
 {
     bool headless = false;
+    bool internalScalingEnabled = false;
     uint32_t renderWidth = 1;
     uint32_t renderHeight = 1;
     uint32_t maxScreenshotsPerRun = 64;

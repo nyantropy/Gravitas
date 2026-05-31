@@ -51,6 +51,13 @@ class DescriptorSetManager
                                  static_cast<uint32_t>(sets.size()), sets.data());
         }
 
+        void freeSampledImageSets(const std::vector<VkDescriptorSet>& sets)
+        {
+            if (sets.empty()) return;
+            vkFreeDescriptorSets(vcsheet::getDevice(), samplerDescriptorPool,
+                                 static_cast<uint32_t>(sets.size()), sets.data());
+        }
+
         // Allocates framesInFlight descriptor sets for a camera UBO (set 0).
         std::vector<VkDescriptorSet> allocateForUniformBuffer(const std::vector<VkBuffer>& uniformBuffers, VkDeviceSize range)
         {
@@ -278,6 +285,7 @@ class DescriptorSetManager
 
                 VkDescriptorPoolCreateInfo poolInfo{};
                 poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+                poolInfo.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
                 poolInfo.poolSizeCount = 1;
                 poolInfo.pPoolSizes    = &poolSize;
                 poolInfo.maxSets       = framesInFlight * MAX_TEXTURES;

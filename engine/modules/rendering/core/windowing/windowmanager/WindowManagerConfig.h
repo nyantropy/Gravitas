@@ -13,4 +13,5 @@ struct WindowManagerConfig
     std::string windowTitle             = "Gravitas";
     bool        enableValidationLayers  = false;
     WindowMode  windowMode              = WindowMode::Windowed;
+    int         monitorIndex            = 0;
 };

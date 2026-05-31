@@ -64,6 +64,11 @@ public:
 
     VulkanGraphics(const GraphicsConfig& config): config(config)
     {
+        if (this->config.renderWidth == 0)
+            this->config.renderWidth = static_cast<uint32_t>(std::max(1, this->config.window.width));
+        if (this->config.renderHeight == 0)
+            this->config.renderHeight = static_cast<uint32_t>(std::max(1, this->config.window.height));
+
         if (!config.headless)
             createWindow();
         createContext();
@@ -77,6 +82,10 @@ public:
                     {
                         this->config.window.width = event.width;
                         this->config.window.height = event.height;
+                        this->config.renderWidth = static_cast<uint32_t>(event.width);
+                        this->config.renderHeight = static_cast<uint32_t>(event.height);
+                        if (renderer)
+                            renderer->setRenderResolution(this->config.renderWidth, this->config.renderHeight);
                     }
                 }
                 swapchainRecreatePending = true;
@@ -93,6 +102,7 @@ public:
         wmConfig.windowTitle            = config.window.title;
         wmConfig.enableValidationLayers = config.enableValidationLayers;
         wmConfig.windowMode             = config.window.windowMode;
+        wmConfig.monitorIndex           = config.window.monitorIndex;
         windowManager = std::make_unique<WindowManager>(wmConfig, eventBus);
     }
 
@@ -103,8 +113,8 @@ public:
         vcConfig.enableValidationLayers   = config.enableValidationLayers;
         vcConfig.headless                 = config.headless;
         vcConfig.enableSurfaceSupport     = !config.headless;
-        vcConfig.renderWidth              = config.window.width;
-        vcConfig.renderHeight             = config.window.height;
+        vcConfig.renderWidth              = config.renderWidth;
+        vcConfig.renderHeight             = config.renderHeight;
         vcConfig.presentModePreference    = resolvePresentModePreference();
 
         if (!config.headless)
@@ -123,7 +133,7 @@ public:
         {
             std::cout << "Running in headless mode" << std::endl;
             std::cout << "Headless output resolution: "
-                      << config.window.width << "x" << config.window.height << std::endl;
+                      << config.renderWidth << "x" << config.renderHeight << std::endl;
         }
         else
         {
@@ -136,8 +146,10 @@ public:
     {
         RendererConfig rConfig;
         rConfig.headless = config.headless;
-        rConfig.renderWidth = config.window.width;
-        rConfig.renderHeight = config.window.height;
+        rConfig.internalScalingEnabled =
+            !config.headless && config.window.windowMode == WindowMode::BorderlessFullscreen;
+        rConfig.renderWidth = config.renderWidth;
+        rConfig.renderHeight = config.renderHeight;
         rConfig.maxScreenshotsPerRun = config.maxScreenshotsPerRun;
         rConfig.minSecondsBetweenScreenshots = config.minSecondsBetweenScreenshots;
         renderer = std::make_unique<ForwardRenderer>(rConfig, eventBus);
@@ -218,7 +230,9 @@ public:
     float getAspectRatio() const override
     {
         if (!windowManager)
-            return static_cast<float>(config.window.width) / static_cast<float>(config.window.height);
+            return static_cast<float>(config.renderWidth) / static_cast<float>(config.renderHeight);
+        if (config.window.windowMode == WindowMode::BorderlessFullscreen)
+            return static_cast<float>(config.renderWidth) / static_cast<float>(config.renderHeight);
         return windowManager->getOutputWindow()->getAspectRatio();
     }
 
@@ -226,8 +240,8 @@ public:
     {
         if (!windowManager)
         {
-            width = static_cast<int>(config.window.width);
-            height = static_cast<int>(config.window.height);
+            width = static_cast<int>(config.renderWidth);
+            height = static_cast<int>(config.renderHeight);
             return;
         }
         windowManager->getOutputWindow()->getSize(width, height);
@@ -236,13 +250,21 @@ public:
     RuntimeGraphicsSettings getRuntimeGraphicsSettings() const override
     {
         return RuntimeGraphicsSettings{
-            config.window.width,
-            config.window.height,
+            static_cast<int>(config.renderWidth),
+            static_cast<int>(config.renderHeight),
             config.window.windowMode,
             config.window.vsync,
             config.presentModePreference,
-            config.maxFrameRate
+            config.maxFrameRate,
+            config.window.monitorIndex
         };
+    }
+
+    std::vector<GraphicsMonitorInfo> getAvailableMonitors() const override
+    {
+        if (!windowManager)
+            return {};
+        return windowManager->getOutputWindow()->getAvailableMonitors();
     }
 
     bool applyRuntimeGraphicsSettings(const RuntimeGraphicsSettings& settings) override
@@ -250,9 +272,12 @@ public:
         if (settings.width <= 0 || settings.height <= 0)
             return false;
 
+        config.renderWidth = static_cast<uint32_t>(settings.width);
+        config.renderHeight = static_cast<uint32_t>(settings.height);
         config.window.width = settings.width;
         config.window.height = settings.height;
         config.window.windowMode = settings.windowMode;
+        config.window.monitorIndex = std::max(0, settings.monitorIndex);
         config.window.vsync = settings.vsync;
         config.presentModePreference = settings.presentModePreference;
         config.maxFrameRate = std::max(0, settings.maxFrameRate);
@@ -260,10 +285,26 @@ public:
         if (!config.headless && windowManager)
         {
             OutputWindow* window = windowManager->getOutputWindow();
-            window->setWindowSize(config.window.width, config.window.height);
-            window->setWindowMode(config.window.windowMode);
+            const auto monitors = window->getAvailableMonitors();
+            if (!monitors.empty())
+            {
+                config.window.monitorIndex = std::clamp(
+                    config.window.monitorIndex,
+                    0,
+                    static_cast<int>(monitors.size()) - 1);
+            }
+            window->applyWindowSettings(config.window.width,
+                                        config.window.height,
+                                        config.window.windowMode,
+                                        config.window.monitorIndex);
         }
 
+        if (renderer)
+        {
+            renderer->setInternalScalingEnabled(
+                !config.headless && config.window.windowMode == WindowMode::BorderlessFullscreen);
+            renderer->setRenderResolution(config.renderWidth, config.renderHeight);
+        }
         swapchainRecreatePending = true;
         recreateSwapchainResourcesIfPossible();
         return true;
