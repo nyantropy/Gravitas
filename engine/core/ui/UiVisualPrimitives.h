@@ -34,9 +34,23 @@ struct UiTextPrimitive
     std::string  fontAsset;
     UiColor      color;
     float        scale = 1.0f;
+    UiTextWrapMode wrapMode = UiTextWrapMode::None;
+    UiHorizontalAlign horizontalAlign = UiHorizontalAlign::Left;
+    UiVerticalAlign verticalAlign = UiVerticalAlign::Top;
+    int          maxLines = 0;
 };
 
-using UiVisualPrimitive = std::variant<UiRectPrimitive, UiImagePrimitive, UiTextPrimitive>;
+struct UiLinePrimitive
+{
+    UiHandle source = UI_INVALID_HANDLE;
+    UiVec2   start;
+    UiVec2   end;
+    UiRect   clipRect;
+    UiColor  color;
+    float    thickness = 0.002f;
+};
+
+using UiVisualPrimitive = std::variant<UiRectPrimitive, UiImagePrimitive, UiTextPrimitive, UiLinePrimitive>;
 
 struct UiVisualList
 {

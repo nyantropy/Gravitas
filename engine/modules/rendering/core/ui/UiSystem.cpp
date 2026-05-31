@@ -1,6 +1,9 @@
 #include "UiSystem.h"
 
 #include <chrono>
+#include <variant>
+
+#include "GlyphLayoutEngine.h"
 
 UiSystem::UiSystem(IResourceProvider* inResources)
     : resources(inResources)
@@ -124,6 +127,30 @@ const UiDocument& UiSystem::getDocument() const
 UiSystem::Metrics UiSystem::getLastMetrics() const
 {
     return lastMetrics;
+}
+
+bool UiSystem::measureText(UiHandle handle, UiTextMeasurement& outMeasurement) const
+{
+    const UiNode* node = document.findNode(handle);
+    if (node == nullptr || node->type != UiNodeType::Text)
+        return false;
+
+    const auto fontIt = textBindings.find(handle);
+    if (fontIt == textBindings.end() || fontIt->second == nullptr)
+        return false;
+
+    const UiTextData& data = std::get<UiTextData>(node->payload);
+    const float maxWidth = data.wrapMode == UiTextWrapMode::Word
+        ? node->computedLayout.bounds.width
+        : 0.0f;
+    outMeasurement = GlyphLayoutEngine::measureUiText(
+        *fontIt->second,
+        data.text,
+        data.scale,
+        maxWidth,
+        data.wrapMode,
+        data.maxLines);
+    return true;
 }
 
 UiInteractionResult UiSystem::updateInteraction(const UiInputFrame& input)

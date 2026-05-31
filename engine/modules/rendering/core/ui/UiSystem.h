@@ -50,6 +50,7 @@ public:
     UiDocument&       getDocument();
     const UiDocument& getDocument() const;
     Metrics           getLastMetrics() const;
+    bool              measureText(UiHandle handle, UiTextMeasurement& outMeasurement) const;
 
     UiInteractionResult updateInteraction(const UiInputFrame& input);
     UiInteractionResult getLastInteraction() const;

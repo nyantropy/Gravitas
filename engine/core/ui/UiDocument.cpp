@@ -1,6 +1,7 @@
 #include "UiDocument.h"
 
 #include <algorithm>
+#include <utility>
 
 namespace
 {
@@ -67,7 +68,7 @@ void UiDocument::clear()
     root.layout.widthMode    = UiSizeMode::Fixed;
     root.layout.heightMode   = UiSizeMode::Fixed;
     root.payload             = UiContainerData{};
-    nodes.emplace(rootHandle, root);
+    nodes.emplace(rootHandle, std::move(root));
 }
 
 UiHandle UiDocument::createNode(UiNodeType type, UiHandle parent)
@@ -88,15 +89,17 @@ UiHandle UiDocument::createNode(UiNodeType type, UiHandle parent)
             case UiNodeType::Image:     return UiImageData{};
             case UiNodeType::Text:      return UiTextData{};
             case UiNodeType::Grid:      return UiGridData{};
+            case UiNodeType::Line:      return UiLineData{};
         }
 
         return UiContainerData{};
     }();
 
-    nodes.emplace(node.handle, node);
-    appendChild(effectiveParent, node.handle);
-    markDirty(node.handle, UiDirtyFlags::Structure | UiDirtyFlags::Layout | UiDirtyFlags::Visual);
-    return node.handle;
+    const UiHandle handle = node.handle;
+    nodes.emplace(handle, std::move(node));
+    appendChild(effectiveParent, handle);
+    markDirty(handle, UiDirtyFlags::Structure | UiDirtyFlags::Layout | UiDirtyFlags::Visual);
+    return handle;
 }
 
 bool UiDocument::removeNode(UiHandle handle)
@@ -319,8 +322,12 @@ void UiDocument::computeLayoutRecursive(UiHandle handle, const UiComputedLayout*
         ? intersectRect(parentLayout->clipRect, node.computedLayout.bounds)
         : parentLayout->clipRect;
 
+    UiComputedLayout childParentLayout = node.computedLayout;
+    childParentLayout.contentRect.x += node.layout.contentOffset.x;
+    childParentLayout.contentRect.y += node.layout.contentOffset.y;
+
     for (UiHandle child : node.children)
-        computeLayoutRecursive(child, &node.computedLayout);
+        computeLayoutRecursive(child, &childParentLayout);
 }
 
 void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, const UiRect& inheritedClip)
@@ -374,7 +381,11 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, con
                 data.text,
                 data.fontAsset,
                 data.color,
-                data.scale
+                data.scale,
+                data.wrapMode,
+                data.horizontalAlign,
+                data.verticalAlign,
+                data.maxLines
             });
             break;
         }
@@ -408,6 +419,29 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, con
                     });
                 }
             }
+            break;
+        }
+
+        case UiNodeType::Line:
+        {
+            const auto& data = std::get<UiLineData>(node.payload);
+            const UiRect& content = node.computedLayout.contentRect;
+            const UiVec2 start = {
+                content.x + data.start.x * content.width,
+                content.y + data.start.y * content.height
+            };
+            const UiVec2 end = {
+                content.x + data.end.x * content.width,
+                content.y + data.end.y * content.height
+            };
+            visualList.primitives.push_back(UiLinePrimitive{
+                node.handle,
+                start,
+                end,
+                effectiveClip,
+                data.color,
+                data.thickness
+            });
             break;
         }
     }

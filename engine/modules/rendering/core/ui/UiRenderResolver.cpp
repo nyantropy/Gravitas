@@ -1,5 +1,7 @@
 #include "UiRenderResolver.h"
 
+#include <algorithm>
+#include <cmath>
 #include <type_traits>
 
 #include "GlyphLayoutEngine.h"
@@ -36,6 +38,75 @@ namespace
             std::max(0.0f, height)
         };
     }
+
+    glm::vec2 snapPointToPixels(glm::vec2 point, int viewportWidth, int viewportHeight)
+    {
+        return {
+            snapToPixel(point.x, viewportWidth),
+            snapToPixel(point.y, viewportHeight)
+        };
+    }
+
+    UiRect intersectRect(const UiRect& a, const UiRect& b)
+    {
+        const float left = std::max(a.x, b.x);
+        const float top = std::max(a.y, b.y);
+        const float right = std::min(a.x + a.width, b.x + b.width);
+        const float bottom = std::min(a.y + a.height, b.y + b.height);
+
+        if (right <= left || bottom <= top)
+            return {left, top, 0.0f, 0.0f};
+
+        return {left, top, right - left, bottom - top};
+    }
+
+    bool isEmptyRect(const UiRect& rect)
+    {
+        return rect.width <= 0.0f || rect.height <= 0.0f;
+    }
+
+    bool clipLineToRect(glm::vec2& start, glm::vec2& end, const UiRect& clip)
+    {
+        if (isEmptyRect(clip))
+            return false;
+
+        const float minX = clip.x;
+        const float minY = clip.y;
+        const float maxX = clip.x + clip.width;
+        const float maxY = clip.y + clip.height;
+        const glm::vec2 delta = end - start;
+        float t0 = 0.0f;
+        float t1 = 1.0f;
+
+        auto clipEdge = [&](float p, float q) -> bool
+        {
+            if (p == 0.0f)
+                return q >= 0.0f;
+
+            const float r = q / p;
+            if (p < 0.0f)
+            {
+                if (r > t1) return false;
+                if (r > t0) t0 = r;
+            }
+            else
+            {
+                if (r < t0) return false;
+                if (r < t1) t1 = r;
+            }
+            return true;
+        };
+
+        if (!clipEdge(-delta.x, start.x - minX)) return false;
+        if (!clipEdge( delta.x, maxX - start.x)) return false;
+        if (!clipEdge(-delta.y, start.y - minY)) return false;
+        if (!clipEdge( delta.y, maxY - start.y)) return false;
+
+        const glm::vec2 originalStart = start;
+        start = originalStart + delta * t0;
+        end = originalStart + delta * t1;
+        return true;
+    }
 }
 
 void UiRenderResolver::buildCommandBuffer(
@@ -56,7 +127,10 @@ void UiRenderResolver::buildCommandBuffer(
 
             if constexpr (std::is_same_v<T, UiRectPrimitive>)
             {
-                const UiRect snapped = snapRectToPixels(value.bounds, viewportWidth, viewportHeight);
+                const UiRect clipped = intersectRect(value.bounds, value.clipRect);
+                if (isEmptyRect(clipped)) return;
+
+                const UiRect snapped = snapRectToPixels(clipped, viewportWidth, viewportHeight);
                 buffer.addColoredQuad(snapped.x,
                                       snapped.y,
                                       snapped.width,
@@ -70,29 +144,52 @@ void UiRenderResolver::buildCommandBuffer(
                 const texture_id_type textureId = resources->requestTexture(value.imageAsset);
                 if (textureId == 0) return;
 
-                const UiRect snapped = snapRectToPixels(value.bounds, viewportWidth, viewportHeight);
-                buffer.addTexturedQuad(snapped.x,
-                                       snapped.y,
-                                       snapped.width,
-                                       snapped.height,
-                                       textureId,
-                                       toGlm(value.tint));
+                const UiRect clipped = intersectRect(value.bounds, value.clipRect);
+                if (isEmptyRect(clipped)) return;
+
+                const float leftT = (clipped.x - value.bounds.x) / value.bounds.width;
+                const float rightT = (clipped.x + clipped.width - value.bounds.x) / value.bounds.width;
+                const float topT = (clipped.y - value.bounds.y) / value.bounds.height;
+                const float bottomT = (clipped.y + clipped.height - value.bounds.y) / value.bounds.height;
+                const UiRect snapped = snapRectToPixels(clipped, viewportWidth, viewportHeight);
+                buffer.addTexturedQuadUv(snapped.x,
+                                         snapped.y,
+                                         snapped.width,
+                                         snapped.height,
+                                         textureId,
+                                         {leftT, topT},
+                                         {rightT, bottomT},
+                                         toGlm(value.tint));
             }
             else if constexpr (std::is_same_v<T, UiTextPrimitive>)
             {
                 const auto it = textBindings.find(value.source);
                 if (it == textBindings.end() || !it->second) return;
 
-                const float snappedX = snapToPixel(value.bounds.x, viewportWidth);
-                const float snappedY = snapToPixel(value.bounds.y, viewportHeight);
+                const UiRect snappedBounds = snapRectToPixels(value.bounds, viewportWidth, viewportHeight);
+                const UiRect snappedClip = snapRectToPixels(value.clipRect, viewportWidth, viewportHeight);
 
-                GlyphLayoutEngine::appendUiText(buffer,
-                                                *it->second,
-                                                value.text,
-                                                snappedX,
-                                                snappedY,
-                                                value.scale,
-                                                toGlm(value.color));
+                GlyphLayoutEngine::appendUiTextInRect(buffer,
+                                                      *it->second,
+                                                      value.text,
+                                                      snappedBounds,
+                                                      snappedClip,
+                                                      value.scale,
+                                                      toGlm(value.color),
+                                                      value.wrapMode,
+                                                      value.horizontalAlign,
+                                                      value.verticalAlign,
+                                                      value.maxLines);
+            }
+            else if constexpr (std::is_same_v<T, UiLinePrimitive>)
+            {
+                glm::vec2 start = {value.start.x, value.start.y};
+                glm::vec2 end = {value.end.x, value.end.y};
+                if (!clipLineToRect(start, end, value.clipRect)) return;
+
+                start = snapPointToPixels(start, viewportWidth, viewportHeight);
+                end = snapPointToPixels(end, viewportWidth, viewportHeight);
+                buffer.addColoredLine(start, end, value.thickness, toGlm(value.color));
             }
         }, primitive);
     }

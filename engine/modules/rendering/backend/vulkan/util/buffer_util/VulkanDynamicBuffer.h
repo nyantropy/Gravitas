@@ -33,6 +33,10 @@ public:
     {
         if (neededBytes <= capacityBytes) return;
 
+        // Resizes are rare, but the old buffer may still be referenced by an
+        // in-flight command buffer from another frame slot.
+        vkDeviceWaitIdle(vcsheet::getDevice());
+
         vkUnmapMemory(vcsheet::getDevice(), memory);
         vkDestroyBuffer(vcsheet::getDevice(), buffer, nullptr);
         vkFreeMemory(vcsheet::getDevice(), memory, nullptr);

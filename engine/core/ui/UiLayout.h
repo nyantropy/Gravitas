@@ -20,6 +20,7 @@ struct UiLayoutSpec
     UiThickness margin;
     UiThickness padding;
     UiClipMode  clipMode = UiClipMode::None;
+    UiVec2      contentOffset = {0.0f, 0.0f};
 
     bool operator==(const UiLayoutSpec&) const = default;
 };

@@ -36,8 +36,22 @@ struct UiTextData
     std::string fontAsset;
     UiColor     color = {1.0f, 1.0f, 1.0f, 1.0f};
     float       scale = 1.0f;
+    UiTextWrapMode wrapMode = UiTextWrapMode::None;
+    UiHorizontalAlign horizontalAlign = UiHorizontalAlign::Left;
+    UiVerticalAlign verticalAlign = UiVerticalAlign::Top;
+    int maxLines = 0;
 
     bool operator==(const UiTextData&) const = default;
+};
+
+struct UiLineData
+{
+    UiVec2  start = {0.0f, 0.0f};
+    UiVec2  end = {1.0f, 1.0f};
+    UiColor color = {1.0f, 1.0f, 1.0f, 1.0f};
+    float   thickness = 0.002f;
+
+    bool operator==(const UiLineData&) const = default;
 };
 
 struct UiGridCellData
@@ -67,7 +81,7 @@ struct UiGridData
     }
 };
 
-using UiNodePayload = std::variant<UiContainerData, UiRectData, UiImageData, UiTextData, UiGridData>;
+using UiNodePayload = std::variant<UiContainerData, UiRectData, UiImageData, UiTextData, UiGridData, UiLineData>;
 
 struct UiNode
 {

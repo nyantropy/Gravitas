@@ -46,7 +46,8 @@ enum class UiNodeType : uint8_t
     Rect,
     Image,
     Text,
-    Grid
+    Grid,
+    Line
 };
 
 enum class UiPositionMode : uint8_t
@@ -65,6 +66,35 @@ enum class UiClipMode : uint8_t
 {
     None = 0,
     ClipChildren
+};
+
+enum class UiTextWrapMode : uint8_t
+{
+    None = 0,
+    Word
+};
+
+enum class UiHorizontalAlign : uint8_t
+{
+    Left = 0,
+    Center,
+    Right
+};
+
+enum class UiVerticalAlign : uint8_t
+{
+    Top = 0,
+    Middle,
+    Bottom
+};
+
+struct UiTextMeasurement
+{
+    float width = 0.0f;
+    float height = 0.0f;
+    int lineCount = 0;
+
+    bool operator==(const UiTextMeasurement&) const = default;
 };
 
 enum class UiDirtyFlags : uint8_t

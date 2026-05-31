@@ -435,6 +435,16 @@ nodes, `UiSystem` owns per-frame extraction and interaction evaluation, and
 tool widgets in `modules/tools/ui/` provide reusable engine-editor controls
 on top of that UI system.
 
+UI extraction now enforces primitive clipping before draw-command generation.
+Layout specs include a default-zero child `contentOffset`, so a clipped
+container can behave as a scroll view or pannable canvas without moving the
+container's own background. Text nodes support measurement, word wrapping,
+horizontal/vertical alignment, and max-line limits when authored with nonzero
+layout bounds. Legacy text nodes with zero bounds still render from their
+top-left position to preserve existing tool and game overlays. The UI primitive
+set also includes retained line nodes, which render thick colored screen-space
+segments for graph-like widgets such as skill-tree links.
+
 Tooling is optional and installed per scene through `GtsScene::installToolingFeature()`.
 It is deliberately separate from `installRendererFeature()` so shipping scenes
 can opt out.
