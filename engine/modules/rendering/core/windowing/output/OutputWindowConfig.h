@@ -15,4 +15,5 @@ struct OutputWindowConfig
     WindowMode windowMode             = WindowMode::Windowed;
     bool       vsync                  = true;
     int        monitorIndex           = 0;
+    std::string monitorName;
 };

@@ -257,6 +257,7 @@ class ForwardRenderer : Renderer
             {
                 auto ownedUpscale = std::make_unique<UpscaleRenderStage>(
                     sceneColorAttachment->getImageView(),
+                    sceneRenderExtent,
                     format,
                     sceneColorHandle,
                     outputHandle0,

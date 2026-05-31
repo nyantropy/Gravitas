@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #include "../windowing/output/OutputWindowConfig.h"
 #include "../windowing/output/GraphicsMonitorInfo.h"
@@ -40,4 +41,5 @@ struct RuntimeGraphicsSettings
     PresentModePreference presentModePreference = PresentModePreference::Immediate;
     int maxFrameRate = 0; // 0 = uncapped
     int monitorIndex = 0;
+    std::string monitorName;
 };

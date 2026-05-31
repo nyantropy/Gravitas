@@ -14,4 +14,5 @@ struct WindowManagerConfig
     bool        enableValidationLayers  = false;
     WindowMode  windowMode              = WindowMode::Windowed;
     int         monitorIndex            = 0;
+    std::string monitorName;
 };

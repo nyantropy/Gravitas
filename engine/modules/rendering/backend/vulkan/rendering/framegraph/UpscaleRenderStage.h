@@ -1,6 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <memory>
 #include <stdexcept>
 #include <vector>
@@ -23,11 +25,13 @@ class UpscaleRenderStage : public GtsRenderStage
 {
 public:
     UpscaleRenderStage(VkImageView       sourceImageView,
+                       VkExtent2D        sourceExtent,
                        VkFormat          outputFormat,
                        GtsResourceHandle sourceHandle,
                        GtsResourceHandle outputHandle,
                        VkImageLayout     outputFinalLayout)
         : GtsRenderStage("UpscaleRenderStage")
+        , sourceExtent(sourceExtent)
         , sourceHandle(sourceHandle)
         , outputHandle(outputHandle)
         , outputFinalLayout(outputFinalLayout)
@@ -114,19 +118,18 @@ public:
         rpInfo.pClearValues = clearValues.data();
         vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+        const VkRect2D targetRect = aspectFitTargetRect(vcsheet::getFrameOutputExtent());
+
         VkViewport viewport{};
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width = static_cast<float>(vcsheet::getFrameOutputExtent().width);
-        viewport.height = static_cast<float>(vcsheet::getFrameOutputExtent().height);
+        viewport.x = static_cast<float>(targetRect.offset.x);
+        viewport.y = static_cast<float>(targetRect.offset.y);
+        viewport.width = static_cast<float>(targetRect.extent.width);
+        viewport.height = static_cast<float>(targetRect.extent.height);
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(cmd, 0, 1, &viewport);
 
-        VkRect2D scissor{};
-        scissor.offset = {0, 0};
-        scissor.extent = vcsheet::getFrameOutputExtent();
-        vkCmdSetScissor(cmd, 0, 1, &scissor);
+        vkCmdSetScissor(cmd, 0, 1, &targetRect);
 
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getPipeline());
         vkCmdBindDescriptorSets(cmd,
@@ -148,9 +151,44 @@ private:
     std::unique_ptr<FramebufferManager> framebuffers;
     std::vector<VkDescriptorSet>        sourceDescriptorSets;
     VkSampler                           sourceSampler = VK_NULL_HANDLE;
+    VkExtent2D                          sourceExtent{1, 1};
     GtsResourceHandle                   sourceHandle;
     GtsResourceHandle                   outputHandle;
     VkImageLayout                       outputFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkRect2D aspectFitTargetRect(VkExtent2D outputExtent) const
+    {
+        const uint32_t outputWidth = std::max(1u, outputExtent.width);
+        const uint32_t outputHeight = std::max(1u, outputExtent.height);
+        const float sourceAspect =
+            static_cast<float>(std::max(1u, sourceExtent.width))
+            / static_cast<float>(std::max(1u, sourceExtent.height));
+        const float outputAspect =
+            static_cast<float>(outputWidth) / static_cast<float>(outputHeight);
+
+        uint32_t targetWidth = outputWidth;
+        uint32_t targetHeight = outputHeight;
+        if (outputAspect > sourceAspect)
+        {
+            targetWidth = std::max(
+                1u,
+                static_cast<uint32_t>(std::round(static_cast<float>(outputHeight) * sourceAspect)));
+        }
+        else if (outputAspect < sourceAspect)
+        {
+            targetHeight = std::max(
+                1u,
+                static_cast<uint32_t>(std::round(static_cast<float>(outputWidth) / sourceAspect)));
+        }
+
+        return VkRect2D{
+            {
+                static_cast<int32_t>((outputWidth - targetWidth) / 2u),
+                static_cast<int32_t>((outputHeight - targetHeight) / 2u)
+            },
+            {targetWidth, targetHeight}
+        };
+    }
 
     void createSampler()
     {

@@ -103,7 +103,10 @@ public:
         wmConfig.enableValidationLayers = config.enableValidationLayers;
         wmConfig.windowMode             = config.window.windowMode;
         wmConfig.monitorIndex           = config.window.monitorIndex;
+        wmConfig.monitorName            = config.window.monitorName;
         windowManager = std::make_unique<WindowManager>(wmConfig, eventBus);
+        config.window.monitorIndex = windowManager->getOutputWindow()->getConfig().monitorIndex;
+        config.window.monitorName = windowManager->getOutputWindow()->getConfig().monitorName;
     }
 
     // create a concrete Vulkan Context object, accessible with an accessheet on a global basis
@@ -256,7 +259,8 @@ public:
             config.window.vsync,
             config.presentModePreference,
             config.maxFrameRate,
-            config.window.monitorIndex
+            config.window.monitorIndex,
+            config.window.monitorName
         };
     }
 
@@ -278,6 +282,7 @@ public:
         config.window.height = settings.height;
         config.window.windowMode = settings.windowMode;
         config.window.monitorIndex = std::max(0, settings.monitorIndex);
+        config.window.monitorName = settings.monitorName;
         config.window.vsync = settings.vsync;
         config.presentModePreference = settings.presentModePreference;
         config.maxFrameRate = std::max(0, settings.maxFrameRate);
@@ -296,7 +301,10 @@ public:
             window->applyWindowSettings(config.window.width,
                                         config.window.height,
                                         config.window.windowMode,
-                                        config.window.monitorIndex);
+                                        config.window.monitorIndex,
+                                        config.window.monitorName);
+            config.window.monitorIndex = window->getConfig().monitorIndex;
+            config.window.monitorName = window->getConfig().monitorName;
         }
 
         if (renderer)

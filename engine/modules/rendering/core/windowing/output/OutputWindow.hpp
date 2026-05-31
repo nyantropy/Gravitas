@@ -63,10 +63,15 @@ class OutputWindow
             config.width = width;
             config.height = height;
         }
-        virtual void applyWindowSettings(int width, int height, WindowMode mode, int monitorIndex)
+        virtual void applyWindowSettings(int width,
+                                         int height,
+                                         WindowMode mode,
+                                         int monitorIndex,
+                                         const std::string& monitorName = {})
         {
             setWindowSize(width, height);
             config.monitorIndex = monitorIndex;
+            config.monitorName = monitorName;
             setWindowMode(mode);
         }
 };

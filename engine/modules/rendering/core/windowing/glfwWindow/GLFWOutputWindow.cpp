@@ -43,12 +43,23 @@ void GLFWOutputWindow::init()
     }
 }
 
-int GLFWOutputWindow::clampMonitorIndex(int monitorIndex) const
+int GLFWOutputWindow::resolveMonitorIndex(int monitorIndex, const std::string& monitorName) const
 {
     int count = 0;
-    glfwGetMonitors(&count);
-    if (count <= 0)
+    GLFWmonitor** monitors = glfwGetMonitors(&count);
+    if (count <= 0 || monitors == nullptr)
         return 0;
+
+    if (!monitorName.empty())
+    {
+        for (int i = 0; i < count; ++i)
+        {
+            const char* name = glfwGetMonitorName(monitors[i]);
+            if (name != nullptr && monitorName == name)
+                return i;
+        }
+    }
+
     return std::clamp(monitorIndex, 0, count - 1);
 }
 
@@ -61,6 +72,18 @@ GLFWmonitor* GLFWOutputWindow::resolveMonitor(int monitorIndex) const
 
     const int index = std::clamp(monitorIndex, 0, count - 1);
     return monitors[index];
+}
+
+std::string GLFWOutputWindow::monitorNameForIndex(int monitorIndex) const
+{
+    int count = 0;
+    GLFWmonitor** monitors = glfwGetMonitors(&count);
+    if (count <= 0 || monitors == nullptr)
+        return {};
+
+    const int index = std::clamp(monitorIndex, 0, count - 1);
+    const char* name = glfwGetMonitorName(monitors[index]);
+    return name != nullptr ? std::string{name} : std::string{};
 }
 
 void GLFWOutputWindow::getMonitorWorkArea(GLFWmonitor* monitor, int& x, int& y, int& width, int& height) const
@@ -200,13 +223,18 @@ std::vector<GraphicsMonitorInfo> GLFWOutputWindow::getAvailableMonitors() const
     return result;
 }
 
-void GLFWOutputWindow::applyWindowSettings(int width, int height, WindowMode mode, int monitorIndex)
+void GLFWOutputWindow::applyWindowSettings(int width,
+                                           int height,
+                                           WindowMode mode,
+                                           int monitorIndex,
+                                           const std::string& monitorName)
 {
     const WindowMode previousMode = config.windowMode;
     const int previousMonitor = config.monitorIndex;
     config.width = std::max(1, width);
     config.height = std::max(1, height);
-    config.monitorIndex = clampMonitorIndex(monitorIndex);
+    config.monitorIndex = resolveMonitorIndex(monitorIndex, monitorName);
+    config.monitorName = monitorNameForIndex(config.monitorIndex);
 
     GLFWmonitor* monitor = resolveMonitor(config.monitorIndex);
     switch (mode)
@@ -225,22 +253,26 @@ void GLFWOutputWindow::applyWindowSettings(int width, int height, WindowMode mod
 
 void GLFWOutputWindow::setWindowed()
 {
-    applyWindowSettings(config.width, config.height, WindowMode::Windowed, config.monitorIndex);
+    applyWindowSettings(config.width, config.height, WindowMode::Windowed, config.monitorIndex, config.monitorName);
 }
 
 void GLFWOutputWindow::setBorderlessFullscreen()
 {
-    applyWindowSettings(config.width, config.height, WindowMode::BorderlessFullscreen, config.monitorIndex);
+    applyWindowSettings(config.width,
+                        config.height,
+                        WindowMode::BorderlessFullscreen,
+                        config.monitorIndex,
+                        config.monitorName);
 }
 
 void GLFWOutputWindow::setFullscreen()
 {
-    applyWindowSettings(config.width, config.height, WindowMode::Fullscreen, config.monitorIndex);
+    applyWindowSettings(config.width, config.height, WindowMode::Fullscreen, config.monitorIndex, config.monitorName);
 }
 
 void GLFWOutputWindow::setWindowMode(WindowMode mode)
 {
-    applyWindowSettings(config.width, config.height, mode, config.monitorIndex);
+    applyWindowSettings(config.width, config.height, mode, config.monitorIndex, config.monitorName);
 }
 
 void GLFWOutputWindow::setWindowSize(int width, int height)
