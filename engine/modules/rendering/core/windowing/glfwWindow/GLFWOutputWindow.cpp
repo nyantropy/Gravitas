@@ -1,6 +1,7 @@
 #include "GLFWOutputWindow.hpp"
 
 #include <algorithm>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -23,17 +24,30 @@ GLFWOutputWindow::~GLFWOutputWindow()
 
 void GLFWOutputWindow::init()
 {
-    glfwInit();
+    if (glfwInit() != GLFW_TRUE)
+        throw std::runtime_error("Failed to initialize GLFW");
+
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     this->window = glfwCreateWindow(
         config.width, config.height, config.title.c_str(), nullptr, nullptr);
 
-    glfwSetWindowUserPointer(static_cast<GLFWwindow*>(this->window), this);
-    glfwSetFramebufferSizeCallback(static_cast<GLFWwindow*>(this->window), framebufferResizeCallbackStatic);
-    glfwSetKeyCallback(static_cast<GLFWwindow*>(this->window), onKeyPressedCallbackStatic);
-    glfwSetMouseButtonCallback(static_cast<GLFWwindow*>(this->window), onMouseButtonCallbackStatic);
-    glfwSetCursorPosCallback(static_cast<GLFWwindow*>(this->window), onCursorPositionCallbackStatic);
-    glfwSetScrollCallback(static_cast<GLFWwindow*>(this->window), onScrollCallbackStatic);
+    auto* glfwWindow = static_cast<GLFWwindow*>(this->window);
+    if (glfwWindow == nullptr)
+    {
+        const char* description = nullptr;
+        glfwGetError(&description);
+        glfwTerminate();
+        throw std::runtime_error(
+            std::string("Failed to create GLFW window")
+            + (description != nullptr ? std::string(": ") + description : std::string{}));
+    }
+
+    glfwSetWindowUserPointer(glfwWindow, this);
+    glfwSetFramebufferSizeCallback(glfwWindow, framebufferResizeCallbackStatic);
+    glfwSetKeyCallback(glfwWindow, onKeyPressedCallbackStatic);
+    glfwSetMouseButtonCallback(glfwWindow, onMouseButtonCallbackStatic);
+    glfwSetCursorPosCallback(glfwWindow, onCursorPositionCallbackStatic);
+    glfwSetScrollCallback(glfwWindow, onScrollCallbackStatic);
 
     switch (config.windowMode)
     {

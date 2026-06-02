@@ -181,7 +181,9 @@ class GravitasEngine
             if (profiler.shouldPrint())
             {
                 printProfile(profiler);
+                world.printSimulationProfiles();
                 world.printControllerProfiles();
+                world.resetSimulationProfiles();
                 world.resetControllerProfiles();
                 profiler.reset();
             }

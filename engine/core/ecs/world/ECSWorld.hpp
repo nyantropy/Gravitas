@@ -159,6 +159,8 @@ class ECSWorld
             float maxMs   = 0.0f;
             int   calls   = 0;
         };
+        std::unordered_map<std::string_view, SystemProfile> simulationProfiles;
+        std::vector<std::pair<std::string_view, SystemProfile>> simulationProfilePrintScratch;
         std::unordered_map<std::string_view, SystemProfile> controllerProfiles;
         std::vector<std::pair<std::string_view, SystemProfile>> controllerProfilePrintScratch;
 
@@ -631,6 +633,7 @@ class ECSWorld
                             "SystemType must derive from ECSSimulationSystem");
 
             auto system = std::make_unique<SystemType>(std::forward<Args>(args)...);
+            system->setDebugName(gts::detail::typeName<SystemType>());
             SystemType& ref = *system;
             simulationSystems.push_back(std::move(system));
             return ref;
@@ -693,9 +696,62 @@ class ECSWorld
         {
             for (auto& system : simulationSystems)
             {
+                const auto start = std::chrono::steady_clock::now();
                 system->update(ctx);
+                const auto end = std::chrono::steady_clock::now();
+                const float ms = std::chrono::duration<float, std::milli>(end - start).count();
+
+                auto& profile = simulationProfiles[system->getName()];
+                profile.totalMs += ms;
+                profile.maxMs = std::max(profile.maxMs, ms);
+                ++profile.calls;
+
                 flushDeferredStructuralCommands();
             }
+        }
+
+        void printSimulationProfiles() const
+        {
+            const_cast<ECSWorld*>(this)->simulationProfilePrintScratch.clear();
+            const_cast<ECSWorld*>(this)->simulationProfilePrintScratch.reserve(simulationProfiles.size());
+
+            for (const auto& [name, profile] : simulationProfiles)
+            {
+                if (profile.calls <= 0)
+                    continue;
+
+                const_cast<ECSWorld*>(this)->simulationProfilePrintScratch.emplace_back(name, profile);
+            }
+
+            auto& rows = const_cast<ECSWorld*>(this)->simulationProfilePrintScratch;
+            std::sort(rows.begin(), rows.end(),
+                      [](const auto& a, const auto& b)
+                      {
+                          const float avgA = a.second.totalMs / static_cast<float>(a.second.calls);
+                          const float avgB = b.second.totalMs / static_cast<float>(b.second.calls);
+                          if (avgA != avgB)
+                              return avgA > avgB;
+                          return a.second.maxMs > b.second.maxMs;
+                      });
+
+            if (rows.empty())
+                return;
+
+            size_t nameColumnWidth = 24;
+            for (const auto& [name, _] : rows)
+                nameColumnWidth = std::max(nameColumnWidth, name.size() + 2);
+
+            std::cout << "\n=== SIMULATION PROFILE (5s avg) ===\n\n";
+            for (const auto& [name, profile] : rows)
+            {
+                const float avgMs = profile.totalMs / static_cast<float>(profile.calls);
+                std::cout << std::left << std::setw(static_cast<int>(nameColumnWidth)) << name
+                          << std::right << std::setw(6) << std::fixed << std::setprecision(2) << avgMs
+                          << " / "
+                          << std::setw(6) << profile.maxMs
+                          << '\n';
+            }
+            std::cout.flush();
         }
 
         void updateControllers(const EcsControllerContext& ctx)
@@ -743,11 +799,15 @@ class ECSWorld
             if (rows.empty())
                 return;
 
+            size_t nameColumnWidth = 24;
+            for (const auto& [name, _] : rows)
+                nameColumnWidth = std::max(nameColumnWidth, name.size() + 2);
+
             std::cout << "\n=== CONTROLLER PROFILE (5s avg) ===\n\n";
             for (const auto& [name, profile] : rows)
             {
                 const float avgMs = profile.totalMs / static_cast<float>(profile.calls);
-                std::cout << std::left << std::setw(24) << name
+                std::cout << std::left << std::setw(static_cast<int>(nameColumnWidth)) << name
                           << std::right << std::setw(6) << std::fixed << std::setprecision(2) << avgMs
                           << " / "
                           << std::setw(6) << profile.maxMs
@@ -759,6 +819,12 @@ class ECSWorld
         void resetControllerProfiles()
         {
             for (auto& [_, profile] : controllerProfiles)
+                profile = {};
+        }
+
+        void resetSimulationProfiles()
+        {
+            for (auto& [_, profile] : simulationProfiles)
                 profile = {};
         }
 
@@ -792,6 +858,8 @@ class ECSWorld
             simulationSystems.clear();
             controllerSystems.clear();
             addCallbacks.clear();
+            simulationProfiles.clear();
+            simulationProfilePrintScratch.clear();
             controllerProfiles.clear();
             controllerProfilePrintScratch.clear();
             forEachScratch.clear();

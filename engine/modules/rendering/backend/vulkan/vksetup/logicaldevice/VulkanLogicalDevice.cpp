@@ -78,15 +78,8 @@ void VulkanLogicalDevice::createLogicalDevice()
     createInfo.enabledExtensionCount = static_cast<uint32_t>(this->config.physicalDeviceExtensions.size());
     createInfo.ppEnabledExtensionNames = this->config.physicalDeviceExtensions.data();
 
-    if (this->config.enableValidationLayers) 
-    {
-        createInfo.enabledLayerCount = static_cast<uint32_t>(this->config.vkInstanceValidationLayers.size());
-        createInfo.ppEnabledLayerNames = this->config.vkInstanceValidationLayers.data();
-    }
-    else
-    {
-        createInfo.enabledLayerCount = 0;
-    }
+    createInfo.enabledLayerCount = 0;
+    createInfo.ppEnabledLayerNames = nullptr;
 
     if (vkCreateDevice(this->config.vkPhysicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) 
     {

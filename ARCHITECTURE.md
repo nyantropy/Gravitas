@@ -468,6 +468,15 @@ systems may use `ctx.time->unscaledDeltaTime` for visual-only effects, UI, and
 tools, but authoritative gameplay movement, timers, cooldowns, combat state,
 physics, and scene progression must stay in fixed simulation space.
 
+### Runtime Profiling
+
+`GravitasEngine` prints a rolling frame profile through `ProfileAccumulator`.
+When the profile interval elapses, it prints simulation-system and
+controller-system breakdowns separately. `ECSWorld` times every registered
+`ECSSimulationSystem` during fixed ticks and every registered
+`ECSControllerSystem` during rendered-frame controller updates, then resets both
+profile buckets after printing.
+
 ---
 
 ## 8. Retained UI and Engine Tooling
