@@ -426,6 +426,8 @@ Mouse position, buttons, scroll deltas, and cursor capture flow through
 `IInputSource` and `InputBindingRegistry`; engine systems should consume those
 values from `EcsControllerContext::input`.
 
+### Simulation And Controller Input
+
 Pressed/released input has two timing domains:
 
 - `isPressed()` / `isReleased()` expose frame-local edges for controller
@@ -442,6 +444,29 @@ into semantic action edges and decrements simulation edge queues after each
 fixed tick via `finishSimulationTick()`. Context stack changes, binding
 replacement, and pause transitions clear queued simulation edges so stale
 gameplay commands cannot leak across scene/menu boundaries.
+
+The rule is strict: fixed-step gameplay systems must never depend on
+frame-local input edges. They may read held state for continuous commands, but
+edge-triggered simulation commands must use the simulation-latched input API.
+Controller systems may use frame-local edges because they run once for every
+input update and are responsible for presentation, UI, tools, and engine-level
+commands rather than deterministic gameplay progression.
+
+### Fixed Simulation And Presentation
+
+`GtsGameLoop` uses a fixed-timestep accumulator. Simulation systems run zero or
+more fixed ticks per rendered frame, then controller systems run once for the
+current rendered frame. `GravitasEngine` copies `GtsGameLoop::alpha()` into
+`TimeContext::simulationAlpha` after fixed ticks and before controller systems,
+so frame-facing presentation code can interpolate between fixed-step snapshots.
+
+Gameplay correctness therefore comes from fixed simulation plus
+simulation-latched input. Visual smoothness at render rates above or below the
+simulation tick rate requires presentation systems to interpolate from previous
+and current fixed-step snapshots using the accumulator alpha. Presentation
+systems may use `ctx.time->unscaledDeltaTime` for visual-only effects, UI, and
+tools, but authoritative gameplay movement, timers, cooldowns, combat state,
+physics, and scene progression must stay in fixed simulation space.
 
 ---
 

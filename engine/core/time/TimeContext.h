@@ -3,8 +3,9 @@
 
 struct TimeContext
 {
-    float deltaTime;
-    float unscaledDeltaTime;
+    float deltaTime = 0.0f;
+    float unscaledDeltaTime = 0.0f;
     float timeScale = 1.0f;
-    uint64_t frame;
+    float simulationAlpha = 0.0f;
+    uint64_t frame = 0;
 };

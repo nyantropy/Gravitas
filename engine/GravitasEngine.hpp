@@ -343,6 +343,7 @@ class GravitasEngine
                 int ticks             = gameLoop.advance(realDt);
                 timeContext.deltaTime = gameLoop.simulationDt();
                 timeContext.frame     = timer->getFrameCount();
+                timeContext.simulationAlpha = gameLoop.alpha();
 
                 ECSWorld& world = sceneManager->getActiveScene()->getWorld();
 
