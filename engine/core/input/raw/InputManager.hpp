@@ -16,8 +16,12 @@ class InputManager : public IInputSource
         static constexpr size_t MOUSE_BUTTON_COUNT = 8;
         std::array<bool, KEY_COUNT> currentState{};
         std::array<bool, KEY_COUNT> previousState{};
+        std::array<bool, KEY_COUNT> frameKeyPressed{};
+        std::array<bool, KEY_COUNT> frameKeyReleased{};
         std::array<bool, MOUSE_BUTTON_COUNT> currentMouseButtonState{};
         std::array<bool, MOUSE_BUTTON_COUNT> previousMouseButtonState{};
+        std::array<bool, MOUSE_BUTTON_COUNT> frameMouseButtonPressed{};
+        std::array<bool, MOUSE_BUTTON_COUNT> frameMouseButtonReleased{};
         double currentMouseX = 0.0;
         double currentMouseY = 0.0;
         double frameScrollX = 0.0;
@@ -28,7 +32,13 @@ class InputManager : public IInputSource
         {
             size_t idx = static_cast<size_t>(key);
             if (idx < KEY_COUNT)
+            {
+                if (pressed && !currentState[idx])
+                    frameKeyPressed[idx] = true;
+                if (!pressed && currentState[idx])
+                    frameKeyReleased[idx] = true;
                 currentState[idx] = pressed;
+            }
 
             currentModifiers = ModifierFlags::None;
             if ((mods & 0x0001) != 0)
@@ -57,7 +67,14 @@ class InputManager : public IInputSource
         void onMouseButtonEvent(int button, bool pressed, int mods)
         {
             if (button >= 0 && static_cast<size_t>(button) < MOUSE_BUTTON_COUNT)
+            {
+                const size_t idx = static_cast<size_t>(button);
+                if (pressed && !currentMouseButtonState[idx])
+                    frameMouseButtonPressed[idx] = true;
+                if (!pressed && currentMouseButtonState[idx])
+                    frameMouseButtonReleased[idx] = true;
                 currentMouseButtonState[static_cast<size_t>(button)] = pressed;
+            }
 
             updateModifiers(mods);
         }
@@ -80,6 +97,10 @@ class InputManager : public IInputSource
         {
             previousState = currentState;
             previousMouseButtonState = currentMouseButtonState;
+            frameKeyPressed.fill(false);
+            frameKeyReleased.fill(false);
+            frameMouseButtonPressed.fill(false);
+            frameMouseButtonReleased.fill(false);
             frameScrollX = 0.0;
             frameScrollY = 0.0;
         }
@@ -102,7 +123,7 @@ class InputManager : public IInputSource
                 return false;
             }
 
-            return currentState[idx] && !previousState[idx];
+            return frameKeyPressed[idx] || (currentState[idx] && !previousState[idx]);
         }
 
         // check if a key was released this update tick
@@ -115,7 +136,7 @@ class InputManager : public IInputSource
                 return false;
             }
 
-            return !currentState[idx] && previousState[idx];
+            return frameKeyReleased[idx] || (!currentState[idx] && previousState[idx]);
         }
 
         bool isMouseButtonDown(int button) const override
@@ -129,16 +150,18 @@ class InputManager : public IInputSource
         {
             return button >= 0
                 && static_cast<size_t>(button) < MOUSE_BUTTON_COUNT
-                && currentMouseButtonState[static_cast<size_t>(button)]
-                && !previousMouseButtonState[static_cast<size_t>(button)];
+                && (frameMouseButtonPressed[static_cast<size_t>(button)]
+                    || (currentMouseButtonState[static_cast<size_t>(button)]
+                        && !previousMouseButtonState[static_cast<size_t>(button)]));
         }
 
         bool isMouseButtonReleased(int button) const override
         {
             return button >= 0
                 && static_cast<size_t>(button) < MOUSE_BUTTON_COUNT
-                && !currentMouseButtonState[static_cast<size_t>(button)]
-                && previousMouseButtonState[static_cast<size_t>(button)];
+                && (frameMouseButtonReleased[static_cast<size_t>(button)]
+                    || (!currentMouseButtonState[static_cast<size_t>(button)]
+                        && previousMouseButtonState[static_cast<size_t>(button)]));
         }
 
         double mouseX() const override { return currentMouseX; }
@@ -156,8 +179,12 @@ class InputManager : public IInputSource
         {
             currentState.fill(false);
             previousState.fill(false);
+            frameKeyPressed.fill(false);
+            frameKeyReleased.fill(false);
             currentMouseButtonState.fill(false);
             previousMouseButtonState.fill(false);
+            frameMouseButtonPressed.fill(false);
+            frameMouseButtonReleased.fill(false);
             currentMouseX = 0.0;
             currentMouseY = 0.0;
             frameScrollX = 0.0;

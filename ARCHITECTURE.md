@@ -426,6 +426,23 @@ Mouse position, buttons, scroll deltas, and cursor capture flow through
 `IInputSource` and `InputBindingRegistry`; engine systems should consume those
 values from `EcsControllerContext::input`.
 
+Pressed/released input has two timing domains:
+
+- `isPressed()` / `isReleased()` expose frame-local edges for controller
+  systems, UI, tools, and engine commands that run once per rendered frame.
+- `isSimulationPressed()` / `isSimulationReleased()` expose action edges latched
+  until the next fixed simulation tick consumes them. Simulation systems should
+  use these methods for edge-triggered gameplay commands so input cannot be
+  missed when render FPS is much higher or lower than the simulation tick rate.
+
+`InputManager` records raw key/button edges generated while polling OS events,
+including press-and-release pairs that happen inside one rendered frame.
+`InputBindingRegistry` resolves those raw edges through active input contexts
+into semantic action edges and decrements simulation edge queues after each
+fixed tick via `finishSimulationTick()`. Context stack changes, binding
+replacement, and pause transitions clear queued simulation edges so stale
+gameplay commands cannot leak across scene/menu boundaries.
+
 ---
 
 ## 8. Retained UI and Engine Tooling
@@ -593,6 +610,8 @@ one-off retained UI interaction code inside a panel.
 
 - **ECS-first**: all state is components, all behavior is systems — no monolithic managers
 - **Deterministic simulation**: simulation systems run at fixed timestep, isolated from frame timing
+- **Simulation-safe input**: fixed-step gameplay reads latched simulation input
+  edges, not frame-local controller input edges
 - **CPU/GPU separation**: descriptor components are game-logic; GPU components are backend state; binding systems bridge them explicitly
 - **Descriptor-only app boundary**: applications and gameplay/UI code operate on descriptors or engine-exported frame state, not GPU companion components
 - **Lazy updates**: render commands and GPU state are cached and only rebuilt on change

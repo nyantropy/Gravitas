@@ -352,6 +352,7 @@ class GravitasEngine
                     {
                         EcsSimulationContext simCtx{ world, gameLoop.simulationDt(), input };
                         sceneManager->getActiveScene()->onUpdateSimulation(simCtx);
+                        input->finishSimulationTick();
                     }
                     const auto simEnd = std::chrono::steady_clock::now();
                     lastSimCpuMs = std::chrono::duration<float, std::milli>(simEnd - simStart).count();

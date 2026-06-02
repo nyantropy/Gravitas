@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 
 #include "GtsKey.h"
 
@@ -116,6 +117,7 @@ void InputBindingRegistry::bind(const InputBinding& binding)
     bindings.push_back(binding);
     ensureActionState(binding.action);
     rebuildActionIndex();
+    clearSimulationEdges();
 }
 
 void InputBindingRegistry::bind(const std::string& action, InputTrigger trigger,
@@ -136,6 +138,7 @@ void InputBindingRegistry::unbind(const std::string& action, const InputTrigger&
                                   }),
                    bindings.end());
     rebuildActionIndex();
+    clearSimulationEdges();
 }
 
 void InputBindingRegistry::unbindAll(const std::string& action)
@@ -148,6 +151,7 @@ void InputBindingRegistry::unbindAll(const std::string& action)
                                   }),
                    bindings.end());
     rebuildActionIndex();
+    clearSimulationEdges();
 }
 
 void InputBindingRegistry::rebind(const std::string& action,
@@ -162,12 +166,14 @@ void InputBindingRegistry::rebind(const std::string& action,
         }
     }
     rebuildActionIndex();
+    clearSimulationEdges();
 }
 
 void InputBindingRegistry::loadBindings(const std::vector<InputBinding>& newBindings)
 {
     bindings = newBindings;
     rebuildActionIndex();
+    clearSimulationEdges();
 }
 
 std::vector<InputBinding> InputBindingRegistry::exportBindings() const
@@ -179,10 +185,7 @@ void InputBindingRegistry::clearAllBindings()
 {
     bindings.clear();
     bindingsByAction.clear();
-    for (auto& [action, state] : actionStates)
-    {
-        state = {};
-    }
+    clearActionRuntimeState();
 }
 
 void InputBindingRegistry::pushContext(const std::string& context)
@@ -251,6 +254,24 @@ float InputBindingRegistry::axisValue(const std::string& action) const
     return std::fabs(alwaysValue) > std::fabs(gameplayValue) ? alwaysValue : gameplayValue;
 }
 
+bool InputBindingRegistry::isSimulationPressed(const std::string& action) const
+{
+    if (paused)
+        return policySimulationPressed(action, PausePolicy::AlwaysActive);
+
+    return policySimulationPressed(action, PausePolicy::Gameplay)
+        || policySimulationPressed(action, PausePolicy::AlwaysActive);
+}
+
+bool InputBindingRegistry::isSimulationReleased(const std::string& action) const
+{
+    if (paused)
+        return policySimulationReleased(action, PausePolicy::AlwaysActive);
+
+    return policySimulationReleased(action, PausePolicy::Gameplay)
+        || policySimulationReleased(action, PausePolicy::AlwaysActive);
+}
+
 double InputBindingRegistry::mouseX() const
 {
     return currentMouseX;
@@ -278,6 +299,8 @@ std::optional<InputTrigger> InputBindingRegistry::getLastPressedTrigger() const
 
 void InputBindingRegistry::setPaused(bool pausedValue)
 {
+    if (paused != pausedValue)
+        clearSimulationEdges();
     paused = pausedValue;
 }
 
@@ -348,6 +371,8 @@ void InputBindingRegistry::update(const InputSnapshot& rawInput)
 
     std::unordered_set<ConsumedInput, ConsumedInputHash> consumed;
     consumed.reserve(bindings.size());
+    std::unordered_set<std::string> queuedPressedActions;
+    std::unordered_set<std::string> queuedReleasedActions;
 
     auto processContext = [&](const std::string& context)
     {
@@ -367,7 +392,19 @@ void InputBindingRegistry::update(const InputSnapshot& rawInput)
                 ? actionState.alwaysActive
                 : actionState.gameplay;
             if (signalActive(rawInput, binding))
+            {
                 policyState.current = true;
+                if (binding.mode == ActivationMode::Pressed
+                    && queuedPressedActions.insert(binding.action).second)
+                {
+                    queueSimulationEdge(binding);
+                }
+                else if (binding.mode == ActivationMode::Released
+                    && queuedReleasedActions.insert(binding.action).second)
+                {
+                    queueSimulationEdge(binding);
+                }
+            }
 
             const float signalAxis = signalAxisValue(rawInput, binding);
             if (std::fabs(signalAxis) > std::fabs(policyState.axisCurrent))
@@ -382,6 +419,23 @@ void InputBindingRegistry::update(const InputSnapshot& rawInput)
         processContext(*it);
 
     processContext("");
+}
+
+void InputBindingRegistry::finishSimulationTick()
+{
+    for (auto& [_, edge] : simulationEdges)
+    {
+        if (edge.gameplayPressed > 0) --edge.gameplayPressed;
+        if (edge.gameplayReleased > 0) --edge.gameplayReleased;
+        if (edge.alwaysActivePressed > 0) --edge.alwaysActivePressed;
+        if (edge.alwaysActiveReleased > 0) --edge.alwaysActiveReleased;
+    }
+}
+
+void InputBindingRegistry::clearSimulationEdges()
+{
+    for (auto& [_, edge] : simulationEdges)
+        edge = {};
 }
 
 std::vector<InputTrigger> InputBindingRegistry::getTriggersForAction(const std::string& action) const
@@ -470,10 +524,12 @@ void InputBindingRegistry::rebuildActionIndex()
 void InputBindingRegistry::ensureActionState(const std::string& action)
 {
     actionStates.try_emplace(action);
+    simulationEdges.try_emplace(action);
 }
 
 void InputBindingRegistry::applyPendingContextOps()
 {
+    const bool hadPendingContextOps = !pendingContextOps.empty();
     for (const auto& op : pendingContextOps)
     {
         switch (op.type)
@@ -496,6 +552,37 @@ void InputBindingRegistry::applyPendingContextOps()
     }
 
     pendingContextOps.clear();
+    if (hadPendingContextOps)
+        clearActionRuntimeState();
+}
+
+void InputBindingRegistry::queueSimulationEdge(const InputBinding& binding)
+{
+    auto& edge = simulationEdges[binding.action];
+    uint32_t* counter = nullptr;
+    if (binding.pausePolicy == PausePolicy::AlwaysActive)
+    {
+        counter = binding.mode == ActivationMode::Pressed
+            ? &edge.alwaysActivePressed
+            : &edge.alwaysActiveReleased;
+    }
+    else
+    {
+        counter = binding.mode == ActivationMode::Pressed
+            ? &edge.gameplayPressed
+            : &edge.gameplayReleased;
+    }
+
+    if (*counter < std::numeric_limits<uint32_t>::max())
+        ++(*counter);
+}
+
+void InputBindingRegistry::clearActionRuntimeState()
+{
+    for (auto& [_, state] : actionStates)
+        state = {};
+    clearSimulationEdges();
+    lastPressedTrigger.reset();
 }
 
 ModifierFlags InputBindingRegistry::getCurrentModifiers(const InputSnapshot& rawInput)
@@ -642,4 +729,30 @@ float InputBindingRegistry::policyAxisValue(const std::string& action, PausePoli
         ? it->second.alwaysActive
         : it->second.gameplay;
     return state.axisCurrent;
+}
+
+bool InputBindingRegistry::policySimulationPressed(const std::string& action,
+                                                   PausePolicy policy) const
+{
+    const auto it = simulationEdges.find(action);
+    if (it == simulationEdges.end())
+        return false;
+
+    const SimulationEdgeState& state = it->second;
+    return policy == PausePolicy::AlwaysActive
+        ? state.alwaysActivePressed > 0
+        : state.gameplayPressed > 0;
+}
+
+bool InputBindingRegistry::policySimulationReleased(const std::string& action,
+                                                    PausePolicy policy) const
+{
+    const auto it = simulationEdges.find(action);
+    if (it == simulationEdges.end())
+        return false;
+
+    const SimulationEdgeState& state = it->second;
+    return policy == PausePolicy::AlwaysActive
+        ? state.alwaysActiveReleased > 0
+        : state.gameplayReleased > 0;
 }

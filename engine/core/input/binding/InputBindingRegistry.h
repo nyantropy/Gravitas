@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -36,6 +37,8 @@ public:
     bool isPressed(const std::string& action) const;
     bool isHeld(const std::string& action) const;
     bool isReleased(const std::string& action) const;
+    bool isSimulationPressed(const std::string& action) const;
+    bool isSimulationReleased(const std::string& action) const;
     float axisValue(const std::string& action) const;
     double mouseX() const;
     double mouseY() const;
@@ -47,6 +50,8 @@ public:
     bool isPaused() const;
 
     void update(const InputSnapshot& rawInput);
+    void finishSimulationTick();
+    void clearSimulationEdges();
 
     std::vector<InputTrigger> getTriggersForAction(const std::string& action) const;
     std::optional<std::string> getActionForTrigger(const InputTrigger& trigger,
@@ -77,6 +82,14 @@ private:
     {
         PolicyState gameplay;
         PolicyState alwaysActive;
+    };
+
+    struct SimulationEdgeState
+    {
+        uint32_t gameplayPressed = 0;
+        uint32_t gameplayReleased = 0;
+        uint32_t alwaysActivePressed = 0;
+        uint32_t alwaysActiveReleased = 0;
     };
 
     enum class PendingContextOpType
@@ -123,6 +136,7 @@ private:
     std::vector<std::string> activeContexts;
     std::vector<PendingContextOp> pendingContextOps;
     std::unordered_map<std::string, ActionState> actionStates;
+    std::unordered_map<std::string, SimulationEdgeState> simulationEdges;
     std::unordered_map<std::string, std::vector<size_t>> bindingsByAction;
     bool paused = false;
     double currentMouseX = 0.0;
@@ -134,6 +148,8 @@ private:
     void rebuildActionIndex();
     void ensureActionState(const std::string& action);
     void applyPendingContextOps();
+    void queueSimulationEdge(const InputBinding& binding);
+    void clearActionRuntimeState();
 
     static ModifierFlags getCurrentModifiers(const InputSnapshot& rawInput);
     static bool isTriggerSupported(const InputTrigger& trigger);
@@ -148,4 +164,6 @@ private:
     bool policyHeld(const std::string& action, PausePolicy policy) const;
     bool policyReleased(const std::string& action, PausePolicy policy) const;
     float policyAxisValue(const std::string& action, PausePolicy policy) const;
+    bool policySimulationPressed(const std::string& action, PausePolicy policy) const;
+    bool policySimulationReleased(const std::string& action, PausePolicy policy) const;
 };
