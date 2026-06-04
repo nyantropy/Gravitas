@@ -46,6 +46,7 @@ target_include_directories(gravitas_vulkan_backend PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/resources"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/camera"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/descriptorset"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/font"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/mesh"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/ssbo"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/texture"

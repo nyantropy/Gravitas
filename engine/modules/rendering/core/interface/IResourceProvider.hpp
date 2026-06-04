@@ -8,6 +8,8 @@
 #include "Types.h"
 #include "Vertex.h"
 
+struct BitmapFont;
+
 class IResourceProvider
 {
     public:
@@ -35,6 +37,11 @@ class IResourceProvider
         // Like requestTexture but forces NEAREST-neighbor sampling and no anisotropy.
         // Use for pixel-art or bitmap-font atlases that must render crisp.
         virtual texture_id_type requestPixelTexture(const std::string& path) = 0;
+
+        // request a bitmap font asset; the font manager owns metadata and uses
+        // the texture manager for the atlas texture
+        virtual font_id_type requestFont(const std::string& path) = 0;
+        virtual const BitmapFont* getFont(font_id_type id) const = 0;
 
         // Camera / render-view buffer allocation.
         // Each call creates framesInFlight UBOs + descriptor sets for one render view.

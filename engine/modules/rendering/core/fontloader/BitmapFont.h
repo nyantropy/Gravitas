@@ -19,11 +19,10 @@ struct GlyphInfo
 };
 
 // A loaded bitmap font: a GPU texture atlas plus per-character metrics.
-// The atlasTexture ID is obtained by calling IResourceProvider::requestTexture()
-// and stored here so text extractors can look up the atlas without a path string.
+// FontManager owns these and gets atlasTexture from TextureManager.
 struct BitmapFont
 {
-    texture_id_type                   atlasTexture;
+    texture_id_type                   atlasTexture = 0;
     std::unordered_map<char, GlyphInfo> glyphs;
-    float                             lineHeight;
+    float                             lineHeight = 0.0f;
 };

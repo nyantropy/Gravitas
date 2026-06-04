@@ -213,6 +213,7 @@ components directly.
 | `DynamicMeshComponent` | Runtime-authored vertices/indices plus `geometryVersion` for uploaded mesh updates |
 | `MaterialComponent` | Texture path, tint color/opacity, culling, and optional vertex-color-only rendering |
 | `TextureAnimationComponent` | Optional per-object scene-material UV scrolling or flipbook atlas animation |
+| `WorldTextComponent` | World-space text, font asset path, scale, and tint |
 | `BoundsComponent` | Local AABB used for frustum culling |
 | `CameraDescriptionComponent` | FOV, near/far clip planes |
 | `PhysicsBodyComponent` | Dynamic vs static body flag |
@@ -242,6 +243,14 @@ mixed gameplay/rendering object.
 Particle emitters use a runtime companion component (`ParticleEmitterRuntimeComponent`)
 for simulation state, but particles are extracted into `ParticleFrameDataComponent`
 instead of flowing through `RenderCommand`.
+
+World text uses the same descriptor/runtime split:
+applications author `WorldTextComponent` with a font asset path, and the
+renderer feature owns `WorldTextRuntimeComponent`. The runtime companion caches
+the last authored text/font/scale/tint values and the resolved `font_id_type`.
+`WorldTextBindingSystem` resolves the font, uploads glyph quads as runtime mesh
+data, writes the font atlas texture and tint into `MaterialGpuComponent`, and
+cleans up the renderable when the text has no visible glyphs.
 
 Scene texture animation uses the same descriptor/runtime split:
 applications author `TextureAnimationComponent`, the renderer feature creates
@@ -595,10 +604,11 @@ through the input registry.
 
 ### Engine Font
 
-Engine debug/tool overlays use `resources/fonts/gravitasfont.png` with
-`GravitasFontAtlas`. This replaced the older generated retro font for engine UI
-because the upscaled cell grid gives readable lowercase letters, digits, and
-symbols without introducing image-filter noise.
+Engine debug/tool overlays use `resources/fonts/gravitasfont.font.json`, which
+points at `resources/fonts/gravitasfont.png` and stores atlas metrics. This
+replaced the older generated retro font for engine UI because the upscaled cell
+grid gives readable lowercase letters, digits, and symbols without introducing
+image-filter noise.
 
 ---
 
@@ -608,11 +618,11 @@ Assets are accessed through `IResourceProvider` (passed in `SceneContext`). Bind
 
 - **Meshes**: loaded from `.obj` via tinyobjloader, uploaded to GPU vertex/index buffers
 - **Textures**: decoded via stb_image, uploaded to Vulkan images
-- **Fonts**: loaded for the UI system's text rendering
+- **Fonts**: loaded from `.font.json`; `FontManager` owns glyph metrics and uses `TextureManager` for atlas textures
 - **Shaders**: pre-compiled SPIR-V stored in `/shaders/`
 - **Engine assets**: minimal shared resources in `/resources/`
 
-GPU resource handles (mesh IDs, texture IDs, SSBO slots, camera view IDs) are allocated by lifecycle/binding systems and stored in GPU components. The steady-state contract is:
+GPU resource handles (mesh IDs, texture IDs, font IDs, SSBO slots, camera view IDs) are allocated by lifecycle/binding systems and stored in GPU/runtime components. The steady-state contract is:
 - lifecycle systems do near-zero work when no descriptor lifecycle work is pending
 - structural GPU companion-component changes are deferred through `world.commands()`
 - cleanup of backend resources still happens via removal callbacks on GPU components

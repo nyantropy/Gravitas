@@ -6,8 +6,6 @@
 
 #include "GlmConfig.h"
 #include "BitmapFont.h"
-#include "BitmapFontLoader.h"
-#include "GravitasFontAtlas.h"
 #include "GtsFrameStats.h"
 #include "UiCommand.h"
 #include "IResourceProvider.hpp"
@@ -73,14 +71,8 @@ class GtsDebugOverlay
 {
 public:
     static constexpr const char* DEBUG_FONT_PATH =
-        GRAVITAS_ENGINE_RESOURCES "/fonts/gravitasfont.png";
+        GRAVITAS_ENGINE_RESOURCES "/fonts/gravitasfont.font.json";
 
-    static constexpr int   ATLAS_W    = GravitasFontAtlas::ATLAS_W;
-    static constexpr int   ATLAS_H    = GravitasFontAtlas::ATLAS_H;
-    static constexpr int   CELL_W     = GravitasFontAtlas::CELL_W;
-    static constexpr int   CELL_H     = GravitasFontAtlas::CELL_H;
-    static constexpr int   ATLAS_COLS = GravitasFontAtlas::ATLAS_COLS;
-    static constexpr float LINE_HEIGHT = GravitasFontAtlas::LINE_HEIGHT;
     static constexpr float FONT_SCALE  = 0.026f;
 
     static constexpr float OVERLAY_X = 0.60f;
@@ -88,14 +80,15 @@ public:
 
     void init(IResourceProvider* resources)
     {
-        font = BitmapFontLoader::load(
-            resources,
-            DEBUG_FONT_PATH,
-            ATLAS_W, ATLAS_H,
-            CELL_W, CELL_H, ATLAS_COLS,
-            std::string(GravitasFontAtlas::CHAR_ORDER),
-            LINE_HEIGHT,
-            true);
+        if (resources == nullptr)
+            return;
+
+        const font_id_type fontID = resources->requestFont(DEBUG_FONT_PATH);
+        const BitmapFont* loadedFont = resources->getFont(fontID);
+        if (loadedFont == nullptr)
+            return;
+
+        font = *loadedFont;
         initialised = true;
     }
 
@@ -135,7 +128,7 @@ public:
     {
         if (!initialised) return;
 
-        const float la = LINE_HEIGHT * FONT_SCALE;
+        const float la = font.lineHeight * FONT_SCALE;
         float y = OVERLAY_Y;
 
         // Page header — yellow, shows page name and number

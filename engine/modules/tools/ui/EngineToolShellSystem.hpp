@@ -5,7 +5,6 @@
 #include <vector>
 
 #include "AssetStatusPanel.hpp"
-#include "BitmapFontLoader.h"
 #include "DebugDrawPanel.hpp"
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
@@ -13,7 +12,6 @@
 #include "EngineToolInputCaptureComponent.h"
 #include "EngineToolRegistry.h"
 #include "EntityInspectorPanel.hpp"
-#include "GravitasFontAtlas.h"
 #include "GraphicsConstants.h"
 #include "ParticleEmitterInspectorPanel.hpp"
 #include "SceneGizmoPanel.hpp"
@@ -158,17 +156,13 @@ namespace gts::tools
             if (ctx.resources == nullptr)
                 return false;
 
-            font = BitmapFontLoader::load(
-                ctx.resources,
-                GraphicsConstants::ENGINE_RESOURCES + "/fonts/gravitasfont.png",
-                GravitasFontAtlas::ATLAS_W,
-                GravitasFontAtlas::ATLAS_H,
-                GravitasFontAtlas::CELL_W,
-                GravitasFontAtlas::CELL_H,
-                GravitasFontAtlas::ATLAS_COLS,
-                std::string(GravitasFontAtlas::CHAR_ORDER),
-                GravitasFontAtlas::LINE_HEIGHT,
-                true);
+            const font_id_type fontID = ctx.resources->requestFont(
+                GraphicsConstants::ENGINE_RESOURCES + "/fonts/gravitasfont.font.json");
+            const BitmapFont* loadedFont = ctx.resources->getFont(fontID);
+            if (loadedFont == nullptr)
+                return false;
+
+            font = *loadedFont;
             fontReady = true;
             return true;
         }

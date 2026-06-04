@@ -13,7 +13,7 @@
 #include "UiTypes.h"
 
 // Converts a WorldTextComponent's string into flat world-space quad geometry
-// stored in caller-owned vertex and index vectors.  Used by WorldTextBindingSystem.
+// using an already resolved BitmapFont. Used by WorldTextBindingSystem.
 //
 // Coordinate convention (world-space, entity local XY plane):
 //   X increases rightward, Y increases upward.
@@ -323,10 +323,10 @@ namespace GlyphLayoutEngine
     }
 
     inline void build(const WorldTextComponent& text,
+                      const BitmapFont& font,
                       std::vector<Vertex>& verts,
                       std::vector<uint32_t>& indices)
     {
-        const BitmapFont& font  = *text.font;
         const float       scale = text.scale;
 
         float cursorX = 0.0f;

@@ -2,23 +2,18 @@
 
 #include <string>
 
-#include "BitmapFont.h"
+#include "GlmConfig.h"
 
-// Gameplay-facing text description component.
-// Attach to any entity that should display a string in world space.
-// The entity also needs a TransformComponent that positions the text block.
+// gameplay-facing text description component
+// attach to any entity that should display a string in world space
+// the entity also needs a TransformComponent that positions the text block
 //
-// One entity = one text block (multi-line supported via '\n').
-// Never create one entity per character.
-//
-// Workflow:
-//   - Set text/font/scale.  Set dirty=true whenever text or scale changes.
-//   - WorldTextBindingSystem uploads glyph quads as runtime mesh data
-//     when dirty is true, then clears the flag.
+// one entity = one text block (multi-line supported via '\n')
+// never create one entity per character
 struct WorldTextComponent
 {
     std::string  text;
-    BitmapFont*  font  = nullptr;
+    std::string  fontPath;
     float        scale = 1.0f;
-    bool         dirty = true;
+    glm::vec4    tint  = {1.0f, 1.0f, 1.0f, 1.0f};
 };

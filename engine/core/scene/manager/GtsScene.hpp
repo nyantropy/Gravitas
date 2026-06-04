@@ -33,6 +33,7 @@
 #include "ParticleEmitterSystem.hpp"
 #include "TextureAnimationComponent.h"
 #include "TextureAnimationRuntimeComponent.h"
+#include "WorldTextRuntimeComponent.h"
 #include "DebugDrawSystem.hpp"
 #include "EngineGizmoSystem.hpp"
 #include "EngineToolDebugDrawSystem.hpp"
@@ -241,9 +242,19 @@ class GtsScene
                     dirty.objectDataDirty = true;
                     gts::rendering::queueRenderSnapshotDirty(world, entity);
                 });
+            ecsWorld.registerAddCallback<WorldTextComponent>(
+                [](ECSWorld& world, Entity entity, WorldTextComponent&)
+                {
+                    if (!world.hasComponent<WorldTextRuntimeComponent>(entity))
+                        world.commands().addComponent<WorldTextRuntimeComponent>(
+                            entity, WorldTextRuntimeComponent{});
+                });
             ecsWorld.registerRemoveCallback<WorldTextComponent>(
                 [](ECSWorld& world, Entity entity, WorldTextComponent&)
                 {
+                    if (world.hasComponent<WorldTextRuntimeComponent>(entity))
+                        world.commands().removeComponent<WorldTextRuntimeComponent>(entity);
+
                     gts::rendering::queueRenderableCleanup(world, entity);
                 });
             ecsWorld.registerAddCallback<CameraDescriptionComponent>(
@@ -300,6 +311,13 @@ class GtsScene
                     if (!ecsWorld.hasComponent<TextureAnimationRuntimeComponent>(entity))
                         ecsWorld.commands().addComponent<TextureAnimationRuntimeComponent>(
                             entity, TextureAnimationRuntimeComponent{});
+                });
+            ecsWorld.forEachSnapshot<WorldTextComponent>(
+                [this](Entity entity, WorldTextComponent&)
+                {
+                    if (!ecsWorld.hasComponent<WorldTextRuntimeComponent>(entity))
+                        ecsWorld.commands().addComponent<WorldTextRuntimeComponent>(
+                            entity, WorldTextRuntimeComponent{});
                 });
             ecsWorld.forEachSnapshot<CameraDescriptionComponent>(
                 [this](Entity entity, CameraDescriptionComponent&)

@@ -3,6 +3,7 @@
 #include <string>
 
 #include "BitmapFont.h"
+#include "FontAsset.h"
 #include "IResourceProvider.hpp"
 
 // Utility for loading a uniform-grid bitmap font atlas.
@@ -13,25 +14,17 @@
 //   size = (1, 1) world units, bearing = (0, 1), advance = 1.0.
 namespace BitmapFontLoader
 {
-    // atlasW/atlasH  : atlas dimensions in pixels
-    // cellW/cellH    : glyph cell size in pixels
-    // cols           : cells per row in the atlas
-    // charOrder      : characters listed in atlas order (null terminator not counted)
-    // lineHeight     : vertical advance per line in world units
-    // pixelSampling  : true → nearest-neighbour (requestPixelTexture); false → bilinear
-    inline BitmapFont load(
-        IResourceProvider* resources,
-        const std::string& atlasPath,
-        int atlasW, int atlasH,
-        int cellW, int cellH, int cols,
-        const std::string& charOrder,
-        float lineHeight,
-        bool pixelSampling = true)
+    inline BitmapFont buildGridFont(texture_id_type atlasTexture,
+                                    int atlasW,
+                                    int atlasH,
+                                    int cellW,
+                                    int cellH,
+                                    int cols,
+                                    const std::string& charOrder,
+                                    float lineHeight)
     {
         BitmapFont font;
-        font.atlasTexture = pixelSampling
-            ? resources->requestPixelTexture(atlasPath)
-            : resources->requestTexture(atlasPath);
+        font.atlasTexture = atlasTexture;
         font.lineHeight = lineHeight;
 
         const float fW = static_cast<float>(atlasW);
@@ -58,5 +51,38 @@ namespace BitmapFontLoader
         }
 
         return font;
+    }
+
+    inline BitmapFont buildGridFont(texture_id_type atlasTexture, const FontAsset& asset)
+    {
+        return buildGridFont(atlasTexture,
+                             static_cast<int>(asset.atlasWidth),
+                             static_cast<int>(asset.atlasHeight),
+                             static_cast<int>(asset.cellWidth),
+                             static_cast<int>(asset.cellHeight),
+                             static_cast<int>(asset.columns),
+                             asset.charOrder,
+                             asset.lineHeight);
+    }
+
+    // atlasW/atlasH  : atlas dimensions in pixels
+    // cellW/cellH    : glyph cell size in pixels
+    // cols           : cells per row in the atlas
+    // charOrder      : characters listed in atlas order (null terminator not counted)
+    // lineHeight     : vertical advance per line in world units
+    // pixelSampling  : true → nearest-neighbour (requestPixelTexture); false → bilinear
+    inline BitmapFont load(
+        IResourceProvider* resources,
+        const std::string& atlasPath,
+        int atlasW, int atlasH,
+        int cellW, int cellH, int cols,
+        const std::string& charOrder,
+        float lineHeight,
+        bool pixelSampling = true)
+    {
+        const texture_id_type atlasTexture = pixelSampling
+            ? resources->requestPixelTexture(atlasPath)
+            : resources->requestTexture(atlasPath);
+        return buildGridFont(atlasTexture, atlasW, atlasH, cellW, cellH, cols, charOrder, lineHeight);
     }
 }

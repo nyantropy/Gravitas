@@ -4,6 +4,7 @@
 #include "IResourceProvider.hpp"
 #include "MeshManager.hpp"
 #include "TextureManager.hpp"
+#include "FontManager.hpp"
 #include "CameraBufferManager.hpp"
 #include "ObjectSSBOManager.hpp"
 #include "Types.h"
@@ -15,6 +16,7 @@ class RenderResourceManager : public IResourceProvider
         std::unique_ptr<MeshManager>              meshManager;
         std::unique_ptr<CameraBufferManager>      cameraBufferManager;
         std::unique_ptr<TextureManager>           textureManager;
+        std::unique_ptr<FontManager>              fontManager;
         std::unique_ptr<ObjectSSBOManager>        objectSSBOManager;
 
     public:
@@ -28,6 +30,7 @@ class RenderResourceManager : public IResourceProvider
             meshManager          = std::make_unique<MeshManager>();
             cameraBufferManager  = std::make_unique<CameraBufferManager>();
             textureManager       = std::make_unique<TextureManager>();
+            fontManager          = std::make_unique<FontManager>(textureManager.get());
 
             // ObjectSSBOManager allocates SSBO buffers and their descriptor sets;
             // must come after dssheet is set.
@@ -39,6 +42,7 @@ class RenderResourceManager : public IResourceProvider
             // Destroy in reverse-construction order; descriptorSetManager last
             // so the pool stays alive while other managers free their sets.
             if (objectSSBOManager)   objectSSBOManager.reset();
+            if (fontManager)         fontManager.reset();
             if (textureManager)      textureManager.reset();
             if (cameraBufferManager) cameraBufferManager.reset();
             if (meshManager)         meshManager.reset();
@@ -87,6 +91,17 @@ class RenderResourceManager : public IResourceProvider
         TextureResource* getTexture(texture_id_type id)
         {
             return textureManager->getTexture(id);
+        }
+
+        // --- Font ---
+        font_id_type requestFont(const std::string& path) override
+        {
+            return fontManager->loadFont(path);
+        }
+
+        const BitmapFont* getFont(font_id_type id) const override
+        {
+            return fontManager->getFont(id);
         }
 
         // --- Camera / render-view buffer management ---

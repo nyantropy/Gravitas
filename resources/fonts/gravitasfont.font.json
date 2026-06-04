@@ -1,0 +1,11 @@
+{
+  "atlas": "gravitasfont.png",
+  "atlasWidth": 128,
+  "atlasHeight": 192,
+  "cellWidth": 16,
+  "cellHeight": 16,
+  "columns": 8,
+  "charOrder": " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~",
+  "lineHeight": 1.2,
+  "pixelSampling": true
+}

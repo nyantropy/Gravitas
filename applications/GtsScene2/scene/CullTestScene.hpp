@@ -10,14 +10,12 @@
 #include "MaterialComponent.h"
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
-#include "GravitasFontAtlas.h"
 #include "CameraControlOverrideComponent.h"
 #include "GraphicsConstants.h"
 #include "GtsKey.h"
 #include "UiSystem.h"
 #include "UiHandle.h"
 #include "BitmapFont.h"
-#include "BitmapFontLoader.h"
 
 #include "FreeFlyCamera.hpp"
 
@@ -129,14 +127,10 @@ public:
                             ActivationMode::Held);
         }
 
-        // Load font and create overlay entity for culling/frustum state text.
-        overlayFont = BitmapFontLoader::load(
-            ctx.resources,
-            GraphicsConstants::ENGINE_RESOURCES + "/fonts/gravitasfont.png",
-            GravitasFontAtlas::ATLAS_W, GravitasFontAtlas::ATLAS_H,
-            GravitasFontAtlas::CELL_W, GravitasFontAtlas::CELL_H, GravitasFontAtlas::ATLAS_COLS,
-            std::string(GravitasFontAtlas::CHAR_ORDER),
-            GravitasFontAtlas::LINE_HEIGHT, true);
+        const font_id_type overlayFontID = ctx.resources->requestFont(
+            GraphicsConstants::ENGINE_RESOURCES + "/fonts/gravitasfont.font.json");
+        if (const BitmapFont* loadedFont = ctx.resources->getFont(overlayFontID))
+            overlayFont = *loadedFont;
 
         overlayHandle = ctx.ui->createNode(UiNodeType::Text);
         UiLayoutSpec overlayLayout;

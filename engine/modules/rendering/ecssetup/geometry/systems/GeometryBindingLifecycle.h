@@ -148,7 +148,7 @@ namespace gts::rendering
             && world.hasComponent<TransformComponent>(entity))
         {
             const auto& text = world.getComponent<WorldTextComponent>(entity);
-            if (text.font != nullptr && !text.text.empty())
+            if (!text.fontPath.empty() && !text.text.empty())
                 return true;
         }
 
