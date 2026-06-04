@@ -11,7 +11,7 @@ class ECSWorld;
 
 // this is the context object passed into each ecs controller system
 // contains all frame-dependent dependencies, and is thus NOT available in simulation systems
-// pointers are valid for the duration of the update() call, so systems may not cache them across frames,
+// pointers are valid for the duration of the current call, so systems may not cache them across frames,
 // since some subsystems may be rebuilt between frames (e.g window resize)
 struct EcsControllerContext
 {

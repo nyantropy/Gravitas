@@ -8,11 +8,11 @@ class ECSWorld;
 // contains only data that is independent of frame timing and rendering
 
 // ordering note: simulation systems run in registration order, structural world mutations
-// like entity creation or deletion, or adjustment of compoents take effect immediately
-// within the same tick and are visible to subsequent systems
+// like entity creation or deletion, or adjustment of components are visible to subsequent systems
+// in the same tick, but commands queued through ctx.world.commands() are only flushed after the current system
 
 // that means that for determinism the order of system registration is extremely important
-// simulation systems should also only write compoents they own
+// simulation systems should also only write components they own
 struct EcsSimulationContext
 {
     ECSWorld&               world;
