@@ -95,7 +95,7 @@ public:
         // Load a fallback texture for ColoredQuad commands (shader ignores it
         // when useTexture == 0.0, but Vulkan requires a valid descriptor set).
         fallbackTextureID = resources->requestTexture(
-            GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png");
+            GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_ui_fallback.png");
 
         debugOverlay.init(resources);
         debugOverlay.setEnabled(debugEnabledByDefault);

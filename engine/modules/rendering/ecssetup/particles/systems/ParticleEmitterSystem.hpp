@@ -487,7 +487,7 @@ private:
             return;
 
         const std::string texturePath = emitter.texturePath.empty()
-            ? GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png"
+            ? GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_particle_fallback.png"
             : emitter.texturePath;
 
         if (runtime.textureID != 0 && runtime.boundTexturePath == texturePath)

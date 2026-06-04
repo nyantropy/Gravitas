@@ -28,7 +28,7 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent<StaticMeshComponent>(controlledCube, mesh);
 
             MaterialComponent mat;
-            mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png";
+            mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_moss_floor.png";
             ecsWorld.addComponent<MaterialComponent>(controlledCube, mat);
 
             TransformComponent tc;
@@ -50,7 +50,7 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent<StaticMeshComponent>(cube2, mesh);
 
             MaterialComponent mat;
-            mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/blue_texture.png";
+            mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_cool_stone.png";
             ecsWorld.addComponent<MaterialComponent>(cube2, mat);
 
             TransformComponent tc2;
@@ -77,7 +77,7 @@ class DefaultScene : public GtsScene
             ecsWorld.addComponent<StaticMeshComponent>(cube3, mesh);
 
             MaterialComponent mat;
-            mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/purple_texture.png";
+            mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_arcane_stone.png";
             ecsWorld.addComponent<MaterialComponent>(cube3, mat);
 
             TransformComponent tc3;

@@ -31,7 +31,7 @@ namespace
         mesh.height = LINE_THICKNESS;
 
         MaterialComponent material;
-        material.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/cyan_texture.png";
+        material.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_debug_collider.png";
         material.tint        = DEBUG_TINT;
         material.alpha       = DEBUG_TINT.a;
         material.doubleSided = true;

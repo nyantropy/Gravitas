@@ -82,14 +82,14 @@ inline void GtsScene3::populateFrameStats(GtsFrameStats& stats) const
 inline void GtsScene3::buildTextureSet()
 {
     texturePaths = {
-        GraphicsConstants::ENGINE_RESOURCES + "/textures/blue_texture.png",
-        GraphicsConstants::ENGINE_RESOURCES + "/textures/cyan_texture.png",
-        GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png",
-        GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png",
-        GraphicsConstants::ENGINE_RESOURCES + "/textures/orange_texture.png",
-        GraphicsConstants::ENGINE_RESOURCES + "/textures/purple_texture.png",
-        GraphicsConstants::ENGINE_RESOURCES + "/textures/red_texture.png",
-        GraphicsConstants::ENGINE_RESOURCES + "/textures/yellow_texture.png"
+        GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_cool_stone.png",
+        GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_crystal_stone.png",
+        GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_moss_floor.png",
+        GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_neutral_stone.png",
+        GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_lantern_stone.png",
+        GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_arcane_stone.png",
+        GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_rune_stone.png",
+        GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_gilt_stone.png"
     };
 }
 

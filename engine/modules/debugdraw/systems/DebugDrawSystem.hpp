@@ -161,7 +161,7 @@ namespace gts::debugdraw
 
         static std::string texturePath()
         {
-            return GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png";
+            return GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_debug_neutral.png";
         }
 
         static glm::vec3 colorValue(DebugDrawColor color)

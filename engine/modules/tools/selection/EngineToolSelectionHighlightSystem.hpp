@@ -83,7 +83,7 @@ namespace gts::tools
             highlight.targetEntity = invalidToolEntity();
 
             MaterialComponent material;
-            material.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/grey_texture.png";
+            material.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_debug_neutral.png";
             material.tint = {1.0f, 0.86f, 0.12f, 1.0f};
             material.alpha = 0.92f;
             material.doubleSided = true;

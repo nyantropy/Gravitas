@@ -59,7 +59,7 @@ class CullTestScene : public GtsScene
                 ecsWorld.addComponent(e, mesh);
 
                 MaterialComponent mat;
-                mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/green_texture.png";
+                mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_moss_floor.png";
                 ecsWorld.addComponent(e, mat);
 
                 ecsWorld.addComponent(e, BoundsComponent{});
