@@ -98,9 +98,9 @@ update(const EcsSimulationContext& ctx)
 update(const EcsControllerContext& ctx)
 ```
 - Runs **every frame**
-- Context provides: `world`, `resources`, `input`, `time`, `physics`, `ui`, `extractor`, `engineCommands`, window dimensions
+- Context provides: `world`, `resources`, `input`, `time`, `physics`, `ui`, `engineCommands`, window dimensions
 - All context pointers are valid for the duration of the `update()` call only — do not cache them
-- Can issue engine commands (scene transitions, pause/resume) via `ctx.engineCommands`
+- Can issue typed engine commands (scene change, pause/resume, screenshots, graphics settings) via `ctx.engineCommands`
 - Examples: `CameraGpuSystem`, `RenderGpuSystem`, `StaticMeshBindingSystem`
 
 ---
@@ -148,8 +148,7 @@ EcsControllerContext {
     IResourceProvider*          resources
     InputBindingRegistry*       input             (always live; pause-aware queries)
     const TimeContext*          time
-    GtsCommandBuffer*           engineCommands    (scene/pause requests)
-    RenderCommandExtractor*     extractor
+    GtsCommandBuffer*           engineCommands    (scene/engine requests)
     UiSystem*                   ui
     IGtsPhysicsModule*          physics
     float windowAspectRatio, windowPixelWidth/Height

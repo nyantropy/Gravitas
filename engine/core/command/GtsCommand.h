@@ -1,28 +1,51 @@
 #pragma once
 #include <memory>
 #include <string>
+#include <variant>
 
 #include "GraphicsConfig.h"
 #include "GtsSceneTransitionData.h"
 
-// idea: let different architectural layers send commands back to the engine
-struct GtsCommand
-{
-    enum class Type
-    {
-        TogglePause,
-        Screenshot,
-        SetFrustumCullingEnabled,
-        SetFrustumFreeze,
-        ApplyGraphicsSettings,
-        LoadScene,
-        ChangeScene,
-        Quit
-    };
+// a collection of engine command structs that may be used by scenes to ask the engine to entertain certain tasks
 
-    Type type;
-    std::string stringArg;
-    float floatArg = 0.0f;
-    RuntimeGraphicsSettings graphicsSettings;
-    std::shared_ptr<GtsSceneTransitionData> transitionData;
+struct GtsTogglePauseCommand
+{
 };
+
+struct GtsScreenshotCommand
+{
+};
+
+struct GtsQuitCommand
+{
+};
+
+struct GtsSetFrustumCullingEnabledCommand
+{
+    bool enabled = false;
+};
+
+struct GtsSetFrustumFreezeCommand
+{
+    bool frozen = false;
+};
+
+struct GtsApplyGraphicsSettingsCommand
+{
+    RuntimeGraphicsSettings settings;
+};
+
+struct GtsChangeSceneCommand
+{
+    std::string name;
+    std::unique_ptr<GtsSceneTransitionData> transitionData;
+};
+
+// all of these should map as gtscommand, but with different payloads
+using GtsCommand = std::variant<GtsTogglePauseCommand,
+                                GtsScreenshotCommand,
+                                GtsQuitCommand,
+                                GtsSetFrustumCullingEnabledCommand,
+                                GtsSetFrustumFreezeCommand,
+                                GtsApplyGraphicsSettingsCommand,
+                                GtsChangeSceneCommand>;

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <variant>
 
 #include "EngineConfig.h"
 #include "Timer.hpp"
@@ -76,7 +77,6 @@ class GravitasEngine
             ctx.input             = platform.getInputBindingRegistry();
             ctx.time              = &timeContext;
             ctx.engineCommands    = &engineCommands;
-            ctx.graphics          = platform.getGraphics();
             ctx.ui                = uiSystem.get();
             ctx.physics           = sceneManager->getActiveScene()->getPhysicsModule();
             ctx.windowAspectRatio = windowAspectRatio;
@@ -209,25 +209,26 @@ class GravitasEngine
 
         void applyPendingRenderCommands()
         {
-            for (auto it = engineCommands.commands.begin(); it != engineCommands.commands.end(); )
+            for (auto it = engineCommands.commands.begin(); it != engineCommands.commands.end();)
             {
-                switch (it->type)
+                if (auto* cmd = std::get_if<GtsSetFrustumCullingEnabledCommand>(&*it))
                 {
-                    case GtsCommand::Type::SetFrustumCullingEnabled:
-                        renderPipeline->setVisibilityEnabled(it->floatArg != 0.0f);
-                        it = engineCommands.commands.erase(it);
-                        break;
-                    case GtsCommand::Type::SetFrustumFreeze:
-                        renderPipeline->setVisibilityFrozen(it->floatArg != 0.0f);
-                        it = engineCommands.commands.erase(it);
-                        break;
-                    case GtsCommand::Type::ApplyGraphicsSettings:
-                        applyGraphicsSettingsCommand(it->graphicsSettings);
-                        it = engineCommands.commands.erase(it);
-                        break;
-                    default:
-                        ++it;
-                        break;
+                    renderPipeline->setVisibilityEnabled(cmd->enabled);
+                    it = engineCommands.commands.erase(it);
+                }
+                else if (auto* cmd = std::get_if<GtsSetFrustumFreezeCommand>(&*it))
+                {
+                    renderPipeline->setVisibilityFrozen(cmd->frozen);
+                    it = engineCommands.commands.erase(it);
+                }
+                else if (auto* cmd = std::get_if<GtsApplyGraphicsSettingsCommand>(&*it))
+                {
+                    applyGraphicsSettingsCommand(cmd->settings);
+                    it = engineCommands.commands.erase(it);
+                }
+                else
+                {
+                    ++it;
                 }
             }
         }
@@ -236,35 +237,29 @@ class GravitasEngine
         {
             for (auto& cmd : engineCommands.commands)
             {
-                switch (cmd.type)
+                if (std::holds_alternative<GtsTogglePauseCommand>(cmd))
                 {
-                    case GtsCommand::Type::TogglePause:
-                        gameLoop.paused = !gameLoop.paused;
-                        std::cout << (gameLoop.paused ? "Paused" : "Resumed") << std::endl;
-                        break;
-                    case GtsCommand::Type::Screenshot:
-                        platform.getGraphics()->requestScreenshot();
-                        break;
-                    case GtsCommand::Type::SetFrustumCullingEnabled:
-                    case GtsCommand::Type::SetFrustumFreeze:
-                    case GtsCommand::Type::ApplyGraphicsSettings:
-                        break;
-                    case GtsCommand::Type::LoadScene:
-                    case GtsCommand::Type::ChangeScene:
-                    {
-                        platform.waitForGraphicsIdle();
-                        uiSystem->clear();
-                        platform.getInputBindingRegistry()->clearContextStack();
-                        sceneManager->setActiveScene(cmd.stringArg);
-                        uiSystem->setEnabled(uiEnabled);
-                        ECSWorld& world = sceneManager->getActiveScene()->getWorld();
-                        EcsControllerContext loadCtx = buildControllerContext(world);
-                        sceneManager->getActiveScene()->onLoad(loadCtx, cmd.transitionData.get());
-                        break;
-                    }
-                    case GtsCommand::Type::Quit:
-                        engineRunning = false;
-                        break;
+                    gameLoop.paused = !gameLoop.paused;
+                    std::cout << (gameLoop.paused ? "Paused" : "Resumed") << std::endl;
+                }
+                else if (std::holds_alternative<GtsScreenshotCommand>(cmd))
+                {
+                    platform.getGraphics()->requestScreenshot();
+                }
+                else if (auto* changeScene = std::get_if<GtsChangeSceneCommand>(&cmd))
+                {
+                    platform.waitForGraphicsIdle();
+                    uiSystem->clear();
+                    platform.getInputBindingRegistry()->clearContextStack();
+                    sceneManager->setActiveScene(changeScene->name);
+                    uiSystem->setEnabled(uiEnabled);
+                    ECSWorld& world = sceneManager->getActiveScene()->getWorld();
+                    EcsControllerContext loadCtx = buildControllerContext(world);
+                    sceneManager->getActiveScene()->onLoad(loadCtx, changeScene->transitionData.get());
+                }
+                else if (std::holds_alternative<GtsQuitCommand>(cmd))
+                {
+                    engineRunning = false;
                 }
             }
 
@@ -292,7 +287,7 @@ class GravitasEngine
         }
 
         void setActiveScene(std::string name,
-                            std::shared_ptr<GtsSceneTransitionData> data = nullptr)
+                            std::unique_ptr<GtsSceneTransitionData> data = nullptr)
         {
             uiSystem->clear();
             platform.getInputBindingRegistry()->clearContextStack();

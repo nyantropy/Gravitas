@@ -1,78 +1,59 @@
 #pragma once
 #include <memory>
-#include <vector>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "GtsCommand.h"
 #include "GtsSceneTransitionData.h"
 #include "GraphicsConfig.h"
 
+// the command buffer struct that the engine uses to execute custom pre defined commands
 struct GtsCommandBuffer
 {
+    // pauses all simulation systems, controller systems keep running during the pause
     void requestTogglePause()
     {
-        GtsCommand cmd;
-        cmd.type = GtsCommand::Type::TogglePause;
-        commands.push_back(std::move(cmd));
+        commands.emplace_back(GtsTogglePauseCommand{});
     }
 
-    void requestLoadScene(const std::string& name,
-                          std::shared_ptr<GtsSceneTransitionData> data = nullptr)
+    // change from one scene to another or load a scene
+    void requestChangeScene(std::string name,
+                            std::unique_ptr<GtsSceneTransitionData> data = nullptr)
     {
-        GtsCommand cmd;
-        cmd.type = GtsCommand::Type::LoadScene;
-        cmd.stringArg = name;
-        cmd.transitionData = std::move(data);
-        commands.push_back(cmd);
+        commands.emplace_back(GtsChangeSceneCommand{ std::move(name), std::move(data) });
     }
 
-    void requestChangeScene(const std::string& name,
-                            std::shared_ptr<GtsSceneTransitionData> data = nullptr)
-    {
-        GtsCommand cmd;
-        cmd.type = GtsCommand::Type::ChangeScene;
-        cmd.stringArg = name;
-        cmd.transitionData = std::move(data);
-        commands.push_back(cmd);
-    }
-
+    // take a screenshot
     void requestScreenshot()
     {
-        GtsCommand cmd;
-        cmd.type = GtsCommand::Type::Screenshot;
-        commands.push_back(std::move(cmd));
+        commands.emplace_back(GtsScreenshotCommand{});
     }
 
+    // enable/disable frustum cull
     void requestSetFrustumCullingEnabled(bool enabled)
     {
-        GtsCommand cmd;
-        cmd.type = GtsCommand::Type::SetFrustumCullingEnabled;
-        cmd.floatArg = enabled ? 1.0f : 0.0f;
-        commands.push_back(std::move(cmd));
+        commands.emplace_back(GtsSetFrustumCullingEnabledCommand{ enabled });
     }
 
+    // freeze the frustum at the current location
     void requestSetFrustumFreeze(bool frozen)
     {
-        GtsCommand cmd;
-        cmd.type = GtsCommand::Type::SetFrustumFreeze;
-        cmd.floatArg = frozen ? 1.0f : 0.0f;
-        commands.push_back(std::move(cmd));
+        commands.emplace_back(GtsSetFrustumFreezeCommand{ frozen });
     }
 
+    // apply different graphic settings to the engine at runtime
     void requestApplyGraphicsSettings(const RuntimeGraphicsSettings& settings)
     {
-        GtsCommand cmd;
-        cmd.type = GtsCommand::Type::ApplyGraphicsSettings;
-        cmd.graphicsSettings = settings;
-        commands.push_back(std::move(cmd));
+        commands.emplace_back(GtsApplyGraphicsSettingsCommand{ settings });
     }
 
+    // quit/shutdown the engine
     void requestQuit()
     {
-        GtsCommand cmd;
-        cmd.type = GtsCommand::Type::Quit;
-        commands.push_back(std::move(cmd));
+        commands.emplace_back(GtsQuitCommand{});
     }
 
+    // should only be used by the engine
     std::vector<GtsCommand> commands;
 };

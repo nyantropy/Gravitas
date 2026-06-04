@@ -4,19 +4,15 @@
 #include "IResourceProvider.hpp"
 #include "TimeContext.h"
 #include "GtsCommandBuffer.h"
+#include "UiSystem.h"
+#include "IGtsPhysicsModule.h"
 
 class ECSWorld;
-class UiSystem;
-class IGtsPhysicsModule;
-class IGtsGraphicsModule;
 
-// Context passed to ECSControllerSystem::update every rendered frame.
-// Contains all frame-dependent dependencies. NOT available to simulation systems.
-//
-// Pointer lifetime: all pointers are valid for the duration of the update()
-// call only. Systems must not cache them across frames — the engine may
-// rebuild subsystems between frames (e.g., on device loss or window resize).
-//
+// this is the context object passed into each ecs controller system
+// contains all frame-dependent dependencies, and is thus NOT available in simulation systems
+// pointers are valid for the duration of the update() call, so systems may not cache them across frames,
+// since some subsystems may be rebuilt between frames (e.g window resize)
 struct EcsControllerContext
 {
     ECSWorld&                       world;
@@ -25,7 +21,6 @@ struct EcsControllerContext
     InputBindingRegistry*           input             = nullptr;
     const TimeContext*              time              = nullptr;
     GtsCommandBuffer*               engineCommands    = nullptr;
-    IGtsGraphicsModule*             graphics          = nullptr;
     UiSystem*                       ui                = nullptr;
     IGtsPhysicsModule*              physics           = nullptr;
     float                           windowAspectRatio  = 1.0f;

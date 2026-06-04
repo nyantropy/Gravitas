@@ -41,7 +41,7 @@ This document records the repository style contract for the Gravitas engine. It 
 ## Includes
 
 - Include what a file uses directly.
-- Prefer forward declarations in headers when a pointer or reference is enough.
+- Do not use forward declarations. Include the header for the type instead.
 - Keep include ordering simple: standard library, external libraries, then engine headers.
 - Avoid hidden dependencies through transitive includes.
 

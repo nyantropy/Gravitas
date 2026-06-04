@@ -1,16 +1,18 @@
 #pragma once
 
-class ECSWorld;
-class InputBindingRegistry;
+#include "InputBindingRegistry.h"
 
-// Context passed to ECSSimulationSystem::update each fixed-timestep tick.
-// Contains only data that is independent of frame timing and rendering.
-//
-// Ordering note: simulation systems run in registration order. Structural
-// world mutations (entity creation/deletion, component add/remove) take
-// effect immediately within the same tick and are visible to subsequently
-// registered systems. Determinism therefore depends on a stable, documented
-// system registration order. Systems should only write components they own.
+class ECSWorld;
+
+// context that passes into simulation systems
+// contains only data that is independent of frame timing and rendering
+
+// ordering note: simulation systems run in registration order, structural world mutations
+// like entity creation or deletion, or adjustment of compoents take effect immediately
+// within the same tick and are visible to subsequent systems
+
+// that means that for determinism the order of system registration is extremely important
+// simulation systems should also only write compoents they own
 struct EcsSimulationContext
 {
     ECSWorld&               world;
