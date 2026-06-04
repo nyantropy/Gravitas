@@ -53,7 +53,7 @@ class ObjectSSBOManager
 
                 // zero-initialize so unwritten slots don't contain garbage
                 std::memset(ssboMapped[i], 0, static_cast<size_t>(bufferSize));
-                lastWrittenMatrix[i].resize(MAX_OBJECTS, glm::mat4(0.0f));
+                lastWrittenObject[i].resize(MAX_OBJECTS, emptyObjectData());
             }
 
             descriptorSets = dssheet::getManager().allocateForObjectSSBO(ssboBuffers, bufferSize);
@@ -95,8 +95,7 @@ class ObjectSSBOManager
         // Returns a slot to the free-list for future reuse.
         void releaseSlot(ssbo_id_type slot)
         {
-            ObjectUBO empty{};
-            empty.model = glm::mat4(0.0f);
+            ObjectUBO empty = emptyObjectData();
             for (uint32_t f = 0; f < static_cast<uint32_t>(ssboMapped.size()); ++f)
             {
                 ObjectUBO* base = reinterpret_cast<ObjectUBO*>(ssboMapped[f]);
@@ -105,17 +104,17 @@ class ObjectSSBOManager
             }
 
             freeList.push_back(slot);
-            for (auto& frameCache : lastWrittenMatrix)
-                frameCache[slot] = glm::mat4(0.0f);
+            for (auto& frameCache : lastWrittenObject)
+                frameCache[slot] = emptyObjectData();
         }
 
         // Writes one object's data into the given frame's SSBO at the given slot.
         bool writeSlot(uint32_t frameIndex, ssbo_id_type slot, const ObjectUBO& data)
         {
-            if (lastWrittenMatrix[frameIndex][slot] == data.model)
+            if (sameObjectData(lastWrittenObject[frameIndex][slot], data))
                 return false;
 
-            lastWrittenMatrix[frameIndex][slot] = data.model;
+            lastWrittenObject[frameIndex][slot] = data;
             ObjectUBO* base = reinterpret_cast<ObjectUBO*>(ssboMapped[frameIndex]);
             base[slot] = data;
 
@@ -200,7 +199,7 @@ class ObjectSSBOManager
         std::vector<VkDeviceMemory>  ssboMemory;
         std::vector<void*>           ssboMapped;
         std::vector<VkDescriptorSet> descriptorSets;
-        std::array<std::vector<glm::mat4>, GraphicsConstants::MAX_FRAMES_IN_FLIGHT> lastWrittenMatrix;
+        std::array<std::vector<ObjectUBO>, GraphicsConstants::MAX_FRAMES_IN_FLIGHT> lastWrittenObject;
         VkDeviceSize                 nonCoherentAtomSize = sizeof(ObjectUBO);
 
         // Dirty-range tracking — initialised to "empty" (min > max).
@@ -210,4 +209,17 @@ class ObjectSSBOManager
 
         std::vector<ssbo_id_type> freeList;
         ssbo_id_type              nextSlot = 0;
+
+        static ObjectUBO emptyObjectData()
+        {
+            ObjectUBO empty{};
+            empty.model = glm::mat4(0.0f);
+            empty.uvTransform = {1.0f, 1.0f, 0.0f, 0.0f};
+            return empty;
+        }
+
+        static bool sameObjectData(const ObjectUBO& lhs, const ObjectUBO& rhs)
+        {
+            return lhs.model == rhs.model && lhs.uvTransform == rhs.uvTransform;
+        }
 };

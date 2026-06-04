@@ -114,7 +114,8 @@ public:
             const bool transformDirty = dirty.transformDirty;
             const bool materialDirty  = dirty.materialDirty;
             const bool meshDirty      = dirty.meshDirty;
-            const bool anyDirty = transformDirty || materialDirty || meshDirty;
+            const bool objectDataDirty = dirty.objectDataDirty;
+            const bool anyDirty = transformDirty || materialDirty || meshDirty || objectDataDirty;
             const uint32_t existingIndex = slotToIndex[rc.objectSSBOSlot];
             const bool inserted = existingIndex == InvalidIndex;
 
@@ -169,7 +170,18 @@ public:
             {
                 renderable.modelMatrix = rc.modelMatrix;
                 updateBounds(world, e, renderable);
-                snapshot.objectUploads.push_back({rc.objectSSBOSlot, rc.modelMatrix});
+            }
+
+            if (inserted || objectDataDirty)
+                renderable.uvTransform = rc.uvTransform;
+
+            if (inserted || transformDirty || objectDataDirty)
+            {
+                snapshot.objectUploads.push_back({
+                    rc.objectSSBOSlot,
+                    renderable.modelMatrix,
+                    renderable.uvTransform
+                });
             }
 
             bool sortKeyNeedsUpdate = inserted;
@@ -194,6 +206,7 @@ public:
             dirty.transformDirty = false;
             dirty.materialDirty  = false;
             dirty.meshDirty      = false;
+            dirty.objectDataDirty = false;
         }
         gts::rendering::clearSnapshotDirtyQueue(invalidation);
         if (m_snapshotDirty)

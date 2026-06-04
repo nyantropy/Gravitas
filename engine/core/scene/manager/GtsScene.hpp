@@ -8,6 +8,7 @@
 #include "PhysicsWorld.h"
 
 #include "RenderGpuSystem.hpp"
+#include "TextureAnimationSystem.hpp"
 #include "CameraLifecycleSystem.hpp"
 #include "CameraGpuSystem.hpp"
 #include "CameraGpuComponent.h"
@@ -21,6 +22,7 @@
 #include "CameraBindingLifecycle.h"
 #include "CameraBindingSystem.hpp"
 #include "MeshGpuComponent.h"
+#include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
 #include "DebugFreeCameraSystem.hpp"
 #include "DefaultCameraControlSystem.hpp"
@@ -28,6 +30,8 @@
 #include "PhysicsDebugRenderer.h"
 #include "ParticleEffectHotReloadSystem.hpp"
 #include "ParticleEmitterSystem.hpp"
+#include "TextureAnimationComponent.h"
+#include "TextureAnimationRuntimeComponent.h"
 #include "DebugDrawSystem.hpp"
 #include "EngineGizmoSystem.hpp"
 #include "EngineToolDebugDrawSystem.hpp"
@@ -186,6 +190,39 @@ class GtsScene
                 {
                     gts::rendering::queueRenderableCleanup(world, entity);
                 });
+            ecsWorld.registerAddCallback<TextureAnimationComponent>(
+                [](ECSWorld& world, Entity entity, TextureAnimationComponent&)
+                {
+                    if (!world.hasComponent<RenderGpuComponent>(entity)
+                        || !world.hasComponent<RenderDirtyComponent>(entity))
+                    {
+                        return;
+                    }
+
+                    auto& renderGpu = world.getComponent<RenderGpuComponent>(entity);
+                    auto& dirty = world.getComponent<RenderDirtyComponent>(entity);
+                    renderGpu.uvTransform = {1.0f, 1.0f, 0.0f, 0.0f};
+                    dirty.objectDataDirty = true;
+                    gts::rendering::queueRenderSnapshotDirty(world, entity);
+                });
+            ecsWorld.registerRemoveCallback<TextureAnimationComponent>(
+                [](ECSWorld& world, Entity entity, TextureAnimationComponent&)
+                {
+                    if (world.hasComponent<TextureAnimationRuntimeComponent>(entity))
+                        world.commands().removeComponent<TextureAnimationRuntimeComponent>(entity);
+
+                    if (!world.hasComponent<RenderGpuComponent>(entity)
+                        || !world.hasComponent<RenderDirtyComponent>(entity))
+                    {
+                        return;
+                    }
+
+                    auto& renderGpu = world.getComponent<RenderGpuComponent>(entity);
+                    auto& dirty = world.getComponent<RenderDirtyComponent>(entity);
+                    renderGpu.uvTransform = {1.0f, 1.0f, 0.0f, 0.0f};
+                    dirty.objectDataDirty = true;
+                    gts::rendering::queueRenderSnapshotDirty(world, entity);
+                });
             ecsWorld.registerAddCallback<WorldTextComponent>(
                 [](ECSWorld& world, Entity entity, WorldTextComponent&)
                 {
@@ -216,6 +253,7 @@ class GtsScene
             ecsWorld.addControllerSystem<WorldTextBindingSystem>();
             ecsWorld.addControllerSystem<RenderableCleanupSystem>();
             ecsWorld.addControllerSystem<RenderGpuSystem>();
+            ecsWorld.addControllerSystem<TextureAnimationSystem>();
             ecsWorld.addControllerSystem<CameraLifecycleSystem>();
             ecsWorld.addControllerSystem<DefaultCameraControlSystem>();
             ecsWorld.addControllerSystem<CameraGpuSystem>();

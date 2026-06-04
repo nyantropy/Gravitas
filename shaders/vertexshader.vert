@@ -15,6 +15,7 @@ layout(set = 0, binding = 0) uniform CameraUBO {
 
 struct ObjectData {
     mat4 model;
+    vec4 uvTransform;
 };
 
 layout(set = 1, binding = 0) readonly buffer ObjectSSBO {
@@ -22,7 +23,8 @@ layout(set = 1, binding = 0) readonly buffer ObjectSSBO {
 };
 
 void main() {
-    gl_Position = cam.proj * cam.view * objects[instanceObjectIndex].model * vec4(inPosition, 1.0);
-    fragTexCoord = inTexCoord;
+    ObjectData objectData = objects[instanceObjectIndex];
+    gl_Position = cam.proj * cam.view * objectData.model * vec4(inPosition, 1.0);
+    fragTexCoord = inTexCoord * objectData.uvTransform.xy + objectData.uvTransform.zw;
     fragColor = inColor;
 }

@@ -88,6 +88,7 @@ namespace gts::rendering
         renderGpu.readyToRender = false;
         renderGpu.commandDirty  = true;
         dirty.transformDirty    = true;
+        dirty.objectDataDirty   = true;
     }
 
     inline void scheduleRenderableCleanup(ECSWorld& world,

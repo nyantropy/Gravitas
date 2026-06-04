@@ -211,6 +211,7 @@ components directly.
 | `TransformComponent` | Position, rotation, scale |
 | `StaticMeshComponent` | Asset path to mesh |
 | `MaterialComponent` | Texture path, tint, alpha, culling, and optional vertex-color-only rendering |
+| `TextureAnimationComponent` | Optional per-object scene-material UV scrolling or flipbook atlas animation |
 | `BoundsComponent` | Local AABB used for frustum culling |
 | `CameraDescriptionComponent` | FOV, near/far clip planes |
 | `PhysicsBodyComponent` | Dynamic vs static body flag |
@@ -229,6 +230,13 @@ Particle emitters use a runtime companion component (`ParticleEmitterRuntimeComp
 for simulation state, but particles are extracted into `ParticleFrameDataComponent`
 instead of flowing through `RenderCommand`.
 
+Scene texture animation uses the same descriptor/runtime split:
+applications author `TextureAnimationComponent`, the renderer feature creates
+and owns `TextureAnimationRuntimeComponent`, and `TextureAnimationSystem`
+advances visual-only elapsed time every controller frame. The resulting UV
+scale/offset is written into `RenderGpuComponent` and uploaded through the
+normal object SSBO path.
+
 ### Engine-Exported Frame State
 
 | Component | Purpose |
@@ -242,15 +250,18 @@ The shared renderer feature installs controller systems in this order:
 1. Geometry and text binding systems
 2. `RenderableCleanupSystem`
 3. `RenderGpuSystem`
-4. `CameraLifecycleSystem`
-5. camera control systems
-6. `CameraGpuSystem`
-7. debug free camera control
-8. camera view ID allocation / active-camera export systems
-9. particle effect hot reload and particle emitter simulation
+4. `TextureAnimationSystem`
+5. `CameraLifecycleSystem`
+6. camera control systems
+7. `CameraGpuSystem`
+8. debug free camera control
+9. camera view ID allocation / active-camera export systems
+10. particle effect hot reload and particle emitter simulation
 
 This order is intentional:
 - lifecycle runs before per-frame sync so newly created GPU companions participate immediately
+- texture animation runs after `RenderGpuSystem` so newly ready renderables have
+  a valid object slot before animated UV data is queued for upload
 - camera control runs before `CameraGpuSystem` so same-frame transform/description changes feed matrix generation
 - camera view ID allocation/export runs after matrix generation so rendering and UI see the current frame's active camera state
 - particle simulation runs after camera matrix generation so extracted billboards can use the current view
@@ -277,6 +288,7 @@ Render extraction also emits upload command side channels:
 ObjectUploadCommand {
     ssbo_id_type objectSSBOSlot
     glm::mat4    modelMatrix
+    glm::vec4    uvTransform    // xy = scale, zw = offset
 }
 
 CameraUploadCommand {
@@ -287,12 +299,34 @@ CameraUploadCommand {
 ```
 
 Object uploads are generated only for renderables marked dirty by the render
-invalidation queue. Camera uploads are generated every extracted frame for the
-active camera and consumed by the renderer after the current-frame fence wait.
+invalidation queue. They carry the full per-object scene data, currently the
+model matrix plus scene-material UV transform. Camera uploads are generated
+every extracted frame for the active camera and consumed by the renderer after
+the current-frame fence wait.
 
 `vertexColorOnly` is a material/render-command flag for tool and debug meshes
 that should render from authored vertex colors without sampling a color texture.
 The regular material texture path remains the default for game geometry.
+
+### Scene Texture Animation
+
+`TextureAnimationComponent` is the engine path for animated textures on regular
+scene geometry. It supports two first-pass modes:
+
+- `UvScroll`: continuous UV offset over controller-frame time, suitable for
+  water, lava, fog sheets, shimmer, or other looping surface motion.
+- `FlipbookAtlas`: row-major atlas frame selection with optional looping,
+  suitable for discrete animated tile frames.
+
+This feature deliberately does not swap `MaterialComponent::texturePath` and
+does not rewrite procedural mesh vertices every frame. Both approaches would
+dirty resource bindings or mesh data instead of updating per-object visual
+state. The shader applies `uv = inTexCoord * uvScale + uvOffset` from the object
+SSBO before sampling the material texture. Static materials use identity
+`uvTransform = {1, 1, 0, 0}` and render unchanged.
+
+Texture animation is a visual controller-space feature. It must not own
+gameplay timing, collision, movement, cooldowns, or simulation-authored state.
 
 ### Particle Rendering
 

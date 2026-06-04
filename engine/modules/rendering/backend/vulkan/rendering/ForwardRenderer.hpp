@@ -531,8 +531,9 @@ class ForwardRenderer : Renderer
                     std::chrono::duration<float, std::milli>(imageWaitEnd - imageWaitStart).count();
             }
 
-            // Object data is double/triple-buffered, so a changed transform must
-            // be propagated to every in-flight SSBO copy before we clear the dirty state.
+            // Object data is double/triple-buffered, so changed transforms or
+            // per-object material state must be propagated to every in-flight
+            // SSBO copy before we clear the dirty state.
             const auto objectWriteStart = std::chrono::steady_clock::now();
             frameStats.backendObjectWrites = 0;
             frameStats.backendObjectWritesSkipped = 0;
@@ -540,6 +541,7 @@ class ForwardRenderer : Renderer
             {
                 ObjectUBO ubo;
                 ubo.model = upload.modelMatrix;
+                ubo.uvTransform = upload.uvTransform;
                 const uint32_t writes = resourceSystem->writeObjectSlotAllFrames(upload.objectSSBOSlot, ubo);
                 frameStats.backendObjectWrites += writes;
                 if (writes == 0)
