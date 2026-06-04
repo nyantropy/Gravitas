@@ -44,8 +44,8 @@ struct VulkanPipelineConfig
     VkBlendOp     alphaBlendOp          = VK_BLEND_OP_ADD;
 
     // ── push constants ────────────────────────────────────────────────────
-    // Defaults match the main scene pipeline: alpha (float) = 4 bytes,
-    // visible to the fragment stage only. objectIndex is now a per-instance
+    // Defaults match the main scene pipeline: one 4-byte fragment-stage flag.
+    // objectIndex is now a per-instance
     // vertex attribute (instanceObjectIndex at location 3).
     // Set pushConstantSize = 0 to omit push constants entirely.
     uint32_t           pushConstantSize   = sizeof(float);

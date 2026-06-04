@@ -24,6 +24,7 @@ struct RenderableSnapshot
     Entity        entity{0};
     glm::mat4     modelMatrix = glm::mat4(1.0f);
     glm::vec4     uvTransform = {1.0f, 1.0f, 0.0f, 0.0f};
+    glm::vec4     tint = {1.0f, 1.0f, 1.0f, 1.0f};
 
     AABB          worldBounds{};
     bool          hasBounds = false;
@@ -32,7 +33,6 @@ struct RenderableSnapshot
     texture_id_type textureID = 0;
     ssbo_id_type    objectSSBOSlot = 0;
 
-    float         alpha = 1.0f;
     bool          doubleSided = false;
     bool          vertexColorOnly = false;
     bool          visible = true;

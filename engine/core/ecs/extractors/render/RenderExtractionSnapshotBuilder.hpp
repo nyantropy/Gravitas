@@ -175,15 +175,6 @@ public:
             if (inserted || objectDataDirty)
                 renderable.uvTransform = rc.uvTransform;
 
-            if (inserted || transformDirty || objectDataDirty)
-            {
-                snapshot.objectUploads.push_back({
-                    rc.objectSSBOSlot,
-                    renderable.modelMatrix,
-                    renderable.uvTransform
-                });
-            }
-
             bool sortKeyNeedsUpdate = inserted;
             if (inserted || meshDirty)
             {
@@ -194,10 +185,20 @@ public:
             if (inserted || materialDirty)
             {
                 renderable.textureID   = matGpu.textureID;
-                renderable.alpha       = matGpu.alpha;
+                renderable.tint        = matGpu.tint;
                 renderable.doubleSided = matGpu.doubleSided;
                 renderable.vertexColorOnly = matGpu.vertexColorOnly;
                 sortKeyNeedsUpdate     = true;
+            }
+
+            if (inserted || transformDirty || objectDataDirty)
+            {
+                snapshot.objectUploads.push_back({
+                    rc.objectSSBOSlot,
+                    renderable.modelMatrix,
+                    renderable.uvTransform,
+                    renderable.tint
+                });
             }
 
             if (sortKeyNeedsUpdate)

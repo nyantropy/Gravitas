@@ -215,11 +215,12 @@ class ObjectSSBOManager
             ObjectUBO empty{};
             empty.model = glm::mat4(0.0f);
             empty.uvTransform = {1.0f, 1.0f, 0.0f, 0.0f};
+            empty.tint = {1.0f, 1.0f, 1.0f, 1.0f};
             return empty;
         }
 
         static bool sameObjectData(const ObjectUBO& lhs, const ObjectUBO& rhs)
         {
-            return lhs.model == rhs.model && lhs.uvTransform == rhs.uvTransform;
+            return lhs.model == rhs.model && lhs.uvTransform == rhs.uvTransform && lhs.tint == rhs.tint;
         }
 };

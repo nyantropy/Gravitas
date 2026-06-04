@@ -29,7 +29,6 @@ class SceneRenderStage : public GtsRenderStage
 {
     struct ScenePushConstants
     {
-        float alpha = 1.0f;
         int32_t vertexColorOnly = 0;
     };
 
@@ -204,7 +203,6 @@ private:
     {
         mesh_id_type    meshID = 0;
         texture_id_type textureID = 0;
-        float           alpha = 1.0f;
         bool            doubleSided = false;
         bool            vertexColorOnly = false;
         uint32_t        instanceOffset = 0;
@@ -408,7 +406,6 @@ private:
             PreparedBatch batch{};
             batch.meshID = first.meshID;
             batch.textureID = first.textureID;
-            batch.alpha = first.alpha;
             batch.doubleSided = first.doubleSided;
             batch.vertexColorOnly = first.vertexColorOnly;
             batch.instanceOffset = instanceHead;
@@ -420,7 +417,6 @@ private:
                 const RenderCommand& current = renderList[i];
                 if (current.meshID != batch.meshID
                     || current.textureID != batch.textureID
-                    || current.alpha != batch.alpha
                     || current.doubleSided != batch.doubleSided
                     || current.vertexColorOnly != batch.vertexColorOnly)
                 {
@@ -467,7 +463,6 @@ private:
         VulkanPipeline* boundPipeline = nullptr;
         mesh_id_type    boundMesh     = static_cast<mesh_id_type>(-1);
         texture_id_type boundTexture  = static_cast<texture_id_type>(-1);
-        float           boundAlpha    = -1.0f;
         bool            boundVertexColorOnly = false;
         bool            hasBoundPushConstants = false;
 
@@ -507,17 +502,14 @@ private:
             }
 
             if (!hasBoundPushConstants
-                || batch.alpha != boundAlpha
                 || batch.vertexColorOnly != boundVertexColorOnly)
             {
                 const ScenePushConstants pushConstants{
-                    batch.alpha,
                     batch.vertexColorOnly ? 1 : 0
                 };
                 vkCmdPushConstants(cmd, activePipeline->getPipelineLayout(),
                                    VK_SHADER_STAGE_FRAGMENT_BIT,
                                    0, sizeof(ScenePushConstants), &pushConstants);
-                boundAlpha = batch.alpha;
                 boundVertexColorOnly = batch.vertexColorOnly;
                 hasBoundPushConstants = true;
             }

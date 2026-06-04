@@ -15,7 +15,6 @@ struct RenderCommand
     ssbo_id_type    objectSSBOSlot;
     view_id_type    cameraViewID;
 
-    float     alpha       = 1.0f;   // pushed to fragment shader; opaque objects use 1.0
     bool      doubleSided = false;  // selects the no-cull pipeline variant in SceneRenderStage
     bool      vertexColorOnly = false; // uses mesh vertex color instead of sampling the material texture
 };
@@ -25,6 +24,7 @@ struct ObjectUploadCommand
     ssbo_id_type objectSSBOSlot = 0;
     glm::mat4    modelMatrix    = glm::mat4(1.0f);
     glm::vec4    uvTransform    = {1.0f, 1.0f, 0.0f, 0.0f};
+    glm::vec4    tint           = {1.0f, 1.0f, 1.0f, 1.0f};
 };
 
 struct CameraUploadCommand

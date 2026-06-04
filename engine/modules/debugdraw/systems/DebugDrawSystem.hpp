@@ -137,7 +137,7 @@ namespace gts::debugdraw
 
             MaterialComponent material;
             material.texturePath = texturePath();
-            material.alpha = alpha(color);
+            material.tint = {1.0f, 1.0f, 1.0f, opacity(color)};
             material.doubleSided = true;
             material.vertexColorOnly = true;
 
@@ -181,7 +181,7 @@ namespace gts::debugdraw
             return {1.0f, 1.0f, 1.0f};
         }
 
-        static float alpha(DebugDrawColor color)
+        static float opacity(DebugDrawColor color)
         {
             return color == DebugDrawColor::Grey ? 0.55f : 0.92f;
         }
@@ -235,7 +235,7 @@ namespace gts::debugdraw
             ++renderable.geometryVersion;
             mesh.geometryVersion = renderable.geometryVersion;
             material.texturePath = texturePath();
-            material.alpha = alpha(color);
+            material.tint = {1.0f, 1.0f, 1.0f, opacity(color)};
             material.doubleSided = true;
             material.vertexColorOnly = true;
 

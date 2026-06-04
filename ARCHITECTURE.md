@@ -209,7 +209,7 @@ components directly.
 |-----------|---------|
 | `TransformComponent` | Position, rotation, scale |
 | `StaticMeshComponent` | Asset path to mesh |
-| `MaterialComponent` | Texture path, tint, alpha, culling, and optional vertex-color-only rendering |
+| `MaterialComponent` | Texture path, tint color/opacity, culling, and optional vertex-color-only rendering |
 | `TextureAnimationComponent` | Optional per-object scene-material UV scrolling or flipbook atlas animation |
 | `BoundsComponent` | Local AABB used for frustum culling |
 | `CameraDescriptionComponent` | FOV, near/far clip planes |
@@ -274,12 +274,11 @@ RenderCommand {
     texture_id_type    textureID
     ssbo_id_type       objectSSBOSlot    (per-object transform)
     view_id_type       cameraViewID      (camera UBO)
-    float              alpha
     bool               doubleSided
     bool               vertexColorOnly
 }
 ```
-Sorted by (double-sided, vertex-color-only, meshID, textureID) to minimize state changes. Cached across frames; only rebuilt when renderable content, visibility, camera version, or active camera view changes.
+Opaque commands are sorted by (double-sided, vertex-color-only, meshID, textureID) to minimize state changes. Transparent commands are appended after opaque commands. Cached across frames; only rebuilt when renderable content, visibility, camera version, or active camera view changes.
 
 Render extraction also emits upload command side channels:
 
@@ -288,6 +287,7 @@ ObjectUploadCommand {
     ssbo_id_type objectSSBOSlot
     glm::mat4    modelMatrix
     glm::vec4    uvTransform    // xy = scale, zw = offset
+    glm::vec4    tint           // rgba multiplier; a controls material opacity
 }
 
 CameraUploadCommand {
@@ -299,7 +299,7 @@ CameraUploadCommand {
 
 Object uploads are generated only for renderables marked dirty by the render
 invalidation queue. They carry the full per-object scene data, currently the
-model matrix plus scene-material UV transform. Camera uploads are generated
+model matrix, scene-material UV transform, and material tint. Camera uploads are generated
 every extracted frame for the active camera and consumed by the renderer after
 the current-frame fence wait.
 

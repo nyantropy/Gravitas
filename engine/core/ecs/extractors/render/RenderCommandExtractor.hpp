@@ -72,24 +72,29 @@ public:
                 occupiedSlots.push_back(slot);
             cached.lastSeenFrame = frameStamp;
 
-            const bool opaque = renderable.alpha >= 1.0f;
+            const bool opaque = renderable.tint.a >= 1.0f;
             const bool visible = renderable.visible;
             const bool sortKeyChanged = !cached.initialised
                 || cached.sortKey != renderable.sortKey;
+            const bool opacityBucketChanged = !cached.initialised
+                || cached.opaque != opaque;
             const bool needsUpdate = !cacheInitialised
                 || !cached.initialised
                 || cached.command.meshID != renderable.meshID
                 || cached.command.textureID != renderable.textureID
                 || cached.command.objectSSBOSlot != renderable.objectSSBOSlot
-                || cached.command.alpha != renderable.alpha
                 || cached.command.doubleSided != renderable.doubleSided
                 || cached.command.vertexColorOnly != renderable.vertexColorOnly
                 || cached.command.cameraViewID != snapshot.cameraViewID;
 
-            if (!cached.initialised || cached.visible != visible)
+            if (!cached.initialised || cached.visible != visible || opacityBucketChanged)
                 visibilityStatesChanged = true;
 
+            if (opacityBucketChanged)
+                sortOrderDirty = true;
+
             cached.visible = visible;
+            cached.opaque = opaque;
 
             if (needsUpdate)
             {
@@ -100,7 +105,6 @@ public:
                 cached.command.textureID      = renderable.textureID;
                 cached.command.objectSSBOSlot = renderable.objectSSBOSlot;
                 cached.command.cameraViewID   = snapshot.cameraViewID;
-                cached.command.alpha          = renderable.alpha;
                 cached.command.doubleSided    = renderable.doubleSided;
                 cached.command.vertexColorOnly = renderable.vertexColorOnly;
                 cached.sortKey                = renderable.sortKey;
@@ -190,6 +194,7 @@ private:
         uint64_t      sortKey       = 0;
         uint64_t      lastSeenFrame = 0;
         bool          visible       = false;
+        bool          opaque        = true;
         bool          initialised   = false;
     };
 

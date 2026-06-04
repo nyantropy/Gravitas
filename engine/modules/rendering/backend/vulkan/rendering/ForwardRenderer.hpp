@@ -542,6 +542,7 @@ class ForwardRenderer : Renderer
                 ObjectUBO ubo;
                 ubo.model = upload.modelMatrix;
                 ubo.uvTransform = upload.uvTransform;
+                ubo.tint = upload.tint;
                 const uint32_t writes = resourceSystem->writeObjectSlotAllFrames(upload.objectSSBOSlot, ubo);
                 frameStats.backendObjectWrites += writes;
                 if (writes == 0)

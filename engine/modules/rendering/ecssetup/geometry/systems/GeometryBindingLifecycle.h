@@ -182,16 +182,15 @@ namespace gts::rendering
         }
 
         if (matGpu.tint != mat.tint
-            || matGpu.alpha != mat.alpha
             || matGpu.doubleSided != mat.doubleSided
             || matGpu.vertexColorOnly != mat.vertexColorOnly)
         {
             dirty.materialDirty   = true;
+            dirty.objectDataDirty = true;
             renderGpu.commandDirty = true;
         }
 
         matGpu.tint            = mat.tint;
-        matGpu.alpha           = mat.alpha;
         matGpu.doubleSided     = mat.doubleSided;
         matGpu.vertexColorOnly = mat.vertexColorOnly;
 
@@ -260,16 +259,15 @@ namespace gts::rendering
         }
 
         if (matGpu.tint != mat.tint
-            || matGpu.alpha != mat.alpha
             || !matGpu.doubleSided
             || matGpu.vertexColorOnly != mat.vertexColorOnly)
         {
             dirty.materialDirty   = true;
+            dirty.objectDataDirty = true;
             renderGpu.commandDirty = true;
         }
 
         matGpu.tint            = mat.tint;
-        matGpu.alpha           = mat.alpha;
         matGpu.doubleSided     = true;
         matGpu.vertexColorOnly = mat.vertexColorOnly;
 
