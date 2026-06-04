@@ -368,8 +368,10 @@ separate Vulkan render stage.
 
 Feature layout:
 
-- `modules/rendering/ecssetup/particles/components/`: authoring descriptors,
-  runtime particles, curves, shapes, bursts, flipbooks, and force module data
+- `core/ecs/desc/ParticleEmitterComponent.h`: game-facing particle emitter descriptor
+- `core/ecs/desc/ParticleTypes.h`: authoring types for curves, shapes, bursts,
+  flipbooks, and force module data
+- `modules/rendering/ecssetup/particles/components/`: runtime particle state
 - `modules/rendering/ecssetup/particles/assets/`: JSON particle effect
   load/save and hot-reload registry
 - `modules/rendering/ecssetup/particles/systems/`: emitter simulation and
@@ -382,6 +384,8 @@ Application code authors `ParticleEmitterComponent` plus `TransformComponent`.
 The engine creates `ParticleEmitterRuntimeComponent`, simulates particles every
 controller frame, sorts alpha particles by camera depth, batches by texture and
 blend mode, and renders billboards in `ParticleRenderStage`.
+Hot-reload bookkeeping, including the last applied effect asset version, lives
+in `ParticleEmitterRuntimeComponent`.
 
 Particle controls currently include:
 

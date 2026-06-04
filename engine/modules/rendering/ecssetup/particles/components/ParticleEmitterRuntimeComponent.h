@@ -31,4 +31,5 @@ struct ParticleEmitterRuntimeComponent
 
     texture_id_type textureID = 0;
     std::string boundTexturePath;
+    uint64_t appliedEffectVersion = 0;
 };

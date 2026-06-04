@@ -26,21 +26,20 @@ public:
                 if (asset == nullptr || !asset->loaded)
                     return;
 
-                if (emitter.appliedEffectVersion == asset->version)
-                    return;
-
-                applyEffect(emitter, *asset);
                 if (ctx.world.hasComponent<ParticleEmitterRuntimeComponent>(entity))
                 {
                     ParticleEmitterRuntimeComponent& runtime =
                         ctx.world.getComponent<ParticleEmitterRuntimeComponent>(entity);
-                    runtime.particles.clear();
-                    runtime.spawnAccumulator = 0.0f;
-                    runtime.emitterAge = 0.0f;
-                    runtime.burstRepeatCounts.clear();
-                    runtime.textureID = 0;
-                    runtime.boundTexturePath.clear();
+                    if (runtime.appliedEffectVersion == asset->version)
+                        return;
+
+                    applyEffect(emitter, *asset);
+                    resetRuntime(runtime);
+                    runtime.appliedEffectVersion = asset->version;
+                    return;
                 }
+
+                applyEffect(emitter, *asset);
             });
     }
 
@@ -85,7 +84,15 @@ private:
         target.effectPath = effectPath;
         target.randomSeed = randomSeed;
         target.reloadFromEffect = true;
-        target.appliedEffectVersion = asset.version;
+    }
+
+    static void resetRuntime(ParticleEmitterRuntimeComponent& runtime)
+    {
+        runtime.particles.clear();
+        runtime.spawnAccumulator = 0.0f;
+        runtime.emitterAge = 0.0f;
+        runtime.burstRepeatCounts.clear();
+        runtime.textureID = 0;
+        runtime.boundTexturePath.clear();
     }
 };
-
