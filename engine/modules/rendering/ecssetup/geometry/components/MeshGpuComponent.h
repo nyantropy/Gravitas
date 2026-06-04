@@ -8,7 +8,7 @@
 //
 // meshID:
 //   Shared static meshes are cache-backed and not owned by this component.
-//   Procedural meshes are entity-owned; ownsProceduralMeshResource marks those
+//   Uploaded runtime meshes are entity-owned; ownsProceduralMeshResource marks those
 //   cases so ECS teardown can release them automatically.
 struct MeshGpuComponent
 {
@@ -18,8 +18,10 @@ struct MeshGpuComponent
     // Internal tracking for StaticMeshBindingSystem
     std::string  boundMeshPath;
 
-    // Internal tracking for ProceduralMeshBindingSystem
-    float        boundWidth   = 0.0f;
-    float        boundHeight  = 0.0f;
-    uint64_t     boundGeometryVersion = 0;
+    // Internal tracking for QuadMeshBindingSystem
+    float        boundQuadWidth  = 0.0f;
+    float        boundQuadHeight = 0.0f;
+
+    // Internal tracking for DynamicMeshBindingSystem
+    uint64_t     boundDynamicGeometryVersion = 0;
 };

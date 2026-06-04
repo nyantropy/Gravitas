@@ -16,7 +16,8 @@
 #include "ActiveCameraViewSystem.hpp"
 #include "RenderableCleanupSystem.hpp"
 #include "StaticMeshBindingSystem.hpp"
-#include "ProceduralMeshBindingSystem.hpp"
+#include "QuadMeshBindingSystem.hpp"
+#include "DynamicMeshBindingSystem.hpp"
 #include "WorldTextBindingSystem.hpp"
 #include "GeometryBindingLifecycle.h"
 #include "CameraBindingLifecycle.h"
@@ -41,6 +42,8 @@
 #include "RenderExtractionSnapshotBuilder.hpp"
 #include "TransformDirtyHelpers.h"
 #include "InputBindingRegistry.h"
+#include "QuadMeshComponent.h"
+#include "DynamicMeshComponent.h"
 
 
 // Override this class to define a reusable engine scene in terms of entities,
@@ -169,13 +172,23 @@ class GtsScene
                 {
                     gts::rendering::queueRenderableCleanup(world, entity);
                 });
-            ecsWorld.registerAddCallback<ProceduralMeshComponent>(
-                [](ECSWorld& world, Entity entity, ProceduralMeshComponent&)
+            ecsWorld.registerAddCallback<QuadMeshComponent>(
+                [](ECSWorld& world, Entity entity, QuadMeshComponent&)
                 {
-                    gts::rendering::queueProceduralRefresh(world, entity);
+                    gts::rendering::queueQuadMeshRefresh(world, entity);
                 });
-            ecsWorld.registerRemoveCallback<ProceduralMeshComponent>(
-                [](ECSWorld& world, Entity entity, ProceduralMeshComponent&)
+            ecsWorld.registerRemoveCallback<QuadMeshComponent>(
+                [](ECSWorld& world, Entity entity, QuadMeshComponent&)
+                {
+                    gts::rendering::queueRenderableCleanup(world, entity);
+                });
+            ecsWorld.registerAddCallback<DynamicMeshComponent>(
+                [](ECSWorld& world, Entity entity, DynamicMeshComponent&)
+                {
+                    gts::rendering::queueDynamicMeshRefresh(world, entity);
+                });
+            ecsWorld.registerRemoveCallback<DynamicMeshComponent>(
+                [](ECSWorld& world, Entity entity, DynamicMeshComponent&)
                 {
                     gts::rendering::queueRenderableCleanup(world, entity);
                 });
@@ -183,7 +196,8 @@ class GtsScene
                 [](ECSWorld& world, Entity entity, MaterialComponent&)
                 {
                     gts::rendering::queueStaticMeshRefresh(world, entity);
-                    gts::rendering::queueProceduralRefresh(world, entity);
+                    gts::rendering::queueQuadMeshRefresh(world, entity);
+                    gts::rendering::queueDynamicMeshRefresh(world, entity);
                 });
             ecsWorld.registerRemoveCallback<MaterialComponent>(
                 [](ECSWorld& world, Entity entity, MaterialComponent&)
@@ -223,11 +237,6 @@ class GtsScene
                     dirty.objectDataDirty = true;
                     gts::rendering::queueRenderSnapshotDirty(world, entity);
                 });
-            ecsWorld.registerAddCallback<WorldTextComponent>(
-                [](ECSWorld& world, Entity entity, WorldTextComponent&)
-                {
-                    gts::rendering::queueProceduralRefresh(world, entity);
-                });
             ecsWorld.registerRemoveCallback<WorldTextComponent>(
                 [](ECSWorld& world, Entity entity, WorldTextComponent&)
                 {
@@ -249,7 +258,8 @@ class GtsScene
                 ctx.input->popContext(DebugFreeCameraSystem::InputContext);
 
             ecsWorld.addControllerSystem<StaticMeshBindingSystem>();
-            ecsWorld.addControllerSystem<ProceduralMeshBindingSystem>();
+            ecsWorld.addControllerSystem<QuadMeshBindingSystem>();
+            ecsWorld.addControllerSystem<DynamicMeshBindingSystem>();
             ecsWorld.addControllerSystem<WorldTextBindingSystem>();
             ecsWorld.addControllerSystem<RenderableCleanupSystem>();
             ecsWorld.addControllerSystem<RenderGpuSystem>();
@@ -270,10 +280,15 @@ class GtsScene
                     // reintroducing a full steady-state scan.
                     gts::rendering::queueStaticMeshRefresh(ecsWorld, entity);
                 });
-            ecsWorld.forEachSnapshot<ProceduralMeshComponent, MaterialComponent>(
-                [this](Entity entity, ProceduralMeshComponent&, MaterialComponent&)
+            ecsWorld.forEachSnapshot<QuadMeshComponent, MaterialComponent>(
+                [this](Entity entity, QuadMeshComponent&, MaterialComponent&)
                 {
-                    gts::rendering::queueProceduralRefresh(ecsWorld, entity);
+                    gts::rendering::queueQuadMeshRefresh(ecsWorld, entity);
+                });
+            ecsWorld.forEachSnapshot<DynamicMeshComponent, MaterialComponent>(
+                [this](Entity entity, DynamicMeshComponent&, MaterialComponent&)
+                {
+                    gts::rendering::queueDynamicMeshRefresh(ecsWorld, entity);
                 });
             ecsWorld.forEachSnapshot<CameraDescriptionComponent>(
                 [this](Entity entity, CameraDescriptionComponent&)

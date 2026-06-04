@@ -14,8 +14,8 @@
 #include "EngineToolStateComponent.h"
 #include "GeometryBindingLifecycle.h"
 #include "GraphicsConstants.h"
+#include "DynamicMeshComponent.h"
 #include "MaterialComponent.h"
-#include "ProceduralMeshComponent.h"
 #include "ToolEntityLabelComponent.h"
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
@@ -95,10 +95,10 @@ namespace gts::tools
 
             world.addComponent(entity, TransformComponent{});
             world.addComponent(entity, material);
-            world.addComponent(entity, ProceduralMeshComponent{});
+            world.addComponent(entity, DynamicMeshComponent{});
             world.addComponent(entity, BoundsComponent{});
             world.addComponent(entity, label);
-            gts::rendering::queueProceduralRefresh(world, entity);
+            gts::rendering::queueDynamicMeshRefresh(world, entity);
             (void)target;
         }
 
@@ -123,20 +123,19 @@ namespace gts::tools
             if (highlight.targetEntity.id == target.id)
                 return;
 
-            ProceduralMeshComponent& mesh =
-                world.getComponent<ProceduralMeshComponent>(highlight.highlightEntity);
+            DynamicMeshComponent& mesh =
+                world.getComponent<DynamicMeshComponent>(highlight.highlightEntity);
             BoundsComponent& bounds = world.getComponent<BoundsComponent>(highlight.highlightEntity);
             rebuildWireBox(mesh, bounds, targetBounds, ++highlight.geometryVersion);
             highlight.targetEntity = target;
-            gts::rendering::queueProceduralRefresh(world, highlight.highlightEntity);
+            gts::rendering::queueDynamicMeshRefresh(world, highlight.highlightEntity);
         }
 
-        static void rebuildWireBox(ProceduralMeshComponent& mesh,
+        static void rebuildWireBox(DynamicMeshComponent& mesh,
                                    BoundsComponent& outBounds,
                                    const BoundsComponent& targetBounds,
                                    uint64_t geometryVersion)
         {
-            mesh.useCustomGeometry = true;
             mesh.geometryVersion = geometryVersion;
             mesh.vertices.clear();
             mesh.indices.clear();

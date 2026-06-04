@@ -8,12 +8,13 @@
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
 #include "DebugDrawRenderableComponent.h"
+#include "DynamicMeshComponent.h"
 #include "ECSWorld.hpp"
 #include "Entity.h"
 #include "MaterialComponent.h"
 #include "ParticleEmitterComponent.h"
 #include "PhysicsBodyComponent.h"
-#include "ProceduralMeshComponent.h"
+#include "QuadMeshComponent.h"
 #include "SphereColliderComponent.h"
 #include "StaticMeshComponent.h"
 #include "ToolEntityLabelComponent.h"
@@ -88,7 +89,8 @@ namespace gts::tools
         if (world.hasComponent<TransformComponent>(entity)) badges.push_back("TR");
         if (world.hasComponent<BoundsComponent>(entity)) badges.push_back("BND");
         if (world.hasComponent<StaticMeshComponent>(entity)) badges.push_back("MESH");
-        if (world.hasComponent<ProceduralMeshComponent>(entity)) badges.push_back("PROC");
+        if (world.hasComponent<QuadMeshComponent>(entity)) badges.push_back("QUAD");
+        if (world.hasComponent<DynamicMeshComponent>(entity)) badges.push_back("DYN");
         if (world.hasComponent<MaterialComponent>(entity)) badges.push_back("MAT");
         if (world.hasComponent<ParticleEmitterComponent>(entity)) badges.push_back("PART");
         if (world.hasComponent<CameraDescriptionComponent>(entity)) badges.push_back("CAM");

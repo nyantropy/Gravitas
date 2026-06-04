@@ -186,7 +186,7 @@ RenderCommandExtractor reads both         ← emits RenderCommand
 GPU resource release still happens through component removal callbacks, but descriptor add/remove no longer performs recursive ECS mutation. Binding/cleanup decisions are queued and executed by explicit lifecycle systems.
 
 The render lifecycle is split by concern:
-- **Geometry lifecycle** queues and resolves static mesh / procedural mesh companion state
+- **Geometry lifecycle** queues and resolves static mesh / quad mesh / dynamic mesh companion state
 - **Renderable cleanup** tears down geometry GPU companions regardless of descriptor source
 - **Camera lifecycle** owns `CameraGpuComponent` creation/removal independently of geometry lifecycle
 - **Render invalidation** queues transform and snapshot dirtiness explicitly so steady-state extraction does not scan every renderable
@@ -209,6 +209,8 @@ components directly.
 |-----------|---------|
 | `TransformComponent` | Position, rotation, scale |
 | `StaticMeshComponent` | Asset path to mesh |
+| `QuadMeshComponent` | Width/height for shared generated quad meshes |
+| `DynamicMeshComponent` | Runtime-authored vertices/indices plus `geometryVersion` for uploaded mesh updates |
 | `MaterialComponent` | Texture path, tint color/opacity, culling, and optional vertex-color-only rendering |
 | `TextureAnimationComponent` | Optional per-object scene-material UV scrolling or flipbook atlas animation |
 | `BoundsComponent` | Local AABB used for frustum culling |
@@ -216,11 +218,23 @@ components directly.
 | `PhysicsBodyComponent` | Dynamic vs static body flag |
 | `ParticleEmitterComponent` | Game-facing particle emitter descriptor paired with `TransformComponent` |
 
+Renderable scene geometry should use one geometry descriptor at a time:
+`StaticMeshComponent`, `QuadMeshComponent`, `DynamicMeshComponent`, or
+`WorldTextComponent`.
+
+Descriptor direction: descriptors are supposed to stay as clean authoring data.
+They describe what the scene wants, not how the engine currently fulfills it.
+GPU handles, cached paths, dirty flags, temporary upload state, generated
+runtime data, and backend bookkeeping belong in engine-owned companion
+components or feature runtime components. When a descriptor starts needing that
+kind of state, split the state out instead of growing the descriptor into a
+mixed gameplay/rendering object.
+
 ### GPU Components (engine-managed)
 
 | Component | Managed By |
 |-----------|-----------|
-| `MeshGpuComponent` | `StaticMeshBindingSystem` |
+| `MeshGpuComponent` | `StaticMeshBindingSystem`, `QuadMeshBindingSystem`, `DynamicMeshBindingSystem`, and `WorldTextBindingSystem` |
 | `MaterialGpuComponent` | geometry lifecycle systems |
 | `RenderGpuComponent` | geometry lifecycle systems + `RenderableCleanupSystem` + `RenderGpuSystem` |
 | `CameraGpuComponent` | `CameraLifecycleSystem` + `CameraGpuSystem` + `CameraBindingSystem` for view IDs; renderer for UBO upload |
@@ -318,10 +332,10 @@ scene geometry. It supports two first-pass modes:
   suitable for discrete animated tile frames.
 
 This feature deliberately does not swap `MaterialComponent::texturePath` and
-does not rewrite procedural mesh vertices every frame. Both approaches would
-dirty resource bindings or mesh data instead of updating per-object visual
-state. The shader applies `uv = inTexCoord * uvScale + uvOffset` from the object
-SSBO before sampling the material texture. Static materials use identity
+does not rewrite mesh vertices every frame. Both approaches would dirty
+resource bindings or mesh data instead of updating per-object visual state. The
+shader applies `uv = inTexCoord * uvScale + uvOffset` from the object SSBO
+before sampling the material texture. Static materials use identity
 `uvTransform = {1, 1, 0, 0}` and render unchanged.
 
 Texture animation is a visual controller-space feature. It must not own
@@ -401,7 +415,7 @@ The Vulkan backend uses a declarative frame graph:
 `modules/debugdraw/` is a standalone feature for transient visual diagnostics.
 Callers enqueue world-space primitives through helpers in
 `DebugDrawPrimitives.h`; `DebugDrawSystem` batches those lines by color into
-procedural meshes. Debug draw uses `MaterialComponent::vertexColorOnly` so axes,
+dynamic meshes. Debug draw uses `MaterialComponent::vertexColorOnly` so axes,
 bounds, rays, and frusta are not dependent on sampled debug textures.
 
 Debug draw is intentionally generic. Tool-specific policy, such as drawing the

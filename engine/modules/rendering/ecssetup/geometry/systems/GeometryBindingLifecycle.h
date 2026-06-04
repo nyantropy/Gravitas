@@ -5,10 +5,11 @@
 
 #include "ECSWorld.hpp"
 #include "IResourceProvider.hpp"
+#include "DynamicMeshComponent.h"
 #include "MaterialComponent.h"
 #include "MaterialGpuComponent.h"
 #include "MeshGpuComponent.h"
-#include "ProceduralMeshComponent.h"
+#include "QuadMeshComponent.h"
 #include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
 #include "RenderInvalidationLifecycle.h"
@@ -22,7 +23,8 @@ namespace gts::rendering
     struct GeometryBindingLifecycleState
     {
         std::unordered_set<entity_id_type> staticMeshRefreshEntities;
-        std::unordered_set<entity_id_type> proceduralRefreshEntities;
+        std::unordered_set<entity_id_type> quadMeshRefreshEntities;
+        std::unordered_set<entity_id_type> dynamicMeshRefreshEntities;
         std::unordered_set<entity_id_type> cleanupEntities;
     };
 
@@ -51,11 +53,19 @@ namespace gts::rendering
         return pending;
     }
 
-    inline std::unordered_set<entity_id_type> takeProceduralRefreshes(ECSWorld& world)
+    inline std::unordered_set<entity_id_type> takeQuadMeshRefreshes(ECSWorld& world)
     {
         auto& state = geometryBindingLifecycleState(world);
         std::unordered_set<entity_id_type> pending;
-        pending.swap(state.proceduralRefreshEntities);
+        pending.swap(state.quadMeshRefreshEntities);
+        return pending;
+    }
+
+    inline std::unordered_set<entity_id_type> takeDynamicMeshRefreshes(ECSWorld& world)
+    {
+        auto& state = geometryBindingLifecycleState(world);
+        std::unordered_set<entity_id_type> pending;
+        pending.swap(state.dynamicMeshRefreshEntities);
         return pending;
     }
 
@@ -72,9 +82,14 @@ namespace gts::rendering
         geometryBindingLifecycleState(world).staticMeshRefreshEntities.insert(entity.id);
     }
 
-    inline void queueProceduralRefresh(ECSWorld& world, Entity entity)
+    inline void queueQuadMeshRefresh(ECSWorld& world, Entity entity)
     {
-        geometryBindingLifecycleState(world).proceduralRefreshEntities.insert(entity.id);
+        geometryBindingLifecycleState(world).quadMeshRefreshEntities.insert(entity.id);
+    }
+
+    inline void queueDynamicMeshRefresh(ECSWorld& world, Entity entity)
+    {
+        geometryBindingLifecycleState(world).dynamicMeshRefreshEntities.insert(entity.id);
     }
 
     inline void queueRenderableCleanup(ECSWorld& world, Entity entity)
@@ -113,7 +128,15 @@ namespace gts::rendering
             return true;
         }
 
-        if (world.hasComponent<ProceduralMeshComponent>(entity)
+        if (world.hasComponent<QuadMeshComponent>(entity)
+            && world.hasComponent<MaterialComponent>(entity))
+        {
+            const auto& material = world.getComponent<MaterialComponent>(entity);
+            if (!material.texturePath.empty())
+                return true;
+        }
+
+        if (world.hasComponent<DynamicMeshComponent>(entity)
             && world.hasComponent<MaterialComponent>(entity))
         {
             const auto& material = world.getComponent<MaterialComponent>(entity);
@@ -165,11 +188,11 @@ namespace gts::rendering
 
             meshGpu.meshID                     = resources->requestMesh(mesh.meshPath);
             meshGpu.ownsProceduralMeshResource = false;
-            meshGpu.boundMeshPath              = mesh.meshPath;
-            meshGpu.boundWidth                 = 0.0f;
-            meshGpu.boundHeight                = 0.0f;
-            meshGpu.boundGeometryVersion       = 0;
-            dirty.meshDirty                    = true;
+            meshGpu.boundMeshPath               = mesh.meshPath;
+            meshGpu.boundQuadWidth              = 0.0f;
+            meshGpu.boundQuadHeight             = 0.0f;
+            meshGpu.boundDynamicGeometryVersion = 0;
+            dirty.meshDirty                     = true;
             markRenderableDirty(dirty, renderGpu);
         }
 
@@ -218,12 +241,12 @@ namespace gts::rendering
             gts::transform::markDirty(world, entity);
     }
 
-    inline void syncProceduralMeshBinding(ECSWorld& world,
-                                          Entity entity,
-                                          IResourceProvider* resources,
-                                          ECSWorld::EntityCommandBuffer& commands)
+    inline void syncQuadMeshBinding(ECSWorld& world,
+                                    Entity entity,
+                                    IResourceProvider* resources,
+                                    ECSWorld::EntityCommandBuffer& commands)
     {
-        if (!world.hasComponent<ProceduralMeshComponent>(entity) || !world.hasComponent<MaterialComponent>(entity))
+        if (!world.hasComponent<QuadMeshComponent>(entity) || !world.hasComponent<MaterialComponent>(entity))
             return;
 
         if (world.getComponent<MaterialComponent>(entity).texturePath.empty())
@@ -232,7 +255,7 @@ namespace gts::rendering
             return;
         }
 
-        const auto& mesh = world.getComponent<ProceduralMeshComponent>(entity);
+        const auto& mesh = world.getComponent<QuadMeshComponent>(entity);
         const auto& mat  = world.getComponent<MaterialComponent>(entity);
         const bool hasMeshGpu = world.hasComponent<MeshGpuComponent>(entity);
         const bool hasMatGpu = world.hasComponent<MaterialGpuComponent>(entity);
@@ -259,7 +282,7 @@ namespace gts::rendering
         }
 
         if (matGpu.tint != mat.tint
-            || !matGpu.doubleSided
+            || matGpu.doubleSided != mat.doubleSided
             || matGpu.vertexColorOnly != mat.vertexColorOnly)
         {
             dirty.materialDirty   = true;
@@ -268,44 +291,128 @@ namespace gts::rendering
         }
 
         matGpu.tint            = mat.tint;
-        matGpu.doubleSided     = true;
+        matGpu.doubleSided     = mat.doubleSided;
         matGpu.vertexColorOnly = mat.vertexColorOnly;
 
-        const bool customGeometryChanged =
-            mesh.useCustomGeometry
-            && (!meshGpu.ownsProceduralMeshResource
-                || mesh.geometryVersion != meshGpu.boundGeometryVersion
-                || meshGpu.meshID == 0);
-
         const bool quadGeometryChanged =
-            !mesh.useCustomGeometry
-            && (meshGpu.ownsProceduralMeshResource
-                || mesh.width != meshGpu.boundWidth
-                || mesh.height != meshGpu.boundHeight
-                || meshGpu.meshID == 0);
+            meshGpu.ownsProceduralMeshResource
+            || mesh.width != meshGpu.boundQuadWidth
+            || mesh.height != meshGpu.boundQuadHeight
+            || meshGpu.meshID == 0;
 
-        if (customGeometryChanged || quadGeometryChanged)
+        if (quadGeometryChanged)
         {
-            if (mesh.useCustomGeometry)
-            {
-                const mesh_id_type existingId = meshGpu.ownsProceduralMeshResource ? meshGpu.meshID : 0;
-                meshGpu.meshID = resources->uploadProceduralMesh(existingId, mesh.vertices, mesh.indices);
-                meshGpu.ownsProceduralMeshResource = true;
-            }
-            else
-            {
-                if (meshGpu.ownsProceduralMeshResource && meshGpu.meshID != 0)
-                    resources->releaseProceduralMesh(meshGpu.meshID);
+            if (meshGpu.ownsProceduralMeshResource && meshGpu.meshID != 0)
+                resources->releaseProceduralMesh(meshGpu.meshID);
 
-                meshGpu.meshID = resources->getSharedQuadMesh(mesh.width, mesh.height);
-                meshGpu.ownsProceduralMeshResource = false;
-            }
+            meshGpu.meshID = resources->getSharedQuadMesh(mesh.width, mesh.height);
+            meshGpu.ownsProceduralMeshResource = false;
+            meshGpu.boundMeshPath               = {};
+            meshGpu.boundQuadWidth              = mesh.width;
+            meshGpu.boundQuadHeight             = mesh.height;
+            meshGpu.boundDynamicGeometryVersion = 0;
+            dirty.meshDirty                     = true;
+            markRenderableDirty(dirty, renderGpu);
+        }
 
-            meshGpu.boundMeshPath        = {};
-            meshGpu.boundWidth           = mesh.width;
-            meshGpu.boundHeight          = mesh.height;
-            meshGpu.boundGeometryVersion = mesh.geometryVersion;
-            dirty.meshDirty              = true;
+        if (hasMeshGpu)
+            world.getComponent<MeshGpuComponent>(entity) = meshGpu;
+        else
+            commands.addComponent<MeshGpuComponent>(entity, meshGpu);
+
+        if (hasMatGpu)
+            world.getComponent<MaterialGpuComponent>(entity) = matGpu;
+        else
+            commands.addComponent<MaterialGpuComponent>(entity, matGpu);
+
+        if (hasRenderGpu)
+            world.getComponent<RenderGpuComponent>(entity) = renderGpu;
+        else
+            commands.addComponent<RenderGpuComponent>(entity, renderGpu);
+
+        if (hasDirty)
+            world.getComponent<RenderDirtyComponent>(entity) = dirty;
+        else
+            commands.addComponent<RenderDirtyComponent>(entity, dirty);
+
+        if (world.hasComponent<TransformComponent>(entity))
+            gts::transform::markDirty(world, entity);
+    }
+
+    inline void syncDynamicMeshBinding(ECSWorld& world,
+                                       Entity entity,
+                                       IResourceProvider* resources,
+                                       ECSWorld::EntityCommandBuffer& commands)
+    {
+        if (!world.hasComponent<DynamicMeshComponent>(entity) || !world.hasComponent<MaterialComponent>(entity))
+            return;
+
+        if (world.getComponent<MaterialComponent>(entity).texturePath.empty())
+        {
+            scheduleRenderableCleanup(world, commands, entity);
+            return;
+        }
+
+        const auto& mesh = world.getComponent<DynamicMeshComponent>(entity);
+        if (mesh.vertices.empty() || mesh.indices.empty())
+        {
+            scheduleRenderableCleanup(world, commands, entity);
+            return;
+        }
+
+        const auto& mat  = world.getComponent<MaterialComponent>(entity);
+        const bool hasMeshGpu = world.hasComponent<MeshGpuComponent>(entity);
+        const bool hasMatGpu = world.hasComponent<MaterialGpuComponent>(entity);
+        const bool hasRenderGpu = world.hasComponent<RenderGpuComponent>(entity);
+        const bool hasDirty = world.hasComponent<RenderDirtyComponent>(entity);
+
+        MeshGpuComponent meshGpu = hasMeshGpu ? world.getComponent<MeshGpuComponent>(entity) : MeshGpuComponent{};
+        MaterialGpuComponent matGpu = hasMatGpu ? world.getComponent<MaterialGpuComponent>(entity) : MaterialGpuComponent{};
+        RenderGpuComponent renderGpu = hasRenderGpu ? world.getComponent<RenderGpuComponent>(entity) : RenderGpuComponent{};
+        RenderDirtyComponent dirty = hasDirty ? world.getComponent<RenderDirtyComponent>(entity) : RenderDirtyComponent{};
+
+        if (renderGpu.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
+        {
+            renderGpu.objectSSBOSlot = resources->requestObjectSlot();
+            renderGpu.commandDirty   = true;
+        }
+
+        if (mat.texturePath != matGpu.boundTexturePath || matGpu.textureID == 0)
+        {
+            matGpu.textureID        = resources->requestTexture(mat.texturePath);
+            matGpu.boundTexturePath = mat.texturePath;
+            dirty.materialDirty     = true;
+            markRenderableDirty(dirty, renderGpu);
+        }
+
+        if (matGpu.tint != mat.tint
+            || matGpu.doubleSided != mat.doubleSided
+            || matGpu.vertexColorOnly != mat.vertexColorOnly)
+        {
+            dirty.materialDirty   = true;
+            dirty.objectDataDirty = true;
+            renderGpu.commandDirty = true;
+        }
+
+        matGpu.tint            = mat.tint;
+        matGpu.doubleSided     = mat.doubleSided;
+        matGpu.vertexColorOnly = mat.vertexColorOnly;
+
+        const bool dynamicGeometryChanged =
+            !meshGpu.ownsProceduralMeshResource
+            || mesh.geometryVersion != meshGpu.boundDynamicGeometryVersion
+            || meshGpu.meshID == 0;
+
+        if (dynamicGeometryChanged)
+        {
+            const mesh_id_type existingId = meshGpu.ownsProceduralMeshResource ? meshGpu.meshID : 0;
+            meshGpu.meshID = resources->uploadProceduralMesh(existingId, mesh.vertices, mesh.indices);
+            meshGpu.ownsProceduralMeshResource = true;
+            meshGpu.boundMeshPath               = {};
+            meshGpu.boundQuadWidth              = 0.0f;
+            meshGpu.boundQuadHeight             = 0.0f;
+            meshGpu.boundDynamicGeometryVersion = mesh.geometryVersion;
+            dirty.meshDirty                     = true;
             markRenderableDirty(dirty, renderGpu);
         }
 

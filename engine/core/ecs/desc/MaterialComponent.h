@@ -3,12 +3,12 @@
 #include <string>
 #include "GlmConfig.h"
 
-// Gameplay-facing material description.
-// Contains appearance properties — no GPU handles.
-// Binding systems read this alongside mesh components and drive MaterialGpuComponent.
-//
-// Used with StaticMeshComponent or ProceduralMeshComponent.
-// NOT needed for WorldTextComponent — the font atlas is implicit.
+// gameplay-facing material description
+// contains appearance properties — no GPU handles
+// binding systems read this alongside mesh components and drive MaterialGpuComponent
+
+// to be used in conjunction with StaticMeshComponent, QuadMeshComponent, or DynamicMeshComponent
+// NOT needed for WorldTextComponent — the font atlas is implicit
 struct MaterialComponent
 {
     std::string texturePath;

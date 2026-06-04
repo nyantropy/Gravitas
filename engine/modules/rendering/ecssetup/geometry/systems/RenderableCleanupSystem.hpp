@@ -6,7 +6,7 @@
 
 // Shared geometry cleanup pass. This owns teardown of renderable GPU companion
 // components regardless of whether the descriptor source was static mesh,
-// procedural mesh, or world text.
+// quad mesh, dynamic mesh, or world text.
 class RenderableCleanupSystem : public ECSControllerSystem
 {
 public:

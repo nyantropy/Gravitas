@@ -11,7 +11,7 @@
 #include "GraphicsConstants.h"
 #include "MaterialComponent.h"
 #include "PhysicsWorld.h"
-#include "ProceduralMeshComponent.h"
+#include "QuadMeshComponent.h"
 #include "RenderGpuComponent.h"
 #include "SphereColliderComponent.h"
 #include "TransformComponent.h"
@@ -26,7 +26,7 @@ namespace
     {
         Entity e = world.createEntity();
 
-        ProceduralMeshComponent mesh;
+        QuadMeshComponent mesh;
         mesh.width  = 1.0f;
         mesh.height = LINE_THICKNESS;
 
@@ -59,12 +59,12 @@ namespace
         transform.rotation = rotation;
         gts::transform::markDirty(world, entity);
 
-        const auto& mesh = world.getComponent<ProceduralMeshComponent>(entity);
+        const auto& mesh = world.getComponent<QuadMeshComponent>(entity);
         if (mesh.width != length)
         {
-            ProceduralMeshComponent updatedMesh = mesh;
+            QuadMeshComponent updatedMesh = mesh;
             updatedMesh.width = length;
-            world.addComponent<ProceduralMeshComponent>(entity, updatedMesh);
+            world.addComponent<QuadMeshComponent>(entity, updatedMesh);
         }
 
         auto& bounds = world.getComponent<BoundsComponent>(entity);

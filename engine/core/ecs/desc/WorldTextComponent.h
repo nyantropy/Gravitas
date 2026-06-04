@@ -13,7 +13,7 @@
 //
 // Workflow:
 //   - Set text/font/scale.  Set dirty=true whenever text or scale changes.
-//   - WorldTextBindingSystem uploads glyph quads as a procedural mesh each frame
+//   - WorldTextBindingSystem uploads glyph quads as runtime mesh data
 //     when dirty is true, then clears the flag.
 struct WorldTextComponent
 {

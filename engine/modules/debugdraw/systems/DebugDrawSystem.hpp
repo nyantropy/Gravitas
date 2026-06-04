@@ -16,8 +16,8 @@
 #include "ECSWorld.hpp"
 #include "GeometryBindingLifecycle.h"
 #include "GraphicsConstants.h"
+#include "DynamicMeshComponent.h"
 #include "MaterialComponent.h"
-#include "ProceduralMeshComponent.h"
 #include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
 #include "TransformComponent.h"
@@ -144,8 +144,7 @@ namespace gts::debugdraw
             DebugDrawRenderableComponent renderable;
             renderable.color = color;
 
-            ProceduralMeshComponent mesh;
-            mesh.useCustomGeometry = true;
+            DynamicMeshComponent mesh;
 
             BoundsComponent bounds;
             bounds.min = {-0.01f, -0.01f, -0.01f};
@@ -205,12 +204,11 @@ namespace gts::debugdraw
                               DebugDrawColor color,
                               const std::vector<DebugDrawLine>& lines)
         {
-            ProceduralMeshComponent& mesh = world.getComponent<ProceduralMeshComponent>(entity);
+            DynamicMeshComponent& mesh = world.getComponent<DynamicMeshComponent>(entity);
             BoundsComponent& bounds = world.getComponent<BoundsComponent>(entity);
             DebugDrawRenderableComponent& renderable = world.getComponent<DebugDrawRenderableComponent>(entity);
             MaterialComponent& material = world.getComponent<MaterialComponent>(entity);
 
-            mesh.useCustomGeometry = true;
             mesh.vertices.clear();
             mesh.indices.clear();
             mesh.vertices.reserve(lines.size() * 8);
@@ -240,7 +238,7 @@ namespace gts::debugdraw
             material.vertexColorOnly = true;
 
             markExtractionDirty(world, entity);
-            gts::rendering::queueProceduralRefresh(world, entity);
+            gts::rendering::queueDynamicMeshRefresh(world, entity);
         }
 
         static void markExtractionDirty(ECSWorld& world, Entity entity)

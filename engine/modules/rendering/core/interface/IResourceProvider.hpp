@@ -19,7 +19,7 @@ class IResourceProvider
         // The returned ID must NOT be passed to releaseProceduralMesh.
         virtual mesh_id_type getSharedQuadMesh(float w, float h) = 0;
 
-        // Procedural mesh upload for CPU-generated geometry (e.g., text quads).
+        // Runtime mesh upload for CPU-generated geometry (e.g., text quads).
         // If existingId == 0 a new mesh is allocated and its ID is returned.
         // If existingId != 0 the existing GPU buffers are replaced with the new
         // geometry; the same ID is returned.  The caller (a ControllerSystem) is
