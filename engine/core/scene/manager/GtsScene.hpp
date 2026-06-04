@@ -207,6 +207,10 @@ class GtsScene
             ecsWorld.registerAddCallback<TextureAnimationComponent>(
                 [](ECSWorld& world, Entity entity, TextureAnimationComponent&)
                 {
+                    if (!world.hasComponent<TextureAnimationRuntimeComponent>(entity))
+                        world.commands().addComponent<TextureAnimationRuntimeComponent>(
+                            entity, TextureAnimationRuntimeComponent{});
+
                     if (!world.hasComponent<RenderGpuComponent>(entity)
                         || !world.hasComponent<RenderDirtyComponent>(entity))
                     {
@@ -289,6 +293,13 @@ class GtsScene
                 [this](Entity entity, DynamicMeshComponent&, MaterialComponent&)
                 {
                     gts::rendering::queueDynamicMeshRefresh(ecsWorld, entity);
+                });
+            ecsWorld.forEachSnapshot<TextureAnimationComponent>(
+                [this](Entity entity, TextureAnimationComponent&)
+                {
+                    if (!ecsWorld.hasComponent<TextureAnimationRuntimeComponent>(entity))
+                        ecsWorld.commands().addComponent<TextureAnimationRuntimeComponent>(
+                            entity, TextureAnimationRuntimeComponent{});
                 });
             ecsWorld.forEachSnapshot<CameraDescriptionComponent>(
                 [this](Entity entity, CameraDescriptionComponent&)

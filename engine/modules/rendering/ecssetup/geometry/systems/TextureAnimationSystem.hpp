@@ -9,6 +9,7 @@
 #include "RenderInvalidationLifecycle.h"
 #include "TextureAnimationComponent.h"
 #include "TextureAnimationRuntimeComponent.h"
+#include "TimeContext.h"
 
 class TextureAnimationSystem : public ECSControllerSystem
 {
@@ -18,24 +19,6 @@ public:
         if (ctx.time == nullptr)
             return;
 
-        auto& commands = ctx.world.commands();
-
-        ctx.world.forEachSnapshot<TextureAnimationComponent>(
-            [&](Entity entity, TextureAnimationComponent&)
-            {
-                if (!ctx.world.hasComponent<TextureAnimationRuntimeComponent>(entity))
-                    commands.addComponent<TextureAnimationRuntimeComponent>(
-                        entity, TextureAnimationRuntimeComponent{});
-            });
-
-        ctx.world.forEachSnapshot<TextureAnimationRuntimeComponent>(
-            [&](Entity entity, TextureAnimationRuntimeComponent&)
-            {
-                if (!ctx.world.hasComponent<TextureAnimationComponent>(entity))
-                    commands.removeComponent<TextureAnimationRuntimeComponent>(entity);
-            });
-
-        const float dt = std::max(0.0f, ctx.time->unscaledDeltaTime);
         ctx.world.forEach<TextureAnimationComponent,
                           TextureAnimationRuntimeComponent,
                           RenderGpuComponent,
@@ -49,14 +32,21 @@ public:
                 if (renderGpu.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED || !renderGpu.readyToRender)
                     return;
 
-                if (!animation.enabled || animation.mode == TextureAnimationMode::None)
+                if (descriptorChanged(animation, runtime))
+                {
+                    runtime.elapsedSeconds = 0.0f;
+                    runtime.lastDescriptor = animation;
+                    runtime.hasLastDescriptor = true;
+                }
+
+                if (!animation.enabled)
                 {
                     applyUvTransform(ctx, entity, renderGpu, dirty, identityUvTransform());
                     runtime.elapsedSeconds = 0.0f;
                     return;
                 }
 
-                runtime.elapsedSeconds += dt;
+                runtime.elapsedSeconds += animationDt(animation, *ctx.time);
                 applyUvTransform(ctx,
                                  entity,
                                  renderGpu,
@@ -71,12 +61,21 @@ private:
         return {1.0f, 1.0f, 0.0f, 0.0f};
     }
 
+    static float wrapUv(float value)
+    {
+        return value - std::floor(value);
+    }
+
+    static glm::vec2 wrapUv(const glm::vec2& value)
+    {
+        return {wrapUv(value.x), wrapUv(value.y)};
+    }
+
     static glm::vec4 computeUvTransform(const TextureAnimationComponent& animation,
                                         float elapsedSeconds)
     {
-        glm::vec2 scale = animation.uvScale;
-        glm::vec2 offset = animation.uvOffset
-            + animation.scrollSpeed * (elapsedSeconds + animation.phaseSeconds);
+        const float time = elapsedSeconds + animation.phaseSeconds;
+        const glm::vec2 animatedOffset = animation.uvOffset + animation.scrollSpeed * time;
 
         if (animation.mode == TextureAnimationMode::FlipbookAtlas)
         {
@@ -109,21 +108,64 @@ private:
                 1.0f / static_cast<float>(rows)
             };
 
-            scale *= atlasScale;
-            offset += glm::vec2{
+            const glm::vec2 cellOffset = {
                 static_cast<float>(column) * atlasScale.x,
                 static_cast<float>(row) * atlasScale.y
             };
+
+            const glm::vec2 localOffset = wrapUv(animatedOffset);
+            const glm::vec2 scale = animation.uvScale * atlasScale;
+            const glm::vec2 offset = cellOffset + localOffset * atlasScale;
+            return {scale.x, scale.y, offset.x, offset.y};
         }
 
-        offset.x = offset.x - std::floor(offset.x);
-        offset.y = offset.y - std::floor(offset.y);
+        const glm::vec2 scale = animation.uvScale;
+        const glm::vec2 offset = wrapUv(animatedOffset);
         return {scale.x, scale.y, offset.x, offset.y};
     }
 
     static bool differs(const glm::vec4& lhs, const glm::vec4& rhs)
     {
         return lhs.x != rhs.x || lhs.y != rhs.y || lhs.z != rhs.z || lhs.w != rhs.w;
+    }
+
+    static bool differs(const glm::vec2& lhs, const glm::vec2& rhs)
+    {
+        return lhs.x != rhs.x || lhs.y != rhs.y;
+    }
+
+    static bool descriptorChanged(const TextureAnimationComponent& animation,
+                                  const TextureAnimationRuntimeComponent& runtime)
+    {
+        if (!runtime.hasLastDescriptor)
+            return true;
+
+        const auto& last = runtime.lastDescriptor;
+        return animation.enabled != last.enabled
+            || animation.mode != last.mode
+            || animation.timeMode != last.timeMode
+            || differs(animation.uvScale, last.uvScale)
+            || differs(animation.uvOffset, last.uvOffset)
+            || differs(animation.scrollSpeed, last.scrollSpeed)
+            || animation.columns != last.columns
+            || animation.rows != last.rows
+            || animation.frameCount != last.frameCount
+            || animation.frameRate != last.frameRate
+            || animation.loop != last.loop
+            || animation.phaseSeconds != last.phaseSeconds;
+    }
+
+    static float animationDt(const TextureAnimationComponent& animation,
+                             const TimeContext& time)
+    {
+        const float unscaled = std::max(0.0f, time.unscaledDeltaTime);
+        if (animation.timeMode == TextureAnimationTimeMode::Unscaled)
+            return unscaled;
+
+        if (time.deltaTime <= 0.0f)
+            return 0.0f;
+
+        return unscaled * std::max(0.0f, time.timeScale);
     }
 
     static void applyUvTransform(const EcsControllerContext& ctx,

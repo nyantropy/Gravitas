@@ -246,9 +246,10 @@ instead of flowing through `RenderCommand`.
 Scene texture animation uses the same descriptor/runtime split:
 applications author `TextureAnimationComponent`, the renderer feature creates
 and owns `TextureAnimationRuntimeComponent`, and `TextureAnimationSystem`
-advances visual-only elapsed time every controller frame. The resulting UV
-scale/offset is written into `RenderGpuComponent` and uploaded through the
-normal object SSBO path.
+advances visual-only elapsed time every controller frame. The runtime companion
+caches the last descriptor values so authored changes restart playback. The
+resulting UV scale/offset is written into `RenderGpuComponent` and uploaded
+through the normal object SSBO path.
 
 ### Engine-Exported Frame State
 
@@ -324,12 +325,18 @@ The regular material texture path remains the default for game geometry.
 ### Scene Texture Animation
 
 `TextureAnimationComponent` is the engine path for animated textures on regular
-scene geometry. It supports two first-pass modes:
+scene geometry. `enabled` is the off switch; `mode` only selects how an active
+animation behaves. It supports two first-pass modes:
 
 - `UvScroll`: continuous UV offset over controller-frame time, suitable for
   water, lava, fog sheets, shimmer, or other looping surface motion.
 - `FlipbookAtlas`: row-major atlas frame selection with optional looping,
   suitable for discrete animated tile frames.
+
+Texture animation can run on unscaled frame time or scaled frame time. Unscaled
+is the default so existing visual effects keep moving while gameplay timing is
+paused. Scaled mode uses frame time multiplied by `TimeContext::timeScale` and
+stops while the fixed-step game loop is paused.
 
 This feature deliberately does not swap `MaterialComponent::texturePath` and
 does not rewrite mesh vertices every frame. Both approaches would dirty
@@ -337,6 +344,10 @@ resource bindings or mesh data instead of updating per-object visual state. The
 shader applies `uv = inTexCoord * uvScale + uvOffset` from the object SSBO
 before sampling the material texture. Static materials use identity
 `uvTransform = {1, 1, 0, 0}` and render unchanged.
+
+For flipbook atlases, `scrollSpeed` and `uvOffset` are applied inside the
+selected atlas frame instead of drifting the final atlas UV across neighboring
+frames.
 
 Texture animation is a visual controller-space feature. It must not own
 gameplay timing, collision, movement, cooldowns, or simulation-authored state.
