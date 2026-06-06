@@ -9,6 +9,7 @@
 #include "IResourceProvider.hpp"
 #include "ParticleFrameData.h"
 #include "RenderCommand.h"
+#include "RenderViewport.h"
 #include "UiCommand.h"
 
 // Engine-facing interface for the graphics module.
@@ -22,6 +23,7 @@ public:
                              const std::vector<ObjectUploadCommand>& objectUploads,
                              const std::vector<CameraUploadCommand>& cameraUploads,
                              const ParticleFrameData& particleData,
+                             const RenderViewportRect& sceneViewport,
                              const UiCommandBuffer& uiBuffer,
                              const GtsFrameStats& stats) = 0;
     virtual void toggleDebugOverlay() = 0;

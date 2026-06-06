@@ -363,6 +363,7 @@ class ForwardRenderer : Renderer
 
         void recordCommandBuffer(const std::vector<RenderCommand>& renderList,
                                  const ParticleFrameData& particleData,
+                                 const RenderViewportRect& sceneViewport,
                                  const UiCommandBuffer& uiBuffer,
                                  VkCommandBuffer commandBuffer, uint32_t imageIndex)
         {
@@ -374,6 +375,7 @@ class ForwardRenderer : Renderer
 
             frameGraph.provideData(&renderList);
             frameGraph.provideData(&particleData);
+            frameGraph.provideData(&sceneViewport);
             frameGraph.provideData(&uiBuffer);
             frameGraph.provideData(&frameStats);
             frameGraph.execute(commandBuffer, imageIndex, currentFrame);
@@ -472,6 +474,7 @@ class ForwardRenderer : Renderer
                          const std::vector<ObjectUploadCommand>& objectUploads,
                          const std::vector<CameraUploadCommand>& cameraUploads,
                          const ParticleFrameData& particleData,
+                         const RenderViewportRect& sceneViewport,
                          const UiCommandBuffer& uiBuffer,
                          const GtsFrameStats& stats) override
         {
@@ -567,7 +570,7 @@ class ForwardRenderer : Renderer
                 std::chrono::duration<float, std::milli>(cmdResetEnd - cmdResetStart).count();
 
             const auto cmdRecordStart = std::chrono::steady_clock::now();
-            recordCommandBuffer(renderList, particleData, uiBuffer, frame.commandBuffer, imageIndex);
+            recordCommandBuffer(renderList, particleData, sceneViewport, uiBuffer, frame.commandBuffer, imageIndex);
             const auto cmdRecordEnd = std::chrono::steady_clock::now();
             frameStats.backendCmdRecordCpuMs =
                 std::chrono::duration<float, std::milli>(cmdRecordEnd - cmdRecordStart).count();

@@ -41,7 +41,8 @@ namespace gts::tools
 
             const EngineToolInputCaptureComponent& capture =
                 ctx.world.getSingleton<EngineToolInputCaptureComponent>();
-            if (capture.pointerOverToolUi || capture.toolUiPressed || capture.worldConsumed)
+            if (capture.pointerOverToolUi || capture.toolUiPressed || capture.worldConsumed
+                || !capture.pointerOverViewport)
             {
                 state.hoveredEntity = invalidToolEntity();
                 cacheValid = false;
@@ -59,8 +60,8 @@ namespace gts::tools
 
             const bool pointerChanged =
                 !cacheValid
-                || capture.pointerX != cachedPointerX
-                || capture.pointerY != cachedPointerY;
+                || capture.viewportPointerX != cachedPointerX
+                || capture.viewportPointerY != cachedPointerY;
             const bool cameraChanged =
                 !cacheValid
                 || !sameMatrix(camera.viewProjMatrix, cachedViewProjMatrix);
@@ -78,7 +79,7 @@ namespace gts::tools
             }
 
             const std::optional<EngineToolPickRay> ray =
-                buildToolPickRay(camera, capture.pointerX, capture.pointerY);
+                buildToolPickRay(camera, capture.viewportPointerX, capture.viewportPointerY);
             if (!ray)
             {
                 state.hoveredEntity = invalidToolEntity();
@@ -89,8 +90,8 @@ namespace gts::tools
             const PickResult pick = pickEntity(ctx.world, *ray);
             state.hoveredEntity = pick.entity;
             cachedHoveredEntity = pick.entity;
-            cachedPointerX = capture.pointerX;
-            cachedPointerY = capture.pointerY;
+            cachedPointerX = capture.viewportPointerX;
+            cachedPointerY = capture.viewportPointerY;
             cachedViewProjMatrix = camera.viewProjMatrix;
             cacheValid = true;
 

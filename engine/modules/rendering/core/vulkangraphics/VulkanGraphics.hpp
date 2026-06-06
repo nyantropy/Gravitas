@@ -176,13 +176,14 @@ public:
                      const std::vector<ObjectUploadCommand>& objectUploads,
                      const std::vector<CameraUploadCommand>& cameraUploads,
                      const ParticleFrameData& particleData,
+                     const RenderViewportRect& sceneViewport,
                      const UiCommandBuffer& uiBuffer,
                      const GtsFrameStats& stats) override
     {
         if (swapchainRecreatePending && !recreateSwapchainResourcesIfPossible())
             return;
 
-        renderer->renderFrame(dt, renderList, objectUploads, cameraUploads, particleData, uiBuffer, stats);
+        renderer->renderFrame(dt, renderList, objectUploads, cameraUploads, particleData, sceneViewport, uiBuffer, stats);
 
         if (renderer->consumeFrameOutputRecreateRequested())
         {

@@ -65,8 +65,14 @@ namespace gts::tools
                 }
             }
 
+            if (!capture.pointerOverViewport && !isDragging(gizmo))
+            {
+                drawGizmo(ctx.world, gizmo, transform);
+                return;
+            }
+
             const std::optional<EngineToolPickRay> ray =
-                buildToolPickRay(camera, capture.pointerX, capture.pointerY);
+                buildToolPickRay(camera, capture.viewportPointerX, capture.viewportPointerY);
             if (!ray)
             {
                 drawGizmo(ctx.world, gizmo, transform);

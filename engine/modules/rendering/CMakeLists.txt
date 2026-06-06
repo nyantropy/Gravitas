@@ -34,6 +34,9 @@ target_include_directories(gravitas_rendering PUBLIC
     # Abstract interfaces (IGtsGraphicsModule, IResourceProvider)
     "${CMAKE_CURRENT_SOURCE_DIR}/core/interface"
 
+    # Render viewport contract
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/viewport"
+
     # Concrete Vulkan graphics wrapper
     "${CMAKE_CURRENT_SOURCE_DIR}/core/vulkangraphics"
 

@@ -66,6 +66,9 @@ target_include_directories(gravitas_vulkan_backend PUBLIC
 
     # Bundled GLM (needed by vertex types, model loader, texture loader)
     "${GTS_ENGINE_ROOT}/external/glm/glm"
+
+    # Generic render viewport contract
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../core/viewport"
 )
 
 target_link_libraries(gravitas_vulkan_backend PUBLIC

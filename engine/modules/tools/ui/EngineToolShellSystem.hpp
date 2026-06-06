@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -12,9 +13,11 @@
 #include "EngineToolContext.h"
 #include "EngineToolInputCaptureComponent.h"
 #include "EngineToolRegistry.h"
+#include "EngineToolWorkspaceComponent.h"
 #include "EntityInspectorPanel.hpp"
 #include "GraphicsConstants.h"
 #include "ParticleEmitterInspectorPanel.hpp"
+#include "RenderViewportComponent.h"
 #include "SceneGizmoPanel.hpp"
 #include "ToolWidgets.h"
 #include "UiSystem.h"
@@ -49,6 +52,7 @@ namespace gts::tools
                 {
                     clearInputCapture(ctx.world);
                     destroyUi(*ctx.ui);
+                    publishWorkspace(ctx, false);
                 }
             }
 
@@ -59,8 +63,11 @@ namespace gts::tools
             {
                 setToolsInputContext(ctx, false);
                 clearInputCapture(ctx.world);
+                publishWorkspace(ctx, false);
                 return;
             }
+
+            publishWorkspace(ctx, true);
 
             if (!ensureFont(ctx))
                 return;
@@ -93,21 +100,25 @@ namespace gts::tools
         }
 
     private:
-        static constexpr float RootX = 0.018f;
-        static constexpr float RootY = 0.055f;
-        static constexpr float RootW = 0.500f;
-        static constexpr float RootH = 0.925f;
+        static constexpr float TopBarH = 0.046f;
+        static constexpr float LeftRailW = 0.055f;
+        static constexpr float RightPaneW = 0.430f;
+        static constexpr float BottomBarH = 0.036f;
         static constexpr float Pad = 0.014f;
 
         EngineToolRegistry registry;
         BitmapFont font;
         bool fontReady = false;
         UiHandle root = UI_INVALID_HANDLE;
-        UiHandle background = UI_INVALID_HANDLE;
+        UiHandle topBar = UI_INVALID_HANDLE;
+        UiHandle leftRail = UI_INVALID_HANDLE;
+        UiHandle rightPane = UI_INVALID_HANDLE;
+        UiHandle bottomBar = UI_INVALID_HANDLE;
         UiHandle title = UI_INVALID_HANDLE;
         UiHandle contentRoot = UI_INVALID_HANDLE;
         UiHandle footer = UI_INVALID_HANDLE;
         std::vector<ToolButton> tabs;
+        std::vector<ToolButton> leftTools;
         bool toolsContextRequested = false;
 
         static constexpr const char* ToolsInputContext = "engine.tools";
@@ -151,6 +162,14 @@ namespace gts::tools
             capture = {};
         }
 
+        static EngineToolWorkspaceComponent& publishWorkspace(const EcsControllerContext& ctx,
+                                                              bool active)
+        {
+            const int width = std::max(1, static_cast<int>(std::round(ctx.windowPixelWidth)));
+            const int height = std::max(1, static_cast<int>(std::round(ctx.windowPixelHeight)));
+            return publishEngineToolWorkspace(ctx.world, width, height, active);
+        }
+
         bool ensureFont(const EcsControllerContext& ctx)
         {
             if (fontReady)
@@ -180,15 +199,24 @@ namespace gts::tools
 
         void buildUi(EngineToolContext& ctx, EngineToolStateComponent& state)
         {
-            root = createContainer(ctx.ui, UI_INVALID_HANDLE, {RootX, RootY, RootW, RootH});
-            background = createRect(ctx.ui, root, {0.0f, 0.0f, RootW, RootH},
-                                    color(0.022f, 0.027f, 0.033f, 0.94f));
-            title = createText(ctx.ui, root, {Pad, Pad, 0.250f, 0.032f}, &font,
-                               "GRAVITAS TOOLS", color(0.95f, 0.98f, 1.0f), 0.018f);
+            root = createContainer(ctx.ui, UI_INVALID_HANDLE, {0.0f, 0.0f, 1.0f, 1.0f});
+            topBar = createRect(ctx.ui, root, {0.0f, 0.0f, 1.0f, TopBarH},
+                                color(0.020f, 0.025f, 0.030f, 0.98f));
+            leftRail = createRect(ctx.ui, root, {0.0f, TopBarH, LeftRailW, 1.0f - TopBarH - BottomBarH},
+                                  color(0.025f, 0.031f, 0.037f, 0.98f));
+            rightPane = createRect(ctx.ui,
+                                   root,
+                                   {1.0f - RightPaneW, TopBarH, RightPaneW, 1.0f - TopBarH - BottomBarH},
+                                   color(0.022f, 0.027f, 0.033f, 0.96f));
+            bottomBar = createRect(ctx.ui, root, {0.0f, 1.0f - BottomBarH, 1.0f, BottomBarH},
+                                   color(0.018f, 0.022f, 0.027f, 0.98f));
+            title = createText(ctx.ui, topBar, {Pad, 0.008f, 0.180f, 0.030f}, &font,
+                               "GRAVITAS", color(0.95f, 0.98f, 1.0f), 0.017f);
 
             buildTabs(ctx, state);
-            contentRoot = createContainer(ctx.ui, root, {Pad, 0.128f, 0.470f, 0.760f});
-            footer = createText(ctx.ui, root, {Pad, RootH - 0.035f, 0.462f, 0.024f}, &font,
+            buildLeftTools(ctx);
+            contentRoot = createContainer(ctx.ui, rightPane, {Pad, 0.118f, RightPaneW - Pad * 2.0f, 0.780f});
+            footer = createText(ctx.ui, bottomBar, {Pad, 0.007f, 0.820f, 0.024f}, &font,
                                 state.status, color(0.80f, 0.86f, 0.92f), 0.0125f);
 
             for (auto& panel : registry.all())
@@ -211,19 +239,38 @@ namespace gts::tools
                 return;
 
             const float gap = 0.007f;
-            const float tabWidth = (RootW - Pad * 2.0f - gap * static_cast<float>(registry.size() - 1))
+            const float menuX = 0.215f;
+            const float menuW = 1.0f - menuX - Pad;
+            const float tabWidth = (menuW - gap * static_cast<float>(registry.size() - 1))
                 / static_cast<float>(registry.size());
             for (size_t i = 0; i < registry.size(); ++i)
             {
                 const EngineToolPanel* panel = registry.at(i);
                 const std::string label = panel == nullptr ? "PANEL" : std::string(panel->title());
-                const float x = Pad + static_cast<float>(i) * (tabWidth + gap);
+                const float x = menuX + static_cast<float>(i) * (tabWidth + gap);
                 tabs.push_back(createButton(ctx.ui,
-                                            root,
-                                            {x, 0.074f, tabWidth, 0.034f},
+                                            topBar,
+                                            {x, 0.007f, tabWidth, 0.032f},
                                             &font,
                                             label,
                                             0.0125f));
+            }
+        }
+
+        void buildLeftTools(EngineToolContext& ctx)
+        {
+            leftTools.clear();
+            const char* labels[] = {"SEL", "MOV", "CAM", "FX", "DBG", "AST"};
+            float y = 0.016f;
+            for (const char* label : labels)
+            {
+                leftTools.push_back(createButton(ctx.ui,
+                                                 leftRail,
+                                                 {0.006f, y, LeftRailW - 0.012f, 0.038f},
+                                                 &font,
+                                                 label,
+                                                 0.0105f));
+                y += 0.046f;
             }
         }
 
@@ -236,11 +283,15 @@ namespace gts::tools
                 ui.removeNode(root);
 
             root = UI_INVALID_HANDLE;
-            background = UI_INVALID_HANDLE;
+            topBar = UI_INVALID_HANDLE;
+            leftRail = UI_INVALID_HANDLE;
+            rightPane = UI_INVALID_HANDLE;
+            bottomBar = UI_INVALID_HANDLE;
             title = UI_INVALID_HANDLE;
             contentRoot = UI_INVALID_HANDLE;
             footer = UI_INVALID_HANDLE;
             tabs.clear();
+            leftTools.clear();
         }
 
         UiInteractionResult updateInteraction(const EcsControllerContext& ctx,
@@ -285,8 +336,21 @@ namespace gts::tools
                 capture.primaryDown = false;
                 capture.primaryPressed = false;
                 capture.primaryReleased = false;
+                capture.pointerOverViewport = false;
+                capture.viewportPointerX = 0.0f;
+                capture.viewportPointerY = 0.0f;
                 return;
             }
+
+            RenderViewportRect viewport = RenderViewportRect::full(
+                std::max(1, static_cast<int>(std::round(ctx.windowPixelWidth))),
+                std::max(1, static_cast<int>(std::round(ctx.windowPixelHeight))));
+            if (world.hasAny<RenderViewportComponent>())
+                viewport = world.getSingleton<RenderViewportComponent>().sceneViewport;
+            capture.pointerOverViewport = viewport.remapPointer(static_cast<float>(ctx.input->mouseX()),
+                                                                static_cast<float>(ctx.input->mouseY()),
+                                                                capture.viewportPointerX,
+                                                                capture.viewportPointerY);
 
             const char* primaryAction = ctx.input->isContextActive(ToolsInputContext)
                 ? ToolsSelectAction
@@ -314,6 +378,29 @@ namespace gts::tools
                 updateButton(ctx.ui, tabs[i], tabLabel(i, state));
                 if (i == state.activePanelIndex)
                     setRectColor(ctx.ui, tabs[i].rect, color(0.20f, 0.30f, 0.38f, 1.0f));
+            }
+
+            updateLeftTools(ctx, state, interaction);
+        }
+
+        void updateLeftTools(EngineToolContext& ctx,
+                             EngineToolStateComponent& state,
+                             const UiInteractionResult& interaction)
+        {
+            for (size_t i = 0; i < leftTools.size(); ++i)
+            {
+                if (wasClicked(interaction, leftTools[i].rect) && i < registry.size())
+                {
+                    state.activePanelIndex = i;
+                    const EngineToolPanel* panel = registry.at(i);
+                    state.status = "ACTIVE PANEL " + (panel == nullptr
+                        ? std::string("PANEL")
+                        : std::string(panel->title()));
+                }
+
+                updateButton(ctx.ui, leftTools[i], leftTools[i].text);
+                if (i == state.activePanelIndex)
+                    setRectColor(ctx.ui, leftTools[i].rect, color(0.20f, 0.30f, 0.38f, 1.0f));
             }
         }
 

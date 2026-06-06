@@ -16,6 +16,7 @@
 #include "ECSWorld.hpp"
 #include "EngineToolCameraStateComponent.h"
 #include "EngineToolStateComponent.h"
+#include "RenderViewportComponent.h"
 #include "ToolEntityLabelComponent.h"
 #include "TransformComponent.h"
 
@@ -80,7 +81,8 @@ namespace gts::tools
 
         void update(const EcsControllerContext& ctx) override
         {
-            ensureToolCameraState(ctx.world, ctx.windowAspectRatio);
+            const float activeAspect = resolveAspect(ctx);
+            ensureToolCameraState(ctx.world, activeAspect);
 
             EngineToolCameraStateComponent& cameraState  = ctx.world.getSingleton<EngineToolCameraStateComponent>();
             const bool                      toolsVisible = ctx.world.hasAny<EngineToolStateComponent>() &&
@@ -89,14 +91,14 @@ namespace gts::tools
             if (!toolsVisible)
             {
                 if (cameraState.active)
-                    deactivate(ctx, cameraState);
+                    deactivate(ctx, cameraState, activeAspect);
                 return;
             }
 
             if (!cameraState.active)
-                activate(ctx, cameraState);
+                activate(ctx, cameraState, activeAspect);
 
-            updateActiveToolCamera(ctx, cameraState);
+            updateActiveToolCamera(ctx, cameraState, activeAspect);
         }
 
         private:
@@ -134,6 +136,18 @@ namespace gts::tools
                     active = entity;
                 });
             return active;
+        }
+
+        static float resolveAspect(const EcsControllerContext& ctx)
+        {
+            if (ctx.world.hasAny<RenderViewportComponent>())
+            {
+                const RenderViewportComponent& viewport = ctx.world.getSingleton<RenderViewportComponent>();
+                if (viewport.sceneViewport.valid())
+                    return viewport.sceneViewport.aspect();
+            }
+
+            return ctx.windowAspectRatio > 0.0f ? ctx.windowAspectRatio : 1.0f;
         }
 
         static void setCameraActive(ECSWorld& world, Entity entity, bool active, float aspectRatio)
@@ -211,10 +225,10 @@ namespace gts::tools
             syncActiveCameraView(world, entity, view, proj);
         }
 
-        void activate(const EcsControllerContext& ctx, EngineToolCameraStateComponent& state)
+        void activate(const EcsControllerContext& ctx, EngineToolCameraStateComponent& state, float aspectRatio)
         {
-            ensureToolCameraState(ctx.world, ctx.windowAspectRatio);
-            forceDisableDebugFreeCamera(ctx);
+            ensureToolCameraState(ctx.world, aspectRatio);
+            forceDisableDebugFreeCamera(ctx, aspectRatio);
 
             const Entity toolCamera    = state.toolCameraEntity;
             const Entity currentCamera = findActiveCamera(ctx.world, toolCamera);
@@ -241,32 +255,34 @@ namespace gts::tools
                 toolDesc.farClip       = sourceDesc.farClip;
                 toolDesc.up            = sourceDesc.up;
                 toolDesc.target        = sourcePosition + forward;
-                setCameraActive(ctx.world, currentCamera, false, ctx.windowAspectRatio);
+                setCameraActive(ctx.world, currentCamera, false, aspectRatio);
 
                 yaw   = std::atan2(-forward.x, -forward.z);
                 pitch = glm::clamp(std::asin(glm::clamp(forward.y, -1.0f, 1.0f)), MIN_PITCH, MAX_PITCH);
             }
 
             toolDesc.active      = true;
-            toolDesc.aspectRatio = ctx.windowAspectRatio;
+            toolDesc.aspectRatio = aspectRatio;
         }
 
-        void deactivate(const EcsControllerContext& ctx, EngineToolCameraStateComponent& state)
+        void deactivate(const EcsControllerContext& ctx, EngineToolCameraStateComponent& state, float aspectRatio)
         {
             if (state.toolCameraEntity.id != invalidEntity().id &&
                 ctx.world.hasComponent<CameraDescriptionComponent>(state.toolCameraEntity))
             {
-                setCameraActive(ctx.world, state.toolCameraEntity, false, ctx.windowAspectRatio);
+                setCameraActive(ctx.world, state.toolCameraEntity, false, aspectRatio);
             }
 
-            setCameraActive(ctx.world, state.previousActiveCamera, true, ctx.windowAspectRatio);
+            setCameraActive(ctx.world, state.previousActiveCamera, true, aspectRatio);
             syncActiveCameraViewFromEntity(ctx.world, state.previousActiveCamera);
             state.active               = false;
             state.previousActiveCamera = invalidEntity();
             mouseLookReady             = false;
         }
 
-        void updateActiveToolCamera(const EcsControllerContext& ctx, EngineToolCameraStateComponent& state)
+        void updateActiveToolCamera(const EcsControllerContext& ctx,
+                                    EngineToolCameraStateComponent& state,
+                                    float aspectRatio)
         {
             if (!isValidCameraEntity(ctx.world, state.toolCameraEntity))
                 return;
@@ -316,12 +332,12 @@ namespace gts::tools
             }
 
             camera.active      = true;
-            camera.aspectRatio = ctx.windowAspectRatio;
+            camera.aspectRatio = aspectRatio;
             camera.target      = transform.position + forward;
 
             const glm::mat4 view = glm::lookAt(transform.position, camera.target, glm::vec3(0.0f, 1.0f, 0.0f));
             glm::mat4 proj = glm::perspective(camera.fov,
-                                              camera.aspectRatio > 0.0f ? camera.aspectRatio : ctx.windowAspectRatio,
+                                              camera.aspectRatio > 0.0f ? camera.aspectRatio : aspectRatio,
                                               camera.nearClip,
                                               camera.farClip);
             proj[1][1] *= -1.0f;
@@ -361,7 +377,7 @@ namespace gts::tools
             mouseLookReady = true;
         }
 
-        static void forceDisableDebugFreeCamera(const EcsControllerContext& ctx)
+        static void forceDisableDebugFreeCamera(const EcsControllerContext& ctx, float aspectRatio)
         {
             if (!ctx.world.hasAny<DebugCameraStateComponent>())
                 return;
@@ -371,8 +387,8 @@ namespace gts::tools
                 return;
 
             const Entity debugCamera = debugState.debugCameraEntity;
-            setCameraActive(ctx.world, debugCamera, false, ctx.windowAspectRatio);
-            setCameraActive(ctx.world, debugState.previousActiveCamera, true, ctx.windowAspectRatio);
+            setCameraActive(ctx.world, debugCamera, false, aspectRatio);
+            setCameraActive(ctx.world, debugState.previousActiveCamera, true, aspectRatio);
             debugState.active               = false;
             debugState.previousActiveCamera = invalidEntity();
 

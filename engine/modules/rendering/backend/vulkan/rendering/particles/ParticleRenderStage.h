@@ -17,6 +17,7 @@
 #include "GraphicsConstants.h"
 #include "ParticleFrameData.h"
 #include "RenderResourceManager.hpp"
+#include "RenderViewport.h"
 #include "TextureResource.h"
 #include "VulkanDynamicBuffer.h"
 #include "VulkanPipeline.hpp"
@@ -106,6 +107,7 @@ public:
     void declareResources(GtsFrameGraph& graph) override
     {
         graph.requestData<ParticleFrameData>(this);
+        graph.requestData<RenderViewportRect>(this);
 
         graph.declareWrite(this, outputHandle,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -122,6 +124,8 @@ public:
                 uint32_t imageIndex, uint32_t currentFrame) override
     {
         const ParticleFrameData& frameData = graph.getData<ParticleFrameData>();
+        const RenderViewportRect viewportRect = graph.getData<RenderViewportRect>()
+            .clampedTo(static_cast<int>(renderExtent.width), static_cast<int>(renderExtent.height));
         lastParticleCount = static_cast<uint32_t>(frameData.instances.size());
         lastDrawCalls = 0;
 
@@ -138,24 +142,30 @@ public:
         rpInfo.sType             = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         rpInfo.renderPass        = renderPass->getRenderPass();
         rpInfo.framebuffer       = framebuffers->getFramebuffers()[imageIndex];
-        rpInfo.renderArea.offset = {0, 0};
-        rpInfo.renderArea.extent = renderExtent;
+        rpInfo.renderArea.offset = {viewportRect.x, viewportRect.y};
+        rpInfo.renderArea.extent = {
+            static_cast<uint32_t>(viewportRect.width),
+            static_cast<uint32_t>(viewportRect.height)
+        };
         rpInfo.clearValueCount   = 0;
         rpInfo.pClearValues      = nullptr;
         vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
         VkViewport viewport{};
-        viewport.x        = 0.0f;
-        viewport.y        = 0.0f;
-        viewport.width    = static_cast<float>(renderExtent.width);
-        viewport.height   = static_cast<float>(renderExtent.height);
+        viewport.x        = static_cast<float>(viewportRect.x);
+        viewport.y        = static_cast<float>(viewportRect.y);
+        viewport.width    = static_cast<float>(viewportRect.width);
+        viewport.height   = static_cast<float>(viewportRect.height);
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(cmd, 0, 1, &viewport);
 
         VkRect2D scissor{};
-        scissor.offset = {0, 0};
-        scissor.extent = renderExtent;
+        scissor.offset = {viewportRect.x, viewportRect.y};
+        scissor.extent = {
+            static_cast<uint32_t>(viewportRect.width),
+            static_cast<uint32_t>(viewportRect.height)
+        };
         vkCmdSetScissor(cmd, 0, 1, &scissor);
 
         const VkDeviceSize offset = 0;

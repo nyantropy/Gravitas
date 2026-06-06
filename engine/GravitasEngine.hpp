@@ -24,6 +24,7 @@
 #include "ParticleFrameData.h"
 #include "ProfileAccumulator.h"
 #include "RenderGpuSystem.hpp"
+#include "RenderViewportComponent.h"
 
 #include "EcsSimulationContext.hpp"
 #include "EcsControllerContext.hpp"
@@ -68,6 +69,27 @@ class GravitasEngine
         float lastFrameCpuMs = 0.0f;
         ProfileAccumulator profiler;
 
+        void refreshWindowMetrics()
+        {
+            platform.getViewportSize(windowPixelWidth, windowPixelHeight);
+            windowAspectRatio = platform.getAspectRatio();
+        }
+
+        RenderViewportRect resolveSceneViewport(ECSWorld& world) const
+        {
+            const RenderViewportRect fullViewport =
+                RenderViewportRect::full(windowPixelWidth, windowPixelHeight);
+            if (!world.hasAny<RenderViewportComponent>())
+                return fullViewport;
+
+            const RenderViewportComponent& viewport =
+                world.getSingleton<RenderViewportComponent>();
+            if (!viewport.sceneViewport.valid())
+                return fullViewport;
+
+            return viewport.sceneViewport.clampedTo(windowPixelWidth, windowPixelHeight);
+        }
+
         // Build an EcsControllerContext from the engine's current frame state.
         // physics is sourced from the active scene so it is always up to date.
         EcsControllerContext buildControllerContext(ECSWorld& world)
@@ -90,8 +112,8 @@ class GravitasEngine
         {
             GtsScene* activeScene = sceneManager->getActiveScene();
             auto& world = activeScene->getWorld();
-            platform.getViewportSize(windowPixelWidth, windowPixelHeight);
-            windowAspectRatio = platform.getAspectRatio();
+            refreshWindowMetrics();
+            const RenderViewportRect sceneViewport = resolveSceneViewport(world);
 
             GtsFrameStats stats;
             stats.fps            = (dt > 0.0f) ? 1.0f / dt : 0.0f;
@@ -171,6 +193,7 @@ class GravitasEngine
                 renderPipeline->getLatestSnapshot().objectUploads,
                 renderPipeline->getLatestSnapshot().cameraUploads,
                 particleData,
+                sceneViewport,
                 *uiBuffer,
                 stats);
             const auto submitEnd = std::chrono::steady_clock::now();
@@ -314,6 +337,7 @@ class GravitasEngine
 
                 // snapshot previous frame, poll OS events, then derive action states
                 platform.beginFrame();
+                refreshWindowMetrics();
 
                 // engine-level actions (pause, quit) — run before tick advance.
                 auto* input = platform.getInputBindingRegistry();

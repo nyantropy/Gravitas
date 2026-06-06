@@ -272,7 +272,7 @@ namespace gts::tools
 
             const EngineToolInputCaptureComponent& capture =
                 world.getSingleton<EngineToolInputCaptureComponent>();
-            if (capture.pointerOverToolUi)
+            if (capture.pointerOverToolUi || !capture.pointerOverViewport)
                 return;
 
             const ActiveCameraViewStateComponent& camera =
@@ -281,7 +281,7 @@ namespace gts::tools
                 return;
 
             const std::optional<EngineToolPickRay> pickRay =
-                buildToolPickRay(camera, capture.pointerX, capture.pointerY);
+                buildToolPickRay(camera, capture.viewportPointerX, capture.viewportPointerY);
             if (!pickRay)
                 return;
 

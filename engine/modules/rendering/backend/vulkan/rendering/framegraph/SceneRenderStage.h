@@ -19,6 +19,7 @@
 #include "FramebufferManagerConfig.h"
 #include "RenderResourceManager.hpp"
 #include "RenderCommand.h"
+#include "RenderViewport.h"
 #include "ObjectUBO.h"
 #include "GraphicsConstants.h"
 #include "EngineConfig.h"
@@ -131,6 +132,7 @@ public:
     void declareResources(GtsFrameGraph& graph) override
     {
         graph.requestData<std::vector<RenderCommand>>(this);
+        graph.requestData<RenderViewportRect>(this);
 
         graph.declareWrite(this, outputHandle,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -147,24 +149,26 @@ public:
                 uint32_t imageIndex, uint32_t currentFrame) override
     {
         const auto& renderList = graph.getData<std::vector<RenderCommand>>();
+        const RenderViewportRect viewport = graph.getData<RenderViewportRect>()
+            .clampedTo(static_cast<int>(renderExtent.width), static_cast<int>(renderExtent.height));
 
         prepareBatches(renderList, currentFrame);
         resetFrameStats();
 
         if (renderList.empty() || renderList[0].cameraViewID == 0)
         {
-            recordInline(cmd, imageIndex, currentFrame, renderList);
+            recordInline(cmd, imageIndex, currentFrame, renderList, viewport);
             return;
         }
 
         if (shouldRecordInParallel(renderList))
         {
             resetSecondaryCommandPools(currentFrame);
-            recordParallel(cmd, imageIndex, currentFrame, renderList);
+            recordParallel(cmd, imageIndex, currentFrame, renderList, viewport);
         }
         else
         {
-            recordInline(cmd, imageIndex, currentFrame, renderList);
+            recordInline(cmd, imageIndex, currentFrame, renderList, viewport);
         }
     }
 
@@ -358,20 +362,23 @@ private:
         return renderPassInfo;
     }
 
-    void setViewportAndScissor(VkCommandBuffer cmd) const
+    void setViewportAndScissor(VkCommandBuffer cmd, const RenderViewportRect& viewportRect) const
     {
         VkViewport viewport{};
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width = static_cast<float>(renderExtent.width);
-        viewport.height = static_cast<float>(renderExtent.height);
+        viewport.x = static_cast<float>(viewportRect.x);
+        viewport.y = static_cast<float>(viewportRect.y);
+        viewport.width = static_cast<float>(viewportRect.width);
+        viewport.height = static_cast<float>(viewportRect.height);
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(cmd, 0, 1, &viewport);
 
         VkRect2D scissor{};
-        scissor.offset = {0, 0};
-        scissor.extent = renderExtent;
+        scissor.offset = {viewportRect.x, viewportRect.y};
+        scissor.extent = {
+            static_cast<uint32_t>(viewportRect.width),
+            static_cast<uint32_t>(viewportRect.height)
+        };
         vkCmdSetScissor(cmd, 0, 1, &scissor);
     }
 
@@ -606,12 +613,13 @@ private:
     void recordInline(VkCommandBuffer cmd,
                       uint32_t imageIndex,
                       uint32_t currentFrame,
-                      const std::vector<RenderCommand>& renderList)
+                      const std::vector<RenderCommand>& renderList,
+                      const RenderViewportRect& viewport)
     {
         std::array<VkClearValue, 2> clearValues{};
         VkRenderPassBeginInfo renderPassInfo = makeRenderPassBeginInfo(imageIndex, clearValues);
         vkCmdBeginRenderPass(cmd, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        setViewportAndScissor(cmd);
+        setViewportAndScissor(cmd, viewport);
 
         if (preparedBatches.empty() || renderList[0].cameraViewID == 0)
         {
@@ -632,12 +640,13 @@ private:
     void recordParallel(VkCommandBuffer cmd,
                         uint32_t imageIndex,
                         uint32_t currentFrame,
-                        const std::vector<RenderCommand>& renderList)
+                        const std::vector<RenderCommand>& renderList,
+                        const RenderViewportRect& viewport)
     {
         const uint32_t chunkCount = buildChunkRanges(renderList);
         if (chunkCount == 0)
         {
-            recordInline(cmd, imageIndex, currentFrame, renderList);
+            recordInline(cmd, imageIndex, currentFrame, renderList, viewport);
             return;
         }
 
@@ -656,7 +665,7 @@ private:
             secondaryExecutionBuffers[chunkIndex] = secondary;
 
             beginSecondaryCommandBuffer(secondary, imageIndex);
-            setViewportAndScissor(secondary);
+            setViewportAndScissor(secondary, viewport);
             bindGlobalDescriptorSets(secondary, globalSets, chunkStats[chunkIndex]);
             recordBatchRange(secondary, currentFrame,
                              chunkRanges[chunkIndex].start,
