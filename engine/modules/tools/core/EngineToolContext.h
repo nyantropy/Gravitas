@@ -1,6 +1,11 @@
 #pragma once
 
+#include <string>
+#include <vector>
+
 #include "EcsControllerContext.hpp"
+#include "GtsCommandBuffer.h"
+#include "RegisteredSceneInfo.h"
 
 class ECSWorld;
 class InputBindingRegistry;
@@ -16,6 +21,9 @@ namespace gts::tools
         InputBindingRegistry* input = nullptr;
         IResourceProvider* resources = nullptr;
         const TimeContext* time = nullptr;
+        GtsCommandBuffer* engineCommands = nullptr;
+        const std::vector<RegisteredSceneInfo>* registeredScenes = nullptr;
+        const std::string* activeSceneName = nullptr;
         float windowPixelWidth = 1.0f;
         float windowPixelHeight = 1.0f;
 
@@ -27,6 +35,9 @@ namespace gts::tools
                 ctx.input,
                 ctx.resources,
                 ctx.time,
+                ctx.engineCommands,
+                ctx.registeredScenes,
+                ctx.activeSceneName,
                 ctx.windowPixelWidth,
                 ctx.windowPixelHeight
             };

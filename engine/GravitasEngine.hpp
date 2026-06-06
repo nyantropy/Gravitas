@@ -25,6 +25,7 @@
 #include "ProfileAccumulator.h"
 #include "RenderGpuSystem.hpp"
 #include "RenderViewportComponent.h"
+#include "EngineToolRuntime.hpp"
 
 #include "EcsSimulationContext.hpp"
 #include "EcsControllerContext.hpp"
@@ -51,6 +52,9 @@ class GravitasEngine
 
         // the scene manager
         std::unique_ptr<SceneManager> sceneManager;
+
+        // global development tooling runtime
+        std::unique_ptr<gts::tools::EngineToolRuntime> toolRuntime;
 
         // Per-frame state — persistent fields for building EcsControllerContext
         TimeContext     timeContext;
@@ -101,6 +105,8 @@ class GravitasEngine
             ctx.engineCommands    = &engineCommands;
             ctx.ui                = uiSystem.get();
             ctx.physics           = sceneManager->getActiveScene()->getPhysicsModule();
+            ctx.registeredScenes  = &sceneManager->getRegisteredScenes();
+            ctx.activeSceneName   = &sceneManager->getActiveSceneName();
             ctx.windowAspectRatio = windowAspectRatio;
             ctx.windowPixelWidth  = static_cast<float>(windowPixelWidth);
             ctx.windowPixelHeight = static_cast<float>(windowPixelHeight);
@@ -120,7 +126,8 @@ class GravitasEngine
             stats.frameTimeMs    = dt * 1000.0f;
             stats.visibleObjects = static_cast<uint32_t>(renderPipeline->getExtractor().getLastVisibleRenderables());
             stats.totalObjects   = static_cast<uint32_t>(renderPipeline->getExtractor().getLastTotalRenderables());
-            stats.controllerSystemCount = static_cast<uint32_t>(world.getControllerSystemCount());
+            stats.controllerSystemCount = static_cast<uint32_t>(world.getControllerSystemCount())
+                                        + (toolRuntime == nullptr ? 0u : toolRuntime->controllerSystemCount());
             stats.simulationSystemCount = static_cast<uint32_t>(world.getSimulationSystemCount());
             const auto renderMetrics = RenderGpuSystem::getLastMetrics();
             stats.renderGpuUpdatedCount = renderMetrics.updatedRenderables;
@@ -300,6 +307,7 @@ class GravitasEngine
             renderPipeline = std::make_unique<RenderPipeline>(
                 std::make_unique<FrustumCullingStrategy>(engineConfig.frustumCullingEnabled));
             uiSystem               = std::make_unique<UiSystem>(platform.getResourceProvider());
+            toolRuntime            = std::make_unique<gts::tools::EngineToolRuntime>();
         }
 
         ~GravitasEngine() = default;
@@ -384,7 +392,9 @@ class GravitasEngine
                 {
                     const auto ctrlStart = std::chrono::steady_clock::now();
                     EcsControllerContext ctrlCtx = buildControllerContext(world);
+                    toolRuntime->prepare(ctrlCtx);
                     sceneManager->getActiveScene()->onUpdateControllers(ctrlCtx);
+                    toolRuntime->update(ctrlCtx);
                     const auto ctrlEnd = std::chrono::steady_clock::now();
                     lastCtrlCpuMs = std::chrono::duration<float, std::milli>(ctrlEnd - ctrlStart).count();
                 }

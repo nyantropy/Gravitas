@@ -568,16 +568,20 @@ set also includes retained line nodes, which render thick colored screen-space
 segments for graph-like widgets such as skill-tree links, and retained circle
 nodes for icon buttons or graph nodes that need circular hit targets.
 
-Tooling is optional and installed per scene through `GtsScene::installToolingFeature()`.
-It is deliberately separate from `installRendererFeature()` so shipping scenes
-can opt out.
+Engine tooling is a global development runtime owned by `GravitasEngine`.
+`EngineToolRuntime` updates once per rendered frame after the active scene's
+normal controller systems, but it targets the active scene `ECSWorld` for
+inspection and edits. Game scenes no longer install editor systems directly.
+Renderer, physics, gameplay, and game UI systems remain scene-owned.
 
 Current tool feature layout:
 
 - `modules/tools/core/`: panel interface, registry, context, and shared state
 - `modules/tools/ui/`: tool widget helpers built on retained UI
+- `modules/tools/runtime/`: global tool runtime and scene-change state handoff
 - `modules/tools/inspectors/`: entity and particle emitter inspector panels
 - `modules/tools/assets/`: particle asset/hot-reload status panel
+- `modules/tools/scenes/`: generic registered-scene browser panel
 - `modules/tools/selection/`: input capture, world picking, selection labels,
   selection highlight, and shared raycast helpers
 - `modules/tools/gizmos/`: translation gizmo state, panel, picking, snapping,
@@ -591,6 +595,28 @@ Tooling state is held in singleton ECS components:
 - `EngineToolInputCaptureComponent`: pointer/UI/world-consumption state
 - `EngineGizmoStateComponent`: gizmo mode, hovered/active axis, snap settings
 - `DebugDrawSettingsComponent`: debug primitive toggles and sizing
+
+The runtime carries editor-level state across scene changes, such as F6
+visibility, active panel, gizmo settings, and debug-draw settings. Scene-entity
+references are reset whenever the active scene changes because entity IDs are
+owned by the active scene world. Scene-local singleton components are seeded
+from the runtime each frame so existing tool systems can operate on the active
+scene without owning scene registration.
+
+Workspace and viewport state are published during the runtime prepare step,
+before scene controller systems run. This guarantees camera, picking, and render
+extraction systems see the reduced editor viewport immediately after scene
+loads instead of spending a frame on full-window assumptions.
+
+Global tool systems are timed back into the active world's controller profile
+table, so frame profile output continues to show individual `gts::tools::*`
+systems even though those systems are no longer scene-owned.
+
+`SceneManager` owns the registered scene catalog and active scene id. Tooling
+receives this catalog through `EcsControllerContext`, and the generic `Scenes`
+panel lists whatever scenes the application registered. Selecting a row issues
+`GtsCommandBuffer::requestChangeScene(sceneId)`. Engine tooling must not
+hardcode game scene names.
 
 Selection can come from either inspector panels or world picking. The world
 picker uses `ActiveCameraViewStateComponent` plus `BoundsComponent` to raycast

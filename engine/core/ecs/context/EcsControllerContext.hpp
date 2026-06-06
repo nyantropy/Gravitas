@@ -1,11 +1,15 @@
 #pragma once
 
+#include <string>
+#include <vector>
+
 #include "InputBindingRegistry.h"
 #include "IResourceProvider.hpp"
 #include "TimeContext.h"
 #include "GtsCommandBuffer.h"
 #include "UiSystem.h"
 #include "IGtsPhysicsModule.h"
+#include "RegisteredSceneInfo.h"
 
 class ECSWorld;
 
@@ -23,6 +27,8 @@ struct EcsControllerContext
     GtsCommandBuffer*               engineCommands    = nullptr;
     UiSystem*                       ui                = nullptr;
     IGtsPhysicsModule*              physics           = nullptr;
+    const std::vector<RegisteredSceneInfo>* registeredScenes = nullptr;
+    const std::string*              activeSceneName   = nullptr;
     float                           windowAspectRatio  = 1.0f;
     float                           windowPixelWidth   = 1.0f;
     float                           windowPixelHeight  = 1.0f;

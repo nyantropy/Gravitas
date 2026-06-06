@@ -19,6 +19,7 @@
 #include "ParticleEmitterInspectorPanel.hpp"
 #include "RenderViewportComponent.h"
 #include "SceneGizmoPanel.hpp"
+#include "SceneCatalogPanel.hpp"
 #include "ToolTheme.h"
 #include "ToolWidgets.h"
 #include "UiSystem.h"
@@ -36,6 +37,7 @@ namespace gts::tools
             registry.addPanel<ParticleEmitterInspectorPanel>();
             registry.addPanel<DebugDrawPanel>();
             registry.addPanel<AssetStatusPanel>();
+            registry.addPanel<SceneCatalogPanel>();
         }
 
         void update(const EcsControllerContext& ctx) override
@@ -295,7 +297,7 @@ namespace gts::tools
         void buildLeftTools(EngineToolContext& ctx)
         {
             leftTools.clear();
-            const char* labels[] = {"E", "G", "C", "P", "D", "A"};
+            const char* labels[] = {"E", "G", "C", "P", "D", "A", "S"};
             float       y        = 0.012f;
             for (const char* label : labels)
             {

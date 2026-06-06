@@ -23,6 +23,8 @@ target_include_directories(gravitas_tools PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/gizmos"
     "${CMAKE_CURRENT_SOURCE_DIR}/cameras"
     "${CMAKE_CURRENT_SOURCE_DIR}/workspace"
+    "${CMAKE_CURRENT_SOURCE_DIR}/runtime"
+    "${CMAKE_CURRENT_SOURCE_DIR}/scenes"
 )
 
 target_link_libraries(gravitas_tools PUBLIC

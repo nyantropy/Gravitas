@@ -35,12 +35,6 @@
 #include "TextureAnimationRuntimeComponent.h"
 #include "WorldTextRuntimeComponent.h"
 #include "DebugDrawSystem.hpp"
-#include "EngineGizmoSystem.hpp"
-#include "EngineToolCameraSystem.hpp"
-#include "EngineToolDebugDrawSystem.hpp"
-#include "EngineToolSelectionHighlightSystem.hpp"
-#include "EngineToolShellSystem.hpp"
-#include "EngineToolWorldPickerSystem.hpp"
 #include "RenderExtractionSnapshotBuilder.hpp"
 #include "TransformDirtyHelpers.h"
 #include "InputBindingRegistry.h"
@@ -57,7 +51,6 @@ class GtsScene
         std::unique_ptr<PhysicsWorld> physicsWorld;
         bool rendererFeatureInstalled = false;
         bool physicsFeatureInstalled  = false;
-        bool toolingFeatureInstalled  = false;
         bool debugDrawFeatureInstalled = false;
 
         void resetSceneWorld()
@@ -68,7 +61,6 @@ class GtsScene
             physicsWorld.reset();
             rendererFeatureInstalled = false;
             physicsFeatureInstalled  = false;
-            toolingFeatureInstalled  = false;
             debugDrawFeatureInstalled = false;
         }
     public:
@@ -335,23 +327,5 @@ class GtsScene
 
             ecsWorld.addControllerSystem<gts::debugdraw::DebugDrawSystem>();
             debugDrawFeatureInstalled = true;
-        }
-
-        // Optional developer tooling surface. Kept separate from renderer setup so
-        // shipping scenes can opt out while development scenes get inspectors.
-        inline void installToolingFeature(const EcsControllerContext& ctx)
-        {
-            if (toolingFeatureInstalled)
-                return;
-
-            gts::tools::EngineToolCameraSystem::ensureToolCameraState(ecsWorld, ctx.windowAspectRatio);
-            ecsWorld.addControllerSystem<gts::tools::EngineToolShellSystem>();
-            ecsWorld.addControllerSystem<gts::tools::EngineToolCameraSystem>();
-            ecsWorld.addControllerSystem<gts::tools::EngineGizmoSystem>();
-            ecsWorld.addControllerSystem<gts::tools::EngineToolDebugDrawSystem>();
-            ecsWorld.addControllerSystem<gts::tools::EngineToolWorldPickerSystem>();
-            ecsWorld.addControllerSystem<gts::tools::EngineToolSelectionHighlightSystem>();
-            installDebugDrawFeature(ctx);
-            toolingFeatureInstalled = true;
         }
 };

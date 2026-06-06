@@ -763,13 +763,18 @@ class ECSWorld
                 const auto end = std::chrono::steady_clock::now();
                 const float ms = std::chrono::duration<float, std::milli>(end - start).count();
 
-                auto& profile = controllerProfiles[system->getName()];
-                profile.totalMs += ms;
-                profile.maxMs = std::max(profile.maxMs, ms);
-                ++profile.calls;
+                recordControllerProfile(system->getName(), ms);
 
                 flushDeferredStructuralCommands();
             }
+        }
+
+        void recordControllerProfile(std::string_view name, float ms)
+        {
+            auto& profile = controllerProfiles[name];
+            profile.totalMs += ms;
+            profile.maxMs = std::max(profile.maxMs, ms);
+            ++profile.calls;
         }
 
         void printControllerProfiles() const
