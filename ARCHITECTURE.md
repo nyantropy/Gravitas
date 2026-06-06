@@ -56,6 +56,7 @@ Gravitas/
 - Each archetype stores entities plus one tightly packed column per component type (SoA layout)
 - Adding/removing a component migrates the entity between archetypes
 - Hot-path iteration walks matching archetypes directly instead of probing sparse component stores per entity
+- Component signatures use four 64-bit words, giving the engine 256 registered component-type bits
 
 **Queries and Structural Mutation**
 - `forEach<C1, C2, ...>(fn)` is the normal hot-path query API and is intended for non-structural iteration
