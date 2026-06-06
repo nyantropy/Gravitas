@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "AssetStatusPanel.hpp"
+#include "CameraPanel.hpp"
 #include "DebugDrawPanel.hpp"
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
@@ -27,6 +28,7 @@ namespace gts::tools
         {
             registry.addPanel<EntityInspectorPanel>();
             registry.addPanel<SceneGizmoPanel>();
+            registry.addPanel<CameraPanel>();
             registry.addPanel<ParticleEmitterInspectorPanel>();
             registry.addPanel<DebugDrawPanel>();
             registry.addPanel<AssetStatusPanel>();

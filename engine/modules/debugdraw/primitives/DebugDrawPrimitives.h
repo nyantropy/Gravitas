@@ -165,15 +165,12 @@ namespace gts::debugdraw
         line(world, origin, origin + direction / dirLength * length, color, thickness);
     }
 
-    inline void frustum(ECSWorld& world,
-                        const ActiveCameraViewStateComponent& camera,
-                        DebugDrawColor color,
-                        float thickness)
+    inline void frustumFromViewProj(ECSWorld& world,
+                                    const glm::mat4& viewProjMatrix,
+                                    DebugDrawColor color,
+                                    float thickness)
     {
-        if (!camera.valid)
-            return;
-
-        const glm::mat4 inverseViewProj = glm::inverse(camera.viewProjMatrix);
+        const glm::mat4 inverseViewProj = glm::inverse(viewProjMatrix);
         std::array<glm::vec3, 8> corners{};
         size_t index = 0;
         for (float z : {0.0f, 1.0f})
@@ -197,5 +194,16 @@ namespace gts::debugdraw
         }};
         for (const auto& edge : edges)
             line(world, corners[static_cast<size_t>(edge[0])], corners[static_cast<size_t>(edge[1])], color, thickness);
+    }
+
+    inline void frustum(ECSWorld& world,
+                        const ActiveCameraViewStateComponent& camera,
+                        DebugDrawColor color,
+                        float thickness)
+    {
+        if (!camera.valid)
+            return;
+
+        frustumFromViewProj(world, camera.viewProjMatrix, color, thickness);
     }
 }

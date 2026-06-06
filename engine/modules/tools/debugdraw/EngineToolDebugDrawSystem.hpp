@@ -6,15 +6,18 @@
 
 #include "ActiveCameraViewStateComponent.h"
 #include "BoundsComponent.h"
+#include "CameraDescriptionComponent.h"
 #include "DebugDrawPrimitives.h"
 #include "DebugDrawSettingsComponent.h"
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
+#include "EngineToolCameraStateComponent.h"
 #include "EngineGizmoStateComponent.h"
 #include "EngineToolInputCaptureComponent.h"
 #include "EngineToolRaycast.h"
 #include "EngineToolSelectionHelpers.h"
 #include "EngineToolStateComponent.h"
+#include "GlmConfig.h"
 #include "TransformComponent.h"
 
 namespace gts::tools
@@ -41,6 +44,8 @@ namespace gts::tools
             const float thickness = settings.lineThickness;
             if (settings.allBounds)
                 drawAllBounds(ctx.world, queue, state, thickness);
+
+            drawCameras(ctx.world, state, thickness);
 
             if (settings.selectedBounds)
                 drawSelectedBounds(ctx.world, queue, state, thickness * 1.35f);
@@ -121,6 +126,96 @@ namespace gts::tools
                                    thickness);
         }
 
+        static void drawCameras(ECSWorld& world,
+                                const EngineToolStateComponent& state,
+                                float thickness)
+        {
+            world.forEach<TransformComponent, CameraDescriptionComponent>(
+                [&](Entity entity, TransformComponent& transform, CameraDescriptionComponent& camera)
+                {
+                    if (isCurrentViewCamera(world, entity))
+                        return;
+
+                    const gts::debugdraw::DebugDrawColor color =
+                        cameraDebugColor(world, state, entity, camera);
+                    const glm::mat4 view = glm::lookAt(transform.position, camera.target, camera.up);
+                    glm::mat4 proj = glm::perspective(camera.fov,
+                                                      camera.aspectRatio > 0.0f ? camera.aspectRatio : 1.0f,
+                                                      camera.nearClip,
+                                                      camera.farClip);
+                    proj[1][1] *= -1.0f;
+
+                    gts::debugdraw::frustumFromViewProj(world, proj * view, color, thickness);
+                    drawCameraMarker(world, transform, camera, color, thickness * 1.45f);
+                });
+        }
+
+        static gts::debugdraw::DebugDrawColor cameraDebugColor(ECSWorld& world,
+                                                               const EngineToolStateComponent& state,
+                                                               Entity entity,
+                                                               const CameraDescriptionComponent& camera)
+        {
+            if (isValidToolEntity(state.selectedEntity)
+                && state.selectedEntity.id == entity.id)
+            {
+                return gts::debugdraw::DebugDrawColor::Yellow;
+            }
+
+            if (world.hasAny<EngineToolCameraStateComponent>()
+                && world.getSingleton<EngineToolCameraStateComponent>().toolCameraEntity.id == entity.id)
+            {
+                return gts::debugdraw::DebugDrawColor::Cyan;
+            }
+
+            return camera.active
+                ? gts::debugdraw::DebugDrawColor::Green
+                : gts::debugdraw::DebugDrawColor::Blue;
+        }
+
+        static bool isCurrentViewCamera(ECSWorld& world, Entity entity)
+        {
+            if (world.hasAny<ActiveCameraViewStateComponent>())
+            {
+                const ActiveCameraViewStateComponent& camera =
+                    world.getSingleton<ActiveCameraViewStateComponent>();
+                return camera.valid && camera.activeCamera.id == entity.id;
+            }
+
+            if (!world.hasComponent<CameraDescriptionComponent>(entity))
+                return false;
+
+            return world.getComponent<CameraDescriptionComponent>(entity).active;
+        }
+
+        static void drawCameraMarker(ECSWorld& world,
+                                     const TransformComponent& transform,
+                                     const CameraDescriptionComponent& camera,
+                                     gts::debugdraw::DebugDrawColor color,
+                                     float thickness)
+        {
+            const glm::vec3 forward = safeNormalized(camera.target - transform.position,
+                                                     {0.0f, 0.0f, -1.0f});
+            glm::vec3 right = glm::cross(forward, camera.up);
+            if (glm::dot(right, right) <= 0.000001f)
+                right = {1.0f, 0.0f, 0.0f};
+            right = glm::normalize(right);
+            const glm::vec3 up = glm::normalize(glm::cross(right, forward));
+
+            const float size = 0.34f;
+            const glm::vec3 center = transform.position;
+            const glm::vec3 a = center - right * size - up * size;
+            const glm::vec3 b = center + right * size - up * size;
+            const glm::vec3 c = center + right * size + up * size;
+            const glm::vec3 d = center - right * size + up * size;
+            const glm::vec3 nose = center + forward * (size * 1.55f);
+
+            gts::debugdraw::line(world, a, b, color, thickness);
+            gts::debugdraw::line(world, b, c, color, thickness);
+            gts::debugdraw::line(world, c, d, color, thickness);
+            gts::debugdraw::line(world, d, a, color, thickness);
+            gts::debugdraw::line(world, center, nose, color, thickness);
+        }
+
         static void drawSelectedAxes(ECSWorld& world,
                                      const EngineToolStateComponent& state,
                                      const gts::debugdraw::DebugDrawSettingsComponent& settings,
@@ -157,6 +252,13 @@ namespace gts::tools
                 && isValidToolEntity(state.selectedEntity)
                 && !isToolInternalEntity(world, state.selectedEntity)
                 && world.hasComponent<TransformComponent>(state.selectedEntity);
+        }
+
+        static glm::vec3 safeNormalized(const glm::vec3& value, const glm::vec3& fallback)
+        {
+            if (glm::dot(value, value) <= 0.000001f)
+                return fallback;
+            return glm::normalize(value);
         }
 
         static void drawPickRay(ECSWorld& world,

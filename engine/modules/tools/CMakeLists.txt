@@ -21,6 +21,7 @@ target_include_directories(gravitas_tools PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/selection"
     "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw"
     "${CMAKE_CURRENT_SOURCE_DIR}/gizmos"
+    "${CMAKE_CURRENT_SOURCE_DIR}/cameras"
 )
 
 target_link_libraries(gravitas_tools PUBLIC

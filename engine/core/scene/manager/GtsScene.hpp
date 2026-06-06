@@ -36,6 +36,7 @@
 #include "WorldTextRuntimeComponent.h"
 #include "DebugDrawSystem.hpp"
 #include "EngineGizmoSystem.hpp"
+#include "EngineToolCameraSystem.hpp"
 #include "EngineToolDebugDrawSystem.hpp"
 #include "EngineToolSelectionHighlightSystem.hpp"
 #include "EngineToolShellSystem.hpp"
@@ -343,7 +344,9 @@ class GtsScene
             if (toolingFeatureInstalled)
                 return;
 
+            gts::tools::EngineToolCameraSystem::ensureToolCameraState(ecsWorld, ctx.windowAspectRatio);
             ecsWorld.addControllerSystem<gts::tools::EngineToolShellSystem>();
+            ecsWorld.addControllerSystem<gts::tools::EngineToolCameraSystem>();
             ecsWorld.addControllerSystem<gts::tools::EngineGizmoSystem>();
             ecsWorld.addControllerSystem<gts::tools::EngineToolDebugDrawSystem>();
             ecsWorld.addControllerSystem<gts::tools::EngineToolWorldPickerSystem>();

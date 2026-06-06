@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <limits>
 
 #include "GlmConfig.h"
 
@@ -37,6 +38,13 @@ public:
             return;
         }
 
+        if (toolsVisible(ctx))
+        {
+            if (state.active)
+                deactivate(ctx, state);
+            return;
+        }
+
         if (ctx.input->isPressed("engine.debug_camera_toggle"))
         {
             if (!state.active) activate(ctx, state);
@@ -59,6 +67,11 @@ private:
     static Entity invalidEntity()
     {
         return Entity{ std::numeric_limits<entity_id_type>::max() };
+    }
+
+    static bool toolsVisible(const EcsControllerContext& ctx)
+    {
+        return ctx.input != nullptr && ctx.input->isContextActive("engine.tools");
     }
 
 public:
@@ -242,7 +255,10 @@ private:
 
     void requestInputContext(const EcsControllerContext& ctx)
     {
-        if (ctx.input == nullptr || inputContextRequested)
+        if (ctx.input == nullptr)
+            return;
+
+        if (inputContextRequested && ctx.input->isContextActive(InputContext))
             return;
 
         ctx.input->pushContext(InputContext);
@@ -251,10 +267,12 @@ private:
 
     void releaseInputContext(const EcsControllerContext& ctx)
     {
-        if (ctx.input == nullptr || !inputContextRequested)
+        if (ctx.input == nullptr)
             return;
 
-        ctx.input->popContext(InputContext);
+        if (inputContextRequested || ctx.input->isContextActive(InputContext))
+            ctx.input->popContext(InputContext);
+
         inputContextRequested = false;
     }
 
