@@ -10,6 +10,7 @@
 
 #include "EngineToolPanel.h"
 #include "EngineToolSelectionHelpers.h"
+#include "ToolTheme.h"
 #include "ToolWidgets.h"
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
@@ -18,41 +19,73 @@ namespace gts::tools
 {
     class EntityInspectorPanel : public EngineToolPanel
     {
-    public:
-        std::string_view id() const override { return "entity"; }
-        std::string_view title() const override { return "Entity"; }
+        public:
+        std::string_view id() const override
+        {
+            return "entity";
+        }
+        std::string_view title() const override
+        {
+            return "Entity";
+        }
 
         void build(EngineToolContext& ctx, UiHandle parent, BitmapFont* font) override
         {
-            root = createContainer(ctx.ui, parent, {0.0f, 0.0f, 0.390f, 0.760f});
-            header = createText(ctx.ui, root, {0.014f, 0.006f, 0.300f, 0.030f}, font,
-                                "ENTITY INSPECTOR", color(0.95f, 0.98f, 1.0f), 0.016f);
-            summary = createText(ctx.ui, root, {0.014f, 0.038f, 0.350f, 0.028f}, font,
-                                 "NO TRANSFORMS", color(0.66f, 0.74f, 0.80f), 0.0125f);
+            root    = createContainerRelative(ctx.ui, parent, {0.0f, 0.0f, 1.0f, 1.0f});
+            header  = createTextRelative(ctx.ui,
+                                         root,
+                                         {0.0f, 0.000f, 1.0f, 0.036f},
+                                         font,
+                                         "ENTITY INSPECTOR",
+                                         ToolTheme::text,
+                                         ToolTheme::headerTextScale);
+            summary = createTextRelative(ctx.ui,
+                                         root,
+                                         {0.0f, 0.042f, 1.0f, 0.036f},
+                                         font,
+                                         "NO TRANSFORMS",
+                                         ToolTheme::mutedText,
+                                         ToolTheme::smallTextScale);
 
-            previousButton = createButton(ctx.ui, root, {0.014f, 0.074f, 0.084f, 0.032f}, font, "PREV", 0.0125f);
-            nextButton = createButton(ctx.ui, root, {0.105f, 0.074f, 0.084f, 0.032f}, font, "NEXT", 0.0125f);
-            resetScaleButton = createButton(ctx.ui, root, {0.196f, 0.074f, 0.090f, 0.032f}, font, "UNIT", 0.0125f);
-            zeroRotationButton = createButton(ctx.ui, root, {0.293f, 0.074f, 0.083f, 0.032f}, font, "ZERO", 0.0125f);
+            previousButton = createButtonRelative(
+                ctx.ui, root, {0.000f, 0.088f, 0.235f, 0.042f}, font, "PREV", ToolTheme::buttonTextScale);
+            nextButton = createButtonRelative(
+                ctx.ui, root, {0.255f, 0.088f, 0.235f, 0.042f}, font, "NEXT", ToolTheme::buttonTextScale);
+            resetScaleButton = createButtonRelative(
+                ctx.ui, root, {0.510f, 0.088f, 0.235f, 0.042f}, font, "UNIT", ToolTheme::buttonTextScale);
+            zeroRotationButton = createButtonRelative(
+                ctx.ui, root, {0.765f, 0.088f, 0.235f, 0.042f}, font, "ZERO", ToolTheme::buttonTextScale);
 
-            float y = 0.134f;
-            addSlider(ctx.ui, font, y, Field::PosX, "POS X", -30.0f, 30.0f); y += 0.044f;
-            addSlider(ctx.ui, font, y, Field::PosY, "POS Y", -10.0f, 20.0f); y += 0.044f;
-            addSlider(ctx.ui, font, y, Field::PosZ, "POS Z", -30.0f, 30.0f); y += 0.056f;
-            addSlider(ctx.ui, font, y, Field::RotX, "ROT X", -3.2f, 3.2f); y += 0.044f;
-            addSlider(ctx.ui, font, y, Field::RotY, "ROT Y", -3.2f, 3.2f); y += 0.044f;
-            addSlider(ctx.ui, font, y, Field::RotZ, "ROT Z", -3.2f, 3.2f); y += 0.056f;
-            addSlider(ctx.ui, font, y, Field::ScaleX, "SCALE X", 0.05f, 5.0f); y += 0.044f;
-            addSlider(ctx.ui, font, y, Field::ScaleY, "SCALE Y", 0.05f, 5.0f); y += 0.044f;
+            float y = 0.158f;
+            addSlider(ctx.ui, font, y, Field::PosX, "POS X", -30.0f, 30.0f);
+            y += 0.048f;
+            addSlider(ctx.ui, font, y, Field::PosY, "POS Y", -10.0f, 20.0f);
+            y += 0.048f;
+            addSlider(ctx.ui, font, y, Field::PosZ, "POS Z", -30.0f, 30.0f);
+            y += 0.064f;
+            addSlider(ctx.ui, font, y, Field::RotX, "ROT X", -3.2f, 3.2f);
+            y += 0.048f;
+            addSlider(ctx.ui, font, y, Field::RotY, "ROT Y", -3.2f, 3.2f);
+            y += 0.048f;
+            addSlider(ctx.ui, font, y, Field::RotZ, "ROT Z", -3.2f, 3.2f);
+            y += 0.064f;
+            addSlider(ctx.ui, font, y, Field::ScaleX, "SCALE X", 0.05f, 5.0f);
+            y += 0.048f;
+            addSlider(ctx.ui, font, y, Field::ScaleY, "SCALE Y", 0.05f, 5.0f);
+            y += 0.048f;
             addSlider(ctx.ui, font, y, Field::ScaleZ, "SCALE Z", 0.05f, 5.0f);
 
-            footer = createText(ctx.ui, root, {0.014f, 0.724f, 0.350f, 0.024f}, font,
-                                "TRANSFORM COMPONENTS", color(0.80f, 0.86f, 0.92f), 0.0125f);
+            footer = createTextRelative(ctx.ui,
+                                        root,
+                                        {0.0f, 0.940f, 1.0f, 0.040f},
+                                        font,
+                                        "TRANSFORM COMPONENTS",
+                                        ToolTheme::statusText,
+                                        ToolTheme::smallTextScale);
         }
 
-        void update(EngineToolContext& ctx,
-                    EngineToolStateComponent& state,
-                    const UiInteractionResult& interaction) override
+        void
+        update(EngineToolContext& ctx, EngineToolStateComponent& state, const UiInteractionResult& interaction) override
         {
             std::vector<Entity> entities = collectEntities(ctx.world);
             resolveSelection(state, entities);
@@ -109,7 +142,7 @@ namespace gts::tools
             sliders.clear();
         }
 
-    private:
+        private:
         enum class Field
         {
             PosX,
@@ -125,32 +158,29 @@ namespace gts::tools
 
         struct SliderBinding
         {
-            Field field = Field::PosX;
+            Field      field = Field::PosX;
             ToolSlider slider;
         };
 
-        UiHandle root = UI_INVALID_HANDLE;
-        UiHandle header = UI_INVALID_HANDLE;
-        UiHandle summary = UI_INVALID_HANDLE;
-        UiHandle footer = UI_INVALID_HANDLE;
-        ToolButton previousButton;
-        ToolButton nextButton;
-        ToolButton resetScaleButton;
-        ToolButton zeroRotationButton;
+        UiHandle                   root    = UI_INVALID_HANDLE;
+        UiHandle                   header  = UI_INVALID_HANDLE;
+        UiHandle                   summary = UI_INVALID_HANDLE;
+        UiHandle                   footer  = UI_INVALID_HANDLE;
+        ToolButton                 previousButton;
+        ToolButton                 nextButton;
+        ToolButton                 resetScaleButton;
+        ToolButton                 zeroRotationButton;
         std::vector<SliderBinding> sliders;
 
-        void addSlider(UiSystem& ui,
-                       BitmapFont* font,
-                       float y,
-                       Field field,
+        void addSlider(UiSystem&          ui,
+                       BitmapFont*        font,
+                       float              y,
+                       Field              field,
                        const std::string& name,
-                       float minValue,
-                       float maxValue)
+                       float              minValue,
+                       float              maxValue)
         {
-            sliders.push_back({
-                field,
-                createSlider(ui, root, y, name, minValue, maxValue, false, font)
-            });
+            sliders.push_back({field, createSlider(ui, root, y, name, minValue, maxValue, false, font)});
         }
 
         static std::vector<Entity> collectEntities(ECSWorld& world)
@@ -163,16 +193,16 @@ namespace gts::tools
                         return;
                     entities.push_back(entity);
                 });
-            std::sort(entities.begin(), entities.end(),
-                [](Entity lhs, Entity rhs)
-                {
-                    return lhs.id < rhs.id;
-                });
+            std::sort(entities.begin(),
+                      entities.end(),
+                      [](Entity lhs, Entity rhs)
+                      {
+                          return lhs.id < rhs.id;
+                      });
             return entities;
         }
 
-        static void resolveSelection(EngineToolStateComponent& state,
-                                     const std::vector<Entity>& entities)
+        static void resolveSelection(EngineToolStateComponent& state, const std::vector<Entity>& entities)
         {
             if (entities.empty())
                 return;
@@ -180,48 +210,43 @@ namespace gts::tools
             const auto it = std::find(entities.begin(), entities.end(), state.selectedEntity);
             if (it == entities.end())
             {
-                state.selectedEntity = entities.front();
-                state.selectionSource = EngineToolSelectionSource::Inspector;
+                state.selectedEntity            = entities.front();
+                state.selectionSource           = EngineToolSelectionSource::Inspector;
                 state.selectionChangedThisFrame = true;
             }
         }
 
-        static TransformComponent* selectedTransform(ECSWorld& world,
-                                                     const EngineToolStateComponent& state)
+        static TransformComponent* selectedTransform(ECSWorld& world, const EngineToolStateComponent& state)
         {
-            if (!isValidToolEntity(state.selectedEntity)
-                || !world.hasComponent<TransformComponent>(state.selectedEntity))
+            if (!isValidToolEntity(state.selectedEntity) ||
+                !world.hasComponent<TransformComponent>(state.selectedEntity))
             {
                 return nullptr;
             }
             return &world.getComponent<TransformComponent>(state.selectedEntity);
         }
 
-        static void stepSelection(EngineToolStateComponent& state,
-                                  const std::vector<Entity>& entities,
-                                  int delta)
+        static void stepSelection(EngineToolStateComponent& state, const std::vector<Entity>& entities, int delta)
         {
             if (entities.empty())
                 return;
 
-            auto it = std::find(entities.begin(), entities.end(), state.selectedEntity);
-            const int current = it == entities.end()
-                ? 0
-                : static_cast<int>(std::distance(entities.begin(), it));
-            const int count = static_cast<int>(entities.size());
-            int next = (current + delta) % count;
+            auto      it      = std::find(entities.begin(), entities.end(), state.selectedEntity);
+            const int current = it == entities.end() ? 0 : static_cast<int>(std::distance(entities.begin(), it));
+            const int count   = static_cast<int>(entities.size());
+            int       next    = (current + delta) % count;
             if (next < 0)
                 next += count;
-            state.selectedEntity = entities[static_cast<size_t>(next)];
-            state.selectionSource = EngineToolSelectionSource::Inspector;
+            state.selectedEntity            = entities[static_cast<size_t>(next)];
+            state.selectionSource           = EngineToolSelectionSource::Inspector;
             state.selectionChangedThisFrame = true;
-            state.status = "SELECTED " + entityDisplayNameForStatus(state);
+            state.status                    = "SELECTED " + entityDisplayNameForStatus(state);
         }
 
-        void updateDisplay(EngineToolContext& ctx,
+        void updateDisplay(EngineToolContext&              ctx,
                            const EngineToolStateComponent& state,
-                           const std::vector<Entity>& entities,
-                           const TransformComponent* transform)
+                           const std::vector<Entity>&      entities,
+                           const TransformComponent*       transform)
         {
             updateButton(ctx.ui, previousButton, "PREV");
             updateButton(ctx.ui, nextButton, "NEXT");
@@ -234,23 +259,20 @@ namespace gts::tools
                 for (const SliderBinding& binding : sliders)
                 {
                     setText(ctx.ui, binding.slider.value, "--");
-                    setRect(ctx.ui, binding.slider.fill, {0.0f, 0.0f, 0.001f, 0.012f});
+                    setRelativeRect(ctx.ui, binding.slider.fill, {0.0f, 0.0f, 0.001f, 1.0f});
                 }
                 setText(ctx.ui, footer, footerText(ctx, state));
                 return;
             }
 
             std::ostringstream label;
-            label << entityDisplayName(ctx.world, state.selectedEntity)
-                  << " #" << state.selectedEntity.id << " / " << entities.size();
+            label << entityDisplayName(ctx.world, state.selectedEntity) << " #" << state.selectedEntity.id << " / "
+                  << entities.size();
             setText(ctx.ui, summary, label.str());
 
             for (const SliderBinding& binding : sliders)
             {
-                updateSlider(ctx.ui,
-                             binding.slider,
-                             readField(*transform, binding.field),
-                             sliderColor(binding.field));
+                updateSlider(ctx.ui, binding.slider, readField(*transform, binding.field), sliderColor(binding.field));
             }
             const std::string badges = entityComponentBadges(ctx.world, state.selectedEntity);
             if (isValidToolEntity(state.hoveredEntity) && state.hoveredEntity.id != state.selectedEntity.id)
@@ -275,15 +297,24 @@ namespace gts::tools
         {
             switch (field)
             {
-                case Field::PosX: return transform.position.x;
-                case Field::PosY: return transform.position.y;
-                case Field::PosZ: return transform.position.z;
-                case Field::RotX: return transform.rotation.x;
-                case Field::RotY: return transform.rotation.y;
-                case Field::RotZ: return transform.rotation.z;
-                case Field::ScaleX: return transform.scale.x;
-                case Field::ScaleY: return transform.scale.y;
-                case Field::ScaleZ: return transform.scale.z;
+            case Field::PosX:
+                return transform.position.x;
+            case Field::PosY:
+                return transform.position.y;
+            case Field::PosZ:
+                return transform.position.z;
+            case Field::RotX:
+                return transform.rotation.x;
+            case Field::RotY:
+                return transform.rotation.y;
+            case Field::RotZ:
+                return transform.rotation.z;
+            case Field::ScaleX:
+                return transform.scale.x;
+            case Field::ScaleY:
+                return transform.scale.y;
+            case Field::ScaleZ:
+                return transform.scale.z;
             }
             return 0.0f;
         }
@@ -292,15 +323,33 @@ namespace gts::tools
         {
             switch (field)
             {
-                case Field::PosX: transform.position.x = value; break;
-                case Field::PosY: transform.position.y = value; break;
-                case Field::PosZ: transform.position.z = value; break;
-                case Field::RotX: transform.rotation.x = value; break;
-                case Field::RotY: transform.rotation.y = value; break;
-                case Field::RotZ: transform.rotation.z = value; break;
-                case Field::ScaleX: transform.scale.x = std::max(0.001f, value); break;
-                case Field::ScaleY: transform.scale.y = std::max(0.001f, value); break;
-                case Field::ScaleZ: transform.scale.z = std::max(0.001f, value); break;
+            case Field::PosX:
+                transform.position.x = value;
+                break;
+            case Field::PosY:
+                transform.position.y = value;
+                break;
+            case Field::PosZ:
+                transform.position.z = value;
+                break;
+            case Field::RotX:
+                transform.rotation.x = value;
+                break;
+            case Field::RotY:
+                transform.rotation.y = value;
+                break;
+            case Field::RotZ:
+                transform.rotation.z = value;
+                break;
+            case Field::ScaleX:
+                transform.scale.x = std::max(0.001f, value);
+                break;
+            case Field::ScaleY:
+                transform.scale.y = std::max(0.001f, value);
+                break;
+            case Field::ScaleZ:
+                transform.scale.z = std::max(0.001f, value);
+                break;
             }
         }
 
@@ -308,17 +357,22 @@ namespace gts::tools
         {
             switch (field)
             {
-                case Field::PosX: return color(0.88f, 0.28f, 0.30f, 1.0f);
-                case Field::PosY: return color(0.30f, 0.76f, 0.42f, 1.0f);
-                case Field::PosZ: return color(0.25f, 0.52f, 0.92f, 1.0f);
-                case Field::RotX:
-                case Field::RotY:
-                case Field::RotZ: return color(0.80f, 0.58f, 0.24f, 1.0f);
-                case Field::ScaleX:
-                case Field::ScaleY:
-                case Field::ScaleZ: return color(0.58f, 0.66f, 0.86f, 1.0f);
+            case Field::PosX:
+                return color(0.88f, 0.28f, 0.30f, 1.0f);
+            case Field::PosY:
+                return color(0.30f, 0.76f, 0.42f, 1.0f);
+            case Field::PosZ:
+                return color(0.25f, 0.52f, 0.92f, 1.0f);
+            case Field::RotX:
+            case Field::RotY:
+            case Field::RotZ:
+                return color(0.80f, 0.58f, 0.24f, 1.0f);
+            case Field::ScaleX:
+            case Field::ScaleY:
+            case Field::ScaleZ:
+                return color(0.58f, 0.66f, 0.86f, 1.0f);
             }
             return color(0.25f, 0.62f, 0.92f, 1.0f);
         }
     };
-}
+} // namespace gts::tools

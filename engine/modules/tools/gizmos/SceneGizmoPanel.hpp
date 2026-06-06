@@ -5,58 +5,81 @@
 
 #include "EngineGizmoStateComponent.h"
 #include "EngineToolPanel.h"
+#include "ToolTheme.h"
 #include "ToolWidgets.h"
 
 namespace gts::tools
 {
     class SceneGizmoPanel : public EngineToolPanel
     {
-    public:
-        std::string_view id() const override { return "gizmos"; }
-        std::string_view title() const override { return "Gizmos"; }
+        public:
+        std::string_view id() const override
+        {
+            return "gizmos";
+        }
+        std::string_view title() const override
+        {
+            return "Gizmos";
+        }
 
         void build(EngineToolContext& ctx, UiHandle parent, BitmapFont* font) override
         {
-            root = createContainer(ctx.ui, parent, {0.0f, 0.0f, 0.390f, 0.760f});
-            header = createText(ctx.ui, root, {0.014f, 0.006f, 0.300f, 0.030f}, font,
-                                "SCENE GIZMO", color(0.95f, 0.98f, 1.0f), 0.016f);
-            summary = createText(ctx.ui, root, {0.014f, 0.038f, 0.350f, 0.028f}, font,
-                                 "TRANSLATE TOOL", color(0.66f, 0.74f, 0.80f), 0.0125f);
+            root    = createContainerRelative(ctx.ui, parent, {0.0f, 0.0f, 1.0f, 1.0f});
+            header  = createTextRelative(ctx.ui,
+                                         root,
+                                         {0.0f, 0.000f, 1.0f, 0.036f},
+                                         font,
+                                         "SCENE GIZMO",
+                                         ToolTheme::text,
+                                         ToolTheme::headerTextScale);
+            summary = createTextRelative(ctx.ui,
+                                         root,
+                                         {0.0f, 0.042f, 1.0f, 0.036f},
+                                         font,
+                                         "TRANSLATE TOOL",
+                                         ToolTheme::mutedText,
+                                         ToolTheme::smallTextScale);
 
-            enabledButton = createButton(ctx.ui, root, {0.014f, 0.082f, 0.112f, 0.034f}, font, "ON", 0.0125f);
-            spaceButton = createButton(ctx.ui, root, {0.140f, 0.082f, 0.112f, 0.034f}, font, "WORLD", 0.0125f);
-            snapButton = createButton(ctx.ui, root, {0.266f, 0.082f, 0.102f, 0.034f}, font, "SNAP", 0.0125f);
+            enabledButton = createButtonRelative(
+                ctx.ui, root, {0.000f, 0.092f, 0.310f, 0.044f}, font, "ON", ToolTheme::buttonTextScale);
+            spaceButton = createButtonRelative(
+                ctx.ui, root, {0.345f, 0.092f, 0.310f, 0.044f}, font, "WORLD", ToolTheme::buttonTextScale);
+            snapButton = createButtonRelative(
+                ctx.ui, root, {0.690f, 0.092f, 0.310f, 0.044f}, font, "SNAP", ToolTheme::buttonTextScale);
 
-            lengthSlider = createSlider(ctx.ui, root, 0.146f, "LENGTH", 0.35f, 4.0f, false, font);
-            snapSlider = createSlider(ctx.ui, root, 0.198f, "SNAP", 0.05f, 2.0f, false, font);
-            radiusSlider = createSlider(ctx.ui, root, 0.250f, "PICK", 0.03f, 0.40f, false, font);
+            lengthSlider = createSlider(ctx.ui, root, 0.170f, "LENGTH", 0.35f, 4.0f, false, font);
+            snapSlider   = createSlider(ctx.ui, root, 0.222f, "SNAP", 0.05f, 2.0f, false, font);
+            radiusSlider = createSlider(ctx.ui, root, 0.274f, "PICK", 0.03f, 0.40f, false, font);
 
-            footer = createText(ctx.ui, root, {0.014f, 0.724f, 0.350f, 0.024f}, font,
-                                "GIZMO READY", color(0.80f, 0.86f, 0.92f), 0.0125f);
+            footer = createTextRelative(ctx.ui,
+                                        root,
+                                        {0.0f, 0.940f, 1.0f, 0.040f},
+                                        font,
+                                        "GIZMO READY",
+                                        ToolTheme::statusText,
+                                        ToolTheme::smallTextScale);
         }
 
-        void update(EngineToolContext& ctx,
-                    EngineToolStateComponent& state,
-                    const UiInteractionResult& interaction) override
+        void
+        update(EngineToolContext& ctx, EngineToolStateComponent& state, const UiInteractionResult& interaction) override
         {
             EngineGizmoStateComponent& gizmo = ensureGizmoState(ctx.world);
 
             if (wasClicked(interaction, enabledButton.rect))
             {
                 gizmo.enabled = !gizmo.enabled;
-                state.status = gizmo.enabled ? "GIZMO ENABLED" : "GIZMO DISABLED";
+                state.status  = gizmo.enabled ? "GIZMO ENABLED" : "GIZMO DISABLED";
             }
             if (wasClicked(interaction, spaceButton.rect))
             {
-                gizmo.space = gizmo.space == EngineGizmoSpace::World
-                    ? EngineGizmoSpace::Local
-                    : EngineGizmoSpace::World;
+                gizmo.space =
+                    gizmo.space == EngineGizmoSpace::World ? EngineGizmoSpace::Local : EngineGizmoSpace::World;
                 state.status = gizmo.space == EngineGizmoSpace::World ? "GIZMO WORLD SPACE" : "GIZMO LOCAL SPACE";
             }
             if (wasClicked(interaction, snapButton.rect))
             {
                 gizmo.snapEnabled = !gizmo.snapEnabled;
-                state.status = gizmo.snapEnabled ? "GIZMO SNAP ON" : "GIZMO SNAP OFF";
+                state.status      = gizmo.snapEnabled ? "GIZMO SNAP ON" : "GIZMO SNAP OFF";
             }
 
             if (isPressed(interaction, lengthSlider.track))
@@ -81,11 +104,11 @@ namespace gts::tools
             root = UI_INVALID_HANDLE;
         }
 
-    private:
-        UiHandle root = UI_INVALID_HANDLE;
-        UiHandle header = UI_INVALID_HANDLE;
-        UiHandle summary = UI_INVALID_HANDLE;
-        UiHandle footer = UI_INVALID_HANDLE;
+        private:
+        UiHandle   root    = UI_INVALID_HANDLE;
+        UiHandle   header  = UI_INVALID_HANDLE;
+        UiHandle   summary = UI_INVALID_HANDLE;
+        UiHandle   footer  = UI_INVALID_HANDLE;
         ToolButton enabledButton;
         ToolButton spaceButton;
         ToolButton snapButton;
@@ -104,17 +127,19 @@ namespace gts::tools
         {
             switch (axis)
             {
-                case EngineGizmoAxis::X: return "X";
-                case EngineGizmoAxis::Y: return "Y";
-                case EngineGizmoAxis::Z: return "Z";
-                case EngineGizmoAxis::None: break;
+            case EngineGizmoAxis::X:
+                return "X";
+            case EngineGizmoAxis::Y:
+                return "Y";
+            case EngineGizmoAxis::Z:
+                return "Z";
+            case EngineGizmoAxis::None:
+                break;
             }
             return "-";
         }
 
-        void updateDisplay(UiSystem& ui,
-                           const EngineGizmoStateComponent& gizmo,
-                           const EngineToolStateComponent& state)
+        void updateDisplay(UiSystem& ui, const EngineGizmoStateComponent& gizmo, const EngineToolStateComponent& state)
         {
             updateToggleButton(ui, enabledButton, "GIZMO", gizmo.enabled);
             updateButton(ui, spaceButton, gizmo.space == EngineGizmoSpace::World ? "WORLD" : "LOCAL");
@@ -132,4 +157,4 @@ namespace gts::tools
                 setText(ui, footer, state.status);
         }
     };
-}
+} // namespace gts::tools

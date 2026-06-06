@@ -6,42 +6,69 @@
 #include "DebugDrawPrimitives.h"
 #include "DebugDrawSettingsComponent.h"
 #include "EngineToolPanel.h"
+#include "ToolTheme.h"
 #include "ToolWidgets.h"
 
 namespace gts::tools
 {
     class DebugDrawPanel : public EngineToolPanel
     {
-    public:
-        std::string_view id() const override { return "debugdraw"; }
-        std::string_view title() const override { return "Debug"; }
+        public:
+        std::string_view id() const override
+        {
+            return "debugdraw";
+        }
+        std::string_view title() const override
+        {
+            return "Debug";
+        }
 
         void build(EngineToolContext& ctx, UiHandle parent, BitmapFont* font) override
         {
-            root = createContainer(ctx.ui, parent, {0.0f, 0.0f, 0.390f, 0.760f});
-            header = createText(ctx.ui, root, {0.014f, 0.006f, 0.300f, 0.030f}, font,
-                                "DEBUG DRAW", color(0.95f, 0.98f, 1.0f), 0.016f);
-            summary = createText(ctx.ui, root, {0.014f, 0.038f, 0.350f, 0.028f}, font,
-                                 "VISUAL OVERLAYS", color(0.66f, 0.74f, 0.80f), 0.0125f);
+            root    = createContainerRelative(ctx.ui, parent, {0.0f, 0.0f, 1.0f, 1.0f});
+            header  = createTextRelative(ctx.ui,
+                                         root,
+                                         {0.0f, 0.000f, 1.0f, 0.036f},
+                                         font,
+                                         "DEBUG DRAW",
+                                         ToolTheme::text,
+                                         ToolTheme::headerTextScale);
+            summary = createTextRelative(ctx.ui,
+                                         root,
+                                         {0.0f, 0.042f, 1.0f, 0.036f},
+                                         font,
+                                         "VISUAL OVERLAYS",
+                                         ToolTheme::mutedText,
+                                         ToolTheme::smallTextScale);
 
-            toggles[0] = createButton(ctx.ui, root, {0.014f, 0.082f, 0.170f, 0.034f}, font, "DRAW", 0.0125f);
-            toggles[1] = createButton(ctx.ui, root, {0.198f, 0.082f, 0.170f, 0.034f}, font, "SELECT", 0.0125f);
-            toggles[2] = createButton(ctx.ui, root, {0.014f, 0.126f, 0.170f, 0.034f}, font, "ALL", 0.0125f);
-            toggles[3] = createButton(ctx.ui, root, {0.198f, 0.126f, 0.170f, 0.034f}, font, "AXES", 0.0125f);
-            toggles[4] = createButton(ctx.ui, root, {0.014f, 0.170f, 0.170f, 0.034f}, font, "FRUSTUM", 0.0125f);
-            toggles[5] = createButton(ctx.ui, root, {0.198f, 0.170f, 0.170f, 0.034f}, font, "RAY", 0.0125f);
+            toggles[0] = createButtonRelative(
+                ctx.ui, root, {0.000f, 0.092f, 0.480f, 0.042f}, font, "DRAW", ToolTheme::buttonTextScale);
+            toggles[1] = createButtonRelative(
+                ctx.ui, root, {0.520f, 0.092f, 0.480f, 0.042f}, font, "SELECT", ToolTheme::buttonTextScale);
+            toggles[2] = createButtonRelative(
+                ctx.ui, root, {0.000f, 0.144f, 0.480f, 0.042f}, font, "ALL", ToolTheme::buttonTextScale);
+            toggles[3] = createButtonRelative(
+                ctx.ui, root, {0.520f, 0.144f, 0.480f, 0.042f}, font, "AXES", ToolTheme::buttonTextScale);
+            toggles[4] = createButtonRelative(
+                ctx.ui, root, {0.000f, 0.196f, 0.480f, 0.042f}, font, "FRUSTUM", ToolTheme::buttonTextScale);
+            toggles[5] = createButtonRelative(
+                ctx.ui, root, {0.520f, 0.196f, 0.480f, 0.042f}, font, "RAY", ToolTheme::buttonTextScale);
 
-            thicknessSlider = createSlider(ctx.ui, root, 0.238f, "THICK", 0.008f, 0.120f, false, font);
-            axisSlider = createSlider(ctx.ui, root, 0.290f, "AXIS LEN", 0.25f, 4.0f, false, font);
-            raySlider = createSlider(ctx.ui, root, 0.342f, "RAY LEN", 2.0f, 80.0f, false, font);
+            thicknessSlider = createSlider(ctx.ui, root, 0.272f, "THICK", 0.008f, 0.120f, false, font);
+            axisSlider      = createSlider(ctx.ui, root, 0.324f, "AXIS LEN", 0.25f, 4.0f, false, font);
+            raySlider       = createSlider(ctx.ui, root, 0.376f, "RAY LEN", 2.0f, 80.0f, false, font);
 
-            footer = createText(ctx.ui, root, {0.014f, 0.724f, 0.350f, 0.024f}, font,
-                                "DEBUG DRAW QUEUE", color(0.80f, 0.86f, 0.92f), 0.0125f);
+            footer = createTextRelative(ctx.ui,
+                                        root,
+                                        {0.0f, 0.940f, 1.0f, 0.040f},
+                                        font,
+                                        "DEBUG DRAW QUEUE",
+                                        ToolTheme::statusText,
+                                        ToolTheme::smallTextScale);
         }
 
-        void update(EngineToolContext& ctx,
-                    EngineToolStateComponent& state,
-                    const UiInteractionResult& interaction) override
+        void
+        update(EngineToolContext& ctx, EngineToolStateComponent& state, const UiInteractionResult& interaction) override
         {
             auto& settings = gts::debugdraw::ensureSettings(ctx.world);
             applyToggles(settings, state, interaction);
@@ -61,34 +88,40 @@ namespace gts::tools
             root = UI_INVALID_HANDLE;
         }
 
-    private:
-        UiHandle root = UI_INVALID_HANDLE;
-        UiHandle header = UI_INVALID_HANDLE;
-        UiHandle summary = UI_INVALID_HANDLE;
-        UiHandle footer = UI_INVALID_HANDLE;
+        private:
+        UiHandle                  root    = UI_INVALID_HANDLE;
+        UiHandle                  header  = UI_INVALID_HANDLE;
+        UiHandle                  summary = UI_INVALID_HANDLE;
+        UiHandle                  footer  = UI_INVALID_HANDLE;
         std::array<ToolButton, 6> toggles{};
-        ToolSlider thicknessSlider;
-        ToolSlider axisSlider;
-        ToolSlider raySlider;
+        ToolSlider                thicknessSlider;
+        ToolSlider                axisSlider;
+        ToolSlider                raySlider;
 
         void applyToggles(gts::debugdraw::DebugDrawSettingsComponent& settings,
-                          EngineToolStateComponent& state,
-                          const UiInteractionResult& interaction)
+                          EngineToolStateComponent&                   state,
+                          const UiInteractionResult&                  interaction)
         {
-            if (wasClicked(interaction, toggles[0].rect)) settings.enabled = !settings.enabled;
-            if (wasClicked(interaction, toggles[1].rect)) settings.selectedBounds = !settings.selectedBounds;
-            if (wasClicked(interaction, toggles[2].rect)) settings.allBounds = !settings.allBounds;
-            if (wasClicked(interaction, toggles[3].rect)) settings.transformAxes = !settings.transformAxes;
-            if (wasClicked(interaction, toggles[4].rect)) settings.cameraFrustum = !settings.cameraFrustum;
-            if (wasClicked(interaction, toggles[5].rect)) settings.pickRay = !settings.pickRay;
+            if (wasClicked(interaction, toggles[0].rect))
+                settings.enabled = !settings.enabled;
+            if (wasClicked(interaction, toggles[1].rect))
+                settings.selectedBounds = !settings.selectedBounds;
+            if (wasClicked(interaction, toggles[2].rect))
+                settings.allBounds = !settings.allBounds;
+            if (wasClicked(interaction, toggles[3].rect))
+                settings.transformAxes = !settings.transformAxes;
+            if (wasClicked(interaction, toggles[4].rect))
+                settings.cameraFrustum = !settings.cameraFrustum;
+            if (wasClicked(interaction, toggles[5].rect))
+                settings.pickRay = !settings.pickRay;
 
             if (interaction.clicked != UI_INVALID_HANDLE)
                 state.status = "DEBUG DRAW UPDATED";
         }
 
-        void applySliders(UiSystem& ui,
+        void applySliders(UiSystem&                                   ui,
                           gts::debugdraw::DebugDrawSettingsComponent& settings,
-                          const UiInteractionResult& interaction)
+                          const UiInteractionResult&                  interaction)
         {
             if (isPressed(interaction, thicknessSlider.track))
                 settings.lineThickness = valueFromSliderPointer(ui, thicknessSlider, interaction.pointerX);
@@ -98,9 +131,9 @@ namespace gts::tools
                 settings.pickRayLength = valueFromSliderPointer(ui, raySlider, interaction.pointerX);
         }
 
-        void updateDisplay(UiSystem& ui,
+        void updateDisplay(UiSystem&                                         ui,
                            const gts::debugdraw::DebugDrawSettingsComponent& settings,
-                           const EngineToolStateComponent& state)
+                           const EngineToolStateComponent&                   state)
         {
             updateToggleButton(ui, toggles[0], "DRAW", settings.enabled);
             updateToggleButton(ui, toggles[1], "SELECT", settings.selectedBounds);
@@ -115,4 +148,4 @@ namespace gts::tools
             setText(ui, footer, state.status);
         }
     };
-}
+} // namespace gts::tools

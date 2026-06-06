@@ -14,6 +14,7 @@
 #include "EngineToolPanel.h"
 #include "EngineToolSelectionHelpers.h"
 #include "GlmConfig.h"
+#include "ToolTheme.h"
 #include "ToolWidgets.h"
 #include "TransformComponent.h"
 
@@ -33,32 +34,38 @@ namespace gts::tools
 
         void build(EngineToolContext& ctx, UiHandle parent, BitmapFont* font) override
         {
-            root   = createContainer(ctx.ui, parent, {0.0f, 0.0f, 0.390f, 0.760f});
-            header = createText(
-                ctx.ui, root, {0.014f, 0.006f, 0.300f, 0.030f}, font, "CAMERAS", color(0.95f, 0.98f, 1.0f), 0.016f);
-            summary = createText(ctx.ui,
-                                 root,
-                                 {0.014f, 0.038f, 0.350f, 0.028f},
-                                 font,
-                                 "NO CAMERAS",
-                                 color(0.66f, 0.74f, 0.80f),
-                                 0.0125f);
+            root    = createContainerRelative(ctx.ui, parent, {0.0f, 0.0f, 1.0f, 1.0f});
+            header  = createTextRelative(ctx.ui,
+                                         root,
+                                         {0.0f, 0.000f, 1.0f, 0.036f},
+                                         font,
+                                         "CAMERAS",
+                                         ToolTheme::text,
+                                         ToolTheme::headerTextScale);
+            summary = createTextRelative(ctx.ui,
+                                         root,
+                                         {0.0f, 0.042f, 1.0f, 0.036f},
+                                         font,
+                                         "NO CAMERAS",
+                                         ToolTheme::mutedText,
+                                         ToolTheme::smallTextScale);
 
             rows.clear();
-            float y = 0.080f;
+            float y = 0.092f;
             for (size_t i = 0; i < MAX_ROWS; ++i)
             {
-                rows.push_back(createButton(ctx.ui, root, {0.014f, y, 0.360f, 0.038f}, font, "--", 0.0115f));
-                y += 0.044f;
+                rows.push_back(
+                    createButtonRelative(ctx.ui, root, {0.0f, y, 1.0f, 0.040f}, font, "--", ToolTheme::smallTextScale));
+                y += 0.046f;
             }
 
-            detail = createText(ctx.ui,
-                                root,
-                                {0.014f, 0.650f, 0.355f, 0.078f},
-                                font,
-                                "SELECT A CAMERA",
-                                color(0.80f, 0.86f, 0.92f),
-                                0.0125f);
+            detail = createTextRelative(ctx.ui,
+                                        root,
+                                        {0.0f, 0.700f, 1.0f, 0.180f},
+                                        font,
+                                        "SELECT A CAMERA",
+                                        ToolTheme::statusText,
+                                        ToolTheme::smallTextScale);
         }
 
         void
