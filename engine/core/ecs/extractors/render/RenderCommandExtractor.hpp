@@ -10,7 +10,7 @@
 
 class RenderCommandExtractor
 {
-public:
+    public:
     struct Metrics
     {
         float    extractCpuMs       = 0.0f;
@@ -31,29 +31,26 @@ public:
     const std::vector<RenderCommand>& extract(const RenderExtractionSnapshot& snapshot)
     {
         const auto start = std::chrono::steady_clock::now();
-        if (cacheInitialised
-            && lastSnapshotContentVersion == snapshot.contentVersion
-            && lastSnapshotVisibilityVersion == snapshot.visibilityVersion
-            && lastSnapshotCameraVersion == snapshot.cameraVersion
-            && lastCameraViewID == snapshot.cameraViewID)
+        if (cacheInitialised && lastSnapshotContentVersion == snapshot.contentVersion &&
+            lastSnapshotVisibilityVersion == snapshot.visibilityVersion &&
+            lastSnapshotCameraVersion == snapshot.cameraVersion && lastCameraViewID == snapshot.cameraViewID)
         {
-            const auto end = std::chrono::steady_clock::now();
-            lastMetrics.extractCpuMs =
-                std::chrono::duration<float, std::milli>(end - start).count();
-            lastMetrics.sortCpuMs = 0.0f;
+            const auto end                 = std::chrono::steady_clock::now();
+            lastMetrics.extractCpuMs       = std::chrono::duration<float, std::milli>(end - start).count();
+            lastMetrics.sortCpuMs          = 0.0f;
             lastMetrics.visitedRenderables = 0;
-            lastMetrics.totalRenderables = static_cast<uint32_t>(lastTotalRenderables);
+            lastMetrics.totalRenderables   = static_cast<uint32_t>(lastTotalRenderables);
             lastMetrics.visibleRenderables = static_cast<uint32_t>(lastVisibleRenderables);
-            lastMetrics.updatedCommands = 0;
-            lastMetrics.cachedCommands = static_cast<uint32_t>(cachedVisibleCommands.size());
-            lastMetrics.sortedThisFrame = false;
+            lastMetrics.updatedCommands    = 0;
+            lastMetrics.cachedCommands     = static_cast<uint32_t>(cachedVisibleCommands.size());
+            lastMetrics.sortedThisFrame    = false;
             return cachedVisibleCommands;
         }
 
         frameStamp += 1;
-        int totalRenderables   = 0;
-        int visibleRenderables = 0;
-        int updatedCommands    = 0;
+        int  totalRenderables        = 0;
+        int  visibleRenderables      = 0;
+        int  updatedCommands         = 0;
         bool visibilityStatesChanged = false;
 
         nextOpaqueSlotOrder.clear();
@@ -72,20 +69,17 @@ public:
                 occupiedSlots.push_back(slot);
             cached.lastSeenFrame = frameStamp;
 
-            const bool opaque = renderable.tint.a >= 1.0f;
-            const bool visible = renderable.visible;
-            const bool sortKeyChanged = !cached.initialised
-                || cached.sortKey != renderable.sortKey;
-            const bool opacityBucketChanged = !cached.initialised
-                || cached.opaque != opaque;
-            const bool needsUpdate = !cacheInitialised
-                || !cached.initialised
-                || cached.command.meshID != renderable.meshID
-                || cached.command.textureID != renderable.textureID
-                || cached.command.objectSSBOSlot != renderable.objectSSBOSlot
-                || cached.command.doubleSided != renderable.doubleSided
-                || cached.command.vertexColorOnly != renderable.vertexColorOnly
-                || cached.command.cameraViewID != snapshot.cameraViewID;
+            const bool opaque               = renderable.tint.a >= 1.0f;
+            const bool visible              = renderable.visible;
+            const bool sortKeyChanged       = !cached.initialised || cached.sortKey != renderable.sortKey;
+            const bool opacityBucketChanged = !cached.initialised || cached.opaque != opaque;
+            const bool needsUpdate          = !cacheInitialised || !cached.initialised ||
+                                              cached.command.meshID != renderable.meshID ||
+                                              cached.command.textureID != renderable.textureID ||
+                                              cached.command.objectSSBOSlot != renderable.objectSSBOSlot ||
+                                              cached.command.doubleSided != renderable.doubleSided ||
+                                              cached.command.vertexColorOnly != renderable.vertexColorOnly ||
+                                              cached.command.cameraViewID != snapshot.cameraViewID;
 
             if (!cached.initialised || cached.visible != visible || opacityBucketChanged)
                 visibilityStatesChanged = true;
@@ -94,21 +88,21 @@ public:
                 sortOrderDirty = true;
 
             cached.visible = visible;
-            cached.opaque = opaque;
+            cached.opaque  = opaque;
 
             if (needsUpdate)
             {
                 if (sortKeyChanged)
                     sortOrderDirty = true;
 
-                cached.command.meshID         = renderable.meshID;
-                cached.command.textureID      = renderable.textureID;
-                cached.command.objectSSBOSlot = renderable.objectSSBOSlot;
-                cached.command.cameraViewID   = snapshot.cameraViewID;
-                cached.command.doubleSided    = renderable.doubleSided;
+                cached.command.meshID          = renderable.meshID;
+                cached.command.textureID       = renderable.textureID;
+                cached.command.objectSSBOSlot  = renderable.objectSSBOSlot;
+                cached.command.cameraViewID    = snapshot.cameraViewID;
+                cached.command.doubleSided     = renderable.doubleSided;
                 cached.command.vertexColorOnly = renderable.vertexColorOnly;
-                cached.sortKey                = renderable.sortKey;
-                cached.initialised            = true;
+                cached.sortKey                 = renderable.sortKey;
+                cached.initialised             = true;
                 updatedCommands += 1;
             }
 
@@ -121,31 +115,28 @@ public:
         }
 
         const bool staleEntriesPruned = pruneStaleSlots();
-        const bool visibilityChanged = !cacheInitialised
-            || updatedCommands > 0
-            || sortOrderDirty
-            || staleEntriesPruned
-            || visibilityStatesChanged;
-        lastMetrics.sortCpuMs = 0.0f;
+        const bool visibilityChanged =
+            !cacheInitialised || updatedCommands > 0 || sortOrderDirty || staleEntriesPruned || visibilityStatesChanged;
+        lastMetrics.sortCpuMs       = 0.0f;
         lastMetrics.sortedThisFrame = false;
 
         if (sortOrderDirty || !cacheInitialised)
         {
             const auto sortStart = std::chrono::steady_clock::now();
-            opaqueSlotOrder = nextOpaqueSlotOrder;
+            opaqueSlotOrder      = nextOpaqueSlotOrder;
             transparentSlotOrder = nextTransparentSlotOrder;
 
             // sortKey encodes (doubleSided << 63 | vertexColorOnly << 62 | meshID << 32 | textureID).
-            std::sort(opaqueSlotOrder.begin(), opaqueSlotOrder.end(),
-                [&](ssbo_id_type lhs, ssbo_id_type rhs)
-                {
-                    return commandCache[lhs].sortKey < commandCache[rhs].sortKey;
-                });
+            std::sort(opaqueSlotOrder.begin(),
+                      opaqueSlotOrder.end(),
+                      [&](ssbo_id_type lhs, ssbo_id_type rhs)
+                      {
+                          return commandCache[lhs].sortKey < commandCache[rhs].sortKey;
+                      });
             sortOrderDirty = false;
 
-            const auto sortEnd = std::chrono::steady_clock::now();
-            lastMetrics.sortCpuMs =
-                std::chrono::duration<float, std::milli>(sortEnd - sortStart).count();
+            const auto sortEnd          = std::chrono::steady_clock::now();
+            lastMetrics.sortCpuMs       = std::chrono::duration<float, std::milli>(sortEnd - sortStart).count();
             lastMetrics.sortedThisFrame = !opaqueSlotOrder.empty();
         }
 
@@ -165,29 +156,57 @@ public:
             }
         }
 
-        lastTotalRenderables   = totalRenderables;
-        lastVisibleRenderables = visibleRenderables;
-        lastSnapshotContentVersion = snapshot.contentVersion;
-        lastSnapshotVisibilityVersion = snapshot.visibilityVersion;
-        lastSnapshotCameraVersion = snapshot.cameraVersion;
-        lastCameraViewID = snapshot.cameraViewID;
-        cacheInitialised = true;
-        const auto end = std::chrono::steady_clock::now();
-        lastMetrics.extractCpuMs =
-            std::chrono::duration<float, std::milli>(end - start).count();
+        lastTotalRenderables           = totalRenderables;
+        lastVisibleRenderables         = visibleRenderables;
+        lastSnapshotContentVersion     = snapshot.contentVersion;
+        lastSnapshotVisibilityVersion  = snapshot.visibilityVersion;
+        lastSnapshotCameraVersion      = snapshot.cameraVersion;
+        lastCameraViewID               = snapshot.cameraViewID;
+        cacheInitialised               = true;
+        const auto end                 = std::chrono::steady_clock::now();
+        lastMetrics.extractCpuMs       = std::chrono::duration<float, std::milli>(end - start).count();
         lastMetrics.visitedRenderables = static_cast<uint32_t>(snapshot.renderables.size());
-        lastMetrics.totalRenderables = static_cast<uint32_t>(totalRenderables);
+        lastMetrics.totalRenderables   = static_cast<uint32_t>(totalRenderables);
         lastMetrics.visibleRenderables = static_cast<uint32_t>(visibleRenderables);
-        lastMetrics.updatedCommands = static_cast<uint32_t>(updatedCommands);
-        lastMetrics.cachedCommands  = static_cast<uint32_t>(cachedVisibleCommands.size());
+        lastMetrics.updatedCommands    = static_cast<uint32_t>(updatedCommands);
+        lastMetrics.cachedCommands     = static_cast<uint32_t>(cachedVisibleCommands.size());
 
         return cachedVisibleCommands;
     }
 
-    int  getLastTotalRenderables()   const { return lastTotalRenderables; }
-    int  getLastVisibleRenderables() const { return lastVisibleRenderables; }
+    int getLastTotalRenderables() const
+    {
+        return lastTotalRenderables;
+    }
+    int getLastVisibleRenderables() const
+    {
+        return lastVisibleRenderables;
+    }
 
-private:
+    void reset()
+    {
+        for (ssbo_id_type slot : occupiedSlots)
+            commandCache[slot] = CachedCommandState{};
+
+        occupiedSlots.clear();
+        opaqueSlotOrder.clear();
+        transparentSlotOrder.clear();
+        nextOpaqueSlotOrder.clear();
+        nextTransparentSlotOrder.clear();
+        cachedVisibleCommands.clear();
+        frameStamp                    = 0;
+        lastSnapshotContentVersion    = 0;
+        lastSnapshotVisibilityVersion = 0;
+        lastSnapshotCameraVersion     = 0;
+        lastCameraViewID              = 0;
+        lastTotalRenderables          = 0;
+        lastVisibleRenderables        = 0;
+        lastMetrics                   = {};
+        cacheInitialised              = false;
+        sortOrderDirty                = true;
+    }
+
+    private:
     struct CachedCommandState
     {
         RenderCommand command;
@@ -198,31 +217,31 @@ private:
         bool          initialised   = false;
     };
 
-    int                            lastTotalRenderables = 0;
-    int                            lastVisibleRenderables = 0;
-    Metrics                        lastMetrics;
+    int     lastTotalRenderables   = 0;
+    int     lastVisibleRenderables = 0;
+    Metrics lastMetrics;
     // Flat cache indexed by SSBO slot — O(1) access, contiguous memory, no hash overhead.
     // Sized to MAX_RENDERABLE_OBJECTS; stale entries detected via frame-stamp, pruned via occupiedSlots.
     std::vector<CachedCommandState> commandCache =
         std::vector<CachedCommandState>(EngineConfig::MAX_RENDERABLE_OBJECTS);
-    std::vector<ssbo_id_type>      occupiedSlots;
-    std::vector<ssbo_id_type>      opaqueSlotOrder;
-    std::vector<ssbo_id_type>      transparentSlotOrder;
-    std::vector<ssbo_id_type>      nextOpaqueSlotOrder;
-    std::vector<ssbo_id_type>      nextTransparentSlotOrder;
-    std::vector<RenderCommand>     cachedVisibleCommands;
-    uint64_t                       frameStamp = 0;
-    uint64_t                       lastSnapshotContentVersion = 0;
-    uint64_t                       lastSnapshotVisibilityVersion = 0;
-    uint64_t                       lastSnapshotCameraVersion = 0;
-    view_id_type                   lastCameraViewID = 0;
-    bool                           cacheInitialised = false;
-    bool                           sortOrderDirty = true;
+    std::vector<ssbo_id_type>  occupiedSlots;
+    std::vector<ssbo_id_type>  opaqueSlotOrder;
+    std::vector<ssbo_id_type>  transparentSlotOrder;
+    std::vector<ssbo_id_type>  nextOpaqueSlotOrder;
+    std::vector<ssbo_id_type>  nextTransparentSlotOrder;
+    std::vector<RenderCommand> cachedVisibleCommands;
+    uint64_t                   frameStamp                    = 0;
+    uint64_t                   lastSnapshotContentVersion    = 0;
+    uint64_t                   lastSnapshotVisibilityVersion = 0;
+    uint64_t                   lastSnapshotCameraVersion     = 0;
+    view_id_type               lastCameraViewID              = 0;
+    bool                       cacheInitialised              = false;
+    bool                       sortOrderDirty                = true;
 
     bool pruneStaleSlots()
     {
-        bool pruned = false;
-        size_t write = 0;
+        bool   pruned = false;
+        size_t write  = 0;
         for (size_t read = 0; read < occupiedSlots.size(); ++read)
         {
             const ssbo_id_type slot = occupiedSlots[read];
@@ -233,7 +252,7 @@ private:
             }
 
             commandCache[slot] = CachedCommandState{};
-            pruned = true;
+            pruned             = true;
         }
         occupiedSlots.resize(write);
 

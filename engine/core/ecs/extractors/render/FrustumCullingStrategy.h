@@ -7,18 +7,14 @@
 
 class FrustumCullingStrategy : public IVisibilityStrategy
 {
-public:
-    explicit FrustumCullingStrategy(bool enabled = true)
-        : enabled(enabled)
-    {}
+    public:
+    explicit FrustumCullingStrategy(bool enabled = true) : enabled(enabled) {}
 
     void filter(RenderExtractionSnapshot& snapshot) override
     {
         const FrustumPlanes& frustum = resolveFrustum(snapshot);
-        if (cacheValid
-            && cachedEnabled == enabled
-            && cachedContentVersion == snapshot.contentVersion
-            && sameFrustum(cachedFrustum, frustum))
+        if (cacheValid && cachedEnabled == enabled && cachedContentVersion == snapshot.contentVersion &&
+            sameFrustum(cachedFrustum, frustum))
         {
             return;
         }
@@ -45,10 +41,7 @@ public:
             }
             else
             {
-                visible = FrustumCuller::isVisible(
-                    frustum,
-                    renderable.worldBounds.min,
-                    renderable.worldBounds.max);
+                visible = FrustumCuller::isVisible(frustum, renderable.worldBounds.min, renderable.worldBounds.max);
             }
 
             if (renderable.visible != visible)
@@ -73,7 +66,7 @@ public:
 
     void toggleFreeze() override
     {
-        frozen = !frozen;
+        frozen     = !frozen;
         cacheValid = false;
     }
 
@@ -82,28 +75,34 @@ public:
         return frozen;
     }
 
-private:
+    void resetCache() override
+    {
+        cacheValid         = false;
+        frozenFrustumValid = false;
+    }
+
+    private:
     bool          enabled = true;
-    bool          frozen = false;
+    bool          frozen  = false;
     FrustumPlanes frozenFrustum{};
     bool          frozenFrustumValid = false;
     FrustumPlanes cachedFrustum{};
     uint64_t      cachedContentVersion = 0;
-    bool          cachedEnabled = true;
-    bool          cacheValid = false;
+    bool          cachedEnabled        = true;
+    bool          cacheValid           = false;
 
     const FrustumPlanes& resolveFrustum(const RenderExtractionSnapshot& snapshot)
     {
         if (!frozen)
         {
-            frozenFrustum = snapshot.frustum;
+            frozenFrustum      = snapshot.frustum;
             frozenFrustumValid = true;
             return snapshot.frustum;
         }
 
         if (!frozenFrustumValid)
         {
-            frozenFrustum = snapshot.frustum;
+            frozenFrustum      = snapshot.frustum;
             frozenFrustumValid = true;
         }
 
@@ -120,16 +119,14 @@ private:
         return true;
     }
 
-    void finishFilter(RenderExtractionSnapshot& snapshot,
-                      const FrustumPlanes& frustum,
-                      bool visibilityChanged)
+    void finishFilter(RenderExtractionSnapshot& snapshot, const FrustumPlanes& frustum, bool visibilityChanged)
     {
         if (visibilityChanged)
             snapshot.visibilityVersion += 1;
 
-        cachedFrustum = frustum;
+        cachedFrustum        = frustum;
         cachedContentVersion = snapshot.contentVersion;
-        cachedEnabled = enabled;
-        cacheValid = true;
+        cachedEnabled        = enabled;
+        cacheValid           = true;
     }
 };

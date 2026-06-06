@@ -1,3 +1,5 @@
+#include <memory>
+
 #include "GravitasEngine.hpp"
 #include "EngineConfig.h"
 #include "GtsScene3.hpp"
@@ -15,7 +17,11 @@ int main()
     config.frustumCullingEnabled           = true;
 
     GravitasEngine engine(config);
-    engine.registerScene("stress", std::make_unique<GtsScene3>());
+    engine.registerScene("stress",
+                         []()
+                         {
+                             return std::make_unique<GtsScene3>();
+                         });
     engine.setActiveScene("stress");
     engine.start();
 

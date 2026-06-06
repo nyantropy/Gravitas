@@ -8,6 +8,7 @@ Gravitas is a C++20 Vulkan game engine built around a two-tier ECS (Entity-Compo
 - ECS-first: all game state lives in components, all behavior lives in systems
 - Strict separation between CPU logic and GPU state
 - Modular subsystems assembled at scene construction time
+- Registered scenes are factories; only the active scene owns runtime ECS/GPU state
 - Descriptor/GPU component split: application writes descriptors, engine manages GPU resources
 - Lifecycle work is explicit: descriptor changes queue intent, lifecycle systems perform structural mutation
 
@@ -203,6 +204,30 @@ with uncapped rendering without racing frames in flight. Engine consumers that
 need final matrices outside the renderer should read the read-only
 `ActiveCameraViewStateComponent` singleton instead of touching GPU companion
 components directly.
+
+### Scene Lifetime
+
+`SceneManager` stores a registered scene catalog plus factory functions. It
+does not keep inactive scene instances alive. `GravitasEngine` owns one active
+`GtsScene` instance at a time, and scene changes wait for graphics idle before
+calling `GtsScene::unload(...)`, clearing the active scene world, destroying the
+old scene instance, constructing the next scene from its factory, and then
+calling `onLoad(...)`.
+
+This means scene ECS worlds, physics worlds, retained scene UI, camera view IDs,
+render object slots, and owned procedural mesh resources are scene-runtime
+state. They must be rebuilt by the newly loaded scene. Long-lived application
+state that should survive a scene change belongs outside the scene instance and
+is passed into scene factories by the application.
+
+`GtsScene::unload(...)` calls the optional scene `onUnload(...)` hook before
+clearing the world. Scenes use that hook to write back persistent application
+state, while renderer remove callbacks release GPU companions as ECS components
+are destroyed. Engine shutdown also unloads the active scene before graphics
+shutdown so scene-owned resources are not destroyed after the backend is gone.
+After a scene unload, `RenderPipeline::resetSceneState()` clears extraction,
+command, and visibility caches so the next scene starts from a clean render
+snapshot even if entity IDs, SSBO slots, or allocator addresses are reused.
 
 ### Descriptor Components (application-facing)
 
@@ -613,11 +638,12 @@ Global tool systems are timed back into the active world's controller profile
 table, so frame profile output continues to show individual `gts::tools::*`
 systems even though those systems are no longer scene-owned.
 
-`SceneManager` owns the registered scene catalog and active scene id. Tooling
-receives this catalog through `EcsControllerContext`, and the generic `Scenes`
-panel lists whatever scenes the application registered. Selecting a row issues
+`SceneManager` owns the registered scene catalog, scene factories, active scene
+instance, and active scene id. Tooling receives catalog metadata through
+`EcsControllerContext`, and the generic `Scenes` panel lists whatever scenes the
+application registered. Selecting a row issues
 `GtsCommandBuffer::requestChangeScene(sceneId)`. Engine tooling must not
-hardcode game scene names.
+hardcode game scene names or keep scene-entity references across scene changes.
 
 Selection can come from either inspector panels or world picking. The world
 picker uses `ActiveCameraViewStateComponent` plus `BoundsComponent` to raycast

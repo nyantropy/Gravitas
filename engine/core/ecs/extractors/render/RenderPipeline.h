@@ -13,7 +13,7 @@ class ECSWorld;
 
 class RenderPipeline
 {
-public:
+    public:
     // Per-stage timing from the most recent build() call.
     struct PipelineMetrics
     {
@@ -21,15 +21,13 @@ public:
         float visibilityCpuMs    = 0.0f;
     };
 
-    explicit RenderPipeline(std::unique_ptr<IVisibilityStrategy> strategy)
-        : visibilityStrategy(std::move(strategy))
-    {}
+    explicit RenderPipeline(std::unique_ptr<IVisibilityStrategy> strategy) : visibilityStrategy(std::move(strategy)) {}
 
     const std::vector<RenderCommand>& build(ECSWorld& world)
     {
-        const auto t0 = std::chrono::steady_clock::now();
+        const auto                t0       = std::chrono::steady_clock::now();
         RenderExtractionSnapshot& snapshot = snapshotBuilder.build(world);
-        const auto t1 = std::chrono::steady_clock::now();
+        const auto                t1       = std::chrono::steady_clock::now();
 
         if (visibilityStrategy)
             visibilityStrategy->filter(snapshot);
@@ -37,21 +35,34 @@ public:
 
         const auto& result = extractor.extract(snapshot);
 
-        lastPipelineMetrics.snapshotBuildCpuMs =
-            std::chrono::duration<float, std::milli>(t1 - t0).count();
-        lastPipelineMetrics.visibilityCpuMs =
-            std::chrono::duration<float, std::milli>(t2 - t1).count();
+        lastPipelineMetrics.snapshotBuildCpuMs = std::chrono::duration<float, std::milli>(t1 - t0).count();
+        lastPipelineMetrics.visibilityCpuMs    = std::chrono::duration<float, std::milli>(t2 - t1).count();
 
         return result;
     }
 
-    PipelineMetrics getLastPipelineMetrics() const { return lastPipelineMetrics; }
+    PipelineMetrics getLastPipelineMetrics() const
+    {
+        return lastPipelineMetrics;
+    }
 
-    RenderCommandExtractor& getExtractor()             { return extractor; }
-    const RenderCommandExtractor& getExtractor() const { return extractor; }
+    RenderCommandExtractor& getExtractor()
+    {
+        return extractor;
+    }
+    const RenderCommandExtractor& getExtractor() const
+    {
+        return extractor;
+    }
 
-    RenderExtractionSnapshotBuilder& getSnapshotBuilder() { return snapshotBuilder; }
-    const RenderExtractionSnapshot& getLatestSnapshot() const { return snapshotBuilder.getLatestSnapshot(); }
+    RenderExtractionSnapshotBuilder& getSnapshotBuilder()
+    {
+        return snapshotBuilder;
+    }
+    const RenderExtractionSnapshot& getLatestSnapshot() const
+    {
+        return snapshotBuilder.getLatestSnapshot();
+    }
 
     void setVisibilityEnabled(bool enabled)
     {
@@ -78,7 +89,16 @@ public:
         return visibilityStrategy ? visibilityStrategy->isFrozen() : false;
     }
 
-private:
+    void resetSceneState()
+    {
+        snapshotBuilder.resetSceneState();
+        extractor.reset();
+        if (visibilityStrategy)
+            visibilityStrategy->resetCache();
+        lastPipelineMetrics = {};
+    }
+
+    private:
     RenderExtractionSnapshotBuilder      snapshotBuilder;
     std::unique_ptr<IVisibilityStrategy> visibilityStrategy;
     RenderCommandExtractor               extractor;

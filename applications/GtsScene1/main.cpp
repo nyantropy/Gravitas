@@ -1,5 +1,6 @@
 #include <iostream>
 #include <filesystem>
+#include <memory>
 #include <vector>
 
 #include "GravitasEngine.hpp"
@@ -9,15 +10,19 @@
 int main()
 {
     EngineConfig config;
-    config.graphics.backend                     = GraphicsBackend::Vulkan;
-    config.graphics.window.width                = 800;
-    config.graphics.window.height               = 800;
-    config.graphics.window.title                = "GtsScene1";
-    config.graphics.window.windowMode           = WindowMode::Windowed;
-    config.graphics.window.vsync                = true;
+    config.graphics.backend           = GraphicsBackend::Vulkan;
+    config.graphics.window.width      = 800;
+    config.graphics.window.height     = 800;
+    config.graphics.window.title      = "GtsScene1";
+    config.graphics.window.windowMode = WindowMode::Windowed;
+    config.graphics.window.vsync      = true;
 
     GravitasEngine engine(config);
-    engine.registerScene("default", std::make_unique<DefaultScene>());
+    engine.registerScene("default",
+                         []()
+                         {
+                             return std::make_unique<DefaultScene>();
+                         });
     engine.setActiveScene("default");
     engine.start();
 

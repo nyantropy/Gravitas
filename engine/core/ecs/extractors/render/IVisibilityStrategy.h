@@ -4,7 +4,7 @@
 
 class IVisibilityStrategy
 {
-public:
+    public:
     virtual ~IVisibilityStrategy() = default;
 
     virtual void filter(RenderExtractionSnapshot& snapshot) = 0;
@@ -25,4 +25,6 @@ public:
     {
         return false;
     }
+
+    virtual void resetCache() {}
 };

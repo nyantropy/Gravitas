@@ -82,18 +82,23 @@ namespace gts::tools
         void update(const EcsControllerContext& ctx) override
         {
             const float activeAspect = resolveAspect(ctx);
-            ensureToolCameraState(ctx.world, activeAspect);
-
-            EngineToolCameraStateComponent& cameraState  = ctx.world.getSingleton<EngineToolCameraStateComponent>();
-            const bool                      toolsVisible = ctx.world.hasAny<EngineToolStateComponent>() &&
-                                                           ctx.world.getSingleton<EngineToolStateComponent>().visible;
+            const bool  toolsVisible = ctx.world.hasAny<EngineToolStateComponent>() &&
+                                       ctx.world.getSingleton<EngineToolStateComponent>().visible;
 
             if (!toolsVisible)
             {
-                if (cameraState.active)
-                    deactivate(ctx, cameraState, activeAspect);
+                if (ctx.world.hasAny<EngineToolCameraStateComponent>())
+                {
+                    EngineToolCameraStateComponent& cameraState =
+                        ctx.world.getSingleton<EngineToolCameraStateComponent>();
+                    if (cameraState.active)
+                        deactivate(ctx, cameraState, activeAspect);
+                }
                 return;
             }
+
+            ensureToolCameraState(ctx.world, activeAspect);
+            EngineToolCameraStateComponent& cameraState = ctx.world.getSingleton<EngineToolCameraStateComponent>();
 
             if (!cameraState.active)
                 activate(ctx, cameraState, activeAspect);
@@ -280,9 +285,9 @@ namespace gts::tools
             mouseLookReady             = false;
         }
 
-        void updateActiveToolCamera(const EcsControllerContext& ctx,
+        void updateActiveToolCamera(const EcsControllerContext&     ctx,
                                     EngineToolCameraStateComponent& state,
-                                    float aspectRatio)
+                                    float                           aspectRatio)
         {
             if (!isValidCameraEntity(ctx.world, state.toolCameraEntity))
                 return;
@@ -336,10 +341,10 @@ namespace gts::tools
             camera.target      = transform.position + forward;
 
             const glm::mat4 view = glm::lookAt(transform.position, camera.target, glm::vec3(0.0f, 1.0f, 0.0f));
-            glm::mat4 proj = glm::perspective(camera.fov,
-                                              camera.aspectRatio > 0.0f ? camera.aspectRatio : aspectRatio,
-                                              camera.nearClip,
-                                              camera.farClip);
+            glm::mat4       proj = glm::perspective(camera.fov,
+                                                    camera.aspectRatio > 0.0f ? camera.aspectRatio : aspectRatio,
+                                                    camera.nearClip,
+                                                    camera.farClip);
             proj[1][1] *= -1.0f;
 
             if (ctx.world.hasComponent<CameraGpuComponent>(state.toolCameraEntity))

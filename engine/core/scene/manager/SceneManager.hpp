@@ -1,8 +1,12 @@
 #pragma once
 
+#include <cassert>
+#include <functional>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "GtsScene.hpp"
@@ -11,42 +15,79 @@
 // manage active scenes in the renderer, hold the current active scene, a simple management class
 class SceneManager
 {
-    private:
-        // Ownership lives here for the lifetime of the engine.
-        // Scenes are never moved out, so raw pointers into them remain valid.
-        std::unordered_map<std::string, std::unique_ptr<GtsScene>> loadedScenes;
-        std::vector<RegisteredSceneInfo> registeredScenes;
+    public:
+    using SceneFactory = std::function<std::unique_ptr<GtsScene>()>;
 
-        // Non-owning pointer to the currently active scene.
-        GtsScene* activeScene = nullptr;
-        std::string activeSceneName;
+    private:
+    struct RegisteredScene
+    {
+        RegisteredSceneInfo info;
+        SceneFactory        factory;
+    };
+
+    std::unordered_map<std::string, RegisteredScene> scenes;
+    std::vector<RegisteredSceneInfo>                 registeredScenes;
+
+    std::unique_ptr<GtsScene> activeScene;
+    std::string               activeSceneName;
 
     public:
-        void setActiveScene(const std::string& name)
+    void setActiveScene(std::string name)
+    {
+        auto it = scenes.find(name);
+        if (it == scenes.end())
+            throw std::runtime_error("Scene not registered: " + name);
+
+        activeScene = it->second.factory();
+        assert(activeScene != nullptr && "Scene factory returned null");
+        activeSceneName = std::move(name);
+    }
+
+    void registerScene(std::string name, SceneFactory factory, RegisteredSceneInfo info = {})
+    {
+        assert(!name.empty() && "Scene name cannot be empty");
+        assert(static_cast<bool>(factory) && "Scene factory cannot be empty");
+
+        info.id = name;
+        if (info.displayName.empty())
+            info.displayName = name;
+
+        const bool isNew = scenes.find(name) == scenes.end();
+        scenes[info.id]  = RegisteredScene{info, std::move(factory)};
+        if (isNew)
         {
-            activeScene = loadedScenes.at(name).get();
-            activeSceneName = name;
+            registeredScenes.push_back(info);
+            return;
         }
 
-        void registerScene(const std::string& name, std::unique_ptr<GtsScene> scene)
+        for (RegisteredSceneInfo& registeredScene : registeredScenes)
         {
-            if (loadedScenes.find(name) == loadedScenes.end())
-                registeredScenes.push_back({name, name, false});
-            loadedScenes[name] = std::move(scene);
+            if (registeredScene.id == info.id)
+            {
+                registeredScene = info;
+                break;
+            }
         }
+    }
 
-        GtsScene* getActiveScene()
-        {
-            return activeScene;
-        }
+    GtsScene* getActiveScene()
+    {
+        return activeScene.get();
+    }
 
-        const std::string& getActiveSceneName() const
-        {
-            return activeSceneName;
-        }
+    void clearActiveScene()
+    {
+        activeScene.reset();
+        activeSceneName.clear();
+    }
 
-        const std::vector<RegisteredSceneInfo>& getRegisteredScenes() const
-        {
-            return registeredScenes;
-        }
+    const std::string& getActiveSceneName() const
+    {
+        return activeSceneName;
+    }
+
+    const std::vector<RegisteredSceneInfo>& getRegisteredScenes() const
+    {
+        return registeredScenes;
+    }
 };

@@ -4,7 +4,7 @@
 
 class NoCullingStrategy : public IVisibilityStrategy
 {
-public:
+    public:
     void filter(RenderExtractionSnapshot& snapshot) override
     {
         if (cacheValid && cachedContentVersion == snapshot.contentVersion)
@@ -22,10 +22,15 @@ public:
             snapshot.visibilityVersion += 1;
 
         cachedContentVersion = snapshot.contentVersion;
-        cacheValid = true;
+        cacheValid           = true;
     }
 
-private:
+    void resetCache() override
+    {
+        cacheValid = false;
+    }
+
+    private:
     uint64_t cachedContentVersion = 0;
-    bool     cacheValid = false;
+    bool     cacheValid           = false;
 };
