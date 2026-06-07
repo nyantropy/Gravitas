@@ -95,17 +95,12 @@ class GravitasEngine
     void applySceneViewportMetrics(EcsControllerContext& ctx) const
     {
         const RenderViewportRect viewport = resolveSceneViewport(ctx.world);
-        const RenderViewportRect fullViewport = RenderViewportRect::full(windowPixelWidth, windowPixelHeight);
 
         ctx.sceneViewportPixelX      = static_cast<float>(viewport.x);
         ctx.sceneViewportPixelY      = static_cast<float>(viewport.y);
         ctx.sceneViewportPixelWidth  = static_cast<float>(viewport.width);
         ctx.sceneViewportPixelHeight = static_cast<float>(viewport.height);
         ctx.sceneViewportAspectRatio = viewport.aspect();
-        ctx.sceneViewportConstrained = viewport.x != fullViewport.x
-            || viewport.y != fullViewport.y
-            || viewport.width != fullViewport.width
-            || viewport.height != fullViewport.height;
     }
 
     // Build an EcsControllerContext from the engine's current frame state.
@@ -131,7 +126,6 @@ class GravitasEngine
         ctx.sceneViewportPixelWidth = static_cast<float>(windowPixelWidth);
         ctx.sceneViewportPixelHeight = static_cast<float>(windowPixelHeight);
         ctx.sceneViewportAspectRatio = windowAspectRatio;
-        ctx.sceneViewportConstrained = false;
         return ctx;
     }
 

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <memory>
 #include <vector>
 #include <vulkan/vulkan.h>
@@ -123,6 +124,24 @@ class ForwardRenderer : Renderer
                 && lhs.height == rhs.height;
         }
 
+        static RenderViewportRect scaleViewportRect(const RenderViewportRect& viewport,
+                                                    VkExtent2D                 sourceExtent,
+                                                    VkExtent2D                 targetExtent)
+        {
+            const float sourceWidth  = static_cast<float>(std::max(1u, sourceExtent.width));
+            const float sourceHeight = static_cast<float>(std::max(1u, sourceExtent.height));
+            const float targetWidth  = static_cast<float>(std::max(1u, targetExtent.width));
+            const float targetHeight = static_cast<float>(std::max(1u, targetExtent.height));
+
+            RenderViewportRect scaled{
+                static_cast<int>(std::round(static_cast<float>(viewport.x) * targetWidth / sourceWidth)),
+                static_cast<int>(std::round(static_cast<float>(viewport.y) * targetHeight / sourceHeight)),
+                static_cast<int>(std::round(static_cast<float>(viewport.width) * targetWidth / sourceWidth)),
+                static_cast<int>(std::round(static_cast<float>(viewport.height) * targetHeight / sourceHeight))};
+            return scaled.clampedTo(static_cast<int>(targetExtent.width),
+                                    static_cast<int>(targetExtent.height));
+        }
+
         RenderViewportFrame buildViewportFrame(const RenderViewportRect& requestedViewport) const
         {
             const VkExtent2D outputExtent = frameOutputTarget->getExtent();
@@ -140,9 +159,7 @@ class ForwardRenderer : Renderer
 
             if (useInternalScaling())
             {
-                frame.sceneRenderViewport =
-                    RenderViewportRect::full(static_cast<int>(sceneRenderExtent.width),
-                                             static_cast<int>(sceneRenderExtent.height));
+                frame.sceneRenderViewport = scaleViewportRect(outputViewport, outputExtent, sceneRenderExtent);
             }
             else
             {

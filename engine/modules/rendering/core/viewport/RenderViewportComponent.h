@@ -5,5 +5,4 @@
 struct RenderViewportComponent
 {
     RenderViewportRect sceneViewport;
-    bool               constrained = false;
 };

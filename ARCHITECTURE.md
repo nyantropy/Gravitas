@@ -156,7 +156,6 @@ EcsControllerContext {
     float windowAspectRatio, windowPixelWidth/Height
     float sceneViewportPixelX/Y/Width/Height
     float sceneViewportAspectRatio
-    bool  sceneViewportConstrained
 }
 ```
 
@@ -718,10 +717,10 @@ renders UI at output/swapchain resolution.
 
 Viewport restriction is tracked in output pixels by `RenderViewportComponent`.
 The Vulkan frame path expands that into a per-frame viewport payload: scene and
-particle stages use the scene render-target viewport, while the upscale stage
-uses the output viewport when internal scaling is active. This keeps tool
-chrome from being covered by scene rendering without forcing the internal
-render target to use output-coordinate rectangles.
+particle stages use a matching scene render-target viewport, while the upscale
+stage uses the output viewport and samples from the matching source rectangle
+when internal scaling is active. This keeps tool chrome from being covered by
+scene rendering without stretching the internally scaled scene.
 
 For Vulkan window output, framebuffer resize and out-of-date/suboptimal present
 paths request swapchain recreation. Recreation waits for the device to go idle,

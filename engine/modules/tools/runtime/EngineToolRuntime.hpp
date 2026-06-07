@@ -42,6 +42,8 @@ namespace gts::tools
                 handleSceneChanged(sceneName);
 
             seedPersistentState(ctx.world);
+            shellSystem.prepareVisibility(ctx);
+            capturePersistentState(ctx.world);
             publishWorkspace(ctx);
         }
 

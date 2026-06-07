@@ -1,7 +1,9 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 #include <cmath>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -47,17 +49,7 @@ namespace gts::tools
 
             EngineToolStateComponent& state = ensureState(ctx.world);
             state.selectionChangedThisFrame = false;
-            if (ctx.input != nullptr && ctx.input->isPressed("engine.tools_toggle"))
-            {
-                state.visible = !state.visible;
-                setToolsInputContext(ctx, state.visible);
-                if (!state.visible)
-                {
-                    clearInputCapture(ctx.world);
-                    destroyUi(*ctx.ui);
-                    publishWorkspace(ctx, false);
-                }
-            }
+            processVisibilityToggle(ctx, state);
 
             if (state.visible)
                 setToolsInputContext(ctx, true);
@@ -104,6 +96,15 @@ namespace gts::tools
             setText(toolCtx.ui, panelTitle, activePanelTitle(state));
         }
 
+        void prepareVisibility(const EcsControllerContext& ctx)
+        {
+            if (ctx.ui == nullptr)
+                return;
+
+            EngineToolStateComponent& state = ensureState(ctx.world);
+            processVisibilityToggle(ctx, state);
+        }
+
         private:
         static constexpr float TopTabX           = 0.122f;
         static constexpr float TopTabY           = 0.004f;
@@ -132,6 +133,7 @@ namespace gts::tools
         std::vector<ToolButton> tabs;
         std::vector<ToolButton> leftTools;
         bool                    toolsContextRequested = false;
+        uint64_t                lastVisibilityToggleFrame = std::numeric_limits<uint64_t>::max();
 
         static constexpr const char* ToolsInputContext = "engine.tools";
         static constexpr const char* ToolsSelectAction = "engine.tools_select";
@@ -148,6 +150,27 @@ namespace gts::tools
             if (!world.hasAny<EngineToolInputCaptureComponent>())
                 return world.createSingleton<EngineToolInputCaptureComponent>();
             return world.getSingleton<EngineToolInputCaptureComponent>();
+        }
+
+        bool processVisibilityToggle(const EcsControllerContext& ctx, EngineToolStateComponent& state)
+        {
+            if (ctx.input == nullptr || !ctx.input->isPressed("engine.tools_toggle"))
+                return false;
+
+            const uint64_t frame = ctx.time == nullptr ? 0u : ctx.time->frame;
+            if (lastVisibilityToggleFrame == frame)
+                return false;
+
+            lastVisibilityToggleFrame = frame;
+            state.visible = !state.visible;
+            setToolsInputContext(ctx, state.visible);
+            if (!state.visible && ctx.ui != nullptr)
+            {
+                clearInputCapture(ctx.world);
+                destroyUi(*ctx.ui);
+                publishWorkspace(ctx, false);
+            }
+            return true;
         }
 
         void setToolsInputContext(const EcsControllerContext& ctx, bool enabled)

@@ -25,6 +25,14 @@
 class UpscaleRenderStage : public GtsRenderStage
 {
 public:
+    struct UpscalePushConstants
+    {
+        float sourceX = 0.0f;
+        float sourceY = 0.0f;
+        float sourceWidth = 1.0f;
+        float sourceHeight = 1.0f;
+    };
+
     UpscaleRenderStage(VkImageView       sourceImageView,
                        VkExtent2D        sourceExtent,
                        VkFormat          outputFormat,
@@ -55,7 +63,8 @@ public:
         pConfig.depthWriteEnable = false;
         pConfig.cullMode = VK_CULL_MODE_NONE;
         pConfig.blendEnable = false;
-        pConfig.pushConstantSize = 0;
+        pConfig.pushConstantSize = sizeof(UpscalePushConstants);
+        pConfig.pushConstantStages = VK_SHADER_STAGE_FRAGMENT_BIT;
         pConfig.descriptorSetLayouts = {dssheet::getDescriptorSetLayouts()[2]};
         pipeline = std::make_unique<VulkanPipeline>(pConfig);
 
@@ -146,6 +155,13 @@ public:
                                 &sourceDescriptorSets[currentFrame],
                                 0,
                                 nullptr);
+        const UpscalePushConstants pushConstants = sourceRectFor(viewportFrame.sceneRenderViewport);
+        vkCmdPushConstants(cmd,
+                           pipeline->getPipelineLayout(),
+                           VK_SHADER_STAGE_FRAGMENT_BIT,
+                           0,
+                           sizeof(UpscalePushConstants),
+                           &pushConstants);
         vkCmdDraw(cmd, 3, 1, 0, 0);
 
         vkCmdEndRenderPass(cmd);
@@ -202,6 +218,19 @@ private:
             {rect.x, rect.y},
             {static_cast<uint32_t>(rect.width), static_cast<uint32_t>(rect.height)}
         };
+    }
+
+    UpscalePushConstants sourceRectFor(const RenderViewportRect& rect) const
+    {
+        const uint32_t sourceWidth = std::max(1u, sourceExtent.width);
+        const uint32_t sourceHeight = std::max(1u, sourceExtent.height);
+        const RenderViewportRect sourceRect = rect.clampedTo(static_cast<int>(sourceWidth),
+                                                             static_cast<int>(sourceHeight));
+        return UpscalePushConstants{
+            static_cast<float>(sourceRect.x) / static_cast<float>(sourceWidth),
+            static_cast<float>(sourceRect.y) / static_cast<float>(sourceHeight),
+            static_cast<float>(sourceRect.width) / static_cast<float>(sourceWidth),
+            static_cast<float>(sourceRect.height) / static_cast<float>(sourceHeight)};
     }
 
     void createSampler()

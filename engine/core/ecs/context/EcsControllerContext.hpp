@@ -37,5 +37,4 @@ struct EcsControllerContext
     float                           sceneViewportPixelWidth = 1.0f;
     float                           sceneViewportPixelHeight = 1.0f;
     float                           sceneViewportAspectRatio = 1.0f;
-    bool                            sceneViewportConstrained = false;
 };

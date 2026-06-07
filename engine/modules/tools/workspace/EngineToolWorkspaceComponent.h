@@ -88,7 +88,6 @@ namespace gts::tools
         else
             renderViewport = &world.createSingleton<RenderViewportComponent>();
         renderViewport->sceneViewport = workspace.sceneViewport;
-        renderViewport->constrained   = active;
         return *storedWorkspace;
     }
 } // namespace gts::tools
