@@ -107,7 +107,7 @@ public:
     void declareResources(GtsFrameGraph& graph) override
     {
         graph.requestData<ParticleFrameData>(this);
-        graph.requestData<RenderViewportRect>(this);
+        graph.requestData<RenderViewportFrame>(this);
 
         graph.declareWrite(this, outputHandle,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -124,7 +124,7 @@ public:
                 uint32_t imageIndex, uint32_t currentFrame) override
     {
         const ParticleFrameData& frameData = graph.getData<ParticleFrameData>();
-        const RenderViewportRect viewportRect = graph.getData<RenderViewportRect>()
+        const RenderViewportRect viewportRect = graph.getData<RenderViewportFrame>().sceneRenderViewport
             .clampedTo(static_cast<int>(renderExtent.width), static_cast<int>(renderExtent.height));
         lastParticleCount = static_cast<uint32_t>(frameData.instances.size());
         lastDrawCalls = 0;

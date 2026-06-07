@@ -45,3 +45,10 @@ struct RenderViewportRect
                pixelX <= static_cast<float>(x + width) && pixelY <= static_cast<float>(y + height);
     }
 };
+
+struct RenderViewportFrame
+{
+    RenderViewportRect sceneRenderViewport;
+    RenderViewportRect outputViewport;
+    bool               constrained = false;
+};

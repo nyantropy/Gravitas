@@ -115,6 +115,45 @@ class ForwardRenderer : Renderer
             return !config.headless && config.internalScalingEnabled;
         }
 
+        static bool viewportEquals(const RenderViewportRect& lhs, const RenderViewportRect& rhs)
+        {
+            return lhs.x == rhs.x
+                && lhs.y == rhs.y
+                && lhs.width == rhs.width
+                && lhs.height == rhs.height;
+        }
+
+        RenderViewportFrame buildViewportFrame(const RenderViewportRect& requestedViewport) const
+        {
+            const VkExtent2D outputExtent = frameOutputTarget->getExtent();
+            const RenderViewportRect fullOutput =
+                RenderViewportRect::full(static_cast<int>(outputExtent.width), static_cast<int>(outputExtent.height));
+            const RenderViewportRect outputViewport =
+                requestedViewport.valid()
+                    ? requestedViewport.clampedTo(static_cast<int>(outputExtent.width),
+                                                  static_cast<int>(outputExtent.height))
+                    : fullOutput;
+
+            RenderViewportFrame frame;
+            frame.outputViewport = outputViewport;
+            frame.constrained    = !viewportEquals(outputViewport, fullOutput);
+
+            if (useInternalScaling())
+            {
+                frame.sceneRenderViewport =
+                    RenderViewportRect::full(static_cast<int>(sceneRenderExtent.width),
+                                             static_cast<int>(sceneRenderExtent.height));
+            }
+            else
+            {
+                frame.sceneRenderViewport =
+                    outputViewport.clampedTo(static_cast<int>(sceneRenderExtent.width),
+                                             static_cast<int>(sceneRenderExtent.height));
+            }
+
+            return frame;
+        }
+
         void createFrameOutputTarget()
         {
             if (config.headless)
@@ -373,9 +412,10 @@ class ForwardRenderer : Renderer
             if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
                 throw std::runtime_error("failed to begin recording command buffer!");
 
+            const RenderViewportFrame viewportFrame = buildViewportFrame(sceneViewport);
             frameGraph.provideData(&renderList);
             frameGraph.provideData(&particleData);
-            frameGraph.provideData(&sceneViewport);
+            frameGraph.provideData(&viewportFrame);
             frameGraph.provideData(&uiBuffer);
             frameGraph.provideData(&frameStats);
             frameGraph.execute(commandBuffer, imageIndex, currentFrame);

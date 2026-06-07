@@ -132,7 +132,7 @@ public:
     void declareResources(GtsFrameGraph& graph) override
     {
         graph.requestData<std::vector<RenderCommand>>(this);
-        graph.requestData<RenderViewportRect>(this);
+        graph.requestData<RenderViewportFrame>(this);
 
         graph.declareWrite(this, outputHandle,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -149,7 +149,7 @@ public:
                 uint32_t imageIndex, uint32_t currentFrame) override
     {
         const auto& renderList = graph.getData<std::vector<RenderCommand>>();
-        const RenderViewportRect viewport = graph.getData<RenderViewportRect>()
+        const RenderViewportRect viewport = graph.getData<RenderViewportFrame>().sceneRenderViewport
             .clampedTo(static_cast<int>(renderExtent.width), static_cast<int>(renderExtent.height));
 
         prepareBatches(renderList, currentFrame);

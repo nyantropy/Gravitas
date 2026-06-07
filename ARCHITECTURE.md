@@ -154,6 +154,9 @@ EcsControllerContext {
     UiSystem*                   ui
     IGtsPhysicsModule*          physics
     float windowAspectRatio, windowPixelWidth/Height
+    float sceneViewportPixelX/Y/Width/Height
+    float sceneViewportAspectRatio
+    bool  sceneViewportConstrained
 }
 ```
 
@@ -630,9 +633,14 @@ from the runtime each frame so existing tool systems can operate on the active
 scene without owning scene registration.
 
 Workspace and viewport state are published during the runtime prepare step,
-before scene controller systems run. This guarantees camera, picking, and render
-extraction systems see the reduced editor viewport immediately after scene
-loads instead of spending a frame on full-window assumptions.
+before scene load and scene controller systems run. This guarantees camera,
+picking, and render extraction systems see the reduced editor viewport
+immediately after scene loads instead of spending a frame on full-window
+assumptions.
+Scene controller contexts keep full output dimensions in `windowPixelWidth` and
+`windowPixelHeight` for retained UI extraction, and expose the active renderable
+scene viewport separately through `sceneViewportPixel*` and
+`sceneViewportAspectRatio`.
 
 Global tool systems are timed back into the active world's controller profile
 table, so frame profile output continues to show individual `gts::tools::*`
@@ -707,6 +715,13 @@ resolution. Borderless fullscreen keeps the desktop-sized swapchain, renders
 scene and particles into an offscreen color target at the requested render
 resolution, composites that image into the current frame output, and then
 renders UI at output/swapchain resolution.
+
+Viewport restriction is tracked in output pixels by `RenderViewportComponent`.
+The Vulkan frame path expands that into a per-frame viewport payload: scene and
+particle stages use the scene render-target viewport, while the upscale stage
+uses the output viewport when internal scaling is active. This keeps tool
+chrome from being covered by scene rendering without forcing the internal
+render target to use output-coordinate rectangles.
 
 For Vulkan window output, framebuffer resize and out-of-date/suboptimal present
 paths request swapchain recreation. Recreation waits for the device to go idle,

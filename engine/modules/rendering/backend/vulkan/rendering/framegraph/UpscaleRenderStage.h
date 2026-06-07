@@ -18,6 +18,7 @@
 #include "VulkanPipelineConfig.h"
 #include "VulkanRenderPass.hpp"
 #include "VulkanRenderPassConfig.h"
+#include "RenderViewport.h"
 #include "dssheet.h"
 #include "vcsheet.h"
 
@@ -87,6 +88,8 @@ public:
 
     void declareResources(GtsFrameGraph& graph) override
     {
+        graph.requestData<RenderViewportFrame>(this);
+
         graph.declareRead(this,
                           sourceHandle,
                           VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
@@ -103,8 +106,6 @@ public:
     void record(VkCommandBuffer cmd, GtsFrameGraph& graph,
                 uint32_t imageIndex, uint32_t currentFrame) override
     {
-        (void)graph;
-
         std::array<VkClearValue, 1> clearValues{};
         clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
 
@@ -118,7 +119,12 @@ public:
         rpInfo.pClearValues = clearValues.data();
         vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-        const VkRect2D targetRect = aspectFitTargetRect(vcsheet::getFrameOutputExtent());
+        const RenderViewportFrame& viewportFrame = graph.getData<RenderViewportFrame>();
+        const VkExtent2D outputExtent = vcsheet::getFrameOutputExtent();
+        const VkRect2D targetRect = viewportFrame.constrained
+            ? toVkRect(viewportFrame.outputViewport.clampedTo(static_cast<int>(outputExtent.width),
+                                                              static_cast<int>(outputExtent.height)))
+            : aspectFitTargetRect(outputExtent);
 
         VkViewport viewport{};
         viewport.x = static_cast<float>(targetRect.offset.x);
@@ -187,6 +193,14 @@ private:
                 static_cast<int32_t>((outputHeight - targetHeight) / 2u)
             },
             {targetWidth, targetHeight}
+        };
+    }
+
+    static VkRect2D toVkRect(const RenderViewportRect& rect)
+    {
+        return VkRect2D{
+            {rect.x, rect.y},
+            {static_cast<uint32_t>(rect.width), static_cast<uint32_t>(rect.height)}
         };
     }
 

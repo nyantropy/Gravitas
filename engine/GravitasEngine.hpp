@@ -92,6 +92,22 @@ class GravitasEngine
         return viewport.sceneViewport.clampedTo(windowPixelWidth, windowPixelHeight);
     }
 
+    void applySceneViewportMetrics(EcsControllerContext& ctx) const
+    {
+        const RenderViewportRect viewport = resolveSceneViewport(ctx.world);
+        const RenderViewportRect fullViewport = RenderViewportRect::full(windowPixelWidth, windowPixelHeight);
+
+        ctx.sceneViewportPixelX      = static_cast<float>(viewport.x);
+        ctx.sceneViewportPixelY      = static_cast<float>(viewport.y);
+        ctx.sceneViewportPixelWidth  = static_cast<float>(viewport.width);
+        ctx.sceneViewportPixelHeight = static_cast<float>(viewport.height);
+        ctx.sceneViewportAspectRatio = viewport.aspect();
+        ctx.sceneViewportConstrained = viewport.x != fullViewport.x
+            || viewport.y != fullViewport.y
+            || viewport.width != fullViewport.width
+            || viewport.height != fullViewport.height;
+    }
+
     // Build an EcsControllerContext from the engine's current frame state.
     // physics is sourced from the active scene so it is always up to date.
     EcsControllerContext buildControllerContext(ECSWorld& world)
@@ -110,6 +126,12 @@ class GravitasEngine
         ctx.windowAspectRatio = windowAspectRatio;
         ctx.windowPixelWidth  = static_cast<float>(windowPixelWidth);
         ctx.windowPixelHeight = static_cast<float>(windowPixelHeight);
+        ctx.sceneViewportPixelX = 0.0f;
+        ctx.sceneViewportPixelY = 0.0f;
+        ctx.sceneViewportPixelWidth = static_cast<float>(windowPixelWidth);
+        ctx.sceneViewportPixelHeight = static_cast<float>(windowPixelHeight);
+        ctx.sceneViewportAspectRatio = windowAspectRatio;
+        ctx.sceneViewportConstrained = false;
         return ctx;
     }
 
@@ -136,6 +158,8 @@ class GravitasEngine
         GtsScene*            activeScene = sceneManager->getActiveScene();
         ECSWorld&            world       = activeScene->getWorld();
         EcsControllerContext loadCtx     = buildControllerContext(world);
+        toolRuntime->prepare(loadCtx);
+        applySceneViewportMetrics(loadCtx);
         activeScene->onLoad(loadCtx, data);
     }
 
@@ -410,7 +434,9 @@ class GravitasEngine
                 const auto           ctrlStart = std::chrono::steady_clock::now();
                 EcsControllerContext ctrlCtx   = buildControllerContext(world);
                 toolRuntime->prepare(ctrlCtx);
-                sceneManager->getActiveScene()->onUpdateControllers(ctrlCtx);
+                EcsControllerContext sceneCtx = buildControllerContext(world);
+                applySceneViewportMetrics(sceneCtx);
+                sceneManager->getActiveScene()->onUpdateControllers(sceneCtx);
                 toolRuntime->update(ctrlCtx);
                 const auto ctrlEnd = std::chrono::steady_clock::now();
                 lastCtrlCpuMs      = std::chrono::duration<float, std::milli>(ctrlEnd - ctrlStart).count();

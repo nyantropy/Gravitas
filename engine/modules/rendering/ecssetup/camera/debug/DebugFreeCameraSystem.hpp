@@ -74,6 +74,13 @@ private:
         return ctx.input != nullptr && ctx.input->isContextActive("engine.tools");
     }
 
+    static float activeAspect(const EcsControllerContext& ctx)
+    {
+        return ctx.sceneViewportAspectRatio > 0.0f
+            ? ctx.sceneViewportAspectRatio
+            : ctx.windowAspectRatio;
+    }
+
 public:
     static Entity createDebugCameraEntity(ECSWorld& world, float aspectRatio)
     {
@@ -136,7 +143,7 @@ private:
         dstDesc.farClip   = srcDesc.farClip;
         dstDesc.up        = srcDesc.up;
         dstDesc.active    = true;
-        dstDesc.aspectRatio = ctx.windowAspectRatio;
+        dstDesc.aspectRatio = activeAspect(ctx);
         dstDesc.target    = srcPos + forward;
         srcDesc.active    = false;
 
@@ -173,7 +180,7 @@ private:
         {
             auto& restoredDesc = ctx.world.getComponent<CameraDescriptionComponent>(state.previousActiveCamera);
             restoredDesc.active      = true;
-            restoredDesc.aspectRatio = ctx.windowAspectRatio;
+            restoredDesc.aspectRatio = activeAspect(ctx);
 
             if (ctx.world.hasComponent<CameraGpuComponent>(state.previousActiveCamera))
             {
@@ -239,13 +246,13 @@ private:
         if (ctx.input->isHeld("engine.debug_camera_down")) tr.position.y -= MOVE_SPEED * dt;
 
         desc.active      = true;
-        desc.aspectRatio = ctx.windowAspectRatio;
+        desc.aspectRatio = activeAspect(ctx);
         desc.target      = tr.position + forward;
 
         gpu.viewMatrix = glm::lookAt(tr.position, desc.target, glm::vec3(0.0f, 1.0f, 0.0f));
         gpu.projMatrix = glm::perspective(
             desc.fov,
-            desc.aspectRatio > 0.0f ? desc.aspectRatio : ctx.windowAspectRatio,
+            desc.aspectRatio > 0.0f ? desc.aspectRatio : activeAspect(ctx),
             desc.nearClip,
             desc.farClip);
         gpu.projMatrix[1][1] *= -1.0f;

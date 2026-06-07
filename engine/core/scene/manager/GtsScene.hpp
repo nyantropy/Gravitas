@@ -264,7 +264,10 @@ class GtsScene
                 gts::rendering::queueCameraCleanup(world, entity);
             });
 
-        DebugFreeCameraSystem::ensureDebugCameraState(ecsWorld, ctx.windowAspectRatio);
+        DebugFreeCameraSystem::ensureDebugCameraState(ecsWorld,
+                                                      ctx.sceneViewportAspectRatio > 0.0f
+                                                          ? ctx.sceneViewportAspectRatio
+                                                          : ctx.windowAspectRatio);
         if (ctx.input != nullptr)
             ctx.input->popContext(DebugFreeCameraSystem::InputContext);
 
