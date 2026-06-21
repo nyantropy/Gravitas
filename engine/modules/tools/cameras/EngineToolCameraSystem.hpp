@@ -10,8 +10,6 @@
 #include "CameraDescriptionComponent.h"
 #include "CameraGpuComponent.h"
 #include "CameraOverrideComponent.h"
-#include "DebugCameraStateComponent.h"
-#include "DebugFreeCameraSystem.hpp"
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
 #include "EngineToolCameraStateComponent.h"
@@ -25,7 +23,7 @@ namespace gts::tools
     class EngineToolCameraSystem : public ECSControllerSystem
     {
         public:
-        static constexpr float MOVE_SPEED       = 7.5f;
+        static constexpr float MOVE_SPEED       = 11.25f;
         static constexpr float ROTATE_SPEED     = glm::radians(90.0f);
         static constexpr float MOUSE_LOOK_SPEED = 0.0025f;
         static constexpr float MIN_PITCH        = glm::radians(-89.0f);
@@ -233,7 +231,6 @@ namespace gts::tools
         void activate(const EcsControllerContext& ctx, EngineToolCameraStateComponent& state, float aspectRatio)
         {
             ensureToolCameraState(ctx.world, aspectRatio);
-            forceDisableDebugFreeCamera(ctx, aspectRatio);
 
             const Entity toolCamera    = state.toolCameraEntity;
             const Entity currentCamera = findActiveCamera(ctx.world, toolCamera);
@@ -299,13 +296,13 @@ namespace gts::tools
             const float dt = ctx.time == nullptr ? 0.0f : ctx.time->unscaledDeltaTime;
             if (ctx.input != nullptr)
             {
-                if (ctx.input->isHeld("engine.debug_camera_yaw_left"))
+                if (ctx.input->isHeld("engine.tool_camera_yaw_left"))
                     yaw += ROTATE_SPEED * dt;
-                if (ctx.input->isHeld("engine.debug_camera_yaw_right"))
+                if (ctx.input->isHeld("engine.tool_camera_yaw_right"))
                     yaw -= ROTATE_SPEED * dt;
-                if (ctx.input->isHeld("engine.debug_camera_pitch_up"))
+                if (ctx.input->isHeld("engine.tool_camera_pitch_up"))
                     pitch += ROTATE_SPEED * dt;
-                if (ctx.input->isHeld("engine.debug_camera_pitch_down"))
+                if (ctx.input->isHeld("engine.tool_camera_pitch_down"))
                     pitch -= ROTATE_SPEED * dt;
                 updateMouseLook(ctx);
             }
@@ -322,17 +319,17 @@ namespace gts::tools
 
             if (ctx.input != nullptr)
             {
-                if (ctx.input->isHeld("engine.debug_camera_forward"))
+                if (ctx.input->isHeld("engine.tool_camera_forward"))
                     transform.position += forward * MOVE_SPEED * dt;
-                if (ctx.input->isHeld("engine.debug_camera_backward"))
+                if (ctx.input->isHeld("engine.tool_camera_backward"))
                     transform.position -= forward * MOVE_SPEED * dt;
-                if (ctx.input->isHeld("engine.debug_camera_left"))
+                if (ctx.input->isHeld("engine.tool_camera_left"))
                     transform.position -= right * MOVE_SPEED * dt;
-                if (ctx.input->isHeld("engine.debug_camera_right"))
+                if (ctx.input->isHeld("engine.tool_camera_right"))
                     transform.position += right * MOVE_SPEED * dt;
-                if (ctx.input->isHeld("engine.debug_camera_up"))
+                if (ctx.input->isHeld("engine.tool_camera_up"))
                     transform.position.y += MOVE_SPEED * dt;
-                if (ctx.input->isHeld("engine.debug_camera_down"))
+                if (ctx.input->isHeld("engine.tool_camera_down"))
                     transform.position.y -= MOVE_SPEED * dt;
             }
 
@@ -361,7 +358,7 @@ namespace gts::tools
 
         void updateMouseLook(const EcsControllerContext& ctx)
         {
-            if (ctx.input == nullptr || !ctx.input->isHeld("engine.debug_camera_look"))
+            if (ctx.input == nullptr || !ctx.input->isHeld("engine.tool_camera_look"))
             {
                 mouseLookReady = false;
                 return;
@@ -380,25 +377,6 @@ namespace gts::tools
             previousMouseX = mouseX;
             previousMouseY = mouseY;
             mouseLookReady = true;
-        }
-
-        static void forceDisableDebugFreeCamera(const EcsControllerContext& ctx, float aspectRatio)
-        {
-            if (!ctx.world.hasAny<DebugCameraStateComponent>())
-                return;
-
-            DebugCameraStateComponent& debugState = ctx.world.getSingleton<DebugCameraStateComponent>();
-            if (!debugState.active)
-                return;
-
-            const Entity debugCamera = debugState.debugCameraEntity;
-            setCameraActive(ctx.world, debugCamera, false, aspectRatio);
-            setCameraActive(ctx.world, debugState.previousActiveCamera, true, aspectRatio);
-            debugState.active               = false;
-            debugState.previousActiveCamera = invalidEntity();
-
-            if (ctx.input != nullptr)
-                ctx.input->popContext(DebugFreeCameraSystem::InputContext);
         }
     };
 } // namespace gts::tools

@@ -305,9 +305,8 @@ The shared renderer feature installs controller systems in this order:
 5. `CameraLifecycleSystem`
 6. camera control systems
 7. `CameraGpuSystem`
-8. debug free camera control
-9. camera view ID allocation / active-camera export systems
-10. particle effect hot reload and particle emitter simulation
+8. camera view ID allocation / active-camera export systems
+9. particle effect hot reload and particle emitter simulation
 
 This order is intentional:
 - lifecycle runs before per-frame sync so newly created GPU companions participate immediately
@@ -516,10 +515,11 @@ Hardware → GtsPlatform → IInputSource → InputBindingRegistry
 
 Engine actions use string identifiers such as `engine.pause` and `engine.close`. Applications extend this with their own namespaced action strings.
 
-Input contexts are stack-like named scopes. The engine tools and debug camera use
-their own contexts (`engine.tools`, `engine.debug_camera`) so UI clicking,
-world-picking, gizmo dragging, and free-camera input are mediated through the
-same input abstraction as keyboard actions instead of reaching into GLFW.
+Input contexts are stack-like named scopes. Engine tools use their own
+`engine.tools` context so UI clicking, world-picking, gizmo dragging, and tool
+camera input are mediated through the same input abstraction as keyboard
+actions instead of reaching into GLFW. Applications may add their own contexts
+for game-owned debug controls.
 
 Mouse position, buttons, scroll deltas, and cursor capture flow through
 `IInputSource` and `InputBindingRegistry`; engine systems should consume those
@@ -662,9 +662,10 @@ debug draw, follows Unreal-style colors (X red, Y green, Z blue), supports world
 or local axes, and writes selected entity `TransformComponent::position` while
 marking the transform dirty.
 
-The debug free camera is renderer-installed and tool-friendly. It uses
-`engine.debug_camera` input bindings, right-mouse look, and context push/pop
-through the input registry.
+The engine tool camera is active only while the engine tools are visible. It
+uses `engine.tool_camera_*` actions inside the `engine.tools` input context.
+Game debug cameras are application-owned systems and should not be installed by
+the shared renderer feature.
 
 ### Engine Font
 
@@ -765,7 +766,9 @@ Define a plain struct. Add it to entities with `world.addComponent<MyComp>(e, va
 
 Add a `CameraOverrideComponent` to replace the default camera behavior. Implement a controller system that writes custom view/projection matrices to `CameraGpuComponent`.
 
-Application code should still author only descriptor/control components. Direct writes to `CameraGpuComponent` are reserved for engine-owned override paths.
+Most application code should still author only descriptor/control components.
+Direct writes to `CameraGpuComponent` are reserved for explicit custom camera
+override systems that own a `CameraOverrideComponent`.
 
 ### Adding a Tool Panel
 

@@ -8,7 +8,6 @@
 
 #include "CameraDescriptionComponent.h"
 #include "CameraControlOverrideComponent.h"
-#include "DebugCameraStateComponent.h"
 #include "TransformComponent.h"
 
 // Baseline orbit camera installed automatically by installRendererFeature().
@@ -27,12 +26,12 @@ public:
         // use unscaled dt so the camera responds even when the scene is paused
         const float dt = ctx.time->unscaledDeltaTime;
 
-        if (ctx.world.hasAny<DebugCameraStateComponent>()
-            && ctx.world.getSingleton<DebugCameraStateComponent>().active)
-            return;
-
         for (Entity e : ctx.world.getAllEntitiesWith<CameraDescriptionComponent, TransformComponent>())
         {
+            auto& camera = ctx.world.getComponent<CameraDescriptionComponent>(e);
+            if (!camera.active)
+                continue;
+
             if (ctx.world.hasComponent<CameraControlOverrideComponent>(e))
                 continue;
 

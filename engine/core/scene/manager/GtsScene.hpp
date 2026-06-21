@@ -25,7 +25,6 @@
 #include "MeshGpuComponent.h"
 #include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
-#include "DebugFreeCameraSystem.hpp"
 #include "DefaultCameraControlSystem.hpp"
 #include "PhysicsSystem.h"
 #include "PhysicsDebugRenderer.h"
@@ -264,13 +263,6 @@ class GtsScene
                 gts::rendering::queueCameraCleanup(world, entity);
             });
 
-        DebugFreeCameraSystem::ensureDebugCameraState(ecsWorld,
-                                                      ctx.sceneViewportAspectRatio > 0.0f
-                                                          ? ctx.sceneViewportAspectRatio
-                                                          : ctx.windowAspectRatio);
-        if (ctx.input != nullptr)
-            ctx.input->popContext(DebugFreeCameraSystem::InputContext);
-
         ecsWorld.addControllerSystem<StaticMeshBindingSystem>();
         ecsWorld.addControllerSystem<QuadMeshBindingSystem>();
         ecsWorld.addControllerSystem<DynamicMeshBindingSystem>();
@@ -281,7 +273,6 @@ class GtsScene
         ecsWorld.addControllerSystem<CameraLifecycleSystem>();
         ecsWorld.addControllerSystem<DefaultCameraControlSystem>();
         ecsWorld.addControllerSystem<CameraGpuSystem>();
-        ecsWorld.addControllerSystem<DebugFreeCameraSystem>();
         ecsWorld.addControllerSystem<CameraBindingSystem>();
         ecsWorld.addControllerSystem<ActiveCameraViewSystem>();
         ecsWorld.addControllerSystem<ParticleEffectHotReloadSystem>();
