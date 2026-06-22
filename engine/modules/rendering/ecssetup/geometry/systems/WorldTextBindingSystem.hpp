@@ -70,8 +70,10 @@ public:
             const bool materialChanged =
                 matGpu.textureID != font->atlasTexture
                 || matGpu.tint != wtc.tint
+                || matGpu.blendMode != MaterialBlendMode::Alpha
                 || !matGpu.doubleSided
                 || matGpu.vertexColorOnly
+                || !matGpu.depthWrite
                 || !runtime.initialized
                 || runtime.lastTint != wtc.tint;
 
@@ -117,8 +119,10 @@ public:
 
             matGpu.textureID = font->atlasTexture;
             matGpu.tint = wtc.tint;
+            matGpu.blendMode = MaterialBlendMode::Alpha;
             matGpu.doubleSided = true;
             matGpu.vertexColorOnly = false;
+            matGpu.depthWrite = true;
             matGpu.boundTexturePath = wtc.fontPath;
             cacheDescriptor(runtime, wtc);
 

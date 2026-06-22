@@ -404,13 +404,13 @@ Feature layout:
 - `modules/rendering/ecssetup/particles/systems/`: emitter simulation and
   effect hot reload
 - `modules/rendering/ecssetup/particles/extraction/`: per-frame particle draw data
-- `modules/rendering/backend/vulkan/rendering/particles/`: billboard particle
-  render stage
+- `modules/rendering/backend/vulkan/rendering/particles/`: billboard and mesh
+  particle render stage
 
 Application code authors `ParticleEmitterComponent` plus `TransformComponent`.
 The engine creates `ParticleEmitterRuntimeComponent`, simulates particles every
-controller frame, sorts alpha particles by camera depth, batches by texture and
-blend mode, and renders billboards in `ParticleRenderStage`.
+controller frame, sorts alpha particles by camera depth, batches by primitive,
+mesh, texture, and blend mode, and renders particles in `ParticleRenderStage`.
 Hot-reload bookkeeping, including the last applied effect asset version, lives
 in `ParticleEmitterRuntimeComponent`.
 
@@ -418,13 +418,16 @@ Particle controls currently include:
 
 - local-space or world-space simulation
 - sphere, box, disc, cylinder, and ring emit shapes
+- billboard and instanced mesh particle primitives
+- soft-circle, square, diamond, petal, and streak billboard masks
 - alpha and additive blend modes
 - base tint, color over lifetime, alpha over lifetime, and size over lifetime
 - emission rate, max particles, lifetime range, duration, delay, and intensity
-- initial velocity, spread, radial/tangent velocity, drag, spin, and random size
+- initial velocity, spread, radial/tangent velocity, drag, spin, random size,
+  billboard aspect ratio, and mesh angular velocity
 - hue/value variation
 - bursts, flipbooks, softness, wind/acceleration/vortex/radial/noise forces
-- texture path and JSON effect path
+- texture path, optional mesh path, and JSON effect path
 
 `ParticleEffectHotReloadSystem` loads effect files into a singleton registry and
 copies asset values onto emitters whose `effectPath` is set and

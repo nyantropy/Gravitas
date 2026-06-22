@@ -18,7 +18,9 @@
 #include "ParticleFrameData.h"
 #include "RenderResourceManager.hpp"
 #include "RenderViewport.h"
+#include "MeshResource.h"
 #include "TextureResource.h"
+#include "Vertex.h"
 #include "VulkanDynamicBuffer.h"
 #include "VulkanPipeline.hpp"
 #include "VulkanPipelineConfig.h"
@@ -29,6 +31,22 @@
 
 class ParticleRenderStage : public GtsRenderStage
 {
+    struct ParticleGpuInstance
+    {
+        glm::vec4 positionSize = {0.0f, 0.0f, 0.0f, 1.0f};
+        glm::vec4 color        = {1.0f, 1.0f, 1.0f, 1.0f};
+        glm::vec4 uvRect       = {0.0f, 0.0f, 1.0f, 1.0f};
+        glm::vec4 rotationPad  = {0.0f, 0.0f, 0.0f, 0.0f};
+        glm::vec4 shapeData    = {1.0f, 0.0f, 0.0f, 0.0f};
+    };
+
+    struct ParticleMeshGpuInstance
+    {
+        glm::mat4 modelMatrix = glm::mat4(1.0f);
+        glm::vec4 color       = {1.0f, 1.0f, 1.0f, 1.0f};
+        glm::vec4 uvTransform = {1.0f, 1.0f, 0.0f, 0.0f};
+    };
+
 public:
     ParticleRenderStage(RenderResourceManager* resources,
                         const std::vector<VkImageView>& colorImageViews,
@@ -71,6 +89,16 @@ public:
         additiveConfig.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         additiveConfig.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         pipelineAdditive = std::make_unique<VulkanPipeline>(additiveConfig);
+
+        VulkanPipelineConfig meshAlphaConfig = makeMeshPipelineConfig();
+        pipelineMeshAlpha = std::make_unique<VulkanPipeline>(meshAlphaConfig);
+
+        VulkanPipelineConfig meshAdditiveConfig = meshAlphaConfig;
+        meshAdditiveConfig.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        meshAdditiveConfig.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        meshAdditiveConfig.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        meshAdditiveConfig.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        pipelineMeshAdditive = std::make_unique<VulkanPipeline>(meshAdditiveConfig);
 
         FramebufferManagerConfig fbConfig;
         fbConfig.vkRenderpass        = renderPass->getRenderPass();
@@ -126,7 +154,7 @@ public:
         const ParticleFrameData& frameData = graph.getData<ParticleFrameData>();
         const RenderViewportRect viewportRect = graph.getData<RenderViewportFrame>().sceneRenderViewport
             .clampedTo(static_cast<int>(renderExtent.width), static_cast<int>(renderExtent.height));
-        lastParticleCount = static_cast<uint32_t>(frameData.instances.size());
+        lastParticleCount = static_cast<uint32_t>(frameData.instances.size() + frameData.meshInstances.size());
         lastDrawCalls = 0;
 
         if (frameData.empty() || frameData.cameraViewID == 0 || resources == nullptr)
@@ -168,52 +196,121 @@ public:
         };
         vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-        const VkDeviceSize offset = 0;
-        VkBuffer instanceVkBuffer = instanceBuffer.getBuffer();
-        vkCmdBindVertexBuffers(cmd, 0, 1, &instanceVkBuffer, &offset);
-
-        VulkanPipeline* boundPipeline = nullptr;
-        texture_id_type boundTexture = 0;
-
-        for (const ParticleDrawCommand& draw : frameData.drawCommands)
+        if (!frameData.drawCommands.empty())
         {
-            TextureResource* texture = resources->getTexture(draw.textureID);
-            if (texture == nullptr)
-                continue;
+            const VkDeviceSize offset = 0;
+            VkBuffer instanceVkBuffer = instanceBuffer.getBuffer();
+            vkCmdBindVertexBuffers(cmd, 0, 1, &instanceVkBuffer, &offset);
 
-            VulkanPipeline* pipeline = draw.blendMode == ParticleBlendMode::Additive
-                ? pipelineAdditive.get()
-                : pipelineAlpha.get();
+            VulkanPipeline* boundPipeline = nullptr;
+            texture_id_type boundTexture = 0;
 
-            if (pipeline != boundPipeline)
+            for (const ParticleDrawCommand& draw : frameData.drawCommands)
             {
-                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getPipeline());
-                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        pipeline->getPipelineLayout(),
-                                        0, 1,
-                                        &cameraView->descriptorSets[currentFrame],
-                                        0, nullptr);
-                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        pipeline->getPipelineLayout(),
-                                        2, 1,
-                                        &depthDescriptorSets[currentFrame],
-                                        0, nullptr);
-                boundPipeline = pipeline;
-                boundTexture = 0;
-            }
+                TextureResource* texture = resources->getTexture(draw.textureID);
+                if (texture == nullptr)
+                    continue;
 
-            if (draw.textureID != boundTexture)
+                VulkanPipeline* pipeline = draw.blendMode == ParticleBlendMode::Additive
+                    ? pipelineAdditive.get()
+                    : pipelineAlpha.get();
+
+                if (pipeline != boundPipeline)
+                {
+                    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getPipeline());
+                    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                            pipeline->getPipelineLayout(),
+                                            0, 1,
+                                            &cameraView->descriptorSets[currentFrame],
+                                            0, nullptr);
+                    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                            pipeline->getPipelineLayout(),
+                                            2, 1,
+                                            &depthDescriptorSets[currentFrame],
+                                            0, nullptr);
+                    boundPipeline = pipeline;
+                    boundTexture = 0;
+                }
+
+                if (draw.textureID != boundTexture)
+                {
+                    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                            pipeline->getPipelineLayout(),
+                                            1, 1,
+                                            &texture->descriptorSets[currentFrame],
+                                            0, nullptr);
+                    boundTexture = draw.textureID;
+                }
+
+                vkCmdDraw(cmd, 6, draw.instanceCount, 0, draw.instanceOffset);
+                lastDrawCalls += 1;
+            }
+        }
+
+        if (!frameData.meshDrawCommands.empty())
+        {
+            VulkanPipeline* boundPipeline = nullptr;
+            mesh_id_type boundMesh = 0;
+            texture_id_type boundTexture = 0;
+            const VkDeviceSize zeroOffset = 0;
+            VkBuffer meshInstanceVkBuffer = meshInstanceBuffer.getBuffer();
+
+            for (const ParticleMeshDrawCommand& draw : frameData.meshDrawCommands)
             {
-                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        pipeline->getPipelineLayout(),
-                                        1, 1,
-                                        &texture->descriptorSets[currentFrame],
-                                        0, nullptr);
-                boundTexture = draw.textureID;
-            }
+                MeshResource* mesh = resources->getMesh(draw.meshID);
+                TextureResource* texture = resources->getTexture(draw.textureID);
+                if (mesh == nullptr || texture == nullptr)
+                    continue;
 
-            vkCmdDraw(cmd, 6, draw.instanceCount, 0, draw.instanceOffset);
-            lastDrawCalls += 1;
+                VulkanPipeline* pipeline = draw.blendMode == ParticleBlendMode::Additive
+                    ? pipelineMeshAdditive.get()
+                    : pipelineMeshAlpha.get();
+
+                if (pipeline != boundPipeline)
+                {
+                    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getPipeline());
+                    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                            pipeline->getPipelineLayout(),
+                                            0, 1,
+                                            &cameraView->descriptorSets[currentFrame],
+                                            0, nullptr);
+                    boundPipeline = pipeline;
+                    boundMesh = 0;
+                    boundTexture = 0;
+                }
+
+                if (draw.meshID != boundMesh)
+                {
+                    VkBuffer vertexBuffers[2] = {mesh->vertexBuffer, meshInstanceVkBuffer};
+                    VkDeviceSize offsets[2] = {
+                        0,
+                        static_cast<VkDeviceSize>(draw.instanceOffset) * sizeof(ParticleMeshGpuInstance)
+                    };
+                    vkCmdBindVertexBuffers(cmd, 0, 2, vertexBuffers, offsets);
+                    vkCmdBindIndexBuffer(cmd, mesh->indexBuffer, zeroOffset, VK_INDEX_TYPE_UINT32);
+                    boundMesh = draw.meshID;
+                }
+                else
+                {
+                    const VkDeviceSize instanceOffset =
+                        static_cast<VkDeviceSize>(draw.instanceOffset) * sizeof(ParticleMeshGpuInstance);
+                    vkCmdBindVertexBuffers(cmd, 1, 1, &meshInstanceVkBuffer, &instanceOffset);
+                }
+
+                if (draw.textureID != boundTexture)
+                {
+                    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                            pipeline->getPipelineLayout(),
+                                            1, 1,
+                                            &texture->descriptorSets[currentFrame],
+                                            0, nullptr);
+                    boundTexture = draw.textureID;
+                }
+
+                const uint32_t indexCount = static_cast<uint32_t>(mesh->indices.size());
+                vkCmdDrawIndexed(cmd, indexCount, draw.instanceCount, 0, 0, 0);
+                lastDrawCalls += 1;
+            }
         }
 
         vkCmdEndRenderPass(cmd);
@@ -230,17 +327,11 @@ public:
     }
 
 private:
-    struct ParticleGpuInstance
-    {
-        glm::vec4 positionSize = {0.0f, 0.0f, 0.0f, 1.0f};
-        glm::vec4 color        = {1.0f, 1.0f, 1.0f, 1.0f};
-        glm::vec4 uvRect       = {0.0f, 0.0f, 1.0f, 1.0f};
-        glm::vec4 rotationPad  = {0.0f, 0.0f, 0.0f, 0.0f};
-    };
-
     std::unique_ptr<VulkanRenderPass>   renderPass;
     std::unique_ptr<VulkanPipeline>     pipelineAlpha;
     std::unique_ptr<VulkanPipeline>     pipelineAdditive;
+    std::unique_ptr<VulkanPipeline>     pipelineMeshAlpha;
+    std::unique_ptr<VulkanPipeline>     pipelineMeshAdditive;
     std::unique_ptr<FramebufferManager> framebuffers;
     std::vector<VkDescriptorSet>        depthDescriptorSets;
     RenderResourceManager*              resources = nullptr;
@@ -255,7 +346,12 @@ private:
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         1024u * sizeof(ParticleGpuInstance)
     };
+    VulkanDynamicBuffer meshInstanceBuffer{
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        1024u * sizeof(ParticleMeshGpuInstance)
+    };
     std::vector<ParticleGpuInstance> uploadScratch;
+    std::vector<ParticleMeshGpuInstance> meshUploadScratch;
     uint32_t lastParticleCount = 0;
     uint32_t lastDrawCalls = 0;
 
@@ -266,7 +362,7 @@ private:
         instanceBinding.stride    = sizeof(ParticleGpuInstance);
         instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
-        std::array<VkVertexInputAttributeDescription, 4> attrs{};
+        std::array<VkVertexInputAttributeDescription, 5> attrs{};
         attrs[0].binding  = 0;
         attrs[0].location = 0;
         attrs[0].format   = VK_FORMAT_R32G32B32A32_SFLOAT;
@@ -287,6 +383,11 @@ private:
         attrs[3].format   = VK_FORMAT_R32G32B32A32_SFLOAT;
         attrs[3].offset   = offsetof(ParticleGpuInstance, rotationPad);
 
+        attrs[4].binding  = 0;
+        attrs[4].location = 4;
+        attrs[4].format   = VK_FORMAT_R32G32B32A32_SFLOAT;
+        attrs[4].offset   = offsetof(ParticleGpuInstance, shapeData);
+
         VulkanPipelineConfig config;
         config.vertexShaderPath   = GraphicsConstants::PARTICLE_V_SHADER_PATH;
         config.fragmentShaderPath = GraphicsConstants::PARTICLE_F_SHADER_PATH;
@@ -305,6 +406,62 @@ private:
         config.descriptorSetLayouts = {
             dssheet::getDescriptorSetLayouts()[0],
             dssheet::getDescriptorSetLayouts()[2],
+            dssheet::getDescriptorSetLayouts()[2],
+        };
+        return config;
+    }
+
+    VulkanPipelineConfig makeMeshPipelineConfig()
+    {
+        VkVertexInputBindingDescription instanceBinding{};
+        instanceBinding.binding   = 1;
+        instanceBinding.stride    = sizeof(ParticleMeshGpuInstance);
+        instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+
+        auto vertexAttrs = Vertex::getAttributeDescriptions();
+        std::vector<VkVertexInputAttributeDescription> attrs(vertexAttrs.begin(), vertexAttrs.end());
+
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            VkVertexInputAttributeDescription attr{};
+            attr.binding = 1;
+            attr.location = 3 + i;
+            attr.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+            attr.offset = offsetof(ParticleMeshGpuInstance, modelMatrix) + sizeof(glm::vec4) * i;
+            attrs.push_back(attr);
+        }
+
+        VkVertexInputAttributeDescription colorAttr{};
+        colorAttr.binding = 1;
+        colorAttr.location = 7;
+        colorAttr.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        colorAttr.offset = offsetof(ParticleMeshGpuInstance, color);
+        attrs.push_back(colorAttr);
+
+        VkVertexInputAttributeDescription uvAttr{};
+        uvAttr.binding = 1;
+        uvAttr.location = 8;
+        uvAttr.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        uvAttr.offset = offsetof(ParticleMeshGpuInstance, uvTransform);
+        attrs.push_back(uvAttr);
+
+        VulkanPipelineConfig config;
+        config.vertexShaderPath   = GraphicsConstants::PARTICLE_MESH_V_SHADER_PATH;
+        config.fragmentShaderPath = GraphicsConstants::PARTICLE_MESH_F_SHADER_PATH;
+        config.vkRenderPass       = renderPass->getRenderPass();
+        config.vertexBindings     = {Vertex::getBindingDescription(), instanceBinding};
+        config.vertexAttributes   = attrs;
+        config.cullMode           = VK_CULL_MODE_NONE;
+        config.depthTestEnable    = true;
+        config.depthWriteEnable   = false;
+        config.blendEnable        = true;
+        config.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        config.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        config.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        config.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        config.pushConstantSize   = 0;
+        config.descriptorSetLayouts = {
+            dssheet::getDescriptorSetLayouts()[0],
             dssheet::getDescriptorSetLayouts()[2],
         };
         return config;
@@ -341,16 +498,35 @@ private:
         for (const ParticleInstance& instance : frameData.instances)
         {
             uploadScratch.push_back({
-                {instance.worldPosition, instance.size},
+                {instance.worldPosition, instance.size.x},
                 instance.color,
                 instance.uvRect,
-                {instance.rotation, instance.depth, instance.softness, 0.0f}
+                {instance.rotation, instance.size.y, instance.softness, static_cast<float>(instance.spriteShape)},
+                {instance.spriteEdgeSoftness, 0.0f, 0.0f, 0.0f}
             });
         }
 
         const VkDeviceSize bytes =
             static_cast<VkDeviceSize>(uploadScratch.size()) * sizeof(ParticleGpuInstance);
         instanceBuffer.ensureCapacity(bytes);
-        std::memcpy(instanceBuffer.getMapped(), uploadScratch.data(), static_cast<size_t>(bytes));
+        if (bytes > 0)
+            std::memcpy(instanceBuffer.getMapped(), uploadScratch.data(), static_cast<size_t>(bytes));
+
+        meshUploadScratch.clear();
+        meshUploadScratch.reserve(frameData.meshInstances.size());
+        for (const ParticleMeshInstance& instance : frameData.meshInstances)
+        {
+            meshUploadScratch.push_back({
+                instance.modelMatrix,
+                instance.color,
+                instance.uvTransform
+            });
+        }
+
+        const VkDeviceSize meshBytes =
+            static_cast<VkDeviceSize>(meshUploadScratch.size()) * sizeof(ParticleMeshGpuInstance);
+        meshInstanceBuffer.ensureCapacity(meshBytes);
+        if (meshBytes > 0)
+            std::memcpy(meshInstanceBuffer.getMapped(), meshUploadScratch.data(), static_cast<size_t>(meshBytes));
     }
 };

@@ -207,6 +207,40 @@ namespace
         return blend == ParticleBlendMode::Additive ? "additive" : "alpha";
     }
 
+    ParticlePrimitive primitiveFromString(const std::string& value)
+    {
+        if (value == "mesh")
+            return ParticlePrimitive::Mesh;
+        return ParticlePrimitive::Billboard;
+    }
+
+    std::string primitiveToString(ParticlePrimitive primitive)
+    {
+        return primitive == ParticlePrimitive::Mesh ? "mesh" : "billboard";
+    }
+
+    ParticleSpriteShape spriteShapeFromString(const std::string& value)
+    {
+        if (value == "square") return ParticleSpriteShape::Square;
+        if (value == "diamond") return ParticleSpriteShape::Diamond;
+        if (value == "petal") return ParticleSpriteShape::Petal;
+        if (value == "streak") return ParticleSpriteShape::Streak;
+        return ParticleSpriteShape::SoftCircle;
+    }
+
+    std::string spriteShapeToString(ParticleSpriteShape shape)
+    {
+        switch (shape)
+        {
+            case ParticleSpriteShape::SoftCircle: return "softCircle";
+            case ParticleSpriteShape::Square: return "square";
+            case ParticleSpriteShape::Diamond: return "diamond";
+            case ParticleSpriteShape::Petal: return "petal";
+            case ParticleSpriteShape::Streak: return "streak";
+        }
+        return "softCircle";
+    }
+
     bool readColorCurve(const std::string& source,
                         const std::string& key,
                         ParticleColorCurve& curve)
@@ -325,9 +359,13 @@ namespace
     void readEmitter(const std::string& source, ParticleEmitterComponent& emitter)
     {
         std::string text;
+        readUint(source, "schemaVersion", emitter.schemaVersion);
         if (readString(source, "shape", text)) emitter.shape = shapeFromString(text);
         if (readString(source, "blend", text)) emitter.blend = blendFromString(text);
+        if (readString(source, "primitive", text)) emitter.primitive = primitiveFromString(text);
+        if (readString(source, "spriteShape", text)) emitter.spriteShape = spriteShapeFromString(text);
         readString(source, "texturePath", emitter.texturePath);
+        readString(source, "meshPath", emitter.meshPath);
         readBool(source, "enabled", emitter.enabled);
         readBool(source, "localSpace", emitter.localSpace);
         readBool(source, "looping", emitter.looping);
@@ -347,9 +385,16 @@ namespace
         readFloat(source, "spinMin", emitter.spinMin);
         readFloat(source, "spinMax", emitter.spinMax);
         readFloat(source, "sizeRandomness", emitter.sizeRandomness);
+        readFloat(source, "aspectRatioMin", emitter.aspectRatioMin);
+        readFloat(source, "aspectRatioMax", emitter.aspectRatioMax);
+        readFloat(source, "spriteEdgeSoftness", emitter.spriteEdgeSoftness);
         readFloat(source, "softness", emitter.softness);
         readFloat(source, "hueVariation", emitter.hueVariation);
         readFloat(source, "valueVariation", emitter.valueVariation);
+        readVec3(source, "meshScale", emitter.meshScale);
+        readVec3(source, "meshAngularVelocityMin", emitter.meshAngularVelocityMin);
+        readVec3(source, "meshAngularVelocityMax", emitter.meshAngularVelocityMax);
+        readBool(source, "randomMeshRotation", emitter.randomMeshRotation);
         readVec4(source, "baseTint", emitter.baseTint);
         readFloat(source, "sphereRadius", emitter.sphereRadius);
         readVec3(source, "boxExtents", emitter.boxExtents);
@@ -416,9 +461,13 @@ namespace gts::particles
 
         out << std::fixed << std::setprecision(4);
         out << "{\n";
+        out << "  \"schemaVersion\": " << emitter.schemaVersion << ",\n";
+        out << "  \"primitive\": \"" << primitiveToString(emitter.primitive) << "\",\n";
         out << "  \"shape\": \"" << shapeToString(emitter.shape) << "\",\n";
         out << "  \"blend\": \"" << blendToString(emitter.blend) << "\",\n";
+        out << "  \"spriteShape\": \"" << spriteShapeToString(emitter.spriteShape) << "\",\n";
         out << "  \"texturePath\": \"" << emitter.texturePath << "\",\n";
+        out << "  \"meshPath\": \"" << emitter.meshPath << "\",\n";
         out << "  \"enabled\": " << (emitter.enabled ? "true" : "false") << ",\n";
         out << "  \"localSpace\": " << (emitter.localSpace ? "true" : "false") << ",\n";
         out << "  \"looping\": " << (emitter.looping ? "true" : "false") << ",\n";
@@ -438,9 +487,16 @@ namespace gts::particles
         out << "  \"spinMin\": " << emitter.spinMin << ",\n";
         out << "  \"spinMax\": " << emitter.spinMax << ",\n";
         out << "  \"sizeRandomness\": " << emitter.sizeRandomness << ",\n";
+        out << "  \"aspectRatioMin\": " << emitter.aspectRatioMin << ",\n";
+        out << "  \"aspectRatioMax\": " << emitter.aspectRatioMax << ",\n";
+        out << "  \"spriteEdgeSoftness\": " << emitter.spriteEdgeSoftness << ",\n";
         out << "  \"softness\": " << emitter.softness << ",\n";
         out << "  \"hueVariation\": " << emitter.hueVariation << ",\n";
         out << "  \"valueVariation\": " << emitter.valueVariation << ",\n";
+        out << "  \"meshScale\": "; writeVec3(out, emitter.meshScale); out << ",\n";
+        out << "  \"meshAngularVelocityMin\": "; writeVec3(out, emitter.meshAngularVelocityMin); out << ",\n";
+        out << "  \"meshAngularVelocityMax\": "; writeVec3(out, emitter.meshAngularVelocityMax); out << ",\n";
+        out << "  \"randomMeshRotation\": " << (emitter.randomMeshRotation ? "true" : "false") << ",\n";
         out << "  \"baseTint\": "; writeVec4(out, emitter.baseTint); out << ",\n";
         out << "  \"sphereRadius\": " << emitter.sphereRadius << ",\n";
         out << "  \"boxExtents\": "; writeVec3(out, emitter.boxExtents); out << ",\n";

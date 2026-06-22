@@ -19,6 +19,21 @@ enum class ParticleBlendMode
     Additive
 };
 
+enum class ParticlePrimitive
+{
+    Billboard = 0,
+    Mesh
+};
+
+enum class ParticleSpriteShape
+{
+    SoftCircle = 0,
+    Square,
+    Diamond,
+    Petal,
+    Streak
+};
+
 struct ParticleColorKey
 {
     // t is normalized particle lifetime from 0..1

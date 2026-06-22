@@ -32,6 +32,8 @@ public:
 
         alphaParticles.clear();
         additiveParticles.clear();
+        alphaMeshParticles.clear();
+        additiveMeshParticles.clear();
 
         ctx.world.forEach<ParticleEmitterComponent,
                           ParticleEmitterRuntimeComponent,
@@ -67,10 +69,20 @@ private:
         ParticleBlendMode blendMode = ParticleBlendMode::Alpha;
     };
 
+    struct ExtractedMeshParticle
+    {
+        ParticleMeshInstance instance;
+        mesh_id_type     meshID = 0;
+        texture_id_type  textureID = 0;
+        ParticleBlendMode blendMode = ParticleBlendMode::Alpha;
+    };
+
     static constexpr float Pi = 3.14159265358979323846f;
 
     std::vector<ExtractedParticle> alphaParticles;
     std::vector<ExtractedParticle> additiveParticles;
+    std::vector<ExtractedMeshParticle> alphaMeshParticles;
+    std::vector<ExtractedMeshParticle> additiveMeshParticles;
 
     static ParticleFrameDataComponent& ensureFrameData(ECSWorld& world)
     {
@@ -328,7 +340,7 @@ private:
                               const TransformComponent& transform,
                               float dt)
     {
-        bindTextureIfNeeded(ctx, emitter, runtime);
+        bindResourcesIfNeeded(ctx, emitter, runtime);
         const float previousEmitterAge = runtime.emitterAge;
         runtime.emitterAge += dt;
 
@@ -368,6 +380,7 @@ private:
             particle.velocity *= dragFactor;
             particle.position += particle.velocity * dt;
             particle.rotation += particle.spin * dt;
+            particle.meshRotation += particle.meshSpin * dt;
             ++i;
         }
 
@@ -479,9 +492,9 @@ private:
         particle.velocity += acceleration * dt;
     }
 
-    static void bindTextureIfNeeded(const EcsControllerContext& ctx,
-                                    const ParticleEmitterComponent& emitter,
-                                    ParticleEmitterRuntimeComponent& runtime)
+    static void bindResourcesIfNeeded(const EcsControllerContext& ctx,
+                                      const ParticleEmitterComponent& emitter,
+                                      ParticleEmitterRuntimeComponent& runtime)
     {
         if (ctx.resources == nullptr)
             return;
@@ -490,11 +503,31 @@ private:
             ? GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_particle_fallback.png"
             : emitter.texturePath;
 
-        if (runtime.textureID != 0 && runtime.boundTexturePath == texturePath)
+        if (runtime.textureID == 0 || runtime.boundTexturePath != texturePath)
+        {
+            runtime.textureID = ctx.resources->requestTexture(texturePath);
+            runtime.boundTexturePath = texturePath;
+        }
+
+        if (emitter.primitive != ParticlePrimitive::Mesh)
+        {
+            runtime.meshID = 0;
+            runtime.boundMeshPath.clear();
+            return;
+        }
+
+        if (emitter.meshPath.empty())
+        {
+            runtime.meshID = 0;
+            runtime.boundMeshPath.clear();
+            return;
+        }
+
+        if (runtime.meshID != 0 && runtime.boundMeshPath == emitter.meshPath)
             return;
 
-        runtime.textureID = ctx.resources->requestTexture(texturePath);
-        runtime.boundTexturePath = texturePath;
+        runtime.meshID = ctx.resources->requestMesh(emitter.meshPath);
+        runtime.boundMeshPath = emitter.meshPath;
     }
 
     static void spawnParticle(const ParticleEmitterComponent& emitter,
@@ -537,6 +570,20 @@ private:
         particle.spin = randomRange(runtime.rngState, emitter.spinMin, emitter.spinMax);
         particle.sizeScale =
             randomRange(runtime.rngState, 1.0f - emitter.sizeRandomness, 1.0f + emitter.sizeRandomness);
+        const float minAspect = std::max(0.01f, std::min(emitter.aspectRatioMin, emitter.aspectRatioMax));
+        const float maxAspect = std::max(minAspect, std::max(emitter.aspectRatioMin, emitter.aspectRatioMax));
+        particle.aspectRatio = randomRange(runtime.rngState, minAspect, maxAspect);
+        particle.meshRotation = emitter.randomMeshRotation
+            ? glm::vec3{
+                randomRange(runtime.rngState, 0.0f, Pi * 2.0f),
+                randomRange(runtime.rngState, 0.0f, Pi * 2.0f),
+                randomRange(runtime.rngState, 0.0f, Pi * 2.0f)}
+            : glm::vec3{0.0f, 0.0f, 0.0f};
+        particle.meshSpin = {
+            randomRange(runtime.rngState, emitter.meshAngularVelocityMin.x, emitter.meshAngularVelocityMax.x),
+            randomRange(runtime.rngState, emitter.meshAngularVelocityMin.y, emitter.meshAngularVelocityMax.y),
+            randomRange(runtime.rngState, emitter.meshAngularVelocityMin.z, emitter.meshAngularVelocityMax.z)
+        };
         particle.frameOffset = emitter.flipbook.randomStart
             ? randomRange(runtime.rngState, 0.0f, static_cast<float>(std::max(1u, emitter.flipbook.frameCount)))
             : 0.0f;
@@ -563,17 +610,51 @@ private:
 
             const glm::vec3 worldPosition = glm::vec3(model * glm::vec4(particle.position, 1.0f));
             const glm::vec4 viewPosition = camera.viewMatrix * glm::vec4(worldPosition, 1.0f);
+            const float particleSize =
+                std::max(0.001f, evaluateFloatCurve(emitter.sizeOverLifetime, normalizedAge, 0.5f))
+                * particle.sizeScale;
+
+            if (emitter.primitive == ParticlePrimitive::Mesh)
+            {
+                if (runtime.meshID == 0)
+                    continue;
+
+                glm::mat4 particleModel = emitter.localSpace ? transform.getModelMatrix() : glm::mat4(1.0f);
+                particleModel = glm::translate(particleModel, particle.position);
+                particleModel = glm::rotate(particleModel, particle.meshRotation.x, {1.0f, 0.0f, 0.0f});
+                particleModel = glm::rotate(particleModel, particle.meshRotation.y, {0.0f, 1.0f, 0.0f});
+                particleModel = glm::rotate(particleModel, particle.meshRotation.z, {0.0f, 0.0f, 1.0f});
+                particleModel = glm::scale(particleModel, glm::max(emitter.meshScale * particleSize,
+                                                                    glm::vec3(0.001f)));
+
+                ParticleMeshInstance instance;
+                instance.modelMatrix = particleModel;
+                instance.color = color;
+                instance.depth = -viewPosition.z;
+
+                ExtractedMeshParticle extracted;
+                extracted.instance = instance;
+                extracted.meshID = runtime.meshID;
+                extracted.textureID = runtime.textureID;
+                extracted.blendMode = emitter.blend;
+
+                if (emitter.blend == ParticleBlendMode::Additive)
+                    additiveMeshParticles.push_back(extracted);
+                else
+                    alphaMeshParticles.push_back(extracted);
+                continue;
+            }
 
             ParticleInstance instance;
             instance.worldPosition = worldPosition;
-            instance.size =
-                std::max(0.001f, evaluateFloatCurve(emitter.sizeOverLifetime, normalizedAge, 0.5f))
-                * particle.sizeScale;
+            instance.size = {particleSize * particle.aspectRatio, particleSize};
             instance.color = color;
             instance.uvRect = computeFlipbookUv(emitter, particle, normalizedAge);
             instance.rotation = particle.rotation;
             instance.depth = -viewPosition.z;
             instance.softness = std::max(0.0f, emitter.softness);
+            instance.spriteEdgeSoftness = glm::clamp(emitter.spriteEdgeSoftness, 0.0f, 1.0f);
+            instance.spriteShape = emitter.spriteShape;
 
             ExtractedParticle extracted;
             extracted.instance = instance;
@@ -637,11 +718,31 @@ private:
                 return lhs.instance.depth > rhs.instance.depth;
             });
 
+        std::sort(alphaMeshParticles.begin(), alphaMeshParticles.end(),
+            [](const ExtractedMeshParticle& lhs, const ExtractedMeshParticle& rhs)
+            {
+                return lhs.instance.depth > rhs.instance.depth;
+            });
+
+        std::sort(additiveMeshParticles.begin(), additiveMeshParticles.end(),
+            [](const ExtractedMeshParticle& lhs, const ExtractedMeshParticle& rhs)
+            {
+                if (lhs.meshID != rhs.meshID)
+                    return lhs.meshID < rhs.meshID;
+                if (lhs.textureID != rhs.textureID)
+                    return lhs.textureID < rhs.textureID;
+                return lhs.instance.depth > rhs.instance.depth;
+            });
+
         frameData.instances.reserve(alphaParticles.size() + additiveParticles.size());
         frameData.drawCommands.reserve(alphaParticles.size() + additiveParticles.size());
+        frameData.meshInstances.reserve(alphaMeshParticles.size() + additiveMeshParticles.size());
+        frameData.meshDrawCommands.reserve(alphaMeshParticles.size() + additiveMeshParticles.size());
 
         appendParticles(frameData, alphaParticles);
         appendParticles(frameData, additiveParticles);
+        appendMeshParticles(frameData, alphaMeshParticles);
+        appendMeshParticles(frameData, additiveMeshParticles);
     }
 
     static void appendParticles(ParticleFrameData& frameData,
@@ -663,6 +764,36 @@ private:
             }
 
             frameData.drawCommands.push_back({
+                particle.textureID,
+                particle.blendMode,
+                instanceIndex,
+                1u
+            });
+        }
+    }
+
+    static void appendMeshParticles(ParticleFrameData& frameData,
+                                    const std::vector<ExtractedMeshParticle>& particles)
+    {
+        for (const ExtractedMeshParticle& particle : particles)
+        {
+            const uint32_t instanceIndex = static_cast<uint32_t>(frameData.meshInstances.size());
+            frameData.meshInstances.push_back(particle.instance);
+
+            if (!frameData.meshDrawCommands.empty())
+            {
+                ParticleMeshDrawCommand& last = frameData.meshDrawCommands.back();
+                if (last.meshID == particle.meshID
+                    && last.textureID == particle.textureID
+                    && last.blendMode == particle.blendMode)
+                {
+                    last.instanceCount += 1;
+                    continue;
+                }
+            }
+
+            frameData.meshDrawCommands.push_back({
+                particle.meshID,
                 particle.textureID,
                 particle.blendMode,
                 instanceIndex,

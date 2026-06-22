@@ -12,6 +12,8 @@
 // engine particle systems own runtime state and backend resources
 struct ParticleEmitterComponent
 {
+    uint32_t schemaVersion = 2;
+
     // high-level emitter switches
     bool enabled    = true;
     bool localSpace = true;
@@ -21,10 +23,13 @@ struct ParticleEmitterComponent
     // where particles spawn, and how they blend in the particle render stage
     ParticleEmitterShape shape = ParticleEmitterShape::Sphere;
     ParticleBlendMode    blend = ParticleBlendMode::Alpha;
+    ParticlePrimitive    primitive = ParticlePrimitive::Billboard;
+    ParticleSpriteShape  spriteShape = ParticleSpriteShape::SoftCircle;
 
     // optional json source plus particle texture
     std::string effectPath;
     std::string texturePath;
+    std::string meshPath;
 
     // base color multiplier before lifetime/random color changes
     glm::vec4   baseTint = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -66,10 +71,18 @@ struct ParticleEmitterComponent
     float spinMin = -0.8f;
     float spinMax = 0.8f;
     float sizeRandomness = 0.15f;
+    float aspectRatioMin = 1.0f;
+    float aspectRatioMax = 1.0f;
+    float spriteEdgeSoftness = 1.0f;
     float softness = 80.0f;
 
     float hueVariation   = 0.0f;
     float valueVariation = 0.0f;
+
+    glm::vec3 meshScale = {1.0f, 1.0f, 1.0f};
+    glm::vec3 meshAngularVelocityMin = {-0.8f, -0.8f, -0.8f};
+    glm::vec3 meshAngularVelocityMax = {0.8f, 0.8f, 0.8f};
+    bool      randomMeshRotation = true;
 
     // shape controls, in local emitter units
     float     sphereRadius   = 0.5f;

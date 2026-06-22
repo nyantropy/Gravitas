@@ -181,8 +181,10 @@ class RenderExtractionSnapshotBuilder
             {
                 renderable.textureID       = matGpu.textureID;
                 renderable.tint            = matGpu.tint;
+                renderable.blendMode       = matGpu.blendMode;
                 renderable.doubleSided     = matGpu.doubleSided;
                 renderable.vertexColorOnly = matGpu.vertexColorOnly;
+                renderable.depthWrite      = matGpu.depthWrite;
                 sortKeyNeedsUpdate         = true;
             }
 
@@ -456,10 +458,14 @@ class RenderExtractionSnapshotBuilder
 
     static uint64_t makeSortKey(const RenderableSnapshot& renderable)
     {
+        const uint64_t blend       = static_cast<uint64_t>(renderable.blendMode) & 0x3ull;
+        const uint64_t depth       = renderable.depthWrite ? 1ull : 0ull;
         const uint64_t sidedness   = renderable.doubleSided ? 1ull : 0ull;
         const uint64_t vertexColor = renderable.vertexColorOnly ? 1ull : 0ull;
-        return (sidedness << 63) | (vertexColor << 62) | (static_cast<uint64_t>(renderable.meshID) << 32) |
-               static_cast<uint64_t>(renderable.textureID);
+        const uint64_t materialFlags = (blend << 3) | (depth << 2) | (sidedness << 1) | vertexColor;
+        return (materialFlags << 56)
+             | ((static_cast<uint64_t>(renderable.meshID) & 0xFFFFFFull) << 32)
+             | (static_cast<uint64_t>(renderable.textureID) & 0xFFFFFFFFull);
     }
 
     static void updateBounds(ECSWorld& world, Entity e, RenderableSnapshot& renderable)

@@ -4,11 +4,14 @@ layout(location = 0) in vec4 inPositionSize;
 layout(location = 1) in vec4 inColor;
 layout(location = 2) in vec4 inUvRect;
 layout(location = 3) in vec4 inRotationDepth;
+layout(location = 4) in vec4 inShapeData;
 
 layout(location = 0) out vec2 fragTexCoord;
 layout(location = 1) out vec4 fragColor;
 layout(location = 2) out float fragSoftness;
 layout(location = 3) out vec2 fragLocalCoord;
+layout(location = 4) out float fragSpriteShape;
+layout(location = 5) out float fragEdgeSoftness;
 
 layout(set = 0, binding = 0) uniform CameraUBO {
     mat4 view;
@@ -34,13 +37,15 @@ void main() {
     fragLocalCoord = normalizedUv;
     fragColor = inColor;
     fragSoftness = inRotationDepth.z;
+    fragSpriteShape = inRotationDepth.w;
+    fragEdgeSoftness = inShapeData.x;
 
     float s = sin(inRotationDepth.x);
     float c = cos(inRotationDepth.x);
     vec2 rotated = vec2(
         corner.x * c - corner.y * s,
         corner.x * s + corner.y * c
-    ) * inPositionSize.w;
+    ) * vec2(inPositionSize.w, inRotationDepth.y);
 
     vec4 viewCenter = cam.view * vec4(inPositionSize.xyz, 1.0);
     vec4 viewPosition = viewCenter + vec4(rotated, 0.0, 0.0);

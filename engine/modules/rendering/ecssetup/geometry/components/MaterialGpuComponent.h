@@ -3,6 +3,7 @@
 #include <string>
 #include "Types.h"
 #include "GlmConfig.h"
+#include "MaterialComponent.h"
 
 // Engine-internal material GPU state. Managed exclusively by binding systems.
 // Do not read or write from game code.
@@ -13,8 +14,10 @@ struct MaterialGpuComponent
 {
     texture_id_type textureID        = 0;
     glm::vec4       tint             = {1.0f, 1.0f, 1.0f, 1.0f};
+    MaterialBlendMode blendMode      = MaterialBlendMode::Alpha;
     bool            doubleSided      = false;
     bool            vertexColorOnly  = false;
+    bool            depthWrite       = true;
 
     // Internal tracking
     std::string     boundTexturePath;

@@ -33,8 +33,10 @@ struct RenderableSnapshot
     texture_id_type textureID = 0;
     ssbo_id_type    objectSSBOSlot = 0;
 
+    MaterialBlendMode blendMode = MaterialBlendMode::Alpha;
     bool          doubleSided = false;
     bool          vertexColorOnly = false;
+    bool          depthWrite = true;
     bool          visible = true;
     uint64_t      sortKey = 0;
 };

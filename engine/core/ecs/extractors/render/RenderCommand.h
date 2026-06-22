@@ -2,6 +2,7 @@
 
 #include "GlmConfig.h"
 
+#include "MaterialComponent.h"
 #include "Types.h"
 
 // Consumed by the renderer to produce one frame.
@@ -15,8 +16,10 @@ struct RenderCommand
     ssbo_id_type    objectSSBOSlot;
     view_id_type    cameraViewID;
 
-    bool      doubleSided = false;  // selects the no-cull pipeline variant in SceneRenderStage
-    bool      vertexColorOnly = false; // uses mesh vertex color instead of sampling the material texture
+    MaterialBlendMode blendMode = MaterialBlendMode::Alpha;
+    bool      doubleSided       = false; // selects the no-cull pipeline variant in SceneRenderStage
+    bool      vertexColorOnly   = false; // uses mesh vertex color instead of sampling the material texture
+    bool      depthWrite        = true;
 };
 
 struct ObjectUploadCommand

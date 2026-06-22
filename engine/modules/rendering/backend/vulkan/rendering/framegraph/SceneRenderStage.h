@@ -83,6 +83,25 @@ public:
         pConfigDS.cullMode = VK_CULL_MODE_NONE;
         pipelineDoubleSided = std::make_unique<VulkanPipeline>(pConfigDS);
 
+        VulkanPipelineConfig pConfigAlphaNoDepth = pConfig;
+        pConfigAlphaNoDepth.depthWriteEnable = false;
+        pipelineAlphaNoDepth = std::make_unique<VulkanPipeline>(pConfigAlphaNoDepth);
+
+        VulkanPipelineConfig pConfigAlphaNoDepthDS = pConfigAlphaNoDepth;
+        pConfigAlphaNoDepthDS.cullMode = VK_CULL_MODE_NONE;
+        pipelineAlphaNoDepthDoubleSided = std::make_unique<VulkanPipeline>(pConfigAlphaNoDepthDS);
+
+        VulkanPipelineConfig pConfigAdditiveNoDepth = pConfigAlphaNoDepth;
+        pConfigAdditiveNoDepth.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        pConfigAdditiveNoDepth.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        pConfigAdditiveNoDepth.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        pConfigAdditiveNoDepth.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        pipelineAdditiveNoDepth = std::make_unique<VulkanPipeline>(pConfigAdditiveNoDepth);
+
+        VulkanPipelineConfig pConfigAdditiveNoDepthDS = pConfigAdditiveNoDepth;
+        pConfigAdditiveNoDepthDS.cullMode = VK_CULL_MODE_NONE;
+        pipelineAdditiveNoDepthDoubleSided = std::make_unique<VulkanPipeline>(pConfigAdditiveNoDepthDS);
+
         FramebufferManagerConfig fbConfig;
         fbConfig.colorImageViews     = colorImageViews;
         fbConfig.attachmentImageView = depthImageView;
@@ -207,8 +226,10 @@ private:
     {
         mesh_id_type    meshID = 0;
         texture_id_type textureID = 0;
+        MaterialBlendMode blendMode = MaterialBlendMode::Alpha;
         bool            doubleSided = false;
         bool            vertexColorOnly = false;
+        bool            depthWrite = true;
         uint32_t        instanceOffset = 0;
         uint32_t        instanceCount = 0;
         MeshResource*   mesh = nullptr;
@@ -242,6 +263,10 @@ private:
     std::unique_ptr<VulkanRenderPass>   renderPass;
     std::unique_ptr<VulkanPipeline>     pipeline;
     std::unique_ptr<VulkanPipeline>     pipelineDoubleSided;
+    std::unique_ptr<VulkanPipeline>     pipelineAlphaNoDepth;
+    std::unique_ptr<VulkanPipeline>     pipelineAlphaNoDepthDoubleSided;
+    std::unique_ptr<VulkanPipeline>     pipelineAdditiveNoDepth;
+    std::unique_ptr<VulkanPipeline>     pipelineAdditiveNoDepthDoubleSided;
     std::unique_ptr<FramebufferManager> framebuffers;
     RenderResourceManager*              resources = nullptr;
     ThreadPool*                         threadPool = nullptr;
@@ -413,8 +438,10 @@ private:
             PreparedBatch batch{};
             batch.meshID = first.meshID;
             batch.textureID = first.textureID;
+            batch.blendMode = first.blendMode;
             batch.doubleSided = first.doubleSided;
             batch.vertexColorOnly = first.vertexColorOnly;
+            batch.depthWrite = first.depthWrite;
             batch.instanceOffset = instanceHead;
             batch.mesh = resources->getMesh(first.meshID);
             batch.texture = resources->getTexture(first.textureID);
@@ -424,8 +451,10 @@ private:
                 const RenderCommand& current = renderList[i];
                 if (current.meshID != batch.meshID
                     || current.textureID != batch.textureID
+                    || current.blendMode != batch.blendMode
                     || current.doubleSided != batch.doubleSided
-                    || current.vertexColorOnly != batch.vertexColorOnly)
+                    || current.vertexColorOnly != batch.vertexColorOnly
+                    || current.depthWrite != batch.depthWrite)
                 {
                     break;
                 }
@@ -438,6 +467,27 @@ private:
 
             preparedBatches.push_back(batch);
         }
+    }
+
+    VulkanPipeline* selectPipeline(const PreparedBatch& batch) const
+    {
+        if (batch.blendMode == MaterialBlendMode::Additive)
+        {
+            return batch.doubleSided
+                ? pipelineAdditiveNoDepthDoubleSided.get()
+                : pipelineAdditiveNoDepth.get();
+        }
+
+        if (!batch.depthWrite)
+        {
+            return batch.doubleSided
+                ? pipelineAlphaNoDepthDoubleSided.get()
+                : pipelineAlphaNoDepth.get();
+        }
+
+        return batch.doubleSided
+            ? pipelineDoubleSided.get()
+            : pipeline.get();
     }
 
     GlobalDescriptorSets resolveGlobalDescriptorSets(uint32_t currentFrame, view_id_type cameraViewID) const
@@ -478,9 +528,7 @@ private:
             const PreparedBatch& batch = preparedBatches[batchIndex];
             MeshResource* mesh = batch.mesh;
             TextureResource* tex = batch.texture;
-            VulkanPipeline* activePipeline = batch.doubleSided
-                ? pipelineDoubleSided.get()
-                : pipeline.get();
+            VulkanPipeline* activePipeline = selectPipeline(batch);
 
             if (activePipeline != boundPipeline)
             {

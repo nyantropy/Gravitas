@@ -69,7 +69,9 @@ class RenderCommandExtractor
                 occupiedSlots.push_back(slot);
             cached.lastSeenFrame = frameStamp;
 
-            const bool opaque               = renderable.tint.a >= 1.0f;
+            const bool opaque               = renderable.blendMode == MaterialBlendMode::Alpha
+                                           && renderable.depthWrite
+                                           && renderable.tint.a >= 1.0f;
             const bool visible              = renderable.visible;
             const bool sortKeyChanged       = !cached.initialised || cached.sortKey != renderable.sortKey;
             const bool opacityBucketChanged = !cached.initialised || cached.opaque != opaque;
@@ -77,8 +79,10 @@ class RenderCommandExtractor
                                               cached.command.meshID != renderable.meshID ||
                                               cached.command.textureID != renderable.textureID ||
                                               cached.command.objectSSBOSlot != renderable.objectSSBOSlot ||
+                                              cached.command.blendMode != renderable.blendMode ||
                                               cached.command.doubleSided != renderable.doubleSided ||
                                               cached.command.vertexColorOnly != renderable.vertexColorOnly ||
+                                              cached.command.depthWrite != renderable.depthWrite ||
                                               cached.command.cameraViewID != snapshot.cameraViewID;
 
             if (!cached.initialised || cached.visible != visible || opacityBucketChanged)
@@ -99,8 +103,10 @@ class RenderCommandExtractor
                 cached.command.textureID       = renderable.textureID;
                 cached.command.objectSSBOSlot  = renderable.objectSSBOSlot;
                 cached.command.cameraViewID    = snapshot.cameraViewID;
+                cached.command.blendMode       = renderable.blendMode;
                 cached.command.doubleSided     = renderable.doubleSided;
                 cached.command.vertexColorOnly = renderable.vertexColorOnly;
+                cached.command.depthWrite      = renderable.depthWrite;
                 cached.sortKey                 = renderable.sortKey;
                 cached.initialised             = true;
                 updatedCommands += 1;
@@ -126,7 +132,7 @@ class RenderCommandExtractor
             opaqueSlotOrder      = nextOpaqueSlotOrder;
             transparentSlotOrder = nextTransparentSlotOrder;
 
-            // sortKey encodes (doubleSided << 63 | vertexColorOnly << 62 | meshID << 32 | textureID).
+            // sortKey encodes material pipeline flags, then meshID, then textureID.
             std::sort(opaqueSlotOrder.begin(),
                       opaqueSlotOrder.end(),
                       [&](ssbo_id_type lhs, ssbo_id_type rhs)

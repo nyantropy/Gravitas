@@ -205,8 +205,10 @@ namespace gts::rendering
         }
 
         if (matGpu.tint != mat.tint
+            || matGpu.blendMode != mat.blendMode
             || matGpu.doubleSided != mat.doubleSided
-            || matGpu.vertexColorOnly != mat.vertexColorOnly)
+            || matGpu.vertexColorOnly != mat.vertexColorOnly
+            || matGpu.depthWrite != mat.depthWrite)
         {
             dirty.materialDirty   = true;
             dirty.objectDataDirty = true;
@@ -214,8 +216,10 @@ namespace gts::rendering
         }
 
         matGpu.tint            = mat.tint;
+        matGpu.blendMode       = mat.blendMode;
         matGpu.doubleSided     = mat.doubleSided;
         matGpu.vertexColorOnly = mat.vertexColorOnly;
+        matGpu.depthWrite      = mat.depthWrite;
 
         if (hasMeshGpu)
             world.getComponent<MeshGpuComponent>(entity) = meshGpu;
@@ -282,8 +286,10 @@ namespace gts::rendering
         }
 
         if (matGpu.tint != mat.tint
+            || matGpu.blendMode != mat.blendMode
             || matGpu.doubleSided != mat.doubleSided
-            || matGpu.vertexColorOnly != mat.vertexColorOnly)
+            || matGpu.vertexColorOnly != mat.vertexColorOnly
+            || matGpu.depthWrite != mat.depthWrite)
         {
             dirty.materialDirty   = true;
             dirty.objectDataDirty = true;
@@ -291,8 +297,10 @@ namespace gts::rendering
         }
 
         matGpu.tint            = mat.tint;
+        matGpu.blendMode       = mat.blendMode;
         matGpu.doubleSided     = mat.doubleSided;
         matGpu.vertexColorOnly = mat.vertexColorOnly;
+        matGpu.depthWrite      = mat.depthWrite;
 
         const bool quadGeometryChanged =
             meshGpu.ownsProceduralMeshResource
@@ -386,8 +394,10 @@ namespace gts::rendering
         }
 
         if (matGpu.tint != mat.tint
+            || matGpu.blendMode != mat.blendMode
             || matGpu.doubleSided != mat.doubleSided
-            || matGpu.vertexColorOnly != mat.vertexColorOnly)
+            || matGpu.vertexColorOnly != mat.vertexColorOnly
+            || matGpu.depthWrite != mat.depthWrite)
         {
             dirty.materialDirty   = true;
             dirty.objectDataDirty = true;
@@ -395,8 +405,10 @@ namespace gts::rendering
         }
 
         matGpu.tint            = mat.tint;
+        matGpu.blendMode       = mat.blendMode;
         matGpu.doubleSided     = mat.doubleSided;
         matGpu.vertexColorOnly = mat.vertexColorOnly;
+        matGpu.depthWrite      = mat.depthWrite;
 
         const bool dynamicGeometryChanged =
             !meshGpu.ownsProceduralMeshResource
