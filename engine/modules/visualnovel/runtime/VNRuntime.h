@@ -77,6 +77,7 @@ namespace gts::vn
         void stop()
         {
             status = VNRuntimeStatus::Idle;
+            externalDialogueActive = false;
             cursor = 0;
             waitRemainingSeconds = 0.0f;
             dialogue.clear();
@@ -87,6 +88,47 @@ namespace gts::vn
         {
             if (status == VNRuntimeStatus::WaitingForExternalCommand)
                 status = VNRuntimeStatus::Running;
+        }
+
+        void presentExternalDialogue(const std::string& speaker,
+                                     const std::string& text,
+                                     const std::vector<VNChoiceOption>& choices)
+        {
+            externalDialogueActive = true;
+            const bool textChanged = dialogue.speaker != speaker || dialogue.text != text;
+            dialogue.visible = true;
+            dialogue.speaker = speaker;
+            dialogue.text = text;
+            dialogue.choices = choices;
+            dialogue.waitingForContinue = choices.empty();
+            dialogue.continueIndicatorVisible = choices.empty()
+                && dialogue.visibleCharacters >= dialogue.text.size();
+
+            if (textChanged)
+            {
+                dialogue.visibleText.clear();
+                dialogue.visibleCharacters = 0;
+                dialogue.typewriterAccumulator = 0.0f;
+                dialogue.typewriterCharactersPerSecond = config.typewriterCharactersPerSecond;
+            }
+
+            status = choices.empty()
+                ? VNRuntimeStatus::WaitingForInput
+                : VNRuntimeStatus::WaitingForChoice;
+        }
+
+        void stopExternalDialogue()
+        {
+            if (externalDialogueActive)
+            {
+                externalDialogueActive = false;
+                stop();
+            }
+        }
+
+        bool isExternalDialogueActive() const
+        {
+            return externalDialogueActive;
         }
 
         void update(const EcsControllerContext& ctx, const VNRuntimeInput& input)
@@ -169,6 +211,7 @@ namespace gts::vn
         VNRuntimeStatus status = VNRuntimeStatus::Idle;
         size_t cursor = 0;
         float waitRemainingSeconds = 0.0f;
+        bool externalDialogueActive = false;
 
         void updateWaitState(const VNRuntimeInput& input)
         {

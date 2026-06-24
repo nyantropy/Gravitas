@@ -19,6 +19,12 @@ target_include_directories(gravitas_modules INTERFACE
     # Tweening
     "${CMAKE_CURRENT_SOURCE_DIR}/tween"
 
+    # Dialogue/narrative graph runtime
+    "${CMAKE_CURRENT_SOURCE_DIR}/dialogue/components"
+    "${CMAKE_CURRENT_SOURCE_DIR}/dialogue/events"
+    "${CMAKE_CURRENT_SOURCE_DIR}/dialogue/runtime"
+    "${CMAKE_CURRENT_SOURCE_DIR}/dialogue/systems"
+
     # Camera
     "${CMAKE_CURRENT_SOURCE_DIR}/camera/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/camera/debug"

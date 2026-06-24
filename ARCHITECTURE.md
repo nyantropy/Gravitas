@@ -30,6 +30,7 @@ Gravitas/
 │   │   ├── hierarchy/      # Parent-child transform hierarchy
 │   │   ├── animation/      # Keyframe animation
 │   │   ├── tween/          # Reusable value tween/easing helpers
+│   │   ├── dialogue/       # Generic dialogue graph runtime and ECS bridge
 │   │   ├── debugdraw/      # Feature-local line/bounds/frustum debug primitives
 │   │   ├── physics/        # Physics world, PhysicsSystem, body components
 │   │   ├── tools/          # Optional in-engine inspection/editing toolchain
@@ -671,6 +672,48 @@ continue to describe content and presentation intent such as speaker, text,
 choices, sprite identity, background mode, and named animation preset; concrete
 panel textures, nine-slice values, padding, and hover/pressed visuals belong in
 the active profile.
+
+### Dialogue Module
+
+`modules/dialogue/` is a generic graph-based narrative runtime. It owns dialogue
+graph execution, current node tracking, visible-choice evaluation, branching,
+generic conditions, generic actions, and start/end state. It deliberately knows
+nothing about game concepts such as quests, shops, items, factions, reputation,
+or party members.
+
+The data model is:
+
+- `DialogueGraph`: graph id, start node id, and node map
+- `DialogueNode`: speaker, text, choices, on-enter actions, on-exit actions,
+  and an explicit end flag
+- `DialogueChoice`: display text, target node, conditions, and actions
+- `DialogueCondition` / `DialogueAction`: string id plus string argument map
+
+`DialogueRuntime` executes one active graph. It enters the start node, evaluates
+visible choices through `DialogueConditionRegistry`, dispatches actions through
+`DialogueActionRegistry`, follows choice target nodes, and ends when it reaches
+an end node, a missing node when configured to end, or an explicit `end()` call.
+Unknown conditions fail closed and hide the choice. Unknown actions are ignored
+by default, or can end dialogue through `DialogueRuntimeConfig`.
+
+The ECS-facing layer provides:
+
+- `DialogueRuntimeComponent`: singleton runtime storage
+- `DialogueGraphRegistryComponent`: optional singleton graph catalog keyed by id
+- `DialogueStartRequestComponent`: optional singleton request surface for
+  starting either a registered graph id or an inline graph
+- `NPCInteractionComponent`: generic character/dialogue graph reference for
+  game-owned NPC entities
+- `DialogueSystem`: controller system that processes start requests and
+  publishes `DialogueStartedEvent`, `DialogueNodeChangedEvent`,
+  `DialogueChoicesChangedEvent`, `DialogueActionRequestedEvent`, and
+  `DialogueEndedEvent`
+
+The VN module consumes dialogue state only as presentation. When a
+`DialogueRuntimeComponent` is active, `VNSystem` mirrors the current dialogue
+node into its retained VN UI state and routes choice clicks or continue input
+back into `DialogueRuntime`. This bridge does not add rendering code to the
+dialogue runtime and does not put quest/shop/item logic into VN presentation.
 
 Engine tooling is a global development runtime owned by `GravitasEngine`.
 `EngineToolRuntime` updates once per rendered frame after the active scene's

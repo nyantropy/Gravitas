@@ -3,9 +3,12 @@
 #include <algorithm>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
+#include "DialogueContextHelpers.h"
+#include "DialogueRuntimeComponent.h"
 #include "InputBindingRegistry.h"
 #include "UiSystem.h"
 #include "VNDialogueUi.h"
@@ -52,6 +55,15 @@ namespace gts::vn
         {
             buildUiIfNeeded(ctx.ui);
 
+            if (dialogueActive(ctx.world))
+            {
+                updateDialoguePresentation(ctx);
+                return;
+            }
+
+            if (runtime.isExternalDialogueActive())
+                runtime.stopExternalDialogue();
+
             VNRuntimeInput input;
             input.dt = ctx.time == nullptr ? 0.0f : ctx.time->unscaledDeltaTime;
             input.continuePressed = continuePressed(ctx);
@@ -77,6 +89,12 @@ namespace gts::vn
         VNRuntime runtime;
         VNDialogueUiHandles handles;
         bool uiBuilt = false;
+
+        static bool dialogueActive(ECSWorld& world)
+        {
+            return world.hasAny<gts::dialogue::DialogueRuntimeComponent>()
+                && world.getSingleton<gts::dialogue::DialogueRuntimeComponent>().runtime.isActive();
+        }
 
         void buildUiIfNeeded(UiSystem* ui)
         {
@@ -110,6 +128,66 @@ namespace gts::vn
             frame.scrollX = static_cast<float>(ctx.input->scrollX());
             frame.scrollY = static_cast<float>(ctx.input->scrollY());
             return ctx.ui->updateInteraction(frame);
+        }
+
+        void updateDialoguePresentation(const EcsControllerContext& ctx)
+        {
+            auto& dialogueRuntime =
+                ctx.world.getSingleton<gts::dialogue::DialogueRuntimeComponent>().runtime;
+            gts::dialogue::DialogueContext dialogueContext =
+                gts::dialogue::makeDialogueContext(ctx, dialogueRuntime);
+
+            const bool continueInput = continuePressed(ctx);
+            int clickedChoiceIndex = -1;
+            if (ctx.ui != nullptr && uiBuilt && runtime.getConfig().capturePointerInput)
+            {
+                const UiInteractionResult interaction = updateInteraction(ctx);
+                clickedChoiceIndex = VNDialogueUi::choiceIndexFromInteraction(handles, interaction);
+            }
+
+            if (clickedChoiceIndex >= 0)
+                dialogueRuntime.selectChoice(static_cast<size_t>(clickedChoiceIndex), dialogueContext);
+            else if (continueInput && dialogueRuntime.getVisibleChoices().empty())
+                dialogueRuntime.advance(dialogueContext);
+
+            VNRuntimeInput input;
+            input.dt = ctx.time == nullptr ? 0.0f : ctx.time->unscaledDeltaTime;
+            input.continuePressed = false;
+            input.clickedChoiceIndex = -1;
+
+            if (dialogueRuntime.isActive())
+            {
+                dialogueRuntime.refreshVisibleChoices(dialogueContext);
+                presentDialogueRuntime(dialogueRuntime);
+                runtime.update(ctx, input);
+            }
+            else
+            {
+                runtime.stopExternalDialogue();
+            }
+
+            writePlaybackState(ctx.world);
+            if (ctx.ui != nullptr && uiBuilt)
+                VNDialogueUi::sync(*ctx.ui, handles, config.ui, runtime);
+        }
+
+        void presentDialogueRuntime(const gts::dialogue::DialogueRuntime& dialogueRuntime)
+        {
+            const gts::dialogue::DialogueNode* node = dialogueRuntime.getCurrentNode();
+            if (node == nullptr)
+                return;
+
+            std::vector<VNChoiceOption> choices;
+            choices.reserve(dialogueRuntime.getVisibleChoices().size());
+            for (const gts::dialogue::DialogueVisibleChoice& choice : dialogueRuntime.getVisibleChoices())
+            {
+                choices.push_back(VNChoiceOption{
+                    choice.text,
+                    choice.targetNode
+                });
+            }
+
+            runtime.presentExternalDialogue(node->speaker, node->text, choices);
         }
 
         void writePlaybackState(ECSWorld& world) const
