@@ -684,17 +684,19 @@ or party members.
 The data model is:
 
 - `DialogueGraph`: graph id, start node id, and node map
-- `DialogueNode`: speaker, text, choices, on-enter actions, on-exit actions,
-  and an explicit end flag
+- `DialogueNode`: speaker, text, optional linear `nextNode`, choices, on-enter
+  actions, on-exit actions, and an explicit end flag
 - `DialogueChoice`: display text, target node, conditions, and actions
 - `DialogueCondition` / `DialogueAction`: string id plus string argument map
 
 `DialogueRuntime` executes one active graph. It enters the start node, evaluates
 visible choices through `DialogueConditionRegistry`, dispatches actions through
-`DialogueActionRegistry`, follows choice target nodes, and ends when it reaches
-an end node, a missing node when configured to end, or an explicit `end()` call.
-Unknown conditions fail closed and hide the choice. Unknown actions are ignored
-by default, or can end dialogue through `DialogueRuntimeConfig`.
+`DialogueActionRegistry`, follows choice target nodes, advances through a node's
+linear `nextNode` when no choices are visible, and ends when it reaches an end
+node, a missing node when configured to end, a choice or node with no successor,
+or an explicit `end()` call. Unknown conditions fail closed and hide the choice.
+Unknown actions are ignored by default, or can end dialogue through
+`DialogueRuntimeConfig`.
 
 The ECS-facing layer provides:
 

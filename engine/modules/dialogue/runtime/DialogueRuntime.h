@@ -116,6 +116,16 @@ namespace gts::dialogue
             if (!visibleChoices.empty())
                 return false;
 
+            const DialogueNode* node = getCurrentNode();
+            if (node != nullptr && !node->nextNode.empty())
+            {
+                const std::string targetNode = node->nextNode;
+                context.graphId = activeGraph.id;
+                context.nodeId = currentNodeId;
+                executeCurrentExitActions(context);
+                return enterNode(targetNode, context);
+            }
+
             end(context);
             return true;
         }

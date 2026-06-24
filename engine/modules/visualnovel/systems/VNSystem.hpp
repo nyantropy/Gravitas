@@ -137,9 +137,13 @@ namespace gts::vn
             gts::dialogue::DialogueContext dialogueContext =
                 gts::dialogue::makeDialogueContext(ctx, dialogueRuntime);
 
-            const bool continueInput = continuePressed(ctx);
+            const bool acceptDialogueInput = runtime.isExternalDialogueActive();
+            const bool continueInput = acceptDialogueInput && continuePressed(ctx);
             int clickedChoiceIndex = -1;
-            if (ctx.ui != nullptr && uiBuilt && runtime.getConfig().capturePointerInput)
+            if (acceptDialogueInput
+                && ctx.ui != nullptr
+                && uiBuilt
+                && runtime.getConfig().capturePointerInput)
             {
                 const UiInteractionResult interaction = updateInteraction(ctx);
                 clickedChoiceIndex = VNDialogueUi::choiceIndexFromInteraction(handles, interaction);

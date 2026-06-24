@@ -31,6 +31,7 @@ namespace gts::dialogue
         std::string id;
         std::string speaker;
         std::string text;
+        std::string nextNode;
         std::vector<DialogueChoice> choices;
         std::vector<DialogueAction> onEnterActions;
         std::vector<DialogueAction> onExitActions;
