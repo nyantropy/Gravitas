@@ -601,8 +601,25 @@ rotated textured quads after a bounds-vs-clip visibility test. Legacy text nodes
 with zero bounds still render from their top-left position to preserve existing
 tool and game overlays. The UI primitive set also includes retained line nodes,
 which render thick colored screen-space segments for graph-like widgets such as
-skill-tree links, and retained circle nodes for icon buttons or graph nodes that
-need circular hit targets.
+skill-tree links, retained circle nodes for icon buttons or graph nodes that need
+circular hit targets, and retained nine-slice image nodes for scalable panels.
+
+`UiPanelSkin` is the reusable panel styling contract for retained UI surfaces.
+It can describe a solid-color panel, a single image panel, or a nine-slice image
+panel, plus tint, source slice fractions, and content padding. `UiPanelStateSkin`
+layers normal, hover, pressed, and disabled panel skins with fallback to normal
+when a state skin is not supplied. `UiPanelSkinNode` in rendering UI builds a
+small retained-node subtree with solid/image/nine-slice visual children and a
+padded content container. Menus, inventory screens, windows, VN dialogue boxes,
+choice buttons, and future UI surfaces should use this shared skin path instead
+of growing feature-local panel rendering helpers.
+
+Nine-slice UI rendering is implemented as a normal retained UI primitive. The
+visual resolver splits a node into nine textured quads, preserves corner UVs,
+stretches edges/center as needed, and clips each segment before emitting regular
+UI draw commands. Slice values are normalized fractions of the source image and
+destination bounds; a future texture-metadata pass may add pixel-exact slice
+authoring without changing the retained node contract.
 
 ### Tween Module
 
@@ -642,10 +659,18 @@ alpha, dimming, and effect envelopes such as shake.
 
 `VNRuntime` executes command streams sequentially and can wait for player input,
 animation completion, timers, choices, or an external custom command. Built-in
-commands cover say/show/hide/move/fade/scale/rotate/shake/expression/background/
-dimming/wait/choice/jump. `VNCommandRegistry` lets applications register
+commands cover say/show/hide/move/fade/scale/rotate/shake/animate/expression/
+background/dimming/wait/choice/jump. `VNCommandRegistry` lets applications register
 gameplay-specific commands such as starting combat or setting relationship state
 without hardcoding any game vocabulary into the engine module.
+
+VN presentation is skinned through `VNPresentationProfile`, not through scripts.
+The profile owns dialogue panel, shadow, nameplate, choice-button state skins,
+text colors/scales, layout rectangles, and sprite motion presets. Scripts should
+continue to describe content and presentation intent such as speaker, text,
+choices, sprite identity, background mode, and named animation preset; concrete
+panel textures, nine-slice values, padding, and hover/pressed visuals belong in
+the active profile.
 
 Engine tooling is a global development runtime owned by `GravitasEngine`.
 `EngineToolRuntime` updates once per rendered frame after the active scene's

@@ -31,6 +31,15 @@ struct UiImageData
     bool operator==(const UiImageData&) const = default;
 };
 
+struct UiNineSliceData
+{
+    std::string imageAsset;
+    UiColor     tint = {1.0f, 1.0f, 1.0f, 1.0f};
+    UiThickness slice;
+
+    bool operator==(const UiNineSliceData&) const = default;
+};
+
 struct UiTextData
 {
     std::string text;
@@ -90,7 +99,14 @@ struct UiGridData
     }
 };
 
-using UiNodePayload = std::variant<UiContainerData, UiRectData, UiImageData, UiTextData, UiGridData, UiLineData, UiCircleData>;
+using UiNodePayload = std::variant<UiContainerData,
+                                   UiRectData,
+                                   UiImageData,
+                                   UiNineSliceData,
+                                   UiTextData,
+                                   UiGridData,
+                                   UiLineData,
+                                   UiCircleData>;
 
 struct UiNode
 {

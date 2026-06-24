@@ -44,6 +44,11 @@ namespace gts::vn
             dialogue.typewriterCharactersPerSecond = config.typewriterCharactersPerSecond;
         }
 
+        void setMotionProfile(const VNSpriteMotionProfile& inMotionProfile)
+        {
+            motionProfile = inMotionProfile;
+        }
+
         const VNRuntimeConfig& getConfig() const
         {
             return config;
@@ -160,6 +165,7 @@ namespace gts::vn
         VNStage stage;
         VNDialogueState dialogue;
         VNCommandRegistry commandRegistry;
+        VNSpriteMotionProfile motionProfile;
         VNRuntimeStatus status = VNRuntimeStatus::Idle;
         size_t cursor = 0;
         float waitRemainingSeconds = 0.0f;
@@ -322,6 +328,9 @@ namespace gts::vn
                                       command.ease);
                     waitForAnimationIfRequested(command);
                     break;
+                case VNCommandType::AnimateSprite:
+                    executeAnimateSprite(command);
+                    break;
                 case VNCommandType::ChangeExpression:
                     stage.changeExpression(command.target, command.imageAsset, command.expression);
                     break;
@@ -397,6 +406,37 @@ namespace gts::vn
             }
 
             stage.setBackground(background);
+        }
+
+        void executeAnimateSprite(const VNCommand& command)
+        {
+            const std::string presetName = !command.presetName.empty() ? command.presetName : command.commandName;
+            const VNSpriteMotionPreset* preset = motionProfile.findPreset(presetName);
+            const VNSprite* sprite = stage.findSprite(command.target);
+            if (preset == nullptr || sprite == nullptr)
+                return;
+
+            const float duration = command.durationSeconds > 0.0f
+                ? command.durationSeconds
+                : preset->durationSeconds;
+
+            if (preset->positionOffset.x != 0.0f || preset->positionOffset.y != 0.0f)
+                stage.moveSprite(command.target, sprite->position + preset->positionOffset, duration, preset->ease);
+
+            if (preset->scaleOffset.x != 0.0f || preset->scaleOffset.y != 0.0f)
+                stage.scaleSprite(command.target, sprite->scale + preset->scaleOffset, duration, preset->ease);
+
+            if (preset->rotationOffset != 0.0f)
+                stage.rotateSprite(command.target, sprite->rotation + preset->rotationOffset, duration, preset->ease);
+
+            if (preset->alphaOffset != 0.0f)
+                stage.fadeSprite(command.target,
+                                 std::clamp(sprite->alpha + preset->alphaOffset, 0.0f, 1.0f),
+                                 duration,
+                                 preset->ease);
+
+            if ((command.waitForCompletion || preset->waitForCompletion) && duration > 0.0f)
+                status = VNRuntimeStatus::WaitingForAnimation;
         }
 
         void executeChoice(const VNCommand& command)

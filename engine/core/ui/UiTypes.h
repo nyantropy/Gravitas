@@ -48,7 +48,8 @@ enum class UiNodeType : uint8_t
     Text,
     Grid,
     Line,
-    Circle
+    Circle,
+    NineSlice
 };
 
 enum class UiPositionMode : uint8_t

@@ -79,6 +79,7 @@ namespace gts::vn
         ScaleSprite,
         RotateSprite,
         ShakeSprite,
+        AnimateSprite,
         ChangeExpression,
         SetBackground,
         SetDimming,
@@ -99,6 +100,7 @@ namespace gts::vn
         std::string imageAsset;
         std::string expression;
         std::string label;
+        std::string presetName;
         std::string soundAsset;
         VNBackground background;
         glm::vec2 position = {0.5f, 0.5f};
@@ -148,5 +150,27 @@ namespace gts::vn
         float typewriterCharactersPerSecond = 48.0f;
         bool blockGameplayInput = true;
         bool capturePointerInput = true;
+    };
+
+    struct VNSpriteMotionPreset
+    {
+        float durationSeconds = 0.18f;
+        gts::tween::TweenEase ease = gts::tween::TweenEase::SmoothStep;
+        glm::vec2 positionOffset = {0.0f, 0.0f};
+        glm::vec2 scaleOffset = {0.0f, 0.0f};
+        float rotationOffset = 0.0f;
+        float alphaOffset = 0.0f;
+        bool waitForCompletion = false;
+    };
+
+    struct VNSpriteMotionProfile
+    {
+        std::unordered_map<std::string, VNSpriteMotionPreset> presets;
+
+        const VNSpriteMotionPreset* findPreset(const std::string& name) const
+        {
+            const auto it = presets.find(name);
+            return it == presets.end() ? nullptr : &it->second;
+        }
     };
 } // namespace gts::vn

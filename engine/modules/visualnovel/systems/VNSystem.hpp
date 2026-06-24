@@ -25,6 +25,7 @@ namespace gts::vn
         explicit VNSystem(VNSystemConfig inConfig = {})
             : config(std::move(inConfig)), runtime(config.runtime)
         {
+            runtime.setMotionProfile(config.ui.profile.motionProfile);
         }
 
         VNRuntime& getRuntime()

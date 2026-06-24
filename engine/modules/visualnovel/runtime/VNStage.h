@@ -209,6 +209,15 @@ namespace gts::vn
             runtime.sprite.expression = expression;
         }
 
+        const VNSprite* findSprite(const std::string& id) const
+        {
+            const auto it = sprites.find(id);
+            if (it == sprites.end())
+                return nullptr;
+
+            return &it->second.sprite;
+        }
+
         bool update(float dt)
         {
             bool anyActive = false;

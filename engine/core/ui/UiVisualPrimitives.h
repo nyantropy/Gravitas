@@ -26,6 +26,16 @@ struct UiImagePrimitive
     float        rotation = 0.0f;
 };
 
+struct UiNineSlicePrimitive
+{
+    UiHandle    source = UI_INVALID_HANDLE;
+    UiRect      bounds;
+    UiRect      clipRect;
+    std::string imageAsset;
+    UiColor     tint;
+    UiThickness slice;
+};
+
 struct UiTextPrimitive
 {
     UiHandle     source = UI_INVALID_HANDLE;
@@ -60,7 +70,12 @@ struct UiCirclePrimitive
     int      segments = 32;
 };
 
-using UiVisualPrimitive = std::variant<UiRectPrimitive, UiImagePrimitive, UiTextPrimitive, UiLinePrimitive, UiCirclePrimitive>;
+using UiVisualPrimitive = std::variant<UiRectPrimitive,
+                                       UiImagePrimitive,
+                                       UiNineSlicePrimitive,
+                                       UiTextPrimitive,
+                                       UiLinePrimitive,
+                                       UiCirclePrimitive>;
 
 struct UiVisualList
 {

@@ -66,6 +66,130 @@ namespace
         return rect.width <= 0.0f || rect.height <= 0.0f;
     }
 
+    glm::vec2 mixVec2(glm::vec2 from, glm::vec2 to, float t)
+    {
+        return from + (to - from) * t;
+    }
+
+    void emitTexturedQuadClipped(UiCommandBuffer& buffer,
+                                 const UiRect& bounds,
+                                 const UiRect& clip,
+                                 texture_id_type textureId,
+                                 glm::vec2 uvMin,
+                                 glm::vec2 uvMax,
+                                 glm::vec4 tint,
+                                 int viewportWidth,
+                                 int viewportHeight)
+    {
+        if (bounds.width <= 0.0f || bounds.height <= 0.0f)
+            return;
+
+        const UiRect clipped = intersectRect(bounds, clip);
+        if (isEmptyRect(clipped))
+            return;
+
+        const float leftT = (clipped.x - bounds.x) / bounds.width;
+        const float rightT = (clipped.x + clipped.width - bounds.x) / bounds.width;
+        const float topT = (clipped.y - bounds.y) / bounds.height;
+        const float bottomT = (clipped.y + clipped.height - bounds.y) / bounds.height;
+
+        const glm::vec2 clippedUvMin = {
+            mixVec2(uvMin, uvMax, leftT).x,
+            mixVec2(uvMin, uvMax, topT).y
+        };
+        const glm::vec2 clippedUvMax = {
+            mixVec2(uvMin, uvMax, rightT).x,
+            mixVec2(uvMin, uvMax, bottomT).y
+        };
+
+        const UiRect snapped = snapRectToPixels(clipped, viewportWidth, viewportHeight);
+        buffer.addTexturedQuadUv(snapped.x,
+                                 snapped.y,
+                                 snapped.width,
+                                 snapped.height,
+                                 textureId,
+                                 clippedUvMin,
+                                 clippedUvMax,
+                                 tint);
+    }
+
+    struct UiAxisNineSlice
+    {
+        float dst[4] = {};
+        float uv[4] = {};
+    };
+
+    UiAxisNineSlice makeAxisSlice(float origin, float size, float leading, float trailing)
+    {
+        leading = std::clamp(leading, 0.0f, 0.49f);
+        trailing = std::clamp(trailing, 0.0f, 0.49f);
+        const float total = leading + trailing;
+        if (total > 0.98f)
+        {
+            const float scale = 0.98f / total;
+            leading *= scale;
+            trailing *= scale;
+        }
+
+        UiAxisNineSlice axis;
+        axis.dst[0] = origin;
+        axis.dst[1] = origin + size * leading;
+        axis.dst[2] = origin + size - size * trailing;
+        axis.dst[3] = origin + size;
+        axis.uv[0] = 0.0f;
+        axis.uv[1] = leading;
+        axis.uv[2] = 1.0f - trailing;
+        axis.uv[3] = 1.0f;
+        return axis;
+    }
+
+    void emitNineSlice(UiCommandBuffer& buffer,
+                       const UiNineSlicePrimitive& value,
+                       texture_id_type textureId,
+                       int viewportWidth,
+                       int viewportHeight)
+    {
+        if (value.bounds.width <= 0.0f || value.bounds.height <= 0.0f)
+            return;
+
+        const UiRect clipped = intersectRect(value.bounds, value.clipRect);
+        if (isEmptyRect(clipped))
+            return;
+
+        const UiAxisNineSlice x = makeAxisSlice(value.bounds.x,
+                                                value.bounds.width,
+                                                value.slice.left,
+                                                value.slice.right);
+        const UiAxisNineSlice y = makeAxisSlice(value.bounds.y,
+                                                value.bounds.height,
+                                                value.slice.top,
+                                                value.slice.bottom);
+        const glm::vec4 tint = toGlm(value.tint);
+
+        for (int row = 0; row < 3; ++row)
+        {
+            for (int column = 0; column < 3; ++column)
+            {
+                const UiRect segment = {
+                    x.dst[column],
+                    y.dst[row],
+                    std::max(0.0f, x.dst[column + 1] - x.dst[column]),
+                    std::max(0.0f, y.dst[row + 1] - y.dst[row])
+                };
+
+                emitTexturedQuadClipped(buffer,
+                                        segment,
+                                        value.clipRect,
+                                        textureId,
+                                        {x.uv[column], y.uv[row]},
+                                        {x.uv[column + 1], y.uv[row + 1]},
+                                        tint,
+                                        viewportWidth,
+                                        viewportHeight);
+            }
+        }
+    }
+
     bool clipLineToRect(glm::vec2& start, glm::vec2& end, const UiRect& clip)
     {
         if (isEmptyRect(clip))
@@ -292,19 +416,24 @@ void UiRenderResolver::buildCommandBuffer(
                     return;
                 }
 
-                const float leftT = (clipped.x - value.bounds.x) / value.bounds.width;
-                const float rightT = (clipped.x + clipped.width - value.bounds.x) / value.bounds.width;
-                const float topT = (clipped.y - value.bounds.y) / value.bounds.height;
-                const float bottomT = (clipped.y + clipped.height - value.bounds.y) / value.bounds.height;
-                const UiRect snapped = snapRectToPixels(clipped, viewportWidth, viewportHeight);
-                buffer.addTexturedQuadUv(snapped.x,
-                                         snapped.y,
-                                         snapped.width,
-                                         snapped.height,
-                                         textureId,
-                                         {leftT, topT},
-                                         {rightT, bottomT},
-                                         toGlm(value.tint));
+                emitTexturedQuadClipped(buffer,
+                                        value.bounds,
+                                        value.clipRect,
+                                        textureId,
+                                        {0.0f, 0.0f},
+                                        {1.0f, 1.0f},
+                                        toGlm(value.tint),
+                                        viewportWidth,
+                                        viewportHeight);
+            }
+            else if constexpr (std::is_same_v<T, UiNineSlicePrimitive>)
+            {
+                if (!resources || value.imageAsset.empty()) return;
+
+                const texture_id_type textureId = resources->requestTexture(value.imageAsset);
+                if (textureId == 0) return;
+
+                emitNineSlice(buffer, value, textureId, viewportWidth, viewportHeight);
             }
             else if constexpr (std::is_same_v<T, UiTextPrimitive>)
             {

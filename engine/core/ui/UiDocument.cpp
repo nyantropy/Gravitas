@@ -100,6 +100,7 @@ UiHandle UiDocument::createNode(UiNodeType type, UiHandle parent)
             case UiNodeType::Container: return UiContainerData{};
             case UiNodeType::Rect:      return UiRectData{};
             case UiNodeType::Image:     return UiImageData{};
+            case UiNodeType::NineSlice: return UiNineSliceData{};
             case UiNodeType::Text:      return UiTextData{};
             case UiNodeType::Grid:      return UiGridData{};
             case UiNodeType::Line:      return UiLineData{};
@@ -382,6 +383,20 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, con
                 data.tint,
                 data.imageAspect,
                 data.rotation
+            });
+            break;
+        }
+
+        case UiNodeType::NineSlice:
+        {
+            const auto& data = std::get<UiNineSliceData>(node.payload);
+            visualList.primitives.push_back(UiNineSlicePrimitive{
+                node.handle,
+                node.computedLayout.bounds,
+                effectiveClip,
+                data.imageAsset,
+                data.tint,
+                data.slice
             });
             break;
         }
