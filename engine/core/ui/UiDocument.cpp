@@ -380,7 +380,8 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, con
                 effectiveClip,
                 data.imageAsset,
                 data.tint,
-                data.imageAspect
+                data.imageAspect,
+                data.rotation
             });
             break;
         }

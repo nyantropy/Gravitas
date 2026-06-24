@@ -26,6 +26,7 @@ struct UiImageData
     std::string imageAsset;
     UiColor     tint        = {1.0f, 1.0f, 1.0f, 1.0f};
     float       imageAspect = 1.0f;
+    float       rotation    = 0.0f;
 
     bool operator==(const UiImageData&) const = default;
 };

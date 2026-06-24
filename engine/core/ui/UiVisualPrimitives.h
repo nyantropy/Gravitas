@@ -23,6 +23,7 @@ struct UiImagePrimitive
     std::string  imageAsset;
     UiColor      tint;
     float        imageAspect = 1.0f;
+    float        rotation = 0.0f;
 };
 
 struct UiTextPrimitive

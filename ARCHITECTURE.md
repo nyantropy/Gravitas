@@ -29,9 +29,11 @@ Gravitas/
 │   │   ├── transform/      # TransformComponent (position, rotation, scale)
 │   │   ├── hierarchy/      # Parent-child transform hierarchy
 │   │   ├── animation/      # Keyframe animation
+│   │   ├── tween/          # Reusable value tween/easing helpers
 │   │   ├── debugdraw/      # Feature-local line/bounds/frustum debug primitives
 │   │   ├── physics/        # Physics world, PhysicsSystem, body components
 │   │   ├── tools/          # Optional in-engine inspection/editing toolchain
+│   │   ├── visualnovel/    # VN stage, command runtime, and retained UI overlay
 │   │   └── rendering/      # Vulkan backend, GPU components, binding systems
 │   │       ├── ecssetup/   # Camera, geometry, text, and particle ECS setup
 │   │       └── backend/    # Vulkan device, frame graph, render stages, resources
@@ -593,11 +595,57 @@ Layout specs include a default-zero child `contentOffset`, so a clipped
 container can behave as a scroll view or pannable canvas without moving the
 container's own background. Text nodes support measurement, word wrapping,
 horizontal/vertical alignment, and max-line limits when authored with nonzero
-layout bounds. Legacy text nodes with zero bounds still render from their
-top-left position to preserve existing tool and game overlays. The UI primitive
-set also includes retained line nodes, which render thick colored screen-space
-segments for graph-like widgets such as skill-tree links, and retained circle
-nodes for icon buttons or graph nodes that need circular hit targets.
+layout bounds. Image nodes support tint and rotation around their bounds center;
+unrotated images use rectangular clipping, while rotated images are emitted as
+rotated textured quads after a bounds-vs-clip visibility test. Legacy text nodes
+with zero bounds still render from their top-left position to preserve existing
+tool and game overlays. The UI primitive set also includes retained line nodes,
+which render thick colored screen-space segments for graph-like widgets such as
+skill-tree links, and retained circle nodes for icon buttons or graph nodes that
+need circular hit targets.
+
+### Tween Module
+
+`modules/tween/Tween.h` provides the reusable `gts::tween::Tween<T>` helper and
+standard easing modes. It is a small value-interpolation utility rather than an
+ECS system: engine or game systems own tweens in their own runtime state, tick
+them with the appropriate fixed or controller delta time, and apply the resulting
+value to their own descriptors/state. This keeps tweening reusable for UI,
+presentation, tools, or gameplay-owned systems without tying it to one renderer
+or component type.
+
+### Visual Novel Module
+
+`modules/visualnovel/` is an engine-level VN presentation/runtime module. It is
+content-neutral: applications provide scripts, character IDs, image asset paths,
+story state, branching labels, and gameplay-specific commands.
+
+The module is split into:
+
+- `runtime/`: `VNStage`, `VNRuntime`, `VNScript`, typed `VNCommand` data, and
+  `VNCommandRegistry`
+- `ui/`: retained UI construction/sync for dialogue boxes, choices, fullscreen
+  backgrounds, dimming, and character sprite images
+- `systems/`: `VNSystem`, a controller system that owns one runtime instance,
+  routes continue/pointer input, syncs UI, and writes playback state
+- `components/`: `VNPlaybackStateComponent`, a lightweight singleton view of
+  whether VN playback is active, waiting, or blocking gameplay input
+
+The VN stage supports multiple background modes: current scene, fullscreen image,
+solid color, and none. Current-scene mode leaves the 3D scene visible and renders
+VN presentation through retained UI over it. Fullscreen-image and solid-color
+modes cover the scene with UI primitives before sprites and dialogue are drawn.
+Sprites are independent stage entries with image asset path, normalized position,
+size, scale, rotation, alpha, visibility, expression string, and z-order. Stage
+animation is powered by `gts::tween::Tween<T>` for position, scale, rotation,
+alpha, dimming, and effect envelopes such as shake.
+
+`VNRuntime` executes command streams sequentially and can wait for player input,
+animation completion, timers, choices, or an external custom command. Built-in
+commands cover say/show/hide/move/fade/scale/rotate/shake/expression/background/
+dimming/wait/choice/jump. `VNCommandRegistry` lets applications register
+gameplay-specific commands such as starting combat or setting relationship state
+without hardcoding any game vocabulary into the engine module.
 
 Engine tooling is a global development runtime owned by `GravitasEngine`.
 `EngineToolRuntime` updates once per rendered frame after the active scene's

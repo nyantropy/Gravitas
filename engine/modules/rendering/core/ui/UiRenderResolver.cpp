@@ -277,6 +277,21 @@ void UiRenderResolver::buildCommandBuffer(
                 const UiRect clipped = intersectRect(value.bounds, value.clipRect);
                 if (isEmptyRect(clipped)) return;
 
+                if (std::abs(value.rotation) > 0.000001f)
+                {
+                    const UiRect snapped = snapRectToPixels(value.bounds, viewportWidth, viewportHeight);
+                    buffer.addTexturedQuadUvRotated(snapped.x,
+                                                    snapped.y,
+                                                    snapped.width,
+                                                    snapped.height,
+                                                    textureId,
+                                                    {0.0f, 0.0f},
+                                                    {1.0f, 1.0f},
+                                                    value.rotation,
+                                                    toGlm(value.tint));
+                    return;
+                }
+
                 const float leftT = (clipped.x - value.bounds.x) / value.bounds.width;
                 const float rightT = (clipped.x + clipped.width - value.bounds.x) / value.bounds.width;
                 const float topT = (clipped.y - value.bounds.y) / value.bounds.height;

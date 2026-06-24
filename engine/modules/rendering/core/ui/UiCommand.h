@@ -88,6 +88,43 @@ struct UiCommandBuffer
         addDrawCommand(UiDrawType::TexturedQuad, texID, idxBase, 6);
     }
 
+    void addTexturedQuadUvRotated(float x, float y, float w, float h,
+                                  texture_id_type texID,
+                                  glm::vec2 uvMin,
+                                  glm::vec2 uvMax,
+                                  float rotation,
+                                  glm::vec4 tint = {1.0f, 1.0f, 1.0f, 1.0f})
+    {
+        const float centerX = x + w * 0.5f;
+        const float centerY = y + h * 0.5f;
+        const float c = std::cos(rotation);
+        const float s = std::sin(rotation);
+
+        auto rotatePoint = [&](float px, float py) -> glm::vec2
+        {
+            const float localX = px - centerX;
+            const float localY = py - centerY;
+            return {
+                centerX + localX * c - localY * s,
+                centerY + localX * s + localY * c
+            };
+        };
+
+        const uint32_t base = static_cast<uint32_t>(vertices.size());
+
+        vertices.push_back({rotatePoint(x,     y),     {uvMin.x, uvMin.y}, tint});
+        vertices.push_back({rotatePoint(x + w, y),     {uvMax.x, uvMin.y}, tint});
+        vertices.push_back({rotatePoint(x,     y + h), {uvMin.x, uvMax.y}, tint});
+        vertices.push_back({rotatePoint(x + w, y + h), {uvMax.x, uvMax.y}, tint});
+
+        const uint32_t idxBase = static_cast<uint32_t>(indices.size());
+        indices.push_back(base + 0); indices.push_back(base + 2);
+        indices.push_back(base + 1); indices.push_back(base + 1);
+        indices.push_back(base + 2); indices.push_back(base + 3);
+
+        addDrawCommand(UiDrawType::TexturedQuad, texID, idxBase, 6);
+    }
+
     void addTexturedQuad(float x, float y, float w, float h,
                          texture_id_type texID,
                          glm::vec4 tint = {1.0f, 1.0f, 1.0f, 1.0f})

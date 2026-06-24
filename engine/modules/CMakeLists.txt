@@ -16,6 +16,9 @@ target_include_directories(gravitas_modules INTERFACE
     # Animation
     "${CMAKE_CURRENT_SOURCE_DIR}/animation/components"
 
+    # Tweening
+    "${CMAKE_CURRENT_SOURCE_DIR}/tween"
+
     # Camera
     "${CMAKE_CURRENT_SOURCE_DIR}/camera/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/camera/debug"
@@ -26,6 +29,12 @@ target_include_directories(gravitas_modules INTERFACE
 
     # Transform
     "${CMAKE_CURRENT_SOURCE_DIR}/transform/components"
+
+    # Visual novel presentation/runtime
+    "${CMAKE_CURRENT_SOURCE_DIR}/visualnovel/components"
+    "${CMAKE_CURRENT_SOURCE_DIR}/visualnovel/runtime"
+    "${CMAKE_CURRENT_SOURCE_DIR}/visualnovel/systems"
+    "${CMAKE_CURRENT_SOURCE_DIR}/visualnovel/ui"
 
     # Physics
     "${CMAKE_CURRENT_SOURCE_DIR}/physics/core"
