@@ -24,6 +24,7 @@
 #include "ParticleFrameData.h"
 #include "ProfileAccumulator.h"
 #include "RenderGpuSystem.hpp"
+#include "RenderPassVisibilityComponent.h"
 #include "RenderViewportComponent.h"
 #include "EngineToolRuntime.hpp"
 
@@ -208,6 +209,15 @@ class GravitasEngine
         const ParticleFrameData& particleData = world.hasAny<ParticleFrameDataComponent>()
                                                     ? world.getSingleton<ParticleFrameDataComponent>().frameData
                                                     : emptyParticleData;
+        const RenderPassVisibilityComponent passVisibility = world.hasAny<RenderPassVisibilityComponent>()
+            ? world.getSingleton<RenderPassVisibilityComponent>()
+            : RenderPassVisibilityComponent::allVisible();
+
+        static const std::vector<RenderCommand> emptyRenderList;
+        const std::vector<RenderCommand>& submittedRenderList =
+            passVisibility.renderScene ? renderList : emptyRenderList;
+        const ParticleFrameData& submittedParticleData =
+            passVisibility.renderParticles ? particleData : emptyParticleData;
 
         // Per-stage pipeline metrics (snapshot / visibility / extraction / sort)
         const auto& pipelineMetrics  = renderPipeline->getLastPipelineMetrics();
@@ -245,10 +255,10 @@ class GravitasEngine
 
         const auto submitStart = std::chrono::steady_clock::now();
         platform.getGraphics()->renderFrame(dt,
-                                            renderList,
+                                            submittedRenderList,
                                             renderPipeline->getLatestSnapshot().objectUploads,
                                             renderPipeline->getLatestSnapshot().cameraUploads,
-                                            particleData,
+                                            submittedParticleData,
                                             sceneViewport,
                                             *uiBuffer,
                                             stats);

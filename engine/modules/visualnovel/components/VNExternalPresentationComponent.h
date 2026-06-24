@@ -18,6 +18,8 @@ namespace gts::vn
         bool active = false;
         VNBackground background;
         float dimmingAlpha = 0.0f;
+        bool suppressSceneRendering = false;
+        bool suppressParticles = false;
         std::vector<VNExternalSprite> sprites;
 
         void clear()
@@ -25,6 +27,8 @@ namespace gts::vn
             active = false;
             background = VNBackground{};
             dimmingAlpha = 0.0f;
+            suppressSceneRendering = false;
+            suppressParticles = false;
             sprites.clear();
         }
     };

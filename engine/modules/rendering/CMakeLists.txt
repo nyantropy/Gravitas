@@ -37,6 +37,9 @@ target_include_directories(gravitas_rendering PUBLIC
     # Render viewport contract
     "${CMAKE_CURRENT_SOURCE_DIR}/core/viewport"
 
+    # Render pass visibility controls
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/visibility"
+
     # Concrete Vulkan graphics wrapper
     "${CMAKE_CURRENT_SOURCE_DIR}/core/vulkangraphics"
 

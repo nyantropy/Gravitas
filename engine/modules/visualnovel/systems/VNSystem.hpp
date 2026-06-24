@@ -10,6 +10,7 @@
 #include "DialogueContextHelpers.h"
 #include "DialogueRuntimeComponent.h"
 #include "InputBindingRegistry.h"
+#include "RenderPassVisibilityComponent.h"
 #include "UiSystem.h"
 #include "VNDialogueUi.h"
 #include "VNExternalPresentationComponent.h"
@@ -64,6 +65,7 @@ namespace gts::vn
 
             if (runtime.isExternalDialogueActive())
                 runtime.stopExternalDialogue();
+            resetRenderPassVisibilityIfNeeded(ctx.world);
 
             VNRuntimeInput input;
             input.dt = ctx.time == nullptr ? 0.0f : ctx.time->unscaledDeltaTime;
@@ -90,6 +92,7 @@ namespace gts::vn
         VNRuntime runtime;
         VNDialogueUiHandles handles;
         bool uiBuilt = false;
+        bool renderPassVisibilityOverridden = false;
 
         static bool dialogueActive(ECSWorld& world)
         {
@@ -170,6 +173,7 @@ namespace gts::vn
             else
             {
                 runtime.stopExternalDialogue();
+                resetRenderPassVisibilityIfNeeded(ctx.world);
             }
 
             writePlaybackState(ctx.world);
@@ -205,6 +209,7 @@ namespace gts::vn
             {
                 stage.clearBackgroundOverride();
                 stage.setDimming(0.0f);
+                resetRenderPassVisibilityIfNeeded(world);
                 return;
             }
 
@@ -214,6 +219,7 @@ namespace gts::vn
             {
                 stage.clearBackgroundOverride();
                 stage.setDimming(0.0f);
+                resetRenderPassVisibilityIfNeeded(world);
                 return;
             }
 
@@ -221,6 +227,32 @@ namespace gts::vn
             stage.setDimming(presentation.dimmingAlpha);
             for (const VNExternalSprite& sprite : presentation.sprites)
                 stage.showSprite(sprite.id, sprite.sprite);
+            writeRenderPassVisibility(world, presentation);
+        }
+
+        void writeRenderPassVisibility(ECSWorld& world,
+                                       const VNExternalPresentationComponent& presentation)
+        {
+            if (!world.hasAny<RenderPassVisibilityComponent>())
+                world.createSingleton<RenderPassVisibilityComponent>();
+
+            RenderPassVisibilityComponent& visibility =
+                world.getSingleton<RenderPassVisibilityComponent>();
+            visibility.renderScene = !presentation.suppressSceneRendering;
+            visibility.renderParticles = !presentation.suppressParticles;
+            renderPassVisibilityOverridden = true;
+        }
+
+        void resetRenderPassVisibilityIfNeeded(ECSWorld& world)
+        {
+            if (!renderPassVisibilityOverridden)
+                return;
+
+            if (world.hasAny<RenderPassVisibilityComponent>())
+                world.getSingleton<RenderPassVisibilityComponent>() =
+                    RenderPassVisibilityComponent::allVisible();
+
+            renderPassVisibilityOverridden = false;
         }
 
         void writePlaybackState(ECSWorld& world) const

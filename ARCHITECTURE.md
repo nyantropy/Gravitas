@@ -198,6 +198,14 @@ The render lifecycle is split by concern:
 - **Camera lifecycle** owns `CameraGpuComponent` creation/removal independently of geometry lifecycle
 - **Render invalidation** queues transform and snapshot dirtiness explicitly so steady-state extraction does not scan every renderable
 
+Scene-level render pass visibility is controlled by the optional
+`RenderPassVisibilityComponent` singleton. `GravitasEngine` reads it at the
+graphics handoff and can submit an empty scene render list and/or empty particle
+frame data while leaving the ECS world, render descriptors, GPU companions,
+physics, and UI untouched. This is intended for presentation modes such as full
+VN scenes where the world should remain loaded but not draw its geometry or
+particles. UI is not affected by this component.
+
 For cameras, application code should only author `CameraDescriptionComponent`
 plus transform/control descriptors. The engine-owned camera lifecycle
 creates/removes `CameraGpuComponent`, `CameraGpuSystem` computes matrices, and
@@ -677,10 +685,11 @@ the active profile.
 
 Dialogue-driven VN presentation can opt into a traditional full-VN scene without
 changing dialogue graph data. A game may populate `VNExternalPresentationComponent`
-with a fullscreen image background, dimming value, and VN sprites while a
-`DialogueRuntimeComponent` is active. `VNSystem` applies that override only to
-external dialogue presentation; if the component is absent or inactive, dialogue
-continues to overlay the current 3D scene.
+with a fullscreen image background, dimming value, VN sprites, and optional
+scene/particle render suppression while a `DialogueRuntimeComponent` is active.
+`VNSystem` applies that override only to external dialogue presentation; if the
+component is absent or inactive, dialogue continues to overlay the current 3D
+scene and render pass visibility is restored to defaults.
 
 ### Dialogue Module
 
