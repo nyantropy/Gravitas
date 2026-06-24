@@ -12,6 +12,7 @@
 #include "InputBindingRegistry.h"
 #include "UiSystem.h"
 #include "VNDialogueUi.h"
+#include "VNExternalPresentationComponent.h"
 #include "VNPlaybackStateComponent.h"
 
 namespace gts::vn
@@ -163,6 +164,7 @@ namespace gts::vn
             {
                 dialogueRuntime.refreshVisibleChoices(dialogueContext);
                 presentDialogueRuntime(dialogueRuntime);
+                applyExternalPresentation(ctx.world);
                 runtime.update(ctx, input);
             }
             else
@@ -192,6 +194,33 @@ namespace gts::vn
             }
 
             runtime.presentExternalDialogue(node->speaker, node->text, choices);
+        }
+
+        void applyExternalPresentation(ECSWorld& world)
+        {
+            VNStage& stage = runtime.getStage();
+            stage.clearSprites();
+
+            if (!world.hasAny<VNExternalPresentationComponent>())
+            {
+                stage.clearBackgroundOverride();
+                stage.setDimming(0.0f);
+                return;
+            }
+
+            const VNExternalPresentationComponent& presentation =
+                world.getSingleton<VNExternalPresentationComponent>();
+            if (!presentation.active)
+            {
+                stage.clearBackgroundOverride();
+                stage.setDimming(0.0f);
+                return;
+            }
+
+            stage.setBackground(presentation.background);
+            stage.setDimming(presentation.dimmingAlpha);
+            for (const VNExternalSprite& sprite : presentation.sprites)
+                stage.showSprite(sprite.id, sprite.sprite);
         }
 
         void writePlaybackState(ECSWorld& world) const

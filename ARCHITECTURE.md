@@ -647,7 +647,9 @@ The module is split into:
 - `systems/`: `VNSystem`, a controller system that owns one runtime instance,
   routes continue/pointer input, syncs UI, and writes playback state
 - `components/`: `VNPlaybackStateComponent`, a lightweight singleton view of
-  whether VN playback is active, waiting, or blocking gameplay input
+  whether VN playback is active, waiting, or blocking gameplay input, and
+  `VNExternalPresentationComponent`, an optional presentation override for
+  dialogue-driven VN backgrounds, dimming, and sprites
 
 The VN stage supports multiple background modes: current scene, fullscreen image,
 solid color, and none. Current-scene mode leaves the 3D scene visible and renders
@@ -672,6 +674,13 @@ continue to describe content and presentation intent such as speaker, text,
 choices, sprite identity, background mode, and named animation preset; concrete
 panel textures, nine-slice values, padding, and hover/pressed visuals belong in
 the active profile.
+
+Dialogue-driven VN presentation can opt into a traditional full-VN scene without
+changing dialogue graph data. A game may populate `VNExternalPresentationComponent`
+with a fullscreen image background, dimming value, and VN sprites while a
+`DialogueRuntimeComponent` is active. `VNSystem` applies that override only to
+external dialogue presentation; if the component is absent or inactive, dialogue
+continues to overlay the current 3D scene.
 
 ### Dialogue Module
 

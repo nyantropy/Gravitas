@@ -21,6 +21,11 @@ namespace gts::vn
             dimTween.clear();
         }
 
+        void clearSprites()
+        {
+            sprites.clear();
+        }
+
         void useCurrentSceneAsBackground()
         {
             VNBackground next;
