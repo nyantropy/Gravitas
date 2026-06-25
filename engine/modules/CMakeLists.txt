@@ -6,8 +6,7 @@ add_subdirectory(debugdraw)
 add_subdirectory(tools)
 
 # ── gravitas_modules — INTERFACE aggregator for ECS feature modules ────────────
-# All sub-modules are header-only; no .cpp files exist under camera/, transform/,
-# hierarchy/, animation/.
+# Lightweight ECS modules are header-only; compiled feature modules are linked below.
 add_library(gravitas_modules INTERFACE)
 
 target_compile_features(gravitas_modules INTERFACE cxx_std_20)
@@ -24,11 +23,6 @@ target_include_directories(gravitas_modules INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/dialogue/events"
     "${CMAKE_CURRENT_SOURCE_DIR}/dialogue/runtime"
     "${CMAKE_CURRENT_SOURCE_DIR}/dialogue/systems"
-
-    # Camera
-    "${CMAKE_CURRENT_SOURCE_DIR}/camera/components"
-    "${CMAKE_CURRENT_SOURCE_DIR}/camera/debug"
-    "${CMAKE_CURRENT_SOURCE_DIR}/camera/systems"
 
     # Hierarchy
     "${CMAKE_CURRENT_SOURCE_DIR}/hierarchy/components"

@@ -1,6 +1,6 @@
 # ── gravitas_core ──────────────────────────────────────────────────────────────
-# Pure C++ core: ECS framework, input, scene management, options, time, RNG.
-# No Vulkan, no GLFW. All sub-directories are header-only except rng/.
+# Pure C++ core: ECS framework, input, scene management, options, time, UI, and threading.
+# No Vulkan, no GLFW.
 file(GLOB_RECURSE CORE_SOURCES
     CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
@@ -33,7 +33,6 @@ target_include_directories(gravitas_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/world"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/systems"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/context"
-    "${CMAKE_CURRENT_SOURCE_DIR}/ecs/extractors/interface"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/extractors/render"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/extractors/render/frustumcull"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/extractors/render/frustumcull/components"
@@ -53,17 +52,9 @@ target_include_directories(gravitas_core PUBLIC
     # Render description components (StaticMeshComponent, MaterialComponent, etc.)
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/desc"
 
-    # RNG
-    "${CMAKE_CURRENT_SOURCE_DIR}/rng"
-
     # Scene management
     "${CMAKE_CURRENT_SOURCE_DIR}/scene/manager"
-    "${CMAKE_CURRENT_SOURCE_DIR}/scene/context"
     "${CMAKE_CURRENT_SOURCE_DIR}/scene/data"
-
-    # Script (header-only)
-    "${CMAKE_CURRENT_SOURCE_DIR}/script/components"
-    "${CMAKE_CURRENT_SOURCE_DIR}/script/systems"
 
     # Time
     "${CMAKE_CURRENT_SOURCE_DIR}/time"
