@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -68,6 +69,7 @@ namespace gts::vn
                 runtime.stopExternalDialogue();
             resetRenderPassVisibilityIfNeeded(ctx.world);
             resetDialogueExecutionProfileIfNeeded(ctx.world);
+            lastExternalPresentationRevision = 0;
 
             VNRuntimeInput input;
             input.dt = ctx.time == nullptr ? 0.0f : ctx.time->unscaledDeltaTime;
@@ -97,6 +99,7 @@ namespace gts::vn
         bool renderPassVisibilityOverridden = false;
         bool executionProfilePushed = false;
         std::string activeExecutionProfileId;
+        uint64_t lastExternalPresentationRevision = 0;
 
         static bool dialogueActive(ECSWorld& world)
         {
@@ -180,6 +183,7 @@ namespace gts::vn
                 runtime.stopExternalDialogue();
                 resetRenderPassVisibilityIfNeeded(ctx.world);
                 resetDialogueExecutionProfileIfNeeded(ctx.world);
+                lastExternalPresentationRevision = 0;
             }
 
             writePlaybackState(ctx.world);
@@ -209,30 +213,55 @@ namespace gts::vn
         bool applyExternalPresentation(ECSWorld& world)
         {
             VNStage& stage = runtime.getStage();
-            stage.clearSprites();
 
             if (!world.hasAny<VNExternalPresentationComponent>())
             {
+                stage.clearSprites();
                 stage.clearBackgroundOverride();
                 stage.setDimming(0.0f);
                 resetRenderPassVisibilityIfNeeded(world);
+                lastExternalPresentationRevision = 0;
                 return false;
             }
 
-            const VNExternalPresentationComponent& presentation =
+            VNExternalPresentationComponent& presentation =
                 world.getSingleton<VNExternalPresentationComponent>();
             if (!presentation.active)
             {
+                stage.clearSprites();
                 stage.clearBackgroundOverride();
                 stage.setDimming(0.0f);
                 resetRenderPassVisibilityIfNeeded(world);
+                lastExternalPresentationRevision = 0;
                 return false;
             }
 
-            stage.setBackground(presentation.background);
-            stage.setDimming(presentation.dimmingAlpha);
-            for (const VNExternalSprite& sprite : presentation.sprites)
-                stage.showSprite(sprite.id, sprite.sprite);
+            if (presentation.revision != lastExternalPresentationRevision
+                || !presentation.animationRequests.empty())
+            {
+                stage.setBackground(presentation.background);
+                stage.setDimming(presentation.dimmingAlpha);
+                stage.clearSprites();
+                for (const VNExternalSprite& sprite : presentation.sprites)
+                {
+                    stage.showSprite(sprite.id,
+                                     sprite.sprite,
+                                     sprite.appearDurationSeconds,
+                                     sprite.appearEase);
+                }
+
+                for (const VNExternalSpriteAnimation& animation : presentation.animationRequests)
+                {
+                    stage.shakeSprite(animation.spriteId,
+                                      animation.durationSeconds,
+                                      animation.intensity,
+                                      animation.frequency,
+                                      animation.ease);
+                }
+                presentation.animationRequests.clear();
+                lastExternalPresentationRevision = presentation.revision;
+            }
+
             writeRenderPassVisibility(world, presentation);
             return isFullscreenPresentation(presentation);
         }
