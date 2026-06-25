@@ -83,6 +83,11 @@ class RenderResourceManager : public IResourceProvider
             return textureManager->loadTexture(path);
         }
 
+        texture_id_type requestClampedTexture(const std::string& path) override
+        {
+            return textureManager->loadTexture(path, false, true);
+        }
+
         texture_id_type requestPixelTexture(const std::string& path) override
         {
             return textureManager->loadTexture(path, true);

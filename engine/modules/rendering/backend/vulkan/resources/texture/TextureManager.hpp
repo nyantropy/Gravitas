@@ -23,17 +23,23 @@ class TextureManager
 
         // Loads a texture if not already loaded; returns its unique ID.
         // nearestFilter = true requests NEAREST sampling (no anisotropy, no mip blending).
-        // Nearest and linear variants of the same path are cached independently.
-        texture_id_type loadTexture(const std::string& path, bool nearestFilter = false)
+        // clampToEdge = true preserves filtering but clamps UVs for UI/atlas edges.
+        // Sampler variants of the same path are cached independently.
+        texture_id_type loadTexture(const std::string& path,
+                                    bool nearestFilter = false,
+                                    bool clampToEdge = false)
         {
-            const std::string key = nearestFilter ? (path + ":nearest") : path;
+            const bool effectiveClampToEdge = nearestFilter || clampToEdge;
+            const std::string key = path
+                + (nearestFilter ? ":nearest" : ":linear")
+                + (effectiveClampToEdge ? ":clamp" : ":repeat");
 
             auto it = pathToID.find(key);
             if (it != pathToID.end())
                 return it->second;
 
             auto resource = std::make_unique<TextureResource>();
-            resource->texture = std::make_unique<VulkanTexture>(path, nearestFilter);
+            resource->texture = std::make_unique<VulkanTexture>(path, nearestFilter, clampToEdge);
 
             // Allocate descriptor sets via the descriptor set manager
             resource->descriptorSets = dssheet::getManager()

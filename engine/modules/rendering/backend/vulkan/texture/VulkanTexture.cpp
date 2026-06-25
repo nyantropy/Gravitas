@@ -1,7 +1,8 @@
 #include "VulkanTexture.hpp"
 
-VulkanTexture::VulkanTexture(const std::string path, bool nearestFilter)
+VulkanTexture::VulkanTexture(const std::string path, bool nearestFilter, bool clampToEdge)
     : nearestFilter(nearestFilter)
+    , clampToEdge(clampToEdge)
 {
     createTextureImage(path);
     createTextureImageView();
@@ -65,7 +66,8 @@ void VulkanTexture::createTextureSampler()
 
     const VkFilter            filter      = nearestFilter ? VK_FILTER_NEAREST            : VK_FILTER_LINEAR;
     const VkSamplerMipmapMode mipmapMode  = nearestFilter ? VK_SAMPLER_MIPMAP_MODE_NEAREST : VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    const VkSamplerAddressMode addrMode   = nearestFilter ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    const VkSamplerAddressMode addrMode =
+        (nearestFilter || clampToEdge) ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;

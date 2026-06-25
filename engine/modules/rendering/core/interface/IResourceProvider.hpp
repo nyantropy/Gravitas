@@ -34,6 +34,8 @@ class IResourceProvider
 
         // request a texture from the resource provider, no nearest neighbor
         virtual texture_id_type requestTexture(const std::string& path) = 0;
+        // Like requestTexture but clamps UVs to the texture edge while preserving linear filtering.
+        virtual texture_id_type requestClampedTexture(const std::string& path) = 0;
         // Like requestTexture but forces NEAREST-neighbor sampling and no anisotropy.
         // Use for pixel-art or bitmap-font atlases that must render crisp.
         virtual texture_id_type requestPixelTexture(const std::string& path) = 0;

@@ -20,7 +20,7 @@ Gravitas is a C++20 Vulkan game engine built around a two-tier ECS (Entity-Compo
 Gravitas/
 ├── engine/
 │   ├── core/               # Pure C++ ECS framework, input, scene, UI, events
-│   │   ├── ecs/            # Entity, component storage, system bases, extractors
+│   │   ├── ecs/            # Entity, component storage, execution profiles, systems, extractors
 │   │   ├── input/          # Raw keys, semantic action mapping
 │   │   ├── scene/          # SceneContext, SceneManager
 │   │   ├── ui/             # Retained-mode UI document model
@@ -79,6 +79,10 @@ Gravitas/
 | `commands()` / `flushCommands()` | Deferred structural mutation path |
 | `createSingleton<C>()` / `getSingleton<C>()` | Enforce single-instance components |
 | `registerRemoveCallback<C>(fn)` | Hook fired when a component is removed |
+| `addSimulationSystem<S>(group, ...)` | Register a fixed-step system with execution group metadata |
+| `addControllerSystem<S>(group, ...)` | Register a per-frame system with execution group metadata |
+| `pushExecutionProfile(profile)` / `popExecutionProfile()` | Push/pop runtime execution modes |
+| `shouldExecuteGroup(group)` | Query the active execution profile from scene-local orchestration code |
 
 Singletons are used for global state: camera, physics world, time context.
 
@@ -92,8 +96,8 @@ The engine defines two system base classes with distinct contracts:
 ```
 update(const EcsSimulationContext& ctx)
 ```
-- Runs at **fixed timestep** (default 20 Hz)
-- Context provides: `world`, fixed `dt`, read-only `InputSnapshot`
+- Runs at **fixed timestep**
+- Context provides: `world`, fixed `dt`, read-only `InputBindingRegistry`
 - Deterministic; suitable for physics, animation, game logic
 - Systems run in registration order — document and maintain that order
 - Examples: `PhysicsSystem`, `TransformAnimationSystem`
@@ -108,18 +112,84 @@ update(const EcsControllerContext& ctx)
 - Can issue typed engine commands (scene change, pause/resume, screenshots, graphics settings) via `ctx.engineCommands`
 - Examples: `CameraGpuSystem`, `RenderGpuSystem`, `StaticMeshBindingSystem`
 
+### Execution Profiles And System Groups
+
+Every registered simulation or controller system is assigned one broad
+`EcsSystemGroup`. `ECSWorld` stores systems as registered entries containing the
+system instance plus its group, and the simulation/controller hotpaths skip
+entries whose group is not enabled by the active `SceneExecutionProfile`.
+
+Current system groups are intentionally coarse:
+
+- `Always`
+- `Gameplay`
+- `Physics`
+- `Camera`
+- `RenderPrep`
+- `Particles`
+- `Animation`
+- `Audio`
+- `Ui`
+- `Dialogue`
+- `VN`
+- `Tools`
+
+Do not introduce feature-specific groups such as enemy AI, shop logic, or a
+particular effect unless a broad engine-level category stops being expressive
+enough. Most application logic belongs in `Gameplay`; engine renderer binding
+and GPU sync systems belong in `RenderPrep`; retained UI sync/input systems
+belong in `Ui`; global or scene debug tooling belongs in `Tools`.
+
+`SceneExecutionProfile` combines three independent policy areas:
+
+- `enabledSystems`: a bitmask of awake `EcsSystemGroup` values
+- `renderBuildMode`: whether the engine rebuilds world render commands,
+  reuses cached world commands, renders UI only, or renders nothing
+- `timePolicy`: the intended clock-domain policy for the mode
+
+`ECSWorld` owns a stack of execution profiles. The base profile is always
+`SceneExecutionProfile::gameplay()`, and nested runtime modes push additional
+profiles. Popping restores the previous mode. Named pop is available so systems
+that push a profile can refuse to pop if another nested mode is currently on
+top.
+
+Built-in profile factories currently include:
+
+| Profile | Enabled systems | Render build | Intended use |
+|---------|-----------------|--------------|--------------|
+| `gameplay` | all current broad groups | `FullWorld` | normal scene operation |
+| `dialogue_overlay` | `Always`, `Camera`, `RenderPrep`, `Ui`, `Dialogue`, `VN`, `Audio`, `Tools` | `FullWorld` | dialogue over a live scene |
+| `fullscreen_dialogue` | `Always`, `Ui`, `Dialogue`, `VN`, `Audio`, `Tools` | `UiOnly` | full VN/dialogue presentation while the loaded world sleeps |
+| `pause_menu` | `Always`, `Ui`, `Audio`, `Tools` | `CachedWorldFrame` | menu-like modes over a frozen world snapshot |
+
+`RenderBuildMode::FullWorld` runs the normal render extraction path.
+`UiOnly` skips `RenderPipeline::build(world)` and submits no world particles,
+but still extracts retained UI. `CachedWorldFrame` reuses the extractor's last
+visible command list without rebuilding the ECS render snapshot. `None` skips
+world build and UI extraction.
+
+`TimePolicy` is part of the profile contract but is not yet a full multi-clock
+implementation. Today, gameplay/physics time effectively stops because those
+system groups are masked out. Future work should map these policies onto
+separate gameplay, physics, UI, dialogue, and real-time domains without changing
+the profile stack API.
+
 ---
 
 ## 4. Frame Data Flow
 
 ```
 ┌────────────────────────────────────────────────────────┐
+│  Active SceneExecutionProfile                          │
+│    └─ Masks simulation/controller system groups         │
+│    └─ Chooses render build policy                       │
+├────────────────────────────────────────────────────────┤
 │  Fixed-Timestep Loop (1+ ticks per frame)              │
-│  ECSSimulationSystem::update(dt)                       │
+│  ECSSimulationSystem::update(dt) if group is enabled    │
 │    └─ PhysicsSystem, AnimationSystem, [user systems]   │
 ├────────────────────────────────────────────────────────┤
 │  Per-Frame Controller Pass                             │
-│  ECSControllerSystem::update(ctx)                      │
+│  ECSControllerSystem::update(ctx) if group is enabled   │
 │    └─ Lifecycle systems (descriptor → GPU companions)  │
 │    └─ Cleanup systems (GPU companion teardown)         │
 │    └─ RenderGpuSystem (sync world matrices)            │
@@ -128,10 +198,10 @@ update(const EcsControllerContext& ctx)
 │    └─ [user systems] (input handling, gameplay logic)  │
 ├────────────────────────────────────────────────────────┤
 │  Data Extraction                                       │
-│  RenderPipeline build stages                          │
+│  RenderPipeline build stages if RenderBuildMode allows │
 │    └─ Frustum cull against camera planes               │
 │    └─ Emit sorted RenderCommand list + upload commands │
-│  UiSystem::extractCommands()                           │
+│  UiSystem::extractCommands() if UI rendering is enabled │
 │    └─ Flatten retained UI tree → draw calls            │
 ├────────────────────────────────────────────────────────┤
 │  Vulkan Render                                         │
@@ -198,13 +268,20 @@ The render lifecycle is split by concern:
 - **Camera lifecycle** owns `CameraGpuComponent` creation/removal independently of geometry lifecycle
 - **Render invalidation** queues transform and snapshot dirtiness explicitly so steady-state extraction does not scan every renderable
 
-Scene-level render pass visibility is controlled by the optional
-`RenderPassVisibilityComponent` singleton. `GravitasEngine` reads it at the
-graphics handoff and can submit an empty scene render list and/or empty particle
-frame data while leaving the ECS world, render descriptors, GPU companions,
-physics, and UI untouched. This is intended for presentation modes such as full
-VN scenes where the world should remain loaded but not draw its geometry or
-particles. UI is not affected by this component.
+Scene-level render pass visibility is controlled at two layers. The stronger
+layer is the active `SceneExecutionProfile`: its `RenderBuildMode` determines
+whether `GravitasEngine` runs `RenderPipeline::build(world)`, reuses cached world
+commands, extracts only retained UI, or skips UI extraction as well. This is the
+path for CPU-saving runtime modes such as fullscreen dialogue because it can
+also mask `RenderPrep`, `Camera`, `Particles`, `Physics`, and `Gameplay`
+systems before render extraction.
+
+The optional `RenderPassVisibilityComponent` singleton is a narrower graphics
+handoff switch. `GravitasEngine` reads it after the profile render policy has
+chosen a render list and can submit an empty scene render list and/or empty
+particle frame data while leaving ECS system execution and render extraction
+untouched. Use it for pass-level presentation control; use execution profiles
+when the world should stay loaded but asleep.
 
 For cameras, application code should only author `CameraDescriptionComponent`
 plus transform/control descriptors. The engine-owned camera lifecycle
@@ -691,6 +768,15 @@ scene/particle render suppression while a `DialogueRuntimeComponent` is active.
 component is absent or inactive, dialogue continues to overlay the current 3D
 scene and render pass visibility is restored to defaults.
 
+`VNSystem` also consumes the generic execution-profile stack. While external
+dialogue is active, current-scene presentation pushes the `dialogue_overlay`
+profile so gameplay and physics can sleep while camera/render prep continue to
+show the live scene. Fullscreen image, solid-color, or scene-suppressed
+presentation pushes `fullscreen_dialogue`, which keeps `Ui`, `Dialogue`, `VN`,
+`Audio`, `Tools`, and `Always` systems awake while skipping world render build.
+When dialogue ends, `VNSystem` pops the named profile it pushed. This makes
+fullscreen VN an engine execution mode rather than a VN-specific pause branch.
+
 ### Dialogue Module
 
 `modules/dialogue/` is a generic graph-based narrative runtime. It owns dialogue
@@ -882,13 +968,22 @@ or exclusive fullscreen output without depending on GLFW directly.
 
 1. Derive from `ECSSimulationSystem`
 2. Implement `update(const EcsSimulationContext& ctx)`
-3. Register with `world.addSimulationSystem<MySystem>()` from `onLoad()`
+3. Register with `world.addSimulationSystem<MySystem>(EcsSystemGroup::Gameplay)`
+   or another broad group from `onLoad()`
 
 ### Adding a Controller System
 
 1. Derive from `ECSControllerSystem`
 2. Implement `update(const EcsControllerContext& ctx)`
-3. Register with `world.addControllerSystem<MySystem>()` from `onLoad()`
+3. Register with `world.addControllerSystem<MySystem>(EcsSystemGroup::Ui)` or
+   another broad group from `onLoad()`
+
+Choose the broadest accurate execution group. Use `Always` sparingly for systems
+that must run in every runtime mode. Most scene gameplay should use
+`Gameplay`; renderer companion/lifecycle work should use `RenderPrep`; camera
+presentation should use `Camera`; retained UI sync/interaction should use `Ui`;
+dialogue graph bridges should use `Dialogue`; VN presentation should use `VN`;
+engine or game debug tooling should use `Tools`.
 
 ### Adding a New Component
 
@@ -933,6 +1028,8 @@ one-off retained UI interaction code inside a panel.
 - **Fence-safe frame data**: per-frame camera data is uploaded by the renderer after the matching frame fence has been waited
 - **Data extraction over direct coupling**: the renderer never reads ECS directly; the extractor produces an immutable command list
 - **Explicit structural mutation**: hot-path queries stay non-structural; lifecycle mutation is deferred and flushed at controlled points
+- **Profile-driven runtime modes**: scenes stay loaded while execution profiles
+  decide which broad system groups and render build paths are awake
 - **Separation of lifecycle concerns**: geometry lifecycle, camera lifecycle, cleanup, transform sync, and extraction are distinct stages with distinct ownership
 - **RAII resource management**: backend resources tied to GPU component lifecycle via removal callbacks
 - **Modular assembly**: scenes are built by adding systems and components — the engine imposes no mandatory scene structure

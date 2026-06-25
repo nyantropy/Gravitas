@@ -14,10 +14,18 @@ namespace
         return {color.r, color.g, color.b, color.a};
     }
 
+    int floorPixelBoundary(float normalizedValue, int pixelSpan)
+    {
+        if (pixelSpan <= 0) return 0;
+
+        constexpr float PixelEpsilon = 0.0001f;
+        return static_cast<int>(std::floor(normalizedValue * static_cast<float>(pixelSpan) + PixelEpsilon));
+    }
+
     float snapToPixel(float normalizedValue, int pixelSpan)
     {
         if (pixelSpan <= 0) return normalizedValue;
-        return std::floor(normalizedValue * static_cast<float>(pixelSpan))
+        return static_cast<float>(floorPixelBoundary(normalizedValue, pixelSpan))
             / static_cast<float>(pixelSpan);
     }
 
@@ -25,18 +33,16 @@ namespace
     {
         if (viewportWidth <= 0 || viewportHeight <= 0) return rect;
 
-        const float left = snapToPixel(rect.x, viewportWidth);
-        const float top = snapToPixel(rect.y, viewportHeight);
-        const float width = std::floor(rect.width * static_cast<float>(viewportWidth))
-            / static_cast<float>(viewportWidth);
-        const float height = std::floor(rect.height * static_cast<float>(viewportHeight))
-            / static_cast<float>(viewportHeight);
+        const int leftPixels = floorPixelBoundary(rect.x, viewportWidth);
+        const int topPixels = floorPixelBoundary(rect.y, viewportHeight);
+        const int rightPixels = floorPixelBoundary(rect.x + rect.width, viewportWidth);
+        const int bottomPixels = floorPixelBoundary(rect.y + rect.height, viewportHeight);
 
         return {
-            left,
-            top,
-            std::max(0.0f, width),
-            std::max(0.0f, height)
+            static_cast<float>(leftPixels) / static_cast<float>(viewportWidth),
+            static_cast<float>(topPixels) / static_cast<float>(viewportHeight),
+            static_cast<float>(std::max(0, rightPixels - leftPixels)) / static_cast<float>(viewportWidth),
+            static_cast<float>(std::max(0, bottomPixels - topPixels)) / static_cast<float>(viewportHeight)
         };
     }
 
@@ -115,11 +121,25 @@ namespace
 
     struct UiAxisNineSlice
     {
-        float dst[4] = {};
+        int dstPixels[4] = {};
         float uv[4] = {};
     };
 
-    UiAxisNineSlice makeAxisSlice(float origin, float size, float leading, float trailing)
+    int floorToPixels(float normalizedValue, int pixelSpan)
+    {
+        return floorPixelBoundary(normalizedValue, pixelSpan);
+    }
+
+    float pixelsToNormalized(int pixels, int pixelSpan)
+    {
+        return static_cast<float>(pixels) / static_cast<float>(pixelSpan);
+    }
+
+    UiAxisNineSlice makeAxisSlice(float origin,
+                                  float size,
+                                  float leading,
+                                  float trailing,
+                                  int pixelSpan)
     {
         leading = std::clamp(leading, 0.0f, 0.49f);
         trailing = std::clamp(trailing, 0.0f, 0.49f);
@@ -132,10 +152,20 @@ namespace
         }
 
         UiAxisNineSlice axis;
-        axis.dst[0] = origin;
-        axis.dst[1] = origin + size * leading;
-        axis.dst[2] = origin + size - size * trailing;
-        axis.dst[3] = origin + size;
+        const int originPixels = floorToPixels(origin, pixelSpan);
+        const int endPixels = floorToPixels(origin + size, pixelSpan);
+        const int sizePixels = std::max(0, endPixels - originPixels);
+        const int leadingPixels = std::clamp(static_cast<int>(std::floor(static_cast<float>(sizePixels) * leading)),
+                                             0,
+                                             sizePixels);
+        const int trailingPixels = std::clamp(static_cast<int>(std::floor(static_cast<float>(sizePixels) * trailing)),
+                                              0,
+                                              sizePixels - leadingPixels);
+
+        axis.dstPixels[0] = originPixels;
+        axis.dstPixels[1] = originPixels + leadingPixels;
+        axis.dstPixels[2] = endPixels - trailingPixels;
+        axis.dstPixels[3] = endPixels;
         axis.uv[0] = 0.0f;
         axis.uv[1] = leading;
         axis.uv[2] = 1.0f - trailing;
@@ -151,6 +181,8 @@ namespace
     {
         if (value.bounds.width <= 0.0f || value.bounds.height <= 0.0f)
             return;
+        if (viewportWidth <= 0 || viewportHeight <= 0)
+            return;
 
         const UiRect clipped = intersectRect(value.bounds, value.clipRect);
         if (isEmptyRect(clipped))
@@ -159,22 +191,29 @@ namespace
         const UiAxisNineSlice x = makeAxisSlice(value.bounds.x,
                                                 value.bounds.width,
                                                 value.slice.left,
-                                                value.slice.right);
+                                                value.slice.right,
+                                                viewportWidth);
         const UiAxisNineSlice y = makeAxisSlice(value.bounds.y,
                                                 value.bounds.height,
                                                 value.slice.top,
-                                                value.slice.bottom);
+                                                value.slice.bottom,
+                                                viewportHeight);
         const glm::vec4 tint = toGlm(value.tint);
 
         for (int row = 0; row < 3; ++row)
         {
             for (int column = 0; column < 3; ++column)
             {
+                const int leftPixels = x.dstPixels[column];
+                const int rightPixels = x.dstPixels[column + 1];
+                const int topPixels = y.dstPixels[row];
+                const int bottomPixels = y.dstPixels[row + 1];
+
                 const UiRect segment = {
-                    x.dst[column],
-                    y.dst[row],
-                    std::max(0.0f, x.dst[column + 1] - x.dst[column]),
-                    std::max(0.0f, y.dst[row + 1] - y.dst[row])
+                    pixelsToNormalized(leftPixels, viewportWidth),
+                    pixelsToNormalized(topPixels, viewportHeight),
+                    pixelsToNormalized(std::max(0, rightPixels - leftPixels), viewportWidth),
+                    pixelsToNormalized(std::max(0, bottomPixels - topPixels), viewportHeight)
                 };
 
                 emitTexturedQuadClipped(buffer,
@@ -430,7 +469,7 @@ void UiRenderResolver::buildCommandBuffer(
             {
                 if (!resources || value.imageAsset.empty()) return;
 
-                const texture_id_type textureId = resources->requestTexture(value.imageAsset);
+                const texture_id_type textureId = resources->requestClampedTexture(value.imageAsset);
                 if (textureId == 0) return;
 
                 emitNineSlice(buffer, value, textureId, viewportWidth, viewportHeight);

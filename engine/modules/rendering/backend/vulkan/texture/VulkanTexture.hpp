@@ -18,7 +18,7 @@ class VulkanTexture
     public:
         // nearestFilter = true: NEAREST mag/min, no anisotropy, no mip blending.
         // Use for pixel-art / bitmap-font atlases that must not be blurred.
-        VulkanTexture(const std::string path, bool nearestFilter = false);
+        VulkanTexture(const std::string path, bool nearestFilter = false, bool clampToEdge = false);
         ~VulkanTexture();
 
         VkImage& getTextureImage();
@@ -28,6 +28,7 @@ class VulkanTexture
 
     private:
         bool nearestFilter;
+        bool clampToEdge;
 
         VkImage textureImage;
         VkDeviceMemory textureImageMemory;
