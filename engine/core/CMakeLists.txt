@@ -29,6 +29,7 @@ target_include_directories(gravitas_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/command"
 
     # ECS framework
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecs/execution"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/world"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/systems"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/context"

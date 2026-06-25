@@ -109,9 +109,9 @@ class GtsScene
         physicsWorld = std::make_unique<PhysicsWorld>(&ecsWorld);
         ctx.physics  = physicsWorld.get();
 
-        ecsWorld.addSimulationSystem<PhysicsSystem>(physicsWorld.get());
+        ecsWorld.addSimulationSystem<PhysicsSystem>(EcsSystemGroup::Physics, physicsWorld.get());
         if (enableDebugRenderer)
-            ecsWorld.addControllerSystem<PhysicsDebugRenderer>();
+            ecsWorld.addControllerSystem<PhysicsDebugRenderer>(EcsSystemGroup::Tools);
         physicsFeatureInstalled = true;
     }
 
@@ -263,20 +263,20 @@ class GtsScene
                 gts::rendering::queueCameraCleanup(world, entity);
             });
 
-        ecsWorld.addControllerSystem<StaticMeshBindingSystem>();
-        ecsWorld.addControllerSystem<QuadMeshBindingSystem>();
-        ecsWorld.addControllerSystem<DynamicMeshBindingSystem>();
-        ecsWorld.addControllerSystem<WorldTextBindingSystem>();
-        ecsWorld.addControllerSystem<RenderableCleanupSystem>();
-        ecsWorld.addControllerSystem<RenderGpuSystem>();
-        ecsWorld.addControllerSystem<TextureAnimationSystem>();
-        ecsWorld.addControllerSystem<CameraLifecycleSystem>();
-        ecsWorld.addControllerSystem<DefaultCameraControlSystem>();
-        ecsWorld.addControllerSystem<CameraGpuSystem>();
-        ecsWorld.addControllerSystem<CameraBindingSystem>();
-        ecsWorld.addControllerSystem<ActiveCameraViewSystem>();
-        ecsWorld.addControllerSystem<ParticleEffectHotReloadSystem>();
-        ecsWorld.addControllerSystem<ParticleEmitterSystem>();
+        ecsWorld.addControllerSystem<StaticMeshBindingSystem>(EcsSystemGroup::RenderPrep);
+        ecsWorld.addControllerSystem<QuadMeshBindingSystem>(EcsSystemGroup::RenderPrep);
+        ecsWorld.addControllerSystem<DynamicMeshBindingSystem>(EcsSystemGroup::RenderPrep);
+        ecsWorld.addControllerSystem<WorldTextBindingSystem>(EcsSystemGroup::RenderPrep);
+        ecsWorld.addControllerSystem<RenderableCleanupSystem>(EcsSystemGroup::RenderPrep);
+        ecsWorld.addControllerSystem<RenderGpuSystem>(EcsSystemGroup::RenderPrep);
+        ecsWorld.addControllerSystem<TextureAnimationSystem>(EcsSystemGroup::Animation);
+        ecsWorld.addControllerSystem<CameraLifecycleSystem>(EcsSystemGroup::Camera);
+        ecsWorld.addControllerSystem<DefaultCameraControlSystem>(EcsSystemGroup::Camera);
+        ecsWorld.addControllerSystem<CameraGpuSystem>(EcsSystemGroup::Camera);
+        ecsWorld.addControllerSystem<CameraBindingSystem>(EcsSystemGroup::Camera);
+        ecsWorld.addControllerSystem<ActiveCameraViewSystem>(EcsSystemGroup::Camera);
+        ecsWorld.addControllerSystem<ParticleEffectHotReloadSystem>(EcsSystemGroup::Particles);
+        ecsWorld.addControllerSystem<ParticleEmitterSystem>(EcsSystemGroup::Particles);
         ecsWorld.forEachSnapshot<StaticMeshComponent, MaterialComponent>(
             [this](Entity entity, StaticMeshComponent&, MaterialComponent&)
             {
@@ -321,7 +321,7 @@ class GtsScene
         if (debugDrawFeatureInstalled)
             return;
 
-        ecsWorld.addControllerSystem<gts::debugdraw::DebugDrawSystem>();
+        ecsWorld.addControllerSystem<gts::debugdraw::DebugDrawSystem>(EcsSystemGroup::Tools);
         debugDrawFeatureInstalled = true;
     }
 };

@@ -154,7 +154,7 @@ public:
 
         // FreeFlyCamera must run before the shared camera pipeline so its
         // transform/description updates feed the same-frame matrix upload.
-        ecsWorld.addControllerSystem<FreeFlyCamera>();
+        ecsWorld.addControllerSystem<FreeFlyCamera>(EcsSystemGroup::Camera);
         installRendererFeature(ctx);
     }
 

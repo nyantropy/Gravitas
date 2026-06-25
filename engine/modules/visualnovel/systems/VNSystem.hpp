@@ -9,6 +9,7 @@
 #include "ECSWorld.hpp"
 #include "DialogueContextHelpers.h"
 #include "DialogueRuntimeComponent.h"
+#include "EcsExecutionProfile.h"
 #include "InputBindingRegistry.h"
 #include "RenderPassVisibilityComponent.h"
 #include "UiSystem.h"
@@ -66,6 +67,7 @@ namespace gts::vn
             if (runtime.isExternalDialogueActive())
                 runtime.stopExternalDialogue();
             resetRenderPassVisibilityIfNeeded(ctx.world);
+            resetDialogueExecutionProfileIfNeeded(ctx.world);
 
             VNRuntimeInput input;
             input.dt = ctx.time == nullptr ? 0.0f : ctx.time->unscaledDeltaTime;
@@ -93,6 +95,8 @@ namespace gts::vn
         VNDialogueUiHandles handles;
         bool uiBuilt = false;
         bool renderPassVisibilityOverridden = false;
+        bool executionProfilePushed = false;
+        std::string activeExecutionProfileId;
 
         static bool dialogueActive(ECSWorld& world)
         {
@@ -167,13 +171,15 @@ namespace gts::vn
             {
                 dialogueRuntime.refreshVisibleChoices(dialogueContext);
                 presentDialogueRuntime(dialogueRuntime);
-                applyExternalPresentation(ctx.world);
+                const bool fullscreenPresentation = applyExternalPresentation(ctx.world);
+                applyDialogueExecutionProfile(ctx.world, fullscreenPresentation);
                 runtime.update(ctx, input);
             }
             else
             {
                 runtime.stopExternalDialogue();
                 resetRenderPassVisibilityIfNeeded(ctx.world);
+                resetDialogueExecutionProfileIfNeeded(ctx.world);
             }
 
             writePlaybackState(ctx.world);
@@ -200,7 +206,7 @@ namespace gts::vn
             runtime.presentExternalDialogue(node->speaker, node->text, choices);
         }
 
-        void applyExternalPresentation(ECSWorld& world)
+        bool applyExternalPresentation(ECSWorld& world)
         {
             VNStage& stage = runtime.getStage();
             stage.clearSprites();
@@ -210,7 +216,7 @@ namespace gts::vn
                 stage.clearBackgroundOverride();
                 stage.setDimming(0.0f);
                 resetRenderPassVisibilityIfNeeded(world);
-                return;
+                return false;
             }
 
             const VNExternalPresentationComponent& presentation =
@@ -220,7 +226,7 @@ namespace gts::vn
                 stage.clearBackgroundOverride();
                 stage.setDimming(0.0f);
                 resetRenderPassVisibilityIfNeeded(world);
-                return;
+                return false;
             }
 
             stage.setBackground(presentation.background);
@@ -228,6 +234,14 @@ namespace gts::vn
             for (const VNExternalSprite& sprite : presentation.sprites)
                 stage.showSprite(sprite.id, sprite.sprite);
             writeRenderPassVisibility(world, presentation);
+            return isFullscreenPresentation(presentation);
+        }
+
+        static bool isFullscreenPresentation(const VNExternalPresentationComponent& presentation)
+        {
+            return presentation.suppressSceneRendering
+                || presentation.background.mode == VNBackgroundMode::FullscreenImage
+                || presentation.background.mode == VNBackgroundMode::SolidColor;
         }
 
         void writeRenderPassVisibility(ECSWorld& world,
@@ -253,6 +267,37 @@ namespace gts::vn
                     RenderPassVisibilityComponent::allVisible();
 
             renderPassVisibilityOverridden = false;
+        }
+
+        void applyDialogueExecutionProfile(ECSWorld& world, bool fullscreenPresentation)
+        {
+            SceneExecutionProfile profile = fullscreenPresentation
+                ? SceneExecutionProfile::fullscreenDialogue()
+                : SceneExecutionProfile::dialogueOverlay();
+            const std::string profileId = profile.id;
+
+            if (executionProfilePushed && activeExecutionProfileId == profileId)
+                return;
+
+            resetDialogueExecutionProfileIfNeeded(world);
+            if (executionProfilePushed)
+                return;
+
+            world.pushExecutionProfile(std::move(profile));
+            activeExecutionProfileId = profileId;
+            executionProfilePushed = true;
+        }
+
+        void resetDialogueExecutionProfileIfNeeded(ECSWorld& world)
+        {
+            if (!executionProfilePushed)
+                return;
+
+            if (!world.popExecutionProfile(activeExecutionProfileId))
+                return;
+
+            activeExecutionProfileId.clear();
+            executionProfilePushed = false;
         }
 
         void writePlaybackState(ECSWorld& world) const

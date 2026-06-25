@@ -189,6 +189,11 @@ class RenderCommandExtractor
         return lastVisibleRenderables;
     }
 
+    const std::vector<RenderCommand>& getLastCommands() const
+    {
+        return cachedVisibleCommands;
+    }
+
     void reset()
     {
         for (ssbo_id_type slot : occupiedSlots)

@@ -52,7 +52,7 @@ inline void GtsScene3::onLoad(EcsControllerContext& ctx, const GtsSceneTransitio
 {
     resetSceneWorld();
     buildTextureSet();
-    ecsWorld.addSimulationSystem<CubeAnimationSystem>();
+    ecsWorld.addSimulationSystem<CubeAnimationSystem>(EcsSystemGroup::Animation);
     installRendererFeature(ctx);
 
     const auto loadStart = std::chrono::steady_clock::now();

@@ -5,6 +5,7 @@
 #include <chrono>
 #include <thread>
 #include <variant>
+#include <vector>
 
 #include "EngineConfig.h"
 #include "Timer.hpp"
@@ -30,6 +31,7 @@
 
 #include "EcsSimulationContext.hpp"
 #include "EcsControllerContext.hpp"
+#include "EcsExecutionProfile.h"
 
 class GravitasEngine
 {
@@ -191,11 +193,23 @@ class GravitasEngine
         // triangleCount is filled in by SceneRenderStage during execute
         activeScene->populateFrameStats(stats);
 
-        const auto& renderList = renderPipeline->build(world);
+        const SceneExecutionProfile& executionProfile = world.getCurrentExecutionProfile();
+        const RenderBuildMode renderBuildMode = executionProfile.renderBuildMode;
+
+        static const std::vector<RenderCommand> emptyRenderList;
+        const std::vector<RenderCommand>* renderList = &emptyRenderList;
+        if (renderBuildMode == RenderBuildMode::FullWorld)
+        {
+            renderList = &renderPipeline->build(world);
+        }
+        else if (renderBuildMode == RenderBuildMode::CachedWorldFrame)
+        {
+            renderList = &renderPipeline->getExtractor().getLastCommands();
+        }
 
         static const UiCommandBuffer emptyUiBuffer;
         const UiCommandBuffer*       uiBuffer = &emptyUiBuffer;
-        if (uiEnabled)
+        if (uiEnabled && renderBuildMode != RenderBuildMode::None)
         {
             uiSystem->setEnabled(true);
             uiBuffer = &uiSystem->extractCommandsRef(windowPixelWidth, windowPixelHeight);
@@ -213,11 +227,12 @@ class GravitasEngine
             ? world.getSingleton<RenderPassVisibilityComponent>()
             : RenderPassVisibilityComponent::allVisible();
 
-        static const std::vector<RenderCommand> emptyRenderList;
         const std::vector<RenderCommand>& submittedRenderList =
-            passVisibility.renderScene ? renderList : emptyRenderList;
+            passVisibility.renderScene ? *renderList : emptyRenderList;
         const ParticleFrameData& submittedParticleData =
-            passVisibility.renderParticles ? particleData : emptyParticleData;
+            passVisibility.renderParticles && renderBuildMode == RenderBuildMode::FullWorld
+                ? particleData
+                : emptyParticleData;
 
         // Per-stage pipeline metrics (snapshot / visibility / extraction / sort)
         const auto& pipelineMetrics  = renderPipeline->getLastPipelineMetrics();

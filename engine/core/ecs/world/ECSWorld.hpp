@@ -18,11 +18,13 @@
 #include <iostream>
 #include <limits>
 #include <string_view>
+#include <utility>
 
 #include "Archetype.h"
 #include "Entity.h"
 #include "ECSSimulationSystem.hpp"
 #include "ECSControllerSystem.hpp"
+#include "EcsExecutionProfile.h"
 #include "SubscriptionToken.hpp"
 
 // Integrated ECS world with component storage, systems, and an event bus.
@@ -151,8 +153,21 @@ class ECSWorld
         std::unordered_map<ComponentSignature, uint32_t, ComponentSignatureHash> archetypeIndexBySignature;
         std::vector<ComponentTypeOps> componentTypeOps;
 
-        std::vector<std::unique_ptr<ECSSimulationSystem>> simulationSystems;
-        std::vector<std::unique_ptr<ECSControllerSystem>> controllerSystems;
+        struct RegisteredSimulationSystem
+        {
+            std::unique_ptr<ECSSimulationSystem> system;
+            EcsSystemGroup group = EcsSystemGroup::Gameplay;
+        };
+
+        struct RegisteredControllerSystem
+        {
+            std::unique_ptr<ECSControllerSystem> system;
+            EcsSystemGroup group = EcsSystemGroup::Gameplay;
+        };
+
+        std::vector<RegisteredSimulationSystem> simulationSystems;
+        std::vector<RegisteredControllerSystem> controllerSystems;
+        std::vector<SceneExecutionProfile> executionProfileStack = {SceneExecutionProfile::gameplay()};
         struct SystemProfile
         {
             float totalMs = 0.0f;
@@ -177,6 +192,12 @@ class ECSWorld
         std::vector<std::function<void(ECSWorld&)>> deferredStructuralCommands;
         bool flushingDeferredStructuralCommands = false;
         EntityCommandBuffer commandBuffer;
+
+        static const SceneExecutionProfile& defaultExecutionProfile()
+        {
+            static const SceneExecutionProfile profile = SceneExecutionProfile::gameplay();
+            return profile;
+        }
 
         Entity reserveDeferredEntity()
         {
@@ -627,7 +648,7 @@ class ECSWorld
         }
 
         template<typename SystemType, typename... Args>
-        SystemType& addSimulationSystem(Args&&... args)
+        SystemType& addSimulationSystem(EcsSystemGroup group, Args&&... args)
         {
             static_assert(std::is_base_of_v<ECSSimulationSystem, SystemType>,
                             "SystemType must derive from ECSSimulationSystem");
@@ -635,12 +656,12 @@ class ECSWorld
             auto system = std::make_unique<SystemType>(std::forward<Args>(args)...);
             system->setDebugName(gts::detail::typeName<SystemType>());
             SystemType& ref = *system;
-            simulationSystems.push_back(std::move(system));
+            simulationSystems.push_back(RegisteredSimulationSystem{std::move(system), group});
             return ref;
         }
 
         template<typename SystemType, typename... Args>
-        SystemType& addControllerSystem(Args&&... args)
+        SystemType& addControllerSystem(EcsSystemGroup group, Args&&... args)
         {
             static_assert(std::is_base_of_v<ECSControllerSystem, SystemType>,
                             "SystemType must derive from ECSControllerSystem");
@@ -648,7 +669,7 @@ class ECSWorld
             auto system = std::make_unique<SystemType>(std::forward<Args>(args)...);
             system->setDebugName(gts::detail::typeName<SystemType>());
             SystemType& ref = *system;
-            controllerSystems.push_back(std::move(system));
+            controllerSystems.push_back(RegisteredControllerSystem{std::move(system), group});
             return ref;
         }
 
@@ -694,14 +715,17 @@ class ECSWorld
 
         void updateSimulation(const EcsSimulationContext& ctx)
         {
-            for (auto& system : simulationSystems)
+            for (auto& entry : simulationSystems)
             {
+                if (!shouldExecuteGroup(entry.group))
+                    continue;
+
                 const auto start = std::chrono::steady_clock::now();
-                system->update(ctx);
+                entry.system->update(ctx);
                 const auto end = std::chrono::steady_clock::now();
                 const float ms = std::chrono::duration<float, std::milli>(end - start).count();
 
-                auto& profile = simulationProfiles[system->getName()];
+                auto& profile = simulationProfiles[entry.system->getName()];
                 profile.totalMs += ms;
                 profile.maxMs = std::max(profile.maxMs, ms);
                 ++profile.calls;
@@ -756,14 +780,17 @@ class ECSWorld
 
         void updateControllers(const EcsControllerContext& ctx)
         {
-            for (auto& system : controllerSystems)
+            for (auto& entry : controllerSystems)
             {
+                if (!shouldExecuteGroup(entry.group))
+                    continue;
+
                 const auto start = std::chrono::steady_clock::now();
-                system->update(ctx);
+                entry.system->update(ctx);
                 const auto end = std::chrono::steady_clock::now();
                 const float ms = std::chrono::duration<float, std::milli>(end - start).count();
 
-                recordControllerProfile(system->getName(), ms);
+                recordControllerProfile(entry.system->getName(), ms);
 
                 flushDeferredStructuralCommands();
             }
@@ -833,6 +860,50 @@ class ECSWorld
                 profile = {};
         }
 
+        const SceneExecutionProfile& getCurrentExecutionProfile() const
+        {
+            return executionProfileStack.empty()
+                ? defaultExecutionProfile()
+                : executionProfileStack.back();
+        }
+
+        bool shouldExecuteGroup(EcsSystemGroup group) const
+        {
+            return getCurrentExecutionProfile().contains(group);
+        }
+
+        size_t pushExecutionProfile(SceneExecutionProfile profile)
+        {
+            executionProfileStack.push_back(std::move(profile));
+            return executionProfileStack.size();
+        }
+
+        bool popExecutionProfile()
+        {
+            if (executionProfileStack.size() <= 1)
+                return false;
+
+            executionProfileStack.pop_back();
+            return true;
+        }
+
+        bool popExecutionProfile(std::string_view expectedTopId)
+        {
+            if (executionProfileStack.size() <= 1)
+                return false;
+
+            if (executionProfileStack.back().id != expectedTopId)
+                return false;
+
+            executionProfileStack.pop_back();
+            return true;
+        }
+
+        size_t getExecutionProfileDepth() const
+        {
+            return executionProfileStack.size();
+        }
+
         template<typename... Components>
         std::vector<Entity> getAllEntitiesWith()
         {
@@ -867,6 +938,8 @@ class ECSWorld
             simulationProfilePrintScratch.clear();
             controllerProfiles.clear();
             controllerProfilePrintScratch.clear();
+            executionProfileStack.clear();
+            executionProfileStack.push_back(SceneExecutionProfile::gameplay());
             forEachScratch.clear();
             forEachScratch.shrink_to_fit();
             deferredStructuralCommands.clear();

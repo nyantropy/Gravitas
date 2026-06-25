@@ -108,7 +108,7 @@ class DefaultScene : public GtsScene
         void addSystems(const EcsControllerContext& ctx)
         {
             installRendererFeature(ctx);
-            ecsWorld.addSimulationSystem<TransformAnimationSystem>();
+            ecsWorld.addSimulationSystem<TransformAnimationSystem>(EcsSystemGroup::Animation);
         }
 
         void onLoad(EcsControllerContext& ctx,
