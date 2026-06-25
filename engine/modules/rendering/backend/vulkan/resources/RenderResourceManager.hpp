@@ -93,6 +93,17 @@ class RenderResourceManager : public IResourceProvider
             return textureManager->loadTexture(path, true);
         }
 
+        TextureDimensions getTextureDimensions(texture_id_type id) const override
+        {
+            if (!textureManager)
+                return {};
+
+            return {
+                textureManager->getTextureWidth(id),
+                textureManager->getTextureHeight(id)
+            };
+        }
+
         TextureResource* getTexture(texture_id_type id)
         {
             return textureManager->getTexture(id);

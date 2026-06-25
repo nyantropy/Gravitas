@@ -37,6 +37,16 @@ VkSampler& VulkanTexture::getTextureSampler()
     return textureSampler;
 }
 
+int VulkanTexture::getWidth() const
+{
+    return width;
+}
+
+int VulkanTexture::getHeight() const
+{
+    return height;
+}
+
 void VulkanTexture::createTextureImageView() 
 {
     VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
@@ -94,12 +104,15 @@ void VulkanTexture::createTextureImage(const std::string path)
 {
     int texWidth, texHeight, texChannels;
     stbi_uc* pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-    VkDeviceSize imageSize = texWidth * texHeight * 4;
 
     if (!pixels)
     {
         throw std::runtime_error("failed to load texture image!");
     }
+
+    width = texWidth;
+    height = texHeight;
+    VkDeviceSize imageSize = static_cast<VkDeviceSize>(texWidth) * static_cast<VkDeviceSize>(texHeight) * 4;
 
     // Grayscale font-atlas post-processing:
     // stbi_load expands a 1-channel (grayscale) PNG to RGBA with A=255 always.

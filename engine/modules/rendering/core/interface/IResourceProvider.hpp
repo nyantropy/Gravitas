@@ -10,6 +10,17 @@
 
 struct BitmapFont;
 
+struct TextureDimensions
+{
+    int width = 0;
+    int height = 0;
+
+    bool isValid() const
+    {
+        return width > 0 && height > 0;
+    }
+};
+
 class IResourceProvider
 {
     public:
@@ -39,6 +50,7 @@ class IResourceProvider
         // Like requestTexture but forces NEAREST-neighbor sampling and no anisotropy.
         // Use for pixel-art or bitmap-font atlases that must render crisp.
         virtual texture_id_type requestPixelTexture(const std::string& path) = 0;
+        virtual TextureDimensions getTextureDimensions(texture_id_type id) const = 0;
 
         // request a bitmap font asset; the font manager owns metadata and uses
         // the texture manager for the atlas texture

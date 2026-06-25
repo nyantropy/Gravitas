@@ -25,10 +25,14 @@ class VulkanTexture
         VkDeviceMemory& getTextureImageMemory();
         VkImageView& getTextureImageView();
         VkSampler& getTextureSampler();
+        int getWidth() const;
+        int getHeight() const;
 
     private:
         bool nearestFilter;
         bool clampToEdge;
+        int width = 0;
+        int height = 0;
 
         VkImage textureImage;
         VkDeviceMemory textureImageMemory;

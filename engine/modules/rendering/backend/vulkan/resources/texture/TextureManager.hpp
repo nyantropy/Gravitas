@@ -61,4 +61,20 @@ class TextureManager
                 return it->second.get();
             return nullptr;
         }
+
+        int getTextureWidth(texture_id_type id) const
+        {
+            auto it = idToTexture.find(id);
+            if (it == idToTexture.end() || !it->second || !it->second->texture)
+                return 0;
+            return it->second->texture->getWidth();
+        }
+
+        int getTextureHeight(texture_id_type id) const
+        {
+            auto it = idToTexture.find(id);
+            if (it == idToTexture.end() || !it->second || !it->second->texture)
+                return 0;
+            return it->second->texture->getHeight();
+        }
 };

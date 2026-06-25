@@ -122,7 +122,14 @@ namespace
     struct UiAxisNineSlice
     {
         int dstPixels[4] = {};
-        float uv[4] = {};
+        float uvMin[3] = {};
+        float uvMax[3] = {};
+    };
+
+    struct UiAxisSliceRatios
+    {
+        float leading = 0.0f;
+        float trailing = 0.0f;
     };
 
     int floorToPixels(float normalizedValue, int pixelSpan)
@@ -135,30 +142,105 @@ namespace
         return static_cast<float>(pixels) / static_cast<float>(pixelSpan);
     }
 
+    int roundToPixels(float normalizedValue, int pixelSpan)
+    {
+        if (pixelSpan <= 0) return 0;
+
+        return std::clamp(static_cast<int>(std::floor(normalizedValue * static_cast<float>(pixelSpan) + 0.5f)),
+                          0,
+                          pixelSpan);
+    }
+
+    UiAxisSliceRatios normalizeSliceRatios(float leading, float trailing)
+    {
+        UiAxisSliceRatios ratios;
+        ratios.leading = std::clamp(leading, 0.0f, 0.49f);
+        ratios.trailing = std::clamp(trailing, 0.0f, 0.49f);
+
+        const float total = ratios.leading + ratios.trailing;
+        if (total > 0.98f)
+        {
+            const float scale = 0.98f / total;
+            ratios.leading *= scale;
+            ratios.trailing *= scale;
+        }
+
+        return ratios;
+    }
+
+    void makeSourcePixelSlices(UiAxisNineSlice& axis,
+                               UiAxisSliceRatios& ratios,
+                               int sourcePixelSpan)
+    {
+        const int leadingPixels = std::clamp(roundToPixels(ratios.leading, sourcePixelSpan),
+                                             0,
+                                             sourcePixelSpan);
+        const int trailingPixels = std::clamp(roundToPixels(ratios.trailing, sourcePixelSpan),
+                                              0,
+                                              sourcePixelSpan - leadingPixels);
+        const int sourcePixels[4] = {
+            0,
+            leadingPixels,
+            sourcePixelSpan - trailingPixels,
+            sourcePixelSpan
+        };
+
+        ratios.leading = pixelsToNormalized(leadingPixels, sourcePixelSpan);
+        ratios.trailing = pixelsToNormalized(trailingPixels, sourcePixelSpan);
+
+        for (int i = 0; i < 3; ++i)
+        {
+            const int start = sourcePixels[i];
+            const int end = sourcePixels[i + 1];
+            if (end <= start)
+            {
+                axis.uvMin[i] = pixelsToNormalized(start, sourcePixelSpan);
+                axis.uvMax[i] = axis.uvMin[i];
+                continue;
+            }
+
+            axis.uvMin[i] = (static_cast<float>(start) + 0.5f) / static_cast<float>(sourcePixelSpan);
+            axis.uvMax[i] = (static_cast<float>(end) - 0.5f) / static_cast<float>(sourcePixelSpan);
+        }
+    }
+
+    void makeNormalizedUvSlices(UiAxisNineSlice& axis, const UiAxisSliceRatios& ratios)
+    {
+        const float uv[4] = {
+            0.0f,
+            ratios.leading,
+            1.0f - ratios.trailing,
+            1.0f
+        };
+
+        for (int i = 0; i < 3; ++i)
+        {
+            axis.uvMin[i] = uv[i];
+            axis.uvMax[i] = uv[i + 1];
+        }
+    }
+
     UiAxisNineSlice makeAxisSlice(float origin,
                                   float size,
                                   float leading,
                                   float trailing,
-                                  int pixelSpan)
+                                  int pixelSpan,
+                                  int sourcePixelSpan)
     {
-        leading = std::clamp(leading, 0.0f, 0.49f);
-        trailing = std::clamp(trailing, 0.0f, 0.49f);
-        const float total = leading + trailing;
-        if (total > 0.98f)
-        {
-            const float scale = 0.98f / total;
-            leading *= scale;
-            trailing *= scale;
-        }
-
         UiAxisNineSlice axis;
+        UiAxisSliceRatios ratios = normalizeSliceRatios(leading, trailing);
+        if (sourcePixelSpan > 0)
+            makeSourcePixelSlices(axis, ratios, sourcePixelSpan);
+        else
+            makeNormalizedUvSlices(axis, ratios);
+
         const int originPixels = floorToPixels(origin, pixelSpan);
         const int endPixels = floorToPixels(origin + size, pixelSpan);
         const int sizePixels = std::max(0, endPixels - originPixels);
-        const int leadingPixels = std::clamp(static_cast<int>(std::floor(static_cast<float>(sizePixels) * leading)),
+        const int leadingPixels = std::clamp(static_cast<int>(std::floor(static_cast<float>(sizePixels) * ratios.leading)),
                                              0,
                                              sizePixels);
-        const int trailingPixels = std::clamp(static_cast<int>(std::floor(static_cast<float>(sizePixels) * trailing)),
+        const int trailingPixels = std::clamp(static_cast<int>(std::floor(static_cast<float>(sizePixels) * ratios.trailing)),
                                               0,
                                               sizePixels - leadingPixels);
 
@@ -166,16 +248,13 @@ namespace
         axis.dstPixels[1] = originPixels + leadingPixels;
         axis.dstPixels[2] = endPixels - trailingPixels;
         axis.dstPixels[3] = endPixels;
-        axis.uv[0] = 0.0f;
-        axis.uv[1] = leading;
-        axis.uv[2] = 1.0f - trailing;
-        axis.uv[3] = 1.0f;
         return axis;
     }
 
     void emitNineSlice(UiCommandBuffer& buffer,
                        const UiNineSlicePrimitive& value,
                        texture_id_type textureId,
+                       TextureDimensions textureDimensions,
                        int viewportWidth,
                        int viewportHeight)
     {
@@ -192,12 +271,14 @@ namespace
                                                 value.bounds.width,
                                                 value.slice.left,
                                                 value.slice.right,
-                                                viewportWidth);
+                                                viewportWidth,
+                                                textureDimensions.width);
         const UiAxisNineSlice y = makeAxisSlice(value.bounds.y,
                                                 value.bounds.height,
                                                 value.slice.top,
                                                 value.slice.bottom,
-                                                viewportHeight);
+                                                viewportHeight,
+                                                textureDimensions.height);
         const glm::vec4 tint = toGlm(value.tint);
 
         for (int row = 0; row < 3; ++row)
@@ -220,8 +301,8 @@ namespace
                                         segment,
                                         value.clipRect,
                                         textureId,
-                                        {x.uv[column], y.uv[row]},
-                                        {x.uv[column + 1], y.uv[row + 1]},
+                                        {x.uvMin[column], y.uvMin[row]},
+                                        {x.uvMax[column], y.uvMax[row]},
                                         tint,
                                         viewportWidth,
                                         viewportHeight);
@@ -472,7 +553,12 @@ void UiRenderResolver::buildCommandBuffer(
                 const texture_id_type textureId = resources->requestClampedTexture(value.imageAsset);
                 if (textureId == 0) return;
 
-                emitNineSlice(buffer, value, textureId, viewportWidth, viewportHeight);
+                emitNineSlice(buffer,
+                              value,
+                              textureId,
+                              resources->getTextureDimensions(textureId),
+                              viewportWidth,
+                              viewportHeight);
             }
             else if constexpr (std::is_same_v<T, UiTextPrimitive>)
             {
