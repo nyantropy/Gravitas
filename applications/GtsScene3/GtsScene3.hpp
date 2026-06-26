@@ -17,6 +17,7 @@
 #include "Entity.h"
 #include "GraphicsConstants.h"
 #include "MaterialComponent.h"
+#include "RendererSceneFeature.h"
 #include "StaticMeshComponent.h"
 #include "TransformComponent.h"
 
@@ -53,7 +54,7 @@ inline void GtsScene3::onLoad(EcsControllerContext& ctx, const GtsSceneTransitio
     resetSceneWorld();
     buildTextureSet();
     ecsWorld.addSimulationSystem<CubeAnimationSystem>(EcsSystemGroup::Animation);
-    installRendererFeature(ctx);
+    gts::rendering::installRendererFeature(*this, ctx);
 
     const auto loadStart = std::chrono::steady_clock::now();
     spawnStressCubes();

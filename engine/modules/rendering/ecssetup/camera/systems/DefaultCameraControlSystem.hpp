@@ -10,7 +10,7 @@
 #include "CameraControlOverrideComponent.h"
 #include "TransformComponent.h"
 
-// Baseline orbit camera installed automatically by installRendererFeature().
+// Baseline orbit camera installed automatically by gts::rendering::installRendererFeature().
 // Binds arrow keys to zoom/orbit on first update.
 // Skips any camera entity marked with CameraControlOverrideComponent so that
 // application-specific control systems take over.

@@ -42,11 +42,14 @@ target_include_directories(gravitas_modules INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/physics/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/physics/systems"
     "${CMAKE_CURRENT_SOURCE_DIR}/physics/debug"
+    "${CMAKE_CURRENT_SOURCE_DIR}/physics/scene"
 
     # Engine tooling
     "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw/primitives"
     "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw/systems"
+    "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw/scene"
+    "${CMAKE_CURRENT_SOURCE_DIR}/rendering/scene"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/core"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/ui"
     "${CMAKE_CURRENT_SOURCE_DIR}/tools/inspectors"

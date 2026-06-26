@@ -6,6 +6,7 @@
 #include "StaticMeshComponent.h"
 #include "MaterialComponent.h"
 #include "CameraDescriptionComponent.h"
+#include "RendererSceneFeature.h"
 #include "TransformComponent.h"
 #include "AnimationComponent.h"
 
@@ -107,7 +108,7 @@ class DefaultScene : public GtsScene
 
         void addSystems(const EcsControllerContext& ctx)
         {
-            installRendererFeature(ctx);
+            gts::rendering::installRendererFeature(*this, ctx);
             ecsWorld.addSimulationSystem<TransformAnimationSystem>(EcsSystemGroup::Animation);
         }
 

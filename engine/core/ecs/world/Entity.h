@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <limits>
 
 #include "Types.h"
 
@@ -17,3 +18,5 @@ struct Entity
         return id != other.id;
     }
 };
+
+inline constexpr Entity INVALID_ENTITY = Entity{std::numeric_limits<entity_id_type>::max()};

@@ -48,10 +48,16 @@ target_include_directories(gravitas_rendering PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/core/windowing/output"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/windowing/windowmanager"
 
+    # Scene-level renderer feature installer
+    "${CMAKE_CURRENT_SOURCE_DIR}/scene"
+
     # ECS rendering components and systems
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/camera/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/camera/debug"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/camera/systems"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/extraction"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/extraction/frustumcull"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/extraction/frustumcull/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/geometry/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/geometry/systems"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/particles/assets"

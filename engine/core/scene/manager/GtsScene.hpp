@@ -1,73 +1,46 @@
 #pragma once
 
+#include <functional>
+#include <memory>
+#include <string>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
 #include "ECSWorld.hpp"
 #include "EcsSimulationContext.hpp"
 #include "EcsControllerContext.hpp"
 #include "GtsSceneTransitionData.h"
 #include "GtsFrameStats.h"
-#include "PhysicsWorld.h"
 
-#include "RenderGpuSystem.hpp"
-#include "TextureAnimationSystem.hpp"
-#include "CameraLifecycleSystem.hpp"
-#include "CameraGpuSystem.hpp"
-#include "CameraGpuComponent.h"
-#include "CameraDescriptionComponent.h"
-#include "ActiveCameraViewSystem.hpp"
-#include "RenderableCleanupSystem.hpp"
-#include "StaticMeshBindingSystem.hpp"
-#include "QuadMeshBindingSystem.hpp"
-#include "DynamicMeshBindingSystem.hpp"
-#include "WorldTextBindingSystem.hpp"
-#include "GeometryBindingLifecycle.h"
-#include "CameraBindingLifecycle.h"
-#include "CameraBindingSystem.hpp"
-#include "MeshGpuComponent.h"
-#include "RenderDirtyComponent.h"
-#include "RenderGpuComponent.h"
-#include "DefaultCameraControlSystem.hpp"
-#include "PhysicsSystem.h"
-#include "PhysicsDebugRenderer.h"
-#include "ParticleEffectHotReloadSystem.hpp"
-#include "ParticleEmitterSystem.hpp"
-#include "TextureAnimationComponent.h"
-#include "TextureAnimationRuntimeComponent.h"
-#include "WorldTextRuntimeComponent.h"
-#include "DebugDrawSystem.hpp"
-#include "RenderExtractionSnapshotBuilder.hpp"
-#include "TransformDirtyHelpers.h"
-#include "InputBindingRegistry.h"
-#include "QuadMeshComponent.h"
-#include "DynamicMeshComponent.h"
+class IGtsPhysicsModule;
 
 // Override this class to define a reusable engine scene in terms of entities,
 // components, and engine systems.
 class GtsScene
 {
     protected:
-    ECSWorld                      ecsWorld;
-    std::unique_ptr<PhysicsWorld> physicsWorld;
-    bool                          rendererFeatureInstalled  = false;
-    bool                          physicsFeatureInstalled   = false;
-    bool                          debugDrawFeatureInstalled = false;
+    ECSWorld ecsWorld;
 
     void resetSceneWorld()
     {
-        gts::rendering::resetGeometryBindingLifecycleState(ecsWorld);
-        gts::rendering::resetCameraBindingLifecycleState(ecsWorld);
+        for (const auto& hook : resetHooks)
+            hook(ecsWorld);
+
         ecsWorld.clear();
-        physicsWorld.reset();
-        rendererFeatureInstalled  = false;
-        physicsFeatureInstalled   = false;
-        debugDrawFeatureInstalled = false;
+        clearSceneResources();
+        physicsModule = nullptr;
+        installedSceneFeatures.clear();
+        resetHooks.clear();
     }
 
     public:
-    virtual ~GtsScene() = default;
+    virtual ~GtsScene()
+    {
+        clearSceneResources();
+    }
 
     // Called once whenever the scene is loaded.
-    // ctx is non-const because installPhysicsFeature() writes ctx.physics back
-    // to inform the caller (GravitasEngine) of the newly created physics world.
     virtual void onLoad(EcsControllerContext& ctx, const GtsSceneTransitionData* data = nullptr) = 0;
 
     // Called once per simulation tick at the fixed tick rate.
@@ -95,233 +68,62 @@ class GtsScene
 
     IGtsPhysicsModule* getPhysicsModule()
     {
-        return physicsWorld.get();
+        return physicsModule;
     }
 
-    // Call from onLoad() to enable physics for this scene. Idempotent —
-    // safe to call multiple times (e.g., on scene reload); subsequent calls
-    // are no-ops so the physics world is not reset or duplicated.
-    inline void installPhysicsFeature(EcsControllerContext& ctx, bool enableDebugRenderer = false)
+    const IGtsPhysicsModule* getPhysicsModule() const
     {
-        if (physicsFeatureInstalled)
-            return;
-
-        physicsWorld = std::make_unique<PhysicsWorld>(&ecsWorld);
-        ctx.physics  = physicsWorld.get();
-
-        ecsWorld.addSimulationSystem<PhysicsSystem>(EcsSystemGroup::Physics, physicsWorld.get());
-        if (enableDebugRenderer)
-            ecsWorld.addControllerSystem<PhysicsDebugRenderer>(EcsSystemGroup::Tools);
-        physicsFeatureInstalled = true;
+        return physicsModule;
     }
 
-    // Call from onLoad() to install the standard rendering systems (mesh binding,
-    // GPU sync, camera). Idempotent — safe to call multiple times; subsequent
-    // calls are no-ops so systems are not registered twice on scene reload.
-    inline void installRendererFeature(const EcsControllerContext& ctx)
+    void setPhysicsModule(IGtsPhysicsModule* module)
     {
-        if (rendererFeatureInstalled)
-            return;
-
-        auto* resources = ctx.resources;
-        ecsWorld.registerRemoveCallback<CameraGpuComponent>(
-            [resources](ECSWorld&, Entity, CameraGpuComponent& cameraGpu)
-            {
-                if (cameraGpu.viewID == 0 || resources == nullptr)
-                    return;
-
-                resources->releaseCameraBuffer(cameraGpu.viewID);
-                cameraGpu.viewID = 0;
-            });
-        ecsWorld.registerRemoveCallback<RenderGpuComponent>(
-            [resources](ECSWorld& world, Entity entity, RenderGpuComponent& renderGpu)
-            {
-                RenderExtractionSnapshotBuilder::notifyRenderableRemoved(world, entity, renderGpu);
-
-                if (renderGpu.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED || resources == nullptr)
-                    return;
-
-                resources->releaseObjectSlot(renderGpu.objectSSBOSlot);
-                renderGpu.objectSSBOSlot = RENDERABLE_SLOT_UNALLOCATED;
-            });
-        ecsWorld.registerRemoveCallback<MeshGpuComponent>(
-            [resources](ECSWorld&, Entity, MeshGpuComponent& meshGpu)
-            {
-                if (!meshGpu.ownsProceduralMeshResource || meshGpu.meshID == 0 || resources == nullptr)
-                    return;
-
-                resources->releaseProceduralMesh(meshGpu.meshID);
-                meshGpu.meshID                     = 0;
-                meshGpu.ownsProceduralMeshResource = false;
-            });
-        ecsWorld.registerAddCallback<TransformComponent>(
-            [](ECSWorld& world, Entity entity, TransformComponent&)
-            {
-                gts::transform::markDirty(world, entity);
-            });
-        ecsWorld.registerAddCallback<StaticMeshComponent>(
-            [](ECSWorld& world, Entity entity, StaticMeshComponent&)
-            {
-                gts::rendering::queueStaticMeshRefresh(world, entity);
-            });
-        ecsWorld.registerRemoveCallback<StaticMeshComponent>(
-            [](ECSWorld& world, Entity entity, StaticMeshComponent&)
-            {
-                gts::rendering::queueRenderableCleanup(world, entity);
-            });
-        ecsWorld.registerAddCallback<QuadMeshComponent>(
-            [](ECSWorld& world, Entity entity, QuadMeshComponent&)
-            {
-                gts::rendering::queueQuadMeshRefresh(world, entity);
-            });
-        ecsWorld.registerRemoveCallback<QuadMeshComponent>(
-            [](ECSWorld& world, Entity entity, QuadMeshComponent&)
-            {
-                gts::rendering::queueRenderableCleanup(world, entity);
-            });
-        ecsWorld.registerAddCallback<DynamicMeshComponent>(
-            [](ECSWorld& world, Entity entity, DynamicMeshComponent&)
-            {
-                gts::rendering::queueDynamicMeshRefresh(world, entity);
-            });
-        ecsWorld.registerRemoveCallback<DynamicMeshComponent>(
-            [](ECSWorld& world, Entity entity, DynamicMeshComponent&)
-            {
-                gts::rendering::queueRenderableCleanup(world, entity);
-            });
-        ecsWorld.registerAddCallback<MaterialComponent>(
-            [](ECSWorld& world, Entity entity, MaterialComponent&)
-            {
-                gts::rendering::queueStaticMeshRefresh(world, entity);
-                gts::rendering::queueQuadMeshRefresh(world, entity);
-                gts::rendering::queueDynamicMeshRefresh(world, entity);
-            });
-        ecsWorld.registerRemoveCallback<MaterialComponent>(
-            [](ECSWorld& world, Entity entity, MaterialComponent&)
-            {
-                gts::rendering::queueRenderableCleanup(world, entity);
-            });
-        ecsWorld.registerAddCallback<TextureAnimationComponent>(
-            [](ECSWorld& world, Entity entity, TextureAnimationComponent&)
-            {
-                if (!world.hasComponent<TextureAnimationRuntimeComponent>(entity))
-                    world.commands().addComponent<TextureAnimationRuntimeComponent>(entity,
-                                                                                    TextureAnimationRuntimeComponent{});
-
-                if (!world.hasComponent<RenderGpuComponent>(entity) ||
-                    !world.hasComponent<RenderDirtyComponent>(entity))
-                {
-                    return;
-                }
-
-                auto& renderGpu       = world.getComponent<RenderGpuComponent>(entity);
-                auto& dirty           = world.getComponent<RenderDirtyComponent>(entity);
-                renderGpu.uvTransform = {1.0f, 1.0f, 0.0f, 0.0f};
-                dirty.objectDataDirty = true;
-                gts::rendering::queueRenderSnapshotDirty(world, entity);
-            });
-        ecsWorld.registerRemoveCallback<TextureAnimationComponent>(
-            [](ECSWorld& world, Entity entity, TextureAnimationComponent&)
-            {
-                if (world.hasComponent<TextureAnimationRuntimeComponent>(entity))
-                    world.commands().removeComponent<TextureAnimationRuntimeComponent>(entity);
-
-                if (!world.hasComponent<RenderGpuComponent>(entity) ||
-                    !world.hasComponent<RenderDirtyComponent>(entity))
-                {
-                    return;
-                }
-
-                auto& renderGpu       = world.getComponent<RenderGpuComponent>(entity);
-                auto& dirty           = world.getComponent<RenderDirtyComponent>(entity);
-                renderGpu.uvTransform = {1.0f, 1.0f, 0.0f, 0.0f};
-                dirty.objectDataDirty = true;
-                gts::rendering::queueRenderSnapshotDirty(world, entity);
-            });
-        ecsWorld.registerAddCallback<WorldTextComponent>(
-            [](ECSWorld& world, Entity entity, WorldTextComponent&)
-            {
-                if (!world.hasComponent<WorldTextRuntimeComponent>(entity))
-                    world.commands().addComponent<WorldTextRuntimeComponent>(entity, WorldTextRuntimeComponent{});
-            });
-        ecsWorld.registerRemoveCallback<WorldTextComponent>(
-            [](ECSWorld& world, Entity entity, WorldTextComponent&)
-            {
-                if (world.hasComponent<WorldTextRuntimeComponent>(entity))
-                    world.commands().removeComponent<WorldTextRuntimeComponent>(entity);
-
-                gts::rendering::queueRenderableCleanup(world, entity);
-            });
-        ecsWorld.registerAddCallback<CameraDescriptionComponent>(
-            [](ECSWorld& world, Entity entity, CameraDescriptionComponent&)
-            {
-                gts::rendering::queueCameraRefresh(world, entity);
-            });
-        ecsWorld.registerRemoveCallback<CameraDescriptionComponent>(
-            [](ECSWorld& world, Entity entity, CameraDescriptionComponent&)
-            {
-                gts::rendering::queueCameraCleanup(world, entity);
-            });
-
-        ecsWorld.addControllerSystem<StaticMeshBindingSystem>(EcsSystemGroup::RenderPrep);
-        ecsWorld.addControllerSystem<QuadMeshBindingSystem>(EcsSystemGroup::RenderPrep);
-        ecsWorld.addControllerSystem<DynamicMeshBindingSystem>(EcsSystemGroup::RenderPrep);
-        ecsWorld.addControllerSystem<WorldTextBindingSystem>(EcsSystemGroup::RenderPrep);
-        ecsWorld.addControllerSystem<RenderableCleanupSystem>(EcsSystemGroup::RenderPrep);
-        ecsWorld.addControllerSystem<RenderGpuSystem>(EcsSystemGroup::RenderPrep);
-        ecsWorld.addControllerSystem<TextureAnimationSystem>(EcsSystemGroup::Animation);
-        ecsWorld.addControllerSystem<CameraLifecycleSystem>(EcsSystemGroup::Camera);
-        ecsWorld.addControllerSystem<DefaultCameraControlSystem>(EcsSystemGroup::Camera);
-        ecsWorld.addControllerSystem<CameraGpuSystem>(EcsSystemGroup::Camera);
-        ecsWorld.addControllerSystem<CameraBindingSystem>(EcsSystemGroup::Camera);
-        ecsWorld.addControllerSystem<ActiveCameraViewSystem>(EcsSystemGroup::Camera);
-        ecsWorld.addControllerSystem<ParticleEffectHotReloadSystem>(EcsSystemGroup::Particles);
-        ecsWorld.addControllerSystem<ParticleEmitterSystem>(EcsSystemGroup::Particles);
-        ecsWorld.forEachSnapshot<StaticMeshComponent, MaterialComponent>(
-            [this](Entity entity, StaticMeshComponent&, MaterialComponent&)
-            {
-                // Some legacy scenes still spawn descriptors before installing
-                // the renderer feature. Queue a one-time bootstrap rather than
-                // reintroducing a full steady-state scan.
-                gts::rendering::queueStaticMeshRefresh(ecsWorld, entity);
-            });
-        ecsWorld.forEachSnapshot<QuadMeshComponent, MaterialComponent>(
-            [this](Entity entity, QuadMeshComponent&, MaterialComponent&)
-            {
-                gts::rendering::queueQuadMeshRefresh(ecsWorld, entity);
-            });
-        ecsWorld.forEachSnapshot<DynamicMeshComponent, MaterialComponent>(
-            [this](Entity entity, DynamicMeshComponent&, MaterialComponent&)
-            {
-                gts::rendering::queueDynamicMeshRefresh(ecsWorld, entity);
-            });
-        ecsWorld.forEachSnapshot<TextureAnimationComponent>(
-            [this](Entity entity, TextureAnimationComponent&)
-            {
-                if (!ecsWorld.hasComponent<TextureAnimationRuntimeComponent>(entity))
-                    ecsWorld.commands().addComponent<TextureAnimationRuntimeComponent>(
-                        entity, TextureAnimationRuntimeComponent{});
-            });
-        ecsWorld.forEachSnapshot<WorldTextComponent>(
-            [this](Entity entity, WorldTextComponent&)
-            {
-                if (!ecsWorld.hasComponent<WorldTextRuntimeComponent>(entity))
-                    ecsWorld.commands().addComponent<WorldTextRuntimeComponent>(entity, WorldTextRuntimeComponent{});
-            });
-        ecsWorld.forEachSnapshot<CameraDescriptionComponent>(
-            [this](Entity entity, CameraDescriptionComponent&)
-            {
-                gts::rendering::queueCameraRefresh(ecsWorld, entity);
-            });
-        rendererFeatureInstalled = true;
+        physicsModule = module;
     }
 
-    inline void installDebugDrawFeature(const EcsControllerContext&)
+    bool markSceneFeatureInstalled(const std::string& featureId)
     {
-        if (debugDrawFeatureInstalled)
-            return;
+        return installedSceneFeatures.insert(featureId).second;
+    }
 
-        ecsWorld.addControllerSystem<gts::debugdraw::DebugDrawSystem>(EcsSystemGroup::Tools);
-        debugDrawFeatureInstalled = true;
+    void registerSceneResetHook(std::function<void(ECSWorld&)> hook)
+    {
+        resetHooks.push_back(std::move(hook));
+    }
+
+    template<typename Resource, typename... Args>
+    Resource& createSceneResource(Args&&... args)
+    {
+        Resource* resource = new Resource(std::forward<Args>(args)...);
+        sceneResources.push_back(SceneResource{
+            resource,
+            [](void* ptr)
+            {
+                delete static_cast<Resource*>(ptr);
+            }
+        });
+        return *resource;
+    }
+
+    private:
+    struct SceneResource
+    {
+        void* resource = nullptr;
+        void (*destroy)(void*) = nullptr;
+    };
+
+    std::vector<SceneResource> sceneResources;
+    std::vector<std::function<void(ECSWorld&)>> resetHooks;
+    std::unordered_set<std::string> installedSceneFeatures;
+    IGtsPhysicsModule* physicsModule = nullptr;
+
+    void clearSceneResources()
+    {
+        for (SceneResource& sceneResource : sceneResources)
+        {
+            if (sceneResource.destroy != nullptr)
+                sceneResource.destroy(sceneResource.resource);
+        }
+        sceneResources.clear();
     }
 };

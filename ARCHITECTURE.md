@@ -321,6 +321,10 @@ snapshot even if entity IDs, SSBO slots, or allocator addresses are reused.
 
 ### Descriptor Components (application-facing)
 
+Transform descriptors live in the transform module. Render and particle
+descriptors live with the renderer ECS setup, next to their runtime companion
+components and systems.
+
 | Component | Purpose |
 |-----------|---------|
 | `TransformComponent` | Position, rotation, scale |
@@ -483,8 +487,8 @@ separate Vulkan render stage.
 
 Feature layout:
 
-- `core/ecs/desc/ParticleEmitterComponent.h`: game-facing particle emitter descriptor
-- `core/ecs/desc/ParticleTypes.h`: authoring types for curves, shapes, bursts,
+- `modules/rendering/ecssetup/particles/components/ParticleEmitterComponent.h`: game-facing particle emitter descriptor
+- `modules/rendering/ecssetup/particles/components/ParticleTypes.h`: authoring types for curves, shapes, bursts,
   flipbooks, and force module data
 - `modules/rendering/ecssetup/particles/components/`: runtime particle state
 - `modules/rendering/ecssetup/particles/assets/`: JSON particle effect

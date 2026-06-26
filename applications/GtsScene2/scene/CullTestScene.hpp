@@ -13,6 +13,7 @@
 #include "CameraControlOverrideComponent.h"
 #include "GraphicsConstants.h"
 #include "GtsKey.h"
+#include "RendererSceneFeature.h"
 #include "UiSystem.h"
 #include "UiHandle.h"
 #include "BitmapFont.h"
@@ -155,7 +156,7 @@ public:
         // FreeFlyCamera must run before the shared camera pipeline so its
         // transform/description updates feed the same-frame matrix upload.
         ecsWorld.addControllerSystem<FreeFlyCamera>(EcsSystemGroup::Camera);
-        installRendererFeature(ctx);
+        gts::rendering::installRendererFeature(*this, ctx);
     }
 
     void onUpdateSimulation(const EcsSimulationContext& ctx) override
