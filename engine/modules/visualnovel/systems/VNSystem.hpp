@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -119,7 +120,18 @@ namespace gts::vn
         bool continuePressed(const EcsControllerContext& ctx) const
         {
             const std::string& action = runtime.getConfig().continueAction;
-            return ctx.input != nullptr && !action.empty() && ctx.input->isPressed(action);
+            if (ctx.input == nullptr || action.empty())
+                return false;
+
+            if (ctx.input->isPressed(action))
+                return true;
+
+            const std::optional<InputTrigger> lastPressed = ctx.input->getLastPressedTrigger();
+            if (!lastPressed.has_value())
+                return false;
+
+            const std::vector<InputTrigger> triggers = ctx.input->getTriggersForAction(action);
+            return std::find(triggers.begin(), triggers.end(), *lastPressed) != triggers.end();
         }
 
         UiInteractionResult updateInteraction(const EcsControllerContext& ctx) const
