@@ -233,12 +233,4 @@ class VulkanContext
         VkExtent2D getFrameOutputExtent() const { return frameOutputExtent; }
         VkPresentModeKHR getFrameOutputPresentMode() const { return frameOutputPresentMode; }
 
-        // also exposing the concrete wrapper objects as pointers - this is not needed in the final codebase, but is still
-        // included for now as an alternative way of accessing lower level vulkan constructs
-        // ----------------------------------------------------------------------------------
-        VulkanInstance* getInstanceWrapper() { return vinstance.get(); }
-        VulkanSurface* getSurfaceWrapper() { return vsurface.get(); }
-        VulkanPhysicalDevice* getPhysicalDeviceWrapper() { return vphysicaldevice.get(); }
-        VulkanLogicalDevice* getLogicalDeviceWrapper() { return vlogicaldevice.get(); }
-        VulkanSwapChain* getSwapChainWrapper() { return vswapchain.get(); }
 };

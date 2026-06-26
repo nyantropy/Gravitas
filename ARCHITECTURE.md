@@ -300,7 +300,10 @@ graphics backend. The generic module still owns the GLFW window abstraction and
 renderer-facing ECS/runtime contracts, while selected backend targets such as
 `gravitas_vulkan_backend` are added separately. CTest module smoke builds cover
 valid option combinations and expected dependency rejections so accidental
-module coupling is caught during engine verification.
+module coupling is caught during engine verification. The engine also registers
+a headless runtime startup smoke for top-level builds with the Vulkan backend;
+it runs when a Vulkan-capable GPU is available and reports a CTest skip when
+the test process has no Vulkan hardware.
 
 ### Descriptor → GPU Component Split
 
@@ -611,6 +614,12 @@ The Vulkan backend uses a declarative frame graph:
 - Stages declare their image/buffer read-write access patterns at `compile()` time
 - `execute()` records command buffers with automatic resource layout transitions
 - Resource types: external (swapchain), transient (render targets)
+
+`ForwardRenderer` owns frame-resource lifetime, swapchain/headless output
+recreation, frame pacing, extraction upload, and command-buffer submission.
+`ForwardFrameGraphBuilder` owns frame-output/depth resource import and stage
+assembly for the forward path, so stage constructor wiring stays separate from
+the renderer's per-frame orchestration.
 
 ### Vulkan Backend Context Boundary
 

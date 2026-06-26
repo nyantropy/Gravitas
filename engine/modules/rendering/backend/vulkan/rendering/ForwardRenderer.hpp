@@ -32,10 +32,7 @@
 #include "GtsFrameStats.h"
 
 #include "GtsFrameGraph.h"
-#include "SceneRenderStage.h"
-#include "ParticleRenderStage.h"
-#include "UpscaleRenderStage.h"
-#include "UiRenderStage.h"
+#include "ForwardFrameGraphBuilder.h"
 #include "output/HeadlessFrameOutputTarget.hpp"
 #include "output/WindowedFrameOutputTarget.hpp"
 
@@ -235,115 +232,24 @@ class ForwardRenderer : Renderer
 
         void buildFrameGraph()
         {
-            const auto& images     = frameOutputTarget->getImages();
-            const auto& imageViews = frameOutputTarget->getImageViews();
-            const auto  format     = frameOutputTarget->getFormat();
-            const auto  outputExtent = frameOutputTarget->getExtent();
-
-            GtsResourceHandle outputHandle0 = GTS_INVALID_RESOURCE;
-            for (uint32_t i = 0; i < static_cast<uint32_t>(images.size()); ++i)
-            {
-                GtsResourceHandle h = frameGraph.importResource(
-                    "frame_output_" + std::to_string(i),
-                    images[i], imageViews[i],
-                    format, outputExtent,
-                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-                    VK_IMAGE_ASPECT_COLOR_BIT,
-                    VK_IMAGE_LAYOUT_UNDEFINED);
-                frameGraph.registerSwapchainHandle(i, h);
-                if (i == 0) outputHandle0 = h;
-            }
-
-            GtsResourceHandle sceneColorHandle = outputHandle0;
-            std::vector<VkImageView> sceneColorViews(imageViews.begin(), imageViews.end());
-            VkImageLayout sceneColorInitialLayout = frameOutputTarget->getUiInitialLayout();
-            VkImageLayout sceneColorFinalLayout = frameOutputTarget->getUiInitialLayout();
-            DescriptorSetManager& descriptorSetManager = resourceSystem->getDescriptorSetManager();
-            if (useInternalScaling())
-            {
-                sceneColorHandle = frameGraph.importResource(
-                    "scene_color",
-                    sceneColorAttachment->getImage(),
-                    sceneColorAttachment->getImageView(),
-                    format, sceneRenderExtent,
-                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                    VK_IMAGE_ASPECT_COLOR_BIT,
-                    VK_IMAGE_LAYOUT_UNDEFINED);
-                sceneColorViews = {sceneColorAttachment->getImageView()};
-                sceneColorInitialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-                sceneColorFinalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-            }
-
-            GtsResourceHandle depthHandle = frameGraph.importResource(
-                "depth",
-                depthAttachment->getImage(),
-                depthAttachment->getImageView(),
-                depthFormat, sceneRenderExtent,
-                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                VK_IMAGE_ASPECT_DEPTH_BIT,
-                VK_IMAGE_LAYOUT_UNDEFINED);
-
-            auto ownedScene = std::make_unique<SceneRenderStage>(
-                resourceSystem.get(),
-                threadPool.get(),
+            const ForwardFrameGraphBuildConfig buildConfig{
+                *resourceSystem,
+                *threadPool,
                 backendContext,
-                descriptorSetManager,
-                sceneColorViews,
-                static_cast<uint32_t>(images.size()),
-                format,
-                sceneRenderExtent,
-                depthAttachment->getImageView(),
+                *frameOutputTarget,
+                *depthAttachment,
+                sceneColorAttachment.get(),
                 depthFormat,
-                sceneColorHandle,
-                depthHandle,
-                sceneColorFinalLayout);
-            sceneStage = ownedScene.get();
-            frameGraph.addStage(std::move(ownedScene));
-
-            auto ownedParticles = std::make_unique<ParticleRenderStage>(
-                resourceSystem.get(),
-                backendContext,
-                descriptorSetManager,
-                sceneColorViews,
-                static_cast<uint32_t>(images.size()),
-                format,
                 sceneRenderExtent,
-                depthAttachment->getImageView(),
-                depthFormat,
-                sceneColorHandle,
-                depthHandle,
-                sceneColorInitialLayout,
-                sceneColorFinalLayout);
-            particleStage = ownedParticles.get();
-            frameGraph.addStage(std::move(ownedParticles));
+                frameStats,
+                useInternalScaling(),
+                debugOverlayEnabled};
 
-            if (useInternalScaling())
-            {
-                auto ownedUpscale = std::make_unique<UpscaleRenderStage>(
-                    backendContext,
-                    descriptorSetManager,
-                    sceneColorAttachment->getImageView(),
-                    sceneRenderExtent,
-                    format,
-                    sceneColorHandle,
-                    outputHandle0,
-                    frameOutputTarget->getUiInitialLayout());
-                frameGraph.addStage(std::move(ownedUpscale));
-            }
-
-            auto ownedUi = std::make_unique<UiRenderStage>(
-                resourceSystem.get(),
-                backendContext,
-                descriptorSetManager,
-                outputHandle0,
-                &frameStats,
-                debugOverlayEnabled,
-                frameOutputTarget->getUiInitialLayout(),
-                frameOutputTarget->getUiFinalLayout());
-            uiStage = ownedUi.get();
-            frameGraph.addStage(std::move(ownedUi));
-
-            frameGraph.compile();
+            const ForwardFrameGraphStageRefs stageRefs =
+                ForwardFrameGraphBuilder::build(frameGraph, buildConfig);
+            sceneStage = stageRefs.sceneStage;
+            particleStage = stageRefs.particleStage;
+            uiStage = stageRefs.uiStage;
         }
 
         void createFrameResources()
