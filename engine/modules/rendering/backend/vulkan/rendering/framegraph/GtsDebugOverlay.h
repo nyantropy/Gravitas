@@ -134,9 +134,12 @@ public:
         // Page header — yellow, shows page name and number
         {
             char hdr[32];
+            constexpr int pageCount = static_cast<int>(OverlayPage::COUNT);
             const char* names[] = { "SUMMARY", "CPU PROF", "RENDER", "UI+ENG" };
             int pn = static_cast<int>(currentPage);
-            snprintf(hdr, sizeof(hdr), "[%-8s]%d/4", names[pn], pn + 1);
+            if (pn < 0 || pn >= pageCount)
+                pn = 0;
+            snprintf(hdr, sizeof(hdr), "[%-8s]%d/%d", names[pn], pn + 1, pageCount);
             appendLine(buffer, hdr, OVERLAY_X, y, {1.0f, 0.9f, 0.3f, 1.0f});
             y += la * 1.35f;
         }
@@ -147,6 +150,7 @@ public:
             case OverlayPage::CpuProfiling:   drawCpuProfiling(buffer, y, la);          break;
             case OverlayPage::RenderPipeline: drawRenderPipeline(buffer, stats, y, la); break;
             case OverlayPage::UiEngine:       drawUiEngine(buffer, stats, y, la);       break;
+            case OverlayPage::COUNT:                                                    break;
         }
     }
 

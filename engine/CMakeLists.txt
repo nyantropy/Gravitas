@@ -11,6 +11,24 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     option(GTS_BUILD_TEST_SCENES "Build bundled engine validation scenes" ON)
 endif()
 
+option(GTS_ENABLE_RENDERING "Build the generic rendering module" ON)
+option(GTS_ENABLE_VULKAN_BACKEND "Build the Vulkan rendering backend" ON)
+option(GTS_ENABLE_PHYSICS "Build the physics module" ON)
+option(GTS_ENABLE_DEBUGDRAW "Build the debug draw module" ON)
+option(GTS_ENABLE_TOOLS "Build the engine tools module" ON)
+
+if(GTS_ENABLE_VULKAN_BACKEND AND NOT GTS_ENABLE_RENDERING)
+    message(FATAL_ERROR "GTS_ENABLE_VULKAN_BACKEND requires GTS_ENABLE_RENDERING")
+endif()
+
+if(GTS_ENABLE_DEBUGDRAW AND NOT GTS_ENABLE_RENDERING)
+    message(FATAL_ERROR "GTS_ENABLE_DEBUGDRAW currently requires GTS_ENABLE_RENDERING")
+endif()
+
+if(GTS_ENABLE_TOOLS AND (NOT GTS_ENABLE_RENDERING OR NOT GTS_ENABLE_DEBUGDRAW))
+    message(FATAL_ERROR "GTS_ENABLE_TOOLS currently requires GTS_ENABLE_RENDERING and GTS_ENABLE_DEBUGDRAW")
+endif()
+
 if(NOT DEFINED GTS_ENGINE_ROOT)
     get_filename_component(GTS_ENGINE_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 endif()
@@ -27,8 +45,15 @@ target_compile_features(gravitas_engine INTERFACE cxx_std_20)
 target_link_libraries(gravitas_engine INTERFACE
     gravitas_core
     gravitas_modules
-    gravitas_rendering
 )
+
+if(TARGET gravitas_rendering)
+    target_link_libraries(gravitas_engine INTERFACE gravitas_rendering)
+endif()
+
+if(TARGET gravitas_vulkan_backend)
+    target_link_libraries(gravitas_engine INTERFACE gravitas_vulkan_backend)
+endif()
 
 # Engine-root headers (GravitasEngine.hpp, GtsGameLoop.h, GtsPlatform.h, EngineConfig.h)
 target_include_directories(gravitas_engine INTERFACE

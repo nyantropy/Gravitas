@@ -11,7 +11,7 @@
 #include "RenderInvalidationLifecycle.h"
 #include "TransformComponent.h"
 #include "HierarchyComponent.h"
-#include "EngineConfig.h"
+#include "GraphicsConstants.h"
 
 // Controller system that keeps RenderGpuComponent::modelMatrix in sync with
 // TransformComponent, accounting for parent-child hierarchies.
@@ -265,7 +265,7 @@ private:
     static inline Metrics lastMetrics{};
 
     std::vector<CachedTransform> transformCache =
-        std::vector<CachedTransform>(EngineConfig::MAX_RENDERABLE_OBJECTS);
+        std::vector<CachedTransform>(GraphicsConstants::MAX_RENDERABLE_OBJECTS);
     std::unordered_map<entity_id_type, CachedTransform> nonRenderableTransformCache;
     // Promoted from locals — capacity retained across frames, eliminating per-frame heap allocation.
     std::unordered_map<entity_id_type, NodeState>  traversalCache;

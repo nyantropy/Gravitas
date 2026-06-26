@@ -19,14 +19,7 @@
 #include "RendererConfig.h"
 #include "ForwardRenderer.hpp"
 
-#include "ECSWorld.hpp"
 #include "vcsheet.h"
-
-#include "Entity.h"
-#include "MeshManager.hpp"
-
-#include "RenderCommandExtractor.hpp"
-#include "TransformComponent.h"
 
 #include "GraphicsConfig.h"
 #include "GtsPlatformEventBus.hpp"
@@ -36,6 +29,8 @@
 
 #include <algorithm>
 #include <iostream>
+#include <memory>
+#include <vector>
 
 class VulkanGraphics : public IGtsGraphicsModule
 {

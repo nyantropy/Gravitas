@@ -4,7 +4,7 @@
 #include <chrono>
 #include <vector>
 
-#include "EngineConfig.h"
+#include "GraphicsConstants.h"
 #include "RenderCommand.h"
 #include "RenderExtractionSnapshot.h"
 
@@ -234,7 +234,7 @@ class RenderCommandExtractor
     // Flat cache indexed by SSBO slot — O(1) access, contiguous memory, no hash overhead.
     // Sized to MAX_RENDERABLE_OBJECTS; stale entries detected via frame-stamp, pruned via occupiedSlots.
     std::vector<CachedCommandState> commandCache =
-        std::vector<CachedCommandState>(EngineConfig::MAX_RENDERABLE_OBJECTS);
+        std::vector<CachedCommandState>(GraphicsConstants::MAX_RENDERABLE_OBJECTS);
     std::vector<ssbo_id_type>  occupiedSlots;
     std::vector<ssbo_id_type>  opaqueSlotOrder;
     std::vector<ssbo_id_type>  transparentSlotOrder;

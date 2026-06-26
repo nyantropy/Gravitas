@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 
-#include "Vertex.h"
+#include "VulkanVertexDescription.h"
 
 struct VulkanPipelineConfig
 {
@@ -17,10 +17,10 @@ struct VulkanPipelineConfig
     // Defaults to the standard Vertex layout used by the main pipeline.
     // Override for custom vertex types (e.g. TextGlyphVertex).
     // Scene pipeline adds a second per-instance binding for objectSSBOSlot.
-    std::vector<VkVertexInputBindingDescription>   vertexBindings   = { Vertex::getBindingDescription() };
+    std::vector<VkVertexInputBindingDescription>   vertexBindings   = { VulkanVertexDescription::getBindingDescription() };
     std::vector<VkVertexInputAttributeDescription> vertexAttributes = []
     {
-        auto a = Vertex::getAttributeDescriptions();
+        auto a = VulkanVertexDescription::getAttributeDescriptions();
         return std::vector<VkVertexInputAttributeDescription>(a.begin(), a.end());
     }();
 

@@ -1,0 +1,294 @@
+#include "RenderingRuntime.h"
+
+#include <any>
+#include <chrono>
+#include <utility>
+#include <vector>
+
+#include "ECSWorld.hpp"
+#include "EcsControllerContext.hpp"
+#include "EcsExecutionProfile.h"
+#include "EngineServiceRegistry.h"
+#include "FrustumCullingStrategy.h"
+#include "GtsCommand.h"
+#include "GtsFrameStats.h"
+#include "GtsScene.hpp"
+#include "IGtsGraphicsModule.hpp"
+#include "IResourceProvider.hpp"
+#include "ParticleFrameData.h"
+#include "ProfileAccumulator.h"
+#include "RenderEngineCommands.h"
+#include "RenderGpuSystem.hpp"
+#include "RenderPassVisibilityComponent.h"
+#include "RenderPipeline.h"
+#include "RenderViewportComponent.h"
+#include "TimeContext.h"
+#include "UiCommand.h"
+#include "UiSystem.h"
+
+namespace gts::rendering
+{
+    RenderingRuntime::RenderingRuntime(bool frustumCullingEnabled,
+                                       IGtsGraphicsModule& graphics,
+                                       GraphicsSettingsCallback graphicsSettingsCallback)
+        : graphics(graphics)
+        , graphicsSettingsCallback(std::move(graphicsSettingsCallback))
+        , renderPipeline(std::make_unique<RenderPipeline>(
+              std::make_unique<FrustumCullingStrategy>(frustumCullingEnabled)))
+        , uiSystem(std::make_unique<UiSystem>(graphics.getResourceProvider()))
+    {
+    }
+
+    RenderingRuntime::~RenderingRuntime() = default;
+
+    const char* RenderingRuntime::name() const
+    {
+        return "rendering";
+    }
+
+    void RenderingRuntime::registerServices(EngineServiceRegistry& services)
+    {
+        services.registerService(*this);
+        services.registerService(*uiSystem);
+        if (IResourceProvider* provider = resources())
+            services.registerService(*provider);
+    }
+
+    void RenderingRuntime::unregisterServices(EngineServiceRegistry& services)
+    {
+        services.unregisterService<IResourceProvider>();
+        services.unregisterService<UiSystem>();
+        services.unregisterService<RenderingRuntime>();
+    }
+
+    void RenderingRuntime::afterSceneUnload(EngineServiceRegistry&)
+    {
+        resetSceneState();
+    }
+
+    IResourceProvider* RenderingRuntime::resources()
+    {
+        return graphics.getResourceProvider();
+    }
+
+    UiSystem* RenderingRuntime::ui()
+    {
+        return uiSystem.get();
+    }
+
+    void RenderingRuntime::clearUi()
+    {
+        uiSystem->clear();
+    }
+
+    void RenderingRuntime::setUiEnabled(bool enabled)
+    {
+        uiEnabled = enabled;
+        uiSystem->setEnabled(enabled);
+    }
+
+    bool RenderingRuntime::isUiEnabled() const
+    {
+        return uiEnabled;
+    }
+
+    void RenderingRuntime::resetSceneState()
+    {
+        renderPipeline->resetSceneState();
+    }
+
+    void RenderingRuntime::setVisibilityEnabled(bool enabled)
+    {
+        renderPipeline->setVisibilityEnabled(enabled);
+    }
+
+    void RenderingRuntime::setVisibilityFrozen(bool frozen)
+    {
+        renderPipeline->setVisibilityFrozen(frozen);
+    }
+
+    bool RenderingRuntime::applyExtensionCommand(const GtsExtensionCommand& command)
+    {
+        if (command.name == SET_FRUSTUM_CULLING_ENABLED_COMMAND)
+        {
+            if (const auto* payload = std::any_cast<SetFrustumCullingEnabledCommand>(&command.payload))
+                setVisibilityEnabled(payload->enabled);
+            return true;
+        }
+
+        if (command.name == SET_FRUSTUM_FREEZE_COMMAND)
+        {
+            if (const auto* payload = std::any_cast<SetFrustumFreezeCommand>(&command.payload))
+                setVisibilityFrozen(payload->frozen);
+            return true;
+        }
+
+        if (command.name == APPLY_GRAPHICS_SETTINGS_COMMAND)
+        {
+            if (const auto* payload = std::any_cast<ApplyGraphicsSettingsCommand>(&command.payload))
+            {
+                if (graphicsSettingsCallback)
+                    graphicsSettingsCallback(payload->settings);
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    namespace
+    {
+        RenderViewportRect resolveSceneViewport(ECSWorld& world, int windowPixelWidth, int windowPixelHeight)
+        {
+            const RenderViewportRect fullViewport =
+                RenderViewportRect::full(windowPixelWidth, windowPixelHeight);
+            if (!world.hasAny<RenderViewportComponent>())
+                return fullViewport;
+
+            const RenderViewportComponent& viewport = world.getSingleton<RenderViewportComponent>();
+            if (!viewport.sceneViewport.valid())
+                return fullViewport;
+
+            return viewport.sceneViewport.clampedTo(windowPixelWidth, windowPixelHeight);
+        }
+    }
+
+    void RenderingRuntime::applySceneViewportMetrics(EcsControllerContext& ctx,
+                                                     int windowPixelWidth,
+                                                     int windowPixelHeight) const
+    {
+        const RenderViewportRect viewport = resolveSceneViewport(ctx.world, windowPixelWidth, windowPixelHeight);
+
+        ctx.sceneViewportPixelX      = static_cast<float>(viewport.x);
+        ctx.sceneViewportPixelY      = static_cast<float>(viewport.y);
+        ctx.sceneViewportPixelWidth  = static_cast<float>(viewport.width);
+        ctx.sceneViewportPixelHeight = static_cast<float>(viewport.height);
+        ctx.sceneViewportAspectRatio = viewport.aspect();
+    }
+
+    void RenderingRuntime::renderFrame(float dt,
+                                       GtsScene& activeScene,
+                                       const TimeContext& time,
+                                       float simulationCpuMs,
+                                       float controllerCpuMs,
+                                       float frameCpuMs,
+                                       uint32_t extraControllerSystemCount,
+                                       int windowPixelWidth,
+                                       int windowPixelHeight,
+                                       ProfileAccumulator& profiler)
+    {
+        ECSWorld& world = activeScene.getWorld();
+        const RenderViewportRect sceneViewport = resolveSceneViewport(world, windowPixelWidth, windowPixelHeight);
+
+        GtsFrameStats stats;
+        stats.fps                   = (dt > 0.0f) ? 1.0f / dt : 0.0f;
+        stats.frameTimeMs           = dt * 1000.0f;
+        stats.visibleObjects        = static_cast<uint32_t>(renderPipeline->getExtractor().getLastVisibleRenderables());
+        stats.totalObjects          = static_cast<uint32_t>(renderPipeline->getExtractor().getLastTotalRenderables());
+        stats.controllerSystemCount =
+            static_cast<uint32_t>(world.getControllerSystemCount()) + extraControllerSystemCount;
+        stats.simulationSystemCount = static_cast<uint32_t>(world.getSimulationSystemCount());
+        const auto renderMetrics    = RenderGpuSystem::getLastMetrics();
+        stats.renderGpuUpdatedCount = renderMetrics.updatedRenderables;
+        stats.renderGpuCpuMs        = renderMetrics.cpuTimeMs;
+        stats.simulationCpuMs       = simulationCpuMs;
+        stats.controllerCpuMs       = controllerCpuMs;
+        stats.frameCpuMs            = frameCpuMs;
+        stats.frameIndex            = time.frame;
+        activeScene.populateFrameStats(stats);
+
+        const SceneExecutionProfile& executionProfile = world.getCurrentExecutionProfile();
+        const FrameBuildMode frameBuildMode = executionProfile.frameBuildMode;
+
+        static const std::vector<RenderCommand> emptyRenderList;
+        const std::vector<RenderCommand>* renderList = &emptyRenderList;
+        if (frameBuildMode == FrameBuildMode::FullWorld)
+            renderList = &renderPipeline->build(world);
+        else if (frameBuildMode == FrameBuildMode::CachedWorldFrame)
+            renderList = &renderPipeline->getExtractor().getLastCommands();
+
+        static const UiCommandBuffer emptyUiBuffer;
+        const UiCommandBuffer* uiBuffer = &emptyUiBuffer;
+        if (uiEnabled && frameBuildMode != FrameBuildMode::None)
+        {
+            uiSystem->setEnabled(true);
+            uiBuffer = &uiSystem->extractCommandsRef(windowPixelWidth, windowPixelHeight);
+        }
+        else
+        {
+            uiSystem->setEnabled(false);
+        }
+
+        ParticleFrameData emptyParticleData;
+        const ParticleFrameData& particleData = world.hasAny<ParticleFrameDataComponent>()
+            ? world.getSingleton<ParticleFrameDataComponent>().frameData
+            : emptyParticleData;
+        const RenderPassVisibilityComponent passVisibility = world.hasAny<RenderPassVisibilityComponent>()
+            ? world.getSingleton<RenderPassVisibilityComponent>()
+            : RenderPassVisibilityComponent::allVisible();
+
+        const std::vector<RenderCommand>& submittedRenderList =
+            passVisibility.renderScene ? *renderList : emptyRenderList;
+        const ParticleFrameData& submittedParticleData =
+            passVisibility.renderParticles && frameBuildMode == FrameBuildMode::FullWorld
+                ? particleData
+                : emptyParticleData;
+
+        const auto& pipelineMetrics  = renderPipeline->getLastPipelineMetrics();
+        const auto extractorMetrics  = renderPipeline->getExtractor().getLastMetrics();
+        const auto& snapMetrics      = renderPipeline->getSnapshotBuilder().getLastMetrics();
+        const auto uiMetrics         = uiSystem->getLastMetrics();
+
+        stats.snapshotBuildCpuMs     = pipelineMetrics.snapshotBuildCpuMs;
+        stats.visibilityCpuMs        = pipelineMetrics.visibilityCpuMs;
+        stats.renderExtractCpuMs     = extractorMetrics.extractCpuMs;
+        stats.renderExtractSortCpuMs = extractorMetrics.sortCpuMs;
+
+        stats.snapshotStaticCount  = snapMetrics.staticRenderableCount;
+        stats.snapshotDynamicCount = snapMetrics.dynamicRenderableCount;
+        stats.snapshotDirtyCount   = snapMetrics.dirtyUpdatedCount;
+        stats.snapshotReusedCount  = snapMetrics.reusedCount;
+
+        stats.uiLayoutCpuMs     = uiMetrics.layoutMs;
+        stats.uiVisualCpuMs     = uiMetrics.visualMs;
+        stats.uiCommandCpuMs    = uiMetrics.commandBuildMs;
+        stats.uiCpuMs           = uiMetrics.layoutMs + uiMetrics.visualMs + uiMetrics.commandBuildMs;
+        stats.uiNodeCount       = uiMetrics.nodeCount;
+        stats.uiPrimitiveCount  = uiMetrics.primitiveCount;
+        stats.uiCommandCount    = uiMetrics.commandCount;
+        stats.uiVertexCount     = uiMetrics.vertexCount;
+        stats.uiIndexCount      = uiMetrics.indexCount;
+        stats.uiCommandCacheHit = uiMetrics.commandCacheHit;
+
+        stats.totalObjects              = extractorMetrics.totalRenderables;
+        stats.visibleObjects            = extractorMetrics.visibleRenderables;
+        stats.renderCommandVisitedCount = extractorMetrics.visitedRenderables;
+        stats.renderCommandTotalCount   = extractorMetrics.cachedCommands;
+        stats.renderCommandUpdatedCount = extractorMetrics.updatedCommands;
+        stats.renderCommandSortedCount  = extractorMetrics.sortedThisFrame ? 1u : 0u;
+
+        const auto submitStart = std::chrono::steady_clock::now();
+        graphics.renderFrame(dt,
+                             submittedRenderList,
+                             renderPipeline->getLatestSnapshot().objectUploads,
+                             renderPipeline->getLatestSnapshot().cameraUploads,
+                             submittedParticleData,
+                             sceneViewport,
+                             *uiBuffer,
+                             stats);
+        const auto submitEnd    = std::chrono::steady_clock::now();
+        stats.renderSubmitCpuMs =
+            std::chrono::duration<float, std::milli>(submitEnd - submitStart).count();
+
+        profiler.add(stats, dt);
+        if (profiler.shouldPrint())
+        {
+            printProfile(profiler);
+            world.printSimulationProfiles();
+            world.printControllerProfiles();
+            world.resetSimulationProfiles();
+            world.resetControllerProfiles();
+            profiler.reset();
+        }
+    }
+}

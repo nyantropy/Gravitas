@@ -22,7 +22,6 @@
 #include "RenderViewport.h"
 #include "ObjectUBO.h"
 #include "GraphicsConstants.h"
-#include "EngineConfig.h"
 #include "BufferUtil.hpp"
 #include "vcsheet.h"
 
@@ -112,7 +111,7 @@ public:
         framebuffers = std::make_unique<FramebufferManager>(fbConfig);
 
         const VkDeviceSize instanceBufSize =
-            static_cast<VkDeviceSize>(EngineConfig::MAX_RENDERABLE_OBJECTS) * sizeof(uint32_t);
+            static_cast<VkDeviceSize>(GraphicsConstants::MAX_RENDERABLE_OBJECTS) * sizeof(uint32_t);
         for (uint32_t f = 0; f < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; ++f)
         {
             BufferUtil::createBuffer(
@@ -127,7 +126,7 @@ public:
 
         initializeParallelRecordingResources();
 
-        preparedBatches.reserve(EngineConfig::MAX_RENDERABLE_OBJECTS);
+        preparedBatches.reserve(GraphicsConstants::MAX_RENDERABLE_OBJECTS);
         chunkRanges.reserve(maxRecordingSlots);
         secondaryExecutionBuffers.resize(maxRecordingSlots, VK_NULL_HANDLE);
         chunkStats.resize(maxRecordingSlots);

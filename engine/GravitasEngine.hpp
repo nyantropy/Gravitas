@@ -14,25 +14,18 @@
 #include "GtsPlatform.h"
 #include "GtsGameLoop.h"
 
-#include "FrustumCullingStrategy.h"
-#include "RenderPipeline.h"
-#include "UiSystem.h"
 #include "SceneManager.hpp"
 
 #include "GtsCommand.h"
 #include "GtsCommandBuffer.h"
-#include "GtsFrameStats.h"
-#include "ParticleFrameData.h"
+#include "EngineServiceRegistry.h"
+#include "IEngineModule.h"
 #include "ProfileAccumulator.h"
-#include "RenderEngineCommands.h"
-#include "RenderGpuSystem.hpp"
-#include "RenderPassVisibilityComponent.h"
-#include "RenderViewportComponent.h"
+#include "RenderingRuntime.h"
 #include "EngineToolRuntime.hpp"
 
 #include "EcsSimulationContext.hpp"
 #include "EcsControllerContext.hpp"
-#include "EcsExecutionProfile.h"
 
 class GravitasEngine
 {
@@ -48,11 +41,12 @@ class GravitasEngine
     // a global engine timer
     std::unique_ptr<Timer> timer;
 
-    // used to extract all render commands from the currently active ecs world
-    std::unique_ptr<RenderPipeline> renderPipeline;
+    // installed engine-level service registry and module lifecycle hooks
+    EngineServiceRegistry serviceRegistry;
+    std::vector<IEngineModule*> engineModules;
 
-    // retained engine UI system
-    std::unique_ptr<UiSystem> uiSystem;
+    // renderer runtime integration
+    std::unique_ptr<gts::rendering::RenderingRuntime> renderingRuntime;
 
     // the scene manager
     std::unique_ptr<SceneManager> sceneManager;
@@ -77,34 +71,24 @@ class GravitasEngine
     float              lastFrameCpuMs = 0.0f;
     ProfileAccumulator profiler;
 
+    void installEngineModule(IEngineModule& module)
+    {
+        engineModules.push_back(&module);
+        module.registerServices(serviceRegistry);
+    }
+
+    void uninstallEngineModules()
+    {
+        for (auto it = engineModules.rbegin(); it != engineModules.rend(); ++it)
+            (*it)->unregisterServices(serviceRegistry);
+        engineModules.clear();
+        serviceRegistry.clear();
+    }
+
     void refreshWindowMetrics()
     {
         platform.getViewportSize(windowPixelWidth, windowPixelHeight);
         windowAspectRatio = platform.getAspectRatio();
-    }
-
-    RenderViewportRect resolveSceneViewport(ECSWorld& world) const
-    {
-        const RenderViewportRect fullViewport = RenderViewportRect::full(windowPixelWidth, windowPixelHeight);
-        if (!world.hasAny<RenderViewportComponent>())
-            return fullViewport;
-
-        const RenderViewportComponent& viewport = world.getSingleton<RenderViewportComponent>();
-        if (!viewport.sceneViewport.valid())
-            return fullViewport;
-
-        return viewport.sceneViewport.clampedTo(windowPixelWidth, windowPixelHeight);
-    }
-
-    void applySceneViewportMetrics(EcsControllerContext& ctx) const
-    {
-        const RenderViewportRect viewport = resolveSceneViewport(ctx.world);
-
-        ctx.sceneViewportPixelX      = static_cast<float>(viewport.x);
-        ctx.sceneViewportPixelY      = static_cast<float>(viewport.y);
-        ctx.sceneViewportPixelWidth  = static_cast<float>(viewport.width);
-        ctx.sceneViewportPixelHeight = static_cast<float>(viewport.height);
-        ctx.sceneViewportAspectRatio = viewport.aspect();
     }
 
     // Build an EcsControllerContext from the engine's current frame state.
@@ -114,11 +98,11 @@ class GravitasEngine
         GtsScene* activeScene = sceneManager->getActiveScene();
 
         EcsControllerContext ctx{world};
-        ctx.resources         = platform.getResourceProvider();
+        ctx.resources         = renderingRuntime->resources();
         ctx.input             = platform.getInputBindingRegistry();
         ctx.time              = &timeContext;
         ctx.engineCommands    = &engineCommands;
-        ctx.ui                = uiSystem.get();
+        ctx.ui                = renderingRuntime->ui();
         ctx.physics           = activeScene == nullptr ? nullptr : activeScene->getPhysicsModule();
         ctx.registeredScenes  = &sceneManager->getRegisteredScenes();
         ctx.activeSceneName   = &sceneManager->getActiveSceneName();
@@ -141,24 +125,35 @@ class GravitasEngine
 
         ECSWorld&            world     = activeScene->getWorld();
         EcsControllerContext unloadCtx = buildControllerContext(world);
+        for (auto it = engineModules.rbegin(); it != engineModules.rend(); ++it)
+            (*it)->beforeSceneUnload(*activeScene, unloadCtx);
+
         activeScene->unload(unloadCtx);
         sceneManager->clearActiveScene();
-        renderPipeline->resetSceneState();
+
+        for (auto it = engineModules.rbegin(); it != engineModules.rend(); ++it)
+            (*it)->afterSceneUnload(serviceRegistry);
     }
 
     void loadScene(std::string name, const GtsSceneTransitionData* data)
     {
-        uiSystem->clear();
+        renderingRuntime->clearUi();
         platform.getInputBindingRegistry()->clearContextStack();
         sceneManager->setActiveScene(std::move(name));
-        uiSystem->setEnabled(uiEnabled);
+        renderingRuntime->setUiEnabled(uiEnabled);
 
         GtsScene*            activeScene = sceneManager->getActiveScene();
         ECSWorld&            world       = activeScene->getWorld();
         EcsControllerContext loadCtx     = buildControllerContext(world);
+        for (IEngineModule* module : engineModules)
+            module->beforeSceneLoad(*activeScene, loadCtx);
+
         toolRuntime->prepare(loadCtx);
-        applySceneViewportMetrics(loadCtx);
+        renderingRuntime->applySceneViewportMetrics(loadCtx, windowPixelWidth, windowPixelHeight);
         activeScene->onLoad(loadCtx, data);
+
+        for (IEngineModule* module : engineModules)
+            module->afterSceneLoad(*activeScene, loadCtx);
     }
 
     void switchScene(std::string name, const GtsSceneTransitionData* data)
@@ -172,125 +167,18 @@ class GravitasEngine
     void render(float dt)
     {
         GtsScene* activeScene = sceneManager->getActiveScene();
-        auto&     world       = activeScene->getWorld();
         refreshWindowMetrics();
-        const RenderViewportRect sceneViewport = resolveSceneViewport(world);
-
-        GtsFrameStats stats;
-        stats.fps                   = (dt > 0.0f) ? 1.0f / dt : 0.0f;
-        stats.frameTimeMs           = dt * 1000.0f;
-        stats.visibleObjects        = static_cast<uint32_t>(renderPipeline->getExtractor().getLastVisibleRenderables());
-        stats.totalObjects          = static_cast<uint32_t>(renderPipeline->getExtractor().getLastTotalRenderables());
-        stats.controllerSystemCount = static_cast<uint32_t>(world.getControllerSystemCount()) +
-                                      (toolRuntime == nullptr ? 0u : toolRuntime->controllerSystemCount());
-        stats.simulationSystemCount = static_cast<uint32_t>(world.getSimulationSystemCount());
-        const auto renderMetrics    = RenderGpuSystem::getLastMetrics();
-        stats.renderGpuUpdatedCount = renderMetrics.updatedRenderables;
-        stats.renderGpuCpuMs        = renderMetrics.cpuTimeMs;
-        stats.simulationCpuMs       = lastSimCpuMs;
-        stats.controllerCpuMs       = lastCtrlCpuMs;
-        stats.frameCpuMs            = lastFrameCpuMs;
-        stats.frameIndex            = timeContext.frame;
-        // triangleCount is filled in by SceneRenderStage during execute
-        activeScene->populateFrameStats(stats);
-
-        const SceneExecutionProfile& executionProfile = world.getCurrentExecutionProfile();
-        const FrameBuildMode frameBuildMode = executionProfile.frameBuildMode;
-
-        static const std::vector<RenderCommand> emptyRenderList;
-        const std::vector<RenderCommand>* renderList = &emptyRenderList;
-        if (frameBuildMode == FrameBuildMode::FullWorld)
-        {
-            renderList = &renderPipeline->build(world);
-        }
-        else if (frameBuildMode == FrameBuildMode::CachedWorldFrame)
-        {
-            renderList = &renderPipeline->getExtractor().getLastCommands();
-        }
-
-        static const UiCommandBuffer emptyUiBuffer;
-        const UiCommandBuffer*       uiBuffer = &emptyUiBuffer;
-        if (uiEnabled && frameBuildMode != FrameBuildMode::None)
-        {
-            uiSystem->setEnabled(true);
-            uiBuffer = &uiSystem->extractCommandsRef(windowPixelWidth, windowPixelHeight);
-        }
-        else
-        {
-            uiSystem->setEnabled(false);
-        }
-
-        ParticleFrameData        emptyParticleData;
-        const ParticleFrameData& particleData = world.hasAny<ParticleFrameDataComponent>()
-                                                    ? world.getSingleton<ParticleFrameDataComponent>().frameData
-                                                    : emptyParticleData;
-        const RenderPassVisibilityComponent passVisibility = world.hasAny<RenderPassVisibilityComponent>()
-            ? world.getSingleton<RenderPassVisibilityComponent>()
-            : RenderPassVisibilityComponent::allVisible();
-
-        const std::vector<RenderCommand>& submittedRenderList =
-            passVisibility.renderScene ? *renderList : emptyRenderList;
-        const ParticleFrameData& submittedParticleData =
-            passVisibility.renderParticles && frameBuildMode == FrameBuildMode::FullWorld
-                ? particleData
-                : emptyParticleData;
-
-        // Per-stage pipeline metrics (snapshot / visibility / extraction / sort)
-        const auto& pipelineMetrics  = renderPipeline->getLastPipelineMetrics();
-        const auto  extractorMetrics = renderPipeline->getExtractor().getLastMetrics();
-        const auto& snapMetrics      = renderPipeline->getSnapshotBuilder().getLastMetrics();
-        const auto  uiMetrics        = uiSystem->getLastMetrics();
-
-        stats.snapshotBuildCpuMs     = pipelineMetrics.snapshotBuildCpuMs;
-        stats.visibilityCpuMs        = pipelineMetrics.visibilityCpuMs;
-        stats.renderExtractCpuMs     = extractorMetrics.extractCpuMs;
-        stats.renderExtractSortCpuMs = extractorMetrics.sortCpuMs;
-
-        stats.snapshotStaticCount  = snapMetrics.staticRenderableCount;
-        stats.snapshotDynamicCount = snapMetrics.dynamicRenderableCount;
-        stats.snapshotDirtyCount   = snapMetrics.dirtyUpdatedCount;
-        stats.snapshotReusedCount  = snapMetrics.reusedCount;
-
-        stats.uiLayoutCpuMs     = uiMetrics.layoutMs;
-        stats.uiVisualCpuMs     = uiMetrics.visualMs;
-        stats.uiCommandCpuMs    = uiMetrics.commandBuildMs;
-        stats.uiCpuMs           = uiMetrics.layoutMs + uiMetrics.visualMs + uiMetrics.commandBuildMs;
-        stats.uiNodeCount       = uiMetrics.nodeCount;
-        stats.uiPrimitiveCount  = uiMetrics.primitiveCount;
-        stats.uiCommandCount    = uiMetrics.commandCount;
-        stats.uiVertexCount     = uiMetrics.vertexCount;
-        stats.uiIndexCount      = uiMetrics.indexCount;
-        stats.uiCommandCacheHit = uiMetrics.commandCacheHit;
-
-        stats.totalObjects              = extractorMetrics.totalRenderables;
-        stats.visibleObjects            = extractorMetrics.visibleRenderables;
-        stats.renderCommandVisitedCount = extractorMetrics.visitedRenderables;
-        stats.renderCommandTotalCount   = extractorMetrics.cachedCommands;
-        stats.renderCommandUpdatedCount = extractorMetrics.updatedCommands;
-        stats.renderCommandSortedCount  = extractorMetrics.sortedThisFrame ? 1u : 0u;
-
-        const auto submitStart = std::chrono::steady_clock::now();
-        platform.getGraphics()->renderFrame(dt,
-                                            submittedRenderList,
-                                            renderPipeline->getLatestSnapshot().objectUploads,
-                                            renderPipeline->getLatestSnapshot().cameraUploads,
-                                            submittedParticleData,
-                                            sceneViewport,
-                                            *uiBuffer,
-                                            stats);
-        const auto submitEnd    = std::chrono::steady_clock::now();
-        stats.renderSubmitCpuMs = std::chrono::duration<float, std::milli>(submitEnd - submitStart).count();
-
-        profiler.add(stats, dt);
-        if (profiler.shouldPrint())
-        {
-            printProfile(profiler);
-            world.printSimulationProfiles();
-            world.printControllerProfiles();
-            world.resetSimulationProfiles();
-            world.resetControllerProfiles();
-            profiler.reset();
-        }
+        renderingRuntime->renderFrame(
+            dt,
+            *activeScene,
+            timeContext,
+            lastSimCpuMs,
+            lastCtrlCpuMs,
+            lastFrameCpuMs,
+            toolRuntime == nullptr ? 0u : toolRuntime->controllerSystemCount(),
+            windowPixelWidth,
+            windowPixelHeight,
+            profiler);
     }
 
     // command callback from lower level architectures
@@ -331,30 +219,7 @@ class GravitasEngine
 
     bool applyPendingRenderingCommand(const GtsExtensionCommand& command)
     {
-        using namespace gts::rendering;
-
-        if (command.name == SET_FRUSTUM_CULLING_ENABLED_COMMAND)
-        {
-            if (const auto* payload = std::any_cast<SetFrustumCullingEnabledCommand>(&command.payload))
-                renderPipeline->setVisibilityEnabled(payload->enabled);
-            return true;
-        }
-
-        if (command.name == SET_FRUSTUM_FREEZE_COMMAND)
-        {
-            if (const auto* payload = std::any_cast<SetFrustumFreezeCommand>(&command.payload))
-                renderPipeline->setVisibilityFrozen(payload->frozen);
-            return true;
-        }
-
-        if (command.name == APPLY_GRAPHICS_SETTINGS_COMMAND)
-        {
-            if (const auto* payload = std::any_cast<ApplyGraphicsSettingsCommand>(&command.payload))
-                applyGraphicsSettingsCommand(payload->settings);
-            return true;
-        }
-
-        return false;
+        return renderingRuntime->applyExtensionCommand(command);
     }
 
     void applyCommands()
@@ -390,9 +255,15 @@ class GravitasEngine
         gameLoop.init(engineConfig);
         maxFrameRate   = engineConfig.graphics.maxFrameRate;
         sceneManager   = std::make_unique<SceneManager>();
-        renderPipeline = std::make_unique<RenderPipeline>(
-            std::make_unique<FrustumCullingStrategy>(engineConfig.frustumCullingEnabled));
-        uiSystem    = std::make_unique<UiSystem>(platform.getResourceProvider());
+        renderingRuntime =
+            std::make_unique<gts::rendering::RenderingRuntime>(
+                engineConfig.frustumCullingEnabled,
+                *platform.getGraphics(),
+                [this](const RuntimeGraphicsSettings& settings)
+                {
+                    applyGraphicsSettingsCommand(settings);
+                });
+        installEngineModule(*renderingRuntime);
         toolRuntime = std::make_unique<gts::tools::EngineToolRuntime>();
     }
 
@@ -443,7 +314,7 @@ class GravitasEngine
             if (input->isPressed("engine.toggle_ui"))
             {
                 uiEnabled = !uiEnabled;
-                uiSystem->setEnabled(uiEnabled);
+                renderingRuntime->setUiEnabled(uiEnabled);
                 std::cout << (uiEnabled ? "UI: ON" : "UI: OFF") << std::endl;
             }
 
@@ -475,7 +346,7 @@ class GravitasEngine
                 EcsControllerContext ctrlCtx   = buildControllerContext(world);
                 toolRuntime->prepare(ctrlCtx);
                 EcsControllerContext sceneCtx = buildControllerContext(world);
-                applySceneViewportMetrics(sceneCtx);
+                renderingRuntime->applySceneViewportMetrics(sceneCtx, windowPixelWidth, windowPixelHeight);
                 sceneManager->getActiveScene()->onUpdateControllers(sceneCtx);
                 toolRuntime->update(ctrlCtx);
                 const auto ctrlEnd = std::chrono::steady_clock::now();
@@ -506,7 +377,8 @@ class GravitasEngine
 
         platform.waitForGraphicsIdle();
         unloadActiveScene();
-        uiSystem->clear();
+        renderingRuntime->clearUi();
+        uninstallEngineModules();
 
         // shutdown graphics module after we close the window
         platform.shutdown();

@@ -8,6 +8,7 @@ add_subdirectory(vksetup)
 # rendering/, resources/, texture/, and util/ are entirely owned by this target.
 # external/ lives outside the owned tree — those files are listed explicitly.
 file(GLOB_RECURSE VULKAN_BACKEND_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/graphics/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/rendering/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/texture/*.cpp"
@@ -30,6 +31,9 @@ else()
 endif()
 
 target_include_directories(gravitas_vulkan_backend PUBLIC
+    # Backend-owned graphics module implementation
+    "${CMAKE_CURRENT_SOURCE_DIR}/graphics"
+
     # Rendering pass headers
     "${CMAKE_CURRENT_SOURCE_DIR}/rendering"
     "${CMAKE_CURRENT_SOURCE_DIR}/rendering/attachment"

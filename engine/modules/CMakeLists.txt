@@ -1,9 +1,17 @@
-# rendering must be first — it defines gravitas_rendering (and transitively
-# gravitas_vulkan_backend + gravitas_vulkan_setup) before other modules reference graphics types.
-add_subdirectory(rendering)
-add_subdirectory(physics)
-add_subdirectory(debugdraw)
-add_subdirectory(tools)
+# rendering must be first — it defines gravitas_rendering and any selected
+# backend before other modules reference graphics types.
+if(GTS_ENABLE_RENDERING)
+    add_subdirectory(rendering)
+endif()
+if(GTS_ENABLE_PHYSICS)
+    add_subdirectory(physics)
+endif()
+if(GTS_ENABLE_DEBUGDRAW)
+    add_subdirectory(debugdraw)
+endif()
+if(GTS_ENABLE_TOOLS)
+    add_subdirectory(tools)
+endif()
 
 # ── gravitas_modules — INTERFACE aggregator for ECS feature modules ────────────
 # Lightweight ECS modules are header-only; compiled feature modules are linked below.
@@ -64,8 +72,14 @@ target_include_directories(gravitas_modules INTERFACE
 
 target_link_libraries(gravitas_modules INTERFACE
     gravitas_core
-    gravitas_rendering
-    gravitas_physics
-    gravitas_debugdraw
-    gravitas_tools
 )
+
+foreach(GTS_OPTIONAL_MODULE_TARGET
+        gravitas_rendering
+        gravitas_physics
+        gravitas_debugdraw
+        gravitas_tools)
+    if(TARGET ${GTS_OPTIONAL_MODULE_TARGET})
+        target_link_libraries(gravitas_modules INTERFACE ${GTS_OPTIONAL_MODULE_TARGET})
+    endif()
+endforeach()

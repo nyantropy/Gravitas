@@ -5,10 +5,11 @@
 #include <vector>
 
 #include "EngineConfig.h"
+#include "GtsEventTypes.h"
 #include "GtsPlatformEventBus.hpp"
 #include "SubscriptionToken.hpp"
+#include "GraphicsModuleFactory.h"
 #include "IGtsGraphicsModule.hpp"
-#include "VulkanGraphics.hpp"
 #include "InputManager.hpp"
 #include "InputBindingRegistry.h"
 
@@ -116,12 +117,7 @@ class GtsPlatform
 
         void createGraphicsModule(const EngineConfig& config)
         {
-            switch (config.graphics.backend)
-            {
-                case GraphicsBackend::Vulkan:
-                    graphics = std::make_unique<VulkanGraphics>(config.graphics);
-                    break;
-            }
+            graphics = gts::rendering::createGraphicsModule(config.graphics);
 
             keyEventToken = graphics->getEventBus().subscribe<GtsKeyEvent>([this](const GtsKeyEvent& e)
             {

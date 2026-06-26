@@ -31,6 +31,9 @@ target_include_directories(gravitas_core PUBLIC
     # Optional engine service contracts
     "${CMAKE_CURRENT_SOURCE_DIR}/services"
 
+    # Engine module lifecycle contracts
+    "${CMAKE_CURRENT_SOURCE_DIR}/module"
+
     # ECS framework
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/execution"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/world"

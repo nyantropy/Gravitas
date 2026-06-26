@@ -17,7 +17,7 @@
 //     camera system that already wrote its matrices this frame)
 //   - Reads TransformComponent.position (falls back to origin if absent)
 //   - Computes view matrix via glm::lookAt
-//   - Computes projection matrix via glm::perspective with Vulkan Y-flip
+//   - Computes projection matrix via glm::perspective with renderer clip-space Y-flip
 //   - Syncs the active flag from CameraDescriptionComponent
 //   - Writes matrices into CameraGpuComponent and sets dirty = true
 //
@@ -42,7 +42,7 @@ public:
             gpu.viewMatrix = glm::lookAt(position, desc.target, desc.up);
 
             gpu.projMatrix = glm::perspective(desc.fov, desc.aspectRatio, desc.nearClip, desc.farClip);
-            gpu.projMatrix[1][1] *= -1; // Vulkan Y-flip
+            gpu.projMatrix[1][1] *= -1; // renderer clip-space Y-flip
 
             gpu.active = desc.active;
             gpu.dirty  = true;

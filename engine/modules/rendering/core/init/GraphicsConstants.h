@@ -9,6 +9,7 @@ class GraphicsConstants
 {
     public:
         static inline const uint32_t MAX_FRAMES_IN_FLIGHT = 2;
+        static inline const uint32_t MAX_RENDERABLE_OBJECTS = 65536;
 
         static inline const char* V_SHADER_PATH_CSTR = GRAVITAS_ENGINE_ROOT "/shaders/vert.spv";
         static inline const char* F_SHADER_PATH_CSTR = GRAVITAS_ENGINE_ROOT "/shaders/frag.spv";

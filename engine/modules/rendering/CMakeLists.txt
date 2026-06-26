@@ -1,7 +1,9 @@
-find_package(Vulkan REQUIRED)
-
 # Add backend — defines gravitas_vulkan_setup and gravitas_vulkan_backend.
-add_subdirectory(backend/vulkan)
+if(GTS_ENABLE_VULKAN_BACKEND)
+    add_subdirectory(backend/vulkan)
+else()
+    message(FATAL_ERROR "Rendering currently requires GTS_ENABLE_VULKAN_BACKEND; add another backend before disabling it.")
+endif()
 
 # ── gravitas_rendering ─────────────────────────────────────────────────────────
 # ECS rendering layer + windowing (GLFW window management).
@@ -10,6 +12,7 @@ add_subdirectory(backend/vulkan)
 file(GLOB_RECURSE RENDERING_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/runtime/*.cpp"
 )
 add_library(gravitas_rendering STATIC ${RENDERING_SOURCES})
 
@@ -22,7 +25,7 @@ else()
 endif()
 
 target_include_directories(gravitas_rendering PUBLIC
-    # Rendering module root (VulkanGraphics.hpp is in core/vulkangraphics/)
+    # Rendering module root
     "${CMAKE_CURRENT_SOURCE_DIR}"
 
     # Font loader utilities (BitmapFont, BitmapFontLoader, GlyphLayoutEngine)
@@ -30,6 +33,7 @@ target_include_directories(gravitas_rendering PUBLIC
 
     # Graphics config / init headers
     "${CMAKE_CURRENT_SOURCE_DIR}/core/commands"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/geometry"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/init"
 
     # Abstract interfaces (IGtsGraphicsModule, IResourceProvider)
@@ -41,9 +45,6 @@ target_include_directories(gravitas_rendering PUBLIC
     # Render pass visibility controls
     "${CMAKE_CURRENT_SOURCE_DIR}/core/visibility"
 
-    # Concrete Vulkan graphics wrapper
-    "${CMAKE_CURRENT_SOURCE_DIR}/core/vulkangraphics"
-
     # Windowing
     "${CMAKE_CURRENT_SOURCE_DIR}/core/windowing/glfwWindow"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/windowing/output"
@@ -51,6 +52,9 @@ target_include_directories(gravitas_rendering PUBLIC
 
     # Scene-level renderer feature installer
     "${CMAKE_CURRENT_SOURCE_DIR}/scene"
+
+    # Engine runtime integration
+    "${CMAKE_CURRENT_SOURCE_DIR}/runtime"
 
     # ECS rendering components and systems
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/camera/components"
@@ -66,11 +70,21 @@ target_include_directories(gravitas_rendering PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/particles/extraction"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/particles/systems"
 
+    # Cross-module component contracts used by rendering systems
+    "${CMAKE_CURRENT_SOURCE_DIR}/../hierarchy/components"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../transform/components"
+
     # Engine UI system + renderer-side UI extraction
     "${CMAKE_CURRENT_SOURCE_DIR}/core/ui"
 )
 
 target_link_libraries(gravitas_rendering PUBLIC
-    gravitas_vulkan_backend
+    glfw
     gravitas_core
 )
+
+if(TARGET gravitas_vulkan_backend)
+    target_link_libraries(gravitas_vulkan_backend PUBLIC
+        gravitas_rendering
+    )
+endif()

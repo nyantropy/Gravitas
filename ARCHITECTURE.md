@@ -2,15 +2,33 @@
 
 ## 1. Overview
 
-Gravitas is a C++20 Vulkan game engine built around a two-tier ECS (Entity-Component-System) architecture. The engine separates simulation logic from rendering concerns through a data extraction pipeline, and provides a fixed-timestep simulation loop decoupled from the render frame rate.
+Gravitas is a C++20 modular game engine built around a two-tier ECS
+(Entity-Component-System) architecture. The engine separates simulation logic
+from optional feature modules such as rendering, physics, tooling, and future
+audio, and provides a fixed-timestep simulation loop decoupled from the render
+frame rate.
 
 **Core philosophy:**
 - ECS-first: all game state lives in components, all behavior lives in systems
 - Strict separation between CPU logic and GPU state
-- Modular subsystems assembled at scene construction time
+- Modular subsystems assembled through explicit engine and scene feature hooks
 - Registered scenes are factories; only the active scene owns runtime ECS/GPU state
 - Descriptor/GPU component split: application writes descriptors, engine manages GPU resources
 - Lifecycle work is explicit: descriptor changes queue intent, lifecycle systems perform structural mutation
+
+**Dependency rules:**
+- `engine/core/` must not include headers from `engine/modules/`.
+- Base feature modules should depend on `gravitas_core` and only the modules
+  they explicitly integrate with.
+- Rendering module code may define renderer-facing ECS descriptors and
+  extraction contracts, but Vulkan-specific types stay under
+  `modules/rendering/backend/vulkan/`.
+- Base physics must not depend on rendering. Physics visualization belongs in
+  debug/bridge modules such as `debugdraw/physics/`.
+- Tools and debug bridges are allowed to depend on multiple modules because
+  integration is their purpose.
+- Public module headers should stay small and stable. Heavy implementation
+  dependencies belong in `.cpp` files or backend-private headers.
 
 ---
 
@@ -20,9 +38,11 @@ Gravitas is a C++20 Vulkan game engine built around a two-tier ECS (Entity-Compo
 Gravitas/
 ├── engine/
 │   ├── core/               # Pure C++ ECS framework, input, scene, UI, events
-│   │   ├── ecs/            # Entity, component storage, execution profiles, systems, extractors
+│   │   ├── ecs/            # Entity, component storage, execution profiles, systems
 │   │   ├── input/          # Raw keys, semantic action mapping
-│   │   ├── scene/          # SceneContext, SceneManager
+│   │   ├── scene/          # SceneManager and transition data
+│   │   ├── module/         # Engine module lifecycle contracts
+│   │   ├── services/       # Optional service interfaces owned by core
 │   │   ├── ui/             # Retained-mode UI document model
 │   │   └── event/          # Event bus
 │   ├── modules/            # Feature modules built on core
@@ -31,13 +51,15 @@ Gravitas/
 │   │   ├── animation/      # Keyframe animation
 │   │   ├── tween/          # Reusable value tween/easing helpers
 │   │   ├── dialogue/       # Generic dialogue graph runtime and ECS bridge
-│   │   ├── debugdraw/      # Feature-local line/bounds/frustum debug primitives
+│   │   ├── debugdraw/      # Debug primitives and module bridge renderers
 │   │   ├── physics/        # Physics world, PhysicsSystem, body components
 │   │   ├── tools/          # Optional in-engine inspection/editing toolchain
 │   │   ├── visualnovel/    # VN stage, command runtime, and retained UI overlay
-│   │   └── rendering/      # Vulkan backend, GPU components, binding systems
+│   │   └── rendering/      # Renderer-facing contracts, ECS setup, backends
+│   │       ├── core/       # Generic rendering contracts, UI extraction, geometry data
 │   │       ├── ecssetup/   # Camera, geometry, text, and particle ECS setup
-│   │       └── backend/    # Vulkan device, frame graph, render stages, resources
+│   │       ├── runtime/    # Engine render runtime integration
+│   │       └── backend/    # Optional backend implementations, currently Vulkan
 │   ├── GravitasEngine.hpp  # Main engine class
 │   ├── GtsGameLoop.h       # Fixed-timestep accumulator
 │   └── GtsPlatform.h       # OS/graphics abstraction
@@ -50,6 +72,18 @@ Gravitas/
 ---
 
 ## 3. Core Architecture
+
+### Engine Modules and Services
+
+Engine-level modules implement `IEngineModule` and register borrowed services in
+`EngineServiceRegistry`. The registry is intentionally non-owning: module
+objects keep their lifetime, while controllers and tools can discover optional
+services without making `engine/core/` include module headers.
+
+Scene lifecycle hooks (`beforeSceneLoad`, `afterSceneLoad`,
+`beforeSceneUnload`, `afterSceneUnload`) are used for cross-cutting runtime work
+such as rendering scene-state reset. Scene feature installers remain the right
+place to add ECS components and systems owned by a specific scene.
 
 ### ECS Model
 
@@ -246,6 +280,18 @@ EcsSimulationContext {
 
 ## 5. Rendering Model
 
+`RenderingRuntime` is the engine-facing rendering module. It owns retained UI,
+the CPU-side `RenderPipeline`, scene viewport metrics, and rendering extension
+commands. `GravitasEngine` delegates per-frame render work to this runtime and
+only supplies platform callbacks such as runtime graphics settings.
+
+Generic rendering code owns renderer-facing data contracts such as `Vertex`,
+`RenderCommand`, `IResourceProvider`, and `IGtsGraphicsModule`. Backend-specific
+layout and API details stay under `modules/rendering/backend/vulkan/`; for
+example `VulkanVertexDescription` maps the generic `Vertex` layout to Vulkan
+vertex input state, while `GraphicsModuleFactory` is the generic creation
+surface used by `GtsPlatform`.
+
 ### Descriptor → GPU Component Split
 
 Application code writes **descriptor components** (high-level intent). Engine systems translate these into **GPU components** (backend handles) through explicit lifecycle passes.
@@ -253,7 +299,7 @@ Application code writes **descriptor components** (high-level intent). Engine sy
 ```
 StaticMeshComponent("path/to/mesh.obj")   ← written by application
         ↓
-StaticMeshBindingSystem (controller)      ← allocates Vulkan mesh, assigns meshID
+StaticMeshBindingSystem (controller)      ← allocates backend mesh, assigns meshID
         ↓
 MeshGpuComponent { mesh_id_type meshID }  ← written by engine
         ↓
@@ -270,7 +316,7 @@ The render lifecycle is split by concern:
 
 Scene-level render pass visibility is controlled at two layers. The stronger
 layer is the active `SceneExecutionProfile`: its `FrameBuildMode` determines
-whether `GravitasEngine` runs `RenderPipeline::build(world)`, reuses cached world
+whether `RenderingRuntime` runs `RenderPipeline::build(world)`, reuses cached world
 commands, extracts only retained UI, or skips UI extraction as well. This is the
 path for CPU-saving runtime modes such as fullscreen dialogue because it can
 also mask `RenderPrep`, `Camera`, `Particles`, `Physics`, and `Gameplay`

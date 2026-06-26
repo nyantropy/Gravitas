@@ -8,9 +8,9 @@
 #include "BoundsComponent.h"
 #include "CameraGpuComponent.h"
 #include "CullFlagsComponent.h"
-#include "EngineConfig.h"
 #include "ECSWorld.hpp"
 #include "FrustumCuller.h"
+#include "GraphicsConstants.h"
 #include "MaterialGpuComponent.h"
 #include "MeshGpuComponent.h"
 #include "RenderDirtyComponent.h"
@@ -34,7 +34,7 @@ class RenderExtractionSnapshotBuilder
         uint32_t dynamicUpdatedCount    = 0;
     };
 
-    RenderExtractionSnapshotBuilder() : slotToIndex(EngineConfig::MAX_RENDERABLE_OBJECTS, InvalidIndex)
+    RenderExtractionSnapshotBuilder() : slotToIndex(GraphicsConstants::MAX_RENDERABLE_OBJECTS, InvalidIndex)
     {
         snapshot.renderables.reserve(1024);
         snapshot.occupiedSlots.reserve(1024);
