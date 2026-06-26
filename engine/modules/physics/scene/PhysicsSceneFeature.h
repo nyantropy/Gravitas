@@ -2,13 +2,12 @@
 
 #include "EcsControllerContext.hpp"
 #include "GtsScene.hpp"
-#include "PhysicsDebugRenderer.h"
 #include "PhysicsSystem.h"
 #include "PhysicsWorld.h"
 
 namespace gts::physics
 {
-    inline void installPhysicsFeature(GtsScene& scene, EcsControllerContext& ctx, bool enableDebugRenderer = false)
+    inline void installPhysicsFeature(GtsScene& scene, EcsControllerContext& ctx)
     {
         if (!scene.markSceneFeatureInstalled("physics"))
             return;
@@ -18,7 +17,5 @@ namespace gts::physics
         ctx.physics = &physicsWorld;
 
         scene.getWorld().addSimulationSystem<PhysicsSystem>(EcsSystemGroup::Physics, &physicsWorld);
-        if (enableDebugRenderer)
-            scene.getWorld().addControllerSystem<PhysicsDebugRenderer>(EcsSystemGroup::Tools);
     }
 }

@@ -69,9 +69,12 @@ target_include_directories(gravitas_vulkan_backend PUBLIC
 
     # Generic render viewport contract
     "${CMAKE_CURRENT_SOURCE_DIR}/../../core/viewport"
+
+    # Rendering config/constants
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../core/init"
 )
 
 target_link_libraries(gravitas_vulkan_backend PUBLIC
     gravitas_vulkan_setup
-    gravitas_core          # provides options/ headers, GraphicsConstants, GlmConfig
+    gravitas_core          # provides core options and GlmConfig
 )

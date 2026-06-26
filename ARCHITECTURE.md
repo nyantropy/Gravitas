@@ -143,7 +143,7 @@ belong in `Ui`; global or scene debug tooling belongs in `Tools`.
 `SceneExecutionProfile` combines three independent policy areas:
 
 - `enabledSystems`: a bitmask of awake `EcsSystemGroup` values
-- `renderBuildMode`: whether the engine rebuilds world render commands,
+- `frameBuildMode`: whether the engine rebuilds world render commands,
   reuses cached world commands, renders UI only, or renders nothing
 - `timePolicy`: the intended clock-domain policy for the mode
 
@@ -162,7 +162,7 @@ Built-in profile factories currently include:
 | `fullscreen_dialogue` | `Always`, `Ui`, `Dialogue`, `VN`, `Audio`, `Tools` | `UiOnly` | full VN/dialogue presentation while the loaded world sleeps |
 | `pause_menu` | `Always`, `Ui`, `Audio`, `Tools` | `CachedWorldFrame` | menu-like modes over a frozen world snapshot |
 
-`RenderBuildMode::FullWorld` runs the normal render extraction path.
+`FrameBuildMode::FullWorld` runs the normal render extraction path.
 `UiOnly` skips `RenderPipeline::build(world)` and submits no world particles,
 but still extracts retained UI. `CachedWorldFrame` reuses the extractor's last
 visible command list without rebuilding the ECS render snapshot. `None` skips
@@ -198,7 +198,7 @@ the profile stack API.
 │    └─ [user systems] (input handling, gameplay logic)  │
 ├────────────────────────────────────────────────────────┤
 │  Data Extraction                                       │
-│  RenderPipeline build stages if RenderBuildMode allows │
+│  RenderPipeline build stages if FrameBuildMode allows  │
 │    └─ Frustum cull against camera planes               │
 │    └─ Emit sorted RenderCommand list + upload commands │
 │  UiSystem::extractCommands() if UI rendering is enabled │
@@ -269,7 +269,7 @@ The render lifecycle is split by concern:
 - **Render invalidation** queues transform and snapshot dirtiness explicitly so steady-state extraction does not scan every renderable
 
 Scene-level render pass visibility is controlled at two layers. The stronger
-layer is the active `SceneExecutionProfile`: its `RenderBuildMode` determines
+layer is the active `SceneExecutionProfile`: its `FrameBuildMode` determines
 whether `GravitasEngine` runs `RenderPipeline::build(world)`, reuses cached world
 commands, extracts only retained UI, or skips UI extraction as well. This is the
 path for CPU-saving runtime modes such as fullscreen dialogue because it can
@@ -934,7 +934,7 @@ types only:
 
 - `RuntimeGraphicsSettings` carries requested render resolution, window mode,
   monitor index, vsync, present-mode preference, and optional max frame rate.
-- Game/UI code requests changes through `GtsCommandBuffer::requestApplyGraphicsSettings`.
+- Game/UI code requests changes through `gts::rendering::requestApplyGraphicsSettings(...)`.
 - `IGtsGraphicsModule::applyRuntimeGraphicsSettings` applies the graphics
   portion; the main engine loop applies frame pacing from `maxFrameRate`.
 

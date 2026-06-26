@@ -5,7 +5,11 @@
 
 #include "../windowing/output/OutputWindowConfig.h"
 #include "../windowing/output/GraphicsMonitorInfo.h"
-#include "../../../../core/options/GraphicsBackend.h"
+
+enum class GraphicsBackend
+{
+    Vulkan
+};
 
 enum class PresentModePreference
 {

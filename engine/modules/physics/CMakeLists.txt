@@ -1,7 +1,6 @@
 file(GLOB_RECURSE PHYSICS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/systems/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/debug/*.cpp"
 )
 
 add_library(gravitas_physics STATIC ${PHYSICS_SOURCES})
@@ -16,10 +15,8 @@ endif()
 target_include_directories(gravitas_physics PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/core"
-    "${CMAKE_CURRENT_SOURCE_DIR}/core/interface"
     "${CMAKE_CURRENT_SOURCE_DIR}/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/systems"
-    "${CMAKE_CURRENT_SOURCE_DIR}/debug"
     "${CMAKE_CURRENT_SOURCE_DIR}/scene"
     "${GTS_ENGINE_ROOT}/engine/modules/transform/components"
     "${GTS_ENGINE_ROOT}/engine/modules/hierarchy/components"
@@ -27,5 +24,4 @@ target_include_directories(gravitas_physics PUBLIC
 
 target_link_libraries(gravitas_physics PUBLIC
     gravitas_core
-    gravitas_rendering
 )

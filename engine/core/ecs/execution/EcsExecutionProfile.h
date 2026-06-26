@@ -47,7 +47,7 @@ constexpr bool containsSystemGroup(EcsSystemMask mask, EcsSystemGroup group)
     return (mask & toMask(group)) != 0;
 }
 
-enum class RenderBuildMode
+enum class FrameBuildMode
 {
     FullWorld,
     UiOnly,
@@ -67,7 +67,7 @@ struct SceneExecutionProfile
 {
     std::string id = "gameplay";
     EcsSystemMask enabledSystems = 0;
-    RenderBuildMode renderBuildMode = RenderBuildMode::FullWorld;
+    FrameBuildMode frameBuildMode = FrameBuildMode::FullWorld;
     TimePolicy timePolicy = TimePolicy::AllRunning;
 
     bool contains(EcsSystemGroup group) const
@@ -91,7 +91,7 @@ struct SceneExecutionProfile
                 | EcsSystemGroup::Dialogue
                 | EcsSystemGroup::VN
                 | EcsSystemGroup::Tools,
-            RenderBuildMode::FullWorld,
+            FrameBuildMode::FullWorld,
             TimePolicy::AllRunning
         };
     }
@@ -108,7 +108,7 @@ struct SceneExecutionProfile
                 | EcsSystemGroup::VN
                 | EcsSystemGroup::Audio
                 | EcsSystemGroup::Tools,
-            RenderBuildMode::FullWorld,
+            FrameBuildMode::FullWorld,
             TimePolicy::GameplayPausedUiRunning
         };
     }
@@ -123,7 +123,7 @@ struct SceneExecutionProfile
                 | EcsSystemGroup::VN
                 | EcsSystemGroup::Audio
                 | EcsSystemGroup::Tools,
-            RenderBuildMode::UiOnly,
+            FrameBuildMode::UiOnly,
             TimePolicy::GameplayPausedDialogueRunning
         };
     }
@@ -136,7 +136,7 @@ struct SceneExecutionProfile
                 | EcsSystemGroup::Ui
                 | EcsSystemGroup::Audio
                 | EcsSystemGroup::Tools,
-            RenderBuildMode::CachedWorldFrame,
+            FrameBuildMode::CachedWorldFrame,
             TimePolicy::GameplayPausedUiRunning
         };
     }

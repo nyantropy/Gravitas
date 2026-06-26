@@ -6,7 +6,6 @@
 
 #include "GtsCommand.h"
 #include "GtsSceneTransitionData.h"
-#include "GraphicsConfig.h"
 
 // the command buffer struct that the engine uses to execute custom pre defined commands
 struct GtsCommandBuffer
@@ -30,22 +29,10 @@ struct GtsCommandBuffer
         commands.emplace_back(GtsScreenshotCommand{});
     }
 
-    // enable/disable frustum cull
-    void requestSetFrustumCullingEnabled(bool enabled)
+    template<typename Payload>
+    void requestExtensionCommand(std::string name, Payload&& payload)
     {
-        commands.emplace_back(GtsSetFrustumCullingEnabledCommand{ enabled });
-    }
-
-    // freeze the frustum at the current location
-    void requestSetFrustumFreeze(bool frozen)
-    {
-        commands.emplace_back(GtsSetFrustumFreezeCommand{ frozen });
-    }
-
-    // apply different graphic settings to the engine at runtime
-    void requestApplyGraphicsSettings(const RuntimeGraphicsSettings& settings)
-    {
-        commands.emplace_back(GtsApplyGraphicsSettingsCommand{ settings });
+        commands.emplace_back(GtsExtensionCommand{std::move(name), std::any(std::forward<Payload>(payload))});
     }
 
     // quit/shutdown the engine

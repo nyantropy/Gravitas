@@ -1,9 +1,9 @@
 #pragma once
+#include <any>
 #include <memory>
 #include <string>
 #include <variant>
 
-#include "GraphicsConfig.h"
 #include "GtsSceneTransitionData.h"
 
 // a collection of engine command structs that may be used by scenes to ask the engine to entertain certain tasks
@@ -20,19 +20,10 @@ struct GtsQuitCommand
 {
 };
 
-struct GtsSetFrustumCullingEnabledCommand
+struct GtsExtensionCommand
 {
-    bool enabled = false;
-};
-
-struct GtsSetFrustumFreezeCommand
-{
-    bool frozen = false;
-};
-
-struct GtsApplyGraphicsSettingsCommand
-{
-    RuntimeGraphicsSettings settings;
+    std::string name;
+    std::any payload;
 };
 
 struct GtsChangeSceneCommand
@@ -45,7 +36,5 @@ struct GtsChangeSceneCommand
 using GtsCommand = std::variant<GtsTogglePauseCommand,
                                 GtsScreenshotCommand,
                                 GtsQuitCommand,
-                                GtsSetFrustumCullingEnabledCommand,
-                                GtsSetFrustumFreezeCommand,
-                                GtsApplyGraphicsSettingsCommand,
+                                GtsExtensionCommand,
                                 GtsChangeSceneCommand>;

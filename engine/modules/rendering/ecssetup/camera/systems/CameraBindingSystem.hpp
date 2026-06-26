@@ -3,6 +3,7 @@
 #include "ECSControllerSystem.hpp"
 #include "CameraDescriptionComponent.h"
 #include "CameraGpuComponent.h"
+#include "IResourceProvider.hpp"
 
 // Controller system — camera resource lifetime only, no matrix math.
 // Matrix calculations can be found in the CameraGpuSystem.

@@ -29,6 +29,7 @@ target_include_directories(gravitas_rendering PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/core/fontloader"
 
     # Graphics config / init headers
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/commands"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/init"
 
     # Abstract interfaces (IGtsGraphicsModule, IResourceProvider)

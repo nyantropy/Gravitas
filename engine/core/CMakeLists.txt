@@ -15,7 +15,7 @@ else()
     target_compile_options(gravitas_core PRIVATE -Wall -Wextra -Wno-unused-parameter)
 endif()
 
-# GRAVITAS_ENGINE_ROOT / RESOURCES macros (used by GraphicsConstants.h)
+# GRAVITAS_ENGINE_ROOT / RESOURCES macros (used by EnginePaths.h)
 target_compile_definitions(gravitas_core PUBLIC
     GRAVITAS_ENGINE_ROOT="${GTS_ENGINE_ROOT}"
     GRAVITAS_ENGINE_RESOURCES="${GTS_ENGINE_ROOT}/resources"
@@ -27,6 +27,9 @@ target_include_directories(gravitas_core PUBLIC
 
     # Command buffer
     "${CMAKE_CURRENT_SOURCE_DIR}/command"
+
+    # Optional engine service contracts
+    "${CMAKE_CURRENT_SOURCE_DIR}/services"
 
     # ECS framework
     "${CMAKE_CURRENT_SOURCE_DIR}/ecs/execution"

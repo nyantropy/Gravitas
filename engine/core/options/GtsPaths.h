@@ -2,7 +2,7 @@
 
 #include <filesystem>
 
-#include "GraphicsConstants.h"
+#include "EnginePaths.h"
 
 class GtsPaths
 {
@@ -42,7 +42,7 @@ private:
     static const std::filesystem::path& fallbackProjectRootStorage()
     {
         static const std::filesystem::path fallbackRoot =
-            std::filesystem::path(GRAVITAS_ENGINE_ROOT).lexically_normal();
+            std::filesystem::path(EnginePaths::ENGINE_ROOT).lexically_normal();
         return fallbackRoot;
     }
 };

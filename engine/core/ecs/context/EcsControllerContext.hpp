@@ -4,14 +4,14 @@
 #include <vector>
 
 #include "InputBindingRegistry.h"
-#include "IResourceProvider.hpp"
 #include "TimeContext.h"
 #include "GtsCommandBuffer.h"
-#include "UiSystem.h"
-#include "IGtsPhysicsModule.h"
 #include "RegisteredSceneInfo.h"
 
 class ECSWorld;
+class IGtsPhysicsModule;
+class IResourceProvider;
+class UiSystem;
 
 // this is the context object passed into each ecs controller system
 // contains all frame-dependent dependencies, and is thus NOT available in simulation systems

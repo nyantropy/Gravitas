@@ -13,6 +13,7 @@
 #include "CameraControlOverrideComponent.h"
 #include "GraphicsConstants.h"
 #include "GtsKey.h"
+#include "RenderEngineCommands.h"
 #include "RendererSceneFeature.h"
 #include "UiSystem.h"
 #include "UiHandle.h"
@@ -172,7 +173,7 @@ public:
         if (ctx.input->isPressed("gts_scene2.toggle_culling"))
         {
             cullingEnabled = !cullingEnabled;
-            ctx.engineCommands->requestSetFrustumCullingEnabled(cullingEnabled);
+            gts::rendering::requestSetFrustumCullingEnabled(*ctx.engineCommands, cullingEnabled);
             printf("\n[CULLING] Frustum culling %s\n",
                 cullingEnabled ? "ON" : "OFF");
         }
@@ -181,7 +182,7 @@ public:
         if (ctx.input->isPressed("gts_scene2.toggle_frustum_freeze"))
         {
             frustumFrozen = !frustumFrozen;
-            ctx.engineCommands->requestSetFrustumFreeze(frustumFrozen);
+            gts::rendering::requestSetFrustumFreeze(*ctx.engineCommands, frustumFrozen);
             if (frustumFrozen)
                 printf("\n[FRUSTUM] Frustum FROZEN at current camera position\n");
             else

@@ -3,16 +3,7 @@
 #include <cstdint>
 #include <string>
 
-// needed to make intellisense shut up, we get the engine root from cmake, since that seems like a cleaner way
-#ifndef GRAVITAS_ENGINE_ROOT
-#define GRAVITAS_ENGINE_ROOT
-#endif
-
-// same goes for the engines resources
-#ifndef GRAVITAS_ENGINE_RESOURCES
-#define GRAVITAS_ENGINE_RESOURCES
-#endif
-
+#include "EnginePaths.h"
 
 class GraphicsConstants
 {
@@ -47,6 +38,6 @@ class GraphicsConstants
         static inline const std::string UPSCALE_V_SHADER_PATH = UPSCALE_V_SHADER_PATH_CSTR;
         static inline const std::string UPSCALE_F_SHADER_PATH = UPSCALE_F_SHADER_PATH_CSTR;
 
-        static inline const char* ENGINE_RESOURCES_CSTR = GRAVITAS_ENGINE_RESOURCES "";
-        static inline const std::string ENGINE_RESOURCES = ENGINE_RESOURCES_CSTR;
+        static inline const char* ENGINE_RESOURCES_CSTR = EnginePaths::ENGINE_RESOURCES_CSTR;
+        static inline const std::string ENGINE_RESOURCES = EnginePaths::ENGINE_RESOURCES;
 };

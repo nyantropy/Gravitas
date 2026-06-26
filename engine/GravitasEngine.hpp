@@ -24,6 +24,7 @@
 #include "GtsFrameStats.h"
 #include "ParticleFrameData.h"
 #include "ProfileAccumulator.h"
+#include "RenderEngineCommands.h"
 #include "RenderGpuSystem.hpp"
 #include "RenderPassVisibilityComponent.h"
 #include "RenderViewportComponent.h"
@@ -194,22 +195,22 @@ class GravitasEngine
         activeScene->populateFrameStats(stats);
 
         const SceneExecutionProfile& executionProfile = world.getCurrentExecutionProfile();
-        const RenderBuildMode renderBuildMode = executionProfile.renderBuildMode;
+        const FrameBuildMode frameBuildMode = executionProfile.frameBuildMode;
 
         static const std::vector<RenderCommand> emptyRenderList;
         const std::vector<RenderCommand>* renderList = &emptyRenderList;
-        if (renderBuildMode == RenderBuildMode::FullWorld)
+        if (frameBuildMode == FrameBuildMode::FullWorld)
         {
             renderList = &renderPipeline->build(world);
         }
-        else if (renderBuildMode == RenderBuildMode::CachedWorldFrame)
+        else if (frameBuildMode == FrameBuildMode::CachedWorldFrame)
         {
             renderList = &renderPipeline->getExtractor().getLastCommands();
         }
 
         static const UiCommandBuffer emptyUiBuffer;
         const UiCommandBuffer*       uiBuffer = &emptyUiBuffer;
-        if (uiEnabled && renderBuildMode != RenderBuildMode::None)
+        if (uiEnabled && frameBuildMode != FrameBuildMode::None)
         {
             uiSystem->setEnabled(true);
             uiBuffer = &uiSystem->extractCommandsRef(windowPixelWidth, windowPixelHeight);
@@ -230,7 +231,7 @@ class GravitasEngine
         const std::vector<RenderCommand>& submittedRenderList =
             passVisibility.renderScene ? *renderList : emptyRenderList;
         const ParticleFrameData& submittedParticleData =
-            passVisibility.renderParticles && renderBuildMode == RenderBuildMode::FullWorld
+            passVisibility.renderParticles && frameBuildMode == FrameBuildMode::FullWorld
                 ? particleData
                 : emptyParticleData;
 
@@ -314,26 +315,46 @@ class GravitasEngine
     {
         for (auto it = engineCommands.commands.begin(); it != engineCommands.commands.end();)
         {
-            if (auto* cmd = std::get_if<GtsSetFrustumCullingEnabledCommand>(&*it))
+            if (auto* cmd = std::get_if<GtsExtensionCommand>(&*it))
             {
-                renderPipeline->setVisibilityEnabled(cmd->enabled);
-                it = engineCommands.commands.erase(it);
-            }
-            else if (auto* cmd = std::get_if<GtsSetFrustumFreezeCommand>(&*it))
-            {
-                renderPipeline->setVisibilityFrozen(cmd->frozen);
-                it = engineCommands.commands.erase(it);
-            }
-            else if (auto* cmd = std::get_if<GtsApplyGraphicsSettingsCommand>(&*it))
-            {
-                applyGraphicsSettingsCommand(cmd->settings);
-                it = engineCommands.commands.erase(it);
+                if (applyPendingRenderingCommand(*cmd))
+                    it = engineCommands.commands.erase(it);
+                else
+                    ++it;
             }
             else
             {
                 ++it;
             }
         }
+    }
+
+    bool applyPendingRenderingCommand(const GtsExtensionCommand& command)
+    {
+        using namespace gts::rendering;
+
+        if (command.name == SET_FRUSTUM_CULLING_ENABLED_COMMAND)
+        {
+            if (const auto* payload = std::any_cast<SetFrustumCullingEnabledCommand>(&command.payload))
+                renderPipeline->setVisibilityEnabled(payload->enabled);
+            return true;
+        }
+
+        if (command.name == SET_FRUSTUM_FREEZE_COMMAND)
+        {
+            if (const auto* payload = std::any_cast<SetFrustumFreezeCommand>(&command.payload))
+                renderPipeline->setVisibilityFrozen(payload->frozen);
+            return true;
+        }
+
+        if (command.name == APPLY_GRAPHICS_SETTINGS_COMMAND)
+        {
+            if (const auto* payload = std::any_cast<ApplyGraphicsSettingsCommand>(&command.payload))
+                applyGraphicsSettingsCommand(payload->settings);
+            return true;
+        }
+
+        return false;
     }
 
     void applyCommands()
