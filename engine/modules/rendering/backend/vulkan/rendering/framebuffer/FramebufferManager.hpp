@@ -5,21 +5,22 @@
 #include <stdexcept>
 #include <vulkan/vulkan.h>
 
-#include "vcsheet.h"
 #include "VulkanFramebufferSet.hpp"
 #include "FramebufferManagerConfig.h"
 #include "VulkanFramebufferSetConfig.h"
+#include "VulkanBackendContext.h"
 
 class FramebufferManager
 {
 public:
-    FramebufferManager(const FramebufferManagerConfig& config);
+    FramebufferManager(VulkanBackendContext& backendContext, const FramebufferManagerConfig& config);
 
     ~FramebufferManager() = default;
 
     const std::vector<VkFramebuffer>& getFramebuffers() const { return framebuffers->getFramebuffers(); }
 
 private:
+    VulkanBackendContext& backendContext;
     std::unique_ptr<VulkanFramebufferSet> framebuffers;
     FramebufferManagerConfig config;
 };

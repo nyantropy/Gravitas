@@ -1,6 +1,10 @@
 #include "VulkanPipeline.hpp"
 
-VulkanPipeline::VulkanPipeline(VulkanPipelineConfig& config)
+VulkanPipeline::VulkanPipeline(VulkanBackendContext& backendContext,
+                               DescriptorSetManager& descriptorSetManager,
+                               VulkanPipelineConfig& config)
+    : backendContext(backendContext)
+    , descriptorSetManager(descriptorSetManager)
 {
     this->config = config;
     createVertexShader();
@@ -10,8 +14,8 @@ VulkanPipeline::VulkanPipeline(VulkanPipelineConfig& config)
 
 VulkanPipeline::~VulkanPipeline()
 {
-    vkDestroyPipeline(vcsheet::getDevice(), graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(vcsheet::getDevice(), pipelineLayout, nullptr);
+    vkDestroyPipeline(backendContext.device(), graphicsPipeline, nullptr);
+    vkDestroyPipelineLayout(backendContext.device(), pipelineLayout, nullptr);
 }
 
 VkPipelineLayout& VulkanPipeline::getPipelineLayout()
@@ -29,7 +33,7 @@ void VulkanPipeline::createVertexShader()
 {
     VulkanShaderConfig vsConfig;
     vsConfig.shaderFile = config.vertexShaderPath;
-    vsConfig.vkDevice = vcsheet::getDevice();
+    vsConfig.vkDevice = backendContext.device();
     vertexShader = std::make_unique<VulkanShader>(vsConfig);
 }
 
@@ -38,7 +42,7 @@ void VulkanPipeline::createFragmentShader()
 {
     VulkanShaderConfig fsConfig;
     fsConfig.shaderFile = config.fragmentShaderPath;
-    fsConfig.vkDevice = vcsheet::getDevice();
+    fsConfig.vkDevice = backendContext.device();
     fragmentShader = std::make_unique<VulkanShader>(fsConfig);
 }
 
@@ -130,18 +134,18 @@ void VulkanPipeline::createGraphicsPipeline()
     dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
     dynamicState.pDynamicStates = dynamicStates.data();
 
-    // Descriptor set layouts: use config override if provided, else global dssheet layouts.
-    auto dsheetsLayouts = dssheet::getDescriptorSetLayouts();
+    // Descriptor set layouts: use config override if provided, else backend default layouts.
+    const auto& defaultLayouts = descriptorSetManager.getDescriptorSetLayouts();
     const std::vector<VkDescriptorSetLayout>* setLayoutsPtr = nullptr;
-    std::vector<VkDescriptorSetLayout> dsheetsVec;
+    std::vector<VkDescriptorSetLayout> defaultLayoutsVec;
     if (!config.descriptorSetLayouts.empty())
     {
         setLayoutsPtr = &config.descriptorSetLayouts;
     }
     else
     {
-        dsheetsVec = std::vector<VkDescriptorSetLayout>(dsheetsLayouts.begin(), dsheetsLayouts.end());
-        setLayoutsPtr = &dsheetsVec;
+        defaultLayoutsVec = std::vector<VkDescriptorSetLayout>(defaultLayouts.begin(), defaultLayouts.end());
+        setLayoutsPtr = &defaultLayoutsVec;
     }
 
     // Push constants: omit if size == 0.
@@ -157,7 +161,7 @@ void VulkanPipeline::createGraphicsPipeline()
     pipelineLayoutInfo.pushConstantRangeCount = (config.pushConstantSize > 0) ? 1 : 0;
     pipelineLayoutInfo.pPushConstantRanges    = (config.pushConstantSize > 0) ? &pushConstantRange : nullptr;
 
-    if (vkCreatePipelineLayout(vcsheet::getDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+    if (vkCreatePipelineLayout(backendContext.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create pipeline layout!");
     }
@@ -179,7 +183,7 @@ void VulkanPipeline::createGraphicsPipeline()
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-    if (vkCreateGraphicsPipelines(vcsheet::getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) 
+    if (vkCreateGraphicsPipelines(backendContext.device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to create graphics pipeline!");
     }

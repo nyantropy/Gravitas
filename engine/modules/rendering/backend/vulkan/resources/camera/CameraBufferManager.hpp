@@ -5,8 +5,8 @@
 #include <memory>
 #include <stdexcept>
 
-#include "vcsheet.h"
-#include "dssheet.h"
+#include "DescriptorSetManager.hpp"
+#include "VulkanBackendContext.h"
 #include "BufferUtil.hpp"
 #include "CameraBufferResource.h"
 #include "CameraUBO.h"
@@ -25,11 +25,15 @@
 class CameraBufferManager
 {
     public:
-        CameraBufferManager() = default;
+        CameraBufferManager(VulkanBackendContext& backendContext, DescriptorSetManager& descriptorSetManager)
+            : backendContext(backendContext)
+            , descriptorSetManager(descriptorSetManager)
+        {
+        }
 
         ~CameraBufferManager()
         {
-            VkDevice device = vcsheet::getDevice();
+            VkDevice device = backendContext.device();
             for (auto& [id, res] : idToView)
             {
                 for (size_t i = 0; i < res->uniformBuffers.size(); ++i)
@@ -50,8 +54,8 @@ class CameraBufferManager
             auto res = std::make_unique<CameraBufferResource>();
 
             BufferUtil::createUniformBuffers(
-                vcsheet::getDevice(),
-                vcsheet::getPhysicalDevice(),
+                backendContext.device(),
+                backendContext.physicalDevice(),
                 res->uniformBuffers,
                 res->uniformBuffersMemory,
                 res->uniformBuffersMapped,
@@ -59,7 +63,7 @@ class CameraBufferManager
                 sizeof(CameraUBO)
             );
 
-            res->descriptorSets = dssheet::getManager()
+            res->descriptorSets = descriptorSetManager
                 .allocateForUniformBuffer(res->uniformBuffers, sizeof(CameraUBO));
 
             view_id_type id = nextID++;
@@ -74,13 +78,13 @@ class CameraBufferManager
             if (it == idToView.end())
                 return;
 
-            VkDevice device = vcsheet::getDevice();
+            VkDevice device = backendContext.device();
             auto& res = it->second;
 
             // Return descriptor sets to the UBO pool before freeing the buffers.
             // The pool is created with FREE_DESCRIPTOR_SET_BIT specifically for this.
             if (!res->descriptorSets.empty())
-                dssheet::getManager().freeUniformBufferSets(res->descriptorSets);
+                descriptorSetManager.freeUniformBufferSets(res->descriptorSets);
 
             for (size_t i = 0; i < res->uniformBuffers.size(); ++i)
             {
@@ -131,6 +135,8 @@ class CameraBufferManager
         }
 
     private:
+        VulkanBackendContext& backendContext;
+        DescriptorSetManager& descriptorSetManager;
         std::unordered_map<view_id_type, std::unique_ptr<CameraBufferResource>> idToView;
         view_id_type nextID = 1; // 0 = invalid
 };

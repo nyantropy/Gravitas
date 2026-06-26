@@ -3,15 +3,16 @@
 #include <stdexcept>
 #include <iostream>
 
-#include "vcsheet.h"
 #include "AttachmentConfig.h"
 #include "ImageUtil.hpp"
 #include "MemoryUtil.hpp"
+#include "VulkanBackendContext.h"
 
 // a more general class to handle images
 class Attachment 
 {
     private:
+        VulkanBackendContext* backendContext = nullptr;
         AttachmentConfig config;
     public:
         VkImage image = VK_NULL_HANDLE;
@@ -20,27 +21,32 @@ class Attachment
 
         Attachment(){}
 
-        Attachment(AttachmentConfig config)
+        Attachment(VulkanBackendContext& backendContext, AttachmentConfig config)
+            : backendContext(&backendContext)
         {
             this->config = config;
 
             // first of all we create an image
-            ImageUtil::createImage(vcsheet::getDevice(), config.width, config.height,
+            ImageUtil::createImage(backendContext.device(), config.width, config.height,
             config.format, config.tiling, config.imageUsageFlags, this->image);
 
             // then we allocate memory on the device
-            MemoryUtil::allocateImageMemory(vcsheet::getDevice(), vcsheet::getPhysicalDevice(),
+            MemoryUtil::allocateImageMemory(backendContext.device(), backendContext.physicalDevice(),
             this->image, this->config.memoryPropertyFlags, this->memory);
 
             // and finally, we create a fitting ImageView
-            view = ImageUtil::createImageView(vcsheet::getDevice(), this->image, this->config.format, this->config.imageAspectFlags);
+            view = ImageUtil::createImageView(
+                backendContext.device(), this->image, this->config.format, this->config.imageAspectFlags);
         }
 
         ~Attachment()
         {
-            vkDestroyImageView(vcsheet::getDevice(), view, nullptr);
-            vkDestroyImage(vcsheet::getDevice(), image, nullptr);
-            vkFreeMemory(vcsheet::getDevice(), memory, nullptr);
+            if (backendContext == nullptr)
+                return;
+
+            vkDestroyImageView(backendContext->device(), view, nullptr);
+            vkDestroyImage(backendContext->device(), image, nullptr);
+            vkFreeMemory(backendContext->device(), memory, nullptr);
         }
 
         VkImage& getImage()

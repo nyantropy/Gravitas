@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 
+#include "DescriptorSetManager.hpp"
 #include "IResourceProvider.hpp"
 #include "MeshManager.hpp"
 #include "TextureManager.hpp"
@@ -8,6 +9,7 @@
 #include "CameraBufferManager.hpp"
 #include "ObjectSSBOManager.hpp"
 #include "Types.h"
+#include "VulkanBackendContext.h"
 
 class RenderResourceManager : public IResourceProvider
 {
@@ -20,21 +22,17 @@ class RenderResourceManager : public IResourceProvider
         std::unique_ptr<ObjectSSBOManager>        objectSSBOManager;
 
     public:
-        RenderResourceManager()
+        explicit RenderResourceManager(VulkanBackendContext& backendContext)
         {
-            // DescriptorSetManager must be created and registered first so that
-            // subsequent managers can allocate descriptor sets via dssheet.
-            descriptorSetManager = std::make_unique<DescriptorSetManager>(GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
-            dssheet::SetManager(descriptorSetManager.get());
+            descriptorSetManager =
+                std::make_unique<DescriptorSetManager>(backendContext, GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
 
-            meshManager          = std::make_unique<MeshManager>();
-            cameraBufferManager  = std::make_unique<CameraBufferManager>();
-            textureManager       = std::make_unique<TextureManager>();
+            meshManager          = std::make_unique<MeshManager>(backendContext);
+            cameraBufferManager  = std::make_unique<CameraBufferManager>(backendContext, *descriptorSetManager);
+            textureManager       = std::make_unique<TextureManager>(backendContext, *descriptorSetManager);
             fontManager          = std::make_unique<FontManager>(textureManager.get());
 
-            // ObjectSSBOManager allocates SSBO buffers and their descriptor sets;
-            // must come after dssheet is set.
-            objectSSBOManager    = std::make_unique<ObjectSSBOManager>();
+            objectSSBOManager    = std::make_unique<ObjectSSBOManager>(backendContext, *descriptorSetManager);
         }
 
         ~RenderResourceManager()
@@ -47,6 +45,11 @@ class RenderResourceManager : public IResourceProvider
             if (cameraBufferManager) cameraBufferManager.reset();
             if (meshManager)         meshManager.reset();
             if (descriptorSetManager) descriptorSetManager.reset();
+        }
+
+        DescriptorSetManager& getDescriptorSetManager()
+        {
+            return *descriptorSetManager;
         }
 
         // --- Mesh ---

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "FrameResources.h"
-#include "vcsheet.h"
 #include "GraphicsConstants.h"
+#include "VulkanBackendContext.h"
 
 #include <vulkan/vulkan.h>
 #include <vector>
@@ -11,7 +11,9 @@
 class FrameManager 
 {
     public:
-        explicit FrameManager(size_t frameOutputImageCount, bool allocateRenderFinishedSemaphores = true);
+        explicit FrameManager(VulkanBackendContext& backendContext,
+                              size_t frameOutputImageCount,
+                              bool allocateRenderFinishedSemaphores = true);
         ~FrameManager();
 
         FrameResources& getFrame(size_t frameIndex) { return frames[frameIndex]; }
@@ -31,6 +33,7 @@ class FrameManager
 
 
     private:
+        VulkanBackendContext& backendContext;
         void createFrameResources();
         VkSemaphore createSemaphore();
         VkFence createFence();

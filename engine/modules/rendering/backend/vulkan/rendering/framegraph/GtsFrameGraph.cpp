@@ -4,7 +4,6 @@
 #include <set>
 #include <unordered_map>
 
-#include "vcsheet.h"
 #include "ImageUtil.hpp"
 #include "MemoryUtil.hpp"
 
@@ -367,14 +366,14 @@ void GtsFrameGraph::insertBarrierIfNeeded(VkCommandBuffer        cmd,
 
 void GtsFrameGraph::allocateTransientResource(GtsFrameGraphResource& res)
 {
-    VkDevice dev = vcsheet::getDevice();
+    VkDevice dev = backendContext.device();
 
     ImageUtil::createImage(dev,
         res.extent.width, res.extent.height,
         res.format, VK_IMAGE_TILING_OPTIMAL,
         res.usage, res.image);
 
-    MemoryUtil::allocateImageMemory(dev, vcsheet::getPhysicalDevice(),
+    MemoryUtil::allocateImageMemory(dev, backendContext.physicalDevice(),
         res.image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, res.memory);
 
     res.imageView = ImageUtil::createImageView(dev, res.image, res.format, res.aspectMask);
@@ -384,7 +383,7 @@ void GtsFrameGraph::allocateTransientResource(GtsFrameGraphResource& res)
 
 void GtsFrameGraph::freeTransientResources()
 {
-    VkDevice dev = vcsheet::getDevice();
+    VkDevice dev = backendContext.device();
     for (auto& res : resources)
     {
         if (res.type != GtsResourceType::Transient) continue;

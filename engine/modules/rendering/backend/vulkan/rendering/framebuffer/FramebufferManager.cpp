@@ -9,14 +9,15 @@
 // - Because a framebuffer MUST include ALL attachments used by the render pass
 // that means, since we have 2 attachments right now (color and depth)
 // the framebuffer needs to provide (surprise surprise) 2 imageviews
-FramebufferManager::FramebufferManager(const FramebufferManagerConfig& config)
+FramebufferManager::FramebufferManager(VulkanBackendContext& backendContext, const FramebufferManagerConfig& config)
+    : backendContext(backendContext)
 {
     this->config = config;
 
-    if (vcsheet::getFrameOutputImageViews().empty())
+    if (backendContext.frameOutputImageViews().empty())
         throw std::runtime_error("VulkanFramebufferManager: no frame output image views available.");
 
-    const auto& defaultColorViews = vcsheet::getFrameOutputImageViews();
+    const auto& defaultColorViews = backendContext.frameOutputImageViews();
     const std::vector<VkImageView>& colorViews = config.colorImageViews.empty()
         ? defaultColorViews
         : config.colorImageViews;
@@ -29,8 +30,8 @@ FramebufferManager::FramebufferManager(const FramebufferManagerConfig& config)
 
     VulkanFramebufferSetConfig fbConfig{};
     fbConfig.renderPass = config.vkRenderpass;
-    fbConfig.width = config.width > 0 ? config.width : vcsheet::getFrameOutputExtent().width;
-    fbConfig.height = config.height > 0 ? config.height : vcsheet::getFrameOutputExtent().height;
+    fbConfig.width = config.width > 0 ? config.width : backendContext.frameOutputExtent().width;
+    fbConfig.height = config.height > 0 ? config.height : backendContext.frameOutputExtent().height;
     fbConfig.layers = 1;
 
     fbConfig.attachmentsPerFramebuffer.resize(framebufferCount);
@@ -59,5 +60,5 @@ FramebufferManager::FramebufferManager(const FramebufferManagerConfig& config)
         }
     }
 
-    framebuffers = std::make_unique<VulkanFramebufferSet>(fbConfig);
+    framebuffers = std::make_unique<VulkanFramebufferSet>(backendContext, fbConfig);
 }

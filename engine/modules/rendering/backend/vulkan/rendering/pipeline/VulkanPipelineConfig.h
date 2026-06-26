@@ -52,7 +52,7 @@ struct VulkanPipelineConfig
     VkShaderStageFlags pushConstantStages = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     // ── descriptor set layouts ────────────────────────────────────────────
-    // Empty means VulkanPipeline uses the global dssheet layouts (current
-    // main pipeline behavior). Non-empty overrides completely.
+    // Empty means VulkanPipeline uses the backend default descriptor layouts.
+    // Non-empty overrides completely.
     std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
 };

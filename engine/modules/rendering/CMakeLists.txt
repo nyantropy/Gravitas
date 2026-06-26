@@ -1,8 +1,8 @@
-# Add backend — defines gravitas_vulkan_setup and gravitas_vulkan_backend.
+include("${GTS_ENGINE_ROOT}/cmake/GravitasGlfw.cmake")
+
+# Add selected backend targets.
 if(GTS_ENABLE_VULKAN_BACKEND)
     add_subdirectory(backend/vulkan)
-else()
-    message(FATAL_ERROR "Rendering currently requires GTS_ENABLE_VULKAN_BACKEND; add another backend before disabling it.")
 endif()
 
 # ── gravitas_rendering ─────────────────────────────────────────────────────────

@@ -8,13 +8,14 @@
 
 #include "MeshResource.h"
 #include "GtsModelLoader.hpp"
-#include "vcsheet.h"
+#include "VulkanBackendContext.h"
 #include "BufferUtil.hpp"
 #include "Types.h"
 
 class MeshManager 
 {
     private:
+        VulkanBackendContext& backendContext;
         std::unordered_map<std::string, mesh_id_type> pathToID;
         std::unordered_map<mesh_id_type, std::unique_ptr<MeshResource>> idToMesh;
         std::unordered_set<mesh_id_type> proceduralMeshIDs;
@@ -24,7 +25,7 @@ class MeshManager
         mesh_id_type nextID = 1; // start from 1, 0 = invalid
 
     public:
-        MeshManager() = default;
+        explicit MeshManager(VulkanBackendContext& backendContext) : backendContext(backendContext) {}
 
         ~MeshManager()
         {
@@ -33,16 +34,16 @@ class MeshManager
                 MeshResource* mesh = pair.second.get();
 
                 if (mesh->vertexBuffer != VK_NULL_HANDLE)
-                    vkDestroyBuffer(vcsheet::getDevice(), mesh->vertexBuffer, nullptr);
+                    vkDestroyBuffer(backendContext.device(), mesh->vertexBuffer, nullptr);
 
                 if (mesh->vertexMemory != VK_NULL_HANDLE)
-                    vkFreeMemory(vcsheet::getDevice(), mesh->vertexMemory, nullptr);
+                    vkFreeMemory(backendContext.device(), mesh->vertexMemory, nullptr);
 
                 if (mesh->indexBuffer != VK_NULL_HANDLE)
-                    vkDestroyBuffer(vcsheet::getDevice(), mesh->indexBuffer, nullptr);
+                    vkDestroyBuffer(backendContext.device(), mesh->indexBuffer, nullptr);
 
                 if (mesh->indexMemory != VK_NULL_HANDLE)
-                    vkFreeMemory(vcsheet::getDevice(), mesh->indexMemory, nullptr);
+                    vkFreeMemory(backendContext.device(), mesh->indexMemory, nullptr);
             }
 
             idToMesh.clear();
@@ -62,14 +63,14 @@ class MeshManager
             GtsModelLoader::loadModel(path, mesh->vertices, mesh->indices);
 
             BufferUtil::createVertexBuffer(
-                vcsheet::getDevice(), vcsheet::getPhysicalDevice(),
-                vcsheet::getCommandPool(), vcsheet::getGraphicsQueue(),
+                backendContext.device(), backendContext.physicalDevice(),
+                backendContext.commandPool(), backendContext.graphicsQueue(),
                 mesh->vertices, mesh->vertexBuffer, mesh->vertexMemory
             );
 
             BufferUtil::createIndexBuffer(
-                vcsheet::getDevice(), vcsheet::getCommandPool(),
-                vcsheet::getGraphicsQueue(), vcsheet::getPhysicalDevice(),
+                backendContext.device(), backendContext.commandPool(),
+                backendContext.graphicsQueue(), backendContext.physicalDevice(),
                 mesh->indices, mesh->indexBuffer, mesh->indexMemory
             );
 
@@ -122,13 +123,13 @@ class MeshManager
             mesh->indices  = idxs;
 
             BufferUtil::createVertexBuffer(
-                vcsheet::getDevice(), vcsheet::getPhysicalDevice(),
-                vcsheet::getCommandPool(), vcsheet::getGraphicsQueue(),
+                backendContext.device(), backendContext.physicalDevice(),
+                backendContext.commandPool(), backendContext.graphicsQueue(),
                 vertsC, mesh->vertexBuffer, mesh->vertexMemory);
 
             BufferUtil::createIndexBuffer(
-                vcsheet::getDevice(), vcsheet::getCommandPool(),
-                vcsheet::getGraphicsQueue(), vcsheet::getPhysicalDevice(),
+                backendContext.device(), backendContext.commandPool(),
+                backendContext.graphicsQueue(), backendContext.physicalDevice(),
                 idxsC, mesh->indexBuffer, mesh->indexMemory);
 
             mesh_id_type id = nextID++;
@@ -174,20 +175,20 @@ class MeshManager
                     VkBuffer     newIB; VkDeviceMemory newIM;
 
                     BufferUtil::createVertexBuffer(
-                        vcsheet::getDevice(), vcsheet::getPhysicalDevice(),
-                        vcsheet::getCommandPool(), vcsheet::getGraphicsQueue(),
+                        backendContext.device(), backendContext.physicalDevice(),
+                        backendContext.commandPool(), backendContext.graphicsQueue(),
                         verts, newVB, newVM);
 
                     BufferUtil::createIndexBuffer(
-                        vcsheet::getDevice(), vcsheet::getCommandPool(),
-                        vcsheet::getGraphicsQueue(), vcsheet::getPhysicalDevice(),
+                        backendContext.device(), backendContext.commandPool(),
+                        backendContext.graphicsQueue(), backendContext.physicalDevice(),
                         idxs, newIB, newIM);
 
                     // Queue is now idle — safe to destroy old buffers.
-                    vkDestroyBuffer(vcsheet::getDevice(), mesh.vertexBuffer, nullptr);
-                    vkFreeMemory   (vcsheet::getDevice(), mesh.vertexMemory, nullptr);
-                    vkDestroyBuffer(vcsheet::getDevice(), mesh.indexBuffer,  nullptr);
-                    vkFreeMemory   (vcsheet::getDevice(), mesh.indexMemory,  nullptr);
+                    vkDestroyBuffer(backendContext.device(), mesh.vertexBuffer, nullptr);
+                    vkFreeMemory   (backendContext.device(), mesh.vertexMemory, nullptr);
+                    vkDestroyBuffer(backendContext.device(), mesh.indexBuffer,  nullptr);
+                    vkFreeMemory   (backendContext.device(), mesh.indexMemory,  nullptr);
 
                     mesh.vertices     = vertices;
                     mesh.indices      = indices;
@@ -206,13 +207,13 @@ class MeshManager
             mesh->indices  = indices;
 
             BufferUtil::createVertexBuffer(
-                vcsheet::getDevice(), vcsheet::getPhysicalDevice(),
-                vcsheet::getCommandPool(), vcsheet::getGraphicsQueue(),
+                backendContext.device(), backendContext.physicalDevice(),
+                backendContext.commandPool(), backendContext.graphicsQueue(),
                 verts, mesh->vertexBuffer, mesh->vertexMemory);
 
             BufferUtil::createIndexBuffer(
-                vcsheet::getDevice(), vcsheet::getCommandPool(),
-                vcsheet::getGraphicsQueue(), vcsheet::getPhysicalDevice(),
+                backendContext.device(), backendContext.commandPool(),
+                backendContext.graphicsQueue(), backendContext.physicalDevice(),
                 idxs, mesh->indexBuffer, mesh->indexMemory);
 
             mesh_id_type id = nextID++;
@@ -236,13 +237,13 @@ class MeshManager
             MeshResource* mesh = it->second.get();
 
             if (mesh->vertexBuffer != VK_NULL_HANDLE)
-                vkDestroyBuffer(vcsheet::getDevice(), mesh->vertexBuffer, nullptr);
+                vkDestroyBuffer(backendContext.device(), mesh->vertexBuffer, nullptr);
             if (mesh->vertexMemory != VK_NULL_HANDLE)
-                vkFreeMemory(vcsheet::getDevice(), mesh->vertexMemory, nullptr);
+                vkFreeMemory(backendContext.device(), mesh->vertexMemory, nullptr);
             if (mesh->indexBuffer != VK_NULL_HANDLE)
-                vkDestroyBuffer(vcsheet::getDevice(), mesh->indexBuffer, nullptr);
+                vkDestroyBuffer(backendContext.device(), mesh->indexBuffer, nullptr);
             if (mesh->indexMemory != VK_NULL_HANDLE)
-                vkFreeMemory(vcsheet::getDevice(), mesh->indexMemory, nullptr);
+                vkFreeMemory(backendContext.device(), mesh->indexMemory, nullptr);
 
             idToMesh.erase(it);
             proceduralMeshIDs.erase(id);

@@ -1,4 +1,4 @@
-# gravitas_vulkan_setup must be defined first (GLFW FetchContent lives there).
+# gravitas_vulkan_setup must be defined before the backend target.
 add_subdirectory(vksetup)
 
 # ── gravitas_vulkan_backend ────────────────────────────────────────────────────
@@ -31,6 +31,9 @@ else()
 endif()
 
 target_include_directories(gravitas_vulkan_backend PUBLIC
+    # Backend context shared by Vulkan implementation objects
+    "${CMAKE_CURRENT_SOURCE_DIR}/context"
+
     # Backend-owned graphics module implementation
     "${CMAKE_CURRENT_SOURCE_DIR}/graphics"
 

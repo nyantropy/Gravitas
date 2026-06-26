@@ -5,7 +5,7 @@
 #include <memory>
 #include <stdexcept>
 
-#include "vcsheet.h"
+#include "VulkanBackendContext.h"
 
 // Creates 3 descriptor set layouts:
 //   set 0 = camera UBO  (view, proj)          - VERTEX, UNIFORM_BUFFER
@@ -16,7 +16,8 @@
 class DescriptorSetManager
 {
     public:
-        explicit DescriptorSetManager(uint32_t framesInFlight) : framesInFlight(framesInFlight)
+        explicit DescriptorSetManager(VulkanBackendContext& backendContext, uint32_t framesInFlight)
+            : backendContext(backendContext), framesInFlight(framesInFlight)
         {
             createDescriptorSetLayouts();
             createDescriptorPools();
@@ -24,7 +25,7 @@ class DescriptorSetManager
 
         ~DescriptorSetManager()
         {
-            VkDevice device = vcsheet::getDevice();
+            VkDevice device = backendContext.device();
 
             if (uboDescriptorPool != VK_NULL_HANDLE)
                 vkDestroyDescriptorPool(device, uboDescriptorPool, nullptr);
@@ -47,14 +48,14 @@ class DescriptorSetManager
         void freeUniformBufferSets(const std::vector<VkDescriptorSet>& sets)
         {
             if (sets.empty()) return;
-            vkFreeDescriptorSets(vcsheet::getDevice(), uboDescriptorPool,
+            vkFreeDescriptorSets(backendContext.device(), uboDescriptorPool,
                                  static_cast<uint32_t>(sets.size()), sets.data());
         }
 
         void freeSampledImageSets(const std::vector<VkDescriptorSet>& sets)
         {
             if (sets.empty()) return;
-            vkFreeDescriptorSets(vcsheet::getDevice(), samplerDescriptorPool,
+            vkFreeDescriptorSets(backendContext.device(), samplerDescriptorPool,
                                  static_cast<uint32_t>(sets.size()), sets.data());
         }
 
@@ -70,7 +71,7 @@ class DescriptorSetManager
             allocInfo.descriptorSetCount = framesInFlight;
             allocInfo.pSetLayouts        = layouts.data();
 
-            if (vkAllocateDescriptorSets(vcsheet::getDevice(), &allocInfo, descriptorSets.data()) != VK_SUCCESS)
+            if (vkAllocateDescriptorSets(backendContext.device(), &allocInfo, descriptorSets.data()) != VK_SUCCESS)
                 throw std::runtime_error("Failed to allocate camera UBO descriptor sets!");
 
             for (size_t i = 0; i < framesInFlight; i++)
@@ -89,7 +90,7 @@ class DescriptorSetManager
                 write.descriptorCount = 1;
                 write.pBufferInfo     = &bufferInfo;
 
-                vkUpdateDescriptorSets(vcsheet::getDevice(), 1, &write, 0, nullptr);
+                vkUpdateDescriptorSets(backendContext.device(), 1, &write, 0, nullptr);
             }
 
             return descriptorSets;
@@ -108,7 +109,7 @@ class DescriptorSetManager
             allocInfo.descriptorSetCount = framesInFlight;
             allocInfo.pSetLayouts        = layouts.data();
 
-            if (vkAllocateDescriptorSets(vcsheet::getDevice(), &allocInfo, descriptorSets.data()) != VK_SUCCESS)
+            if (vkAllocateDescriptorSets(backendContext.device(), &allocInfo, descriptorSets.data()) != VK_SUCCESS)
                 throw std::runtime_error("Failed to allocate object SSBO descriptor sets!");
 
             for (size_t i = 0; i < framesInFlight; i++)
@@ -127,7 +128,7 @@ class DescriptorSetManager
                 write.descriptorCount = 1;
                 write.pBufferInfo     = &bufferInfo;
 
-                vkUpdateDescriptorSets(vcsheet::getDevice(), 1, &write, 0, nullptr);
+                vkUpdateDescriptorSets(backendContext.device(), 1, &write, 0, nullptr);
             }
 
             return descriptorSets;
@@ -151,7 +152,7 @@ class DescriptorSetManager
             allocInfo.descriptorSetCount = framesInFlight;
             allocInfo.pSetLayouts        = layouts.data();
 
-            if (vkAllocateDescriptorSets(vcsheet::getDevice(), &allocInfo, descriptorSets.data()) != VK_SUCCESS)
+            if (vkAllocateDescriptorSets(backendContext.device(), &allocInfo, descriptorSets.data()) != VK_SUCCESS)
                 throw std::runtime_error("Failed to allocate texture descriptor sets!");
 
             for (size_t i = 0; i < framesInFlight; i++)
@@ -170,13 +171,14 @@ class DescriptorSetManager
                 write.descriptorCount = 1;
                 write.pImageInfo      = &imageInfo;
 
-                vkUpdateDescriptorSets(vcsheet::getDevice(), 1, &write, 0, nullptr);
+                vkUpdateDescriptorSets(backendContext.device(), 1, &write, 0, nullptr);
             }
 
             return descriptorSets;
         }
 
     private:
+        VulkanBackendContext& backendContext;
         uint32_t framesInFlight;
 
         // [0] = camera UBO layout, [1] = object SSBO layout, [2] = sampler layout
@@ -201,7 +203,7 @@ class DescriptorSetManager
             uboLayoutInfo.bindingCount = 1;
             uboLayoutInfo.pBindings    = &uboBinding;
 
-            if (vkCreateDescriptorSetLayout(vcsheet::getDevice(), &uboLayoutInfo, nullptr, &descriptorSetLayouts[0]) != VK_SUCCESS)
+            if (vkCreateDescriptorSetLayout(backendContext.device(), &uboLayoutInfo, nullptr, &descriptorSetLayouts[0]) != VK_SUCCESS)
                 throw std::runtime_error("Failed to create camera UBO descriptor set layout!");
 
             // set 1: object SSBO (storage buffer — replaces the old per-object UBO)
@@ -217,7 +219,7 @@ class DescriptorSetManager
             ssboLayoutInfo.bindingCount = 1;
             ssboLayoutInfo.pBindings    = &ssboBinding;
 
-            if (vkCreateDescriptorSetLayout(vcsheet::getDevice(), &ssboLayoutInfo, nullptr, &descriptorSetLayouts[1]) != VK_SUCCESS)
+            if (vkCreateDescriptorSetLayout(backendContext.device(), &ssboLayoutInfo, nullptr, &descriptorSetLayouts[1]) != VK_SUCCESS)
                 throw std::runtime_error("Failed to create object SSBO descriptor set layout!");
 
             // set 2: texture sampler
@@ -233,7 +235,7 @@ class DescriptorSetManager
             samplerLayoutInfo.bindingCount = 1;
             samplerLayoutInfo.pBindings    = &samplerBinding;
 
-            if (vkCreateDescriptorSetLayout(vcsheet::getDevice(), &samplerLayoutInfo, nullptr, &descriptorSetLayouts[2]) != VK_SUCCESS)
+            if (vkCreateDescriptorSetLayout(backendContext.device(), &samplerLayoutInfo, nullptr, &descriptorSetLayouts[2]) != VK_SUCCESS)
                 throw std::runtime_error("Failed to create texture descriptor set layout!");
         }
 
@@ -256,7 +258,7 @@ class DescriptorSetManager
                 poolInfo.pPoolSizes    = &poolSize;
                 poolInfo.maxSets       = framesInFlight * MAX_VIEWS;
 
-                if (vkCreateDescriptorPool(vcsheet::getDevice(), &poolInfo, nullptr, &uboDescriptorPool) != VK_SUCCESS)
+                if (vkCreateDescriptorPool(backendContext.device(), &poolInfo, nullptr, &uboDescriptorPool) != VK_SUCCESS)
                     throw std::runtime_error("Failed to create camera UBO descriptor pool!");
             }
 
@@ -272,7 +274,7 @@ class DescriptorSetManager
                 poolInfo.pPoolSizes    = &poolSize;
                 poolInfo.maxSets       = framesInFlight;
 
-                if (vkCreateDescriptorPool(vcsheet::getDevice(), &poolInfo, nullptr, &ssboDescriptorPool) != VK_SUCCESS)
+                if (vkCreateDescriptorPool(backendContext.device(), &poolInfo, nullptr, &ssboDescriptorPool) != VK_SUCCESS)
                     throw std::runtime_error("Failed to create object SSBO descriptor pool!");
             }
 
@@ -290,7 +292,7 @@ class DescriptorSetManager
                 poolInfo.pPoolSizes    = &poolSize;
                 poolInfo.maxSets       = framesInFlight * MAX_TEXTURES;
 
-                if (vkCreateDescriptorPool(vcsheet::getDevice(), &poolInfo, nullptr, &samplerDescriptorPool) != VK_SUCCESS)
+                if (vkCreateDescriptorPool(backendContext.device(), &poolInfo, nullptr, &samplerDescriptorPool) != VK_SUCCESS)
                     throw std::runtime_error("Failed to create sampler descriptor pool!");
             }
         }

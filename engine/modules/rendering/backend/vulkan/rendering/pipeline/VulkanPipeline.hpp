@@ -12,19 +12,23 @@
 
 #include "VulkanPipelineConfig.h"
 
-#include "dssheet.h"
-#include "vcsheet.h"
+#include "DescriptorSetManager.hpp"
+#include "VulkanBackendContext.h"
 
 class VulkanPipeline
 {
     public:
-        VulkanPipeline(VulkanPipelineConfig& config);
+        VulkanPipeline(VulkanBackendContext& backendContext,
+                       DescriptorSetManager& descriptorSetManager,
+                       VulkanPipelineConfig& config);
         ~VulkanPipeline();
 
         VkPipelineLayout& getPipelineLayout();
         VkPipeline& getPipeline();
 
     private:
+        VulkanBackendContext& backendContext;
+        DescriptorSetManager& descriptorSetManager;
         VulkanPipelineConfig config;
 
         std::unique_ptr<VulkanShader> vertexShader;

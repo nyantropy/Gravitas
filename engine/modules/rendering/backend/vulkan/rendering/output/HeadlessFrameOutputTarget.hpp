@@ -9,13 +9,17 @@
 #include "AttachmentConfig.h"
 #include "GraphicsConstants.h"
 #include "IFrameOutputTarget.hpp"
-#include "vcsheet.h"
+#include "VulkanBackendContext.h"
 
 class HeadlessFrameOutputTarget : public IFrameOutputTarget
 {
     public:
-        HeadlessFrameOutputTarget(uint32_t width, uint32_t height, VkFormat colorFormat)
-            : extent{width, height}
+        HeadlessFrameOutputTarget(VulkanBackendContext& backendContext,
+                                  uint32_t width,
+                                  uint32_t height,
+                                  VkFormat colorFormat)
+            : backendContext(backendContext)
+            , extent{width, height}
             , format(colorFormat)
         {
             colorAttachments.reserve(GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
@@ -34,7 +38,7 @@ class HeadlessFrameOutputTarget : public IFrameOutputTarget
                 colorConfig.memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
                 colorConfig.imageAspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
 
-                colorAttachments.push_back(std::make_unique<Attachment>(colorConfig));
+                colorAttachments.push_back(std::make_unique<Attachment>(backendContext, colorConfig));
                 images.push_back(colorAttachments.back()->getImage());
                 imageViews.push_back(colorAttachments.back()->getImageView());
             }
@@ -64,6 +68,7 @@ class HeadlessFrameOutputTarget : public IFrameOutputTarget
         VkImageLayout getUiFinalLayout() const override { return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; }
 
     private:
+        VulkanBackendContext& backendContext;
         VkExtent2D extent{};
         VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
         std::vector<std::unique_ptr<Attachment>> colorAttachments;

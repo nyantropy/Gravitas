@@ -19,8 +19,8 @@
 #include "VulkanRenderPass.hpp"
 #include "VulkanRenderPassConfig.h"
 #include "RenderViewport.h"
-#include "dssheet.h"
-#include "vcsheet.h"
+#include "DescriptorSetManager.hpp"
+#include "VulkanBackendContext.h"
 
 class UpscaleRenderStage : public GtsRenderStage
 {
@@ -33,13 +33,17 @@ public:
         float sourceHeight = 1.0f;
     };
 
-    UpscaleRenderStage(VkImageView       sourceImageView,
+    UpscaleRenderStage(VulkanBackendContext& backendContext,
+                       DescriptorSetManager& descriptorSetManager,
+                       VkImageView       sourceImageView,
                        VkExtent2D        sourceExtent,
                        VkFormat          outputFormat,
                        GtsResourceHandle sourceHandle,
                        GtsResourceHandle outputHandle,
                        VkImageLayout     outputFinalLayout)
         : GtsRenderStage("UpscaleRenderStage")
+        , backendContext(backendContext)
+        , descriptorSetManager(descriptorSetManager)
         , sourceExtent(sourceExtent)
         , sourceHandle(sourceHandle)
         , outputHandle(outputHandle)
@@ -51,7 +55,7 @@ public:
         rpConfig.colorInitialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         rpConfig.colorFinalLayout   = outputFinalLayout;
         rpConfig.hasDepthAttachment = false;
-        renderPass = std::make_unique<VulkanRenderPass>(rpConfig);
+        renderPass = std::make_unique<VulkanRenderPass>(backendContext, rpConfig);
 
         VulkanPipelineConfig pConfig;
         pConfig.vertexShaderPath = GraphicsConstants::UPSCALE_V_SHADER_PATH;
@@ -65,16 +69,16 @@ public:
         pConfig.blendEnable = false;
         pConfig.pushConstantSize = sizeof(UpscalePushConstants);
         pConfig.pushConstantStages = VK_SHADER_STAGE_FRAGMENT_BIT;
-        pConfig.descriptorSetLayouts = {dssheet::getDescriptorSetLayouts()[2]};
-        pipeline = std::make_unique<VulkanPipeline>(pConfig);
+        pConfig.descriptorSetLayouts = {descriptorSetManager.getDescriptorSetLayouts()[2]};
+        pipeline = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfig);
 
         FramebufferManagerConfig fbConfig;
         fbConfig.vkRenderpass       = renderPass->getRenderPass();
         fbConfig.hasDepthAttachment = false;
-        framebuffers = std::make_unique<FramebufferManager>(fbConfig);
+        framebuffers = std::make_unique<FramebufferManager>(backendContext, fbConfig);
 
         createSampler();
-        sourceDescriptorSets = dssheet::getManager().allocateForSampledImage(
+        sourceDescriptorSets = descriptorSetManager.allocateForSampledImage(
             sourceImageView,
             sourceSampler,
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -84,13 +88,13 @@ public:
     {
         if (!sourceDescriptorSets.empty())
         {
-            dssheet::getManager().freeSampledImageSets(sourceDescriptorSets);
+            descriptorSetManager.freeSampledImageSets(sourceDescriptorSets);
             sourceDescriptorSets.clear();
         }
 
         if (sourceSampler != VK_NULL_HANDLE)
         {
-            vkDestroySampler(vcsheet::getDevice(), sourceSampler, nullptr);
+            vkDestroySampler(backendContext.device(), sourceSampler, nullptr);
             sourceSampler = VK_NULL_HANDLE;
         }
     }
@@ -123,13 +127,13 @@ public:
         rpInfo.renderPass = renderPass->getRenderPass();
         rpInfo.framebuffer = framebuffers->getFramebuffers()[imageIndex];
         rpInfo.renderArea.offset = {0, 0};
-        rpInfo.renderArea.extent = vcsheet::getFrameOutputExtent();
+        rpInfo.renderArea.extent = backendContext.frameOutputExtent();
         rpInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         rpInfo.pClearValues = clearValues.data();
         vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
         const RenderViewportFrame& viewportFrame = graph.getData<RenderViewportFrame>();
-        const VkExtent2D outputExtent = vcsheet::getFrameOutputExtent();
+        const VkExtent2D outputExtent = backendContext.frameOutputExtent();
         const VkRect2D targetRect = viewportFrame.constrained
             ? toVkRect(viewportFrame.outputViewport.clampedTo(static_cast<int>(outputExtent.width),
                                                               static_cast<int>(outputExtent.height)))
@@ -173,6 +177,8 @@ private:
     std::unique_ptr<FramebufferManager> framebuffers;
     std::vector<VkDescriptorSet>        sourceDescriptorSets;
     VkSampler                           sourceSampler = VK_NULL_HANDLE;
+    VulkanBackendContext&               backendContext;
+    DescriptorSetManager&               descriptorSetManager;
     VkExtent2D                          sourceExtent{1, 1};
     GtsResourceHandle                   sourceHandle;
     GtsResourceHandle                   outputHandle;
@@ -252,7 +258,7 @@ private:
         samplerInfo.minLod = 0.0f;
         samplerInfo.maxLod = 0.0f;
 
-        if (vkCreateSampler(vcsheet::getDevice(), &samplerInfo, nullptr, &sourceSampler) != VK_SUCCESS)
+        if (vkCreateSampler(backendContext.device(), &samplerInfo, nullptr, &sourceSampler) != VK_SUCCESS)
             throw std::runtime_error("failed to create upscale sampler!");
     }
 };

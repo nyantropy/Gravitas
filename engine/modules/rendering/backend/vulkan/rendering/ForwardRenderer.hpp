@@ -10,6 +10,7 @@
 #include "Renderer.hpp"
 #include "RendererConfig.h"
 
+#include "VulkanBackendContext.h"
 #include "Attachment.hpp"
 #include "AttachmentConfig.h"
 
@@ -48,6 +49,7 @@ class ForwardRenderer : Renderer
         std::unique_ptr<RenderResourceManager> resourceSystem;
         std::unique_ptr<FrameManager>          frameManager;
         std::unique_ptr<ThreadPool>            threadPool;
+        VulkanBackendContext&                  backendContext;
 
         // Per-frame stats — populated in renderFrame, provided to the blackboard.
         GtsFrameStats frameStats;
@@ -63,7 +65,7 @@ class ForwardRenderer : Renderer
         VkExtent2D sceneRenderExtent{1, 1};
 
         // Frame graph — built once in createResources(), executed every frame.
-        // Declared last so it destructs first (stages reference depthAttachment).
+        // Declared after frame resources so stages are destroyed before attachments.
         GtsFrameGraph frameGraph;
 
         // misc variables we need for the draw loop
@@ -93,7 +95,7 @@ class ForwardRenderer : Renderer
             VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
             VkFormatFeatureFlags features = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
-            return FormatUtil::findSupportedFormat(vcsheet::getPhysicalDevice(), candidates, tiling, features);
+            return FormatUtil::findSupportedFormat(backendContext.physicalDevice(), candidates, tiling, features);
         }
 
         VkFormat findHeadlessColorFormat()
@@ -105,7 +107,7 @@ class ForwardRenderer : Renderer
                 VK_FORMAT_B8G8R8A8_UNORM
             };
             return FormatUtil::findSupportedFormat(
-                vcsheet::getPhysicalDevice(),
+                backendContext.physicalDevice(),
                 candidates,
                 VK_IMAGE_TILING_OPTIMAL,
                 VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT);
@@ -177,16 +179,17 @@ class ForwardRenderer : Renderer
             {
                 const VkFormat colorFormat = findHeadlessColorFormat();
                 frameOutputTarget = std::make_unique<HeadlessFrameOutputTarget>(
+                    backendContext,
                     config.renderWidth,
                     config.renderHeight,
                     colorFormat);
             }
             else
             {
-                frameOutputTarget = std::make_unique<WindowedFrameOutputTarget>();
+                frameOutputTarget = std::make_unique<WindowedFrameOutputTarget>(backendContext);
             }
 
-            vcsheet::getContext()->registerFrameOutput(
+            backendContext.vulkanContext().registerFrameOutput(
                 frameOutputTarget->getImages(),
                 frameOutputTarget->getImageViews(),
                 frameOutputTarget->getFormat(),
@@ -206,7 +209,7 @@ class ForwardRenderer : Renderer
                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
             attachConfig.memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
             attachConfig.imageAspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
-            depthAttachment = std::make_unique<Attachment>(attachConfig);
+            depthAttachment = std::make_unique<Attachment>(backendContext, attachConfig);
         }
 
         void createSceneTargets()
@@ -227,7 +230,7 @@ class ForwardRenderer : Renderer
                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
             attachConfig.memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
             attachConfig.imageAspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
-            sceneColorAttachment = std::make_unique<Attachment>(attachConfig);
+            sceneColorAttachment = std::make_unique<Attachment>(backendContext, attachConfig);
         }
 
         void buildFrameGraph()
@@ -255,6 +258,7 @@ class ForwardRenderer : Renderer
             std::vector<VkImageView> sceneColorViews(imageViews.begin(), imageViews.end());
             VkImageLayout sceneColorInitialLayout = frameOutputTarget->getUiInitialLayout();
             VkImageLayout sceneColorFinalLayout = frameOutputTarget->getUiInitialLayout();
+            DescriptorSetManager& descriptorSetManager = resourceSystem->getDescriptorSetManager();
             if (useInternalScaling())
             {
                 sceneColorHandle = frameGraph.importResource(
@@ -282,6 +286,8 @@ class ForwardRenderer : Renderer
             auto ownedScene = std::make_unique<SceneRenderStage>(
                 resourceSystem.get(),
                 threadPool.get(),
+                backendContext,
+                descriptorSetManager,
                 sceneColorViews,
                 static_cast<uint32_t>(images.size()),
                 format,
@@ -296,6 +302,8 @@ class ForwardRenderer : Renderer
 
             auto ownedParticles = std::make_unique<ParticleRenderStage>(
                 resourceSystem.get(),
+                backendContext,
+                descriptorSetManager,
                 sceneColorViews,
                 static_cast<uint32_t>(images.size()),
                 format,
@@ -312,6 +320,8 @@ class ForwardRenderer : Renderer
             if (useInternalScaling())
             {
                 auto ownedUpscale = std::make_unique<UpscaleRenderStage>(
+                    backendContext,
+                    descriptorSetManager,
                     sceneColorAttachment->getImageView(),
                     sceneRenderExtent,
                     format,
@@ -323,6 +333,8 @@ class ForwardRenderer : Renderer
 
             auto ownedUi = std::make_unique<UiRenderStage>(
                 resourceSystem.get(),
+                backendContext,
+                descriptorSetManager,
                 outputHandle0,
                 &frameStats,
                 debugOverlayEnabled,
@@ -339,7 +351,8 @@ class ForwardRenderer : Renderer
             createFrameOutputTarget();
             createSceneTargets();
             createDepthAttachment();
-            frameManager   = std::make_unique<FrameManager>(frameOutputTarget->getImages().size(),
+            frameManager   = std::make_unique<FrameManager>(backendContext,
+                                                            frameOutputTarget->getImages().size(),
                                                             frameOutputTarget->requiresRenderFinishedSemaphore());
             threadPool     = std::make_unique<ThreadPool>();
             buildFrameGraph();
@@ -347,7 +360,7 @@ class ForwardRenderer : Renderer
 
         void createResources() override
         {
-            resourceSystem = std::make_unique<RenderResourceManager>();
+            resourceSystem = std::make_unique<RenderResourceManager>(backendContext);
             createFrameResources();
         }
 
@@ -461,8 +474,14 @@ class ForwardRenderer : Renderer
 
 
     public:
-        ForwardRenderer(RendererConfig config, GtsPlatformEventBus& eventBus)
-            : Renderer(config), eventBus(eventBus)
+        ForwardRenderer(RendererConfig config,
+                        VulkanBackendContext& backendContext,
+                        GtsPlatformEventBus& eventBus)
+            : Renderer(config)
+            , backendContext(backendContext)
+            , frameGraph(backendContext)
+            , screenshotManager(backendContext)
+            , eventBus(eventBus)
         {
             createResources();
         }
@@ -551,7 +570,7 @@ class ForwardRenderer : Renderer
 
             // Wait for this frame's fence
             const auto fenceWaitStart = std::chrono::steady_clock::now();
-            vkWaitForFences(vcsheet::getDevice(), 1, &frame.inFlightFence, VK_TRUE, UINT64_MAX);
+            vkWaitForFences(backendContext.device(), 1, &frame.inFlightFence, VK_TRUE, UINT64_MAX);
             const auto fenceWaitEnd = std::chrono::steady_clock::now();
             frameStats.backendFenceWaitCpuMs =
                 std::chrono::duration<float, std::milli>(fenceWaitEnd - fenceWaitStart).count();
@@ -585,7 +604,7 @@ class ForwardRenderer : Renderer
             if (frameManager->getImagesInFlightCount() > imageIndex && imageFence != VK_NULL_HANDLE)
             {
                 const auto imageWaitStart = std::chrono::steady_clock::now();
-                vkWaitForFences(vcsheet::getDevice(), 1, &imageFence, VK_TRUE, UINT64_MAX);
+                vkWaitForFences(backendContext.device(), 1, &imageFence, VK_TRUE, UINT64_MAX);
                 const auto imageWaitEnd = std::chrono::steady_clock::now();
                 frameStats.backendImageWaitCpuMs =
                     std::chrono::duration<float, std::milli>(imageWaitEnd - imageWaitStart).count();
@@ -615,7 +634,7 @@ class ForwardRenderer : Renderer
 
             // Reset & record command buffer
             const auto fenceResetStart = std::chrono::steady_clock::now();
-            vkResetFences(vcsheet::getDevice(), 1, &frame.inFlightFence);
+            vkResetFences(backendContext.device(), 1, &frame.inFlightFence);
             const auto fenceResetEnd = std::chrono::steady_clock::now();
             frameStats.backendFenceResetCpuMs =
                 std::chrono::duration<float, std::milli>(fenceResetEnd - fenceResetStart).count();
@@ -662,7 +681,7 @@ class ForwardRenderer : Renderer
             }
 
             const auto submitStart = std::chrono::steady_clock::now();
-            if (vkQueueSubmit(vcsheet::getGraphicsQueue(), 1, &submitInfo, frame.inFlightFence) != VK_SUCCESS) {
+            if (vkQueueSubmit(backendContext.graphicsQueue(), 1, &submitInfo, frame.inFlightFence) != VK_SUCCESS) {
                 throw std::runtime_error("failed to submit draw command buffer!");
             }
             const auto submitEnd = std::chrono::steady_clock::now();
@@ -676,7 +695,7 @@ class ForwardRenderer : Renderer
 
             if (tryConsumeScreenshotRequest(dt))
             {
-                vkWaitForFences(vcsheet::getDevice(), 1, &frame.inFlightFence, VK_TRUE, UINT64_MAX);
+                vkWaitForFences(backendContext.device(), 1, &frame.inFlightFence, VK_TRUE, UINT64_MAX);
                 if (config.headless)
                     logHeadlessFrameDiagnostics(renderList);
                 screenshotManager.saveImage(

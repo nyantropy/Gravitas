@@ -6,17 +6,18 @@
 #include <stdexcept>
 
 #include "VulkanRenderPassConfig.h"
-#include "vcsheet.h"
+#include "VulkanBackendContext.h"
 
 // the recipe for rendering, for now we keep it simple
 class VulkanRenderPass
 {
     private:
+        VulkanBackendContext& backendContext;
         VkRenderPass renderPass;
         VulkanRenderPassConfig config;
         void createRenderPass();
     public:
-        VulkanRenderPass(VulkanRenderPassConfig config);
+        VulkanRenderPass(VulkanBackendContext& backendContext, VulkanRenderPassConfig config);
         ~VulkanRenderPass();
         VkRenderPass& getRenderPass();
 };

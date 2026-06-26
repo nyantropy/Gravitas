@@ -23,7 +23,8 @@
 #include "ObjectUBO.h"
 #include "GraphicsConstants.h"
 #include "BufferUtil.hpp"
-#include "vcsheet.h"
+#include "DescriptorSetManager.hpp"
+#include "VulkanBackendContext.h"
 
 class SceneRenderStage : public GtsRenderStage
 {
@@ -35,6 +36,8 @@ class SceneRenderStage : public GtsRenderStage
 public:
     SceneRenderStage(RenderResourceManager* resources,
                      ThreadPool*            threadPool,
+                     VulkanBackendContext&  backendContext,
+                     DescriptorSetManager&  descriptorSetManager,
                      const std::vector<VkImageView>& colorImageViews,
                      uint32_t               framebufferCount,
                      VkFormat               colorFormat,
@@ -47,6 +50,8 @@ public:
         : GtsRenderStage("SceneRenderStage")
         , resources(resources)
         , threadPool(threadPool)
+        , backendContext(backendContext)
+        , descriptorSetManager(descriptorSetManager)
         , renderExtent(renderExtent)
         , outputHandle(outputHandle)
         , depthHandle(depthHandle)
@@ -56,7 +61,7 @@ public:
         rpConfig.colorFormat = colorFormat;
         rpConfig.depthFormat = depthFormat;
         rpConfig.colorFinalLayout = colorFinalLayout;
-        renderPass = std::make_unique<VulkanRenderPass>(rpConfig);
+        renderPass = std::make_unique<VulkanRenderPass>(backendContext, rpConfig);
 
         VkVertexInputBindingDescription instanceBinding{};
         instanceBinding.binding   = 1;
@@ -76,30 +81,30 @@ public:
         pConfig.pushConstantSize   = sizeof(ScenePushConstants);
         pConfig.vertexBindings.push_back(instanceBinding);
         pConfig.vertexAttributes.push_back(instanceAttr);
-        pipeline = std::make_unique<VulkanPipeline>(pConfig);
+        pipeline = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfig);
 
         VulkanPipelineConfig pConfigDS = pConfig;
         pConfigDS.cullMode = VK_CULL_MODE_NONE;
-        pipelineDoubleSided = std::make_unique<VulkanPipeline>(pConfigDS);
+        pipelineDoubleSided = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigDS);
 
         VulkanPipelineConfig pConfigAlphaNoDepth = pConfig;
         pConfigAlphaNoDepth.depthWriteEnable = false;
-        pipelineAlphaNoDepth = std::make_unique<VulkanPipeline>(pConfigAlphaNoDepth);
+        pipelineAlphaNoDepth = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigAlphaNoDepth);
 
         VulkanPipelineConfig pConfigAlphaNoDepthDS = pConfigAlphaNoDepth;
         pConfigAlphaNoDepthDS.cullMode = VK_CULL_MODE_NONE;
-        pipelineAlphaNoDepthDoubleSided = std::make_unique<VulkanPipeline>(pConfigAlphaNoDepthDS);
+        pipelineAlphaNoDepthDoubleSided = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigAlphaNoDepthDS);
 
         VulkanPipelineConfig pConfigAdditiveNoDepth = pConfigAlphaNoDepth;
         pConfigAdditiveNoDepth.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
         pConfigAdditiveNoDepth.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
         pConfigAdditiveNoDepth.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         pConfigAdditiveNoDepth.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        pipelineAdditiveNoDepth = std::make_unique<VulkanPipeline>(pConfigAdditiveNoDepth);
+        pipelineAdditiveNoDepth = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigAdditiveNoDepth);
 
         VulkanPipelineConfig pConfigAdditiveNoDepthDS = pConfigAdditiveNoDepth;
         pConfigAdditiveNoDepthDS.cullMode = VK_CULL_MODE_NONE;
-        pipelineAdditiveNoDepthDoubleSided = std::make_unique<VulkanPipeline>(pConfigAdditiveNoDepthDS);
+        pipelineAdditiveNoDepthDoubleSided = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigAdditiveNoDepthDS);
 
         FramebufferManagerConfig fbConfig;
         fbConfig.colorImageViews     = colorImageViews;
@@ -108,19 +113,19 @@ public:
         fbConfig.width               = renderExtent.width;
         fbConfig.height              = renderExtent.height;
         fbConfig.framebufferCount    = framebufferCount;
-        framebuffers = std::make_unique<FramebufferManager>(fbConfig);
+        framebuffers = std::make_unique<FramebufferManager>(backendContext, fbConfig);
 
         const VkDeviceSize instanceBufSize =
             static_cast<VkDeviceSize>(GraphicsConstants::MAX_RENDERABLE_OBJECTS) * sizeof(uint32_t);
         for (uint32_t f = 0; f < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; ++f)
         {
             BufferUtil::createBuffer(
-                vcsheet::getDevice(), vcsheet::getPhysicalDevice(),
+                backendContext.device(), backendContext.physicalDevice(),
                 instanceBufSize,
                 VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                 instanceBuffers[f], instanceBufferMemory[f]);
-            vkMapMemory(vcsheet::getDevice(), instanceBufferMemory[f],
+            vkMapMemory(backendContext.device(), instanceBufferMemory[f],
                         0, instanceBufSize, 0, &instanceBufferMapped[f]);
         }
 
@@ -139,11 +144,11 @@ public:
         for (uint32_t f = 0; f < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; ++f)
         {
             if (instanceBufferMapped[f])
-                vkUnmapMemory(vcsheet::getDevice(), instanceBufferMemory[f]);
+                vkUnmapMemory(backendContext.device(), instanceBufferMemory[f]);
             if (instanceBuffers[f] != VK_NULL_HANDLE)
-                vkDestroyBuffer(vcsheet::getDevice(), instanceBuffers[f], nullptr);
+                vkDestroyBuffer(backendContext.device(), instanceBuffers[f], nullptr);
             if (instanceBufferMemory[f] != VK_NULL_HANDLE)
-                vkFreeMemory(vcsheet::getDevice(), instanceBufferMemory[f], nullptr);
+                vkFreeMemory(backendContext.device(), instanceBufferMemory[f], nullptr);
         }
     }
 
@@ -269,6 +274,8 @@ private:
     std::unique_ptr<FramebufferManager> framebuffers;
     RenderResourceManager*              resources = nullptr;
     ThreadPool*                         threadPool = nullptr;
+    VulkanBackendContext&               backendContext;
+    DescriptorSetManager&               descriptorSetManager;
     VkExtent2D                          renderExtent{1, 1};
     GtsResourceHandle                   outputHandle;
     GtsResourceHandle                   depthHandle;
@@ -303,7 +310,7 @@ private:
             GraphicsConstants::MAX_FRAMES_IN_FLIGHT,
             std::vector<VkCommandBuffer>(maxRecordingSlots, VK_NULL_HANDLE));
 
-        QueueFamilyIndices indices = vcsheet::getQueueFamilyIndices();
+        QueueFamilyIndices indices = backendContext.queueFamilyIndices();
         for (uint32_t frameIndex = 0; frameIndex < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; ++frameIndex)
         {
             for (uint32_t slot = 0; slot < maxRecordingSlots; ++slot)
@@ -313,7 +320,7 @@ private:
                 poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
                 poolInfo.queueFamilyIndex = indices.graphicsFamily.value();
 
-                if (vkCreateCommandPool(vcsheet::getDevice(), &poolInfo, nullptr,
+                if (vkCreateCommandPool(backendContext.device(), &poolInfo, nullptr,
                                         &secondaryCommandPools[frameIndex][slot]) != VK_SUCCESS)
                 {
                     throw std::runtime_error("failed to create secondary command pool");
@@ -325,7 +332,7 @@ private:
                 allocInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
                 allocInfo.commandBufferCount = 1;
 
-                if (vkAllocateCommandBuffers(vcsheet::getDevice(), &allocInfo,
+                if (vkAllocateCommandBuffers(backendContext.device(), &allocInfo,
                                              &secondaryCommandBuffers[frameIndex][slot]) != VK_SUCCESS)
                 {
                     throw std::runtime_error("failed to allocate secondary command buffer");
@@ -342,7 +349,7 @@ private:
             {
                 if (secondaryCommandPools[frameIndex][slot] != VK_NULL_HANDLE)
                 {
-                    vkDestroyCommandPool(vcsheet::getDevice(),
+                    vkDestroyCommandPool(backendContext.device(),
                                          secondaryCommandPools[frameIndex][slot],
                                          nullptr);
                 }
@@ -364,7 +371,7 @@ private:
     {
         for (uint32_t slot = 0; slot < maxRecordingSlots; ++slot)
         {
-            vkResetCommandPool(vcsheet::getDevice(),
+            vkResetCommandPool(backendContext.device(),
                                secondaryCommandPools[currentFrame][slot],
                                0);
         }

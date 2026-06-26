@@ -1,8 +1,9 @@
 #include "VulkanTexture.hpp"
 
-VulkanTexture::VulkanTexture(const std::string path, bool nearestFilter, bool clampToEdge)
+VulkanTexture::VulkanTexture(VulkanBackendContext& backendContext, const std::string path, bool nearestFilter, bool clampToEdge)
     : nearestFilter(nearestFilter)
     , clampToEdge(clampToEdge)
+    , backendContext(backendContext)
 {
     createTextureImage(path);
     createTextureImageView();
@@ -11,10 +12,10 @@ VulkanTexture::VulkanTexture(const std::string path, bool nearestFilter, bool cl
 
 VulkanTexture::~VulkanTexture()
 {
-    vkDestroyImageView(vcsheet::getDevice(), textureImageView, nullptr);
-    vkDestroyImage(vcsheet::getDevice(), textureImage, nullptr);
-    vkFreeMemory(vcsheet::getDevice(), textureImageMemory, nullptr);
-    vkDestroySampler(vcsheet::getDevice(), textureSampler, nullptr);
+    vkDestroyImageView(backendContext.device(), textureImageView, nullptr);
+    vkDestroyImage(backendContext.device(), textureImage, nullptr);
+    vkFreeMemory(backendContext.device(), textureImageMemory, nullptr);
+    vkDestroySampler(backendContext.device(), textureSampler, nullptr);
 }
 
 VkImage& VulkanTexture::getTextureImage()
@@ -63,7 +64,7 @@ void VulkanTexture::createTextureImageView()
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
 
-    if (vkCreateImageView(vcsheet::getDevice(), &viewInfo, nullptr, &textureImageView) != VK_SUCCESS) 
+    if (vkCreateImageView(backendContext.device(), &viewInfo, nullptr, &textureImageView) != VK_SUCCESS) 
     {
         throw std::runtime_error("failed to create image view!");
     }
@@ -72,7 +73,7 @@ void VulkanTexture::createTextureImageView()
 void VulkanTexture::createTextureSampler()
 {
     VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties(vcsheet::getPhysicalDevice(), &properties);
+    vkGetPhysicalDeviceProperties(backendContext.physicalDevice(), &properties);
 
     const VkFilter            filter      = nearestFilter ? VK_FILTER_NEAREST            : VK_FILTER_LINEAR;
     const VkSamplerMipmapMode mipmapMode  = nearestFilter ? VK_SAMPLER_MIPMAP_MODE_NEAREST : VK_SAMPLER_MIPMAP_MODE_LINEAR;
@@ -94,7 +95,7 @@ void VulkanTexture::createTextureSampler()
     samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
     samplerInfo.mipmapMode = mipmapMode;
 
-    if (vkCreateSampler(vcsheet::getDevice(), &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS)
+    if (vkCreateSampler(backendContext.device(), &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create texture sampler!");
     }
@@ -137,32 +138,32 @@ void VulkanTexture::createTextureImage(const std::string path)
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
 
-    BufferUtil::createBuffer(vcsheet::getDevice(), vcsheet::getPhysicalDevice(), imageSize,
+    BufferUtil::createBuffer(backendContext.device(), backendContext.physicalDevice(), imageSize,
     VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
     stagingBuffer, stagingBufferMemory);
 
     void* data;
-    vkMapMemory(vcsheet::getDevice(), stagingBufferMemory, 0, imageSize, 0, &data);
+    vkMapMemory(backendContext.device(), stagingBufferMemory, 0, imageSize, 0, &data);
         memcpy(data, pixels, static_cast<size_t>(imageSize));
-    vkUnmapMemory(vcsheet::getDevice(), stagingBufferMemory);
+    vkUnmapMemory(backendContext.device(), stagingBufferMemory);
 
     stbi_image_free(pixels);
 
-    ImageUtil::createImage(vcsheet::getDevice(),
+    ImageUtil::createImage(backendContext.device(),
     texWidth, texHeight,
     VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
     VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, textureImage);
 
-    MemoryUtil::allocateImageMemory(vcsheet::getDevice(), vcsheet::getPhysicalDevice(), textureImage,
+    MemoryUtil::allocateImageMemory(backendContext.device(), backendContext.physicalDevice(), textureImage,
     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImageMemory);
 
-    ImageUtil::transitionImageLayout(vcsheet::getDevice(), vcsheet::getCommandPool(), vcsheet::getGraphicsQueue(), textureImage,
+    ImageUtil::transitionImageLayout(backendContext.device(), backendContext.commandPool(), backendContext.graphicsQueue(), textureImage,
     VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        BufferUtil::copyBufferToImage(vcsheet::getDevice(), vcsheet::getCommandPool(), vcsheet::getGraphicsQueue(),
+        BufferUtil::copyBufferToImage(backendContext.device(), backendContext.commandPool(), backendContext.graphicsQueue(),
         stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-    ImageUtil::transitionImageLayout(vcsheet::getDevice(), vcsheet::getCommandPool(), vcsheet::getGraphicsQueue(), textureImage,
+    ImageUtil::transitionImageLayout(backendContext.device(), backendContext.commandPool(), backendContext.graphicsQueue(), textureImage,
     VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-    vkDestroyBuffer(vcsheet::getDevice(), stagingBuffer, nullptr);
-    vkFreeMemory(vcsheet::getDevice(), stagingBufferMemory, nullptr);
+    vkDestroyBuffer(backendContext.device(), stagingBuffer, nullptr);
+    vkFreeMemory(backendContext.device(), stagingBufferMemory, nullptr);
 }

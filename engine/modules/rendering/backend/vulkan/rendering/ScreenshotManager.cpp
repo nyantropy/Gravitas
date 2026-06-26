@@ -12,7 +12,6 @@
 
 #include "BufferUtil.hpp"
 #include "GtsPaths.h"
-#include "vcsheet.h"
 
 uint32_t ScreenshotManager::bytesPerPixelForFormat(VkFormat format)
 {
@@ -74,7 +73,7 @@ void ScreenshotManager::saveImage(VkImage image,
                                   VkExtent2D extent,
                                   VkImageLayout currentLayout) const
 {
-    VkDevice device = vcsheet::getDevice();
+    VkDevice device = backendContext.device();
     vkDeviceWaitIdle(device);
 
     const uint32_t bytesPerPixel = bytesPerPixelForFormat(format);
@@ -85,7 +84,7 @@ void ScreenshotManager::saveImage(VkImage image,
     VkDeviceMemory stagingBufferMemory = VK_NULL_HANDLE;
     BufferUtil::createBuffer(
         device,
-        vcsheet::getPhysicalDevice(),
+        backendContext.physicalDevice(),
         sourceSize,
         VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -95,7 +94,7 @@ void ScreenshotManager::saveImage(VkImage image,
     try
     {
         VkCommandBuffer commandBuffer =
-            BufferUtil::beginSingleTimeCommands(device, vcsheet::getCommandPool());
+            BufferUtil::beginSingleTimeCommands(device, backendContext.commandPool());
 
         VkImageMemoryBarrier toTransferBarrier{};
         toTransferBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -164,8 +163,8 @@ void ScreenshotManager::saveImage(VkImage image,
 
         BufferUtil::endSingleTimeCommands(
             device,
-            vcsheet::getGraphicsQueue(),
-            vcsheet::getCommandPool(),
+            backendContext.graphicsQueue(),
+            backendContext.commandPool(),
             commandBuffer);
 
         void* mappedData = nullptr;

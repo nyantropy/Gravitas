@@ -295,6 +295,13 @@ stay under `modules/rendering/backend/vulkan/`; for example
 input state, while `VulkanGraphicsBackendProvider` is the backend-local provider
 that constructs `VulkanGraphics`.
 
+At build time, `gravitas_rendering` can be configured without a concrete
+graphics backend. The generic module still owns the GLFW window abstraction and
+renderer-facing ECS/runtime contracts, while selected backend targets such as
+`gravitas_vulkan_backend` are added separately. CTest module smoke builds cover
+valid option combinations and expected dependency rejections so accidental
+module coupling is caught during engine verification.
+
 ### Descriptor → GPU Component Split
 
 Application code writes **descriptor components** (high-level intent). Engine systems translate these into **GPU components** (backend handles) through explicit lifecycle passes.
@@ -611,11 +618,13 @@ The Vulkan backend uses a declarative frame graph:
 types. Generic rendering contracts, ECS setup, extraction, and scene feature
 installers must stay backend-agnostic.
 
-The backend still has transitional access sheets, `vcsheet` for
-`VulkanContext` and `dssheet` for descriptor allocation. Treat them as
-backend-private migration points, not as a pattern for new code. New Vulkan
-systems should prefer explicit context/resource dependencies so these sheets
-can be retired incrementally without touching the generic rendering module.
+`VulkanGraphics` owns `VulkanContext` and passes a `VulkanBackendContext`
+reference through the backend objects that need device, queue, swapchain, or
+frame-output access. Descriptor allocation is owned by `RenderResourceManager`
+through `DescriptorSetManager` and is passed explicitly to stages and pipelines
+that need descriptor layouts or descriptor-set allocation. Backend code should
+keep these dependencies explicit rather than introducing process-wide access
+helpers.
 
 ### Debug Draw
 

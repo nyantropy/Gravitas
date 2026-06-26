@@ -3,19 +3,24 @@
 #include <stdexcept>
 
 #include "IFrameOutputTarget.hpp"
-#include "vcsheet.h"
+#include "VulkanBackendContext.h"
 
 class WindowedFrameOutputTarget : public IFrameOutputTarget
 {
     public:
+        explicit WindowedFrameOutputTarget(VulkanBackendContext& backendContext)
+            : backendContext(backendContext)
+        {
+        }
+
         FrameOutputBeginResult beginFrame(uint32_t currentFrame, VkSemaphore imageAvailableSemaphore) override
         {
             (void)currentFrame;
 
             uint32_t imageIndex = 0;
             VkResult result = vkAcquireNextImageKHR(
-                vcsheet::getDevice(),
-                vcsheet::getSwapChain(),
+                backendContext.device(),
+                backendContext.swapChain(),
                 UINT64_MAX,
                 imageAvailableSemaphore,
                 VK_NULL_HANDLE,
@@ -37,12 +42,12 @@ class WindowedFrameOutputTarget : public IFrameOutputTarget
             presentInfo.waitSemaphoreCount = 1;
             presentInfo.pWaitSemaphores = &renderFinishedSemaphore;
 
-            VkSwapchainKHR swapChains[] = { vcsheet::getSwapChain() };
+            VkSwapchainKHR swapChains[] = { backendContext.swapChain() };
             presentInfo.swapchainCount = 1;
             presentInfo.pSwapchains = swapChains;
             presentInfo.pImageIndices = &imageIndex;
 
-            VkResult result = vkQueuePresentKHR(vcsheet::getPresentQueue(), &presentInfo);
+            VkResult result = vkQueuePresentKHR(backendContext.presentQueue(), &presentInfo);
             if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
                 return true;
             if (result != VK_SUCCESS)
@@ -50,12 +55,15 @@ class WindowedFrameOutputTarget : public IFrameOutputTarget
             return false;
         }
 
-        const std::vector<VkImage>& getImages() const override { return vcsheet::getSwapChainImages(); }
-        const std::vector<VkImageView>& getImageViews() const override { return vcsheet::getSwapChainImageViews(); }
-        VkFormat getFormat() const override { return vcsheet::getSwapChainImageFormat(); }
-        VkExtent2D getExtent() const override { return vcsheet::getSwapChainExtent(); }
-        VkPresentModeKHR getPresentMode() const override { return vcsheet::getPresentMode(); }
+        const std::vector<VkImage>& getImages() const override { return backendContext.swapChainImages(); }
+        const std::vector<VkImageView>& getImageViews() const override { return backendContext.swapChainImageViews(); }
+        VkFormat getFormat() const override { return backendContext.swapChainImageFormat(); }
+        VkExtent2D getExtent() const override { return backendContext.swapChainExtent(); }
+        VkPresentModeKHR getPresentMode() const override { return backendContext.presentMode(); }
         bool requiresRenderFinishedSemaphore() const override { return true; }
         VkImageLayout getUiInitialLayout() const override { return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; }
         VkImageLayout getUiFinalLayout() const override { return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; }
+
+    private:
+        VulkanBackendContext& backendContext;
 };

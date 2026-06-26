@@ -19,7 +19,7 @@
 #include "RendererConfig.h"
 #include "ForwardRenderer.hpp"
 
-#include "vcsheet.h"
+#include "VulkanBackendContext.h"
 
 #include "GraphicsConfig.h"
 #include "GtsPlatformEventBus.hpp"
@@ -42,6 +42,7 @@ public:
 
     // the vulkan context, containing all the major vulkan objects needed to actually produce something
     std::unique_ptr<VulkanContext> vContext;
+    std::unique_ptr<VulkanBackendContext> backendContext;
 
     // the renderer, responsible for the core drawframe function
     std::unique_ptr<ForwardRenderer> renderer;
@@ -104,7 +105,7 @@ public:
         config.window.monitorName = windowManager->getOutputWindow()->getConfig().monitorName;
     }
 
-    // create a concrete Vulkan Context object, accessible with an accessheet on a global basis
+    // create a concrete Vulkan Context object and backend dependency context
     void createContext()
     {
         VulkanContextConfig vcConfig;
@@ -125,7 +126,7 @@ public:
         }
 
         vContext = std::make_unique<VulkanContext>(vcConfig);
-        vcsheet::SetContext(vContext.get());
+        backendContext = std::make_unique<VulkanBackendContext>(*vContext);
 
         if (config.headless)
         {
@@ -150,17 +151,18 @@ public:
         rConfig.renderHeight = config.renderHeight;
         rConfig.maxScreenshotsPerRun = config.maxScreenshotsPerRun;
         rConfig.minSecondsBetweenScreenshots = config.minSecondsBetweenScreenshots;
-        renderer = std::make_unique<ForwardRenderer>(rConfig, eventBus);
+        renderer = std::make_unique<ForwardRenderer>(rConfig, *backendContext, eventBus);
         if (config.headless)
         {
             std::cout << "Headless offscreen format: "
-                      << static_cast<int>(vcsheet::getFrameOutputFormat()) << std::endl;
+                      << static_cast<int>(backendContext->frameOutputFormat()) << std::endl;
         }
     }
 
     void cleanup()
     {
         renderer.reset();
+        backendContext.reset();
         vContext.reset();
         windowManager.reset();
     }
@@ -204,7 +206,7 @@ public:
 
     void waitIdle() override
     {
-        vkDeviceWaitIdle(vcsheet::getDevice());
+        vkDeviceWaitIdle(backendContext->device());
     }
 
     void pollWindowEvents() override
@@ -215,7 +217,7 @@ public:
 
     void shutdown() override
     {
-        vkDeviceWaitIdle(vcsheet::getDevice());
+        vkDeviceWaitIdle(backendContext->device());
         cleanup();
     }
 
@@ -341,7 +343,7 @@ private:
         if (!currentWindowExtentValid() || vContext == nullptr || renderer == nullptr)
             return false;
 
-        vkDeviceWaitIdle(vcsheet::getDevice());
+        vkDeviceWaitIdle(backendContext->device());
         renderer->releaseFrameResources();
         vContext->recreateSwapChain(resolvePresentModePreference());
         renderer->rebuildFrameResources();

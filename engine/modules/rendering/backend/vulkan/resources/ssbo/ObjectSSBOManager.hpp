@@ -8,8 +8,8 @@
 #include <stdexcept>
 #include <vector>
 
-#include "vcsheet.h"
-#include "dssheet.h"
+#include "DescriptorSetManager.hpp"
+#include "VulkanBackendContext.h"
 #include "BufferUtil.hpp"
 #include "ObjectUBO.h"
 #include "GraphicsConstants.h"
@@ -24,12 +24,14 @@ class ObjectSSBOManager
     public:
         static constexpr uint32_t MAX_OBJECTS = GraphicsConstants::MAX_RENDERABLE_OBJECTS;
 
-        ObjectSSBOManager()
+        ObjectSSBOManager(VulkanBackendContext& backendContext, DescriptorSetManager& descriptorSetManager)
+            : backendContext(backendContext)
+            , descriptorSetManager(descriptorSetManager)
         {
             VkDeviceSize bufferSize = static_cast<VkDeviceSize>(MAX_OBJECTS) * sizeof(ObjectUBO);
             uint32_t frames = static_cast<uint32_t>(GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
             VkPhysicalDeviceProperties props{};
-            vkGetPhysicalDeviceProperties(vcsheet::getPhysicalDevice(), &props);
+            vkGetPhysicalDeviceProperties(backendContext.physicalDevice(), &props);
             nonCoherentAtomSize = props.limits.nonCoherentAtomSize;
 
             ssboBuffers.resize(frames);
@@ -39,8 +41,8 @@ class ObjectSSBOManager
             for (uint32_t i = 0; i < frames; ++i)
             {
                 BufferUtil::createBuffer(
-                    vcsheet::getDevice(),
-                    vcsheet::getPhysicalDevice(),
+                    backendContext.device(),
+                    backendContext.physicalDevice(),
                     bufferSize,
                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
@@ -48,14 +50,14 @@ class ObjectSSBOManager
                     ssboMemory[i]
                 );
 
-                vkMapMemory(vcsheet::getDevice(), ssboMemory[i], 0, bufferSize, 0, &ssboMapped[i]);
+                vkMapMemory(backendContext.device(), ssboMemory[i], 0, bufferSize, 0, &ssboMapped[i]);
 
                 // zero-initialize so unwritten slots don't contain garbage
                 std::memset(ssboMapped[i], 0, static_cast<size_t>(bufferSize));
                 lastWrittenObject[i].resize(MAX_OBJECTS, emptyObjectData());
             }
 
-            descriptorSets = dssheet::getManager().allocateForObjectSSBO(ssboBuffers, bufferSize);
+            descriptorSets = descriptorSetManager.allocateForObjectSSBO(ssboBuffers, bufferSize);
 
             for (uint32_t i = 0; i < GraphicsConstants::MAX_FRAMES_IN_FLIGHT; ++i)
             {
@@ -69,11 +71,11 @@ class ObjectSSBOManager
             for (size_t i = 0; i < ssboBuffers.size(); ++i)
             {
                 if (ssboMapped[i])
-                    vkUnmapMemory(vcsheet::getDevice(), ssboMemory[i]);
+                    vkUnmapMemory(backendContext.device(), ssboMemory[i]);
                 if (ssboBuffers[i] != VK_NULL_HANDLE)
-                    vkDestroyBuffer(vcsheet::getDevice(), ssboBuffers[i], nullptr);
+                    vkDestroyBuffer(backendContext.device(), ssboBuffers[i], nullptr);
                 if (ssboMemory[i] != VK_NULL_HANDLE)
-                    vkFreeMemory(vcsheet::getDevice(), ssboMemory[i], nullptr);
+                    vkFreeMemory(backendContext.device(), ssboMemory[i], nullptr);
             }
         }
 
@@ -159,7 +161,7 @@ class ObjectSSBOManager
             range.memory = ssboMemory[frameIndex];
             range.offset = alignedOffset;
             range.size   = alignedEnd - alignedOffset;
-            vkFlushMappedMemoryRanges(vcsheet::getDevice(), 1, &range);
+            vkFlushMappedMemoryRanges(backendContext.device(), 1, &range);
 
             m_dirtyMin[frameIndex] = std::numeric_limits<uint32_t>::max();
             m_dirtyMax[frameIndex] = 0;
@@ -178,6 +180,9 @@ class ObjectSSBOManager
         }
 
     private:
+        VulkanBackendContext& backendContext;
+        DescriptorSetManager& descriptorSetManager;
+
         void flushSlotRange(uint32_t frameIndex, ssbo_id_type slot)
         {
             const VkDeviceSize slotOffset = static_cast<VkDeviceSize>(slot) * sizeof(ObjectUBO);
@@ -191,7 +196,7 @@ class ObjectSSBOManager
             range.memory = ssboMemory[frameIndex];
             range.offset = alignedOffset;
             range.size   = alignedEnd - alignedOffset;
-            vkFlushMappedMemoryRanges(vcsheet::getDevice(), 1, &range);
+            vkFlushMappedMemoryRanges(backendContext.device(), 1, &range);
         }
 
         std::vector<VkBuffer>        ssboBuffers;

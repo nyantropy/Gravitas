@@ -11,10 +11,16 @@
 
 #include "GtsFrameGraphResource.h"
 #include "GtsRenderStage.h"
+#include "VulkanBackendContext.h"
 
 class GtsFrameGraph
 {
 public:
+    explicit GtsFrameGraph(VulkanBackendContext& backendContext)
+        : backendContext(backendContext)
+    {
+    }
+
     // ── Resource registration (call before compile) ───────────────────────
 
     // Import a persistent external resource.
@@ -149,6 +155,7 @@ private:
     std::vector<BarrierPoint>                    barriers;
     std::unordered_map<std::type_index, const void*> dataBlackboard;
 
+    VulkanBackendContext& backendContext;
     bool compiled = false;
 
     // ── Internal helpers ──────────────────────────────────────────────────

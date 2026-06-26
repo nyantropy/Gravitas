@@ -1,7 +1,8 @@
 #include "FrameManager.hpp"
 
-FrameManager::FrameManager(size_t frameOutputImageCount, bool allocateRenderFinishedSemaphores)
-    : frameOutputImageCount(frameOutputImageCount)
+FrameManager::FrameManager(VulkanBackendContext& backendContext, size_t frameOutputImageCount, bool allocateRenderFinishedSemaphores)
+    : backendContext(backendContext)
+    , frameOutputImageCount(frameOutputImageCount)
     , allocateRenderFinishedSemaphores(allocateRenderFinishedSemaphores)
 {
     createFrameResources();
@@ -12,17 +13,17 @@ FrameManager::~FrameManager()
     for (auto& frame : frames) 
     {
         if (frame.commandBuffer != VK_NULL_HANDLE)
-            vkFreeCommandBuffers(vcsheet::getDevice(), vcsheet::getCommandPool(), 1, &frame.commandBuffer);
+            vkFreeCommandBuffers(backendContext.device(), backendContext.commandPool(), 1, &frame.commandBuffer);
         if (frame.inFlightFence != VK_NULL_HANDLE)
-            vkDestroyFence(vcsheet::getDevice(), frame.inFlightFence, nullptr);
+            vkDestroyFence(backendContext.device(), frame.inFlightFence, nullptr);
         if (frame.imageAvailableSemaphore != VK_NULL_HANDLE)
-            vkDestroySemaphore(vcsheet::getDevice(), frame.imageAvailableSemaphore, nullptr);
+            vkDestroySemaphore(backendContext.device(), frame.imageAvailableSemaphore, nullptr);
     }
 
     for (VkSemaphore sem : renderFinishedSemaphores) 
     {
         if (sem != VK_NULL_HANDLE)
-            vkDestroySemaphore(vcsheet::getDevice(), sem, nullptr);
+            vkDestroySemaphore(backendContext.device(), sem, nullptr);
     }
 }
 
@@ -56,7 +57,7 @@ VkSemaphore FrameManager::createSemaphore()
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
     VkSemaphore semaphore;
-    if (vkCreateSemaphore(vcsheet::getDevice(), &semaphoreInfo, nullptr, &semaphore) != VK_SUCCESS) 
+    if (vkCreateSemaphore(backendContext.device(), &semaphoreInfo, nullptr, &semaphore) != VK_SUCCESS) 
     {
         throw std::runtime_error("Failed to create semaphore!");
     }
@@ -72,7 +73,7 @@ VkFence FrameManager::createFence()
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
     VkFence fence;
-    if (vkCreateFence(vcsheet::getDevice(), &fenceInfo, nullptr, &fence) != VK_SUCCESS) {
+    if (vkCreateFence(backendContext.device(), &fenceInfo, nullptr, &fence) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create fence!");
     }
 
@@ -84,12 +85,12 @@ VkCommandBuffer FrameManager::allocateCommandBuffer()
 {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = vcsheet::getCommandPool();
+    allocInfo.commandPool = backendContext.commandPool();
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = 1;
 
     VkCommandBuffer cmdBuffer;
-    if (vkAllocateCommandBuffers(vcsheet::getDevice(), &allocInfo, &cmdBuffer) != VK_SUCCESS) 
+    if (vkAllocateCommandBuffers(backendContext.device(), &allocInfo, &cmdBuffer) != VK_SUCCESS) 
     {
         throw std::runtime_error("Failed to allocate command buffer!");
     }

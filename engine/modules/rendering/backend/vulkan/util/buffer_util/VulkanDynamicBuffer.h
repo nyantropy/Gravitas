@@ -3,7 +3,7 @@
 #include <vulkan/vulkan.h>
 
 #include "BufferUtil.hpp"
-#include "vcsheet.h"
+#include "VulkanBackendContext.h"
 
 // Host-visible, persistently-mapped GPU buffer that grows on demand.
 // Owns its VkBuffer, VkDeviceMemory, and mapped pointer.
@@ -12,8 +12,11 @@
 class VulkanDynamicBuffer
 {
 public:
-    explicit VulkanDynamicBuffer(VkBufferUsageFlags usage, VkDeviceSize initialBytes)
-        : usage(usage)
+    VulkanDynamicBuffer(VulkanBackendContext& backendContext,
+                        VkBufferUsageFlags usage,
+                        VkDeviceSize initialBytes)
+        : backendContext(backendContext)
+        , usage(usage)
     {
         allocate(initialBytes);
     }
@@ -22,9 +25,9 @@ public:
     {
         if (buffer != VK_NULL_HANDLE)
         {
-            vkUnmapMemory(vcsheet::getDevice(), memory);
-            vkDestroyBuffer(vcsheet::getDevice(), buffer, nullptr);
-            vkFreeMemory(vcsheet::getDevice(), memory, nullptr);
+            vkUnmapMemory(backendContext.device(), memory);
+            vkDestroyBuffer(backendContext.device(), buffer, nullptr);
+            vkFreeMemory(backendContext.device(), memory, nullptr);
         }
     }
 
@@ -35,11 +38,11 @@ public:
 
         // Resizes are rare, but the old buffer may still be referenced by an
         // in-flight command buffer from another frame slot.
-        vkDeviceWaitIdle(vcsheet::getDevice());
+        vkDeviceWaitIdle(backendContext.device());
 
-        vkUnmapMemory(vcsheet::getDevice(), memory);
-        vkDestroyBuffer(vcsheet::getDevice(), buffer, nullptr);
-        vkFreeMemory(vcsheet::getDevice(), memory, nullptr);
+        vkUnmapMemory(backendContext.device(), memory);
+        vkDestroyBuffer(backendContext.device(), buffer, nullptr);
+        vkFreeMemory(backendContext.device(), memory, nullptr);
         buffer = VK_NULL_HANDLE;
         memory = VK_NULL_HANDLE;
         mapped = nullptr;
@@ -55,6 +58,7 @@ public:
     VulkanDynamicBuffer& operator=(const VulkanDynamicBuffer&) = delete;
 
 private:
+    VulkanBackendContext& backendContext;
     VkBufferUsageFlags usage;
     VkBuffer           buffer        = VK_NULL_HANDLE;
     VkDeviceMemory     memory        = VK_NULL_HANDLE;
@@ -66,12 +70,12 @@ private:
         capacityBytes = bytes;
 
         BufferUtil::createBuffer(
-            vcsheet::getDevice(),
-            vcsheet::getPhysicalDevice(),
+            backendContext.device(),
+            backendContext.physicalDevice(),
             bytes, usage,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             buffer, memory);
 
-        vkMapMemory(vcsheet::getDevice(), memory, 0, bytes, 0, &mapped);
+        vkMapMemory(backendContext.device(), memory, 0, bytes, 0, &mapped);
     }
 };

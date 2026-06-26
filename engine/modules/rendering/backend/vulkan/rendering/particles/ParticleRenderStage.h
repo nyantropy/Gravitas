@@ -27,8 +27,8 @@
 #include "VulkanVertexDescription.h"
 #include "VulkanRenderPass.hpp"
 #include "VulkanRenderPassConfig.h"
-#include "dssheet.h"
-#include "vcsheet.h"
+#include "DescriptorSetManager.hpp"
+#include "VulkanBackendContext.h"
 
 class ParticleRenderStage : public GtsRenderStage
 {
@@ -50,6 +50,8 @@ class ParticleRenderStage : public GtsRenderStage
 
 public:
     ParticleRenderStage(RenderResourceManager* resources,
+                        VulkanBackendContext&  backendContext,
+                        DescriptorSetManager&  descriptorSetManager,
                         const std::vector<VkImageView>& colorImageViews,
                         uint32_t               framebufferCount,
                         VkFormat               colorFormat,
@@ -62,11 +64,19 @@ public:
                         VkImageLayout          colorFinalLayout)
         : GtsRenderStage("ParticleRenderStage")
         , resources(resources)
+        , backendContext(backendContext)
+        , descriptorSetManager(descriptorSetManager)
         , renderExtent(renderExtent)
         , outputHandle(outputHandle)
         , depthHandle(depthHandle)
         , colorInitialLayout(colorInitialLayout)
         , colorFinalLayout(colorFinalLayout)
+        , instanceBuffer(backendContext,
+                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                         1024u * sizeof(ParticleGpuInstance))
+        , meshInstanceBuffer(backendContext,
+                             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                             1024u * sizeof(ParticleMeshGpuInstance))
     {
         VulkanRenderPassConfig rpConfig;
         rpConfig.colorFormat        = colorFormat;
@@ -79,27 +89,27 @@ public:
         rpConfig.depthFinalLayout   = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
         rpConfig.depthAttachmentLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
         rpConfig.hasDepthAttachment = true;
-        renderPass = std::make_unique<VulkanRenderPass>(rpConfig);
+        renderPass = std::make_unique<VulkanRenderPass>(backendContext, rpConfig);
 
         VulkanPipelineConfig alphaConfig = makePipelineConfig();
-        pipelineAlpha = std::make_unique<VulkanPipeline>(alphaConfig);
+        pipelineAlpha = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, alphaConfig);
 
         VulkanPipelineConfig additiveConfig = alphaConfig;
         additiveConfig.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
         additiveConfig.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
         additiveConfig.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         additiveConfig.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        pipelineAdditive = std::make_unique<VulkanPipeline>(additiveConfig);
+        pipelineAdditive = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, additiveConfig);
 
         VulkanPipelineConfig meshAlphaConfig = makeMeshPipelineConfig();
-        pipelineMeshAlpha = std::make_unique<VulkanPipeline>(meshAlphaConfig);
+        pipelineMeshAlpha = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, meshAlphaConfig);
 
         VulkanPipelineConfig meshAdditiveConfig = meshAlphaConfig;
         meshAdditiveConfig.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
         meshAdditiveConfig.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
         meshAdditiveConfig.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         meshAdditiveConfig.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        pipelineMeshAdditive = std::make_unique<VulkanPipeline>(meshAdditiveConfig);
+        pipelineMeshAdditive = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, meshAdditiveConfig);
 
         FramebufferManagerConfig fbConfig;
         fbConfig.vkRenderpass        = renderPass->getRenderPass();
@@ -109,10 +119,10 @@ public:
         fbConfig.height              = renderExtent.height;
         fbConfig.framebufferCount    = framebufferCount;
         fbConfig.hasDepthAttachment  = true;
-        framebuffers = std::make_unique<FramebufferManager>(fbConfig);
+        framebuffers = std::make_unique<FramebufferManager>(backendContext, fbConfig);
 
         createDepthSampler();
-        depthDescriptorSets = dssheet::getManager().allocateForSampledImage(
+        depthDescriptorSets = descriptorSetManager.allocateForSampledImage(
             depthImageView,
             depthSampler,
             VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
@@ -122,13 +132,13 @@ public:
     {
         if (!depthDescriptorSets.empty())
         {
-            dssheet::getManager().freeSampledImageSets(depthDescriptorSets);
+            descriptorSetManager.freeSampledImageSets(depthDescriptorSets);
             depthDescriptorSets.clear();
         }
 
         if (depthSampler != VK_NULL_HANDLE)
         {
-            vkDestroySampler(vcsheet::getDevice(), depthSampler, nullptr);
+            vkDestroySampler(backendContext.device(), depthSampler, nullptr);
             depthSampler = VK_NULL_HANDLE;
         }
     }
@@ -336,6 +346,8 @@ private:
     std::unique_ptr<FramebufferManager> framebuffers;
     std::vector<VkDescriptorSet>        depthDescriptorSets;
     RenderResourceManager*              resources = nullptr;
+    VulkanBackendContext&               backendContext;
+    DescriptorSetManager&               descriptorSetManager;
     VkExtent2D                          renderExtent{1, 1};
     GtsResourceHandle                   outputHandle;
     GtsResourceHandle                   depthHandle;
@@ -343,14 +355,8 @@ private:
     VkImageLayout                       colorFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     VkSampler                           depthSampler = VK_NULL_HANDLE;
 
-    VulkanDynamicBuffer instanceBuffer{
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        1024u * sizeof(ParticleGpuInstance)
-    };
-    VulkanDynamicBuffer meshInstanceBuffer{
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        1024u * sizeof(ParticleMeshGpuInstance)
-    };
+    VulkanDynamicBuffer instanceBuffer;
+    VulkanDynamicBuffer meshInstanceBuffer;
     std::vector<ParticleGpuInstance> uploadScratch;
     std::vector<ParticleMeshGpuInstance> meshUploadScratch;
     uint32_t lastParticleCount = 0;
@@ -405,9 +411,9 @@ private:
         config.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
         config.pushConstantSize   = 0;
         config.descriptorSetLayouts = {
-            dssheet::getDescriptorSetLayouts()[0],
-            dssheet::getDescriptorSetLayouts()[2],
-            dssheet::getDescriptorSetLayouts()[2],
+            descriptorSetManager.getDescriptorSetLayouts()[0],
+            descriptorSetManager.getDescriptorSetLayouts()[2],
+            descriptorSetManager.getDescriptorSetLayouts()[2],
         };
         return config;
     }
@@ -462,8 +468,8 @@ private:
         config.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
         config.pushConstantSize   = 0;
         config.descriptorSetLayouts = {
-            dssheet::getDescriptorSetLayouts()[0],
-            dssheet::getDescriptorSetLayouts()[2],
+            descriptorSetManager.getDescriptorSetLayouts()[0],
+            descriptorSetManager.getDescriptorSetLayouts()[2],
         };
         return config;
     }
@@ -487,7 +493,7 @@ private:
         samplerInfo.minLod = 0.0f;
         samplerInfo.maxLod = 0.0f;
 
-        if (vkCreateSampler(vcsheet::getDevice(), &samplerInfo, nullptr, &depthSampler) != VK_SUCCESS)
+        if (vkCreateSampler(backendContext.device(), &samplerInfo, nullptr, &depthSampler) != VK_SUCCESS)
             throw std::runtime_error("failed to create particle depth sampler!");
     }
 

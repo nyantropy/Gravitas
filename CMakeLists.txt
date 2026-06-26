@@ -8,6 +8,7 @@ endif()
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release")
 set(GTS_ENGINE_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 option(GTS_BUILD_TEST_SCENES "Build bundled engine validation scenes" ON)
+option(GTS_ENABLE_MODULE_SMOKE_TESTS "Register CTest smoke tests for engine module option combinations" ON)
 
 add_subdirectory(engine)
 if(GTS_BUILD_TEST_SCENES AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/applications/CMakeLists.txt")
@@ -44,4 +45,11 @@ else()
         "Pre-compiled SPIR-V binaries in shaders/ are used. "
         "Install the Vulkan SDK to enable shader compilation."
     )
+endif()
+
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+    include(CTest)
+    if(BUILD_TESTING AND GTS_ENABLE_MODULE_SMOKE_TESTS)
+        include("${GTS_ENGINE_ROOT}/cmake/GravitasModuleSmokeTests.cmake")
+    endif()
 endif()
