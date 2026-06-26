@@ -2,8 +2,10 @@
 
 #include "DescriptorSetManager.hpp"
 
-// its easier for the descriptorsetmanager to have a global access sheet similar to the vulkan context
-// since it makes a lot of sense to couple them with the texture and the uniform buffers
+// Backend-private transition access for descriptor allocation.
+// Keep new usage localized to Vulkan backend internals. New resource/render
+// code should prefer explicit DescriptorSetManager dependencies so this sheet
+// can be retired incrementally.
 namespace dssheet
 {
     inline DescriptorSetManager* glbDSManager = nullptr;

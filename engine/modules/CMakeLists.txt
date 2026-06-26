@@ -43,31 +43,6 @@ target_include_directories(gravitas_modules INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/visualnovel/runtime"
     "${CMAKE_CURRENT_SOURCE_DIR}/visualnovel/systems"
     "${CMAKE_CURRENT_SOURCE_DIR}/visualnovel/ui"
-
-    # Physics
-    "${CMAKE_CURRENT_SOURCE_DIR}/physics/core"
-    "${CMAKE_CURRENT_SOURCE_DIR}/physics/components"
-    "${CMAKE_CURRENT_SOURCE_DIR}/physics/systems"
-    "${CMAKE_CURRENT_SOURCE_DIR}/physics/scene"
-
-    # Engine tooling
-    "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw/components"
-    "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw/physics"
-    "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw/primitives"
-    "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw/systems"
-    "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw/scene"
-    "${CMAKE_CURRENT_SOURCE_DIR}/rendering/scene"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/core"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/ui"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/inspectors"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/assets"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/selection"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/debugdraw"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/gizmos"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/cameras"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/workspace"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/scenes"
 )
 
 target_link_libraries(gravitas_modules INTERFACE

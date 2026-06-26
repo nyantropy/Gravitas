@@ -2,8 +2,10 @@
 
 #include "VulkanContext.hpp"
 
-// a small sheet to expose important context members in a more global manner
-// an access sheet, so to say
+// Backend-private transition access for the active VulkanContext.
+// Keep new usage localized to Vulkan backend internals. New backend code should
+// prefer taking the required context/resources explicitly so this sheet can be
+// retired incrementally.
 namespace vcsheet
 {
     inline VulkanContext* glbcontext = nullptr;

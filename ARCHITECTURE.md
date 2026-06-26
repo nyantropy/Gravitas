@@ -605,6 +605,18 @@ The Vulkan backend uses a declarative frame graph:
 - `execute()` records command buffers with automatic resource layout transitions
 - Resource types: external (swapchain), transient (render targets)
 
+### Vulkan Backend Context Boundary
+
+`modules/rendering/backend/vulkan/` is the only layer allowed to include Vulkan
+types. Generic rendering contracts, ECS setup, extraction, and scene feature
+installers must stay backend-agnostic.
+
+The backend still has transitional access sheets, `vcsheet` for
+`VulkanContext` and `dssheet` for descriptor allocation. Treat them as
+backend-private migration points, not as a pattern for new code. New Vulkan
+systems should prefer explicit context/resource dependencies so these sheets
+can be retired incrementally without touching the generic rendering module.
+
 ### Debug Draw
 
 `modules/debugdraw/` is a standalone feature for transient visual diagnostics.
