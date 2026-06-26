@@ -286,11 +286,14 @@ commands. `GravitasEngine` delegates per-frame render work to this runtime and
 only supplies platform callbacks such as runtime graphics settings.
 
 Generic rendering code owns renderer-facing data contracts such as `Vertex`,
-`RenderCommand`, `IResourceProvider`, and `IGtsGraphicsModule`. Backend-specific
-layout and API details stay under `modules/rendering/backend/vulkan/`; for
-example `VulkanVertexDescription` maps the generic `Vertex` layout to Vulkan
-vertex input state, while `GraphicsModuleFactory` is the generic creation
-surface used by `GtsPlatform`.
+`RenderCommand`, `IResourceProvider`, `IGtsGraphicsModule`, and
+`GraphicsBackendRegistry`. Backends install non-owning
+`IGraphicsBackendProvider` instances into that registry before `GtsPlatform`
+creates the configured graphics module. Backend-specific layout and API details
+stay under `modules/rendering/backend/vulkan/`; for example
+`VulkanVertexDescription` maps the generic `Vertex` layout to Vulkan vertex
+input state, while `VulkanGraphicsBackendProvider` is the backend-local provider
+that constructs `VulkanGraphics`.
 
 ### Descriptor → GPU Component Split
 

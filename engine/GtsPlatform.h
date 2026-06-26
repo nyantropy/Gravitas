@@ -8,7 +8,7 @@
 #include "GtsEventTypes.h"
 #include "GtsPlatformEventBus.hpp"
 #include "SubscriptionToken.hpp"
-#include "GraphicsModuleFactory.h"
+#include "GraphicsBackendRegistry.h"
 #include "IGtsGraphicsModule.hpp"
 #include "InputManager.hpp"
 #include "InputBindingRegistry.h"
@@ -18,11 +18,12 @@
 class GtsPlatform
 {
     public:
-        explicit GtsPlatform(const EngineConfig& config)
+        GtsPlatform(const EngineConfig& config,
+                    const gts::rendering::GraphicsBackendRegistry& graphicsBackendRegistry)
         {
             inputManager  = std::make_unique<InputManager>();
             bindingRegistry = std::make_unique<InputBindingRegistry>();
-            createGraphicsModule(config);
+            initializeGraphicsModule(config, graphicsBackendRegistry);
             bindDefaultActions();
         }
 
@@ -115,9 +116,10 @@ class GtsPlatform
         SubscriptionToken                          cursorPositionEventToken;
         SubscriptionToken                          scrollEventToken;
 
-        void createGraphicsModule(const EngineConfig& config)
+        void initializeGraphicsModule(const EngineConfig& config,
+                                      const gts::rendering::GraphicsBackendRegistry& graphicsBackendRegistry)
         {
-            graphics = gts::rendering::createGraphicsModule(config.graphics);
+            graphics = graphicsBackendRegistry.create(config.graphics);
 
             keyEventToken = graphics->getEventBus().subscribe<GtsKeyEvent>([this](const GtsKeyEvent& e)
             {

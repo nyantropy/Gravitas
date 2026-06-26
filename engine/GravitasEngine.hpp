@@ -20,6 +20,8 @@
 #include "GtsCommandBuffer.h"
 #include "EngineServiceRegistry.h"
 #include "IEngineModule.h"
+#include "GraphicsBackendInstaller.h"
+#include "GraphicsBackendRegistry.h"
 #include "ProfileAccumulator.h"
 #include "RenderingRuntime.h"
 #include "EngineToolRuntime.hpp"
@@ -31,6 +33,9 @@ class GravitasEngine
 {
     private:
     EngineConfig engineConfig;
+
+    // registered graphics backends installed before platform creation
+    gts::rendering::GraphicsBackendRegistry graphicsBackends;
 
     // OS-facing subsystems: graphics, windowing, input
     GtsPlatform platform;
@@ -70,6 +75,13 @@ class GravitasEngine
     float              lastCtrlCpuMs  = 0.0f;
     float              lastFrameCpuMs = 0.0f;
     ProfileAccumulator profiler;
+
+    static gts::rendering::GraphicsBackendRegistry createDefaultGraphicsBackendRegistry()
+    {
+        gts::rendering::GraphicsBackendRegistry registry;
+        gts::rendering::installDefaultGraphicsBackends(registry);
+        return registry;
+    }
 
     void installEngineModule(IEngineModule& module)
     {
@@ -250,7 +262,9 @@ class GravitasEngine
 
     public:
     explicit GravitasEngine(EngineConfig config = EngineConfig{})
-        : engineConfig(std::move(config)), platform(engineConfig)
+        : engineConfig(std::move(config))
+        , graphicsBackends(createDefaultGraphicsBackendRegistry())
+        , platform(engineConfig, graphicsBackends)
     {
         gameLoop.init(engineConfig);
         maxFrameRate   = engineConfig.graphics.maxFrameRate;
