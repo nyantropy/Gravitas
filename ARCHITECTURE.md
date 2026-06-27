@@ -541,8 +541,8 @@ gameplay timing, collision, movement, cooldowns, or simulation-authored state.
 
 ### Particle Rendering
 
-Particles are an engine rendering feature with ECS-facing authoring and a
-separate Vulkan render stage.
+Particles are an engine rendering feature with asset-facing authoring,
+ECS-facing playback descriptors, and a separate Vulkan render stage.
 
 Feature layout:
 
@@ -550,15 +550,24 @@ Feature layout:
 - `modules/rendering/ecssetup/particles/components/ParticleTypes.h`: authoring types for curves, shapes, bursts,
   flipbooks, and force module data
 - `modules/rendering/ecssetup/particles/components/`: runtime particle state
-- `modules/rendering/ecssetup/particles/assets/`: JSON particle effect
-  load/save and hot-reload registry
+- `modules/rendering/ecssetup/particles/assets/`: particle effect asset data,
+  schema migration, load/save, legacy preset compatibility, and hot-reload
+  registry state
 - `modules/rendering/ecssetup/particles/systems/`: emitter simulation and
   effect hot reload
 - `modules/rendering/ecssetup/particles/extraction/`: per-frame particle draw data
 - `modules/rendering/backend/vulkan/rendering/particles/`: billboard and mesh
   particle render stage
 
-Application code authors `ParticleEmitterComponent` plus `TransformComponent`.
+Application code currently authors `ParticleEmitterComponent` plus
+`TransformComponent`, but `effectPath` is now treated as a particle effect asset
+reference rather than only a flat emitter preset. `ParticleEffectAsset` owns
+metadata, preview settings, and one or more named emitter descriptors. The
+current runtime compatibility path selects `effectEmitterId` or the first
+emitter from the asset, copies that emitter descriptor into the ECS component,
+and then executes the existing single-emitter simulation path. This preserves
+existing game behavior while moving authoring ownership toward assets.
+
 The engine creates `ParticleEmitterRuntimeComponent`, simulates particles every
 controller frame, sorts alpha particles by camera depth, batches by primitive,
 mesh, texture, and blend mode, and renders particles in `ParticleRenderStage`.
@@ -578,12 +587,21 @@ Particle controls currently include:
   billboard aspect ratio, and mesh angular velocity
 - hue/value variation
 - bursts, flipbooks, softness, wind/acceleration/vortex/radial/noise forces
-- texture path, optional mesh path, and JSON effect path
+- texture path, optional mesh path, effect asset path, and optional selected
+  emitter id
 
 `ParticleEffectHotReloadSystem` loads effect files into a singleton registry and
-copies asset values onto emitters whose `effectPath` is set and
-`reloadFromEffect` is true. The tools inspector can edit live emitter descriptors
-and save them back through the asset IO path.
+copies selected asset-emitter values onto ECS emitters whose `effectPath` is set
+and `reloadFromEffect` is true. Existing flat JSON emitter presets are migrated
+in memory into one-emitter `ParticleEffectAsset` values. Saving through the
+asset IO path writes the new effect-asset format.
+
+The near-term editor bridge still edits the live ECS descriptor, so it is a
+compatibility workflow rather than the final artist authoring model. New
+particle authoring features should extend `ParticleEffectAsset` and keep editor
+state separate from `ParticleEmitterRuntimeComponent`; runtime simulation should
+continue consuming compiled or compatibility emitter data rather than editor UI
+structures.
 
 ### Frustum Culling
 

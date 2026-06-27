@@ -28,6 +28,7 @@ struct ParticleEmitterComponent
 
     // optional json source plus particle texture
     std::string effectPath;
+    std::string effectEmitterId;
     std::string texturePath;
     std::string meshPath;
 

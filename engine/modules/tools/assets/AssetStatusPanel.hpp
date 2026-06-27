@@ -87,7 +87,8 @@ namespace gts::tools
                 {
                     std::string        file = shorten(path);
                     std::ostringstream row;
-                    row << (asset.loaded ? "OK " : "NO ") << "V" << asset.version << "  " << file;
+                    row << (asset.loaded ? "OK " : "NO ") << "V" << asset.version << "  " << asset.asset.emitters.size()
+                        << "E  " << file;
                     rows.push_back(row.str());
                 }
             }

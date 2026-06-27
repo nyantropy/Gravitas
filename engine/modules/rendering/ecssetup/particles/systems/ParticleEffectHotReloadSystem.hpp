@@ -22,24 +22,24 @@ public:
                 if (emitter.effectPath.empty() || !emitter.reloadFromEffect)
                     return;
 
-                ParticleEffectAsset* asset = loadOrReload(registry, emitter.effectPath);
-                if (asset == nullptr || !asset->loaded)
+                ParticleEffectRegistryEntry* entry = loadOrReload(registry, emitter.effectPath);
+                if (entry == nullptr || !entry->loaded)
                     return;
 
                 if (ctx.world.hasComponent<ParticleEmitterRuntimeComponent>(entity))
                 {
                     ParticleEmitterRuntimeComponent& runtime =
                         ctx.world.getComponent<ParticleEmitterRuntimeComponent>(entity);
-                    if (runtime.appliedEffectVersion == asset->version)
+                    if (runtime.appliedEffectVersion == entry->version)
                         return;
 
-                    applyEffect(emitter, *asset);
+                    applyEffect(emitter, entry->asset);
                     resetRuntime(runtime);
-                    runtime.appliedEffectVersion = asset->version;
+                    runtime.appliedEffectVersion = entry->version;
                     return;
                 }
 
-                applyEffect(emitter, *asset);
+                applyEffect(emitter, entry->asset);
             });
     }
 
@@ -51,38 +51,41 @@ private:
         return world.getSingleton<ParticleEffectRegistryComponent>();
     }
 
-    static ParticleEffectAsset* loadOrReload(ParticleEffectRegistryComponent& registry,
-                                             const std::string& path)
+    static ParticleEffectRegistryEntry* loadOrReload(ParticleEffectRegistryComponent& registry, const std::string& path)
     {
         if (!std::filesystem::exists(path))
             return nullptr;
 
-        const auto lastWrite = std::filesystem::last_write_time(path);
-        ParticleEffectAsset& asset = registry.effects[path];
-        if (asset.loaded && asset.lastWriteTime == lastWrite)
-            return &asset;
+        const auto                   lastWrite = std::filesystem::last_write_time(path);
+        ParticleEffectRegistryEntry& entry     = registry.effects[path];
+        if (entry.loaded && entry.lastWriteTime == lastWrite)
+            return &entry;
 
-        ParticleEmitterComponent loaded;
-        if (!gts::particles::loadParticleEffect(path, loaded))
+        ParticleEffectAsset loaded;
+        if (!gts::particles::loadParticleEffectAsset(path, loaded))
             return nullptr;
 
-        loaded.effectPath = path;
-        loaded.reloadFromEffect = true;
-        asset.emitter = loaded;
-        asset.lastWriteTime = lastWrite;
-        asset.loaded = true;
-        asset.version += 1;
-        return &asset;
+        entry.asset         = loaded;
+        entry.lastWriteTime = lastWrite;
+        entry.loaded        = true;
+        entry.version += 1;
+        return &entry;
     }
 
     static void applyEffect(ParticleEmitterComponent& target, const ParticleEffectAsset& asset)
     {
-        const std::string effectPath = target.effectPath;
-        const uint32_t randomSeed = target.randomSeed;
+        const std::string effectPath      = target.effectPath;
+        const std::string effectEmitterId = target.effectEmitterId;
+        const uint32_t    randomSeed      = target.randomSeed;
 
-        target = asset.emitter;
-        target.effectPath = effectPath;
-        target.randomSeed = randomSeed;
+        const ParticleEffectEmitter* selected = gts::particles::selectParticleEffectEmitter(asset, effectEmitterId);
+        if (selected == nullptr)
+            return;
+
+        target                  = selected->descriptor;
+        target.effectPath       = effectPath;
+        target.effectEmitterId  = effectEmitterId.empty() ? selected->stableId : effectEmitterId;
+        target.randomSeed       = randomSeed;
         target.reloadFromEffect = true;
     }
 
@@ -90,9 +93,11 @@ private:
     {
         runtime.particles.clear();
         runtime.spawnAccumulator = 0.0f;
-        runtime.emitterAge = 0.0f;
+        runtime.emitterAge       = 0.0f;
         runtime.burstRepeatCounts.clear();
         runtime.textureID = 0;
+        runtime.meshID    = 0;
         runtime.boundTexturePath.clear();
+        runtime.boundMeshPath.clear();
     }
 };
