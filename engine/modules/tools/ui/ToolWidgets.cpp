@@ -26,6 +26,8 @@ namespace gts::tools
         constexpr float FieldRectX   = 0.330f;
         constexpr float FieldRectW   = 0.670f;
         constexpr float FieldH       = 0.030f;
+        constexpr float SearchLabelX = 0.030f;
+        constexpr float SearchValueX = 0.260f;
 
         UiHandle createNodeWithState(
             UiSystem& ui, UiNodeType type, UiHandle parent, const UiLayoutSpec& layout, bool interactable)
@@ -223,6 +225,115 @@ namespace gts::tools
         return field;
     }
 
+    ToolTextField createSearchFieldRelative(UiSystem&          ui,
+                                            UiHandle           parent,
+                                            const ToolRect&    rect,
+                                            const std::string& name,
+                                            BitmapFont*        font)
+    {
+        ToolTextField field;
+        field.name  = name;
+        field.rect  = createRectRelative(ui, parent, rect, color(0.045f, 0.052f, 0.060f, 1.0f), true);
+        field.label = createTextRelative(ui,
+                                         field.rect,
+                                         {SearchLabelX, 0.120f, 0.200f, 0.760f},
+                                         font,
+                                         name,
+                                         ToolTheme::mutedText,
+                                         ToolTheme::smallTextScale);
+        field.value = createTextRelative(ui,
+                                         field.rect,
+                                         {SearchValueX, 0.120f, 0.700f, 0.760f},
+                                         font,
+                                         "",
+                                         ToolTheme::text,
+                                         ToolTheme::smallTextScale);
+        setTextAlignment(ui, field.label, UiHorizontalAlign::Left, UiVerticalAlign::Middle);
+        setTextAlignment(ui, field.value, UiHorizontalAlign::Left, UiVerticalAlign::Middle);
+        return field;
+    }
+
+    ToolPanelFrame createPanelFrameRelative(UiSystem&          ui,
+                                            UiHandle           parent,
+                                            const ToolRect&    rect,
+                                            BitmapFont*        font,
+                                            const std::string& title,
+                                            const std::string& subtitle)
+    {
+        ToolPanelFrame frame;
+        frame.background = createRectRelative(ui, parent, rect, ToolTheme::paneSurface);
+        frame.accent     = createRectRelative(ui, frame.background, {0.0f, 0.0f, 1.0f, 0.010f}, ToolTheme::border);
+        frame.title      = createTextRelative(ui,
+                                         frame.background,
+                                         {0.025f, 0.030f, 0.560f, 0.105f},
+                                         font,
+                                         title,
+                                         ToolTheme::text,
+                                         ToolTheme::headerTextScale);
+        frame.subtitle   = createTextRelative(ui,
+                                            frame.background,
+                                            {0.600f, 0.036f, 0.375f, 0.090f},
+                                            font,
+                                            subtitle,
+                                            ToolTheme::mutedText,
+                                            ToolTheme::smallTextScale);
+        setTextAlignment(ui, frame.subtitle, UiHorizontalAlign::Right, UiVerticalAlign::Top);
+        return frame;
+    }
+
+    ToolSectionHeader createSectionHeaderRelative(UiSystem&          ui,
+                                                  UiHandle           parent,
+                                                  const ToolRect&    rect,
+                                                  BitmapFont*        font,
+                                                  const std::string& label,
+                                                  const std::string& summary)
+    {
+        ToolSectionHeader header;
+        header.rect  = createRectRelative(ui, parent, rect, color(0.032f, 0.038f, 0.044f, 1.0f), true);
+        header.label = createTextRelative(ui,
+                                          header.rect,
+                                          {0.025f, 0.130f, 0.520f, 0.740f},
+                                          font,
+                                          label,
+                                          ToolTheme::text,
+                                          ToolTheme::buttonTextScale);
+        header.summary = createTextRelative(ui,
+                                            header.rect,
+                                            {0.560f, 0.150f, 0.415f, 0.700f},
+                                            font,
+                                            summary,
+                                            ToolTheme::mutedText,
+                                            ToolTheme::smallTextScale);
+        setTextAlignment(ui, header.summary, UiHorizontalAlign::Right, UiVerticalAlign::Middle);
+        return header;
+    }
+
+    ToolStatusRow createStatusRowRelative(UiSystem&          ui,
+                                          UiHandle           parent,
+                                          const ToolRect&    rect,
+                                          BitmapFont*        font,
+                                          const std::string& label,
+                                          const std::string& value)
+    {
+        ToolStatusRow row;
+        row.label = createTextRelative(ui,
+                                       parent,
+                                       {rect.x, rect.y, rect.width * 0.360f, rect.height},
+                                       font,
+                                       label,
+                                       ToolTheme::mutedText,
+                                       ToolTheme::smallTextScale);
+        row.value = createTextRelative(ui,
+                                       parent,
+                                       {rect.x + rect.width * 0.385f, rect.y, rect.width * 0.615f, rect.height},
+                                       font,
+                                       value,
+                                       ToolTheme::text,
+                                       ToolTheme::smallTextScale);
+        setTextAlignment(ui, row.value, UiHorizontalAlign::Right, UiVerticalAlign::Middle);
+        return row;
+    }
+
     void setRect(UiSystem& ui, UiHandle handle, const ToolRect& rect)
     {
         ui.setLayout(handle, fixedLayout(rect));
@@ -346,6 +457,37 @@ namespace gts::tools
 
         setRectColor(ui, field.rect, fill);
         setText(ui, field.value, value);
+    }
+
+    void updatePanelFrame(UiSystem&           ui,
+                          const ToolPanelFrame& frame,
+                          const std::string&    title,
+                          const std::string&    subtitle)
+    {
+        setText(ui, frame.title, title);
+        setText(ui, frame.subtitle, subtitle);
+    }
+
+    void updateSectionHeader(UiSystem&                ui,
+                             const ToolSectionHeader& header,
+                             const std::string&       label,
+                             const std::string&       summary,
+                             bool                     active)
+    {
+        const UiNode* node    = ui.findNode(header.rect);
+        const bool    hovered = node != nullptr && node->state.hovered;
+        UiColor       fill    = active ? ToolTheme::buttonActive : color(0.032f, 0.038f, 0.044f, 1.0f);
+        if (hovered && !active)
+            fill = ToolTheme::buttonHover;
+
+        setRectColor(ui, header.rect, fill);
+        setText(ui, header.label, label);
+        setText(ui, header.summary, summary);
+    }
+
+    void updateStatusRow(UiSystem& ui, const ToolStatusRow& row, const std::string& value)
+    {
+        setText(ui, row.value, value);
     }
 
     float valueFromSliderPointer(UiSystem& ui, const ToolSlider& slider, float pointerX)

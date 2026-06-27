@@ -334,7 +334,9 @@ namespace gts::tools
 
         void syncLayout(EngineToolContext& ctx, const EngineToolWorkspaceComponent& workspace)
         {
-            const float rightPaneX   = 1.0f - workspace.rightPaneWidth;
+            const bool  widePanel    = activePanelWantsWorkspace(ctx.world);
+            const float paneX        = widePanel ? workspace.leftRailWidth : 1.0f - workspace.rightPaneWidth;
+            const float paneWidth    = widePanel ? 1.0f - workspace.leftRailWidth : workspace.rightPaneWidth;
             const float chromeHeight = 1.0f - workspace.topBarHeight - workspace.bottomBarHeight;
 
             setRect(ctx.ui, topBar, {0.0f, 0.0f, 1.0f, workspace.topBarHeight});
@@ -345,7 +347,7 @@ namespace gts::tools
                      workspace.viewportWidth,
                      workspace.viewportToolbarHeight});
             setRect(ctx.ui, leftRail, {0.0f, workspace.topBarHeight, workspace.leftRailWidth, chromeHeight});
-            setRect(ctx.ui, rightPane, {rightPaneX, workspace.topBarHeight, workspace.rightPaneWidth, chromeHeight});
+            setRect(ctx.ui, rightPane, {paneX, workspace.topBarHeight, paneWidth, chromeHeight});
             setRect(ctx.ui, bottomBar, {0.0f, 1.0f - workspace.bottomBarHeight, 1.0f, workspace.bottomBarHeight});
 
             const float contentHeight = std::max(0.05f, chromeHeight - PaneHeaderHeight - PaneFooterReserve);
@@ -353,16 +355,16 @@ namespace gts::tools
                     contentRoot,
                     {ToolTheme::shellPadding,
                      PaneHeaderHeight,
-                     std::max(0.05f, workspace.rightPaneWidth - ToolTheme::shellPadding * 2.0f),
+                     std::max(0.05f, paneWidth - ToolTheme::shellPadding * 2.0f),
                      contentHeight});
             setRect(
                 ctx.ui,
                 panelTitle,
-                {ToolTheme::shellPadding, 0.010f, workspace.rightPaneWidth - ToolTheme::shellPadding * 2.0f, 0.020f});
+                {ToolTheme::shellPadding, 0.010f, paneWidth - ToolTheme::shellPadding * 2.0f, 0.020f});
             setRect(
                 ctx.ui,
                 panelSubtitle,
-                {ToolTheme::shellPadding, 0.036f, workspace.rightPaneWidth - ToolTheme::shellPadding * 2.0f, 0.018f});
+                {ToolTheme::shellPadding, 0.036f, paneWidth - ToolTheme::shellPadding * 2.0f, 0.018f});
 
             float y = 0.012f;
             for (ToolButton& tool : leftTools)
@@ -525,6 +527,16 @@ namespace gts::tools
             if (panel == nullptr)
                 return "Tools";
             return std::string(panel->title());
+        }
+
+        bool activePanelWantsWorkspace(ECSWorld& world) const
+        {
+            if (!world.hasAny<EngineToolStateComponent>() || registry.empty())
+                return false;
+
+            const EngineToolStateComponent& state = world.getSingleton<EngineToolStateComponent>();
+            const EngineToolPanel*          panel = registry.at(std::min(state.activePanelIndex, registry.size() - 1));
+            return panel != nullptr && panel->id() == "particle_effects";
         }
     };
 } // namespace gts::tools

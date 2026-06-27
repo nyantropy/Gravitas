@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cctype>
 #include <filesystem>
+#include <iomanip>
 #include <limits>
 #include <optional>
 #include <sstream>
@@ -20,6 +21,7 @@
 #include "InputBindingRegistry.h"
 #include "ParticleEffectAsset.h"
 #include "ParticleEffectAssetIO.h"
+#include "ParticleFrameData.h"
 #include "ParticleGraphAuthoring.h"
 #include "ParticleEmitterComponent.h"
 #include "ParticleEmitterRuntimeComponent.h"
@@ -55,141 +57,246 @@ namespace gts::tools
 
         void build(EngineToolContext& ctx, UiHandle parent, BitmapFont* font) override
         {
-            root            = createContainerRelative(ctx.ui, parent, {0.0f, 0.0f, 1.0f, 1.0f});
-            header          = createTextRelative(ctx.ui,
-                                                 root,
-                                                 {0.0f, 0.000f, 1.0f, 0.026f},
-                                                 font,
-                                                 "PARTICLE EFFECTS",
-                                                 ToolTheme::text,
-                                                 ToolTheme::headerTextScale);
-            summary         = createTextRelative(ctx.ui,
-                                                 root,
-                                                 {0.0f, 0.030f, 1.0f, 0.028f},
-                                                 font,
-                                                 "NO EFFECT",
-                                                 ToolTheme::mutedText,
-                                                 ToolTheme::smallTextScale);
-            effectNameField = createTextField(ctx.ui, root, 0.058f, "EFFECT", font);
+            root           = createContainerRelative(ctx.ui, parent, {0.0f, 0.0f, 1.0f, 1.0f});
+            toolbarFrame   = createPanelFrameRelative(
+                ctx.ui, root, {0.0f, 0.000f, 1.0f, 0.092f}, font, "Particle FX", "Asset Authoring");
+            hierarchyFrame = createPanelFrameRelative(
+                ctx.ui, root, {0.0f, 0.105f, 0.220f, 0.585f}, font, "Hierarchy", "Effects / Emitters");
+            previewFrame = createPanelFrameRelative(
+                ctx.ui, root, {0.230f, 0.105f, 0.490f, 0.585f}, font, "Live Preview", "Immediate Feedback");
+            inspectorFrame = createPanelFrameRelative(
+                ctx.ui, root, {0.730f, 0.105f, 0.270f, 0.585f}, font, "Inspector", "Selection");
+            workspaceFrame = createPanelFrameRelative(
+                ctx.ui, root, {0.0f, 0.705f, 1.0f, 0.262f}, font, "Workspace", "Curves / Timeline / Graph");
 
-            for (size_t i = 0; i < EffectRowCount; ++i)
-            {
-                const float y = 0.092f + static_cast<float>(i) * 0.031f;
-                effectRows.push_back(createButtonRelative(
-                    ctx.ui, root, {0.0f, y, 1.0f, 0.029f}, font, "EMPTY", ToolTheme::buttonTextScale));
-            }
+            header = createTextRelative(ctx.ui,
+                                        toolbarFrame.background,
+                                        {0.018f, 0.190f, 0.220f, 0.260f},
+                                        font,
+                                        "PARTICLE EFFECTS",
+                                        ToolTheme::text,
+                                        ToolTheme::headerTextScale);
+            summary = createTextRelative(ctx.ui,
+                                         toolbarFrame.background,
+                                         {0.018f, 0.535f, 0.250f, 0.220f},
+                                         font,
+                                         "NO EFFECT",
+                                         ToolTheme::mutedText,
+                                         ToolTheme::smallTextScale);
 
             addEffectButtonRow(ctx.ui,
                                font,
-                               0.224f,
+                               toolbarFrame.background,
+                               {0.285f, 0.230f, 0.245f, 0.405f},
                                {{EffectAction::Save, "SAVE"},
                                 {EffectAction::SaveAs, "SAVE AS"},
                                 {EffectAction::Duplicate, "COPY"},
                                 {EffectAction::Reload, "RELOAD"}});
-
-            emitterHeader    = createTextRelative(ctx.ui,
-                                                  root,
-                                                  {0.0f, 0.270f, 1.0f, 0.026f},
-                                                  font,
-                                                  "EMITTERS",
-                                                  ToolTheme::text,
-                                                  ToolTheme::headerTextScale);
-            emitterNameField = createTextField(ctx.ui, root, 0.298f, "NAME", font);
-            for (size_t i = 0; i < EmitterRowCount; ++i)
-            {
-                const float y = 0.333f + static_cast<float>(i) * 0.031f;
-                emitterRows.push_back(createButtonRelative(
-                    ctx.ui, root, {0.0f, y, 1.0f, 0.029f}, font, "EMPTY", ToolTheme::buttonTextScale));
-            }
-
-            addEmitterButtonRow(ctx.ui,
-                                font,
-                                0.430f,
-                                {{EmitterAction::Add, "ADD"},
-                                 {EmitterAction::Delete, "DEL"},
-                                 {EmitterAction::Duplicate, "COPY"},
-                                 {EmitterAction::Rename, "NAME"}});
-            addEmitterButtonRow(ctx.ui,
-                                font,
-                                0.473f,
-                                {{EmitterAction::MoveUp, "UP"},
-                                 {EmitterAction::MoveDown, "DOWN"},
-                                 {EmitterAction::Copy, "COPY"},
-                                 {EmitterAction::Paste, "PASTE"}});
-            addEmitterButtonRow(
-                ctx.ui, font, 0.516f, {{EmitterAction::ToggleEnabled, "ON"}, {EmitterAction::ToggleSelection, "SEL"}});
-
-            previewSwatch =
-                createRectRelative(ctx.ui, root, {0.0f, 0.560f, 1.0f, 0.042f}, ToolTheme::paneSurface, true);
-            previewText = createTextRelative(ctx.ui,
-                                             previewSwatch,
-                                             {0.040f, 0.120f, 0.920f, 0.760f},
-                                             font,
-                                             "LIVE PREVIEW",
-                                             ToolTheme::text,
-                                             ToolTheme::smallTextScale);
-            setTextAlignment(ctx.ui, previewText, UiHorizontalAlign::Center, UiVerticalAlign::Middle);
-
             addPlaybackButtonRow(ctx.ui,
                                  font,
-                                 0.612f,
+                                 toolbarFrame.background,
+                                 {0.550f, 0.230f, 0.205f, 0.405f},
                                  {{PlaybackAction::PlayPause, "PAUSE"},
                                   {PlaybackAction::Restart, "RESET"},
                                   {PlaybackAction::Background, "BG"},
                                   {PlaybackAction::CameraReset, "CAM"}});
+            UiHandle toolbarSliders = createContainerRelative(ctx.ui, toolbarFrame.background, {0.785f, 0.165f, 0.195f, 0.700f});
+            addSlider(ctx.ui, font, toolbarSliders, 0.080f, FloatField::TimeScale, "TIME", 0.0f, 2.0f);
+            addSlider(ctx.ui, font, toolbarSliders, 0.520f, FloatField::OrbitYaw, "ORBIT", -180.0f, 180.0f);
 
-            addSlider(ctx.ui, font, 0.655f, FloatField::TimeScale, "TIME", 0.0f, 2.0f);
-            addSlider(ctx.ui, font, 0.686f, FloatField::OrbitYaw, "ORBIT", -180.0f, 180.0f);
+            effectListHeader = createSectionHeaderRelative(
+                ctx.ui, hierarchyFrame.background, {0.025f, 0.145f, 0.950f, 0.050f}, font, "Effects", "");
+            effectNameField = createTextField(ctx.ui, hierarchyFrame.background, 0.215f, "EFFECT", font);
+            for (size_t i = 0; i < EffectRowCount; ++i)
+            {
+                const float y = 0.285f + static_cast<float>(i) * 0.046f;
+                effectRows.push_back(createButtonRelative(ctx.ui,
+                                                          hierarchyFrame.background,
+                                                          {0.025f, y, 0.950f, 0.039f},
+                                                          font,
+                                                          "EMPTY",
+                                                          ToolTheme::buttonTextScale));
+            }
+
+            emitterListHeader = createSectionHeaderRelative(
+                ctx.ui, hierarchyFrame.background, {0.025f, 0.495f, 0.950f, 0.050f}, font, "Emitters", "");
+            emitterSearchField = createSearchFieldRelative(
+                ctx.ui, hierarchyFrame.background, {0.025f, 0.562f, 0.950f, 0.043f}, "SEARCH", font);
+            emitterNameField = createTextField(ctx.ui, hierarchyFrame.background, 0.620f, "NAME", font);
+            for (size_t i = 0; i < EmitterRowCount; ++i)
+            {
+                const float y = 0.685f + static_cast<float>(i) * 0.041f;
+                emitterRows.push_back(createButtonRelative(ctx.ui,
+                                                           hierarchyFrame.background,
+                                                           {0.025f, y, 0.950f, 0.034f},
+                                                           font,
+                                                           "EMPTY",
+                                                           ToolTheme::buttonTextScale));
+            }
+
+            addEmitterButtonRow(ctx.ui,
+                                font,
+                                hierarchyFrame.background,
+                                {0.025f, 0.918f, 0.950f, 0.036f},
+                                {{EmitterAction::Add, "ADD"},
+                                 {EmitterAction::Delete, "DEL"},
+                                 {EmitterAction::Duplicate, "DUP"},
+                                 {EmitterAction::Rename, "NAME"},
+                                 {EmitterAction::ToggleEnabled, "ON"}});
+            addEmitterButtonRow(ctx.ui,
+                                font,
+                                hierarchyFrame.background,
+                                {0.025f, 0.960f, 0.950f, 0.036f},
+                                {{EmitterAction::MoveUp, "UP"},
+                                 {EmitterAction::MoveDown, "DOWN"},
+                                 {EmitterAction::ToggleSelection, "SEL"},
+                                 {EmitterAction::Copy, "COPY"},
+                                 {EmitterAction::Paste, "PASTE"}});
+
+            previewSwatch = createRectRelative(
+                ctx.ui, previewFrame.background, {0.025f, 0.145f, 0.950f, 0.800f}, previewColor(), true);
+            previewText = createTextRelative(ctx.ui,
+                                             previewSwatch,
+                                             {0.040f, 0.435f, 0.920f, 0.130f},
+                                             font,
+                                             "LIVE PREVIEW",
+                                             ToolTheme::text,
+                                             ToolTheme::bodyTextScale);
+            setTextAlignment(ctx.ui, previewText, UiHorizontalAlign::Center, UiVerticalAlign::Middle);
 
             inspectorHeader = createTextRelative(ctx.ui,
-                                                 root,
-                                                 {0.0f, 0.718f, 1.0f, 0.024f},
+                                                 inspectorFrame.background,
+                                                 {0.025f, 0.145f, 0.950f, 0.055f},
                                                  font,
-                                                 "MODULES",
+                                                 "SELECTION",
                                                  ToolTheme::text,
                                                  ToolTheme::headerTextScale);
+            addInspectorSection(ctx.ui,
+                                font,
+                                InspectorSection::General,
+                                {0.025f, 0.220f, 0.950f, 0.044f},
+                                "General",
+                                "");
+            addInspectorSection(ctx.ui,
+                                font,
+                                InspectorSection::Modules,
+                                {0.025f, 0.272f, 0.950f, 0.044f},
+                                "Modules",
+                                "");
+            addInspectorSection(ctx.ui,
+                                font,
+                                InspectorSection::Parameters,
+                                {0.025f, 0.324f, 0.950f, 0.044f},
+                                "Parameters",
+                                "");
+            addInspectorSection(ctx.ui,
+                                font,
+                                InspectorSection::Runtime,
+                                {0.025f, 0.376f, 0.950f, 0.044f},
+                                "Runtime",
+                                "");
+
+            for (size_t i = 0; i < InspectorStatusRowCount; ++i)
+            {
+                const float rowY = 0.455f + static_cast<float>(i) * 0.045f;
+                inspectorStatusRows.push_back(createStatusRowRelative(ctx.ui,
+                                                                      inspectorFrame.background,
+                                                                      {0.035f, rowY, 0.930f, 0.036f},
+                                                                      font,
+                                                                      inspectorStatusLabel(i),
+                                                                      ""));
+            }
+
             for (size_t i = 0; i < ModuleRowCount; ++i)
             {
-                const float rowY = 0.745f + static_cast<float>(i) * 0.030f;
-                moduleRows.push_back(createButtonRelative(
-                    ctx.ui, root, {0.0f, rowY, 1.0f, 0.028f}, font, "MODULE", ToolTheme::buttonTextScale));
+                const float rowY = 0.455f + static_cast<float>(i) * 0.046f;
+                moduleRows.push_back(createButtonRelative(ctx.ui,
+                                                          inspectorFrame.background,
+                                                          {0.035f, rowY, 0.930f, 0.038f},
+                                                          font,
+                                                          "MODULE",
+                                                          ToolTheme::buttonTextScale));
             }
 
             addModuleButtonRow(ctx.ui,
                                font,
-                               0.835f,
+                               inspectorFrame.background,
+                               {0.035f, 0.710f, 0.930f, 0.040f},
                                {{ModuleAction::Copy, "M COPY"},
                                 {ModuleAction::Paste, "M PASTE"},
                                 {ModuleAction::Undo, "UNDO"},
                                 {ModuleAction::Redo, "REDO"}});
 
+            for (size_t i = 0; i < ParameterControlRowCount; ++i)
+            {
+                const float rowY = 0.455f + static_cast<float>(i) * 0.060f;
+                parameterControls.push_back(
+                    {createSlider(ctx.ui, inspectorFrame.background, rowY, "PARAM", 0.0f, 1.0f, false, font),
+                     createButtonRelative(ctx.ui,
+                                          inspectorFrame.background,
+                                          {0.035f, rowY, 0.930f, 0.038f},
+                                          font,
+                                          "PARAM",
+                                          ToolTheme::buttonTextScale),
+                     createButtonRelative(ctx.ui,
+                                          inspectorFrame.background,
+                                          {0.035f, rowY, 0.748f, 0.038f},
+                                          font,
+                                          "PARAM",
+                                          ToolTheme::buttonTextScale),
+                     createButtonRelative(ctx.ui,
+                                          inspectorFrame.background,
+                                          {0.800f, rowY, 0.075f, 0.038f},
+                                          font,
+                                          "-",
+                                          ToolTheme::buttonTextScale),
+                     createButtonRelative(ctx.ui,
+                                          inspectorFrame.background,
+                                          {0.890f, rowY, 0.075f, 0.038f},
+                                          font,
+                                          "+",
+                                          ToolTheme::buttonTextScale)});
+            }
+
+            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Curves, {0.020f, 0.150f, 0.095f, 0.112f}, "Curves");
+            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Timeline, {0.122f, 0.150f, 0.095f, 0.112f}, "Timeline");
+            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Graph, {0.224f, 0.150f, 0.095f, 0.112f}, "Graph");
+            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Diagnostics, {0.326f, 0.150f, 0.115f, 0.112f}, "Diagnostics");
+            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Preview, {0.448f, 0.150f, 0.130f, 0.112f}, "Preview Settings");
+            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Output, {0.585f, 0.150f, 0.095f, 0.112f}, "Output");
+
             addGraphButtonRow(ctx.ui,
                               font,
-                              0.865f,
+                              workspaceFrame.background,
+                              {0.705f, 0.150f, 0.270f, 0.112f},
                               {{GraphAction::Search, "SEARCH"},
                                {GraphAction::AddNode, "ADD"},
                                {GraphAction::Link, "LINK"},
                                {GraphAction::Frame, "FRAME"},
                                {GraphAction::Comment, "NOTE"}});
 
-            for (size_t i = 0; i < ParameterControlRowCount; ++i)
+            workspaceHeadline = createTextRelative(ctx.ui,
+                                                   workspaceFrame.background,
+                                                   {0.020f, 0.325f, 0.955f, 0.110f},
+                                                   font,
+                                                   "DIAGNOSTICS",
+                                                   ToolTheme::text,
+                                                   ToolTheme::headerTextScale);
+            for (size_t i = 0; i < WorkspaceLineCount; ++i)
             {
-                const float rowY = 0.898f + static_cast<float>(i) * 0.029f;
-                parameterControls.push_back(
-                    {createSlider(ctx.ui, root, rowY, "PARAM", 0.0f, 1.0f, false, font),
-                     createButtonRelative(
-                         ctx.ui, root, {0.0f, rowY, 1.0f, 0.027f}, font, "PARAM", ToolTheme::buttonTextScale),
-                     createButtonRelative(
-                         ctx.ui, root, {0.0f, rowY, 0.820f, 0.027f}, font, "PARAM", ToolTheme::buttonTextScale),
-                     createButtonRelative(
-                         ctx.ui, root, {0.835f, rowY, 0.075f, 0.027f}, font, "-", ToolTheme::buttonTextScale),
-                     createButtonRelative(
-                         ctx.ui, root, {0.925f, rowY, 0.075f, 0.027f}, font, "+", ToolTheme::buttonTextScale)});
+                const float y = 0.465f + static_cast<float>(i) * 0.073f;
+                workspaceInfoLines.push_back(createTextRelative(ctx.ui,
+                                                                workspaceFrame.background,
+                                                                {0.020f, y, 0.955f, 0.052f},
+                                                                font,
+                                                                "",
+                                                                ToolTheme::statusText,
+                                                                ToolTheme::smallTextScale));
             }
 
             footer = createTextRelative(ctx.ui,
                                         root,
-                                        {0.0f, 0.963f, 1.0f, 0.034f},
+                                        {0.0f, 0.973f, 1.0f, 0.026f},
                                         font,
                                         "ASSET EDITOR",
                                         ToolTheme::statusText,
@@ -210,6 +317,8 @@ namespace gts::tools
 
             applyEffectBrowser(ctx.world, state, effectPaths, interaction);
             applyTextFieldFocus(ctx.world, state, interaction);
+            applyInspectorSections(state, interaction);
+            applyWorkspaceTabs(state, interaction);
             if (hasAsset)
             {
                 applyTextInput(ctx, state);
@@ -251,6 +360,10 @@ namespace gts::tools
             moduleRows.clear();
             parameterControls.clear();
             sliders.clear();
+            inspectorSections.clear();
+            workspaceTabs.clear();
+            inspectorStatusRows.clear();
+            workspaceInfoLines.clear();
         }
 
         private:
@@ -311,7 +424,26 @@ namespace gts::tools
         {
             None,
             EffectName,
-            EmitterName
+            EmitterName,
+            EmitterSearch
+        };
+
+        enum class InspectorSection
+        {
+            General,
+            Modules,
+            Parameters,
+            Runtime
+        };
+
+        enum class WorkspaceTab
+        {
+            Curves,
+            Timeline,
+            Graph,
+            Diagnostics,
+            Preview,
+            Output
         };
 
         struct EffectButtonBinding
@@ -350,6 +482,18 @@ namespace gts::tools
             ToolSlider slider;
         };
 
+        struct InspectorSectionBinding
+        {
+            InspectorSection section = InspectorSection::General;
+            ToolSectionHeader header;
+        };
+
+        struct WorkspaceTabBinding
+        {
+            WorkspaceTab tab = WorkspaceTab::Diagnostics;
+            ToolButton   button;
+        };
+
         struct ParameterControl
         {
             ToolSlider slider;
@@ -371,9 +515,11 @@ namespace gts::tools
         };
 
         static constexpr size_t EffectRowCount           = 4;
-        static constexpr size_t EmitterRowCount          = 3;
-        static constexpr size_t ModuleRowCount           = 3;
-        static constexpr size_t ParameterControlRowCount = 2;
+        static constexpr size_t EmitterRowCount          = 6;
+        static constexpr size_t ModuleRowCount           = 5;
+        static constexpr size_t ParameterControlRowCount = 5;
+        static constexpr size_t InspectorStatusRowCount  = 7;
+        static constexpr size_t WorkspaceLineCount       = 6;
         static constexpr size_t MaxUndoSnapshots         = 32;
 
         UiHandle root            = UI_INVALID_HANDLE;
@@ -384,9 +530,19 @@ namespace gts::tools
         UiHandle previewText     = UI_INVALID_HANDLE;
         UiHandle inspectorHeader = UI_INVALID_HANDLE;
         UiHandle footer          = UI_INVALID_HANDLE;
+        UiHandle workspaceHeadline = UI_INVALID_HANDLE;
+
+        ToolPanelFrame   toolbarFrame;
+        ToolPanelFrame   hierarchyFrame;
+        ToolPanelFrame   previewFrame;
+        ToolPanelFrame   inspectorFrame;
+        ToolPanelFrame   workspaceFrame;
+        ToolSectionHeader effectListHeader;
+        ToolSectionHeader emitterListHeader;
 
         ToolTextField effectNameField;
         ToolTextField emitterNameField;
+        ToolTextField emitterSearchField;
 
         std::vector<ToolButton>            effectRows;
         std::vector<ToolButton>            emitterRows;
@@ -398,12 +554,17 @@ namespace gts::tools
         std::vector<ToolButton>            moduleRows;
         std::vector<ParameterControl>      parameterControls;
         std::vector<SliderBinding>         sliders;
+        std::vector<InspectorSectionBinding> inspectorSections;
+        std::vector<WorkspaceTabBinding>     workspaceTabs;
+        std::vector<ToolStatusRow>           inspectorStatusRows;
+        std::vector<UiHandle>                workspaceInfoLines;
 
         ParticleEffectAsset                   currentAsset;
         std::string                           currentPath;
         bool                                  hasAsset               = false;
         bool                                  dirty                  = false;
         size_t                                effectBrowserOffset    = 0;
+        size_t                                emitterBrowserOffset   = 0;
         size_t                                selectedEmitterIndex   = 0;
         size_t                                selectedModuleIndex    = 0;
         size_t                                moduleBrowserOffset    = 0;
@@ -412,8 +573,11 @@ namespace gts::tools
         float                                 playbackTimeScale      = 1.0f;
         uint32_t                              backgroundPreset       = 0;
         ActiveTextField                       activeTextField        = ActiveTextField::None;
+        InspectorSection                      selectedInspectorSection = InspectorSection::Parameters;
+        WorkspaceTab                          selectedWorkspaceTab     = WorkspaceTab::Diagnostics;
         std::string                           effectNameDraft;
         std::string                           emitterNameDraft;
+        std::string                           emitterSearchDraft;
         std::vector<ParticleEffectAsset>      undoStack;
         std::vector<ParticleEffectAsset>      redoStack;
         std::optional<ParticleModuleInstance> moduleClipboard;
@@ -431,101 +595,107 @@ namespace gts::tools
 
         void addEffectButtonRow(UiSystem&                                                ui,
                                 BitmapFont*                                              font,
-                                float                                                    y,
+                                UiHandle                                                 parent,
+                                const ToolRect&                                          rowRect,
                                 const std::vector<std::pair<EffectAction, std::string>>& rowButtons)
         {
             const float gap = 0.015f;
             const float width =
-                (1.0f - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
+                (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
 
             for (size_t i = 0; i < rowButtons.size(); ++i)
             {
-                const float x = static_cast<float>(i) * (width + gap);
+                const float x = rowRect.x + static_cast<float>(i) * (width + gap);
                 effectButtons.push_back(
                     {rowButtons[i].first,
                      createButtonRelative(
-                         ui, root, {x, y, width, 0.038f}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
+                         ui, parent, {x, rowRect.y, width, rowRect.height}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
             }
         }
 
         void addEmitterButtonRow(UiSystem&                                                 ui,
                                  BitmapFont*                                               font,
-                                 float                                                     y,
+                                 UiHandle                                                  parent,
+                                 const ToolRect&                                           rowRect,
                                  const std::vector<std::pair<EmitterAction, std::string>>& rowButtons)
         {
             const float gap = 0.015f;
             const float width =
-                (1.0f - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
+                (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
 
             for (size_t i = 0; i < rowButtons.size(); ++i)
             {
-                const float x = static_cast<float>(i) * (width + gap);
+                const float x = rowRect.x + static_cast<float>(i) * (width + gap);
                 emitterButtons.push_back(
                     {rowButtons[i].first,
                      createButtonRelative(
-                         ui, root, {x, y, width, 0.038f}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
+                         ui, parent, {x, rowRect.y, width, rowRect.height}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
             }
         }
 
         void addModuleButtonRow(UiSystem&                                                ui,
                                 BitmapFont*                                              font,
-                                float                                                    y,
+                                UiHandle                                                 parent,
+                                const ToolRect&                                          rowRect,
                                 const std::vector<std::pair<ModuleAction, std::string>>& rowButtons)
         {
             const float gap = 0.015f;
             const float width =
-                (1.0f - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
+                (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
 
             for (size_t i = 0; i < rowButtons.size(); ++i)
             {
-                const float x = static_cast<float>(i) * (width + gap);
+                const float x = rowRect.x + static_cast<float>(i) * (width + gap);
                 moduleButtons.push_back(
                     {rowButtons[i].first,
                      createButtonRelative(
-                         ui, root, {x, y, width, 0.028f}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
+                         ui, parent, {x, rowRect.y, width, rowRect.height}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
             }
         }
 
         void addGraphButtonRow(UiSystem&                                               ui,
                                BitmapFont*                                             font,
-                               float                                                   y,
+                               UiHandle                                                parent,
+                               const ToolRect&                                         rowRect,
                                const std::vector<std::pair<GraphAction, std::string>>& rowButtons)
         {
             const float gap = 0.010f;
             const float width =
-                (1.0f - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
+                (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
 
             for (size_t i = 0; i < rowButtons.size(); ++i)
             {
-                const float x = static_cast<float>(i) * (width + gap);
+                const float x = rowRect.x + static_cast<float>(i) * (width + gap);
                 graphButtons.push_back(
                     {rowButtons[i].first,
                      createButtonRelative(
-                         ui, root, {x, y, width, 0.026f}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
+                         ui, parent, {x, rowRect.y, width, rowRect.height}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
             }
         }
 
         void addPlaybackButtonRow(UiSystem&                                                  ui,
                                   BitmapFont*                                                font,
-                                  float                                                      y,
+                                  UiHandle                                                   parent,
+                                  const ToolRect&                                            rowRect,
                                   const std::vector<std::pair<PlaybackAction, std::string>>& rowButtons)
         {
             const float gap = 0.015f;
             const float width =
-                (1.0f - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
+                (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
 
             for (size_t i = 0; i < rowButtons.size(); ++i)
             {
-                const float x = static_cast<float>(i) * (width + gap);
+                const float x = rowRect.x + static_cast<float>(i) * (width + gap);
                 playbackButtons.push_back(
                     {rowButtons[i].first,
                      createButtonRelative(
-                         ui, root, {x, y, width, 0.038f}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
+                         ui, parent, {x, rowRect.y, width, rowRect.height}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
             }
         }
 
         void addSlider(UiSystem&          ui,
                        BitmapFont*        font,
+                       UiHandle           parent,
                        float              y,
                        FloatField         field,
                        const std::string& name,
@@ -533,7 +703,27 @@ namespace gts::tools
                        float              maxValue,
                        bool               wholeNumber = false)
         {
-            sliders.push_back({field, createSlider(ui, root, y, name, minValue, maxValue, wholeNumber, font)});
+            sliders.push_back({field, createSlider(ui, parent, y, name, minValue, maxValue, wholeNumber, font)});
+        }
+
+        void addInspectorSection(UiSystem&          ui,
+                                 BitmapFont*        font,
+                                 InspectorSection   section,
+                                 const ToolRect&    rect,
+                                 const std::string& label,
+                                 const std::string& summary)
+        {
+            inspectorSections.push_back(
+                {section, createSectionHeaderRelative(ui, inspectorFrame.background, rect, font, label, summary)});
+        }
+
+        void addWorkspaceTab(UiSystem&          ui,
+                             BitmapFont*        font,
+                             WorkspaceTab       tab,
+                             const ToolRect&    rect,
+                             const std::string& label)
+        {
+            workspaceTabs.push_back({tab, createButtonRelative(ui, workspaceFrame.background, rect, font, label, ToolTheme::buttonTextScale)});
         }
 
         static std::vector<std::string> collectEffectPaths(ECSWorld& world)
@@ -631,6 +821,16 @@ namespace gts::tools
             return false;
         }
 
+        bool pointerOverEmitterRows(const UiInteractionResult& interaction) const
+        {
+            for (const ToolButton& row : emitterRows)
+            {
+                if (interaction.hovered == row.rect || interaction.pressed == row.rect)
+                    return true;
+            }
+            return false;
+        }
+
         void clampEffectBrowserOffset(const std::vector<std::string>& paths)
         {
             effectBrowserOffset = std::min(effectBrowserOffset, maxEffectBrowserOffset(paths));
@@ -689,6 +889,14 @@ namespace gts::tools
                 return;
             }
 
+            if (wasClicked(interaction, emitterSearchField.rect))
+            {
+                activeTextField = ActiveTextField::EmitterSearch;
+                state.status    = "FILTER EMITTERS";
+                claimKeyboardIfEditing(world);
+                return;
+            }
+
             if (interaction.clicked != UI_INVALID_HANDLE && activeTextField != ActiveTextField::None)
                 finishActiveTextField(state);
         }
@@ -742,6 +950,32 @@ namespace gts::tools
             applyActiveTextDraft(state);
         }
 
+        void applyInspectorSections(EngineToolStateComponent& state, const UiInteractionResult& interaction)
+        {
+            for (const InspectorSectionBinding& binding : inspectorSections)
+            {
+                if (!wasClicked(interaction, binding.header.rect))
+                    continue;
+
+                selectedInspectorSection = binding.section;
+                state.status             = "INSPECT " + inspectorSectionLabel(binding.section);
+                return;
+            }
+        }
+
+        void applyWorkspaceTabs(EngineToolStateComponent& state, const UiInteractionResult& interaction)
+        {
+            for (const WorkspaceTabBinding& binding : workspaceTabs)
+            {
+                if (!wasClicked(interaction, binding.button.rect))
+                    continue;
+
+                selectedWorkspaceTab = binding.tab;
+                state.status         = "WORKSPACE " + workspaceTabLabel(binding.tab);
+                return;
+            }
+        }
+
         void claimKeyboardIfEditing(ECSWorld& world)
         {
             if (activeTextField == ActiveTextField::None)
@@ -757,11 +991,22 @@ namespace gts::tools
 
         std::string& activeTextDraft()
         {
-            return activeTextField == ActiveTextField::EffectName ? effectNameDraft : emitterNameDraft;
+            if (activeTextField == ActiveTextField::EffectName)
+                return effectNameDraft;
+            if (activeTextField == ActiveTextField::EmitterSearch)
+                return emitterSearchDraft;
+            return emitterNameDraft;
         }
 
         void applyActiveTextDraft(EngineToolStateComponent& state)
         {
+            if (activeTextField == ActiveTextField::EmitterSearch)
+            {
+                emitterBrowserOffset = 0;
+                state.status = emitterSearchDraft.empty() ? "FILTER CLEARED" : "FILTER EMITTERS";
+                return;
+            }
+
             if (activeTextField == ActiveTextField::EffectName)
             {
                 currentAsset.metadata.name = effectNameDraft;
@@ -853,6 +1098,7 @@ namespace gts::tools
             currentPath            = path;
             hasAsset               = true;
             dirty                  = false;
+            emitterBrowserOffset   = 0;
             selectedEmitterIndex   = 0;
             selectedModuleIndex    = 0;
             moduleBrowserOffset    = 0;
@@ -871,6 +1117,7 @@ namespace gts::tools
             backgroundPreset  = closestBackgroundPreset(currentAsset.preview.backgroundColor);
             activeTextField   = ActiveTextField::None;
             effectNameDraft   = currentAsset.metadata.name;
+            emitterSearchDraft.clear();
             syncEmitterNameDraft();
             state.status = "OPENED " + fileName(path);
             return true;
@@ -983,17 +1230,29 @@ namespace gts::tools
             if (!hasAsset)
                 return;
 
-            const size_t rowOffset = emitterRowOffset();
-            for (size_t i = 0; i < emitterRows.size() && rowOffset + i < currentAsset.emitters.size(); ++i)
+            const std::vector<size_t> visibleEmitters = filteredEmitterIndices();
+            clampEmitterBrowserOffset(visibleEmitters);
+            if (interaction.scrollY != 0.0f && pointerOverEmitterRows(interaction))
+            {
+                const size_t maxOffset = maxEmitterBrowserOffset(visibleEmitters);
+                if (interaction.scrollY < 0.0f)
+                    emitterBrowserOffset = std::min(emitterBrowserOffset + 1, maxOffset);
+                else if (emitterBrowserOffset > 0)
+                    emitterBrowserOffset -= 1;
+            }
+
+            const size_t rowOffset = emitterRowOffset(visibleEmitters);
+            for (size_t i = 0; i < emitterRows.size() && rowOffset + i < visibleEmitters.size(); ++i)
             {
                 if (wasClicked(interaction, emitterRows[i].rect))
                 {
-                    selectedEmitterIndex   = rowOffset + i;
+                    selectedEmitterIndex   = visibleEmitters[rowOffset + i];
                     selectedModuleIndex    = 0;
                     moduleBrowserOffset    = 0;
                     parameterControlOffset = 0;
                     clearParameterSelectionState();
                     syncEmitterNameDraft();
+                    revealSelectedEmitter();
                     applySelectedEmitterToLive(world, false);
                     state.status = "SELECTED " + currentAsset.emitters[selectedEmitterIndex].name;
                     return;
@@ -1328,6 +1587,7 @@ namespace gts::tools
             parameterControlOffset = 0;
             clearParameterSelectionState();
             syncEmitterNameDraft();
+            revealSelectedEmitter();
             markDirty(state, "EMITTER ADDED");
         }
 
@@ -1356,6 +1616,7 @@ namespace gts::tools
             parameterControlOffset = 0;
             clearParameterSelectionState();
             syncEmitterNameDraft();
+            revealSelectedEmitter();
             markDirty(state, "EMITTER DELETED");
         }
 
@@ -1388,6 +1649,7 @@ namespace gts::tools
             parameterControlOffset = 0;
             clearParameterSelectionState();
             syncEmitterNameDraft();
+            revealSelectedEmitter();
             markDirty(state, "EMITTER COPIED");
         }
 
@@ -1429,6 +1691,7 @@ namespace gts::tools
                       currentAsset.emitters[static_cast<size_t>(next)]);
             selectedEmitterIndex = static_cast<size_t>(next);
             syncEmitterNameDraft();
+            revealSelectedEmitter();
             markDirty(state, "EMITTER MOVED");
         }
 
@@ -1672,12 +1935,32 @@ namespace gts::tools
                            EngineToolStateComponent&       state,
                            const std::vector<std::string>& effectPaths)
         {
+            updatePanelFrame(ctx.ui,
+                             toolbarFrame,
+                             "Particle FX",
+                             hasAsset ? graphStatusLabel() : std::string("Asset Authoring"));
+            updatePanelFrame(ctx.ui,
+                             hierarchyFrame,
+                             "Hierarchy",
+                             hasAsset ? std::to_string(currentAsset.emitters.size()) + " emitters" : "Effects / Emitters");
+            updatePanelFrame(ctx.ui,
+                             previewFrame,
+                             "Live Preview",
+                             playbackPaused ? "Paused" : "Playing");
+            updatePanelFrame(ctx.ui, inspectorFrame, "Inspector", inspectorSectionLabel(selectedInspectorSection));
+            updatePanelFrame(ctx.ui, workspaceFrame, "Workspace", workspaceTabLabel(selectedWorkspaceTab));
+
             setText(ctx.ui, summary, effectSummary());
             setRectColor(ctx.ui, previewSwatch, previewColor());
             setText(ctx.ui, previewText, previewSummary(ctx.world));
-            setText(ctx.ui, inspectorHeader, moduleInspectorTitle());
+            setText(ctx.ui, inspectorHeader, inspectorObjectTitle());
             setText(ctx.ui, footer, state.status);
             syncTextDraftsForDisplay();
+            updateSectionHeader(ctx.ui,
+                                effectListHeader,
+                                "Effects",
+                                std::to_string(effectPaths.size()) + " assets",
+                                false);
             updateTextField(
                 ctx.ui,
                 effectNameField,
@@ -1699,11 +1982,24 @@ namespace gts::tools
                     setRectColor(ctx.ui, effectRows[i].rect, ToolTheme::buttonActive);
             }
 
-            const size_t rowOffset = emitterRowOffset();
+            const std::vector<size_t> visibleEmitters = filteredEmitterIndices();
+            updateSectionHeader(ctx.ui,
+                                emitterListHeader,
+                                "Emitters",
+                                std::to_string(visibleEmitters.size()) + "/" +
+                                    std::to_string(hasAsset ? currentAsset.emitters.size() : 0),
+                                false);
+            updateTextField(ctx.ui,
+                            emitterSearchField,
+                            textFieldDisplay(emitterSearchDraft.empty() ? std::string{"ALL"} : emitterSearchDraft,
+                                             activeTextField == ActiveTextField::EmitterSearch),
+                            activeTextField == ActiveTextField::EmitterSearch);
+            clampEmitterBrowserOffset(visibleEmitters);
+            const size_t rowOffset = emitterRowOffset(visibleEmitters);
             for (size_t i = 0; i < emitterRows.size(); ++i)
             {
-                const size_t      assetIndex = rowOffset + i;
-                const bool        hasRow     = hasAsset && assetIndex < currentAsset.emitters.size();
+                const bool        hasRow     = rowOffset + i < visibleEmitters.size();
+                const size_t      assetIndex = hasRow ? visibleEmitters[rowOffset + i] : 0;
                 const std::string label      = hasRow ? emitterRowLabel(currentAsset.emitters[assetIndex]) : "EMPTY";
                 updateButton(ctx.ui, emitterRows[i], label);
                 if (hasRow && assetIndex == selectedEmitterIndex)
@@ -1712,6 +2008,9 @@ namespace gts::tools
 
             updateModuleRows(ctx.ui);
             updateParameterControls(ctx.ui);
+            updateInspectorSections(ctx.ui);
+            updateInspectorStatusRows(ctx.ui, ctx.world);
+            updateWorkspace(ctx.ui, ctx.world);
 
             for (const EffectButtonBinding& binding : effectButtons)
                 updateButton(ctx.ui, binding.button, effectButtonLabel(binding.action));
@@ -1726,6 +2025,8 @@ namespace gts::tools
 
             for (const SliderBinding& binding : sliders)
                 updateSlider(ctx.ui, binding.slider, readSliderValue(binding.field), sliderColor(binding.field));
+
+            syncInspectorSectionVisibility(ctx.ui);
         }
 
         void updateModuleRows(UiSystem& ui)
@@ -1852,6 +2153,578 @@ namespace gts::tools
                     counts.warnings += 1;
             }
             return counts;
+        }
+
+        struct LiveEffectStats
+        {
+            size_t liveEmitters  = 0;
+            size_t liveParticles = 0;
+            uint32_t spawnedThisFrame = 0;
+            uint32_t diedThisFrame = 0;
+            uint32_t collisionEventsThisFrame = 0;
+            uint32_t eventSpawnsThisFrame = 0;
+            uint32_t budgetSkippedSpawnsThisFrame = 0;
+            bool selectedRuntimeFound = false;
+            bool selectedRuntimeVisible = true;
+            ParticleCullReason selectedCullReason = ParticleCullReason::None;
+            float selectedDistanceToCamera = 0.0f;
+            float selectedLodSpawnScale = 1.0f;
+            float selectedLodRenderScale = 1.0f;
+            uint32_t selectedBudgetedMaxParticles = 0;
+            uint32_t selectedBudgetedSpawnPerFrame = 0;
+            bool hasFrameData = false;
+            ParticleFrameData frameData;
+            bool hasBudget = false;
+            ParticleBudgetState budget;
+        };
+
+        LiveEffectStats liveEffectStats(ECSWorld& world) const
+        {
+            LiveEffectStats stats;
+            const ParticleEffectEmitter* selected = selectedEmitter();
+            const std::string selectedStableId = selected == nullptr ? std::string{} : selected->stableId;
+
+            world.forEach<ParticleEmitterComponent, ParticleEmitterRuntimeComponent>(
+                [&](Entity, ParticleEmitterComponent& emitter, ParticleEmitterRuntimeComponent& runtime)
+                {
+                    if (emitter.effectPath != currentPath)
+                        return;
+
+                    stats.liveEmitters += 1;
+                    stats.liveParticles += runtime.particles.size();
+                    stats.spawnedThisFrame += runtime.spawnedThisFrame;
+                    stats.diedThisFrame += runtime.diedThisFrame;
+                    stats.collisionEventsThisFrame += runtime.collisionEventsThisFrame;
+                    stats.eventSpawnsThisFrame += runtime.eventSpawnsThisFrame;
+                    stats.budgetSkippedSpawnsThisFrame += runtime.budgetSkippedSpawnsThisFrame;
+
+                    const bool selectedRuntime =
+                        !selectedStableId.empty() &&
+                        (emitter.effectEmitterId == selectedStableId ||
+                         (emitter.effectEmitterId.empty() && selectedEmitterIndex == 0));
+                    if (!selectedRuntime || stats.selectedRuntimeFound)
+                        return;
+
+                    stats.selectedRuntimeFound = true;
+                    stats.selectedRuntimeVisible = runtime.visible;
+                    stats.selectedCullReason = runtime.cullReason;
+                    stats.selectedDistanceToCamera = runtime.distanceToCamera;
+                    stats.selectedLodSpawnScale = runtime.lodSpawnScale;
+                    stats.selectedLodRenderScale = runtime.lodRenderScale;
+                    stats.selectedBudgetedMaxParticles = runtime.budgetedMaxParticles;
+                    stats.selectedBudgetedSpawnPerFrame = runtime.budgetedSpawnPerFrame;
+                });
+
+            if (world.hasAny<ParticleFrameDataComponent>())
+            {
+                stats.hasFrameData = true;
+                stats.frameData = world.getSingleton<ParticleFrameDataComponent>().frameData;
+            }
+            if (world.hasAny<ParticleBudgetComponent>())
+            {
+                stats.hasBudget = true;
+                stats.budget = world.getSingleton<ParticleBudgetComponent>().state;
+            }
+            return stats;
+        }
+
+        void updateInspectorSections(UiSystem& ui)
+        {
+            for (const InspectorSectionBinding& binding : inspectorSections)
+            {
+                updateSectionHeader(ui,
+                                    binding.header,
+                                    inspectorSectionLabel(binding.section),
+                                    inspectorSectionSummary(binding.section),
+                                    selectedInspectorSection == binding.section);
+            }
+        }
+
+        void updateInspectorStatusRows(UiSystem& ui, ECSWorld& world)
+        {
+            for (size_t i = 0; i < inspectorStatusRows.size(); ++i)
+                updateStatusRow(ui, inspectorStatusRows[i], inspectorStatusValue(i, world));
+        }
+
+        void updateWorkspace(UiSystem& ui, ECSWorld& world)
+        {
+            for (const WorkspaceTabBinding& binding : workspaceTabs)
+            {
+                updateButton(ui, binding.button, workspaceTabLabel(binding.tab));
+                if (binding.tab == selectedWorkspaceTab)
+                    setRectColor(ui, binding.button.rect, ToolTheme::buttonActive);
+            }
+
+            setText(ui, workspaceHeadline, workspaceHeadlineText());
+            for (size_t i = 0; i < workspaceInfoLines.size(); ++i)
+                setText(ui, workspaceInfoLines[i], workspaceLineText(i, world));
+
+            const bool graphVisible = selectedWorkspaceTab == WorkspaceTab::Graph;
+            for (const GraphButtonBinding& binding : graphButtons)
+                setVisibleRecursive(ui, binding.button.rect, graphVisible);
+        }
+
+        void syncInspectorSectionVisibility(UiSystem& ui)
+        {
+            const bool showStatus =
+                selectedInspectorSection == InspectorSection::General ||
+                selectedInspectorSection == InspectorSection::Runtime;
+            const bool showModules = selectedInspectorSection == InspectorSection::Modules;
+            const bool showParameters = selectedInspectorSection == InspectorSection::Parameters;
+
+            for (const ToolStatusRow& row : inspectorStatusRows)
+            {
+                setVisibleRecursive(ui, row.label, showStatus);
+                setVisibleRecursive(ui, row.value, showStatus);
+            }
+            for (const ToolButton& row : moduleRows)
+                setVisibleRecursive(ui, row.rect, showModules);
+            for (const ModuleButtonBinding& binding : moduleButtons)
+                setVisibleRecursive(ui, binding.button.rect, showModules);
+            if (!showParameters)
+            {
+                for (const ParameterControl& control : parameterControls)
+                    setParameterControlVisible(ui, control, false, false, false, false, false, false);
+            }
+        }
+
+        std::string inspectorObjectTitle() const
+        {
+            if (!hasAsset)
+                return "NO EFFECT SELECTED";
+            const ParticleEffectEmitter* emitter = selectedEmitter();
+            const ParticleModuleInstance* module = selectedModule();
+            if (selectedInspectorSection == InspectorSection::Parameters && module != nullptr)
+                return "MODULE  " + moduleDisplayName(*module);
+            if (emitter != nullptr)
+                return "EMITTER  " + compact(emitter->name.empty() ? emitter->stableId : emitter->name, 34);
+            return "EFFECT  " + compact(currentAsset.metadata.name, 34);
+        }
+
+        std::string inspectorSectionSummary(InspectorSection section) const
+        {
+            const ParticleEffectEmitter* emitter = selectedEmitter();
+            switch (section)
+            {
+            case InspectorSection::General:
+                return dirty ? "Dirty" : "Clean";
+            case InspectorSection::Modules:
+                return emitter == nullptr ? "0" : std::to_string(emitter->modules.size());
+            case InspectorSection::Parameters:
+            {
+                const ParticleModuleInstance* module = selectedModule();
+                const ParticleModuleDefinition* definition =
+                    module == nullptr ? nullptr : findParticleModuleDefinition(module->typeId);
+                return definition == nullptr ? "0" : std::to_string(editableParameters(*definition).size());
+            }
+            case InspectorSection::Runtime:
+                return graphStatusLabel();
+            }
+            return "";
+        }
+
+        std::string inspectorStatusLabel(size_t index) const
+        {
+            static const char* labels[] = {"Effect", "Emitter", "Module", "Graph", "Runtime", "Budget", "LOD"};
+            constexpr size_t labelCount = sizeof(labels) / sizeof(labels[0]);
+            return index < labelCount ? labels[index] : "";
+        }
+
+        std::string inspectorStatusValue(size_t index, ECSWorld& world) const
+        {
+            const LiveEffectStats stats = liveEffectStats(world);
+            const ParticleEffectEmitter* emitter = selectedEmitter();
+            const ParticleModuleInstance* module = selectedModule();
+            switch (index)
+            {
+            case 0:
+                return hasAsset ? compact(currentAsset.metadata.name.empty() ? fileName(currentPath)
+                                                                             : currentAsset.metadata.name,
+                                          28)
+                                : "--";
+            case 1:
+                return emitter == nullptr ? "--" : compact(emitterRowLabel(*emitter), 28);
+            case 2:
+                return module == nullptr ? "--" : compact(moduleDisplayName(*module), 28);
+            case 3:
+                return graphStatusLabel();
+            case 4:
+                return std::to_string(stats.liveEmitters) + " emitters / " + std::to_string(stats.liveParticles) +
+                       " alive";
+            case 5:
+                return stats.hasBudget ? std::to_string(stats.budget.activeParticles) + "/" +
+                                             std::to_string(stats.budget.requestedSimulatedParticles) + " simulated"
+                                       : "No budget frame";
+            case 6:
+                return stats.selectedRuntimeFound
+                           ? formatPercent(stats.selectedLodSpawnScale) + " spawn / " +
+                                 formatPercent(stats.selectedLodRenderScale) + " render"
+                           : "No selected runtime";
+            }
+            return "";
+        }
+
+        std::string workspaceHeadlineText() const
+        {
+            switch (selectedWorkspaceTab)
+            {
+            case WorkspaceTab::Curves:
+                return "CURVES";
+            case WorkspaceTab::Timeline:
+                return "TIMELINE";
+            case WorkspaceTab::Graph:
+                return "GRAPH COMPATIBILITY";
+            case WorkspaceTab::Diagnostics:
+                return "DIAGNOSTICS";
+            case WorkspaceTab::Preview:
+                return "PREVIEW SETTINGS";
+            case WorkspaceTab::Output:
+                return "COMPILED OUTPUT";
+            }
+            return "";
+        }
+
+        std::string workspaceLineText(size_t index, ECSWorld& world) const
+        {
+            switch (selectedWorkspaceTab)
+            {
+            case WorkspaceTab::Curves:
+                return curveWorkspaceLine(index);
+            case WorkspaceTab::Timeline:
+                return timelineWorkspaceLine(index);
+            case WorkspaceTab::Graph:
+                return graphWorkspaceLine(index);
+            case WorkspaceTab::Diagnostics:
+                return diagnosticsWorkspaceLine(index, world);
+            case WorkspaceTab::Preview:
+                return previewWorkspaceLine(index);
+            case WorkspaceTab::Output:
+                return outputWorkspaceLine(index);
+            }
+            return "";
+        }
+
+        std::string curveWorkspaceLine(size_t index) const
+        {
+            const ParticleEffectEmitter* emitter = selectedEmitter();
+            const ParticleModuleInstance* module = selectedModule();
+            if (emitter == nullptr)
+                return index == 0 ? "No emitter selected" : "";
+            switch (index)
+            {
+            case 0:
+                return module == nullptr ? "Selected module: --" : "Selected module: " + moduleDisplayName(*module);
+            case 1:
+                return "Color keys: " + std::to_string(emitter->descriptor.colorOverLifetime.size()) +
+                       "  Alpha keys: " + std::to_string(emitter->descriptor.alphaOverLifetime.size());
+            case 2:
+                return "Size keys: " + std::to_string(emitter->descriptor.sizeOverLifetime.size()) +
+                       "  Bursts: " + std::to_string(emitter->descriptor.bursts.size());
+            case 3:
+                return richSelectionSummary();
+            case 4:
+                return "Selected field: " + (selectedRichParameterId.empty() ? std::string{"--"} : selectedRichParameterId);
+            case 5:
+                return "Asset curves: live preview synchronized";
+            }
+            return "";
+        }
+
+        std::string timelineWorkspaceLine(size_t index) const
+        {
+            const ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+                return index == 0 ? "No emitter selected" : "";
+
+            const ParticleEmitterComponent& descriptor = emitter->descriptor;
+            switch (index)
+            {
+            case 0:
+                return "Emitter: " + compact(emitter->name, 36);
+            case 1:
+                return "Duration: " + formatSeconds(descriptor.duration) + "  Delay: " +
+                       formatSeconds(descriptor.startDelay) + "  Loop: " + formatBool(descriptor.looping);
+            case 2:
+                return "Spawn rate: " + formatFloat(descriptor.emissionRate) + "/s  Lifetime: " +
+                       formatSeconds(descriptor.lifetimeMin) + ".." + formatSeconds(descriptor.lifetimeMax);
+            case 3:
+                return "Bursts: " + burstSummary(descriptor.bursts);
+            case 4:
+                return "Max particles: " + std::to_string(descriptor.maxParticles) +
+                       "  Intensity: " + formatFloat(descriptor.intensity);
+            case 5:
+                return "Playback cursor: live runtime preview";
+            }
+            return "";
+        }
+
+        std::string graphWorkspaceLine(size_t index) const
+        {
+            const ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+                return index == 0 ? "No emitter selected" : "";
+
+            const ParticleEffectGraph& graph = emitter->graph;
+            switch (index)
+            {
+            case 0:
+                return "Nodes: " + std::to_string(graph.nodes.size()) + "  Links: " +
+                       std::to_string(graph.links.size()) + "  Frames: " + std::to_string(graph.frames.size());
+            case 1:
+                return "Comments: " + std::to_string(graph.comments.size()) + "  Modules: " +
+                       std::to_string(emitter->modules.size());
+            case 2:
+                return selectedGraphNodeSummary(*emitter);
+            case 3:
+                return graphStatusLabel();
+            case 4:
+                return firstGraphDiagnosticLine(*emitter);
+            case 5:
+                return "Search target: " + graphSearchTargetLabel();
+            }
+            return "";
+        }
+
+        std::string diagnosticsWorkspaceLine(size_t index, ECSWorld& world) const
+        {
+            const LiveEffectStats stats = liveEffectStats(world);
+            switch (index)
+            {
+            case 0:
+                return "Live emitters: " + std::to_string(stats.liveEmitters) + "  Alive particles: " +
+                       std::to_string(stats.liveParticles);
+            case 1:
+                return stats.hasFrameData ? "Frame emitters: " + std::to_string(stats.frameData.visibleEmitterCount) +
+                                                " visible / " + std::to_string(stats.frameData.culledEmitterCount) +
+                                                " culled"
+                                          : "Frame emitters: --";
+            case 2:
+                return stats.hasFrameData ? "Particles: " + std::to_string(stats.frameData.simulatedParticleCount) +
+                                                " simulated / " +
+                                                std::to_string(stats.frameData.renderedParticleCount) + " rendered"
+                                          : "Particles: --";
+            case 3:
+                return stats.hasFrameData ? "Budget clipped: " +
+                                                std::to_string(stats.frameData.budgetClippedParticleCount) +
+                                                " particles  Render budget: " +
+                                                std::to_string(stats.frameData.renderBudget)
+                                          : "Budget clipped: --";
+            case 4:
+                return "Events: " + std::to_string(stats.collisionEventsThisFrame) + " collisions / " +
+                       std::to_string(stats.diedThisFrame) + " deaths / " +
+                       std::to_string(stats.eventSpawnsThisFrame) + " spawned";
+            case 5:
+                return stats.selectedRuntimeFound ? "Selected runtime: " +
+                                                        std::string(stats.selectedRuntimeVisible ? "visible" : "culled") +
+                                                        "  " + cullReasonLabel(stats.selectedCullReason) +
+                                                        "  distance " + formatFloat(stats.selectedDistanceToCamera)
+                                                  : "Selected runtime: not active";
+            }
+            return "";
+        }
+
+        std::string previewWorkspaceLine(size_t index) const
+        {
+            switch (index)
+            {
+            case 0:
+                return "Background preset: " + std::to_string(backgroundPreset + 1u);
+            case 1:
+                return "Camera position: " + formatVec3(currentAsset.preview.cameraPosition);
+            case 2:
+                return "Camera target: " + formatVec3(currentAsset.preview.cameraTarget);
+            case 3:
+                return "Orbit distance: " + formatFloat(currentAsset.preview.orbitDistance) +
+                       "  Orbit yaw: " + formatFloat(previewOrbitYawDegrees());
+            case 4:
+                return "Time scale: " + formatFloat(playbackTimeScale) + "  Playback: " +
+                       std::string(playbackPaused ? "paused" : "playing");
+            case 5:
+                return "Preview asset state: " + std::string(dirty ? "modified" : "saved");
+            }
+            return "";
+        }
+
+        static std::string inspectorSectionLabel(InspectorSection section)
+        {
+            switch (section)
+            {
+            case InspectorSection::General:
+                return "General";
+            case InspectorSection::Modules:
+                return "Modules";
+            case InspectorSection::Parameters:
+                return "Parameters";
+            case InspectorSection::Runtime:
+                return "Runtime";
+            }
+            return "";
+        }
+
+        static std::string workspaceTabLabel(WorkspaceTab tab)
+        {
+            switch (tab)
+            {
+            case WorkspaceTab::Curves:
+                return "Curves";
+            case WorkspaceTab::Timeline:
+                return "Timeline";
+            case WorkspaceTab::Graph:
+                return "Graph";
+            case WorkspaceTab::Diagnostics:
+                return "Diagnostics";
+            case WorkspaceTab::Preview:
+                return "Preview";
+            case WorkspaceTab::Output:
+                return "Output";
+            }
+            return "";
+        }
+
+        std::string richSelectionSummary() const
+        {
+            const ParticleModuleInstance* module = selectedModule();
+            if (module == nullptr || selectedRichParameterId.empty())
+                return "Rich parameter: --";
+
+            const ParticleModuleParameter* parameter = gts::particles::findParameter(*module, selectedRichParameterId);
+            if (parameter == nullptr)
+                return "Rich parameter: --";
+
+            size_t keyCount = 0;
+            if (parameter->type == ParticleModuleParameterType::FloatCurve)
+                keyCount = parameter->floatCurveValue.size();
+            else if (parameter->type == ParticleModuleParameterType::ColorGradient)
+                keyCount = parameter->colorGradientValue.size();
+            else if (parameter->type == ParticleModuleParameterType::BurstTimeline)
+                keyCount = parameter->burstTimelineValue.size();
+
+            return "Rich parameter: " + selectedRichParameterId + "  Key: " +
+                   std::to_string(keyCount == 0 ? 0 : selectedRichKeyIndex + 1) + "/" + std::to_string(keyCount);
+        }
+
+        static std::string burstSummary(const std::vector<ParticleBurst>& bursts)
+        {
+            if (bursts.empty())
+                return "0";
+
+            const ParticleBurst& first = bursts.front();
+            return std::to_string(bursts.size()) + "  First @" + formatSeconds(first.time) + "  " +
+                   std::to_string(first.countMin) + ".." + std::to_string(first.countMax);
+        }
+
+        std::string selectedGraphNodeSummary(const ParticleEffectEmitter& emitter) const
+        {
+            const ParticleModuleInstance* module = selectedModule();
+            if (module == nullptr)
+                return "Selected node: --";
+
+            const ParticleGraphNode* node =
+                gts::particles::findParticleGraphNodeForModule(emitter.graph, module->stableId);
+            if (node == nullptr)
+                return "Selected node: missing";
+
+            return "Selected node: " + compact(node->displayName.empty() ? node->id : node->displayName, 42) +
+                   "  Stage: " + moduleStageLabel(*module);
+        }
+
+        std::string firstGraphDiagnosticLine(const ParticleEffectEmitter& emitter) const
+        {
+            std::vector<gts::particles::ParticleModuleGraphDiagnostic> diagnostics;
+            gts::particles::validateParticleEffectGraph(emitter, &diagnostics);
+            if (diagnostics.empty())
+                return "Validation: no warnings";
+
+            const auto& diagnostic = diagnostics.front();
+            const std::string severity =
+                diagnostic.severity == gts::particles::ParticleModuleGraphDiagnosticSeverity::Error ? "Error" : "Warning";
+            return severity + ": " + compact(diagnostic.message, 76);
+        }
+
+        std::string graphSearchTargetLabel() const
+        {
+            const std::vector<ParticleModuleDefinition>& definitions = gts::particles::particleModuleDefinitions();
+            if (definitions.empty())
+                return "--";
+            return compact(definitions[graphSearchIndex % definitions.size()].displayName, 36);
+        }
+
+        static std::string moduleStageLabel(const ParticleModuleInstance& module)
+        {
+            const ParticleModuleDefinition* definition = findParticleModuleDefinition(module.typeId);
+            return definition == nullptr ? std::string{"Unknown"} : std::string(executionStageLabel(definition->executionStage));
+        }
+
+        static std::string cullReasonLabel(ParticleCullReason reason)
+        {
+            switch (reason)
+            {
+            case ParticleCullReason::None:
+                return "none";
+            case ParticleCullReason::Frustum:
+                return "frustum";
+            case ParticleCullReason::Distance:
+                return "distance";
+            case ParticleCullReason::Budget:
+                return "budget";
+            }
+            return "unknown";
+        }
+
+        static std::string formatBool(bool value)
+        {
+            return value ? "on" : "off";
+        }
+
+        static std::string formatSeconds(float value)
+        {
+            return formatFloat(value) + "s";
+        }
+
+        static std::string formatPercent(float value)
+        {
+            return formatFloat(value * 100.0f) + "%";
+        }
+
+        static std::string formatFloat(float value)
+        {
+            std::ostringstream out;
+            out << std::fixed << std::setprecision(std::abs(value) >= 10.0f ? 1 : 2) << value;
+            return out.str();
+        }
+
+        static std::string formatVec3(const glm::vec3& value)
+        {
+            return formatFloat(value.x) + ", " + formatFloat(value.y) + ", " + formatFloat(value.z);
+        }
+
+        std::string outputWorkspaceLine(size_t index) const
+        {
+            const ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+                return index == 0 ? "No emitter selected" : "";
+
+            const auto& program = emitter->compiledProgram;
+            switch (index)
+            {
+            case 0:
+                return std::string("Compilation: ") + (program.valid ? "valid" : "invalid") +
+                       "  Backend: CPU descriptor";
+            case 1:
+                return "Modules: " + std::to_string(program.modules.size()) + "  Static params: " +
+                       std::to_string(program.staticParametersEvaluated);
+            case 2:
+                return "Curves baked: " + std::to_string(program.curvesBaked) + "  Modules fused: " +
+                       std::to_string(program.modulesFused);
+            case 3:
+                return "Dead nodes eliminated: " + std::to_string(program.deadNodesEliminated);
+            case 4:
+                return "Diagnostics: " + std::to_string(program.diagnostics.size()) + "  " + graphStatusLabel();
+            case 5:
+                return "Runtime descriptor: " + std::to_string(program.runtimeDescriptor.maxParticles) +
+                       " max particles";
+            }
+            return "";
         }
 
         std::string emitterRowLabel(const ParticleEffectEmitter& emitter) const
@@ -3137,6 +4010,7 @@ namespace gts::tools
             selectedEmitterIds.clear();
             clearParameterSelectionState();
             syncEmitterNameDraft();
+            revealSelectedEmitter();
             state.status = status;
             applySelectedEmitterToLive(world, true);
         }
@@ -3226,6 +4100,7 @@ namespace gts::tools
             parameterControlOffset = 0;
             clearParameterSelectionState();
             syncEmitterNameDraft();
+            revealSelectedEmitter();
             markDirty(state, "EMITTER PASTED");
         }
 
@@ -3289,6 +4164,7 @@ namespace gts::tools
             parameterControlOffset = 0;
             clearParameterSelectionState();
             syncEmitterNameDraft();
+            revealSelectedEmitter();
             markDirty(state, "EMITTERS DELETED");
         }
 
@@ -3319,6 +4195,7 @@ namespace gts::tools
             parameterControlOffset = 0;
             clearParameterSelectionState();
             syncEmitterNameDraft();
+            revealSelectedEmitter();
             markDirty(state, "EMITTERS COPIED");
         }
 
@@ -3569,11 +4446,63 @@ namespace gts::tools
             return display;
         }
 
-        size_t emitterRowOffset() const
+        size_t emitterRowOffset(const std::vector<size_t>& visibleEmitters) const
         {
-            if (!hasAsset || currentAsset.emitters.size() <= EmitterRowCount || selectedEmitterIndex < EmitterRowCount)
-                return 0;
-            return std::min(selectedEmitterIndex - EmitterRowCount + 1, currentAsset.emitters.size() - EmitterRowCount);
+            return std::min(emitterBrowserOffset, maxEmitterBrowserOffset(visibleEmitters));
+        }
+
+        void clampEmitterBrowserOffset(const std::vector<size_t>& visibleEmitters)
+        {
+            emitterBrowserOffset = std::min(emitterBrowserOffset, maxEmitterBrowserOffset(visibleEmitters));
+        }
+
+        size_t maxEmitterBrowserOffset(const std::vector<size_t>& visibleEmitters) const
+        {
+            return visibleEmitters.size() <= EmitterRowCount ? 0 : visibleEmitters.size() - EmitterRowCount;
+        }
+
+        void revealSelectedEmitter()
+        {
+            const std::vector<size_t> visibleEmitters = filteredEmitterIndices();
+            const auto it = std::find(visibleEmitters.begin(), visibleEmitters.end(), selectedEmitterIndex);
+            if (it == visibleEmitters.end())
+            {
+                clampEmitterBrowserOffset(visibleEmitters);
+                return;
+            }
+
+            const size_t visibleIndex = static_cast<size_t>(std::distance(visibleEmitters.begin(), it));
+            if (visibleIndex < emitterBrowserOffset)
+                emitterBrowserOffset = visibleIndex;
+            else if (visibleIndex >= emitterBrowserOffset + EmitterRowCount)
+                emitterBrowserOffset = visibleIndex - EmitterRowCount + 1;
+            clampEmitterBrowserOffset(visibleEmitters);
+        }
+
+        std::vector<size_t> filteredEmitterIndices() const
+        {
+            std::vector<size_t> indices;
+            if (!hasAsset)
+                return indices;
+
+            indices.reserve(currentAsset.emitters.size());
+            for (size_t i = 0; i < currentAsset.emitters.size(); ++i)
+            {
+                if (emitterMatchesSearch(currentAsset.emitters[i]))
+                    indices.push_back(i);
+            }
+            return indices;
+        }
+
+        bool emitterMatchesSearch(const ParticleEffectEmitter& emitter) const
+        {
+            if (emitterSearchDraft.empty())
+                return true;
+
+            const std::string query = lowerCopy(emitterSearchDraft);
+            std::string       haystack = emitter.name + " " + emitter.stableId + " " + emitter.descriptor.effectEmitterId;
+            haystack = lowerCopy(haystack);
+            return haystack.find(query) != std::string::npos;
         }
 
         void markDirty(EngineToolStateComponent& state, const std::string& status)
@@ -3631,6 +4560,18 @@ namespace gts::tools
             if (limit <= 3)
                 return text.substr(0, limit);
             return text.substr(0, limit - 3) + "...";
+        }
+
+        static std::string lowerCopy(std::string text)
+        {
+            std::transform(text.begin(),
+                           text.end(),
+                           text.begin(),
+                           [](unsigned char ch)
+                           {
+                               return static_cast<char>(std::tolower(ch));
+                           });
+            return text;
         }
 
         static const std::vector<glm::vec4>& backgroundPresets()
