@@ -128,7 +128,6 @@ namespace gts::tools
                                {0.290f, 0.220f, 0.245f, 0.540f},
                                {{EffectAction::Save, "Save"},
                                 {EffectAction::SaveAs, "Save As"},
-                                {EffectAction::Duplicate, "Copy"},
                                 {EffectAction::Reload, "Reload"}});
             addPlaybackButtonRow(ctx.ui,
                                  font,
@@ -148,30 +147,30 @@ namespace gts::tools
             createRectRelative(ctx.ui, toolbarFrame.background, {0.792f, 0.185f, 0.0010f, 0.610f}, ToolTheme::separator);
 
             effectListHeader = createSectionHeaderRelative(
-                ctx.ui, hierarchyFrame.background, {0.025f, 0.125f, 0.950f, 0.052f}, font, "Effects", "");
-            effectNameField = createTextField(ctx.ui, hierarchyFrame.background, 0.196f, "Effect", font);
+                ctx.ui, hierarchyFrame.background, {0.025f, 0.120f, 0.950f, 0.050f}, font, "Assets", "");
+            effectNameField = createTextField(ctx.ui, hierarchyFrame.background, 0.178f, "Effect", font);
             for (size_t i = 0; i < EffectRowCount; ++i)
             {
-                const float y = 0.260f + static_cast<float>(i) * 0.046f;
+                const float y = 0.228f + static_cast<float>(i) * 0.041f;
                 effectRows.push_back(createButtonRelative(ctx.ui,
                                                           hierarchyFrame.background,
-                                                          {0.025f, y, 0.950f, 0.039f},
+                                                          {0.025f, y, 0.950f, 0.034f},
                                                           font,
                                                           "",
                                                           ToolTheme::buttonTextScale));
             }
 
             emitterListHeader = createSectionHeaderRelative(
-                ctx.ui, hierarchyFrame.background, {0.025f, 0.475f, 0.950f, 0.052f}, font, "Emitters", "");
+                ctx.ui, hierarchyFrame.background, {0.025f, 0.410f, 0.950f, 0.052f}, font, "Outliner", "");
             emitterSearchField = createSearchFieldRelative(
-                ctx.ui, hierarchyFrame.background, {0.025f, 0.542f, 0.950f, 0.043f}, "Search", font);
-            emitterNameField = createTextField(ctx.ui, hierarchyFrame.background, 0.600f, "Name", font);
+                ctx.ui, hierarchyFrame.background, {0.025f, 0.474f, 0.950f, 0.043f}, "Search", font);
+            emitterNameField = createTextField(ctx.ui, hierarchyFrame.background, 0.525f, "Name", font);
             for (size_t i = 0; i < EmitterRowCount; ++i)
             {
-                const float y = 0.665f + static_cast<float>(i) * 0.041f;
+                const float y = 0.525f + static_cast<float>(i) * 0.034f;
                 emitterRows.push_back(createButtonRelative(ctx.ui,
                                                            hierarchyFrame.background,
-                                                           {0.025f, y, 0.950f, 0.034f},
+                                                           {0.025f, y, 0.950f, 0.030f},
                                                            font,
                                                            "",
                                                            ToolTheme::buttonTextScale));
@@ -180,7 +179,7 @@ namespace gts::tools
             addEmitterButtonRow(ctx.ui,
                                 font,
                                 hierarchyFrame.background,
-                                {0.025f, 0.910f, 0.950f, 0.036f},
+                                {0.025f, 0.920f, 0.950f, 0.034f},
                                 {{EmitterAction::Add, "Add"},
                                  {EmitterAction::Delete, "Delete"},
                                  {EmitterAction::Duplicate, "Duplicate"},
@@ -189,7 +188,7 @@ namespace gts::tools
             addEmitterButtonRow(ctx.ui,
                                 font,
                                 hierarchyFrame.background,
-                                {0.025f, 0.952f, 0.950f, 0.036f},
+                                {0.025f, 0.958f, 0.950f, 0.032f},
                                 {{EmitterAction::MoveUp, "Up"},
                                  {EmitterAction::MoveDown, "Down"},
                                  {EmitterAction::ToggleSelection, "Select"},
@@ -235,10 +234,18 @@ namespace gts::tools
                                                   ToolTheme::mutedText,
                                                   ToolTheme::smallTextScale);
             setTextAlignment(ctx.ui, previewScaleText, UiHorizontalAlign::Right, UiVerticalAlign::Middle);
+            previewCameraText = createTextRelative(ctx.ui,
+                                                   previewSwatch,
+                                                   {0.025f, 0.045f, 0.380f, 0.055f},
+                                                   font,
+                                                   "Camera  Orbit  Perspective",
+                                                   ToolTheme::mutedText,
+                                                   ToolTheme::smallTextScale);
+            setTextAlignment(ctx.ui, previewCameraText, UiHorizontalAlign::Left, UiVerticalAlign::Middle);
             addPreviewButtonRow(ctx.ui,
                                 font,
                                 previewSwatch,
-                                {0.020f, 0.812f, 0.500f, 0.050f},
+                                {0.330f, 0.858f, 0.360f, 0.048f},
                                 {{PreviewAction::TogglePan, "Pan"},
                                  {PreviewAction::FrameSelection, "Frame"},
                                  {PreviewAction::FrameEffect, "All"},
@@ -246,7 +253,7 @@ namespace gts::tools
             addPreviewButtonRow(ctx.ui,
                                 font,
                                 previewSwatch,
-                                {0.020f, 0.874f, 0.610f, 0.046f},
+                                {0.020f, 0.858f, 0.292f, 0.048f},
                                 {{PreviewAction::ToggleGrid, "Grid"},
                                  {PreviewAction::ToggleOrigin, "Origin"},
                                  {PreviewAction::ToggleScale, "Scale"},
@@ -562,6 +569,24 @@ namespace gts::tools
             EmitterSearch
         };
 
+        enum class FxSelectionKind
+        {
+            Effect,
+            Emitter,
+            Module,
+            Curve,
+            Burst,
+            GraphNode
+        };
+
+        struct FxSelection
+        {
+            FxSelectionKind kind = FxSelectionKind::Effect;
+            size_t          emitterIndex = 0;
+            size_t          moduleIndex = 0;
+            std::string     parameterId;
+        };
+
         enum class InspectorSection
         {
             General,
@@ -655,8 +680,17 @@ namespace gts::tools
             }
         };
 
+        struct OutlinerItem
+        {
+            FxSelection selection;
+            std::string label;
+            std::string detail;
+            int         depth = 0;
+            bool        enabled = true;
+        };
+
         static constexpr size_t EffectRowCount           = 4;
-        static constexpr size_t EmitterRowCount          = 6;
+        static constexpr size_t EmitterRowCount          = 12;
         static constexpr size_t ModuleRowCount           = 5;
         static constexpr size_t ParameterControlRowCount = 5;
         static constexpr size_t InspectorStatusRowCount  = 7;
@@ -672,6 +706,7 @@ namespace gts::tools
         UiHandle previewText       = UI_INVALID_HANDLE;
         UiHandle previewOverlay    = UI_INVALID_HANDLE;
         UiHandle previewScaleText  = UI_INVALID_HANDLE;
+        UiHandle previewCameraText = UI_INVALID_HANDLE;
         UiHandle notificationText  = UI_INVALID_HANDLE;
         UiHandle inspectorHeader   = UI_INVALID_HANDLE;
         UiHandle footer            = UI_INVALID_HANDLE;
@@ -744,6 +779,8 @@ namespace gts::tools
         std::optional<ParticleModuleInstance> moduleClipboard;
         std::vector<ParticleEffectEmitter>    emitterClipboard;
         std::vector<std::string>              selectedEmitterIds;
+        FxSelection                           selectedObject;
+        std::vector<OutlinerItem>             visibleOutlinerItems;
         std::string                           selectedRichParameterId;
         size_t                                selectedRichKeyIndex = 0;
         uint32_t                              selectedRichField    = 0;
@@ -1178,6 +1215,161 @@ namespace gts::tools
             return false;
         }
 
+        void selectOutlinerItem(ECSWorld&                 world,
+                                EngineToolStateComponent& state,
+                                const FxSelection&        selection,
+                                bool                      changedAsset)
+        {
+            selectedObject = selection;
+            if (selection.kind == FxSelectionKind::Effect)
+            {
+                selectedInspectorSection = InspectorSection::General;
+                state.status = "SELECTED EFFECT";
+                return;
+            }
+
+            if (currentAsset.emitters.empty())
+                return;
+
+            selectedEmitterIndex = std::min(selection.emitterIndex, currentAsset.emitters.size() - 1);
+            syncEmitterNameDraft();
+            revealSelectedEmitter();
+
+            ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+                return;
+
+            if (selection.kind == FxSelectionKind::Emitter)
+            {
+                selectedModuleIndex = std::min(selectedModuleIndex, emitter->modules.empty() ? 0 : emitter->modules.size() - 1);
+                selectedInspectorSection = InspectorSection::General;
+                parameterControlOffset = 0;
+                clearParameterSelectionState();
+                if (!changedAsset)
+                    applySelectedEmitterToLive(world, false);
+                state.status = "SELECTED " + displayEmitterName(*emitter);
+                return;
+            }
+
+            if (!emitter->modules.empty())
+                selectedModuleIndex = std::min(selection.moduleIndex, emitter->modules.size() - 1);
+            selectedInspectorSection = InspectorSection::Parameters;
+            parameterControlOffset = 0;
+            clearParameterSelectionState();
+
+            if (selection.kind == FxSelectionKind::Curve || selection.kind == FxSelectionKind::Burst)
+            {
+                selectedRichParameterId = selection.parameterId;
+                selectedWorkspaceTab =
+                    selection.kind == FxSelectionKind::Burst ? WorkspaceTab::Timeline : WorkspaceTab::Curves;
+            }
+
+            if (!changedAsset)
+                applySelectedEmitterToLive(world, false);
+
+            const ParticleModuleInstance* module = selectedModule();
+            state.status = module == nullptr ? "SELECTED MODULE" : selectedModuleStatus(*module);
+        }
+
+        bool selectionMatches(const FxSelection& selection) const
+        {
+            if (selectedObject.kind != selection.kind)
+                return false;
+            if (selection.kind == FxSelectionKind::Effect)
+                return true;
+            if (selectedObject.emitterIndex != selection.emitterIndex)
+                return false;
+            if (selection.kind == FxSelectionKind::Emitter)
+                return true;
+            if (selectedObject.moduleIndex != selection.moduleIndex)
+                return false;
+            if (selection.kind == FxSelectionKind::Module)
+                return true;
+            return selectedObject.parameterId == selection.parameterId;
+        }
+
+        std::vector<OutlinerItem> buildOutlinerItems() const
+        {
+            std::vector<OutlinerItem> items;
+            if (!hasAsset)
+                return items;
+
+            const std::string effectName =
+                currentAsset.metadata.name.empty() ? fileName(currentPath) : currentAsset.metadata.name;
+            items.push_back({FxSelection{FxSelectionKind::Effect, 0, 0, {}},
+                             "FX  " + compact(effectName, 30),
+                             std::to_string(currentAsset.emitters.size()) + " emitters",
+                             0,
+                             true});
+
+            const std::vector<size_t> visibleEmitters = filteredEmitterIndices();
+            for (size_t emitterIndex : visibleEmitters)
+            {
+                const ParticleEffectEmitter& emitter = currentAsset.emitters[emitterIndex];
+                const bool emitterSelected =
+                    selectedObject.kind != FxSelectionKind::Effect && selectedObject.emitterIndex == emitterIndex;
+                items.push_back({FxSelection{FxSelectionKind::Emitter, emitterIndex, 0, {}},
+                                 "EM  " + displayEmitterName(emitter),
+                                 emitter.descriptor.enabled ? std::to_string(emitter.modules.size()) + " modules"
+                                                            : "disabled",
+                                 1,
+                                 emitter.descriptor.enabled});
+
+                if (!emitterSelected)
+                    continue;
+
+                for (size_t moduleIndex = 0; moduleIndex < emitter.modules.size(); ++moduleIndex)
+                {
+                    const ParticleModuleInstance& module = emitter.modules[moduleIndex];
+                    items.push_back({FxSelection{FxSelectionKind::Module, emitterIndex, moduleIndex, {}},
+                                     "MD  " + moduleOutlinerLabel(module),
+                                     module.enabled ? moduleStageShortLabel(module) : "off",
+                                     2,
+                                     module.enabled});
+
+                    const bool moduleSelected = selectedObject.emitterIndex == emitterIndex &&
+                                                selectedObject.moduleIndex == moduleIndex &&
+                                                selectedObject.kind != FxSelectionKind::Emitter;
+                    if (!moduleSelected)
+                        continue;
+
+                    const ParticleModuleDefinition* definition = findParticleModuleDefinition(module.typeId);
+                    if (definition == nullptr)
+                        continue;
+
+                    for (const ParticleModuleParameterDefinition& parameter : definition->parameters)
+                    {
+                        if (parameter.type == ParticleModuleParameterType::FloatCurve ||
+                            parameter.type == ParticleModuleParameterType::ColorGradient)
+                        {
+                            items.push_back({FxSelection{FxSelectionKind::Curve,
+                                                         emitterIndex,
+                                                         moduleIndex,
+                                                         parameter.id},
+                                             "CV  " + parameter.label,
+                                             parameter.type == ParticleModuleParameterType::ColorGradient ? "gradient"
+                                                                                                          : "curve",
+                                             3,
+                                             module.enabled});
+                        }
+                        else if (parameter.type == ParticleModuleParameterType::BurstTimeline)
+                        {
+                            items.push_back({FxSelection{FxSelectionKind::Burst,
+                                                         emitterIndex,
+                                                         moduleIndex,
+                                                         parameter.id},
+                                             "BT  " + parameter.label,
+                                             "timeline",
+                                             3,
+                                             module.enabled});
+                        }
+                    }
+                }
+            }
+
+            return items;
+        }
+
         void clampEffectBrowserOffset(const std::vector<std::string>& paths)
         {
             effectBrowserOffset = std::min(effectBrowserOffset, maxEffectBrowserOffset(paths));
@@ -1451,6 +1643,7 @@ namespace gts::tools
             moduleBrowserOffset    = 0;
             parameterControlOffset = 0;
             selectedEmitterIds.clear();
+            focusEffectSelection();
             selectedRichParameterId.clear();
             selectedRichKeyIndex = 0;
             selectedRichField    = 0;
@@ -1578,25 +1771,26 @@ namespace gts::tools
             if (!hasAsset)
                 return;
 
-            const std::vector<size_t> visibleEmitters = filteredEmitterIndices();
-            clampEmitterBrowserOffset(visibleEmitters);
+            visibleOutlinerItems = buildOutlinerItems();
+            clampOutlinerOffset();
             if (interaction.scrollY != 0.0f && pointerOverEmitterRows(interaction))
             {
-                const size_t maxOffset = maxEmitterBrowserOffset(visibleEmitters);
+                const size_t maxOffset = maxOutlinerOffset();
                 if (interaction.scrollY < 0.0f)
                     emitterBrowserOffset = std::min(emitterBrowserOffset + 1, maxOffset);
                 else if (emitterBrowserOffset > 0)
                     emitterBrowserOffset -= 1;
             }
 
-            const size_t rowOffset = emitterRowOffset(visibleEmitters);
+            const size_t rowOffset = outlinerRowOffset();
             if (interaction.pressed == UI_INVALID_HANDLE)
                 emitterDragActive = false;
-            for (size_t i = 0; i < emitterRows.size() && rowOffset + i < visibleEmitters.size(); ++i)
+            for (size_t i = 0; i < emitterRows.size() && rowOffset + i < visibleOutlinerItems.size(); ++i)
             {
-                const size_t assetIndex = visibleEmitters[rowOffset + i];
-                if (interaction.pressed == emitterRows[i].rect)
+                const OutlinerItem& item = visibleOutlinerItems[rowOffset + i];
+                if (item.selection.kind == FxSelectionKind::Emitter && interaction.pressed == emitterRows[i].rect)
                 {
+                    const size_t assetIndex = item.selection.emitterIndex;
                     if (!emitterDragActive || emitterDragIndex != assetIndex)
                     {
                         emitterDragActive = true;
@@ -1619,15 +1813,7 @@ namespace gts::tools
 
                 if (wasClicked(interaction, emitterRows[i].rect))
                 {
-                    selectedEmitterIndex   = assetIndex;
-                    selectedModuleIndex    = 0;
-                    moduleBrowserOffset    = 0;
-                    parameterControlOffset = 0;
-                    clearParameterSelectionState();
-                    syncEmitterNameDraft();
-                    revealSelectedEmitter();
-                    applySelectedEmitterToLive(world, false);
-                    state.status = "SELECTED " + currentAsset.emitters[selectedEmitterIndex].name;
+                    selectOutlinerItem(world, state, item.selection, false);
                     return;
                 }
             }
@@ -1707,6 +1893,7 @@ namespace gts::tools
                 selectedModuleIndex    = moduleBrowserOffset + i;
                 parameterControlOffset = 0;
                 clearParameterSelectionState();
+                focusModuleSelection();
                 state.status = selectedModuleStatus(emitter->modules[selectedModuleIndex]);
                 return;
             }
@@ -1960,6 +2147,7 @@ namespace gts::tools
             moduleBrowserOffset    = 0;
             parameterControlOffset = 0;
             clearParameterSelectionState();
+            focusEmitterSelection();
             syncEmitterNameDraft();
             revealSelectedEmitter();
             markDirty(state, "EMITTER ADDED");
@@ -1989,6 +2177,7 @@ namespace gts::tools
             moduleBrowserOffset    = 0;
             parameterControlOffset = 0;
             clearParameterSelectionState();
+            focusEmitterSelection();
             syncEmitterNameDraft();
             revealSelectedEmitter();
             markDirty(state, "EMITTER DELETED");
@@ -2022,6 +2211,7 @@ namespace gts::tools
             moduleBrowserOffset    = 0;
             parameterControlOffset = 0;
             clearParameterSelectionState();
+            focusEmitterSelection();
             syncEmitterNameDraft();
             revealSelectedEmitter();
             markDirty(state, "EMITTER COPIED");
@@ -2064,6 +2254,7 @@ namespace gts::tools
             std::swap(currentAsset.emitters[static_cast<size_t>(current)],
                       currentAsset.emitters[static_cast<size_t>(next)]);
             selectedEmitterIndex = static_cast<size_t>(next);
+            focusEmitterSelection();
             syncEmitterNameDraft();
             revealSelectedEmitter();
             markDirty(state, "EMITTER MOVED");
@@ -2331,11 +2522,11 @@ namespace gts::tools
                 ctx.ui, toolbarFrame, "FX Editor", hasAsset ? graphStatusLabel() : std::string("Asset Authoring"));
             updatePanelFrame(ctx.ui,
                              hierarchyFrame,
-                             "Effect Hierarchy",
+                             "Hierarchy",
                              hasAsset ? std::to_string(currentAsset.emitters.size()) + " emitters"
-                                      : "Effects / Emitters");
+                                      : "No effect loaded");
             updatePanelFrame(ctx.ui, previewFrame, "Viewport", playbackPaused ? "Paused" : "Playing");
-            updatePanelFrame(ctx.ui, inspectorFrame, "Inspector", inspectorSectionLabel(selectedInspectorSection));
+            updatePanelFrame(ctx.ui, inspectorFrame, "Inspector", selectionContextLabel());
             updatePanelFrame(ctx.ui, workspaceFrame, "Workspace", workspaceTabLabel(selectedWorkspaceTab));
 
             setText(ctx.ui, header, toolbarTitleText());
@@ -2346,12 +2537,13 @@ namespace gts::tools
             setText(ctx.ui, previewText, previewMessage);
             setTextColor(ctx.ui, previewText, previewStateColor(previewStatsWorld));
             setVisibleRecursive(ctx.ui, previewText, !previewMessage.empty());
+            setText(ctx.ui, previewCameraText, previewCameraLabel());
             setText(ctx.ui, inspectorHeader, inspectorObjectTitle());
             setText(ctx.ui, footer, statusBarText(ctx, state));
             updateNotification(ctx, state.status);
             syncTextDraftsForDisplay();
             updateSectionHeader(
-                ctx.ui, effectListHeader, "Effects", std::to_string(effectPaths.size()) + " assets", false);
+                ctx.ui, effectListHeader, "Assets", std::to_string(effectPaths.size()) + " files", false);
             updateTextField(
                 ctx.ui,
                 effectNameField,
@@ -2367,38 +2559,46 @@ namespace gts::tools
             {
                 const size_t      effectIndex = effectBrowserOffset + i;
                 const bool        hasRow      = effectIndex < effectPaths.size();
-                const std::string label       = hasRow ? "FX  " + fileName(effectPaths[effectIndex])
+                const std::string label       = hasRow ? "Open  " + fileName(effectPaths[effectIndex])
                                                        : (i == 0 && effectPaths.empty() ? "No particle assets" : "");
                 updateButton(ctx.ui, effectRows[i], label);
+                setVisibleRecursive(ctx.ui, effectRows[i].rect, hasRow || i == 0);
                 if (hasRow && effectPaths[effectIndex] == currentPath)
                     setRectColor(ctx.ui, effectRows[i].rect, ToolTheme::buttonActive);
                 else if (!hasRow)
                     setRectColor(ctx.ui, effectRows[i].rect, ToolTheme::disabled);
             }
 
-            const std::vector<size_t> visibleEmitters = filteredEmitterIndices();
+            visibleOutlinerItems = buildOutlinerItems();
+            clampOutlinerOffset();
             updateSectionHeader(ctx.ui,
                                 emitterListHeader,
-                                "Emitters",
-                                std::to_string(visibleEmitters.size()) + "/" +
-                                    std::to_string(hasAsset ? currentAsset.emitters.size() : 0),
+                                "Outliner",
+                                hasAsset ? selectionContextLabel() : "Load an effect",
                                 false);
             updateTextField(ctx.ui,
                             emitterSearchField,
                             textFieldDisplay(emitterSearchDraft.empty() ? std::string{"All"} : emitterSearchDraft,
                                              activeTextField == ActiveTextField::EmitterSearch),
                             activeTextField == ActiveTextField::EmitterSearch);
-            clampEmitterBrowserOffset(visibleEmitters);
-            const size_t rowOffset = emitterRowOffset(visibleEmitters);
+            setVisibleRecursive(ctx.ui, emitterNameField.label, false);
+            setVisibleRecursive(ctx.ui, emitterNameField.rect, false);
+            const size_t rowOffset = outlinerRowOffset();
             for (size_t i = 0; i < emitterRows.size(); ++i)
             {
-                const bool        hasRow     = rowOffset + i < visibleEmitters.size();
-                const size_t      assetIndex = hasRow ? visibleEmitters[rowOffset + i] : 0;
-                const std::string label      = hasRow ? emitterRowLabel(currentAsset.emitters[assetIndex])
-                                                      : (i == 0 ? emitterEmptyStateLabel() : "");
+                const bool        hasRow = rowOffset + i < visibleOutlinerItems.size();
+                const OutlinerItem* item =
+                    hasRow ? &visibleOutlinerItems[rowOffset + i] : nullptr;
+                const std::string label = item != nullptr ? outlinerRowLabel(*item)
+                                                          : (i == 0 ? outlinerEmptyStateLabel() : "");
                 updateButton(ctx.ui, emitterRows[i], label);
-                if (hasRow && assetIndex == selectedEmitterIndex)
+                setVisibleRecursive(ctx.ui, emitterRows[i].rect, hasRow || i == 0);
+                if (item != nullptr && selectionMatches(item->selection))
                     setRectColor(ctx.ui, emitterRows[i].rect, ToolTheme::buttonActive);
+                else if (item != nullptr && !item->enabled)
+                    setRectColor(ctx.ui, emitterRows[i].rect, ToolTheme::disabled);
+                else if (item != nullptr && item->depth >= 2)
+                    setRectColor(ctx.ui, emitterRows[i].rect, ToolTheme::panelInset);
                 else if (!hasRow)
                     setRectColor(ctx.ui, emitterRows[i].rect, ToolTheme::disabled);
             }
@@ -2474,6 +2674,16 @@ namespace gts::tools
 
             for (const EmitterButtonBinding& binding : emitterButtons)
             {
+                const bool emitterSelected = selectedObject.kind == FxSelectionKind::Emitter;
+                const bool visible = binding.action == EmitterAction::Add ||
+                                     (emitterSelected &&
+                                      (binding.action == EmitterAction::ToggleEnabled ||
+                                       binding.action == EmitterAction::Delete ||
+                                       binding.action == EmitterAction::Duplicate));
+                setVisibleRecursive(ui, binding.button.rect, visible);
+                if (!visible)
+                    continue;
+
                 if (binding.action == EmitterAction::Add)
                     setRectColor(ui, binding.button.rect, ToolTheme::buttonActive);
                 else if (binding.action == EmitterAction::Duplicate)
@@ -2765,6 +2975,17 @@ namespace gts::tools
 
             for (const PreviewButtonBinding& binding : previewButtons)
             {
+                const bool visible = binding.action == PreviewAction::TogglePan ||
+                                     binding.action == PreviewAction::FrameSelection ||
+                                     binding.action == PreviewAction::FrameEffect ||
+                                     binding.action == PreviewAction::ResetCamera ||
+                                     binding.action == PreviewAction::ToggleGrid ||
+                                     binding.action == PreviewAction::ToggleOrigin ||
+                                     binding.action == PreviewAction::ToggleBounds;
+                setVisibleRecursive(ui, binding.button.rect, visible);
+                if (!visible)
+                    continue;
+
                 const bool isToggle = previewActionIsToggle(binding.action);
                 if (isToggle)
                 {
@@ -2882,9 +3103,9 @@ namespace gts::tools
             case PreviewAction::TogglePan:
                 return "Pan";
             case PreviewAction::FrameSelection:
-                return "Frame";
+                return "Frame Sel";
             case PreviewAction::FrameEffect:
-                return "All";
+                return "Frame All";
             case PreviewAction::ResetCamera:
                 return "Reset";
             case PreviewAction::ToggleGrid:
@@ -3143,10 +3364,26 @@ namespace gts::tools
 
         void syncInspectorSectionVisibility(UiSystem& ui)
         {
-            const bool showStatus     = selectedInspectorSection == InspectorSection::General ||
-                                        selectedInspectorSection == InspectorSection::Runtime;
-            const bool showModules    = selectedInspectorSection == InspectorSection::Modules;
-            const bool showParameters = selectedInspectorSection == InspectorSection::Parameters;
+            const bool moduleSelection = selectedObject.kind == FxSelectionKind::Module ||
+                                         selectedObject.kind == FxSelectionKind::Curve ||
+                                         selectedObject.kind == FxSelectionKind::Burst;
+            const bool emitterSelection = selectedObject.kind == FxSelectionKind::Emitter;
+            const bool effectSelection = selectedObject.kind == FxSelectionKind::Effect;
+            const bool showParameters = moduleSelection;
+            const bool showStatus = !moduleSelection;
+
+            for (const InspectorSectionBinding& binding : inspectorSections)
+            {
+                bool visible = false;
+                if (effectSelection)
+                    visible = binding.section == InspectorSection::General;
+                else if (emitterSelection)
+                    visible = binding.section == InspectorSection::General ||
+                              binding.section == InspectorSection::Runtime;
+                else if (moduleSelection)
+                    visible = binding.section == InspectorSection::Parameters;
+                setVisibleRecursive(ui, binding.header.rect, visible);
+            }
 
             for (const ToolStatusRow& row : inspectorStatusRows)
             {
@@ -3154,9 +3391,9 @@ namespace gts::tools
                 setVisibleRecursive(ui, row.value, showStatus);
             }
             for (const ToolButton& row : moduleRows)
-                setVisibleRecursive(ui, row.rect, showModules);
+                setVisibleRecursive(ui, row.rect, false);
             for (const ModuleButtonBinding& binding : moduleButtons)
-                setVisibleRecursive(ui, binding.button.rect, showModules);
+                setVisibleRecursive(ui, binding.button.rect, false);
             if (!showParameters)
             {
                 for (const ParameterControl& control : parameterControls)
@@ -3170,11 +3407,24 @@ namespace gts::tools
                 return "No Effect Selected";
             const ParticleEffectEmitter*  emitter = selectedEmitter();
             const ParticleModuleInstance* module  = selectedModule();
-            if (selectedInspectorSection == InspectorSection::Parameters && module != nullptr)
-                return "Module  " + moduleDisplayName(*module);
-            if (emitter != nullptr)
-                return "Emitter  " + compact(emitter->name.empty() ? emitter->stableId : emitter->name, 34);
-            return "Effect  " + compact(currentAsset.metadata.name, 34);
+            switch (selectedObject.kind)
+            {
+            case FxSelectionKind::Effect:
+                return "Effect  " +
+                       compact(currentAsset.metadata.name.empty() ? fileName(currentPath) : currentAsset.metadata.name,
+                               34);
+            case FxSelectionKind::Emitter:
+                return emitter == nullptr ? "Emitter" : "Emitter  " + displayEmitterName(*emitter);
+            case FxSelectionKind::Module:
+                return module == nullptr ? "Module" : "Module  " + moduleDisplayName(*module);
+            case FxSelectionKind::Curve:
+                return "Curve  " + compact(selectedRichParameterId.empty() ? "Parameter" : selectedRichParameterId, 34);
+            case FxSelectionKind::Burst:
+                return "Burst  " + compact(selectedRichParameterId.empty() ? "Timeline" : selectedRichParameterId, 34);
+            case FxSelectionKind::GraphNode:
+                return "Graph Node";
+            }
+            return "Selection";
         }
 
         std::string inspectorSectionSummary(InspectorSection section) const
@@ -3201,7 +3451,13 @@ namespace gts::tools
 
         std::string inspectorStatusLabel(size_t index) const
         {
+            static const char* effectLabels[] = {"Name", "Asset", "Emitters", "Modules", "State", "Preview", "Next"};
+            static const char* emitterLabels[] = {"Name", "Enabled", "Modules", "Runtime", "Budget", "LOD", "Next"};
             static const char* labels[]   = {"Effect", "Emitter", "Module", "Graph", "Runtime", "Budget", "LOD"};
+            if (selectedObject.kind == FxSelectionKind::Effect)
+                return index < 7 ? effectLabels[index] : "";
+            if (selectedObject.kind == FxSelectionKind::Emitter)
+                return index < 7 ? emitterLabels[index] : "";
             constexpr size_t   labelCount = sizeof(labels) / sizeof(labels[0]);
             return index < labelCount ? labels[index] : "";
         }
@@ -3211,6 +3467,63 @@ namespace gts::tools
             const LiveEffectStats         stats   = liveEffectStats(world);
             const ParticleEffectEmitter*  emitter = selectedEmitter();
             const ParticleModuleInstance* module  = selectedModule();
+            if (selectedObject.kind == FxSelectionKind::Effect)
+            {
+                switch (index)
+                {
+                case 0:
+                    return hasAsset ? compact(currentAsset.metadata.name.empty() ? fileName(currentPath)
+                                                                                 : currentAsset.metadata.name,
+                                              28)
+                                    : "--";
+                case 1:
+                    return currentPath.empty() ? "--" : compact(fileName(currentPath), 30);
+                case 2:
+                    return std::to_string(currentAsset.emitters.size());
+                case 3:
+                {
+                    size_t moduleCount = 0;
+                    for (const ParticleEffectEmitter& item : currentAsset.emitters)
+                        moduleCount += item.modules.size();
+                    return std::to_string(moduleCount);
+                }
+                case 4:
+                    return dirty ? "Unsaved changes" : "Saved";
+                case 5:
+                    return playbackPaused ? "Paused" : "Playing";
+                case 6:
+                    return "Select an emitter in the hierarchy.";
+                }
+                return "";
+            }
+
+            if (selectedObject.kind == FxSelectionKind::Emitter)
+            {
+                switch (index)
+                {
+                case 0:
+                    return emitter == nullptr ? "--" : displayEmitterName(*emitter);
+                case 1:
+                    return emitter == nullptr ? "--" : formatBool(emitter->descriptor.enabled);
+                case 2:
+                    return emitter == nullptr ? "--" : std::to_string(emitter->modules.size());
+                case 3:
+                    return std::to_string(stats.liveEmitters) + " emitters / " +
+                           std::to_string(stats.liveParticles) + " alive";
+                case 4:
+                    return stats.hasBudget ? std::to_string(stats.budget.activeParticles) + "/" +
+                                                 std::to_string(stats.budget.requestedSimulatedParticles) + " simulated"
+                                           : "No budget frame";
+                case 5:
+                    return stats.selectedRuntimeFound ? formatPercent(stats.selectedLodSpawnScale) + " spawn / " +
+                                                            formatPercent(stats.selectedLodRenderScale) + " render"
+                                                      : "No selected runtime";
+                case 6:
+                    return "Select a module to edit parameters.";
+                }
+                return "";
+            }
+
             switch (index)
             {
             case 0:
@@ -3237,6 +3550,93 @@ namespace gts::tools
                                                   : "No selected runtime";
             }
             return "";
+        }
+
+        std::string selectionContextLabel() const
+        {
+            if (!hasAsset)
+                return "No Selection";
+
+            switch (selectedObject.kind)
+            {
+            case FxSelectionKind::Effect:
+                return "Effect";
+            case FxSelectionKind::Emitter:
+                return "Emitter";
+            case FxSelectionKind::Module:
+                return "Module";
+            case FxSelectionKind::Curve:
+                return "Curve";
+            case FxSelectionKind::Burst:
+                return "Burst";
+            case FxSelectionKind::GraphNode:
+                return "Graph Node";
+            }
+            return "Selection";
+        }
+
+        std::string previewCameraLabel() const
+        {
+            return std::string("Camera  ") + (previewPanMode ? "Pan" : "Orbit") + "  Perspective";
+        }
+
+        static std::string indentForDepth(int depth)
+        {
+            switch (std::max(0, depth))
+            {
+            case 0:
+                return "";
+            case 1:
+                return "  ";
+            case 2:
+                return "    ";
+            default:
+                return "      ";
+            }
+        }
+
+        std::string outlinerRowLabel(const OutlinerItem& item) const
+        {
+            std::string label = indentForDepth(item.depth) + item.label;
+            if (!item.detail.empty())
+                label += "  " + item.detail;
+            return compact(label, 42);
+        }
+
+        std::string outlinerEmptyStateLabel() const
+        {
+            if (!hasAsset)
+                return "No effect loaded. Open an asset above.";
+            if (currentAsset.emitters.empty())
+                return "No emitters. Use Add to create one.";
+            if (!emitterSearchDraft.empty())
+                return "No matching emitters.";
+            return "Select an emitter or module.";
+        }
+
+        static std::string displayEmitterName(const ParticleEffectEmitter& emitter)
+        {
+            if (!emitter.name.empty())
+                return compact(emitter.name, 30);
+            if (!emitter.stableId.empty())
+                return compact(emitter.stableId, 30);
+            return "Emitter";
+        }
+
+        static std::string moduleOutlinerLabel(const ParticleModuleInstance& module)
+        {
+            if (!module.displayName.empty())
+                return compact(module.displayName, 26);
+            const ParticleModuleDefinition* definition = findParticleModuleDefinition(module.typeId);
+            return definition == nullptr ? "Unknown Module" : compact(definition->displayName, 26);
+        }
+
+        static std::string moduleStageShortLabel(const ParticleModuleInstance& module)
+        {
+            const ParticleModuleDefinition* definition = findParticleModuleDefinition(module.typeId);
+            if (definition == nullptr)
+                return "--";
+            return std::string(executionStageShortLabel(definition->executionStage));
         }
 
         std::string workspaceHeadlineText() const
@@ -4148,10 +4548,13 @@ namespace gts::tools
             configureSlider(control.slider, definition, false);
             const float              value = numericParameterValue(parameter, definition);
             const EditorPropertySpec spec  = parameterPropertySpec(parameter, definition);
-            setParameterControlVisible(ui, control, true, true, false, false, true, true, false);
-            setText(ui, control.slider.label, spec.displayName + "  " + formatValue(value, control.slider.wholeNumber));
+            setParameterControlVisible(ui, control, true, true, true, false, true, true, false);
+            setText(ui, control.slider.label, spec.displayName);
+            setText(ui, control.slider.value, formatValue(value, control.slider.wholeNumber));
             updateSlider(ui, control.slider, value, parameterSliderColor(definition));
             updateButton(ui, control.reset, "Reset");
+            setRectColor(ui, control.reset.rect, spec.modified ? ToolTheme::accentSoft : ToolTheme::panelInset);
+            setTextColor(ui, control.reset.label, spec.modified ? ToolTheme::text : ToolTheme::mutedText);
             updateButton(ui, control.decrement, "-");
             updateButton(ui, control.increment, "+");
         }
@@ -4176,7 +4579,10 @@ namespace gts::tools
                 selectedRangeMax ? *view.secondary : *view.primary;
             const ParticleModuleParameter& activeParameter = selectedRangeMax ? *maxParameter : *minParameter;
             configureSlider(control.slider, activeDefinition, false);
-            setParameterControlVisible(ui, control, true, false, false, true, true, true, false);
+            setParameterControlVisible(ui, control, true, true, true, true, true, true, false);
+            setText(ui, control.slider.label, view.primary->label);
+            setText(ui, control.slider.value, formatValue(numericParameterValue(activeParameter, activeDefinition),
+                                                          activeDefinition.wholeNumber));
             updateSlider(ui,
                          control.slider,
                          numericParameterValue(activeParameter, activeDefinition),
@@ -4184,6 +4590,7 @@ namespace gts::tools
             updateButton(
                 ui, control.selector, rangeButtonLabel(*minParameter, *maxParameter, *view.primary, *view.secondary));
             updateButton(ui, control.reset, "Reset");
+            setRectColor(ui, control.reset.rect, ToolTheme::accentSoft);
             updateButton(ui, control.decrement, "-");
             updateButton(ui, control.increment, "+");
         }
@@ -4196,10 +4603,13 @@ namespace gts::tools
             ensureRichParameterValue(parameter, definition);
             clampRichSelection(parameter, definition);
             configureRichSlider(control.slider, definition);
-            setParameterControlVisible(ui, control, true, false, false, true, true, true, false);
+            setParameterControlVisible(ui, control, true, true, true, true, true, true, false);
+            setText(ui, control.slider.label, definition.label);
+            setText(ui, control.slider.value, richFieldLabel(definition));
             updateSlider(ui, control.slider, richSliderValue(parameter, definition), richSliderColor(definition));
             updateButton(ui, control.selector, richButtonLabel(parameter, definition));
             updateButton(ui, control.reset, "Reset");
+            setRectColor(ui, control.reset.rect, ToolTheme::accentSoft);
             updateButton(ui, control.decrement, "-");
             updateButton(ui, control.increment, "+");
         }
@@ -5147,6 +5557,7 @@ namespace gts::tools
             parameterControlOffset = 0;
             selectedEmitterIds.clear();
             clearParameterSelectionState();
+            focusEmitterSelection();
             syncEmitterNameDraft();
             revealSelectedEmitter();
             state.status = status;
@@ -5237,6 +5648,7 @@ namespace gts::tools
             moduleBrowserOffset    = 0;
             parameterControlOffset = 0;
             clearParameterSelectionState();
+            focusEmitterSelection();
             syncEmitterNameDraft();
             revealSelectedEmitter();
             markDirty(state, "EMITTER PASTED");
@@ -5301,6 +5713,7 @@ namespace gts::tools
             moduleBrowserOffset    = 0;
             parameterControlOffset = 0;
             clearParameterSelectionState();
+            focusEmitterSelection();
             syncEmitterNameDraft();
             revealSelectedEmitter();
             markDirty(state, "EMITTERS DELETED");
@@ -5332,6 +5745,7 @@ namespace gts::tools
             moduleBrowserOffset    = 0;
             parameterControlOffset = 0;
             clearParameterSelectionState();
+            focusEmitterSelection();
             syncEmitterNameDraft();
             revealSelectedEmitter();
             markDirty(state, "EMITTERS COPIED");
@@ -5659,6 +6073,7 @@ namespace gts::tools
             else if (selectedModuleIndex >= moduleBrowserOffset + ModuleRowCount)
                 moduleBrowserOffset = selectedModuleIndex - ModuleRowCount + 1;
             clearParameterSelectionState();
+            focusModuleSelection();
         }
 
         const ParticleModuleInstance* selectedModule() const
@@ -5699,6 +6114,25 @@ namespace gts::tools
             selectedRangeMax = false;
         }
 
+        void focusEffectSelection()
+        {
+            selectedObject = FxSelection{FxSelectionKind::Effect, 0, 0, {}};
+            selectedInspectorSection = InspectorSection::General;
+        }
+
+        void focusEmitterSelection()
+        {
+            selectedObject = FxSelection{FxSelectionKind::Emitter, selectedEmitterIndex, 0, {}};
+            selectedInspectorSection = InspectorSection::General;
+        }
+
+        void focusModuleSelection()
+        {
+            selectedObject =
+                FxSelection{FxSelectionKind::Module, selectedEmitterIndex, selectedModuleIndex, {}};
+            selectedInspectorSection = InspectorSection::Parameters;
+        }
+
         static std::string textFieldDisplay(const std::string& text, bool focused)
         {
             std::string display = compact(text, focused ? 23 : 24);
@@ -5710,6 +6144,21 @@ namespace gts::tools
         size_t emitterRowOffset(const std::vector<size_t>& visibleEmitters) const
         {
             return std::min(emitterBrowserOffset, maxEmitterBrowserOffset(visibleEmitters));
+        }
+
+        size_t outlinerRowOffset() const
+        {
+            return std::min(emitterBrowserOffset, maxOutlinerOffset());
+        }
+
+        void clampOutlinerOffset()
+        {
+            emitterBrowserOffset = std::min(emitterBrowserOffset, maxOutlinerOffset());
+        }
+
+        size_t maxOutlinerOffset() const
+        {
+            return visibleOutlinerItems.size() <= EmitterRowCount ? 0 : visibleOutlinerItems.size() - EmitterRowCount;
         }
 
         void clampEmitterBrowserOffset(const std::vector<size_t>& visibleEmitters)
