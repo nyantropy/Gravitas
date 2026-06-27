@@ -20,8 +20,10 @@
 #include "InputBindingRegistry.h"
 #include "ParticleEffectAsset.h"
 #include "ParticleEffectAssetIO.h"
+#include "ParticleGraphAuthoring.h"
 #include "ParticleEmitterComponent.h"
 #include "ParticleEmitterRuntimeComponent.h"
+#include "ParticleProgramCompiler.h"
 #include "ToolTheme.h"
 #include "ToolWidgets.h"
 
@@ -161,9 +163,18 @@ namespace gts::tools
                                 {ModuleAction::Undo, "UNDO"},
                                 {ModuleAction::Redo, "REDO"}});
 
+            addGraphButtonRow(ctx.ui,
+                              font,
+                              0.865f,
+                              {{GraphAction::Search, "SEARCH"},
+                               {GraphAction::AddNode, "ADD"},
+                               {GraphAction::Link, "LINK"},
+                               {GraphAction::Frame, "FRAME"},
+                               {GraphAction::Comment, "NOTE"}});
+
             for (size_t i = 0; i < ParameterControlRowCount; ++i)
             {
-                const float rowY = 0.866f + static_cast<float>(i) * 0.029f;
+                const float rowY = 0.898f + static_cast<float>(i) * 0.029f;
                 parameterControls.push_back(
                     {createSlider(ctx.ui, root, rowY, "PARAM", 0.0f, 1.0f, false, font),
                      createButtonRelative(
@@ -208,6 +219,7 @@ namespace gts::tools
                 applyEmitterButtons(ctx.world, state, interaction);
                 applyModuleRows(state, interaction);
                 applyModuleButtons(ctx.world, state, interaction);
+                applyGraphButtons(ctx.world, state, interaction);
                 applyPlaybackButtons(ctx.world, state, interaction);
                 applyPreviewOrbitDrag(state, interaction);
                 applySliders(ctx.ui, ctx.world, state, interaction);
@@ -234,6 +246,7 @@ namespace gts::tools
             effectButtons.clear();
             emitterButtons.clear();
             moduleButtons.clear();
+            graphButtons.clear();
             playbackButtons.clear();
             moduleRows.clear();
             parameterControls.clear();
@@ -269,6 +282,15 @@ namespace gts::tools
             Paste,
             Undo,
             Redo
+        };
+
+        enum class GraphAction
+        {
+            Search,
+            AddNode,
+            Link,
+            Frame,
+            Comment
         };
 
         enum class PlaybackAction
@@ -310,6 +332,12 @@ namespace gts::tools
             ToolButton   button;
         };
 
+        struct GraphButtonBinding
+        {
+            GraphAction action = GraphAction::Search;
+            ToolButton   button;
+        };
+
         struct PlaybackButtonBinding
         {
             PlaybackAction action = PlaybackAction::PlayPause;
@@ -345,7 +373,7 @@ namespace gts::tools
         static constexpr size_t EffectRowCount           = 4;
         static constexpr size_t EmitterRowCount          = 3;
         static constexpr size_t ModuleRowCount           = 3;
-        static constexpr size_t ParameterControlRowCount = 3;
+        static constexpr size_t ParameterControlRowCount = 2;
         static constexpr size_t MaxUndoSnapshots         = 32;
 
         UiHandle root            = UI_INVALID_HANDLE;
@@ -365,6 +393,7 @@ namespace gts::tools
         std::vector<EffectButtonBinding>   effectButtons;
         std::vector<EmitterButtonBinding>  emitterButtons;
         std::vector<ModuleButtonBinding>   moduleButtons;
+        std::vector<GraphButtonBinding>    graphButtons;
         std::vector<PlaybackButtonBinding> playbackButtons;
         std::vector<ToolButton>            moduleRows;
         std::vector<ParameterControl>      parameterControls;
@@ -398,6 +427,7 @@ namespace gts::tools
         UiHandle                              activeUndoHandle = UI_INVALID_HANDLE;
         bool                                  previewOrbitDragActive = false;
         float                                 previewOrbitDragLastX  = 0.0f;
+        size_t                                graphSearchIndex        = 0;
 
         void addEffectButtonRow(UiSystem&                                                ui,
                                 BitmapFont*                                              font,
@@ -453,6 +483,25 @@ namespace gts::tools
                     {rowButtons[i].first,
                      createButtonRelative(
                          ui, root, {x, y, width, 0.028f}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
+            }
+        }
+
+        void addGraphButtonRow(UiSystem&                                               ui,
+                               BitmapFont*                                             font,
+                               float                                                   y,
+                               const std::vector<std::pair<GraphAction, std::string>>& rowButtons)
+        {
+            const float gap = 0.010f;
+            const float width =
+                (1.0f - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
+
+            for (size_t i = 0; i < rowButtons.size(); ++i)
+            {
+                const float x = static_cast<float>(i) * (width + gap);
+                graphButtons.push_back(
+                    {rowButtons[i].first,
+                     createButtonRelative(
+                         ui, root, {x, y, width, 0.026f}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
             }
         }
 
@@ -916,9 +965,15 @@ namespace gts::tools
             for (ParticleEffectEmitter& emitter : asset.emitters)
             {
                 gts::particles::migrateParticleEmitterModules(emitter.modules, emitter.descriptor);
+                gts::particles::syncParticleGraphWithModules(emitter);
+                emitter.compiledProgram = gts::particles::compileParticleEffectEmitter(emitter);
+                if (emitter.compiledProgram.valid)
+                    emitter.descriptor = emitter.compiledProgram.runtimeDescriptor;
                 emitter.descriptor.effectPath.clear();
                 emitter.descriptor.effectEmitterId.clear();
                 emitter.descriptor.schemaVersion = CurrentParticleEmitterSchemaVersion;
+                emitter.compiledProgram.runtimeDescriptor.effectPath.clear();
+                emitter.compiledProgram.runtimeDescriptor.effectEmitterId.clear();
             }
             return asset;
         }
@@ -1050,6 +1105,175 @@ namespace gts::tools
                 }
                 return;
             }
+        }
+
+        void
+        applyGraphButtons(ECSWorld& world, EngineToolStateComponent& state, const UiInteractionResult& interaction)
+        {
+            for (const GraphButtonBinding& binding : graphButtons)
+            {
+                if (!wasClicked(interaction, binding.button.rect))
+                    continue;
+
+                switch (binding.action)
+                {
+                case GraphAction::Search:
+                    searchNextGraphNode(state);
+                    break;
+                case GraphAction::AddNode:
+                    addSearchedGraphNode(world, state);
+                    break;
+                case GraphAction::Link:
+                    toggleSelectedGraphLink(world, state);
+                    break;
+                case GraphAction::Frame:
+                    frameSelectedGraphNode(state);
+                    break;
+                case GraphAction::Comment:
+                    commentSelectedGraphNode(state);
+                    break;
+                }
+                return;
+            }
+        }
+
+        void searchNextGraphNode(EngineToolStateComponent& state)
+        {
+            ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+            {
+                state.status = "NO EMITTER";
+                return;
+            }
+
+            gts::particles::syncParticleGraphWithModules(*emitter);
+            const std::vector<ParticleModuleDefinition>& definitions = gts::particles::particleModuleDefinitions();
+            if (definitions.empty())
+            {
+                state.status = "NO NODE TYPES";
+                return;
+            }
+
+            graphSearchIndex = (graphSearchIndex + 1u) % definitions.size();
+            const ParticleModuleDefinition& definition = definitions[graphSearchIndex];
+            if (const ParticleGraphNode* node = gts::particles::findParticleGraphNodeForType(emitter->graph, definition.typeId))
+            {
+                selectModuleByStableId(*emitter, node->moduleStableId);
+                state.status = "FOUND " + definition.displayName;
+                return;
+            }
+
+            state.status = "MISSING " + definition.displayName;
+        }
+
+        void addSearchedGraphNode(ECSWorld& world, EngineToolStateComponent& state)
+        {
+            ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+            {
+                state.status = "NO EMITTER";
+                return;
+            }
+
+            const std::vector<ParticleModuleDefinition>& definitions = gts::particles::particleModuleDefinitions();
+            if (definitions.empty())
+            {
+                state.status = "NO NODE TYPES";
+                return;
+            }
+
+            const ParticleModuleDefinition& definition = definitions[graphSearchIndex % definitions.size()];
+            if (gts::particles::findParticleGraphNodeForType(emitter->graph, definition.typeId) != nullptr)
+            {
+                state.status = "NODE EXISTS";
+                return;
+            }
+
+            pushUndoSnapshot();
+            if (!gts::particles::addParticleGraphNode(*emitter, definition))
+            {
+                state.status = "NODE ADD FAILED";
+                return;
+            }
+            if (const ParticleGraphNode* node = gts::particles::findParticleGraphNodeForType(emitter->graph, definition.typeId))
+                selectModuleByStableId(*emitter, node->moduleStableId);
+            syncSelectedEmitterDescriptor(*emitter);
+            markDirty(state, "NODE ADDED");
+            applySelectedEmitterToLive(world, true);
+        }
+
+        void toggleSelectedGraphLink(ECSWorld& world, EngineToolStateComponent& state)
+        {
+            ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+            {
+                state.status = "NO EMITTER";
+                return;
+            }
+            ParticleGraphNode* node = selectedGraphNode(*emitter);
+            if (node == nullptr)
+            {
+                state.status = "NO NODE";
+                return;
+            }
+
+            pushUndoSnapshot();
+            if (!gts::particles::toggleParticleGraphDependencyLink(*emitter, node->id))
+            {
+                state.status = "NO LINK TARGET";
+                return;
+            }
+            syncSelectedEmitterDescriptor(*emitter);
+            markDirty(state, "LINK TOGGLED");
+            applySelectedEmitterToLive(world, false);
+        }
+
+        void frameSelectedGraphNode(EngineToolStateComponent& state)
+        {
+            ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+            {
+                state.status = "NO EMITTER";
+                return;
+            }
+            ParticleGraphNode* node = selectedGraphNode(*emitter);
+            if (node == nullptr)
+            {
+                state.status = "NO NODE";
+                return;
+            }
+
+            pushUndoSnapshot();
+            if (!gts::particles::addParticleGraphFrameForNode(*emitter, node->id))
+            {
+                state.status = "FRAME FAILED";
+                return;
+            }
+            markDirty(state, "FRAME ADDED");
+        }
+
+        void commentSelectedGraphNode(EngineToolStateComponent& state)
+        {
+            ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+            {
+                state.status = "NO EMITTER";
+                return;
+            }
+            ParticleGraphNode* node = selectedGraphNode(*emitter);
+            if (node == nullptr)
+            {
+                state.status = "NO NODE";
+                return;
+            }
+
+            pushUndoSnapshot();
+            if (!gts::particles::addParticleGraphCommentForNode(*emitter, node->id))
+            {
+                state.status = "NOTE FAILED";
+                return;
+            }
+            markDirty(state, "NOTE ADDED");
         }
 
         void applyModuleParameterControls(UiSystem&                  ui,
@@ -1387,6 +1611,10 @@ namespace gts::tools
             if (selected == nullptr || currentPath.empty())
                 return;
 
+            syncSelectedEmitterDescriptor(*selected);
+            const ParticleEmitterComponent runtimeDescriptor =
+                gts::particles::compiledParticleRuntimeDescriptor(*selected);
+
             world.forEach<ParticleEmitterComponent, ParticleEmitterRuntimeComponent>(
                 [&](Entity, ParticleEmitterComponent& emitter, ParticleEmitterRuntimeComponent& runtime)
                 {
@@ -1398,7 +1626,7 @@ namespace gts::tools
                     const std::string effectPath       = emitter.effectPath;
                     const uint32_t    randomSeed       = emitter.randomSeed;
                     const bool        reloadFromEffect = emitter.reloadFromEffect;
-                    emitter                            = selected->descriptor;
+                    emitter                            = runtimeDescriptor;
                     emitter.effectPath                 = effectPath;
                     emitter.effectEmitterId            = selected->stableId;
                     emitter.randomSeed                 = randomSeed;
@@ -1491,6 +1719,8 @@ namespace gts::tools
                 updateButton(ctx.ui, binding.button, emitterButtonLabel(binding.action));
             for (const ModuleButtonBinding& binding : moduleButtons)
                 updateButton(ctx.ui, binding.button, moduleButtonLabel(binding.action));
+            for (const GraphButtonBinding& binding : graphButtons)
+                updateButton(ctx.ui, binding.button, graphButtonLabel(binding.action));
             for (const PlaybackButtonBinding& binding : playbackButtons)
                 updateButton(ctx.ui, binding.button, playbackButtonLabel(binding.action));
 
@@ -1611,7 +1841,7 @@ namespace gts::tools
                 return {};
 
             std::vector<gts::particles::ParticleModuleGraphDiagnostic> diagnostics;
-            gts::particles::validateParticleModuleStack(emitter->modules, &diagnostics);
+            gts::particles::validateParticleEffectGraph(*emitter, &diagnostics);
 
             GraphDiagnosticCounts counts;
             for (const gts::particles::ParticleModuleGraphDiagnostic& diagnostic : diagnostics)
@@ -1692,6 +1922,7 @@ namespace gts::tools
         void clampModuleSelection(ParticleEffectEmitter& emitter)
         {
             gts::particles::migrateParticleEmitterModules(emitter.modules, emitter.descriptor);
+            gts::particles::syncParticleGraphWithModules(emitter);
             if (emitter.modules.empty())
             {
                 selectedModuleIndex    = 0;
@@ -2802,7 +3033,10 @@ namespace gts::tools
         void syncSelectedEmitterDescriptor(ParticleEffectEmitter& emitter)
         {
             gts::particles::migrateParticleEmitterModules(emitter.modules, emitter.descriptor);
-            gts::particles::applyParticleModulesToEmitterDescriptor(emitter.modules, emitter.descriptor);
+            gts::particles::syncParticleGraphWithModules(emitter);
+            emitter.compiledProgram = gts::particles::compileParticleEffectEmitter(emitter);
+            if (emitter.compiledProgram.valid)
+                emitter.descriptor = emitter.compiledProgram.runtimeDescriptor;
         }
 
         static void setEmitterEnabledModuleParameter(ParticleEffectEmitter& emitter, bool enabled)
@@ -3151,6 +3385,24 @@ namespace gts::tools
             return "";
         }
 
+        std::string graphButtonLabel(GraphAction action) const
+        {
+            switch (action)
+            {
+            case GraphAction::Search:
+                return "SEARCH";
+            case GraphAction::AddNode:
+                return "ADD";
+            case GraphAction::Link:
+                return "LINK";
+            case GraphAction::Frame:
+                return "FRAME";
+            case GraphAction::Comment:
+                return "NOTE";
+            }
+            return "";
+        }
+
         std::string playbackButtonLabel(PlaybackAction action) const
         {
             switch (action)
@@ -3240,6 +3492,35 @@ namespace gts::tools
                 return nullptr;
             clampModuleSelection(*emitter);
             return &emitter->modules[selectedModuleIndex];
+        }
+
+        ParticleGraphNode* selectedGraphNode(ParticleEffectEmitter& emitter)
+        {
+            ParticleModuleInstance* module = selectedModule();
+            if (module == nullptr)
+                return nullptr;
+            gts::particles::syncParticleGraphWithModules(emitter);
+            return gts::particles::findParticleGraphNodeForModule(emitter.graph, module->stableId);
+        }
+
+        void selectModuleByStableId(ParticleEffectEmitter& emitter, const std::string& stableId)
+        {
+            const auto it = std::find_if(emitter.modules.begin(),
+                                         emitter.modules.end(),
+                                         [&](const ParticleModuleInstance& module)
+                                         {
+                                             return module.stableId == stableId;
+                                         });
+            if (it == emitter.modules.end())
+                return;
+
+            selectedModuleIndex = static_cast<size_t>(std::distance(emitter.modules.begin(), it));
+            moduleBrowserOffset = std::min(moduleBrowserOffset, maxModuleBrowserOffset(emitter));
+            if (selectedModuleIndex < moduleBrowserOffset)
+                moduleBrowserOffset = selectedModuleIndex;
+            else if (selectedModuleIndex >= moduleBrowserOffset + ModuleRowCount)
+                moduleBrowserOffset = selectedModuleIndex - ModuleRowCount + 1;
+            clearParameterSelectionState();
         }
 
         const ParticleModuleInstance* selectedModule() const

@@ -8,7 +8,9 @@
 
 #include "ParticleEffectAsset.h"
 #include "ParticleEffectAssetIO.h"
+#include "ParticleGraphAuthoring.h"
 #include "ParticleModuleAuthoring.h"
+#include "ParticleProgramCompiler.h"
 
 namespace
 {
@@ -76,8 +78,9 @@ int main()
 {
     using namespace gts::particles;
 
-    require(CurrentParticleEffectSchemaVersion == 5u, "effect schema should identify graph foundation assets");
+    require(CurrentParticleEffectSchemaVersion == 6u, "effect schema should identify graph-authored assets");
     require(CurrentParticleModuleSchemaVersion == 2u, "module schema should identify rich graph-compatible modules");
+    require(CurrentParticleProgramSchemaVersion == 1u, "compiled program schema should identify runtime output");
     require(particleModuleDefinitions().size() == 10u, "expected initial module category set");
     std::vector<ParticleModuleGraphDiagnostic> definitionDiagnostics;
     require(validateParticleModuleDefinitions(&definitionDiagnostics),
@@ -159,6 +162,86 @@ int main()
             "disabled dependencies should surface graph warnings");
     require(diagnosticCount(disabledDependencyDiagnostics, ParticleModuleGraphDiagnosticSeverity::Error) == 0u,
             "disabled dependency warnings should not be errors");
+    ParticleEffectEmitter disabledEmitter;
+    disabledEmitter.stableId   = "disabled_graph_emitter";
+    disabledEmitter.name       = "Disabled Graph Emitter";
+    disabledEmitter.descriptor = descriptor;
+    disabledEmitter.modules    = disabledDependencyModules;
+    syncParticleGraphWithModules(disabledEmitter);
+    const ParticleCompiledParticleProgram disabledProgram = compileParticleEffectEmitter(disabledEmitter);
+    require(disabledProgram.valid, "disabled graph modules should still compile through default outputs");
+    require(disabledProgram.deadNodesEliminated > 0u, "disabled graph nodes should be optimized away");
+    require(diagnosticCount(disabledProgram.diagnostics, ParticleModuleGraphDiagnosticSeverity::Warning) > 0u,
+            "disabled graph module compilation should retain warnings");
+
+    ParticleEffectEmitter graphEmitter;
+    graphEmitter.stableId   = "graph_emitter";
+    graphEmitter.name       = "Graph Emitter";
+    graphEmitter.descriptor = descriptor;
+    graphEmitter.modules    = modules;
+    syncParticleGraphWithModules(graphEmitter);
+    require(graphEmitter.graph.schemaVersion == CurrentParticleGraphSchemaVersion,
+            "graph schema should be current after sync");
+    require(graphEmitter.graph.nodes.size() == graphEmitter.modules.size(), "graph should have one node per module");
+    require(!graphEmitter.graph.links.empty(), "graph should synthesize dependency links");
+    std::vector<ParticleModuleGraphDiagnostic> graphDiagnostics;
+    require(validateParticleEffectGraph(graphEmitter, &graphDiagnostics), "default graph should validate");
+    const ParticleCompiledParticleProgram graphProgram = compileParticleEffectEmitter(graphEmitter);
+    require(graphProgram.valid, "valid graph should compile");
+    require(graphProgram.backend == ParticleProgramBackend::CpuDescriptor,
+            "initial compiled backend should target CPU descriptors");
+    require(graphProgram.modules.size() == graphEmitter.modules.size(), "compiled program should include every module");
+    require(graphProgram.modules.front().executionStage == ParticleModuleExecutionStage::Spawn,
+            "compiled program should begin with spawn stage");
+    require(graphProgram.modules.back().executionStage == ParticleModuleExecutionStage::Render,
+            "compiled program should end with render stage");
+    require(graphProgram.staticParametersEvaluated > 0u, "compiled program should evaluate static parameters");
+    require(graphProgram.curvesBaked > 0u, "compiled program should bake curves");
+    require(graphProgram.modulesFused > 0u, "compiled program should fuse module work into runtime output");
+    ParticleEmitterComponent graphRuntimeDescriptor = graphEmitter.descriptor;
+    applyParticleModulesToEmitterDescriptor(graphEmitter.modules, graphRuntimeDescriptor);
+    require(near(graphProgram.runtimeDescriptor.emissionRate, graphRuntimeDescriptor.emissionRate),
+            "compiled program did not preserve descriptor emission rate");
+    ParticleEffectEmitter duplicateBackingNodeEmitter = graphEmitter;
+    duplicateBackingNodeEmitter.graph.nodes.push_back(duplicateBackingNodeEmitter.graph.nodes.front());
+    duplicateBackingNodeEmitter.graph.nodes.back().id = "duplicate_backing_node";
+    std::vector<ParticleModuleGraphDiagnostic> duplicateBackingNodeDiagnostics;
+    require(!validateParticleEffectGraph(duplicateBackingNodeEmitter, &duplicateBackingNodeDiagnostics),
+            "duplicated backing graph module should fail validation");
+    require(!compileParticleEffectEmitter(duplicateBackingNodeEmitter).valid,
+            "duplicated backing graph module should fail compilation");
+
+    const ParticleGraphNode* colorGraphNode = findParticleGraphNodeForType(graphEmitter.graph, "color.basic");
+    require(colorGraphNode != nullptr, "color graph node missing");
+    const ParticleGraphLink removedLink = graphEmitter.graph.links.front();
+    graphEmitter.graph.links.erase(graphEmitter.graph.links.begin());
+    std::vector<ParticleModuleGraphDiagnostic> brokenGraphDiagnostics;
+    require(!validateParticleEffectGraph(graphEmitter, &brokenGraphDiagnostics),
+            "missing required graph link should fail validation");
+    const ParticleCompiledParticleProgram brokenGraphProgram = compileParticleEffectEmitter(graphEmitter);
+    require(!brokenGraphProgram.valid, "broken graph should not produce a valid compiled program");
+    require(diagnosticCount(brokenGraphProgram.diagnostics, ParticleModuleGraphDiagnosticSeverity::Error) > 0u,
+            "broken graph compilation should report errors");
+    graphEmitter.graph.links.push_back(removedLink);
+    require(addParticleGraphFrameForNode(graphEmitter, colorGraphNode->id), "failed to add graph frame");
+    require(addParticleGraphCommentForNode(graphEmitter, colorGraphNode->id), "failed to add graph comment");
+    require(graphEmitter.graph.frames.size() == 1u, "graph frame was not stored");
+    require(graphEmitter.graph.comments.size() == 1u, "graph comment was not stored");
+
+    const ParticleGraphNode* forcesGraphNode = findParticleGraphNodeForType(graphEmitter.graph, "forces.basic");
+    require(forcesGraphNode != nullptr, "forces graph node missing");
+    const std::string removedForcesNodeId = forcesGraphNode->id;
+    require(removeParticleGraphNode(graphEmitter, removedForcesNodeId), "failed to remove graph node");
+    require(findParticleGraphNodeForType(graphEmitter.graph, "forces.basic") == nullptr,
+            "graph node removal did not remove forces");
+    const ParticleModuleDefinition* forcesDefinition = findParticleModuleDefinition("forces.basic");
+    require(forcesDefinition != nullptr, "forces definition missing");
+    require(addParticleGraphNode(graphEmitter, *forcesDefinition), "failed to add graph node from registry");
+    syncParticleGraphWithModules(graphEmitter);
+    require(findParticleGraphNodeForType(graphEmitter.graph, "forces.basic") != nullptr,
+            "graph node creation did not restore forces");
+    require(validateParticleEffectGraph(graphEmitter, &graphDiagnostics), "restored graph should validate");
+    require(compileParticleEffectEmitter(graphEmitter).valid, "restored graph should compile");
 
     ParticleModuleInstance* spawn    = nullptr;
     ParticleModuleInstance* shape    = nullptr;
@@ -304,6 +387,7 @@ int main()
     emitter.name       = "Emitter";
     emitter.descriptor = descriptor;
     emitter.modules    = modules;
+    syncParticleGraphWithModules(emitter);
     asset.emitters.push_back(emitter);
 
     ParticleEffectEmitter secondEmitter;
@@ -312,6 +396,9 @@ int main()
     secondEmitter.descriptor.emissionRate = 99.0f;
     secondEmitter.descriptor.maxParticles = 24u;
     secondEmitter.modules                = buildModulesFromEmitterDescriptor(secondEmitter.descriptor);
+    syncParticleGraphWithModules(secondEmitter);
+    addParticleGraphFrameForNode(secondEmitter, secondEmitter.graph.nodes.front().id);
+    addParticleGraphCommentForNode(secondEmitter, secondEmitter.graph.nodes.front().id);
     asset.emitters.push_back(secondEmitter);
 
     const std::filesystem::path path =
@@ -335,9 +422,22 @@ int main()
     require(loaded.emitters.front().descriptor.sizeOverLifetime.size() == 3u,
             "loaded descriptor did not compile size curve");
     require(loaded.emitters.front().descriptor.bursts.size() == 2u, "loaded descriptor did not compile burst timeline");
+    require(loaded.emitters.front().compiledProgram.valid, "loaded emitter should have compiled runtime program");
+    require(loaded.emitters.front().compiledProgram.modules.size() == particleModuleDefinitions().size(),
+            "loaded compiled program module count mismatch");
+    require(near(loaded.emitters.front().compiledProgram.runtimeDescriptor.emissionRate, 12.5f),
+            "loaded compiled descriptor did not preserve emission rate");
     require(selectParticleEffectEmitter(loaded, "second") != nullptr, "loaded multi-emitter asset cannot select second");
     require(near(selectParticleEffectEmitter(loaded, "second")->descriptor.emissionRate, 99.0f),
             "loaded second emitter descriptor was not preserved");
+    require(loaded.emitters.front().graph.nodes.size() == loaded.emitters.front().modules.size(),
+            "loaded graph node count mismatch");
+    require(!loaded.emitters.front().graph.links.empty(), "loaded graph links missing");
+    require(loaded.emitters[1].graph.frames.size() == 1u, "loaded graph frame missing");
+    require(loaded.emitters[1].graph.comments.size() == 1u, "loaded graph comment missing");
+    std::vector<ParticleModuleGraphDiagnostic> loadedGraphDiagnostics;
+    require(validateParticleEffectGraph(loaded.emitters.front(), &loadedGraphDiagnostics),
+            "loaded graph should validate");
 
     const std::filesystem::path flatPath =
         std::filesystem::temp_directory_path() / "gravitas_particle_flat_migration_test.json";
@@ -364,6 +464,7 @@ int main()
             "flat preset emission rate was not preserved");
     require(flatLoaded.emitters.front().descriptor.texturePath == "resources/textures/flat.png",
             "flat preset texture path was not preserved");
+    require(flatLoaded.emitters.front().compiledProgram.valid, "flat preset did not compile after migration");
 
     const std::filesystem::path collisionPath =
         std::filesystem::temp_directory_path() / "gravitas_particle_parser_collision_test.json";
@@ -397,6 +498,8 @@ int main()
             "failed to load parser collision particle asset");
     require(collisionLoaded.emitters.front().descriptor.texturePath == "descriptor_texture.png",
             "structured parser confused module parameter id with renderer texture path");
+    require(collisionLoaded.emitters.front().compiledProgram.valid,
+            "structured parser collision asset did not compile after migration");
 
     std::error_code ec;
     std::filesystem::remove(path, ec);

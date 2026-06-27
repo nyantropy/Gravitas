@@ -569,18 +569,28 @@ schema/version data, and typed parameters. Parameter values include scalars,
 integer values, booleans, enums, asset-path strings, float curves, color
 gradients, and burst timelines. String parameters may declare a picker role such
 as texture or mesh so the editor can discover compatible files without
-hardcoding renderer module behavior. Module definitions also declare
-graph-compatible metadata: input ports, output ports, required or optional
-dependencies, execution category, and execution stage. The current execution
-stages are `Spawn`, `Initialize`, `Update`, and `Render`. The stack editor still
-shows a simple module list, but the registry can now validate that modules have
-stable graph node IDs, known definitions, unique parameter IDs, declared outputs,
-and required dependencies before a future graph compiler consumes them. The
-current runtime compatibility path
-compiles the selected emitter's modules back into `ParticleEmitterComponent`,
-copies that descriptor into the ECS component, and then executes the existing
-single-emitter simulation path. This preserves existing game behavior while
-moving authoring ownership toward asset modules.
+hardcoding renderer module behavior. Each emitter also owns graph authoring data:
+nodes linked to module stable IDs, dependency links, frames, comments, and node
+positions. Module definitions declare graph-compatible metadata: input ports,
+output ports, required or optional dependencies, execution category, and
+execution stage. The current execution stages are `Spawn`, `Initialize`,
+`Update`, and `Render`. The stack editor still shows a simple module list, but
+the asset now stores enough graph data for node creation, connections,
+grouping/comment metadata, validation diagnostics, and later visual graph
+editing.
+
+Graph/module authoring compiles into `ParticleCompiledParticleProgram`, a
+derived runtime representation stored on each loaded emitter and not serialized
+as source data. The current compiler validates graph topology, orders modules by
+execution stage, records compiled module metadata, tracks simple optimization
+counters such as dead-node elimination, curve baking, static parameter
+evaluation, and module fusion, then emits a CPU-descriptor backend by baking the
+program into `ParticleEmitterComponent`. Hot reload, legacy `loadParticleEffect`,
+and editor live preview prefer this compiled runtime descriptor and fall back to
+the compatibility descriptor only if compilation is invalid. This preserves
+existing game behavior while keeping ECS playback separate from editor graph
+structures and leaving a clean insertion point for a future CPU/GPU particle
+program backend.
 
 The engine creates `ParticleEmitterRuntimeComponent`, simulates particles every
 controller frame, sorts alpha particles by camera depth, batches by primitive,
@@ -620,14 +630,14 @@ Initial particle authoring module categories are:
 - `Bursts`
 
 `ParticleEffectHotReloadSystem` loads effect files into a singleton registry and
-copies selected asset-emitter values onto ECS emitters whose `effectPath` is set
-and `reloadFromEffect` is true. Existing flat JSON emitter presets are migrated
-in memory into one-emitter `ParticleEffectAsset` values, and missing module
-authoring data is generated from the legacy descriptor. Saving through the asset
-IO path writes the module-based effect-asset format plus compatibility
-descriptor fields. Older scalar module data for alpha peaks, size endpoints,
-and the first burst is migrated into richer curve, gradient, and timeline module
-values.
+copies selected compiled asset-emitter runtime descriptors onto ECS emitters
+whose `effectPath` is set and `reloadFromEffect` is true. Existing flat JSON
+emitter presets are migrated in memory into one-emitter `ParticleEffectAsset`
+values, and missing module or graph authoring data is generated from the legacy
+descriptor. Saving through the asset IO path writes the module/graph
+effect-asset format plus compatibility descriptor fields. Older scalar module
+data for alpha peaks, size endpoints, and the first burst is migrated into
+richer curve, gradient, and timeline module values.
 
 The legacy particle inspector still edits a selected live ECS emitter descriptor
 for low-level debugging. The dedicated `ParticleEffectEditorPanel` is the
@@ -646,11 +656,13 @@ mesh string parameters cycle through discovered resources; and editor-local
 undo/redo, emitter copy/paste, module copy/paste, and multi-emitter batch
 selection are handled inside the panel. Module rows display graph execution
 stage tags and the panel shows graph validation status for the selected
-emitter's module stack. This panel is a retained-UI module/stack bridge, not the
-final graph editor. New particle authoring features should extend
-`ParticleEffectAsset` and the module registry, keep editor state separate from
-`ParticleEmitterRuntimeComponent`, and keep runtime simulation consuming
-compiled or compatibility emitter data rather than editor UI structures.
+emitter's graph. The panel includes compact graph actions for cycling/searching
+nodes, adding registered nodes, toggling dependency links, and creating
+frames/comments, but it remains a retained-UI module/stack bridge rather than
+the final visual graph editor. New particle authoring features should extend
+`ParticleEffectAsset`, the graph data, the module registry, and the compiler;
+runtime simulation should continue consuming compiled runtime data rather than
+editor UI structures.
 
 ### Frustum Culling
 

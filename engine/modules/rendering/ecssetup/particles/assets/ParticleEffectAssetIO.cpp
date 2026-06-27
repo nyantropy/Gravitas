@@ -8,6 +8,9 @@
 #include <iomanip>
 #include <sstream>
 
+#include "ParticleGraphAuthoring.h"
+#include "ParticleProgramCompiler.h"
+
 namespace
 {
     struct JsonValue
@@ -377,6 +380,19 @@ namespace
         return true;
     }
 
+    bool readVec2Value(const JsonValue& source, glm::vec2& value)
+    {
+        if (source.type != JsonValue::Type::Array || source.array.size() != 2u)
+            return false;
+        for (const JsonValue& item : source.array)
+        {
+            if (item.type != JsonValue::Type::Number)
+                return false;
+        }
+        value = {static_cast<float>(source.array[0].number), static_cast<float>(source.array[1].number)};
+        return true;
+    }
+
     bool readVec4Value(const JsonValue& source, glm::vec4& value)
     {
         if (source.type != JsonValue::Type::Array || source.array.size() != 4u)
@@ -397,6 +413,12 @@ namespace
     {
         const JsonValue* arrayValue = findTypedMember(source, key, JsonValue::Type::Array, deep);
         return arrayValue != nullptr && readVec3Value(*arrayValue, value);
+    }
+
+    bool readVec2(const JsonValue& source, const std::string& key, glm::vec2& value, bool deep = true)
+    {
+        const JsonValue* arrayValue = findTypedMember(source, key, JsonValue::Type::Array, deep);
+        return arrayValue != nullptr && readVec2Value(*arrayValue, value);
     }
 
     bool readVec4(const JsonValue& source, const std::string& key, glm::vec4& value, bool deep = true)
@@ -741,6 +763,11 @@ namespace
         out << '[' << value.x << ", " << value.y << ", " << value.z << ']';
     }
 
+    void writeVec2(std::ostream& out, const glm::vec2& value)
+    {
+        out << '[' << value.x << ", " << value.y << ']';
+    }
+
     void writeVec4(std::ostream& out, const glm::vec4& value)
     {
         out << '[' << value.x << ", " << value.y << ", " << value.z << ", " << value.w << ']';
@@ -831,6 +858,61 @@ namespace
             writeModuleParameter(out, module.parameters[i], i + 1 == module.parameters.size());
         out << "          ]\n";
         out << "        }" << (last ? "\n" : ",\n");
+    }
+
+    void writeGraphObject(std::ostream& out, const ParticleEffectGraph& graph)
+    {
+        out << "      \"graph\": {\n";
+        out << "        \"schemaVersion\": " << graph.schemaVersion << ",\n";
+
+        out << "        \"nodes\": [\n";
+        for (size_t i = 0; i < graph.nodes.size(); ++i)
+        {
+            const ParticleGraphNode& node = graph.nodes[i];
+            out << "          {\"id\": \"" << escaped(node.id) << "\", \"moduleStableId\": \""
+                << escaped(node.moduleStableId) << "\", \"type\": \"" << escaped(node.typeId)
+                << "\", \"displayName\": \"" << escaped(node.displayName) << "\", \"frameId\": \""
+                << escaped(node.frameId) << "\", \"position\": ";
+            writeVec2(out, node.position);
+            out << "}" << (i + 1 == graph.nodes.size() ? "\n" : ",\n");
+        }
+        out << "        ],\n";
+
+        out << "        \"links\": [\n";
+        for (size_t i = 0; i < graph.links.size(); ++i)
+        {
+            const ParticleGraphLink& link = graph.links[i];
+            out << "          {\"id\": \"" << escaped(link.id) << "\", \"from\": \"" << escaped(link.fromNodeId)
+                << "\", \"fromPort\": \"" << escaped(link.fromPortId) << "\", \"to\": \""
+                << escaped(link.toNodeId) << "\", \"toPort\": \"" << escaped(link.toPortId) << "\"}"
+                << (i + 1 == graph.links.size() ? "\n" : ",\n");
+        }
+        out << "        ],\n";
+
+        out << "        \"frames\": [\n";
+        for (size_t i = 0; i < graph.frames.size(); ++i)
+        {
+            const ParticleGraphFrame& frame = graph.frames[i];
+            out << "          {\"id\": \"" << escaped(frame.id) << "\", \"title\": \"" << escaped(frame.title)
+                << "\", \"position\": ";
+            writeVec2(out, frame.position);
+            out << ", \"size\": ";
+            writeVec2(out, frame.size);
+            out << "}" << (i + 1 == graph.frames.size() ? "\n" : ",\n");
+        }
+        out << "        ],\n";
+
+        out << "        \"comments\": [\n";
+        for (size_t i = 0; i < graph.comments.size(); ++i)
+        {
+            const ParticleGraphComment& comment = graph.comments[i];
+            out << "          {\"id\": \"" << escaped(comment.id) << "\", \"text\": \"" << escaped(comment.text)
+                << "\", \"position\": ";
+            writeVec2(out, comment.position);
+            out << "}" << (i + 1 == graph.comments.size() ? "\n" : ",\n");
+        }
+        out << "        ]\n";
+        out << "      }";
     }
 
     std::string defaultEmitterId(size_t index)
@@ -981,6 +1063,81 @@ namespace
         return true;
     }
 
+    bool readEmitterGraph(const JsonValue& source, ParticleEffectGraph& graph)
+    {
+        const JsonValue* graphObject = nullptr;
+        if (!readObject(source, "graph", graphObject))
+            return false;
+
+        ParticleEffectGraph parsed;
+        readUint(*graphObject, "schemaVersion", parsed.schemaVersion, false);
+
+        std::vector<const JsonValue*> nodeObjects;
+        if (readObjectArray(*graphObject, "nodes", nodeObjects))
+        {
+            parsed.nodes.reserve(nodeObjects.size());
+            for (const JsonValue* nodeObject : nodeObjects)
+            {
+                ParticleGraphNode node;
+                readString(*nodeObject, "id", node.id, false);
+                readString(*nodeObject, "moduleStableId", node.moduleStableId, false);
+                readString(*nodeObject, "type", node.typeId, false);
+                readString(*nodeObject, "displayName", node.displayName, false);
+                readString(*nodeObject, "frameId", node.frameId, false);
+                readVec2(*nodeObject, "position", node.position, false);
+                parsed.nodes.push_back(std::move(node));
+            }
+        }
+
+        std::vector<const JsonValue*> linkObjects;
+        if (readObjectArray(*graphObject, "links", linkObjects))
+        {
+            parsed.links.reserve(linkObjects.size());
+            for (const JsonValue* linkObject : linkObjects)
+            {
+                ParticleGraphLink link;
+                readString(*linkObject, "id", link.id, false);
+                readString(*linkObject, "from", link.fromNodeId, false);
+                readString(*linkObject, "fromPort", link.fromPortId, false);
+                readString(*linkObject, "to", link.toNodeId, false);
+                readString(*linkObject, "toPort", link.toPortId, false);
+                parsed.links.push_back(std::move(link));
+            }
+        }
+
+        std::vector<const JsonValue*> frameObjects;
+        if (readObjectArray(*graphObject, "frames", frameObjects))
+        {
+            parsed.frames.reserve(frameObjects.size());
+            for (const JsonValue* frameObject : frameObjects)
+            {
+                ParticleGraphFrame frame;
+                readString(*frameObject, "id", frame.id, false);
+                readString(*frameObject, "title", frame.title, false);
+                readVec2(*frameObject, "position", frame.position, false);
+                readVec2(*frameObject, "size", frame.size, false);
+                parsed.frames.push_back(std::move(frame));
+            }
+        }
+
+        std::vector<const JsonValue*> commentObjects;
+        if (readObjectArray(*graphObject, "comments", commentObjects))
+        {
+            parsed.comments.reserve(commentObjects.size());
+            for (const JsonValue* commentObject : commentObjects)
+            {
+                ParticleGraphComment comment;
+                readString(*commentObject, "id", comment.id, false);
+                readString(*commentObject, "text", comment.text, false);
+                readVec2(*commentObject, "position", comment.position, false);
+                parsed.comments.push_back(std::move(comment));
+            }
+        }
+
+        graph = std::move(parsed);
+        return true;
+    }
+
     bool readEffectEmitters(const JsonValue& source, ParticleEffectAsset& asset)
     {
         std::vector<const JsonValue*> emitterObjects;
@@ -998,6 +1155,7 @@ namespace
             readString(*emitterObjects[i], "name", emitter.name, false);
             readEmitter(*emitterObjects[i], emitter.descriptor);
             readEmitterModules(*emitterObjects[i], emitter.modules);
+            readEmitterGraph(*emitterObjects[i], emitter.graph);
             emitters.push_back(std::move(emitter));
         }
 
@@ -1017,6 +1175,9 @@ namespace
         for (size_t i = 0; i < effectEmitter.modules.size(); ++i)
             writeModuleObject(out, effectEmitter.modules[i], i + 1 == effectEmitter.modules.size());
         out << "      ],\n";
+
+        writeGraphObject(out, effectEmitter.graph);
+        out << ",\n";
 
         out << "      \"simulation\": {\n";
         out << "        \"schemaVersion\": " << emitter.schemaVersion << ",\n";
@@ -1185,6 +1346,10 @@ namespace gts::particles
                 }
             }
             gts::particles::migrateParticleEmitterModules(emitter.modules, emitter.descriptor);
+            gts::particles::syncParticleGraphWithModules(emitter);
+            emitter.compiledProgram = gts::particles::compileParticleEffectEmitter(emitter);
+            if (emitter.compiledProgram.valid)
+                emitter.descriptor = emitter.compiledProgram.runtimeDescriptor;
         }
 
         return true;
@@ -1304,7 +1469,7 @@ namespace gts::particles
         if (selected == nullptr)
             return false;
 
-        ParticleEmitterComponent loaded = selected->descriptor;
+        ParticleEmitterComponent loaded = gts::particles::compiledParticleRuntimeDescriptor(*selected);
         loaded.effectPath               = path;
         loaded.effectEmitterId          = selected->stableId;
         loaded.randomSeed               = randomSeed;

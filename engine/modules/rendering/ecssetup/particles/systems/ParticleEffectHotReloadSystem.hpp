@@ -8,6 +8,7 @@
 #include "ParticleEffectAssetIO.h"
 #include "ParticleEmitterComponent.h"
 #include "ParticleEmitterRuntimeComponent.h"
+#include "ParticleProgramCompiler.h"
 
 class ParticleEffectHotReloadSystem : public ECSControllerSystem
 {
@@ -82,7 +83,7 @@ private:
         if (selected == nullptr)
             return;
 
-        target                  = selected->descriptor;
+        target                  = gts::particles::compiledParticleRuntimeDescriptor(*selected);
         target.effectPath       = effectPath;
         target.effectEmitterId  = effectEmitterId.empty() ? selected->stableId : effectEmitterId;
         target.randomSeed       = randomSeed;

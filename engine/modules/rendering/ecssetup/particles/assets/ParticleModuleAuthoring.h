@@ -15,6 +15,7 @@ namespace gts::particles
 {
     inline constexpr uint32_t LegacyParticleModuleSchemaVersion  = 1u;
     inline constexpr uint32_t CurrentParticleModuleSchemaVersion = 2u;
+    inline constexpr uint32_t CurrentParticleProgramSchemaVersion = 1u;
 
     enum class ParticleModuleParameterType
     {
@@ -156,6 +157,39 @@ namespace gts::particles
         uint32_t                             version = CurrentParticleModuleSchemaVersion;
         bool                                 enabled = true;
         std::vector<ParticleModuleParameter> parameters;
+    };
+
+    enum class ParticleProgramBackend
+    {
+        CpuDescriptor
+    };
+
+    struct ParticleCompiledModule
+    {
+        std::string                     stableId;
+        std::string                     typeId;
+        std::string                     displayName;
+        ParticleModuleExecutionStage    executionStage    = ParticleModuleExecutionStage::Update;
+        ParticleModuleExecutionCategory executionCategory = ParticleModuleExecutionCategory::ParticleUpdater;
+        bool                            enabled           = true;
+        uint32_t                        parameterCount    = 0;
+        uint32_t                        inputCount        = 0;
+        uint32_t                        outputCount       = 0;
+        uint32_t                        dependencyCount   = 0;
+    };
+
+    struct ParticleCompiledParticleProgram
+    {
+        uint32_t                                  schemaVersion = CurrentParticleProgramSchemaVersion;
+        ParticleProgramBackend                    backend       = ParticleProgramBackend::CpuDescriptor;
+        bool                                      valid         = false;
+        ParticleEmitterComponent                  runtimeDescriptor;
+        std::vector<ParticleCompiledModule>       modules;
+        std::vector<ParticleModuleGraphDiagnostic> diagnostics;
+        uint32_t                                  deadNodesEliminated      = 0;
+        uint32_t                                  staticParametersEvaluated = 0;
+        uint32_t                                  curvesBaked              = 0;
+        uint32_t                                  modulesFused             = 0;
     };
 
     inline ParticleModuleParameterDefinition
