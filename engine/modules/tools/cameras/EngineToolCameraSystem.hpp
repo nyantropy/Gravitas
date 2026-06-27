@@ -14,6 +14,7 @@
 #include "ECSWorld.hpp"
 #include "EngineToolCameraStateComponent.h"
 #include "EngineToolInputCaptureComponent.h"
+#include "EngineToolPreviewCameraComponent.h"
 #include "EngineToolStateComponent.h"
 #include "RenderViewportComponent.h"
 #include "ToolEntityLabelComponent.h"
@@ -294,6 +295,20 @@ namespace gts::tools
             CameraDescriptionComponent& camera =
                 ctx.world.getComponent<CameraDescriptionComponent>(state.toolCameraEntity);
 
+            if (ctx.world.hasAny<EngineToolPreviewCameraComponent>())
+            {
+                const EngineToolPreviewCameraComponent& preview =
+                    ctx.world.getSingleton<EngineToolPreviewCameraComponent>();
+                if (preview.active)
+                {
+                    applyPreviewCamera(ctx.world, state.toolCameraEntity, transform, camera, preview, aspectRatio);
+                    const glm::vec3 forward = safeForward(preview.target - preview.position);
+                    yaw   = std::atan2(-forward.x, -forward.z);
+                    pitch = glm::clamp(std::asin(glm::clamp(forward.y, -1.0f, 1.0f)), MIN_PITCH, MAX_PITCH);
+                    return;
+                }
+            }
+
             const float dt = ctx.time == nullptr ? 0.0f : ctx.time->unscaledDeltaTime;
             const bool keyboardCaptured = ctx.world.hasAny<EngineToolInputCaptureComponent>() &&
                                           ctx.world.getSingleton<EngineToolInputCaptureComponent>().keyboardCaptured;
@@ -357,6 +372,39 @@ namespace gts::tools
             }
 
             syncActiveCameraView(ctx.world, state.toolCameraEntity, view, proj);
+        }
+
+        static void applyPreviewCamera(ECSWorld&                              world,
+                                       Entity                                 entity,
+                                       TransformComponent&                    transform,
+                                       CameraDescriptionComponent&            camera,
+                                       const EngineToolPreviewCameraComponent& preview,
+                                       float                                  aspectRatio)
+        {
+            transform.position = preview.position;
+            camera.active      = true;
+            camera.aspectRatio = aspectRatio;
+            camera.fov         = glm::radians(glm::clamp(preview.fov, 20.0f, 110.0f));
+            camera.target      = preview.target;
+            camera.up          = preview.up;
+
+            const glm::mat4 view = glm::lookAt(transform.position, camera.target, camera.up);
+            glm::mat4       proj = glm::perspective(camera.fov,
+                                                    camera.aspectRatio > 0.0f ? camera.aspectRatio : aspectRatio,
+                                                    camera.nearClip,
+                                                    camera.farClip);
+            proj[1][1] *= -1.0f;
+
+            if (world.hasComponent<CameraGpuComponent>(entity))
+            {
+                CameraGpuComponent& gpu = world.getComponent<CameraGpuComponent>(entity);
+                gpu.viewMatrix          = view;
+                gpu.projMatrix          = proj;
+                gpu.active              = true;
+                gpu.dirty               = true;
+            }
+
+            syncActiveCameraView(world, entity, view, proj);
         }
 
         void updateMouseLook(const EcsControllerContext& ctx)

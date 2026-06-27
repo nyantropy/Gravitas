@@ -26,7 +26,10 @@ namespace gts::tools
         static constexpr UiColor sectionHeader      = DefaultEditorTheme.colors.sectionHeader;
         static constexpr UiColor sectionHeaderHover = DefaultEditorTheme.colors.sectionHeaderHover;
         static constexpr UiColor border             = DefaultEditorTheme.colors.border;
+        static constexpr UiColor focus              = DefaultEditorTheme.colors.focus;
+        static constexpr UiColor selection          = DefaultEditorTheme.colors.selection;
         static constexpr UiColor accent             = DefaultEditorTheme.colors.accent;
+        static constexpr UiColor accentSoft         = DefaultEditorTheme.colors.accentSoft;
         static constexpr UiColor text               = DefaultEditorTheme.colors.text;
         static constexpr UiColor mutedText          = DefaultEditorTheme.colors.mutedText;
         static constexpr UiColor statusText         = DefaultEditorTheme.colors.statusText;

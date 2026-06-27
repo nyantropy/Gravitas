@@ -14,6 +14,7 @@
 #include "ECSWorld.hpp"
 #include "EngineToolContext.h"
 #include "EngineToolInputCaptureComponent.h"
+#include "EngineToolPreviewCameraComponent.h"
 #include "EngineToolRegistry.h"
 #include "EngineToolWorkspaceComponent.h"
 #include "EntityInspectorPanel.hpp"
@@ -60,6 +61,7 @@ namespace gts::tools
             {
                 setToolsInputContext(ctx, false);
                 clearInputCapture(ctx.world);
+                clearPreviewCameraRequest(ctx.world);
                 publishWorkspace(ctx, false);
                 return;
             }
@@ -73,6 +75,7 @@ namespace gts::tools
             if (!ensureUi(toolCtx, state))
                 return;
             syncLayout(toolCtx, workspace);
+            syncPreviewCameraRequest(toolCtx.world);
 
             UiInteractionResult interaction = updateInteraction(ctx, state);
             updateInputCapture(ctx.world, state, interaction, ctx);
@@ -537,6 +540,22 @@ namespace gts::tools
             const EngineToolStateComponent& state = world.getSingleton<EngineToolStateComponent>();
             const EngineToolPanel*          panel = registry.at(std::min(state.activePanelIndex, registry.size() - 1));
             return panel != nullptr && panel->id() == "particle_effects";
+        }
+
+        void syncPreviewCameraRequest(ECSWorld& world) const
+        {
+            if (activePanelWantsWorkspace(world) || !world.hasAny<EngineToolPreviewCameraComponent>())
+                return;
+
+            clearPreviewCameraRequest(world);
+        }
+
+        void clearPreviewCameraRequest(ECSWorld& world) const
+        {
+            if (!world.hasAny<EngineToolPreviewCameraComponent>())
+                return;
+
+            world.getSingleton<EngineToolPreviewCameraComponent>().active = false;
         }
     };
 } // namespace gts::tools

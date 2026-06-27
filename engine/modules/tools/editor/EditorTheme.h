@@ -80,40 +80,40 @@ namespace gts::tools
 
     struct EditorColors
     {
-        UiColor windowBackground  = {0.014f, 0.017f, 0.020f, 0.990f};
-        UiColor barBackground     = {0.025f, 0.029f, 0.034f, 0.980f};
-        UiColor toolbarBackground = {0.018f, 0.021f, 0.025f, 0.900f};
-        UiColor railBackground    = {0.020f, 0.024f, 0.029f, 0.990f};
-        UiColor panelBackground   = {0.027f, 0.031f, 0.036f, 0.980f};
-        UiColor panelSurface      = {0.038f, 0.044f, 0.050f, 0.960f};
-        UiColor overlay           = {0.010f, 0.012f, 0.015f, 0.860f};
+        UiColor windowBackground  = {0.015f, 0.017f, 0.018f, 0.990f};
+        UiColor barBackground     = {0.026f, 0.028f, 0.030f, 0.980f};
+        UiColor toolbarBackground = {0.019f, 0.021f, 0.022f, 0.920f};
+        UiColor railBackground    = {0.020f, 0.022f, 0.024f, 0.990f};
+        UiColor panelBackground   = {0.029f, 0.031f, 0.033f, 0.980f};
+        UiColor panelSurface      = {0.042f, 0.045f, 0.048f, 0.960f};
+        UiColor overlay           = {0.010f, 0.011f, 0.012f, 0.860f};
 
-        UiColor button        = {0.067f, 0.077f, 0.088f, 0.960f};
-        UiColor buttonHover   = {0.092f, 0.105f, 0.118f, 1.000f};
-        UiColor buttonPressed = {0.118f, 0.137f, 0.150f, 1.000f};
-        UiColor buttonActive  = {0.105f, 0.172f, 0.210f, 1.000f};
-        UiColor toggleActive  = {0.115f, 0.205f, 0.155f, 1.000f};
-        UiColor toggleHover   = {0.145f, 0.260f, 0.195f, 1.000f};
+        UiColor button        = {0.068f, 0.074f, 0.078f, 0.960f};
+        UiColor buttonHover   = {0.093f, 0.103f, 0.107f, 1.000f};
+        UiColor buttonPressed = {0.120f, 0.135f, 0.138f, 1.000f};
+        UiColor buttonActive  = {0.095f, 0.165f, 0.160f, 1.000f};
+        UiColor toggleActive  = {0.105f, 0.185f, 0.145f, 1.000f};
+        UiColor toggleHover   = {0.130f, 0.230f, 0.180f, 1.000f};
         UiColor disabled      = {0.040f, 0.046f, 0.052f, 0.720f};
 
-        UiColor inputBackground    = {0.045f, 0.052f, 0.060f, 1.000f};
-        UiColor inputHover         = {0.060f, 0.070f, 0.080f, 1.000f};
-        UiColor sliderTrack        = {0.055f, 0.063f, 0.071f, 1.000f};
-        UiColor sectionHeader      = {0.032f, 0.038f, 0.044f, 1.000f};
-        UiColor sectionHeaderHover = {0.092f, 0.105f, 0.118f, 1.000f};
+        UiColor inputBackground    = {0.047f, 0.052f, 0.055f, 1.000f};
+        UiColor inputHover         = {0.064f, 0.071f, 0.074f, 1.000f};
+        UiColor sliderTrack        = {0.056f, 0.062f, 0.065f, 1.000f};
+        UiColor sectionHeader      = {0.034f, 0.038f, 0.040f, 1.000f};
+        UiColor sectionHeaderHover = {0.092f, 0.105f, 0.108f, 1.000f};
 
-        UiColor border     = {0.135f, 0.150f, 0.165f, 0.880f};
-        UiColor focus      = {0.260f, 0.560f, 0.780f, 1.000f};
-        UiColor selection  = {0.105f, 0.172f, 0.210f, 1.000f};
-        UiColor hover      = {0.092f, 0.105f, 0.118f, 1.000f};
-        UiColor accent     = {0.260f, 0.560f, 0.780f, 1.000f};
-        UiColor accentSoft = {0.180f, 0.330f, 0.430f, 1.000f};
+        UiColor border     = {0.140f, 0.148f, 0.150f, 0.880f};
+        UiColor focus      = {0.240f, 0.620f, 0.610f, 1.000f};
+        UiColor selection  = {0.100f, 0.170f, 0.165f, 1.000f};
+        UiColor hover      = {0.092f, 0.105f, 0.108f, 1.000f};
+        UiColor accent     = {0.240f, 0.620f, 0.610f, 1.000f};
+        UiColor accentSoft = {0.140f, 0.300f, 0.300f, 1.000f};
 
         UiColor text       = {0.880f, 0.920f, 0.950f, 1.000f};
         UiColor mutedText  = {0.580f, 0.650f, 0.700f, 1.000f};
         UiColor statusText = {0.720f, 0.780f, 0.830f, 1.000f};
 
-        UiColor info    = {0.300f, 0.680f, 0.860f, 1.000f};
+        UiColor info    = {0.300f, 0.660f, 0.760f, 1.000f};
         UiColor success = {0.200f, 0.720f, 0.360f, 1.000f};
         UiColor warning = {0.880f, 0.620f, 0.220f, 1.000f};
         UiColor error   = {0.880f, 0.220f, 0.240f, 1.000f};
