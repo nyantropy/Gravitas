@@ -394,6 +394,12 @@ namespace
             return "enum";
         case gts::particles::ParticleModuleParameterType::String:
             return "string";
+        case gts::particles::ParticleModuleParameterType::FloatCurve:
+            return "floatCurve";
+        case gts::particles::ParticleModuleParameterType::ColorGradient:
+            return "colorGradient";
+        case gts::particles::ParticleModuleParameterType::BurstTimeline:
+            return "burstTimeline";
         }
         return "float";
     }
@@ -425,13 +431,27 @@ namespace
             type = gts::particles::ParticleModuleParameterType::String;
             return true;
         }
+        if (value == "floatCurve")
+        {
+            type = gts::particles::ParticleModuleParameterType::FloatCurve;
+            return true;
+        }
+        if (value == "colorGradient")
+        {
+            type = gts::particles::ParticleModuleParameterType::ColorGradient;
+            return true;
+        }
+        if (value == "burstTimeline")
+        {
+            type = gts::particles::ParticleModuleParameterType::BurstTimeline;
+            return true;
+        }
         return false;
     }
 
-    bool readColorCurve(const std::string& source, const std::string& key, ParticleColorCurve& curve)
+    bool parseColorCurveAt(const std::string& source, size_t& pos, ParticleColorCurve& curve)
     {
-        size_t pos = findValue(source, key);
-        if (pos == std::string::npos || !consume(source, pos, '['))
+        if (!consume(source, pos, '['))
             return false;
 
         ParticleColorCurve parsed;
@@ -466,10 +486,15 @@ namespace
         return false;
     }
 
-    bool readFloatCurve(const std::string& source, const std::string& key, ParticleFloatCurve& curve)
+    bool readColorCurve(const std::string& source, const std::string& key, ParticleColorCurve& curve)
     {
         size_t pos = findValue(source, key);
-        if (pos == std::string::npos || !consume(source, pos, '['))
+        return pos != std::string::npos && parseColorCurveAt(source, pos, curve);
+    }
+
+    bool parseFloatCurveAt(const std::string& source, size_t& pos, ParticleFloatCurve& curve)
+    {
+        if (!consume(source, pos, '['))
             return false;
 
         ParticleFloatCurve parsed;
@@ -504,10 +529,15 @@ namespace
         return false;
     }
 
-    bool readBursts(const std::string& source, ParticleEmitterComponent& emitter)
+    bool readFloatCurve(const std::string& source, const std::string& key, ParticleFloatCurve& curve)
     {
-        size_t pos = findValue(source, "bursts");
-        if (pos == std::string::npos || !consume(source, pos, '['))
+        size_t pos = findValue(source, key);
+        return pos != std::string::npos && parseFloatCurveAt(source, pos, curve);
+    }
+
+    bool parseBurstsAt(const std::string& source, size_t& pos, std::vector<ParticleBurst>& bursts)
+    {
+        if (!consume(source, pos, '['))
             return false;
 
         std::vector<ParticleBurst> parsed;
@@ -517,7 +547,7 @@ namespace
             if (pos < source.size() && source[pos] == ']')
             {
                 ++pos;
-                emitter.bursts = std::move(parsed);
+                bursts = std::move(parsed);
                 return true;
             }
 
@@ -558,6 +588,12 @@ namespace
         }
 
         return false;
+    }
+
+    bool readBursts(const std::string& source, ParticleEmitterComponent& emitter)
+    {
+        size_t pos = findValue(source, "bursts");
+        return pos != std::string::npos && parseBurstsAt(source, pos, emitter.bursts);
     }
 
     void readEmitter(const std::string& source, ParticleEmitterComponent& emitter)
@@ -693,9 +729,7 @@ namespace
         out << ']';
     }
 
-    void writeModuleParameter(std::ostream& out,
-                              const gts::particles::ParticleModuleParameter& parameter,
-                              bool                                           last)
+    void writeModuleParameter(std::ostream& out, const gts::particles::ParticleModuleParameter& parameter, bool last)
     {
         out << "          {\"id\": \"" << escaped(parameter.id) << "\", \"type\": \""
             << moduleParameterTypeToString(parameter.type) << "\", \"value\": ";
@@ -714,13 +748,20 @@ namespace
         case gts::particles::ParticleModuleParameterType::String:
             out << '"' << escaped(parameter.stringValue) << '"';
             break;
+        case gts::particles::ParticleModuleParameterType::FloatCurve:
+            writeFloatCurve(out, parameter.floatCurveValue);
+            break;
+        case gts::particles::ParticleModuleParameterType::ColorGradient:
+            writeColorCurve(out, parameter.colorGradientValue);
+            break;
+        case gts::particles::ParticleModuleParameterType::BurstTimeline:
+            writeBursts(out, parameter.burstTimelineValue);
+            break;
         }
         out << "}" << (last ? "\n" : ",\n");
     }
 
-    void writeModuleObject(std::ostream& out,
-                           const gts::particles::ParticleModuleInstance& module,
-                           bool                                          last)
+    void writeModuleObject(std::ostream& out, const gts::particles::ParticleModuleInstance& module, bool last)
     {
         out << "        {\n";
         out << "          \"id\": \"" << escaped(module.stableId) << "\",\n";
@@ -775,9 +816,8 @@ namespace
         readFloat(previewObject, "orbitDistance", preview.orbitDistance);
     }
 
-    const gts::particles::ParticleModuleParameterDefinition* findParameterDefinition(
-        const gts::particles::ParticleModuleDefinition* definition,
-        const std::string&                              parameterId)
+    const gts::particles::ParticleModuleParameterDefinition*
+    findParameterDefinition(const gts::particles::ParticleModuleDefinition* definition, const std::string& parameterId)
     {
         if (definition == nullptr)
             return nullptr;
@@ -791,9 +831,9 @@ namespace
         return it == definition->parameters.end() ? nullptr : &*it;
     }
 
-    bool readModuleParameter(const std::string&                                     source,
-                             const gts::particles::ParticleModuleDefinition*        definition,
-                             gts::particles::ParticleModuleParameter&               parameter)
+    bool readModuleParameter(const std::string&                              source,
+                             const gts::particles::ParticleModuleDefinition* definition,
+                             gts::particles::ParticleModuleParameter&        parameter)
     {
         if (!readString(source, "id", parameter.id) || parameter.id.empty())
             return false;
@@ -830,6 +870,12 @@ namespace
             return parseBoolAt(source, valuePos, parameter.boolValue);
         case gts::particles::ParticleModuleParameterType::String:
             return parseStringAt(source, valuePos, parameter.stringValue);
+        case gts::particles::ParticleModuleParameterType::FloatCurve:
+            return parseFloatCurveAt(source, valuePos, parameter.floatCurveValue);
+        case gts::particles::ParticleModuleParameterType::ColorGradient:
+            return parseColorCurveAt(source, valuePos, parameter.colorGradientValue);
+        case gts::particles::ParticleModuleParameterType::BurstTimeline:
+            return parseBurstsAt(source, valuePos, parameter.burstTimelineValue);
         }
         return false;
     }

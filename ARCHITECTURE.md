@@ -565,8 +565,12 @@ reference rather than only a flat emitter preset. `ParticleEffectAsset` owns
 metadata, preview settings, and one or more named emitters. Each emitter now
 owns authoring modules in addition to its compatibility runtime descriptor.
 Modules have stable instance IDs, module type IDs, display metadata,
-schema/version data, and typed parameters. The current runtime compatibility
-path compiles the selected emitter's modules back into `ParticleEmitterComponent`,
+schema/version data, and typed parameters. Parameter values include scalars,
+integer values, booleans, enums, asset-path strings, float curves, color
+gradients, and burst timelines. String parameters may declare a picker role such
+as texture or mesh so the editor can discover compatible files without
+hardcoding renderer module behavior. The current runtime compatibility path
+compiles the selected emitter's modules back into `ParticleEmitterComponent`,
 copies that descriptor into the ECS component, and then executes the existing
 single-emitter simulation path. This preserves existing game behavior while
 moving authoring ownership toward asset modules.
@@ -614,7 +618,9 @@ and `reloadFromEffect` is true. Existing flat JSON emitter presets are migrated
 in memory into one-emitter `ParticleEffectAsset` values, and missing module
 authoring data is generated from the legacy descriptor. Saving through the asset
 IO path writes the module-based effect-asset format plus compatibility
-descriptor fields.
+descriptor fields. Older scalar module data for alpha peaks, size endpoints,
+and the first burst is migrated into richer curve, gradient, and timeline module
+values.
 
 The legacy particle inspector still edits a selected live ECS emitter descriptor
 for low-level debugging. The dedicated `ParticleEffectEditorPanel` is the
@@ -627,9 +633,13 @@ names, captures keyboard input while a field is active so the tool camera does
 not move during typing, stores preview background plus camera orbit/reset
 settings on the asset, and presents emitter modules as a dynamic stack.
 Parameter rows are built from the module registry rather than hardcoded per
-module type. This panel is a retained-UI module/stack bridge, not the final graph
-editor. New particle authoring features should extend `ParticleEffectAsset` and
-the module registry, keep editor state separate from
+module type. Numeric min/max pairs are collapsed into range controls; curve,
+gradient, and burst timeline parameters expose compact key editing; texture and
+mesh string parameters cycle through discovered resources; and editor-local
+undo/redo, emitter copy/paste, module copy/paste, and multi-emitter batch
+selection are handled inside the panel. This panel is a retained-UI module/stack
+bridge, not the final graph editor. New particle authoring features should
+extend `ParticleEffectAsset` and the module registry, keep editor state separate from
 `ParticleEmitterRuntimeComponent`, and keep runtime simulation consuming
 compiled or compatibility emitter data rather than editor UI structures.
 

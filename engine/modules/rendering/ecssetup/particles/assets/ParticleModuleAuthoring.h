@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "GlmConfig.h"
@@ -19,7 +20,17 @@ namespace gts::particles
         UInt,
         Bool,
         Enum,
-        String
+        String,
+        FloatCurve,
+        ColorGradient,
+        BurstTimeline
+    };
+
+    enum class ParticleModuleAssetPicker
+    {
+        None,
+        Texture,
+        Mesh
     };
 
     struct ParticleModuleEnumOption
@@ -30,54 +41,58 @@ namespace gts::particles
 
     struct ParticleModuleParameterDefinition
     {
-        std::string                            id;
-        std::string                            label;
-        ParticleModuleParameterType            type = ParticleModuleParameterType::Float;
-        float                                  minValue = 0.0f;
-        float                                  maxValue = 1.0f;
-        float                                  defaultFloat = 0.0f;
-        uint32_t                               defaultUInt = 0;
-        bool                                   defaultBool = false;
-        std::string                            defaultString;
-        bool                                   wholeNumber = false;
-        std::vector<ParticleModuleEnumOption>  enumOptions;
+        std::string                           id;
+        std::string                           label;
+        ParticleModuleParameterType           type         = ParticleModuleParameterType::Float;
+        float                                 minValue     = 0.0f;
+        float                                 maxValue     = 1.0f;
+        float                                 defaultFloat = 0.0f;
+        uint32_t                              defaultUInt  = 0;
+        bool                                  defaultBool  = false;
+        std::string                           defaultString;
+        ParticleFloatCurve                    defaultFloatCurve;
+        ParticleColorCurve                    defaultColorGradient;
+        std::vector<ParticleBurst>            defaultBursts;
+        bool                                  wholeNumber = false;
+        ParticleModuleAssetPicker             assetPicker = ParticleModuleAssetPicker::None;
+        std::vector<ParticleModuleEnumOption> enumOptions;
     };
 
     struct ParticleModuleDefinition
     {
-        std::string                                      typeId;
-        std::string                                      category;
-        std::string                                      displayName;
-        std::string                                      description;
-        uint32_t                                         version = CurrentParticleModuleSchemaVersion;
-        std::vector<ParticleModuleParameterDefinition>   parameters;
+        std::string                                    typeId;
+        std::string                                    category;
+        std::string                                    displayName;
+        std::string                                    description;
+        uint32_t                                       version = CurrentParticleModuleSchemaVersion;
+        std::vector<ParticleModuleParameterDefinition> parameters;
     };
 
     struct ParticleModuleParameter
     {
         std::string                 id;
-        ParticleModuleParameterType type = ParticleModuleParameterType::Float;
+        ParticleModuleParameterType type       = ParticleModuleParameterType::Float;
         float                       floatValue = 0.0f;
-        uint32_t                    uintValue = 0;
-        bool                        boolValue = false;
+        uint32_t                    uintValue  = 0;
+        bool                        boolValue  = false;
         std::string                 stringValue;
+        ParticleFloatCurve          floatCurveValue;
+        ParticleColorCurve          colorGradientValue;
+        std::vector<ParticleBurst>  burstTimelineValue;
     };
 
     struct ParticleModuleInstance
     {
-        std::string                           stableId;
-        std::string                           typeId;
-        std::string                           displayName;
-        uint32_t                              version = CurrentParticleModuleSchemaVersion;
-        bool                                  enabled = true;
-        std::vector<ParticleModuleParameter>  parameters;
+        std::string                          stableId;
+        std::string                          typeId;
+        std::string                          displayName;
+        uint32_t                             version = CurrentParticleModuleSchemaVersion;
+        bool                                 enabled = true;
+        std::vector<ParticleModuleParameter> parameters;
     };
 
-    inline ParticleModuleParameterDefinition floatParam(const std::string& id,
-                                                        const std::string& label,
-                                                        float              minValue,
-                                                        float              maxValue,
-                                                        float              defaultValue)
+    inline ParticleModuleParameterDefinition
+    floatParam(const std::string& id, const std::string& label, float minValue, float maxValue, float defaultValue)
     {
         ParticleModuleParameterDefinition param;
         param.id           = id;
@@ -89,26 +104,22 @@ namespace gts::particles
         return param;
     }
 
-    inline ParticleModuleParameterDefinition uintParam(const std::string& id,
-                                                       const std::string& label,
-                                                       uint32_t           minValue,
-                                                       uint32_t           maxValue,
-                                                       uint32_t           defaultValue)
+    inline ParticleModuleParameterDefinition uintParam(
+        const std::string& id, const std::string& label, uint32_t minValue, uint32_t maxValue, uint32_t defaultValue)
     {
         ParticleModuleParameterDefinition param;
-        param.id           = id;
-        param.label        = label;
-        param.type         = ParticleModuleParameterType::UInt;
-        param.minValue     = static_cast<float>(minValue);
-        param.maxValue     = static_cast<float>(maxValue);
-        param.defaultUInt  = defaultValue;
-        param.wholeNumber  = true;
+        param.id          = id;
+        param.label       = label;
+        param.type        = ParticleModuleParameterType::UInt;
+        param.minValue    = static_cast<float>(minValue);
+        param.maxValue    = static_cast<float>(maxValue);
+        param.defaultUInt = defaultValue;
+        param.wholeNumber = true;
         return param;
     }
 
-    inline ParticleModuleParameterDefinition boolParam(const std::string& id,
-                                                       const std::string& label,
-                                                       bool               defaultValue)
+    inline ParticleModuleParameterDefinition
+    boolParam(const std::string& id, const std::string& label, bool defaultValue)
     {
         ParticleModuleParameterDefinition param;
         param.id          = id;
@@ -118,8 +129,8 @@ namespace gts::particles
         return param;
     }
 
-    inline ParticleModuleParameterDefinition enumParam(const std::string&                            id,
-                                                       const std::string&                            label,
+    inline ParticleModuleParameterDefinition enumParam(const std::string&                           id,
+                                                       const std::string&                           label,
                                                        uint32_t                                     defaultValue,
                                                        const std::vector<ParticleModuleEnumOption>& options)
     {
@@ -133,15 +144,60 @@ namespace gts::particles
         return param;
     }
 
-    inline ParticleModuleParameterDefinition stringParam(const std::string& id,
-                                                         const std::string& label,
-                                                         const std::string& defaultValue = {})
+    inline ParticleModuleParameterDefinition
+    stringParam(const std::string&        id,
+                const std::string&        label,
+                const std::string&        defaultValue = {},
+                ParticleModuleAssetPicker assetPicker  = ParticleModuleAssetPicker::None)
     {
         ParticleModuleParameterDefinition param;
         param.id            = id;
         param.label         = label;
         param.type          = ParticleModuleParameterType::String;
         param.defaultString = defaultValue;
+        param.assetPicker   = assetPicker;
+        return param;
+    }
+
+    inline ParticleModuleParameterDefinition floatCurveParam(const std::string&        id,
+                                                             const std::string&        label,
+                                                             float                     minValue,
+                                                             float                     maxValue,
+                                                             const ParticleFloatCurve& defaultValue)
+    {
+        ParticleModuleParameterDefinition param;
+        param.id                = id;
+        param.label             = label;
+        param.type              = ParticleModuleParameterType::FloatCurve;
+        param.minValue          = minValue;
+        param.maxValue          = maxValue;
+        param.defaultFloatCurve = defaultValue;
+        return param;
+    }
+
+    inline ParticleModuleParameterDefinition
+    colorGradientParam(const std::string& id, const std::string& label, const ParticleColorCurve& defaultValue)
+    {
+        ParticleModuleParameterDefinition param;
+        param.id                   = id;
+        param.label                = label;
+        param.type                 = ParticleModuleParameterType::ColorGradient;
+        param.minValue             = 0.0f;
+        param.maxValue             = 1.0f;
+        param.defaultColorGradient = defaultValue;
+        return param;
+    }
+
+    inline ParticleModuleParameterDefinition
+    burstTimelineParam(const std::string& id, const std::string& label, const std::vector<ParticleBurst>& defaultValue)
+    {
+        ParticleModuleParameterDefinition param;
+        param.id            = id;
+        param.label         = label;
+        param.type          = ParticleModuleParameterType::BurstTimeline;
+        param.minValue      = 0.0f;
+        param.maxValue      = 12.0f;
+        param.defaultBursts = defaultValue;
         return param;
     }
 
@@ -261,16 +317,22 @@ namespace gts::particles
               floatParam("baseTintG", "TINT G", 0.0f, 1.0f, 1.0f),
               floatParam("baseTintB", "TINT B", 0.0f, 1.0f, 1.0f),
               floatParam("baseTintA", "TINT A", 0.0f, 1.0f, 1.0f),
+              colorGradientParam("colorOverLifetime",
+                                 "GRADIENT",
+                                 {{0.0f, {1.0f, 1.0f, 1.0f, 1.0f}}, {1.0f, {1.0f, 1.0f, 1.0f, 1.0f}}}),
+              floatCurveParam("alphaOverLifetime",
+                              "ALPHA CURVE",
+                              0.0f,
+                              1.0f,
+                              {{0.0f, 0.0f}, {0.2f, 1.0f}, {0.8f, 1.0f}, {1.0f, 0.0f}}),
               floatParam("hueVariation", "HUE VAR", 0.0f, 1.0f, 0.0f),
-              floatParam("valueVariation", "VAL VAR", 0.0f, 1.0f, 0.0f),
-              floatParam("alphaPeak", "ALPHA", 0.0f, 1.0f, 1.0f)}},
+              floatParam("valueVariation", "VAL VAR", 0.0f, 1.0f, 0.0f)}},
             {"size.basic",
              "Size",
              "Size",
              "Size curve endpoints and billboard aspect ratio.",
              CurrentParticleModuleSchemaVersion,
-             {floatParam("sizeStart", "SIZE IN", 0.001f, 2.0f, 0.35f),
-              floatParam("sizeEnd", "SIZE OUT", 0.001f, 2.0f, 0.75f),
+             {floatCurveParam("sizeOverLifetime", "SIZE CURVE", 0.001f, 2.0f, {{0.0f, 0.35f}, {1.0f, 0.75f}}),
               floatParam("sizeRandomness", "SIZE RNG", 0.0f, 1.0f, 0.15f),
               floatParam("aspectRatioMin", "ASPECT MIN", 0.1f, 6.0f, 1.0f),
               floatParam("aspectRatioMax", "ASPECT MAX", 0.1f, 6.0f, 1.0f)}},
@@ -293,14 +355,15 @@ namespace gts::particles
              "Renderer",
              "Particle primitive, blend, sprite mask, and render material paths.",
              CurrentParticleModuleSchemaVersion,
-             {enumParam("primitive", "PRIMITIVE", static_cast<uint32_t>(ParticlePrimitive::Billboard), primitiveOptions()),
+             {enumParam(
+                  "primitive", "PRIMITIVE", static_cast<uint32_t>(ParticlePrimitive::Billboard), primitiveOptions()),
               enumParam("blend", "BLEND", static_cast<uint32_t>(ParticleBlendMode::Alpha), blendOptions()),
               enumParam("spriteShape",
                         "SPRITE",
                         static_cast<uint32_t>(ParticleSpriteShape::SoftCircle),
                         spriteShapeOptions()),
-              stringParam("texturePath", "TEXTURE"),
-              stringParam("meshPath", "MESH"),
+              stringParam("texturePath", "TEXTURE", {}, ParticleModuleAssetPicker::Texture),
+              stringParam("meshPath", "MESH", {}, ParticleModuleAssetPicker::Mesh),
               floatParam("spriteEdgeSoftness", "EDGE", 0.0f, 1.0f, 1.0f),
               floatParam("softness", "SOFT", 0.0f, 240.0f, 80.0f),
               floatParam("meshScaleX", "MESH X", 0.01f, 6.0f, 1.0f),
@@ -311,12 +374,7 @@ namespace gts::particles
              "Bursts",
              "First burst authoring bridge for the current runtime burst list.",
              CurrentParticleModuleSchemaVersion,
-             {boolParam("burstEnabled", "BURST ON", false),
-              floatParam("burstTime", "TIME", 0.0f, 12.0f, 0.0f),
-              uintParam("burstCountMin", "COUNT MIN", 0u, 512u, 0u),
-              uintParam("burstCountMax", "COUNT MAX", 0u, 512u, 0u),
-              floatParam("repeatInterval", "REPEAT", 0.0f, 12.0f, 0.0f),
-              uintParam("repeatCount", "REPEATS", 0u, 64u, 0u)}},
+             {burstTimelineParam("bursts", "TIMELINE", {})}},
         };
         return definitions;
     }
@@ -324,24 +382,27 @@ namespace gts::particles
     inline const ParticleModuleDefinition* findParticleModuleDefinition(const std::string& typeId)
     {
         const auto& definitions = particleModuleDefinitions();
-        const auto  it = std::find_if(definitions.begin(),
-                                     definitions.end(),
-                                     [&](const ParticleModuleDefinition& definition)
-                                     {
+        const auto  it          = std::find_if(definitions.begin(),
+                                               definitions.end(),
+                                               [&](const ParticleModuleDefinition& definition)
+                                               {
                                          return definition.typeId == typeId;
-                                     });
+                                               });
         return it == definitions.end() ? nullptr : &*it;
     }
 
     inline ParticleModuleParameter makeDefaultParameter(const ParticleModuleParameterDefinition& definition)
     {
         ParticleModuleParameter parameter;
-        parameter.id          = definition.id;
-        parameter.type        = definition.type;
-        parameter.floatValue  = definition.defaultFloat;
-        parameter.uintValue   = definition.defaultUInt;
-        parameter.boolValue   = definition.defaultBool;
-        parameter.stringValue = definition.defaultString;
+        parameter.id                 = definition.id;
+        parameter.type               = definition.type;
+        parameter.floatValue         = definition.defaultFloat;
+        parameter.uintValue          = definition.defaultUInt;
+        parameter.boolValue          = definition.defaultBool;
+        parameter.stringValue        = definition.defaultString;
+        parameter.floatCurveValue    = definition.defaultFloatCurve;
+        parameter.colorGradientValue = definition.defaultColorGradient;
+        parameter.burstTimelineValue = definition.defaultBursts;
         return parameter;
     }
 
@@ -405,17 +466,35 @@ namespace gts::particles
             parameter->stringValue = value;
     }
 
-    inline float floatParameter(const ParticleModuleInstance& module,
-                                const std::string&           id,
-                                float                        fallback = 0.0f)
+    inline void
+    setFloatCurveParameter(ParticleModuleInstance& module, const std::string& id, const ParticleFloatCurve& value)
+    {
+        if (ParticleModuleParameter* parameter = findParameter(module, id))
+            parameter->floatCurveValue = value;
+    }
+
+    inline void
+    setColorGradientParameter(ParticleModuleInstance& module, const std::string& id, const ParticleColorCurve& value)
+    {
+        if (ParticleModuleParameter* parameter = findParameter(module, id))
+            parameter->colorGradientValue = value;
+    }
+
+    inline void setBurstTimelineParameter(ParticleModuleInstance&           module,
+                                          const std::string&                id,
+                                          const std::vector<ParticleBurst>& value)
+    {
+        if (ParticleModuleParameter* parameter = findParameter(module, id))
+            parameter->burstTimelineValue = value;
+    }
+
+    inline float floatParameter(const ParticleModuleInstance& module, const std::string& id, float fallback = 0.0f)
     {
         const ParticleModuleParameter* parameter = findParameter(module, id);
         return parameter == nullptr ? fallback : parameter->floatValue;
     }
 
-    inline uint32_t uintParameter(const ParticleModuleInstance& module,
-                                  const std::string&           id,
-                                  uint32_t                     fallback = 0u)
+    inline uint32_t uintParameter(const ParticleModuleInstance& module, const std::string& id, uint32_t fallback = 0u)
     {
         const ParticleModuleParameter* parameter = findParameter(module, id);
         return parameter == nullptr ? fallback : parameter->uintValue;
@@ -427,12 +506,35 @@ namespace gts::particles
         return parameter == nullptr ? fallback : parameter->boolValue;
     }
 
-    inline std::string stringParameter(const ParticleModuleInstance& module,
-                                       const std::string&           id,
-                                       const std::string&           fallback = {})
+    inline std::string
+    stringParameter(const ParticleModuleInstance& module, const std::string& id, const std::string& fallback = {})
     {
         const ParticleModuleParameter* parameter = findParameter(module, id);
         return parameter == nullptr ? fallback : parameter->stringValue;
+    }
+
+    inline ParticleFloatCurve floatCurveParameter(const ParticleModuleInstance& module,
+                                                  const std::string&            id,
+                                                  const ParticleFloatCurve&     fallback = {})
+    {
+        const ParticleModuleParameter* parameter = findParameter(module, id);
+        return parameter == nullptr ? fallback : parameter->floatCurveValue;
+    }
+
+    inline ParticleColorCurve colorGradientParameter(const ParticleModuleInstance& module,
+                                                     const std::string&            id,
+                                                     const ParticleColorCurve&     fallback = {})
+    {
+        const ParticleModuleParameter* parameter = findParameter(module, id);
+        return parameter == nullptr ? fallback : parameter->colorGradientValue;
+    }
+
+    inline std::vector<ParticleBurst> burstTimelineParameter(const ParticleModuleInstance&     module,
+                                                             const std::string&                id,
+                                                             const std::vector<ParticleBurst>& fallback = {})
+    {
+        const ParticleModuleParameter* parameter = findParameter(module, id);
+        return parameter == nullptr ? fallback : parameter->burstTimelineValue;
     }
 
     inline ParticleModuleInstance moduleFromDescriptor(const ParticleModuleDefinition& definition,
@@ -498,21 +600,14 @@ namespace gts::particles
             setFloatParameter(module, "baseTintG", emitter.baseTint.g);
             setFloatParameter(module, "baseTintB", emitter.baseTint.b);
             setFloatParameter(module, "baseTintA", emitter.baseTint.a);
+            setColorGradientParameter(module, "colorOverLifetime", emitter.colorOverLifetime);
+            setFloatCurveParameter(module, "alphaOverLifetime", emitter.alphaOverLifetime);
             setFloatParameter(module, "hueVariation", emitter.hueVariation);
             setFloatParameter(module, "valueVariation", emitter.valueVariation);
-            float alphaPeak = 0.0f;
-            for (const ParticleFloatKey& key : emitter.alphaOverLifetime)
-                alphaPeak = std::max(alphaPeak, key.value);
-            setFloatParameter(module, "alphaPeak", alphaPeak);
         }
         else if (definition.typeId == "size.basic")
         {
-            setFloatParameter(module,
-                              "sizeStart",
-                              emitter.sizeOverLifetime.empty() ? 0.35f : emitter.sizeOverLifetime.front().value);
-            setFloatParameter(module,
-                              "sizeEnd",
-                              emitter.sizeOverLifetime.empty() ? 0.75f : emitter.sizeOverLifetime.back().value);
+            setFloatCurveParameter(module, "sizeOverLifetime", emitter.sizeOverLifetime);
             setFloatParameter(module, "sizeRandomness", emitter.sizeRandomness);
             setFloatParameter(module, "aspectRatioMin", emitter.aspectRatioMin);
             setFloatParameter(module, "aspectRatioMax", emitter.aspectRatioMax);
@@ -544,24 +639,14 @@ namespace gts::particles
         }
         else if (definition.typeId == "bursts.basic")
         {
-            const bool hasBurst = !emitter.bursts.empty();
-            setBoolParameter(module, "burstEnabled", hasBurst);
-            if (hasBurst)
-            {
-                const ParticleBurst& burst = emitter.bursts.front();
-                setFloatParameter(module, "burstTime", burst.time);
-                setUIntParameter(module, "burstCountMin", burst.countMin);
-                setUIntParameter(module, "burstCountMax", burst.countMax);
-                setFloatParameter(module, "repeatInterval", burst.repeatInterval);
-                setUIntParameter(module, "repeatCount", burst.repeatCount);
-            }
+            setBurstTimelineParameter(module, "bursts", emitter.bursts);
         }
 
         return module;
     }
 
-    inline std::vector<ParticleModuleInstance> buildModulesFromEmitterDescriptor(
-        const ParticleEmitterComponent& emitter)
+    inline std::vector<ParticleModuleInstance>
+    buildModulesFromEmitterDescriptor(const ParticleEmitterComponent& emitter)
     {
         std::vector<ParticleModuleInstance> modules;
         const auto&                         definitions = particleModuleDefinitions();
@@ -607,7 +692,45 @@ namespace gts::particles
             ParticleModuleParameter* parameter = findParameter(module, parameterDefinition.id);
             if (parameter == nullptr)
             {
-                module.parameters.push_back(makeDefaultParameter(parameterDefinition));
+                ParticleModuleParameter migrated = makeDefaultParameter(parameterDefinition);
+                if (module.typeId == "color.basic" && parameterDefinition.id == "colorOverLifetime")
+                {
+                    migrated.colorGradientValue = {{0.0f,
+                                                    {floatParameter(module, "baseTintR", 1.0f),
+                                                     floatParameter(module, "baseTintG", 1.0f),
+                                                     floatParameter(module, "baseTintB", 1.0f),
+                                                     floatParameter(module, "baseTintA", 1.0f)}},
+                                                   {1.0f,
+                                                    {floatParameter(module, "baseTintR", 1.0f),
+                                                     floatParameter(module, "baseTintG", 1.0f),
+                                                     floatParameter(module, "baseTintB", 1.0f),
+                                                     floatParameter(module, "baseTintA", 1.0f)}}};
+                }
+                else if (module.typeId == "color.basic" && parameterDefinition.id == "alphaOverLifetime")
+                {
+                    const float alphaPeak    = std::clamp(floatParameter(module, "alphaPeak", 1.0f), 0.0f, 1.0f);
+                    migrated.floatCurveValue = {{0.0f, 0.0f}, {0.2f, alphaPeak}, {0.8f, alphaPeak}, {1.0f, 0.0f}};
+                }
+                else if (module.typeId == "size.basic" && parameterDefinition.id == "sizeOverLifetime")
+                {
+                    migrated.floatCurveValue = {{0.0f, std::max(0.001f, floatParameter(module, "sizeStart", 0.35f))},
+                                                {1.0f, std::max(0.001f, floatParameter(module, "sizeEnd", 0.75f))}};
+                }
+                else if (module.typeId == "bursts.basic" && parameterDefinition.id == "bursts")
+                {
+                    if (boolParameter(module, "burstEnabled", false))
+                    {
+                        ParticleBurst burst;
+                        burst.time     = std::max(0.0f, floatParameter(module, "burstTime", 0.0f));
+                        burst.countMin = uintParameter(module, "burstCountMin", 0u);
+                        burst.countMax =
+                            std::max(burst.countMin, uintParameter(module, "burstCountMax", burst.countMin));
+                        burst.repeatInterval = std::max(0.0f, floatParameter(module, "repeatInterval", 0.0f));
+                        burst.repeatCount    = uintParameter(module, "repeatCount", 0u);
+                        migrated.burstTimelineValue.push_back(burst);
+                    }
+                }
+                module.parameters.push_back(std::move(migrated));
                 continue;
             }
 
@@ -651,18 +774,19 @@ namespace gts::particles
                     std::min<uint32_t>(uintParameter(module, "shape", static_cast<uint32_t>(emitter.shape)),
                                        static_cast<uint32_t>(ParticleEmitterShape::Ring)));
                 emitter.sphereRadius = std::max(0.001f, floatParameter(module, "sphereRadius", emitter.sphereRadius));
-                emitter.boxExtents = {
+                emitter.boxExtents   = {
                     std::max(0.001f, floatParameter(module, "boxX", emitter.boxExtents.x)),
                     std::max(0.001f, floatParameter(module, "boxY", emitter.boxExtents.y)),
                     std::max(0.001f, floatParameter(module, "boxZ", emitter.boxExtents.z)),
                 };
-                emitter.discRadius       = std::max(0.001f, floatParameter(module, "discRadius", emitter.discRadius));
-                emitter.ringInnerRadius  = std::max(0.0f, floatParameter(module, "ringInnerRadius", emitter.ringInnerRadius));
-                emitter.ringOuterRadius  = std::max(emitter.ringInnerRadius,
+                emitter.discRadius = std::max(0.001f, floatParameter(module, "discRadius", emitter.discRadius));
+                emitter.ringInnerRadius =
+                    std::max(0.0f, floatParameter(module, "ringInnerRadius", emitter.ringInnerRadius));
+                emitter.ringOuterRadius = std::max(emitter.ringInnerRadius,
                                                    floatParameter(module, "ringOuterRadius", emitter.ringOuterRadius));
-                emitter.cylinderRadius   =
+                emitter.cylinderRadius =
                     std::max(0.001f, floatParameter(module, "cylinderRadius", emitter.cylinderRadius));
-                emitter.cylinderHeight   =
+                emitter.cylinderHeight =
                     std::max(0.001f, floatParameter(module, "cylinderHeight", emitter.cylinderHeight));
             }
             else if (module.typeId == "velocity.basic")
@@ -670,12 +794,11 @@ namespace gts::particles
                 emitter.initialVelocity = {floatParameter(module, "initialVelocityX", emitter.initialVelocity.x),
                                            floatParameter(module, "initialVelocityY", emitter.initialVelocity.y),
                                            floatParameter(module, "initialVelocityZ", emitter.initialVelocity.z)};
-                emitter.velocitySpread    =
+                emitter.velocitySpread =
                     std::max(0.0f, floatParameter(module, "velocitySpread", emitter.velocitySpread));
                 emitter.radialVelocityMin = floatParameter(module, "radialVelocityMin", emitter.radialVelocityMin);
-                emitter.radialVelocityMax =
-                    std::max(emitter.radialVelocityMin,
-                             floatParameter(module, "radialVelocityMax", emitter.radialVelocityMax));
+                emitter.radialVelocityMax = std::max(
+                    emitter.radialVelocityMin, floatParameter(module, "radialVelocityMax", emitter.radialVelocityMax));
                 emitter.tangentVelocity = floatParameter(module, "tangentVelocity", emitter.tangentVelocity);
                 emitter.drag            = std::max(0.0f, floatParameter(module, "drag", emitter.drag));
             }
@@ -684,14 +807,14 @@ namespace gts::particles
                 emitter.forces.acceleration = {floatParameter(module, "accelerationX", emitter.forces.acceleration.x),
                                                floatParameter(module, "accelerationY", emitter.forces.acceleration.y),
                                                floatParameter(module, "accelerationZ", emitter.forces.acceleration.z)};
-                emitter.forces.wind = {floatParameter(module, "windX", emitter.forces.wind.x),
-                                       floatParameter(module, "windY", emitter.forces.wind.y),
-                                       floatParameter(module, "windZ", emitter.forces.wind.z)};
-                emitter.forces.vortex        = floatParameter(module, "vortex", emitter.forces.vortex);
-                emitter.forces.radial        = floatParameter(module, "radial", emitter.forces.radial);
+                emitter.forces.wind         = {floatParameter(module, "windX", emitter.forces.wind.x),
+                                               floatParameter(module, "windY", emitter.forces.wind.y),
+                                               floatParameter(module, "windZ", emitter.forces.wind.z)};
+                emitter.forces.vortex       = floatParameter(module, "vortex", emitter.forces.vortex);
+                emitter.forces.radial       = floatParameter(module, "radial", emitter.forces.radial);
                 emitter.forces.noiseStrength =
                     std::max(0.0f, floatParameter(module, "noiseStrength", emitter.forces.noiseStrength));
-                emitter.forces.noiseScale    =
+                emitter.forces.noiseScale =
                     std::max(0.001f, floatParameter(module, "noiseScale", emitter.forces.noiseScale));
             }
             else if (module.typeId == "color.basic")
@@ -700,46 +823,71 @@ namespace gts::particles
                                     std::clamp(floatParameter(module, "baseTintG", emitter.baseTint.g), 0.0f, 1.0f),
                                     std::clamp(floatParameter(module, "baseTintB", emitter.baseTint.b), 0.0f, 1.0f),
                                     std::clamp(floatParameter(module, "baseTintA", emitter.baseTint.a), 0.0f, 1.0f)};
-                emitter.hueVariation   =
-                    std::max(0.0f, floatParameter(module, "hueVariation", emitter.hueVariation));
+                ParticleColorCurve colorCurve =
+                    colorGradientParameter(module, "colorOverLifetime", emitter.colorOverLifetime);
+                if (colorCurve.empty())
+                    colorCurve = {{0.0f, emitter.baseTint}, {1.0f, emitter.baseTint}};
+                std::sort(colorCurve.begin(),
+                          colorCurve.end(),
+                          [](const ParticleColorKey& lhs, const ParticleColorKey& rhs)
+                          {
+                              return lhs.t < rhs.t;
+                          });
+                emitter.colorOverLifetime = std::move(colorCurve);
+
+                emitter.hueVariation = std::max(0.0f, floatParameter(module, "hueVariation", emitter.hueVariation));
                 emitter.valueVariation =
                     std::max(0.0f, floatParameter(module, "valueVariation", emitter.valueVariation));
 
-                ensureAlphaCurve(emitter);
-                const float alphaPeak = std::clamp(floatParameter(module, "alphaPeak", 1.0f), 0.0f, 1.0f);
-                for (ParticleFloatKey& key : emitter.alphaOverLifetime)
-                {
-                    if (key.t > 0.0f && key.t < 1.0f)
-                        key.value = alphaPeak;
-                }
+                ParticleFloatCurve alphaCurve =
+                    floatCurveParameter(module, "alphaOverLifetime", emitter.alphaOverLifetime);
+                if (alphaCurve.empty())
+                    alphaCurve = {{0.0f, 0.0f}, {0.2f, 1.0f}, {0.8f, 1.0f}, {1.0f, 0.0f}};
+                for (ParticleFloatKey& key : alphaCurve)
+                    key.value = std::clamp(key.value, 0.0f, 1.0f);
+                std::sort(alphaCurve.begin(),
+                          alphaCurve.end(),
+                          [](const ParticleFloatKey& lhs, const ParticleFloatKey& rhs)
+                          {
+                              return lhs.t < rhs.t;
+                          });
+                emitter.alphaOverLifetime = std::move(alphaCurve);
             }
             else if (module.typeId == "size.basic")
             {
-                ensureSizeCurve(emitter);
-                emitter.sizeOverLifetime.front().value =
-                    std::max(0.001f, floatParameter(module, "sizeStart", emitter.sizeOverLifetime.front().value));
-                emitter.sizeOverLifetime.back().value =
-                    std::max(0.001f, floatParameter(module, "sizeEnd", emitter.sizeOverLifetime.back().value));
+                ParticleFloatCurve sizeCurve =
+                    floatCurveParameter(module, "sizeOverLifetime", emitter.sizeOverLifetime);
+                if (sizeCurve.empty())
+                    sizeCurve = {{0.0f, 0.35f}, {1.0f, 0.75f}};
+                for (ParticleFloatKey& key : sizeCurve)
+                    key.value = std::max(0.001f, key.value);
+                std::sort(sizeCurve.begin(),
+                          sizeCurve.end(),
+                          [](const ParticleFloatKey& lhs, const ParticleFloatKey& rhs)
+                          {
+                              return lhs.t < rhs.t;
+                          });
+                emitter.sizeOverLifetime = std::move(sizeCurve);
                 emitter.sizeRandomness =
                     std::max(0.0f, floatParameter(module, "sizeRandomness", emitter.sizeRandomness));
                 emitter.aspectRatioMin =
                     std::max(0.01f, floatParameter(module, "aspectRatioMin", emitter.aspectRatioMin));
                 emitter.aspectRatioMax =
-                    std::max(emitter.aspectRatioMin,
-                             floatParameter(module, "aspectRatioMax", emitter.aspectRatioMax));
+                    std::max(emitter.aspectRatioMin, floatParameter(module, "aspectRatioMax", emitter.aspectRatioMax));
             }
             else if (module.typeId == "rotation.basic")
             {
-                emitter.spinMin = floatParameter(module, "spinMin", emitter.spinMin);
-                emitter.spinMax = floatParameter(module, "spinMax", emitter.spinMax);
-                emitter.meshAngularVelocityMin = {floatParameter(module, "meshSpinXMin", emitter.meshAngularVelocityMin.x),
-                                                  floatParameter(module, "meshSpinYMin", emitter.meshAngularVelocityMin.y),
-                                                  floatParameter(module, "meshSpinZMin", emitter.meshAngularVelocityMin.z)};
-                emitter.meshAngularVelocityMax = {floatParameter(module, "meshSpinXMax", emitter.meshAngularVelocityMax.x),
-                                                  floatParameter(module, "meshSpinYMax", emitter.meshAngularVelocityMax.y),
-                                                  floatParameter(module, "meshSpinZMax", emitter.meshAngularVelocityMax.z)};
-                emitter.randomMeshRotation =
-                    boolParameter(module, "randomMeshRotation", emitter.randomMeshRotation);
+                emitter.spinMin                = floatParameter(module, "spinMin", emitter.spinMin);
+                emitter.spinMax                = floatParameter(module, "spinMax", emitter.spinMax);
+                emitter.meshAngularVelocityMin = {
+                    floatParameter(module, "meshSpinXMin", emitter.meshAngularVelocityMin.x),
+                    floatParameter(module, "meshSpinYMin", emitter.meshAngularVelocityMin.y),
+                    floatParameter(module, "meshSpinZMin", emitter.meshAngularVelocityMin.z)};
+                emitter.meshAngularVelocityMax = {
+                    floatParameter(module, "meshSpinXMax", emitter.meshAngularVelocityMax.x),
+                    floatParameter(module, "meshSpinYMax", emitter.meshAngularVelocityMax.y),
+                    floatParameter(module, "meshSpinZMax", emitter.meshAngularVelocityMax.z)};
+                emitter.randomMeshRotation = boolParameter(module, "randomMeshRotation", emitter.randomMeshRotation);
             }
             else if (module.typeId == "renderer.basic")
             {
@@ -752,38 +900,37 @@ namespace gts::particles
                 emitter.spriteShape = static_cast<ParticleSpriteShape>(
                     std::min<uint32_t>(uintParameter(module, "spriteShape", static_cast<uint32_t>(emitter.spriteShape)),
                                        static_cast<uint32_t>(ParticleSpriteShape::Streak)));
-                emitter.texturePath        = stringParameter(module, "texturePath", emitter.texturePath);
-                emitter.meshPath           = stringParameter(module, "meshPath", emitter.meshPath);
+                emitter.texturePath = stringParameter(module, "texturePath", emitter.texturePath);
+                emitter.meshPath    = stringParameter(module, "meshPath", emitter.meshPath);
                 emitter.spriteEdgeSoftness =
                     std::max(0.0f, floatParameter(module, "spriteEdgeSoftness", emitter.spriteEdgeSoftness));
-                emitter.softness = std::max(0.0f, floatParameter(module, "softness", emitter.softness));
+                emitter.softness  = std::max(0.0f, floatParameter(module, "softness", emitter.softness));
                 emitter.meshScale = {std::max(0.001f, floatParameter(module, "meshScaleX", emitter.meshScale.x)),
                                      std::max(0.001f, floatParameter(module, "meshScaleY", emitter.meshScale.y)),
                                      std::max(0.001f, floatParameter(module, "meshScaleZ", emitter.meshScale.z))};
             }
             else if (module.typeId == "bursts.basic")
             {
-                const bool enabled = boolParameter(module, "burstEnabled", false);
-                if (!enabled)
+                std::vector<ParticleBurst> bursts = burstTimelineParameter(module, "bursts", emitter.bursts);
+                for (ParticleBurst& burst : bursts)
                 {
-                    emitter.bursts.clear();
-                    continue;
+                    burst.time           = std::max(0.0f, burst.time);
+                    burst.countMax       = std::max(burst.countMin, burst.countMax);
+                    burst.repeatInterval = std::max(0.0f, burst.repeatInterval);
                 }
-
-                if (emitter.bursts.empty())
-                    emitter.bursts.push_back({});
-                ParticleBurst& burst = emitter.bursts.front();
-                burst.time           = std::max(0.0f, floatParameter(module, "burstTime", burst.time));
-                burst.countMin       = uintParameter(module, "burstCountMin", burst.countMin);
-                burst.countMax       = std::max(burst.countMin, uintParameter(module, "burstCountMax", burst.countMax));
-                burst.repeatInterval = std::max(0.0f, floatParameter(module, "repeatInterval", burst.repeatInterval));
-                burst.repeatCount    = uintParameter(module, "repeatCount", burst.repeatCount);
+                std::sort(bursts.begin(),
+                          bursts.end(),
+                          [](const ParticleBurst& lhs, const ParticleBurst& rhs)
+                          {
+                              return lhs.time < rhs.time;
+                          });
+                emitter.bursts = std::move(bursts);
             }
         }
     }
 
     inline void migrateParticleEmitterModules(std::vector<ParticleModuleInstance>& modules,
-                                               ParticleEmitterComponent&            descriptor)
+                                              ParticleEmitterComponent&            descriptor)
     {
         if (modules.empty())
         {
