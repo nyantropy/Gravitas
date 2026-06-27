@@ -78,8 +78,9 @@ int main()
 {
     using namespace gts::particles;
 
-    require(CurrentParticleEffectSchemaVersion == 6u, "effect schema should identify graph-authored assets");
-    require(CurrentParticleModuleSchemaVersion == 2u, "module schema should identify rich graph-compatible modules");
+    require(CurrentParticleEffectSchemaVersion == 7u, "effect schema should identify runtime-improved assets");
+    require(CurrentParticleEmitterSchemaVersion == 3u, "emitter schema should identify runtime policy fields");
+    require(CurrentParticleModuleSchemaVersion == 3u, "module schema should identify runtime policy modules");
     require(CurrentParticleProgramSchemaVersion == 1u, "compiled program schema should identify runtime output");
     require(particleModuleDefinitions().size() == 10u, "expected initial module category set");
     std::vector<ParticleModuleGraphDiagnostic> definitionDiagnostics;
@@ -98,6 +99,28 @@ int main()
     descriptor.ringOuterRadius = 1.7f;
     descriptor.baseTint        = {0.2f, 0.4f, 0.6f, 0.8f};
     descriptor.bursts          = {{0.25f, 4u, 8u, 0.5f, 2u}};
+    descriptor.materialPath    = "resources/materials/particle_debug.material";
+    descriptor.runtime.effectScale = 1.25f;
+    descriptor.runtime.importance = 2.5f;
+    descriptor.runtime.budgetWeight = 3u;
+    descriptor.runtime.maxSpawnPerFrame = 48u;
+    descriptor.runtime.distanceCulling = true;
+    descriptor.runtime.maxDrawDistance = 85.0f;
+    descriptor.runtime.lodNearDistance = 6.0f;
+    descriptor.runtime.lodFarDistance = 28.0f;
+    descriptor.runtime.lodMinSpawnScale = 0.25f;
+    descriptor.runtime.lodMinRenderScale = 0.40f;
+    descriptor.runtime.velocityStretch = 0.04f;
+    descriptor.runtime.velocityStretchMax = 2.5f;
+    descriptor.runtime.meshSoftness = 12.0f;
+    descriptor.runtime.lightingInfluence = 0.35f;
+    descriptor.collision.mode = ParticleCollisionMode::GroundPlane;
+    descriptor.collision.groundY = -0.2f;
+    descriptor.collision.bounce = 0.55f;
+    descriptor.collision.damping = 0.65f;
+    descriptor.collision.spawnOnCollisionCount = 2u;
+    descriptor.collision.spawnOnDeathCount = 1u;
+    descriptor.collision.maxEventSpawnsPerFrame = 16u;
 
     std::vector<ParticleModuleInstance> modules = buildModulesFromEmitterDescriptor(descriptor);
     require(modules.size() == particleModuleDefinitions().size(), "descriptor should generate every module");
@@ -339,11 +362,47 @@ int main()
 
     setFloatParameter(*spawn, "emissionRate", 12.5f);
     setUIntParameter(*spawn, "maxParticles", 64u);
+    setFloatParameter(*spawn, "effectScale", 1.75f);
+    setFloatParameter(*spawn, "importance", 4.0f);
+    setUIntParameter(*spawn, "budgetWeight", 5u);
+    setUIntParameter(*spawn, "maxSpawnPerFrame", 12u);
     setUIntParameter(*shape, "shape", static_cast<uint32_t>(ParticleEmitterShape::Box));
     setFloatParameter(*shape, "boxX", 1.25f);
+    ParticleModuleInstance* forces = nullptr;
+    for (ParticleModuleInstance& module : modules)
+    {
+        if (module.typeId == "forces.basic")
+        {
+            forces = &module;
+            break;
+        }
+    }
+    require(forces != nullptr, "forces module missing after migration");
+    setUIntParameter(*forces, "collisionMode", static_cast<uint32_t>(ParticleCollisionMode::GroundPlane));
+    setFloatParameter(*forces, "collisionGroundY", -0.5f);
+    setFloatParameter(*forces, "collisionBounce", 0.8f);
+    setFloatParameter(*forces, "collisionDamping", 0.6f);
+    setBoolParameter(*forces, "killOnCollision", true);
+    setUIntParameter(*forces, "spawnOnDeathCount", 3u);
+    setUIntParameter(*forces, "spawnOnCollisionCount", 4u);
+    setUIntParameter(*forces, "maxEventSpawnsPerFrame", 9u);
     setUIntParameter(*renderer, "blend", static_cast<uint32_t>(ParticleBlendMode::Additive));
     setStringParameter(*renderer, "texturePath", "resources/textures/engine_particle_fallback.png");
     setStringParameter(*renderer, "meshPath", "resources/models/cube.obj");
+    setStringParameter(*renderer, "materialPath", "resources/materials/runtime_particle.material");
+    setFloatParameter(*renderer, "meshSoftness", 18.0f);
+    setFloatParameter(*renderer, "lightingInfluence", 0.25f);
+    setBoolParameter(*renderer, "frustumCulling", false);
+    setBoolParameter(*renderer, "distanceCulling", true);
+    setBoolParameter(*renderer, "simulateWhenCulled", false);
+    setFloatParameter(*renderer, "cullPadding", 1.5f);
+    setFloatParameter(*renderer, "maxDrawDistance", 120.0f);
+    setFloatParameter(*renderer, "lodNearDistance", 8.0f);
+    setFloatParameter(*renderer, "lodFarDistance", 48.0f);
+    setFloatParameter(*renderer, "lodMinSpawnScale", 0.20f);
+    setFloatParameter(*renderer, "lodMinRenderScale", 0.30f);
+    setFloatParameter(*renderer, "velocityStretch", 0.06f);
+    setFloatParameter(*renderer, "velocityStretchMax", 3.5f);
     setColorGradientParameter(
         *color, "colorOverLifetime", {{0.0f, {1.0f, 0.2f, 0.1f, 1.0f}}, {1.0f, {0.1f, 0.3f, 1.0f, 0.5f}}});
     setFloatCurveParameter(*color, "alphaOverLifetime", {{0.0f, 0.0f}, {0.5f, 0.65f}, {1.0f, 0.0f}});
@@ -359,6 +418,33 @@ int main()
     require(descriptor.texturePath == "resources/textures/engine_particle_fallback.png",
             "texture picker path did not apply");
     require(descriptor.meshPath == "resources/models/cube.obj", "mesh picker path did not apply");
+    require(descriptor.materialPath == "resources/materials/runtime_particle.material",
+            "material path did not apply");
+    require(near(descriptor.runtime.effectScale, 1.75f), "effect scale did not apply");
+    require(near(descriptor.runtime.importance, 4.0f), "importance did not apply");
+    require(descriptor.runtime.budgetWeight == 5u, "budget weight did not apply");
+    require(descriptor.runtime.maxSpawnPerFrame == 12u, "spawn budget did not apply");
+    require(!descriptor.runtime.frustumCulling, "frustum culling flag did not apply");
+    require(descriptor.runtime.distanceCulling, "distance culling flag did not apply");
+    require(!descriptor.runtime.simulateWhenCulled, "culled simulation flag did not apply");
+    require(near(descriptor.runtime.cullPadding, 1.5f), "cull padding did not apply");
+    require(near(descriptor.runtime.maxDrawDistance, 120.0f), "draw distance did not apply");
+    require(near(descriptor.runtime.lodNearDistance, 8.0f), "LOD near distance did not apply");
+    require(near(descriptor.runtime.lodFarDistance, 48.0f), "LOD far distance did not apply");
+    require(near(descriptor.runtime.lodMinSpawnScale, 0.20f), "LOD spawn scale did not apply");
+    require(near(descriptor.runtime.lodMinRenderScale, 0.30f), "LOD render scale did not apply");
+    require(near(descriptor.runtime.velocityStretch, 0.06f), "velocity stretch did not apply");
+    require(near(descriptor.runtime.velocityStretchMax, 3.5f), "velocity stretch max did not apply");
+    require(near(descriptor.runtime.meshSoftness, 18.0f), "mesh softness did not apply");
+    require(near(descriptor.runtime.lightingInfluence, 0.25f), "lighting influence did not apply");
+    require(descriptor.collision.mode == ParticleCollisionMode::GroundPlane, "collision mode did not apply");
+    require(near(descriptor.collision.groundY, -0.5f), "collision ground did not apply");
+    require(near(descriptor.collision.bounce, 0.8f), "collision bounce did not apply");
+    require(near(descriptor.collision.damping, 0.6f), "collision damping did not apply");
+    require(descriptor.collision.killOnCollision, "collision kill flag did not apply");
+    require(descriptor.collision.spawnOnDeathCount == 3u, "death event spawn count did not apply");
+    require(descriptor.collision.spawnOnCollisionCount == 4u, "collision event spawn count did not apply");
+    require(descriptor.collision.maxEventSpawnsPerFrame == 9u, "event spawn cap did not apply");
     require(descriptor.colorOverLifetime.size() == 2u && near(descriptor.colorOverLifetime.back().color.b, 1.0f),
             "color gradient did not apply");
     require(descriptor.alphaOverLifetime.size() == 3u && near(descriptor.alphaOverLifetime[1].value, 0.65f),
@@ -422,6 +508,16 @@ int main()
     require(loaded.emitters.front().descriptor.sizeOverLifetime.size() == 3u,
             "loaded descriptor did not compile size curve");
     require(loaded.emitters.front().descriptor.bursts.size() == 2u, "loaded descriptor did not compile burst timeline");
+    require(near(loaded.emitters.front().descriptor.runtime.effectScale, 1.75f),
+            "loaded descriptor did not compile effect scale");
+    require(near(loaded.emitters.front().descriptor.runtime.maxDrawDistance, 120.0f),
+            "loaded descriptor did not compile draw distance");
+    require(near(loaded.emitters.front().descriptor.runtime.velocityStretch, 0.06f),
+            "loaded descriptor did not compile velocity stretch");
+    require(loaded.emitters.front().descriptor.collision.mode == ParticleCollisionMode::GroundPlane,
+            "loaded descriptor did not compile collision mode");
+    require(loaded.emitters.front().descriptor.collision.spawnOnCollisionCount == 4u,
+            "loaded descriptor did not compile collision event spawning");
     require(loaded.emitters.front().compiledProgram.valid, "loaded emitter should have compiled runtime program");
     require(loaded.emitters.front().compiledProgram.modules.size() == particleModuleDefinitions().size(),
             "loaded compiled program module count mismatch");

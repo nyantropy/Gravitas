@@ -14,7 +14,7 @@
 namespace gts::particles
 {
     inline constexpr uint32_t LegacyParticleModuleSchemaVersion  = 1u;
-    inline constexpr uint32_t CurrentParticleModuleSchemaVersion = 2u;
+    inline constexpr uint32_t CurrentParticleModuleSchemaVersion = 3u;
     inline constexpr uint32_t CurrentParticleProgramSchemaVersion = 1u;
 
     enum class ParticleModuleParameterType
@@ -416,6 +416,15 @@ namespace gts::particles
         return options;
     }
 
+    inline const std::vector<ParticleModuleEnumOption>& collisionModeOptions()
+    {
+        static const std::vector<ParticleModuleEnumOption> options = {
+            {static_cast<uint32_t>(ParticleCollisionMode::None), "NONE"},
+            {static_cast<uint32_t>(ParticleCollisionMode::GroundPlane), "GROUND"},
+        };
+        return options;
+    }
+
     inline const std::vector<ParticleModuleDefinition>& particleModuleDefinitions()
     {
         static const std::vector<ParticleModuleDefinition> definitions = {
@@ -427,7 +436,11 @@ namespace gts::particles
              {boolParam("emitterEnabled", "ENABLED", true),
               floatParam("emissionRate", "RATE", 0.0f, 180.0f, 32.0f),
               uintParam("maxParticles", "MAX", 1u, 512u, 128u),
-              floatParam("intensity", "INTENSITY", 0.0f, 2.5f, 1.0f)},
+              floatParam("intensity", "INTENSITY", 0.0f, 2.5f, 1.0f),
+              floatParam("effectScale", "SCALE", 0.0f, 4.0f, 1.0f),
+              floatParam("importance", "IMPORT", 0.0f, 8.0f, 1.0f),
+              uintParam("budgetWeight", "BUDGET", 1u, 32u, 1u),
+              uintParam("maxSpawnPerFrame", "SPAWN CAP", 0u, 2048u, 0u)},
              ParticleModuleExecutionStage::Spawn,
              ParticleModuleExecutionCategory::Emitter,
              {},
@@ -500,7 +513,18 @@ namespace gts::particles
               floatParam("vortex", "VORTEX", -2.0f, 2.0f, 0.0f),
               floatParam("radial", "RADIAL", -5.0f, 5.0f, 0.0f),
               floatParam("noiseStrength", "NOISE", 0.0f, 1.0f, 0.0f),
-              floatParam("noiseScale", "NOISE SC", 0.01f, 8.0f, 1.0f)},
+              floatParam("noiseScale", "NOISE SC", 0.01f, 8.0f, 1.0f),
+              enumParam("collisionMode",
+                        "COLLISION",
+                        static_cast<uint32_t>(ParticleCollisionMode::None),
+                        collisionModeOptions()),
+              floatParam("collisionGroundY", "GROUND Y", -50.0f, 50.0f, 0.0f),
+              floatParam("collisionBounce", "BOUNCE", 0.0f, 2.0f, 0.35f),
+              floatParam("collisionDamping", "DAMPING", 0.0f, 1.0f, 0.70f),
+              boolParam("killOnCollision", "KILL HIT", false),
+              uintParam("spawnOnDeathCount", "DEATH SPAWN", 0u, 128u, 0u),
+              uintParam("spawnOnCollisionCount", "HIT SPAWN", 0u, 128u, 0u),
+              uintParam("maxEventSpawnsPerFrame", "EVENT CAP", 0u, 512u, 32u)},
              ParticleModuleExecutionStage::Update,
              ParticleModuleExecutionCategory::ParticleUpdater,
              {port("initialVelocity", "Initial Velocity", ParticleModulePortType::Vec3)},
@@ -577,8 +601,22 @@ namespace gts::particles
                         spriteShapeOptions()),
               stringParam("texturePath", "TEXTURE", {}, ParticleModuleAssetPicker::Texture),
               stringParam("meshPath", "MESH", {}, ParticleModuleAssetPicker::Mesh),
+              stringParam("materialPath", "MATERIAL", {}, ParticleModuleAssetPicker::None),
               floatParam("spriteEdgeSoftness", "EDGE", 0.0f, 1.0f, 1.0f),
               floatParam("softness", "SOFT", 0.0f, 240.0f, 80.0f),
+              floatParam("meshSoftness", "MESH SOFT", 0.0f, 240.0f, 0.0f),
+              floatParam("lightingInfluence", "LIGHT", 0.0f, 1.0f, 0.0f),
+              boolParam("frustumCulling", "FRUSTUM", true),
+              boolParam("distanceCulling", "DIST CULL", false),
+              boolParam("simulateWhenCulled", "SIM CULLED", true),
+              floatParam("cullPadding", "CULL PAD", 0.0f, 8.0f, 0.5f),
+              floatParam("maxDrawDistance", "MAX DIST", 0.0f, 200.0f, 0.0f),
+              floatParam("lodNearDistance", "LOD NEAR", 0.0f, 200.0f, 12.0f),
+              floatParam("lodFarDistance", "LOD FAR", 0.0f, 400.0f, 42.0f),
+              floatParam("lodMinSpawnScale", "LOD SPAWN", 0.0f, 1.0f, 0.35f),
+              floatParam("lodMinRenderScale", "LOD SIZE", 0.0f, 1.0f, 0.50f),
+              floatParam("velocityStretch", "STRETCH", 0.0f, 0.25f, 0.0f),
+              floatParam("velocityStretchMax", "STR MAX", 0.0f, 8.0f, 3.0f),
               floatParam("meshScaleX", "MESH X", 0.01f, 6.0f, 1.0f),
               floatParam("meshScaleY", "MESH Y", 0.01f, 6.0f, 1.0f),
               floatParam("meshScaleZ", "MESH Z", 0.01f, 6.0f, 1.0f)},
@@ -1130,6 +1168,10 @@ namespace gts::particles
             setFloatParameter(module, "emissionRate", emitter.emissionRate);
             setUIntParameter(module, "maxParticles", emitter.maxParticles);
             setFloatParameter(module, "intensity", emitter.intensity);
+            setFloatParameter(module, "effectScale", emitter.runtime.effectScale);
+            setFloatParameter(module, "importance", emitter.runtime.importance);
+            setUIntParameter(module, "budgetWeight", emitter.runtime.budgetWeight);
+            setUIntParameter(module, "maxSpawnPerFrame", emitter.runtime.maxSpawnPerFrame);
         }
         else if (definition.typeId == "lifetime.basic")
         {
@@ -1175,6 +1217,14 @@ namespace gts::particles
             setFloatParameter(module, "radial", emitter.forces.radial);
             setFloatParameter(module, "noiseStrength", emitter.forces.noiseStrength);
             setFloatParameter(module, "noiseScale", emitter.forces.noiseScale);
+            setUIntParameter(module, "collisionMode", static_cast<uint32_t>(emitter.collision.mode));
+            setFloatParameter(module, "collisionGroundY", emitter.collision.groundY);
+            setFloatParameter(module, "collisionBounce", emitter.collision.bounce);
+            setFloatParameter(module, "collisionDamping", emitter.collision.damping);
+            setBoolParameter(module, "killOnCollision", emitter.collision.killOnCollision);
+            setUIntParameter(module, "spawnOnDeathCount", emitter.collision.spawnOnDeathCount);
+            setUIntParameter(module, "spawnOnCollisionCount", emitter.collision.spawnOnCollisionCount);
+            setUIntParameter(module, "maxEventSpawnsPerFrame", emitter.collision.maxEventSpawnsPerFrame);
         }
         else if (definition.typeId == "color.basic")
         {
@@ -1213,8 +1263,22 @@ namespace gts::particles
             setUIntParameter(module, "spriteShape", static_cast<uint32_t>(emitter.spriteShape));
             setStringParameter(module, "texturePath", emitter.texturePath);
             setStringParameter(module, "meshPath", emitter.meshPath);
+            setStringParameter(module, "materialPath", emitter.materialPath);
             setFloatParameter(module, "spriteEdgeSoftness", emitter.spriteEdgeSoftness);
             setFloatParameter(module, "softness", emitter.softness);
+            setFloatParameter(module, "meshSoftness", emitter.runtime.meshSoftness);
+            setFloatParameter(module, "lightingInfluence", emitter.runtime.lightingInfluence);
+            setBoolParameter(module, "frustumCulling", emitter.runtime.frustumCulling);
+            setBoolParameter(module, "distanceCulling", emitter.runtime.distanceCulling);
+            setBoolParameter(module, "simulateWhenCulled", emitter.runtime.simulateWhenCulled);
+            setFloatParameter(module, "cullPadding", emitter.runtime.cullPadding);
+            setFloatParameter(module, "maxDrawDistance", emitter.runtime.maxDrawDistance);
+            setFloatParameter(module, "lodNearDistance", emitter.runtime.lodNearDistance);
+            setFloatParameter(module, "lodFarDistance", emitter.runtime.lodFarDistance);
+            setFloatParameter(module, "lodMinSpawnScale", emitter.runtime.lodMinSpawnScale);
+            setFloatParameter(module, "lodMinRenderScale", emitter.runtime.lodMinRenderScale);
+            setFloatParameter(module, "velocityStretch", emitter.runtime.velocityStretch);
+            setFloatParameter(module, "velocityStretchMax", emitter.runtime.velocityStretchMax);
             setFloatParameter(module, "meshScaleX", emitter.meshScale.x);
             setFloatParameter(module, "meshScaleY", emitter.meshScale.y);
             setFloatParameter(module, "meshScaleZ", emitter.meshScale.z);
@@ -1355,6 +1419,14 @@ namespace gts::particles
                 emitter.emissionRate = std::max(0.0f, floatParameter(module, "emissionRate", emitter.emissionRate));
                 emitter.maxParticles = std::max(1u, uintParameter(module, "maxParticles", emitter.maxParticles));
                 emitter.intensity    = std::max(0.0f, floatParameter(module, "intensity", emitter.intensity));
+                emitter.runtime.effectScale =
+                    std::max(0.0f, floatParameter(module, "effectScale", emitter.runtime.effectScale));
+                emitter.runtime.importance =
+                    std::max(0.0f, floatParameter(module, "importance", emitter.runtime.importance));
+                emitter.runtime.budgetWeight =
+                    std::max(1u, uintParameter(module, "budgetWeight", emitter.runtime.budgetWeight));
+                emitter.runtime.maxSpawnPerFrame =
+                    uintParameter(module, "maxSpawnPerFrame", emitter.runtime.maxSpawnPerFrame);
             }
             else if (module.typeId == "lifetime.basic")
             {
@@ -1413,6 +1485,24 @@ namespace gts::particles
                     std::max(0.0f, floatParameter(module, "noiseStrength", emitter.forces.noiseStrength));
                 emitter.forces.noiseScale =
                     std::max(0.001f, floatParameter(module, "noiseScale", emitter.forces.noiseScale));
+                emitter.collision.mode = static_cast<ParticleCollisionMode>(
+                    std::min<uint32_t>(uintParameter(module,
+                                                     "collisionMode",
+                                                     static_cast<uint32_t>(emitter.collision.mode)),
+                                       static_cast<uint32_t>(ParticleCollisionMode::GroundPlane)));
+                emitter.collision.groundY = floatParameter(module, "collisionGroundY", emitter.collision.groundY);
+                emitter.collision.bounce =
+                    std::max(0.0f, floatParameter(module, "collisionBounce", emitter.collision.bounce));
+                emitter.collision.damping =
+                    glm::clamp(floatParameter(module, "collisionDamping", emitter.collision.damping), 0.0f, 1.0f);
+                emitter.collision.killOnCollision =
+                    boolParameter(module, "killOnCollision", emitter.collision.killOnCollision);
+                emitter.collision.spawnOnDeathCount =
+                    uintParameter(module, "spawnOnDeathCount", emitter.collision.spawnOnDeathCount);
+                emitter.collision.spawnOnCollisionCount =
+                    uintParameter(module, "spawnOnCollisionCount", emitter.collision.spawnOnCollisionCount);
+                emitter.collision.maxEventSpawnsPerFrame =
+                    uintParameter(module, "maxEventSpawnsPerFrame", emitter.collision.maxEventSpawnsPerFrame);
             }
             else if (module.typeId == "color.basic")
             {
@@ -1499,9 +1589,47 @@ namespace gts::particles
                                        static_cast<uint32_t>(ParticleSpriteShape::Streak)));
                 emitter.texturePath = stringParameter(module, "texturePath", emitter.texturePath);
                 emitter.meshPath    = stringParameter(module, "meshPath", emitter.meshPath);
+                emitter.materialPath = stringParameter(module, "materialPath", emitter.materialPath);
                 emitter.spriteEdgeSoftness =
                     std::max(0.0f, floatParameter(module, "spriteEdgeSoftness", emitter.spriteEdgeSoftness));
                 emitter.softness  = std::max(0.0f, floatParameter(module, "softness", emitter.softness));
+                emitter.runtime.meshSoftness =
+                    std::max(0.0f, floatParameter(module, "meshSoftness", emitter.runtime.meshSoftness));
+                emitter.runtime.lightingInfluence =
+                    glm::clamp(floatParameter(module, "lightingInfluence", emitter.runtime.lightingInfluence),
+                               0.0f,
+                               1.0f);
+                emitter.runtime.frustumCulling =
+                    boolParameter(module, "frustumCulling", emitter.runtime.frustumCulling);
+                emitter.runtime.distanceCulling =
+                    boolParameter(module, "distanceCulling", emitter.runtime.distanceCulling);
+                emitter.runtime.simulateWhenCulled =
+                    boolParameter(module, "simulateWhenCulled", emitter.runtime.simulateWhenCulled);
+                emitter.runtime.cullPadding =
+                    std::max(0.0f, floatParameter(module, "cullPadding", emitter.runtime.cullPadding));
+                emitter.runtime.maxDrawDistance =
+                    std::max(0.0f, floatParameter(module, "maxDrawDistance", emitter.runtime.maxDrawDistance));
+                emitter.runtime.lodNearDistance =
+                    std::max(0.0f, floatParameter(module, "lodNearDistance", emitter.runtime.lodNearDistance));
+                emitter.runtime.lodFarDistance =
+                    std::max(emitter.runtime.lodNearDistance,
+                             floatParameter(module, "lodFarDistance", emitter.runtime.lodFarDistance));
+                emitter.runtime.lodMinSpawnScale =
+                    glm::clamp(floatParameter(module,
+                                              "lodMinSpawnScale",
+                                              emitter.runtime.lodMinSpawnScale),
+                               0.0f,
+                               1.0f);
+                emitter.runtime.lodMinRenderScale =
+                    glm::clamp(floatParameter(module,
+                                              "lodMinRenderScale",
+                                              emitter.runtime.lodMinRenderScale),
+                               0.0f,
+                               1.0f);
+                emitter.runtime.velocityStretch =
+                    std::max(0.0f, floatParameter(module, "velocityStretch", emitter.runtime.velocityStretch));
+                emitter.runtime.velocityStretchMax =
+                    std::max(0.0f, floatParameter(module, "velocityStretchMax", emitter.runtime.velocityStretchMax));
                 emitter.meshScale = {std::max(0.001f, floatParameter(module, "meshScaleX", emitter.meshScale.x)),
                                      std::max(0.001f, floatParameter(module, "meshScaleY", emitter.meshScale.y)),
                                      std::max(0.001f, floatParameter(module, "meshScaleZ", emitter.meshScale.z))};

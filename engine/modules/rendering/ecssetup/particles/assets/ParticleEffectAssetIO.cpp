@@ -513,6 +513,18 @@ namespace
         return "softCircle";
     }
 
+    ParticleCollisionMode collisionModeFromString(const std::string& value)
+    {
+        if (value == "groundPlane")
+            return ParticleCollisionMode::GroundPlane;
+        return ParticleCollisionMode::None;
+    }
+
+    std::string collisionModeToString(ParticleCollisionMode mode)
+    {
+        return mode == ParticleCollisionMode::GroundPlane ? "groundPlane" : "none";
+    }
+
     std::string moduleParameterTypeToString(gts::particles::ParticleModuleParameterType type)
     {
         switch (type)
@@ -687,9 +699,12 @@ namespace
             emitter.primitive = primitiveFromString(text);
         if (readString(source, "spriteShape", text))
             emitter.spriteShape = spriteShapeFromString(text);
+        if (readString(source, "collisionMode", text))
+            emitter.collision.mode = collisionModeFromString(text);
         readString(source, "texturePath", emitter.texturePath);
         readString(source, "effectEmitterId", emitter.effectEmitterId);
         readString(source, "meshPath", emitter.meshPath);
+        readString(source, "materialPath", emitter.materialPath);
         readBool(source, "enabled", emitter.enabled);
         readBool(source, "localSpace", emitter.localSpace);
         readBool(source, "looping", emitter.looping);
@@ -700,6 +715,10 @@ namespace
         readFloat(source, "duration", emitter.duration);
         readFloat(source, "startDelay", emitter.startDelay);
         readFloat(source, "intensity", emitter.intensity);
+        readFloat(source, "effectScale", emitter.runtime.effectScale);
+        readFloat(source, "importance", emitter.runtime.importance);
+        readUint(source, "budgetWeight", emitter.runtime.budgetWeight);
+        readUint(source, "maxSpawnPerFrame", emitter.runtime.maxSpawnPerFrame);
         readVec3(source, "initialVelocity", emitter.initialVelocity);
         readFloat(source, "velocitySpread", emitter.velocitySpread);
         readFloat(source, "radialVelocityMin", emitter.radialVelocityMin);
@@ -713,6 +732,19 @@ namespace
         readFloat(source, "aspectRatioMax", emitter.aspectRatioMax);
         readFloat(source, "spriteEdgeSoftness", emitter.spriteEdgeSoftness);
         readFloat(source, "softness", emitter.softness);
+        readFloat(source, "meshSoftness", emitter.runtime.meshSoftness);
+        readFloat(source, "lightingInfluence", emitter.runtime.lightingInfluence);
+        readBool(source, "frustumCulling", emitter.runtime.frustumCulling);
+        readBool(source, "distanceCulling", emitter.runtime.distanceCulling);
+        readBool(source, "simulateWhenCulled", emitter.runtime.simulateWhenCulled);
+        readFloat(source, "cullPadding", emitter.runtime.cullPadding);
+        readFloat(source, "maxDrawDistance", emitter.runtime.maxDrawDistance);
+        readFloat(source, "lodNearDistance", emitter.runtime.lodNearDistance);
+        readFloat(source, "lodFarDistance", emitter.runtime.lodFarDistance);
+        readFloat(source, "lodMinSpawnScale", emitter.runtime.lodMinSpawnScale);
+        readFloat(source, "lodMinRenderScale", emitter.runtime.lodMinRenderScale);
+        readFloat(source, "velocityStretch", emitter.runtime.velocityStretch);
+        readFloat(source, "velocityStretchMax", emitter.runtime.velocityStretchMax);
         readFloat(source, "hueVariation", emitter.hueVariation);
         readFloat(source, "valueVariation", emitter.valueVariation);
         readVec3(source, "meshScale", emitter.meshScale);
@@ -743,6 +775,13 @@ namespace
         readFloat(source, "forceRadial", emitter.forces.radial);
         readFloat(source, "forceNoiseStrength", emitter.forces.noiseStrength);
         readFloat(source, "forceNoiseScale", emitter.forces.noiseScale);
+        readFloat(source, "collisionGroundY", emitter.collision.groundY);
+        readFloat(source, "collisionBounce", emitter.collision.bounce);
+        readFloat(source, "collisionDamping", emitter.collision.damping);
+        readBool(source, "killOnCollision", emitter.collision.killOnCollision);
+        readUint(source, "spawnOnDeathCount", emitter.collision.spawnOnDeathCount);
+        readUint(source, "spawnOnCollisionCount", emitter.collision.spawnOnCollisionCount);
+        readUint(source, "maxEventSpawnsPerFrame", emitter.collision.maxEventSpawnsPerFrame);
     }
 
     std::string escaped(const std::string& value)
@@ -1186,7 +1225,11 @@ namespace
         out << "        \"looping\": " << (emitter.looping ? "true" : "false") << ",\n";
         out << "        \"duration\": " << emitter.duration << ",\n";
         out << "        \"startDelay\": " << emitter.startDelay << ",\n";
-        out << "        \"intensity\": " << emitter.intensity << "\n";
+        out << "        \"intensity\": " << emitter.intensity << ",\n";
+        out << "        \"effectScale\": " << emitter.runtime.effectScale << ",\n";
+        out << "        \"importance\": " << emitter.runtime.importance << ",\n";
+        out << "        \"budgetWeight\": " << emitter.runtime.budgetWeight << ",\n";
+        out << "        \"maxSpawnPerFrame\": " << emitter.runtime.maxSpawnPerFrame << "\n";
         out << "      },\n";
 
         out << "      \"renderer\": {\n";
@@ -1195,8 +1238,22 @@ namespace
         out << "        \"spriteShape\": \"" << spriteShapeToString(emitter.spriteShape) << "\",\n";
         out << "        \"texturePath\": \"" << escaped(emitter.texturePath) << "\",\n";
         out << "        \"meshPath\": \"" << escaped(emitter.meshPath) << "\",\n";
+        out << "        \"materialPath\": \"" << escaped(emitter.materialPath) << "\",\n";
         out << "        \"spriteEdgeSoftness\": " << emitter.spriteEdgeSoftness << ",\n";
         out << "        \"softness\": " << emitter.softness << ",\n";
+        out << "        \"meshSoftness\": " << emitter.runtime.meshSoftness << ",\n";
+        out << "        \"lightingInfluence\": " << emitter.runtime.lightingInfluence << ",\n";
+        out << "        \"frustumCulling\": " << (emitter.runtime.frustumCulling ? "true" : "false") << ",\n";
+        out << "        \"distanceCulling\": " << (emitter.runtime.distanceCulling ? "true" : "false") << ",\n";
+        out << "        \"simulateWhenCulled\": " << (emitter.runtime.simulateWhenCulled ? "true" : "false") << ",\n";
+        out << "        \"cullPadding\": " << emitter.runtime.cullPadding << ",\n";
+        out << "        \"maxDrawDistance\": " << emitter.runtime.maxDrawDistance << ",\n";
+        out << "        \"lodNearDistance\": " << emitter.runtime.lodNearDistance << ",\n";
+        out << "        \"lodFarDistance\": " << emitter.runtime.lodFarDistance << ",\n";
+        out << "        \"lodMinSpawnScale\": " << emitter.runtime.lodMinSpawnScale << ",\n";
+        out << "        \"lodMinRenderScale\": " << emitter.runtime.lodMinRenderScale << ",\n";
+        out << "        \"velocityStretch\": " << emitter.runtime.velocityStretch << ",\n";
+        out << "        \"velocityStretchMax\": " << emitter.runtime.velocityStretchMax << ",\n";
         out << "        \"meshScale\": ";
         writeVec3(out, emitter.meshScale);
         out << "\n";
@@ -1243,7 +1300,15 @@ namespace
         out << "        \"forceVortex\": " << emitter.forces.vortex << ",\n";
         out << "        \"forceRadial\": " << emitter.forces.radial << ",\n";
         out << "        \"forceNoiseStrength\": " << emitter.forces.noiseStrength << ",\n";
-        out << "        \"forceNoiseScale\": " << emitter.forces.noiseScale << "\n";
+        out << "        \"forceNoiseScale\": " << emitter.forces.noiseScale << ",\n";
+        out << "        \"collisionMode\": \"" << collisionModeToString(emitter.collision.mode) << "\",\n";
+        out << "        \"collisionGroundY\": " << emitter.collision.groundY << ",\n";
+        out << "        \"collisionBounce\": " << emitter.collision.bounce << ",\n";
+        out << "        \"collisionDamping\": " << emitter.collision.damping << ",\n";
+        out << "        \"killOnCollision\": " << (emitter.collision.killOnCollision ? "true" : "false") << ",\n";
+        out << "        \"spawnOnDeathCount\": " << emitter.collision.spawnOnDeathCount << ",\n";
+        out << "        \"spawnOnCollisionCount\": " << emitter.collision.spawnOnCollisionCount << ",\n";
+        out << "        \"maxEventSpawnsPerFrame\": " << emitter.collision.maxEventSpawnsPerFrame << "\n";
         out << "      },\n";
 
         out << "      \"color\": {\n";

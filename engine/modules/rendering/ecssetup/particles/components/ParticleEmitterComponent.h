@@ -31,6 +31,7 @@ struct ParticleEmitterComponent
     std::string effectEmitterId;
     std::string texturePath;
     std::string meshPath;
+    std::string materialPath;
 
     // base color multiplier before lifetime/random color changes
     glm::vec4   baseTint = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -98,6 +99,8 @@ struct ParticleEmitterComponent
     std::vector<ParticleBurst> bursts;
     ParticleFlipbook           flipbook;
     ParticleForceModule        forces;
+    ParticleRuntimePolicy      runtime;
+    ParticleCollisionPolicy    collision;
 
     // 0 means the runtime picks a stable seed from the entity id
     uint32_t randomSeed = 1u;

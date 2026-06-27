@@ -2,11 +2,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 #include "CameraGpuComponent.h"
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
+#include "FrustumCuller.h"
 #include "GraphicsConstants.h"
 #include "ParticleEmitterComponent.h"
 #include "ParticleEmitterMath.h"
@@ -20,6 +22,10 @@ public:
     void update(const EcsControllerContext& ctx) override
     {
         ParticleFrameDataComponent& frameComponent = ensureFrameData(ctx.world);
+        ParticleBudgetComponent& budgetComponent = ensureBudget(ctx.world);
+        ParticleBudgetState& budget = budgetComponent.state;
+        budget.resetFrameStats();
+
         ParticleFrameData& frameData = frameComponent.frameData;
         frameData.clear();
 
@@ -28,7 +34,9 @@ public:
 
         const float dt = resolveDeltaTime(ctx);
         const CameraInfo camera = resolveActiveCamera(ctx.world);
+        const BudgetFrame budgetFrame = buildBudgetFrame(ctx.world, budget);
         frameData.cameraViewID = camera.viewID;
+        frameData.renderBudget = budget.maxRenderedParticles;
 
         alphaParticles.clear();
         additiveParticles.clear();
@@ -44,17 +52,40 @@ public:
                 TransformComponent& transform)
             {
                 frameData.emitterCount += 1;
+                resetRuntimeFrameStats(runtime);
+                const EmitterFramePolicy policy = resolveEmitterFramePolicy(emitter, runtime, transform, camera, budgetFrame);
                 const float emitterDt =
                     runtime.playbackPaused ? 0.0f : dt * std::max(0.0f, runtime.playbackTimeScale);
-                updateEmitter(ctx, emitter, runtime, transform, emitterDt);
+                updateEmitter(ctx, emitter, runtime, transform, emitterDt, policy);
+                refreshRuntimeBounds(emitter, runtime, transform);
+                applyVisibilityPolicy(emitter, runtime, transform, camera);
+
+                frameData.simulatedParticleCount += static_cast<uint32_t>(runtime.particles.size());
+                frameData.collisionEventCount += runtime.collisionEventsThisFrame;
+                frameData.deathEventCount += runtime.diedThisFrame;
+                frameData.eventSpawnedParticleCount += runtime.eventSpawnsThisFrame;
+                budget.activeParticles += static_cast<uint32_t>(runtime.particles.size());
+                budget.spawnedParticles += runtime.spawnedThisFrame;
+                budget.collisionEvents += runtime.collisionEventsThisFrame;
+                budget.deathEvents += runtime.diedThisFrame;
+                budget.eventSpawnedParticles += runtime.eventSpawnsThisFrame;
+                if (runtime.budgetSkippedSpawnsThisFrame > 0u)
+                    budget.budgetClippedEmitters += 1u;
 
                 if (camera.viewID == 0 || runtime.textureID == 0)
                     return;
+                if (!runtime.visible)
+                {
+                    frameData.culledEmitterCount += 1;
+                    budget.culledEmitters += 1u;
+                    return;
+                }
 
+                frameData.visibleEmitterCount += 1;
                 extractEmitter(emitter, runtime, transform, camera);
             });
 
-        buildFrameData(frameData);
+        buildFrameData(frameData, budget);
     }
 
 private:
@@ -62,6 +93,24 @@ private:
     {
         view_id_type viewID = 0;
         glm::mat4    viewMatrix = glm::mat4(1.0f);
+        glm::mat4    projMatrix = glm::mat4(1.0f);
+        FrustumPlanes frustum{};
+        glm::vec3    position = {0.0f, 0.0f, 0.0f};
+    };
+
+    struct BudgetFrame
+    {
+        uint32_t maxSimulatedParticles = 0;
+        uint32_t maxSpawnedPerFrame = 0;
+        float    totalWeight = 0.0f;
+    };
+
+    struct EmitterFramePolicy
+    {
+        uint32_t maxParticles = 1;
+        uint32_t maxSpawnPerFrame = std::numeric_limits<uint32_t>::max();
+        bool     simulate = true;
+        float    spawnScale = 1.0f;
     };
 
     struct ExtractedParticle
@@ -89,6 +138,23 @@ private:
         if (!world.hasAny<ParticleFrameDataComponent>())
             return world.createSingleton<ParticleFrameDataComponent>();
         return world.getSingleton<ParticleFrameDataComponent>();
+    }
+
+    static ParticleBudgetComponent& ensureBudget(ECSWorld& world)
+    {
+        if (!world.hasAny<ParticleBudgetComponent>())
+            return world.createSingleton<ParticleBudgetComponent>();
+        return world.getSingleton<ParticleBudgetComponent>();
+    }
+
+    static void resetRuntimeFrameStats(ParticleEmitterRuntimeComponent& runtime)
+    {
+        runtime.spawnedThisFrame = 0;
+        runtime.diedThisFrame = 0;
+        runtime.collisionEventsThisFrame = 0;
+        runtime.eventSpawnsThisFrame = 0;
+        runtime.budgetSkippedSpawnsThisFrame = 0;
+        runtime.cullReason = ParticleCullReason::None;
     }
 
     static void removeOrphanRuntimes(ECSWorld& world)
@@ -140,17 +206,211 @@ private:
 
                 info.viewID = camera.viewID;
                 info.viewMatrix = camera.viewMatrix;
+                info.projMatrix = camera.projMatrix;
+                info.frustum = FrustumCuller::extractPlanesFromMatrix(camera.projMatrix * camera.viewMatrix);
+                const glm::mat4 inverseView = glm::inverse(camera.viewMatrix);
+                info.position = glm::vec3(inverseView[3]);
             });
         return info;
+    }
+
+    static BudgetFrame buildBudgetFrame(ECSWorld& world, ParticleBudgetState& budget)
+    {
+        BudgetFrame frame;
+        frame.maxSimulatedParticles = budget.maxSimulatedParticles;
+        frame.maxSpawnedPerFrame = budget.maxSpawnedPerFrame;
+
+        world.forEach<ParticleEmitterComponent>(
+            [&](Entity, ParticleEmitterComponent& emitter)
+            {
+                const float weight = emitterBudgetWeight(emitter);
+                frame.totalWeight += weight;
+                budget.requestedSimulatedParticles += emitter.maxParticles;
+            });
+
+        return frame;
+    }
+
+    static float emitterBudgetWeight(const ParticleEmitterComponent& emitter)
+    {
+        const float importance = std::max(0.01f, emitter.runtime.importance);
+        const float weight = static_cast<float>(std::max(1u, emitter.runtime.budgetWeight));
+        return importance * weight * static_cast<float>(std::max(1u, emitter.maxParticles));
+    }
+
+    static uint32_t budgetShare(uint32_t globalBudget,
+                                float totalWeight,
+                                const ParticleEmitterComponent& emitter,
+                                uint32_t requested)
+    {
+        if (globalBudget == 0u)
+            return requested;
+        if (totalWeight <= 0.0f)
+            return std::min(requested, globalBudget);
+
+        const float share = static_cast<float>(globalBudget) * emitterBudgetWeight(emitter) / totalWeight;
+        return std::min(requested, std::max(1u, static_cast<uint32_t>(std::floor(share))));
+    }
+
+    static float distanceLodScale(float distance,
+                                  float nearDistance,
+                                  float farDistance,
+                                  float minScale)
+    {
+        const float nearValue = std::max(0.0f, nearDistance);
+        const float farValue = std::max(nearValue + 0.001f, farDistance);
+        const float t = glm::clamp((distance - nearValue) / (farValue - nearValue), 0.0f, 1.0f);
+        return glm::mix(1.0f, glm::clamp(minScale, 0.0f, 1.0f), t);
+    }
+
+    static EmitterFramePolicy resolveEmitterFramePolicy(const ParticleEmitterComponent& emitter,
+                                                        ParticleEmitterRuntimeComponent& runtime,
+                                                        const TransformComponent& transform,
+                                                        const CameraInfo& camera,
+                                                        const BudgetFrame& budgetFrame)
+    {
+        refreshRuntimeBounds(emitter, runtime, transform);
+        applyVisibilityPolicy(emitter, runtime, transform, camera);
+
+        EmitterFramePolicy policy;
+        policy.maxParticles = budgetShare(budgetFrame.maxSimulatedParticles,
+                                          budgetFrame.totalWeight,
+                                          emitter,
+                                          std::max(1u, emitter.maxParticles));
+        runtime.budgetedMaxParticles = policy.maxParticles;
+
+        const uint32_t localSpawnBudget = emitter.runtime.maxSpawnPerFrame == 0u
+            ? std::numeric_limits<uint32_t>::max()
+            : emitter.runtime.maxSpawnPerFrame;
+        const uint32_t globalSpawnShare = budgetShare(budgetFrame.maxSpawnedPerFrame,
+                                                      budgetFrame.totalWeight,
+                                                      emitter,
+                                                      localSpawnBudget);
+        policy.maxSpawnPerFrame = std::min(localSpawnBudget, globalSpawnShare);
+        runtime.budgetedSpawnPerFrame = policy.maxSpawnPerFrame == std::numeric_limits<uint32_t>::max()
+            ? 0u
+            : policy.maxSpawnPerFrame;
+
+        const float scale = std::max(0.0f, emitter.runtime.effectScale);
+        policy.spawnScale = scale * runtime.lodSpawnScale;
+        policy.simulate = runtime.visible || emitter.runtime.simulateWhenCulled;
+        return policy;
+    }
+
+    static glm::vec3 transformPoint(const glm::mat4& matrix, const glm::vec3& point)
+    {
+        return glm::vec3(matrix * glm::vec4(point, 1.0f));
+    }
+
+    static glm::vec3 transformOrigin(const TransformComponent& transform)
+    {
+        return transformPoint(transform.getModelMatrix(), {0.0f, 0.0f, 0.0f});
+    }
+
+    static void refreshRuntimeBounds(const ParticleEmitterComponent& emitter,
+                                     ParticleEmitterRuntimeComponent& runtime,
+                                     const TransformComponent& transform)
+    {
+        if (runtime.particles.empty())
+        {
+            runtime.hasBounds = false;
+            runtime.boundsMin = transformOrigin(transform);
+            runtime.boundsMax = runtime.boundsMin;
+            runtime.boundsCenter = runtime.boundsMin;
+            runtime.boundsRadius = 0.0f;
+            return;
+        }
+
+        const glm::mat4 model = emitter.localSpace ? transform.getModelMatrix() : glm::mat4(1.0f);
+        const float padding = std::max(0.0f, emitter.runtime.cullPadding) +
+            std::max(0.001f, emitter.runtime.effectScale) * maxParticleSize(emitter);
+        glm::vec3 minValue(std::numeric_limits<float>::max());
+        glm::vec3 maxValue(-std::numeric_limits<float>::max());
+
+        for (const ParticleState& particle : runtime.particles)
+        {
+            const glm::vec3 worldPosition = transformPoint(model, particle.position);
+            minValue = glm::min(minValue, worldPosition - glm::vec3(padding));
+            maxValue = glm::max(maxValue, worldPosition + glm::vec3(padding));
+        }
+
+        runtime.hasBounds = true;
+        runtime.boundsMin = minValue;
+        runtime.boundsMax = maxValue;
+        runtime.boundsCenter = (minValue + maxValue) * 0.5f;
+        runtime.boundsRadius = glm::length((maxValue - minValue) * 0.5f);
+    }
+
+    static float maxParticleSize(const ParticleEmitterComponent& emitter)
+    {
+        float value = 0.001f;
+        for (const ParticleFloatKey& key : emitter.sizeOverLifetime)
+            value = std::max(value, key.value);
+        const float aspect = std::max(emitter.aspectRatioMin, emitter.aspectRatioMax);
+        value *= std::max(1.0f, aspect);
+        if (emitter.primitive == ParticlePrimitive::Mesh)
+        {
+            const glm::vec3 meshScale = glm::max(emitter.meshScale, glm::vec3(0.001f));
+            value *= std::max(meshScale.x, std::max(meshScale.y, meshScale.z));
+        }
+        return value;
+    }
+
+    static void applyVisibilityPolicy(const ParticleEmitterComponent& emitter,
+                                      ParticleEmitterRuntimeComponent& runtime,
+                                      const TransformComponent& transform,
+                                      const CameraInfo& camera)
+    {
+        const glm::vec3 center = runtime.hasBounds ? runtime.boundsCenter : transformOrigin(transform);
+        runtime.distanceToCamera = camera.viewID == 0 ? 0.0f : glm::length(center - camera.position);
+
+        runtime.lodSpawnScale = distanceLodScale(runtime.distanceToCamera,
+                                                 emitter.runtime.lodNearDistance,
+                                                 emitter.runtime.lodFarDistance,
+                                                 emitter.runtime.lodMinSpawnScale);
+        runtime.lodRenderScale = distanceLodScale(runtime.distanceToCamera,
+                                                  emitter.runtime.lodNearDistance,
+                                                  emitter.runtime.lodFarDistance,
+                                                  emitter.runtime.lodMinRenderScale);
+
+        const float distanceWeight =
+            emitter.runtime.maxDrawDistance > 0.0f
+                ? glm::clamp(1.0f - runtime.distanceToCamera / emitter.runtime.maxDrawDistance, 0.05f, 1.0f)
+                : 1.0f;
+        runtime.importanceScore = std::max(0.0f, emitter.runtime.importance) * distanceWeight;
+
+        runtime.visible = true;
+        runtime.cullReason = ParticleCullReason::None;
+        if (camera.viewID == 0 || !runtime.hasBounds)
+            return;
+
+        if (emitter.runtime.distanceCulling &&
+            emitter.runtime.maxDrawDistance > 0.0f &&
+            runtime.distanceToCamera - runtime.boundsRadius > emitter.runtime.maxDrawDistance)
+        {
+            runtime.visible = false;
+            runtime.cullReason = ParticleCullReason::Distance;
+            return;
+        }
+
+        if (emitter.runtime.frustumCulling &&
+            !FrustumCuller::isVisible(camera.frustum, runtime.boundsMin, runtime.boundsMax))
+        {
+            runtime.visible = false;
+            runtime.cullReason = ParticleCullReason::Frustum;
+        }
     }
 
     static void updateEmitter(const EcsControllerContext& ctx,
                               const ParticleEmitterComponent& emitter,
                               ParticleEmitterRuntimeComponent& runtime,
                               const TransformComponent& transform,
-                              float dt)
+                              float dt,
+                              const EmitterFramePolicy& policy)
     {
         bindResourcesIfNeeded(ctx, emitter, runtime);
+        if (!policy.simulate)
+            return;
         if (dt <= 0.0f)
             return;
 
@@ -169,7 +429,7 @@ private:
                 runtime.burstRepeatCounts.clear();
         }
 
-        const uint32_t maxParticles = std::max(1u, emitter.maxParticles);
+        const uint32_t maxParticles = std::max(1u, policy.maxParticles);
         if (runtime.particles.capacity() < maxParticles)
             runtime.particles.reserve(maxParticles);
         if (runtime.particles.size() > maxParticles)
@@ -183,8 +443,15 @@ private:
             particle.age += dt;
             if (particle.age >= particle.lifetime)
             {
-                particle = runtime.particles.back();
-                runtime.particles.pop_back();
+                const glm::vec3 eventPosition = particle.position;
+                runtime.diedThisFrame += 1u;
+                removeParticleAt(runtime, i);
+                spawnEventParticles(emitter,
+                                    runtime,
+                                    transform,
+                                    eventPosition,
+                                    emitter.collision.spawnOnDeathCount,
+                                    maxParticles);
                 continue;
             }
 
@@ -194,6 +461,29 @@ private:
             particle.position += particle.velocity * dt;
             particle.rotation += particle.spin * dt;
             particle.meshRotation += particle.meshSpin * dt;
+            glm::vec3 collisionEventPosition = particle.position;
+            bool killedByCollision = false;
+            const bool collided = applyCollision(emitter, runtime, particle, collisionEventPosition, killedByCollision);
+            if (killedByCollision)
+            {
+                removeParticleAt(runtime, i);
+                spawnEventParticles(emitter,
+                                    runtime,
+                                    transform,
+                                    collisionEventPosition,
+                                    emitter.collision.spawnOnCollisionCount,
+                                    maxParticles);
+                continue;
+            }
+            if (collided && emitter.collision.spawnOnCollisionCount > 0u)
+            {
+                spawnEventParticles(emitter,
+                                    runtime,
+                                    transform,
+                                    collisionEventPosition,
+                                    emitter.collision.spawnOnCollisionCount,
+                                    maxParticles);
+            }
             ++i;
         }
 
@@ -206,9 +496,16 @@ private:
 
         if (emitter.emissionRate > 0.0f)
         {
-            runtime.spawnAccumulator += emitter.emissionRate * emitter.intensity * dt;
+            runtime.spawnAccumulator += emitter.emissionRate * emitter.intensity * policy.spawnScale * dt;
             uint32_t spawnCount = static_cast<uint32_t>(runtime.spawnAccumulator);
             runtime.spawnAccumulator -= static_cast<float>(spawnCount);
+            if (policy.maxSpawnPerFrame != std::numeric_limits<uint32_t>::max() &&
+                spawnCount > policy.maxSpawnPerFrame)
+            {
+                runtime.budgetSkippedSpawnsThisFrame += spawnCount - policy.maxSpawnPerFrame;
+                spawnCount = policy.maxSpawnPerFrame;
+                runtime.spawnAccumulator = 0.0f;
+            }
             spawnParticles(emitter, runtime, transform, spawnCount, maxParticles);
         }
 
@@ -218,7 +515,8 @@ private:
                     previousLocalAge,
                     localAge,
                     loopWrapped,
-                    maxParticles);
+                    maxParticles,
+                    policy.maxSpawnPerFrame);
     }
 
     static void spawnParticles(const ParticleEmitterComponent& emitter,
@@ -228,10 +526,15 @@ private:
                                uint32_t maxParticles)
     {
         const uint32_t available = maxParticles - static_cast<uint32_t>(runtime.particles.size());
+        if (count > available)
+            runtime.budgetSkippedSpawnsThisFrame += count - available;
         count = std::min(count, available);
 
         for (uint32_t i = 0; i < count; ++i)
-            spawnParticle(emitter, runtime, transform);
+        {
+            if (spawnParticle(emitter, runtime, transform, nullptr))
+                runtime.spawnedThisFrame += 1u;
+        }
     }
 
     static void spawnBursts(const ParticleEmitterComponent& emitter,
@@ -240,7 +543,8 @@ private:
                             float previousLocalAge,
                             float localAge,
                             bool loopWrapped,
-                            uint32_t maxParticles)
+                            uint32_t maxParticles,
+                            uint32_t maxSpawnPerFrame)
     {
         for (size_t i = 0; i < emitter.bursts.size(); ++i)
         {
@@ -266,7 +570,18 @@ private:
                                                          static_cast<float>(burst.countMin),
                                                          static_cast<float>(burst.countMax + 1u)))
                     : burst.countMin;
-                spawnParticles(emitter, runtime, transform, count, maxParticles);
+                uint32_t burstCount = count;
+                if (maxSpawnPerFrame != std::numeric_limits<uint32_t>::max())
+                {
+                    const uint32_t remainingFrameSpawns =
+                        runtime.spawnedThisFrame >= maxSpawnPerFrame ? 0u : maxSpawnPerFrame - runtime.spawnedThisFrame;
+                    if (burstCount > remainingFrameSpawns)
+                    {
+                        runtime.budgetSkippedSpawnsThisFrame += burstCount - remainingFrameSpawns;
+                        burstCount = remainingFrameSpawns;
+                    }
+                }
+                spawnParticles(emitter, runtime, transform, burstCount, maxParticles);
                 repeatIndex += 1;
 
                 if (burst.repeatInterval <= 0.0f)
@@ -303,6 +618,48 @@ private:
         }
 
         particle.velocity += acceleration * dt;
+    }
+
+    static void removeParticleAt(ParticleEmitterRuntimeComponent& runtime, size_t index)
+    {
+        if (index + 1u < runtime.particles.size())
+            runtime.particles[index] = runtime.particles.back();
+        runtime.particles.pop_back();
+    }
+
+    static bool applyCollision(const ParticleEmitterComponent& emitter,
+                               ParticleEmitterRuntimeComponent& runtime,
+                               ParticleState& particle,
+                               glm::vec3& eventPosition,
+                               bool& killed)
+    {
+        if (emitter.collision.mode != ParticleCollisionMode::GroundPlane)
+            return false;
+
+        const float groundY = emitter.collision.groundY;
+        float particleY = particle.position.y;
+        if (!emitter.localSpace)
+            particleY = particle.position.y;
+
+        if (particleY >= groundY)
+            return false;
+
+        eventPosition = particle.position;
+        runtime.collisionEventsThisFrame += 1u;
+
+        if (emitter.collision.killOnCollision)
+        {
+            runtime.diedThisFrame += 1u;
+            killed = true;
+            return true;
+        }
+
+        particle.position.y = groundY;
+        particle.velocity.y = std::abs(particle.velocity.y) * std::max(0.0f, emitter.collision.bounce);
+        particle.velocity.x *= glm::clamp(emitter.collision.damping, 0.0f, 1.0f);
+        particle.velocity.z *= glm::clamp(emitter.collision.damping, 0.0f, 1.0f);
+        killed = false;
+        return true;
     }
 
     static void bindResourcesIfNeeded(const EcsControllerContext& ctx,
@@ -343,9 +700,43 @@ private:
         runtime.boundMeshPath = emitter.meshPath;
     }
 
-    static void spawnParticle(const ParticleEmitterComponent& emitter,
+    static void spawnEventParticles(const ParticleEmitterComponent& emitter,
+                                    ParticleEmitterRuntimeComponent& runtime,
+                                    const TransformComponent& transform,
+                                    const glm::vec3& position,
+                                    uint32_t count,
+                                    uint32_t maxParticles)
+    {
+        if (count == 0u || emitter.collision.maxEventSpawnsPerFrame == 0u)
+            return;
+
+        const uint32_t remainingEventBudget =
+            runtime.eventSpawnsThisFrame >= emitter.collision.maxEventSpawnsPerFrame
+                ? 0u
+                : emitter.collision.maxEventSpawnsPerFrame - runtime.eventSpawnsThisFrame;
+        count = std::min(count, remainingEventBudget);
+
+        const uint32_t available = maxParticles > runtime.particles.size()
+            ? maxParticles - static_cast<uint32_t>(runtime.particles.size())
+            : 0u;
+        if (count > available)
+            runtime.budgetSkippedSpawnsThisFrame += count - available;
+        count = std::min(count, available);
+
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            if (spawnParticle(emitter, runtime, transform, &position))
+            {
+                runtime.spawnedThisFrame += 1u;
+                runtime.eventSpawnsThisFrame += 1u;
+            }
+        }
+    }
+
+    static bool spawnParticle(const ParticleEmitterComponent& emitter,
                               ParticleEmitterRuntimeComponent& runtime,
-                              const TransformComponent& transform)
+                              const TransformComponent& transform,
+                              const glm::vec3* positionOverride)
     {
         ParticleState particle;
         const float minLifetime = std::max(0.01f, std::min(emitter.lifetimeMin, emitter.lifetimeMax));
@@ -365,13 +756,15 @@ private:
 
         if (emitter.localSpace)
         {
-            particle.position = localPosition;
+            particle.position = positionOverride == nullptr ? localPosition : *positionOverride;
             particle.velocity = velocity;
         }
         else
         {
             const glm::mat4 model = transform.getModelMatrix();
-            particle.position = glm::vec3(model * glm::vec4(localPosition, 1.0f));
+            particle.position = positionOverride == nullptr
+                ? glm::vec3(model * glm::vec4(localPosition, 1.0f))
+                : *positionOverride;
             particle.velocity = glm::mat3(model) * velocity;
         }
 
@@ -408,6 +801,7 @@ private:
             : 0.0f;
 
         runtime.particles.push_back(particle);
+        return true;
     }
 
     void extractEmitter(const ParticleEmitterComponent& emitter,
@@ -433,7 +827,9 @@ private:
             const float particleSize =
                 std::max(0.001f,
                          ParticleEmitterMath::evaluateFloatCurve(emitter.sizeOverLifetime, normalizedAge, 0.5f))
-                * particle.sizeScale;
+                * particle.sizeScale
+                * std::max(0.0f, emitter.runtime.effectScale)
+                * std::max(0.0f, runtime.lodRenderScale);
 
             if (emitter.primitive == ParticlePrimitive::Mesh)
             {
@@ -452,6 +848,7 @@ private:
                 instance.modelMatrix = particleModel;
                 instance.color = color;
                 instance.depth = -viewPosition.z;
+                instance.importance = runtime.importanceScore;
 
                 ExtractedMeshParticle extracted;
                 extracted.instance = instance;
@@ -475,7 +872,9 @@ private:
             instance.depth = -viewPosition.z;
             instance.softness = std::max(0.0f, emitter.softness);
             instance.spriteEdgeSoftness = glm::clamp(emitter.spriteEdgeSoftness, 0.0f, 1.0f);
+            instance.importance = runtime.importanceScore;
             instance.spriteShape = emitter.spriteShape;
+            applyVelocityStretch(emitter, particle, transform, camera, instance);
 
             ExtractedParticle extracted;
             extracted.instance = instance;
@@ -489,8 +888,33 @@ private:
         }
     }
 
-    void buildFrameData(ParticleFrameData& frameData)
+    static void applyVelocityStretch(const ParticleEmitterComponent& emitter,
+                                     const ParticleState& particle,
+                                     const TransformComponent& transform,
+                                     const CameraInfo& camera,
+                                     ParticleInstance& instance)
     {
+        if (emitter.runtime.velocityStretch <= 0.0f || camera.viewID == 0)
+            return;
+
+        const glm::mat3 modelRotation = emitter.localSpace ? glm::mat3(transform.getModelMatrix()) : glm::mat3(1.0f);
+        const glm::vec3 worldVelocity = modelRotation * particle.velocity;
+        const glm::vec3 viewVelocity = glm::mat3(camera.viewMatrix) * worldVelocity;
+        const glm::vec2 viewVelocity2D = {viewVelocity.x, viewVelocity.y};
+        const float speed = glm::length(viewVelocity2D);
+        if (speed <= 0.001f)
+            return;
+
+        const float stretch = std::min(std::max(0.0f, emitter.runtime.velocityStretchMax),
+                                       speed * emitter.runtime.velocityStretch);
+        instance.size.x *= 1.0f + stretch;
+        instance.rotation = std::atan2(viewVelocity2D.y, viewVelocity2D.x);
+    }
+
+    void buildFrameData(ParticleFrameData& frameData, ParticleBudgetState& budget)
+    {
+        applyRenderBudget(frameData.renderBudget, frameData, budget);
+
         std::sort(alphaParticles.begin(), alphaParticles.end(),
             [](const ExtractedParticle& lhs, const ExtractedParticle& rhs)
             {
@@ -530,6 +954,68 @@ private:
         appendParticles(frameData, additiveParticles);
         appendMeshParticles(frameData, alphaMeshParticles);
         appendMeshParticles(frameData, additiveMeshParticles);
+        frameData.renderedParticleCount =
+            static_cast<uint32_t>(frameData.instances.size() + frameData.meshInstances.size());
+        budget.renderedParticles = frameData.renderedParticleCount;
+    }
+
+    void applyRenderBudget(uint32_t renderBudget, ParticleFrameData& frameData, ParticleBudgetState& budget)
+    {
+        const uint32_t total = static_cast<uint32_t>(alphaParticles.size() +
+                                                     additiveParticles.size() +
+                                                     alphaMeshParticles.size() +
+                                                     additiveMeshParticles.size());
+        if (renderBudget == 0u || total <= renderBudget)
+            return;
+
+        sortByRenderPriority(alphaParticles);
+        sortByRenderPriority(additiveParticles);
+        sortByRenderPriority(alphaMeshParticles);
+        sortByRenderPriority(additiveMeshParticles);
+
+        uint32_t remaining = renderBudget;
+        clipParticleVector(alphaParticles, remaining);
+        clipParticleVector(additiveParticles, remaining);
+        clipParticleVector(alphaMeshParticles, remaining);
+        clipParticleVector(additiveMeshParticles, remaining);
+
+        const uint32_t kept = static_cast<uint32_t>(alphaParticles.size() +
+                                                    additiveParticles.size() +
+                                                    alphaMeshParticles.size() +
+                                                    additiveMeshParticles.size());
+        frameData.budgetClippedParticleCount = total - kept;
+        budget.budgetClippedEmitters += frameData.budgetClippedParticleCount > 0u ? 1u : 0u;
+    }
+
+    template <typename ParticleVector>
+    static void sortByRenderPriority(ParticleVector& particles)
+    {
+        std::sort(particles.begin(),
+                  particles.end(),
+                  [](const auto& lhs, const auto& rhs)
+                  {
+                      if (lhs.instance.importance != rhs.instance.importance)
+                          return lhs.instance.importance > rhs.instance.importance;
+                      return lhs.instance.depth > rhs.instance.depth;
+                  });
+    }
+
+    template <typename ParticleVector>
+    static void clipParticleVector(ParticleVector& particles, uint32_t& remaining)
+    {
+        if (remaining == 0u)
+        {
+            particles.clear();
+            return;
+        }
+        if (particles.size() <= remaining)
+        {
+            remaining -= static_cast<uint32_t>(particles.size());
+            return;
+        }
+
+        particles.resize(remaining);
+        remaining = 0u;
     }
 
     static void appendParticles(ParticleFrameData& frameData,

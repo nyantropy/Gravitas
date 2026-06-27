@@ -593,10 +593,14 @@ structures and leaving a clean insertion point for a future CPU/GPU particle
 program backend.
 
 The engine creates `ParticleEmitterRuntimeComponent`, simulates particles every
-controller frame, sorts alpha particles by camera depth, batches by primitive,
-mesh, texture, and blend mode, and renders particles in `ParticleRenderStage`.
-Hot-reload bookkeeping, including the last applied effect asset version, lives
-in `ParticleEmitterRuntimeComponent`. Tool-preview playback overrides, such as
+controller frame, generates per-emitter particle bounds, applies render-side
+frustum/distance culling, computes distance LOD and importance scores, sorts
+alpha particles by camera depth, batches by primitive, mesh, texture, and blend
+mode, and renders particles in `ParticleRenderStage`. `ParticleBudgetComponent`
+is an optional singleton budget surface for global simulated/rendered/spawned
+particle limits plus per-frame runtime counters. Hot-reload bookkeeping,
+including the last applied effect asset version, lives in
+`ParticleEmitterRuntimeComponent`. Tool-preview playback overrides, such as
 pause and time scale, also live in runtime state so they do not become authored
 particle asset data.
 
@@ -613,6 +617,17 @@ Particle controls currently include:
   billboard aspect ratio, and mesh angular velocity
 - hue/value variation
 - bursts, flipbooks, softness, wind/acceleration/vortex/radial/noise forces
+- effect scale, importance, per-emitter spawn caps, global budget weighting,
+  distance LOD, render frustum/distance culling, and simulation-while-culled
+  policy
+- generated particle bounds and per-frame counters for active/rendered/clipped
+  particles, culled emitters, collisions, deaths, and event spawns
+- CPU-side billboard velocity stretching using existing width/height/rotation
+  instance data
+- ground-plane particle collision with bounce, damping, kill-on-collision, and
+  spawn-on-death/spawn-on-collision event bursts
+- material path, mesh softness, and lighting-influence descriptor hooks for
+  future renderer/backend integration
 - texture path, optional mesh path, effect asset path, and optional selected
   emitter id
 
@@ -635,9 +650,10 @@ whose `effectPath` is set and `reloadFromEffect` is true. Existing flat JSON
 emitter presets are migrated in memory into one-emitter `ParticleEffectAsset`
 values, and missing module or graph authoring data is generated from the legacy
 descriptor. Saving through the asset IO path writes the module/graph
-effect-asset format plus compatibility descriptor fields. Older scalar module
-data for alpha peaks, size endpoints, and the first burst is migrated into
-richer curve, gradient, and timeline module values.
+effect-asset format plus compatibility descriptor fields, including runtime
+policy, material hook, and collision/event fields. Older scalar module data for
+alpha peaks, size endpoints, and the first burst is migrated into richer curve,
+gradient, and timeline module values.
 
 The legacy particle inspector still edits a selected live ECS emitter descriptor
 for low-level debugging. The dedicated `ParticleEffectEditorPanel` is the
