@@ -175,18 +175,38 @@ public:
                      const ParticleFrameData& particleData,
                      const RenderViewportRect& sceneViewport,
                      const UiCommandBuffer& uiBuffer,
+                     const EditorPreviewRenderData& editorPreview,
                      const GtsFrameStats& stats) override
     {
         if (swapchainRecreatePending && !recreateSwapchainResourcesIfPossible())
             return;
 
-        renderer->renderFrame(dt, renderList, objectUploads, cameraUploads, particleData, sceneViewport, uiBuffer, stats);
+        renderer->renderFrame(dt,
+                              renderList,
+                              objectUploads,
+                              cameraUploads,
+                              particleData,
+                              sceneViewport,
+                              uiBuffer,
+                              editorPreview,
+                              stats);
 
         if (renderer->consumeFrameOutputRecreateRequested())
         {
             swapchainRecreatePending = true;
             recreateSwapchainResourcesIfPossible();
         }
+    }
+
+    texture_id_type ensureEditorPreviewTarget(uint32_t width, uint32_t height) override
+    {
+        return renderer ? renderer->ensureEditorPreviewTarget(width, height) : 0;
+    }
+
+    void releaseEditorPreviewTarget() override
+    {
+        if (renderer)
+            renderer->releaseEditorPreviewTarget();
     }
 
     void toggleDebugOverlay() override

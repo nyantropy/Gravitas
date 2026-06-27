@@ -67,6 +67,11 @@ namespace gts::tools
             return 7;
         }
 
+        void shutdown()
+        {
+            shellSystem.shutdown();
+        }
+
         private:
         EngineToolShellSystem              shellSystem;
         EngineToolCameraSystem             cameraSystem;

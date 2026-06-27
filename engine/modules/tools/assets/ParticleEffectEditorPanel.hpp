@@ -17,7 +17,6 @@
 
 #include "EngineToolPanel.h"
 #include "EngineToolInputCaptureComponent.h"
-#include "EngineToolPreviewCameraComponent.h"
 #include "EditorLayout.h"
 #include "EditorPropertySystem.h"
 #include "EditorWidgets.h"
@@ -29,10 +28,12 @@
 #include "ParticleGraphAuthoring.h"
 #include "ParticleEmitterComponent.h"
 #include "ParticleEmitterRuntimeComponent.h"
+#include "ParticlePreviewWorld.hpp"
 #include "ParticleProgramCompiler.h"
-#include "RenderViewportComponent.h"
+#include "EditorPreviewRenderData.h"
 #include "ToolTheme.h"
 #include "ToolWidgets.h"
+#include "TransformComponent.h"
 
 namespace gts::tools
 {
@@ -63,33 +64,35 @@ namespace gts::tools
         void build(EngineToolContext& ctx, UiHandle parent, BitmapFont* font) override
         {
             root           = createContainerRelative(ctx.ui, parent, {0.0f, 0.0f, 1.0f, 1.0f});
+            createRectRelative(ctx.ui, root, {0.0f, 0.0f, 1.0f, 1.0f}, ToolTheme::workspaceBackground);
+            buildApplicationChrome(ctx.ui, root, font);
             toolbarFrame   = createFxPanelFrame(ctx.ui,
                                                 root,
-                                                {0.0f, 0.000f, 1.0f, 0.080f},
+                                                {0.0f, 0.071f, 1.0f, 0.055f},
                                                 font,
                                                 "toolbar",
-                                                "Particle FX",
-                                                "Asset Authoring",
+                                                "FX Editor",
+                                                "Asset Browser",
                                                 EditorDockArea::Top);
             hierarchyFrame = createFxPanelFrame(ctx.ui,
                                                 root,
-                                                {0.0f, 0.092f, 0.200f, 0.658f},
+                                                {0.008f, 0.134f, 0.195f, 0.535f},
                                                 font,
                                                 "hierarchy",
-                                                "Hierarchy",
+                                                "Effect Hierarchy",
                                                 "Effects / Emitters",
                                                 EditorDockArea::Left);
             previewFrame   = createFxPanelFrame(ctx.ui,
                                                 root,
-                                                {0.210f, 0.092f, 0.535f, 0.658f},
+                                                {0.210f, 0.134f, 0.545f, 0.535f},
                                                 font,
                                                 "preview",
-                                                "Live Preview",
+                                                "Viewport",
                                                 "Immediate Feedback",
                                                 EditorDockArea::Center);
             inspectorFrame = createFxPanelFrame(ctx.ui,
                                                 root,
-                                                {0.755f, 0.092f, 0.245f, 0.658f},
+                                                {0.762f, 0.134f, 0.230f, 0.535f},
                                                 font,
                                                 "inspector",
                                                 "Inspector",
@@ -97,7 +100,7 @@ namespace gts::tools
                                                 EditorDockArea::Right);
             workspaceFrame = createFxPanelFrame(ctx.ui,
                                                 root,
-                                                {0.0f, 0.765f, 1.0f, 0.202f},
+                                                {0.008f, 0.677f, 0.984f, 0.290f},
                                                 font,
                                                 "workspace",
                                                 "Workspace",
@@ -106,104 +109,113 @@ namespace gts::tools
 
             header  = createTextRelative(ctx.ui,
                                          toolbarFrame.background,
-                                         {0.018f, 0.190f, 0.220f, 0.260f},
+                                         {0.020f, 0.190f, 0.145f, 0.620f},
                                          font,
-                                         "PARTICLE EFFECTS",
+                                         "Particle FX",
                                          ToolTheme::text,
                                          ToolTheme::headerTextScale);
             summary = createTextRelative(ctx.ui,
                                          toolbarFrame.background,
-                                         {0.018f, 0.535f, 0.250f, 0.220f},
+                                         {0.165f, 0.210f, 0.105f, 0.580f},
                                          font,
-                                         "NO EFFECT",
+                                         "Open effect",
                                          ToolTheme::mutedText,
                                          ToolTheme::smallTextScale);
 
             addEffectButtonRow(ctx.ui,
                                font,
                                toolbarFrame.background,
-                               {0.285f, 0.230f, 0.220f, 0.405f},
-                               {{EffectAction::Save, "S SAVE"},
-                                {EffectAction::SaveAs, "AS SAVE"},
-                                {EffectAction::Reload, "R RELOAD"}});
+                               {0.290f, 0.220f, 0.245f, 0.540f},
+                               {{EffectAction::Save, "Save"},
+                                {EffectAction::SaveAs, "Save As"},
+                                {EffectAction::Duplicate, "Copy"},
+                                {EffectAction::Reload, "Reload"}});
             addPlaybackButtonRow(ctx.ui,
                                  font,
                                  toolbarFrame.background,
-                                 {0.530f, 0.230f, 0.225f, 0.405f},
-                                 {{PlaybackAction::PlayPause, "|| PAUSE"},
-                                  {PlaybackAction::Restart, ">>"},
-                                  {PlaybackAction::Background, "BG"},
-                                  {PlaybackAction::CameraReset, "CAM"}});
+                                 {0.552f, 0.220f, 0.235f, 0.540f},
+                                 {{PlaybackAction::PlayPause, "Pause"},
+                                  {PlaybackAction::Restart, "Restart"},
+                                  {PlaybackAction::Background, "Bg"},
+                                  {PlaybackAction::CameraReset, "Camera"}});
             UiHandle toolbarSliders =
-                createContainerRelative(ctx.ui, toolbarFrame.background, {0.785f, 0.120f, 0.195f, 0.780f});
-            addSlider(ctx.ui, font, toolbarSliders, 0.020f, FloatField::TimeScale, "TIME", 0.0f, 2.0f);
-            addSlider(ctx.ui, font, toolbarSliders, 0.360f, FloatField::OrbitYaw, "ORBIT", -180.0f, 180.0f);
-            addSlider(ctx.ui, font, toolbarSliders, 0.700f, FloatField::OrbitDistance, "DIST", 1.0f, 40.0f);
+                createContainerRelative(ctx.ui, toolbarFrame.background, {0.800f, 0.125f, 0.178f, 0.760f});
+            addSlider(ctx.ui, font, toolbarSliders, 0.020f, FloatField::TimeScale, "Time", 0.0f, 2.0f);
+            addSlider(ctx.ui, font, toolbarSliders, 0.350f, FloatField::OrbitYaw, "Orbit", -180.0f, 180.0f);
+            addSlider(ctx.ui, font, toolbarSliders, 0.680f, FloatField::OrbitDistance, "Distance", 1.0f, 40.0f);
+            createRectRelative(ctx.ui, toolbarFrame.background, {0.275f, 0.185f, 0.0010f, 0.610f}, ToolTheme::separator);
+            createRectRelative(ctx.ui, toolbarFrame.background, {0.542f, 0.185f, 0.0010f, 0.610f}, ToolTheme::separator);
+            createRectRelative(ctx.ui, toolbarFrame.background, {0.792f, 0.185f, 0.0010f, 0.610f}, ToolTheme::separator);
 
             effectListHeader = createSectionHeaderRelative(
-                ctx.ui, hierarchyFrame.background, {0.025f, 0.145f, 0.950f, 0.050f}, font, "Effects", "");
-            effectNameField = createTextField(ctx.ui, hierarchyFrame.background, 0.215f, "EFFECT", font);
+                ctx.ui, hierarchyFrame.background, {0.025f, 0.125f, 0.950f, 0.052f}, font, "Effects", "");
+            effectNameField = createTextField(ctx.ui, hierarchyFrame.background, 0.196f, "Effect", font);
             for (size_t i = 0; i < EffectRowCount; ++i)
             {
-                const float y = 0.285f + static_cast<float>(i) * 0.046f;
+                const float y = 0.260f + static_cast<float>(i) * 0.046f;
                 effectRows.push_back(createButtonRelative(ctx.ui,
                                                           hierarchyFrame.background,
                                                           {0.025f, y, 0.950f, 0.039f},
                                                           font,
-                                                          "EMPTY",
+                                                          "",
                                                           ToolTheme::buttonTextScale));
             }
 
             emitterListHeader = createSectionHeaderRelative(
-                ctx.ui, hierarchyFrame.background, {0.025f, 0.495f, 0.950f, 0.050f}, font, "Emitters", "");
+                ctx.ui, hierarchyFrame.background, {0.025f, 0.475f, 0.950f, 0.052f}, font, "Emitters", "");
             emitterSearchField = createSearchFieldRelative(
-                ctx.ui, hierarchyFrame.background, {0.025f, 0.562f, 0.950f, 0.043f}, "SEARCH", font);
-            emitterNameField = createTextField(ctx.ui, hierarchyFrame.background, 0.620f, "NAME", font);
+                ctx.ui, hierarchyFrame.background, {0.025f, 0.542f, 0.950f, 0.043f}, "Search", font);
+            emitterNameField = createTextField(ctx.ui, hierarchyFrame.background, 0.600f, "Name", font);
             for (size_t i = 0; i < EmitterRowCount; ++i)
             {
-                const float y = 0.685f + static_cast<float>(i) * 0.041f;
+                const float y = 0.665f + static_cast<float>(i) * 0.041f;
                 emitterRows.push_back(createButtonRelative(ctx.ui,
                                                            hierarchyFrame.background,
                                                            {0.025f, y, 0.950f, 0.034f},
                                                            font,
-                                                           "EMPTY",
+                                                           "",
                                                            ToolTheme::buttonTextScale));
             }
 
             addEmitterButtonRow(ctx.ui,
                                 font,
                                 hierarchyFrame.background,
-                                {0.025f, 0.918f, 0.950f, 0.036f},
-                                {{EmitterAction::Add, "ADD"},
-                                 {EmitterAction::Delete, "DEL"},
-                                 {EmitterAction::Duplicate, "DUP"},
-                                 {EmitterAction::Rename, "NAME"},
+                                {0.025f, 0.910f, 0.950f, 0.036f},
+                                {{EmitterAction::Add, "Add"},
+                                 {EmitterAction::Delete, "Delete"},
+                                 {EmitterAction::Duplicate, "Duplicate"},
+                                 {EmitterAction::Rename, "Name"},
                                  {EmitterAction::ToggleEnabled, "ON"}});
             addEmitterButtonRow(ctx.ui,
                                 font,
                                 hierarchyFrame.background,
-                                {0.025f, 0.960f, 0.950f, 0.036f},
-                                {{EmitterAction::MoveUp, "UP"},
-                                 {EmitterAction::MoveDown, "DOWN"},
-                                 {EmitterAction::ToggleSelection, "SEL"},
-                                 {EmitterAction::Copy, "COPY"},
-                                 {EmitterAction::Paste, "PASTE"}});
+                                {0.025f, 0.952f, 0.950f, 0.036f},
+                                {{EmitterAction::MoveUp, "Up"},
+                                 {EmitterAction::MoveDown, "Down"},
+                                 {EmitterAction::ToggleSelection, "Select"},
+                                 {EmitterAction::Copy, "Copy"},
+                                 {EmitterAction::Paste, "Paste"}});
 
             previewSwatch = createRectRelative(
-                ctx.ui, previewFrame.background, {0.018f, 0.125f, 0.964f, 0.845f}, previewColor(), true);
+                ctx.ui, previewFrame.background, {0.014f, 0.120f, 0.972f, 0.800f}, previewColor(), true);
+            previewTextureImage = ctx.ui.createNode(UiNodeType::Image, previewSwatch);
+            ctx.ui.setLayout(previewTextureImage, relativeLayout({0.0f, 0.0f, 1.0f, 1.0f}));
+            ctx.ui.setState(previewTextureImage,
+                            UiStateFlags{.visible = true, .enabled = false, .interactable = false});
+            ctx.ui.setPayload(previewTextureImage, UiImageData{});
             buildPreviewReferenceOverlay(ctx.ui, previewSwatch, font);
             previewText = createTextRelative(ctx.ui,
                                              previewSwatch,
                                              {0.060f, 0.410f, 0.880f, 0.170f},
                                              font,
-                                             "LIVE PREVIEW",
+                                             "Live Preview",
                                              ToolTheme::text,
                                              ToolTheme::bodyTextScale);
             setTextAlignment(ctx.ui, previewText, UiHorizontalAlign::Center, UiVerticalAlign::Middle);
             previewOverlay = createRectRelative(ctx.ui,
                                                 previewSwatch,
-                                                {0.020f, 0.030f, 0.410f, 0.215f},
-                                                color(0.010f, 0.012f, 0.015f, 0.640f));
+                                                {0.705f, 0.045f, 0.275f, 0.255f},
+                                                ToolTheme::panelInset);
             for (size_t i = 0; i < PreviewOverlayLineCount; ++i)
             {
                 const float y = 0.075f + static_cast<float>(i) * 0.175f;
@@ -217,7 +229,7 @@ namespace gts::tools
             }
             previewScaleText = createTextRelative(ctx.ui,
                                                   previewSwatch,
-                                                  {0.650f, 0.870f, 0.320f, 0.060f},
+                                                  {0.650f, 0.875f, 0.320f, 0.060f},
                                                   font,
                                                   "1m reference",
                                                   ToolTheme::mutedText,
@@ -226,28 +238,28 @@ namespace gts::tools
             addPreviewButtonRow(ctx.ui,
                                 font,
                                 previewSwatch,
-                                {0.020f, 0.795f, 0.500f, 0.055f},
-                                {{PreviewAction::TogglePan, "PAN"},
-                                 {PreviewAction::FrameSelection, "FRAME"},
-                                 {PreviewAction::FrameEffect, "ALL"},
-                                 {PreviewAction::ResetCamera, "RESET"}});
+                                {0.020f, 0.812f, 0.500f, 0.050f},
+                                {{PreviewAction::TogglePan, "Pan"},
+                                 {PreviewAction::FrameSelection, "Frame"},
+                                 {PreviewAction::FrameEffect, "All"},
+                                 {PreviewAction::ResetCamera, "Reset"}});
             addPreviewButtonRow(ctx.ui,
                                 font,
                                 previewSwatch,
-                                {0.020f, 0.865f, 0.610f, 0.050f},
-                                {{PreviewAction::ToggleGrid, "GRID"},
-                                 {PreviewAction::ToggleOrigin, "ORIGIN"},
-                                 {PreviewAction::ToggleScale, "SCALE"},
-                                 {PreviewAction::ToggleBounds, "BBOX"},
-                                 {PreviewAction::ToggleGizmos, "GIZ"},
-                                 {PreviewAction::ToggleCollision, "COL"},
-                                 {PreviewAction::ToggleCulling, "CULL"}});
+                                {0.020f, 0.874f, 0.610f, 0.046f},
+                                {{PreviewAction::ToggleGrid, "Grid"},
+                                 {PreviewAction::ToggleOrigin, "Origin"},
+                                 {PreviewAction::ToggleScale, "Scale"},
+                                 {PreviewAction::ToggleBounds, "Bounds"},
+                                 {PreviewAction::ToggleGizmos, "Gizmos"},
+                                 {PreviewAction::ToggleCollision, "Coll"},
+                                 {PreviewAction::ToggleCulling, "Cull"}});
 
             inspectorHeader = createTextRelative(ctx.ui,
                                                  inspectorFrame.background,
-                                                 {0.025f, 0.145f, 0.950f, 0.055f},
+                                                 {0.025f, 0.130f, 0.950f, 0.055f},
                                                  font,
-                                                 "SELECTION",
+                                                 "Selection",
                                                  ToolTheme::text,
                                                  ToolTheme::headerTextScale);
             addInspectorSection(
@@ -261,7 +273,7 @@ namespace gts::tools
 
             for (size_t i = 0; i < InspectorStatusRowCount; ++i)
             {
-                const float rowY = 0.455f + static_cast<float>(i) * 0.045f;
+                const float rowY = 0.455f + static_cast<float>(i) * 0.044f;
                 inspectorStatusRows.push_back(createStatusRowRelative(ctx.ui,
                                                                       inspectorFrame.background,
                                                                       {0.035f, rowY, 0.930f, 0.036f},
@@ -277,7 +289,7 @@ namespace gts::tools
                                                           inspectorFrame.background,
                                                           {0.035f, rowY, 0.930f, 0.038f},
                                                           font,
-                                                          "MODULE",
+                                                          "",
                                                           ToolTheme::buttonTextScale));
             }
 
@@ -285,33 +297,33 @@ namespace gts::tools
                                font,
                                inspectorFrame.background,
                                {0.035f, 0.710f, 0.930f, 0.040f},
-                               {{ModuleAction::Copy, "M COPY"},
-                                {ModuleAction::Paste, "M PASTE"},
-                                {ModuleAction::Undo, "UNDO"},
-                                {ModuleAction::Redo, "REDO"}});
+                               {{ModuleAction::Copy, "Copy"},
+                                {ModuleAction::Paste, "Paste"},
+                                {ModuleAction::Undo, "Undo"},
+                                {ModuleAction::Redo, "Redo"}});
 
             for (size_t i = 0; i < ParameterControlRowCount; ++i)
             {
                 const float rowY = 0.455f + static_cast<float>(i) * 0.060f;
                 parameterControls.push_back(
-                    {createSlider(ctx.ui, inspectorFrame.background, rowY, "PARAM", 0.0f, 1.0f, false, font),
+                    {createSlider(ctx.ui, inspectorFrame.background, rowY, "Parameter", 0.0f, 1.0f, false, font),
                      createButtonRelative(ctx.ui,
                                           inspectorFrame.background,
                                           {0.035f, rowY, 0.930f, 0.038f},
                                           font,
-                                          "PARAM",
+                                          "",
                                           ToolTheme::buttonTextScale),
                      createButtonRelative(ctx.ui,
                                           inspectorFrame.background,
                                           {0.035f, rowY, 0.658f, 0.038f},
                                           font,
-                                          "PARAM",
+                                          "",
                                           ToolTheme::buttonTextScale),
                      createButtonRelative(ctx.ui,
                                           inspectorFrame.background,
                                           {0.710f, rowY, 0.075f, 0.038f},
                                           font,
-                                          "RST",
+                                          "Reset",
                                           ToolTheme::buttonTextScale),
                      createButtonRelative(ctx.ui,
                                           inspectorFrame.background,
@@ -327,33 +339,33 @@ namespace gts::tools
                                           ToolTheme::buttonTextScale)});
             }
 
-            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Curves, {0.020f, 0.150f, 0.095f, 0.112f}, "C Curves");
-            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Timeline, {0.122f, 0.150f, 0.095f, 0.112f}, "T Timeline");
-            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Graph, {0.224f, 0.150f, 0.095f, 0.112f}, "G Graph");
-            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Diagnostics, {0.326f, 0.150f, 0.115f, 0.112f}, "! Diagnostics");
-            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Preview, {0.448f, 0.150f, 0.130f, 0.112f}, "P Preview");
-            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Output, {0.585f, 0.150f, 0.095f, 0.112f}, "O Output");
+            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Curves, {0.020f, 0.130f, 0.095f, 0.095f}, "Curves");
+            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Timeline, {0.122f, 0.130f, 0.095f, 0.095f}, "Timeline");
+            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Graph, {0.224f, 0.130f, 0.095f, 0.095f}, "Graph");
+            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Diagnostics, {0.326f, 0.130f, 0.115f, 0.095f}, "Diagnostics");
+            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Preview, {0.448f, 0.130f, 0.130f, 0.095f}, "Preview");
+            addWorkspaceTab(ctx.ui, font, WorkspaceTab::Output, {0.585f, 0.130f, 0.095f, 0.095f}, "Output");
 
             addGraphButtonRow(ctx.ui,
                               font,
                               workspaceFrame.background,
-                              {0.705f, 0.150f, 0.270f, 0.112f},
-                              {{GraphAction::Search, "SEARCH"},
-                               {GraphAction::AddNode, "ADD"},
-                               {GraphAction::Link, "LINK"},
-                               {GraphAction::Frame, "FRAME"},
-                               {GraphAction::Comment, "NOTE"}});
+                              {0.705f, 0.130f, 0.270f, 0.095f},
+                              {{GraphAction::Search, "Search"},
+                               {GraphAction::AddNode, "Add"},
+                               {GraphAction::Link, "Link"},
+                               {GraphAction::Frame, "Frame"},
+                               {GraphAction::Comment, "Note"}});
 
             workspaceHeadline = createTextRelative(ctx.ui,
                                                    workspaceFrame.background,
-                                                   {0.020f, 0.325f, 0.955f, 0.110f},
+                                                   {0.020f, 0.285f, 0.955f, 0.085f},
                                                    font,
-                                                   "DIAGNOSTICS",
+                                                   "Diagnostics",
                                                    ToolTheme::text,
                                                    ToolTheme::headerTextScale);
             for (size_t i = 0; i < WorkspaceLineCount; ++i)
             {
-                const float y = 0.465f + static_cast<float>(i) * 0.073f;
+                const float y = 0.400f + static_cast<float>(i) * 0.073f;
                 workspaceInfoLines.push_back(createTextRelative(ctx.ui,
                                                                 workspaceFrame.background,
                                                                 {0.020f, y, 0.955f, 0.052f},
@@ -363,11 +375,13 @@ namespace gts::tools
                                                                 ToolTheme::smallTextScale));
             }
 
+            createRectRelative(ctx.ui, root, {0.0f, 0.971f, 1.0f, 0.029f}, ToolTheme::barBackground);
+            createRectRelative(ctx.ui, root, {0.0f, 0.970f, 1.0f, 0.001f}, ToolTheme::separator);
             footer = createTextRelative(ctx.ui,
                                         root,
-                                        {0.0f, 0.973f, 1.0f, 0.026f},
+                                        {0.010f, 0.974f, 0.980f, 0.020f},
                                         font,
-                                        "ASSET EDITOR",
+                                        "Ready",
                                         ToolTheme::statusText,
                                         ToolTheme::smallTextScale);
             notificationText = createTextRelative(ctx.ui,
@@ -412,13 +426,17 @@ namespace gts::tools
                 applyPreviewZoom(state, interaction);
                 applySliders(ctx.ui, ctx.world, state, interaction);
                 applyModuleParameterControls(ctx.ui, ctx.world, state, interaction);
-                applyPlaybackToLive(ctx.world);
+                syncPreviewWorld(ctx);
+            }
+            else
+            {
+                clearPreviewRender(ctx.world);
+                previewWorld.destroy();
             }
             claimKeyboardIfEditing(ctx.world);
 
             updateDisplay(ctx, state, effectPaths);
-            publishPreviewViewport(ctx);
-            publishPreviewCamera(ctx.world);
+            publishPreviewRender(ctx);
         }
 
         void setVisible(UiSystem& ui, bool visible) override
@@ -426,8 +444,21 @@ namespace gts::tools
             setVisibleRecursive(ui, root, visible);
         }
 
+        void onDeactivate(EngineToolContext& ctx) override
+        {
+            clearPreviewRender(ctx.world);
+            previewWorld.destroy();
+        }
+
+        void shutdown() override
+        {
+            previewWorld.destroy();
+        }
+
         void destroy(UiSystem& ui) override
         {
+            previewWorld.destroy();
+
             if (root != UI_INVALID_HANDLE)
                 ui.removeNode(root);
             root = UI_INVALID_HANDLE;
@@ -450,6 +481,7 @@ namespace gts::tools
             previewGridLines.clear();
             previewOriginLines.clear();
             previewScaleLines.clear();
+            previewTextureImage = UI_INVALID_HANDLE;
         }
 
         private:
@@ -718,6 +750,8 @@ namespace gts::tools
         std::string                           selectedRangeParameterId;
         bool                                  selectedRangeMax       = false;
         UiHandle                              activeUndoHandle       = UI_INVALID_HANDLE;
+        UiHandle                              previewTextureImage    = UI_INVALID_HANDLE;
+        ParticlePreviewWorld                  previewWorld;
         bool                                  previewOrbitDragActive = false;
         float                                 previewOrbitDragLastX  = 0.0f;
         float                                 previewOrbitDragLastY  = 0.0f;
@@ -725,6 +759,83 @@ namespace gts::tools
         size_t                                emitterDragIndex       = 0;
         float                                 emitterDragLastY       = 0.0f;
         size_t                                graphSearchIndex       = 0;
+
+        static void buildApplicationChrome(UiSystem& ui, UiHandle parent, BitmapFont* font)
+        {
+            UiHandle menuBar = createRectRelative(ui, parent, {0.0f, 0.0f, 1.0f, 0.030f}, ToolTheme::barBackground);
+            createRectRelative(ui, menuBar, {0.0f, 0.960f, 1.0f, 0.040f}, ToolTheme::separator);
+
+            UiHandle brand = createTextRelative(ui,
+                                                menuBar,
+                                                {0.012f, 0.170f, 0.075f, 0.680f},
+                                                font,
+                                                "Gravitas",
+                                                ToolTheme::text,
+                                                ToolTheme::titleTextScale);
+            setTextAlignment(ui, brand, UiHorizontalAlign::Left, UiVerticalAlign::Middle);
+
+            const char* menuItems[] = {"File", "Edit", "Assets", "Window", "Help"};
+            float       x           = 0.105f;
+            for (const char* item : menuItems)
+            {
+                UiHandle label = createTextRelative(
+                    ui, menuBar, {x, 0.190f, 0.052f, 0.640f}, font, item, ToolTheme::mutedText, ToolTheme::buttonTextScale);
+                setTextAlignment(ui, label, UiHorizontalAlign::Left, UiVerticalAlign::Middle);
+                x += 0.058f;
+            }
+
+            UiHandle stateChip =
+                createRectRelative(ui, menuBar, {0.842f, 0.180f, 0.070f, 0.640f}, ToolTheme::panelInset);
+            UiHandle stateText = createTextRelative(ui,
+                                                    stateChip,
+                                                    {0.070f, 0.120f, 0.860f, 0.760f},
+                                                    font,
+                                                    "Auto Reload",
+                                                    ToolTheme::statusText,
+                                                    ToolTheme::smallTextScale);
+            setTextAlignment(ui, stateText, UiHorizontalAlign::Center, UiVerticalAlign::Middle);
+
+            UiHandle modeChip =
+                createRectRelative(ui, menuBar, {0.918f, 0.180f, 0.070f, 0.640f}, ToolTheme::accentSoft);
+            UiHandle modeText = createTextRelative(ui,
+                                                   modeChip,
+                                                   {0.070f, 0.120f, 0.860f, 0.760f},
+                                                   font,
+                                                   "Preview Live",
+                                                   ToolTheme::text,
+                                                   ToolTheme::smallTextScale);
+            setTextAlignment(ui, modeText, UiHorizontalAlign::Center, UiVerticalAlign::Middle);
+
+            UiHandle tabs = createRectRelative(ui, parent, {0.0f, 0.030f, 1.0f, 0.041f}, ToolTheme::paneBackground);
+            createRectRelative(ui, tabs, {0.0f, 0.965f, 1.0f, 0.035f}, ToolTheme::separator);
+
+            UiHandle activeTab = createRectRelative(ui, tabs, {0.010f, 0.105f, 0.090f, 0.785f}, ToolTheme::buttonActive);
+            createRectRelative(ui, activeTab, {0.0f, 0.0f, 1.0f, 0.060f}, ToolTheme::accent);
+            UiHandle activeLabel = createTextRelative(ui,
+                                                      activeTab,
+                                                      {0.100f, 0.120f, 0.800f, 0.760f},
+                                                      font,
+                                                      "Particle FX",
+                                                      ToolTheme::text,
+                                                      ToolTheme::buttonTextScale);
+            setTextAlignment(ui, activeLabel, UiHorizontalAlign::Center, UiVerticalAlign::Middle);
+
+            const char* inactiveTabs[] = {"Scene", "Material", "Animation", "Audio"};
+            x                          = 0.106f;
+            for (const char* tab : inactiveTabs)
+            {
+                UiHandle tabRect = createRectRelative(ui, tabs, {x, 0.105f, 0.076f, 0.785f}, ToolTheme::panelInset);
+                UiHandle tabText = createTextRelative(ui,
+                                                      tabRect,
+                                                      {0.080f, 0.120f, 0.840f, 0.760f},
+                                                      font,
+                                                      tab,
+                                                      ToolTheme::mutedText,
+                                                      ToolTheme::buttonTextScale);
+                setTextAlignment(ui, tabText, UiHorizontalAlign::Center, UiVerticalAlign::Middle);
+                x += 0.080f;
+            }
+        }
 
         static ToolPanelFrame createFxPanelFrame(UiSystem&          ui,
                                                  UiHandle           parent,
@@ -735,6 +846,30 @@ namespace gts::tools
                                                  const std::string& subtitle,
                                                  EditorDockArea     area)
         {
+            if (area == EditorDockArea::Top)
+            {
+                ToolPanelFrame frame;
+                frame.background = createRectRelative(ui, parent, rect, ToolTheme::viewportBar);
+                createRectRelative(ui, frame.background, {0.0f, 0.000f, 1.0f, 0.030f}, ToolTheme::borderSubtle);
+                createRectRelative(ui, frame.background, {0.0f, 0.970f, 1.0f, 0.030f}, ToolTheme::separator);
+                frame.accent = createRectRelative(ui, frame.background, {0.0f, 0.0f, 0.002f, 1.0f}, ToolTheme::accentMuted);
+                frame.title = createTextRelative(ui,
+                                                 frame.background,
+                                                 {0.0f, 0.0f, 0.0f, 0.0f},
+                                                 font,
+                                                 title,
+                                                 ToolTheme::mutedText,
+                                                 ToolTheme::smallTextScale);
+                frame.subtitle = createTextRelative(ui,
+                                                    frame.background,
+                                                    {0.0f, 0.0f, 0.0f, 0.0f},
+                                                    font,
+                                                    subtitle,
+                                                    ToolTheme::mutedText,
+                                                    ToolTheme::smallTextScale);
+                return frame;
+            }
+
             EditorPanelState panel;
             panel.id       = id;
             panel.title    = title;
@@ -883,19 +1018,23 @@ namespace gts::tools
 
         void buildPreviewReferenceOverlay(UiSystem& ui, UiHandle parent, BitmapFont* font)
         {
-            const UiColor gridColor   = color(0.340f, 0.390f, 0.430f, 0.180f);
-            const UiColor originX     = color(0.880f, 0.280f, 0.300f, 0.520f);
-            const UiColor originZ     = color(0.250f, 0.520f, 0.920f, 0.520f);
-            const UiColor reference   = color(0.720f, 0.780f, 0.830f, 0.620f);
+            UiColor gridColor = DefaultEditorTheme.colors.graphGridMajor;
+            UiColor originX   = ToolTheme::axisX;
+            UiColor originZ   = ToolTheme::axisZ;
+            UiColor reference = ToolTheme::statusText;
+            gridColor.a       = 0.135f;
+            originX.a         = 0.360f;
+            originZ.a         = 0.360f;
+            reference.a       = 0.620f;
             for (int i = 1; i < 6; ++i)
             {
                 const float t = static_cast<float>(i) / 6.0f;
-                previewGridLines.push_back(createEditorLineRelative(ui, parent, {t, 0.0f}, {t, 1.0f}, gridColor, 0.0012f));
-                previewGridLines.push_back(createEditorLineRelative(ui, parent, {0.0f, t}, {1.0f, t}, gridColor, 0.0012f));
+                previewGridLines.push_back(createEditorLineRelative(ui, parent, {t, 0.0f}, {t, 1.0f}, gridColor, 0.0008f));
+                previewGridLines.push_back(createEditorLineRelative(ui, parent, {0.0f, t}, {1.0f, t}, gridColor, 0.0008f));
             }
 
-            previewOriginLines.push_back(createEditorLineRelative(ui, parent, {0.500f, 0.0f}, {0.500f, 1.0f}, originZ, 0.0022f));
-            previewOriginLines.push_back(createEditorLineRelative(ui, parent, {0.0f, 0.500f}, {1.0f, 0.500f}, originX, 0.0022f));
+            previewOriginLines.push_back(createEditorLineRelative(ui, parent, {0.500f, 0.0f}, {0.500f, 1.0f}, originZ, 0.0013f));
+            previewOriginLines.push_back(createEditorLineRelative(ui, parent, {0.0f, 0.500f}, {1.0f, 0.500f}, originX, 0.0013f));
             previewScaleLines.push_back(createEditorLineRelative(ui, parent, {0.780f, 0.905f}, {0.940f, 0.905f}, reference, 0.0030f));
             previewScaleLines.push_back(createEditorLineRelative(ui, parent, {0.780f, 0.890f}, {0.780f, 0.920f}, reference, 0.0020f));
             previewScaleLines.push_back(createEditorLineRelative(ui, parent, {0.940f, 0.890f}, {0.940f, 0.920f}, reference, 0.0020f));
@@ -2147,47 +2286,19 @@ namespace gts::tools
 
         void applyPlaybackToLive(ECSWorld& world)
         {
-            if (!hasAsset || currentPath.empty())
-                return;
-
-            world.forEach<ParticleEmitterComponent, ParticleEmitterRuntimeComponent>(
-                [&](Entity, ParticleEmitterComponent& emitter, ParticleEmitterRuntimeComponent& runtime)
-                {
-                    if (emitter.effectPath != currentPath)
-                        return;
-
-                    runtime.playbackPaused    = playbackPaused;
-                    runtime.playbackTimeScale = playbackTimeScale;
-                });
+            (void)world;
         }
 
         void clearPlaybackForPath(ECSWorld& world, const std::string& path)
         {
-            if (path.empty())
-                return;
-
-            world.forEach<ParticleEmitterComponent, ParticleEmitterRuntimeComponent>(
-                [&](Entity, ParticleEmitterComponent& emitter, ParticleEmitterRuntimeComponent& runtime)
-                {
-                    if (emitter.effectPath != path)
-                        return;
-
-                    runtime.playbackPaused    = false;
-                    runtime.playbackTimeScale = 1.0f;
-                });
+            (void)world;
+            (void)path;
         }
 
         void restartLiveEffect(ECSWorld& world)
         {
-            if (currentPath.empty())
-                return;
-
-            world.forEach<ParticleEmitterComponent, ParticleEmitterRuntimeComponent>(
-                [&](Entity, ParticleEmitterComponent& emitter, ParticleEmitterRuntimeComponent& runtime)
-                {
-                    if (emitter.effectPath == currentPath)
-                        resetRuntime(runtime);
-                });
+            (void)world;
+            previewWorld.resetSimulation();
         }
 
         void applySelectedEmitterToLive(ECSWorld& world, bool restart)
@@ -2197,38 +2308,9 @@ namespace gts::tools
                 return;
 
             syncSelectedEmitterDescriptor(*selected);
-            const ParticleEmitterComponent runtimeDescriptor =
-                gts::particles::compiledParticleRuntimeDescriptor(*selected);
-
-            world.forEach<ParticleEmitterComponent, ParticleEmitterRuntimeComponent>(
-                [&](Entity, ParticleEmitterComponent& emitter, ParticleEmitterRuntimeComponent& runtime)
-                {
-                    if (emitter.effectPath != currentPath)
-                        return;
-                    if (!liveEmitterCanUseSelection(emitter, selected->stableId))
-                        return;
-
-                    const std::string effectPath       = emitter.effectPath;
-                    const uint32_t    randomSeed       = emitter.randomSeed;
-                    const bool        reloadFromEffect = emitter.reloadFromEffect;
-                    emitter                            = runtimeDescriptor;
-                    emitter.effectPath                 = effectPath;
-                    emitter.effectEmitterId            = selected->stableId;
-                    emitter.randomSeed                 = randomSeed;
-                    emitter.reloadFromEffect           = reloadFromEffect;
-
-                    if (restart)
-                        resetRuntime(runtime);
-                });
-        }
-
-        bool liveEmitterCanUseSelection(const ParticleEmitterComponent& emitter, const std::string& stableId) const
-        {
-            if (emitter.effectEmitterId.empty())
-                return selectedEmitterIndex == 0;
-            if (emitter.effectEmitterId == stableId)
-                return true;
-            return !assetHasEmitter(emitter.effectEmitterId);
+            (void)world;
+            if (restart)
+                previewWorld.resetSimulation();
         }
 
         bool assetHasEmitter(const std::string& stableId) const
@@ -2241,41 +2323,31 @@ namespace gts::tools
             return false;
         }
 
-        static void resetRuntime(ParticleEmitterRuntimeComponent& runtime)
-        {
-            runtime.particles.clear();
-            runtime.spawnAccumulator = 0.0f;
-            runtime.emitterAge       = 0.0f;
-            runtime.burstRepeatCounts.clear();
-            runtime.textureID = 0;
-            runtime.meshID    = 0;
-            runtime.boundTexturePath.clear();
-            runtime.boundMeshPath.clear();
-        }
-
         void updateDisplay(EngineToolContext&              ctx,
                            EngineToolStateComponent&       state,
                            const std::vector<std::string>& effectPaths)
         {
             updatePanelFrame(
-                ctx.ui, toolbarFrame, "Particle FX", hasAsset ? graphStatusLabel() : std::string("Asset Authoring"));
+                ctx.ui, toolbarFrame, "FX Editor", hasAsset ? graphStatusLabel() : std::string("Asset Authoring"));
             updatePanelFrame(ctx.ui,
                              hierarchyFrame,
-                             "Hierarchy",
+                             "Effect Hierarchy",
                              hasAsset ? std::to_string(currentAsset.emitters.size()) + " emitters"
                                       : "Effects / Emitters");
-            updatePanelFrame(ctx.ui, previewFrame, "Live Preview", playbackPaused ? "Paused" : "Playing");
+            updatePanelFrame(ctx.ui, previewFrame, "Viewport", playbackPaused ? "Paused" : "Playing");
             updatePanelFrame(ctx.ui, inspectorFrame, "Inspector", inspectorSectionLabel(selectedInspectorSection));
             updatePanelFrame(ctx.ui, workspaceFrame, "Workspace", workspaceTabLabel(selectedWorkspaceTab));
 
+            setText(ctx.ui, header, toolbarTitleText());
             setText(ctx.ui, summary, effectSummary());
             setRectColor(ctx.ui, previewSwatch, previewColor());
-            const std::string previewMessage = previewStateMessage(ctx.world);
+            ECSWorld& previewStatsWorld = previewWorld.ecsWorld();
+            const std::string previewMessage = previewStateMessage(previewStatsWorld);
             setText(ctx.ui, previewText, previewMessage);
-            setTextColor(ctx.ui, previewText, previewStateColor(ctx.world));
+            setTextColor(ctx.ui, previewText, previewStateColor(previewStatsWorld));
             setVisibleRecursive(ctx.ui, previewText, !previewMessage.empty());
             setText(ctx.ui, inspectorHeader, inspectorObjectTitle());
-            setText(ctx.ui, footer, state.status);
+            setText(ctx.ui, footer, statusBarText(ctx, state));
             updateNotification(ctx, state.status);
             syncTextDraftsForDisplay();
             updateSectionHeader(
@@ -2313,7 +2385,7 @@ namespace gts::tools
                                 false);
             updateTextField(ctx.ui,
                             emitterSearchField,
-                            textFieldDisplay(emitterSearchDraft.empty() ? std::string{"ALL"} : emitterSearchDraft,
+                            textFieldDisplay(emitterSearchDraft.empty() ? std::string{"All"} : emitterSearchDraft,
                                              activeTextField == ActiveTextField::EmitterSearch),
                             activeTextField == ActiveTextField::EmitterSearch);
             clampEmitterBrowserOffset(visibleEmitters);
@@ -2334,8 +2406,8 @@ namespace gts::tools
             updateModuleRows(ctx.ui);
             updateParameterControls(ctx.ui);
             updateInspectorSections(ctx.ui);
-            updateInspectorStatusRows(ctx.ui, ctx.world);
-            updateWorkspace(ctx.ui, ctx.world);
+            updateInspectorStatusRows(ctx.ui, previewStatsWorld);
+            updateWorkspace(ctx.ui, previewStatsWorld);
 
             for (const EffectButtonBinding& binding : effectButtons)
                 updateButton(ctx.ui, binding.button, effectButtonLabel(binding.action));
@@ -2347,13 +2419,39 @@ namespace gts::tools
                 updateButton(ctx.ui, binding.button, graphButtonLabel(binding.action));
             for (const PlaybackButtonBinding& binding : playbackButtons)
                 updateButton(ctx.ui, binding.button, playbackButtonLabel(binding.action));
-            updatePreviewControls(ctx.ui, ctx.world);
+            updatePreviewControls(ctx.ui, previewStatsWorld);
             applyActionHierarchy(ctx.ui);
 
             for (const SliderBinding& binding : sliders)
                 updateSlider(ctx.ui, binding.slider, readSliderValue(binding.field), sliderColor(binding.field));
 
             syncInspectorSectionVisibility(ctx.ui);
+        }
+
+        std::string statusBarText(EngineToolContext& ctx, const EngineToolStateComponent& state)
+        {
+            const LiveEffectStats stats = liveEffectStats(previewWorld.ecsWorld());
+            const float fps = ctx.time == nullptr || ctx.time->unscaledDeltaTime <= 0.0001f
+                                  ? 0.0f
+                                  : 1.0f / ctx.time->unscaledDeltaTime;
+            const UiSystem::Metrics uiMetrics = ctx.ui.getLastMetrics();
+
+            std::ostringstream out;
+            out << "Effect: ";
+            out << (hasAsset ? compact(currentAsset.metadata.name.empty() ? fileName(currentPath)
+                                                                           : currentAsset.metadata.name,
+                                       28)
+                             : "--");
+            out << "  |  Asset: " << (currentPath.empty() ? "--" : compact(fileName(currentPath), 30));
+            out << "  |  Auto Reload: On";
+            out << "  |  Mem: -- MB";
+            out << "  |  Draw Calls: " << uiMetrics.commandCount;
+            out << "  |  Particles: " << stats.liveParticles;
+            out << "  |  " << (fps <= 0.0f ? std::string{"--"} : formatFloat(fps)) << " fps";
+            out << "  |  " << graphStatusLabel();
+            if (!state.status.empty())
+                out << "  |  " << compact(displayStatusText(state.status), 34);
+            return out.str();
         }
 
         void applyActionHierarchy(UiSystem& ui)
@@ -2381,7 +2479,7 @@ namespace gts::tools
                 else if (binding.action == EmitterAction::Duplicate)
                     setRectColor(ui, binding.button.rect, ToolTheme::accentSoft);
                 else if (binding.action == EmitterAction::Delete)
-                    setRectColor(ui, binding.button.rect, color(0.190f, 0.095f, 0.080f, 1.000f));
+                    setRectColor(ui, binding.button.rect, ToolTheme::error);
                 else if (binding.action == EmitterAction::Paste && emitterClipboard.empty())
                     setRectColor(ui, binding.button.rect, ToolTheme::disabled);
             }
@@ -2425,7 +2523,7 @@ namespace gts::tools
             {
                 const size_t      moduleIndex = rowOffset + i;
                 const bool        hasRow      = moduleIndex < emitter->modules.size();
-                const std::string label       = hasRow ? moduleDisplayName(emitter->modules[moduleIndex]) : "EMPTY";
+                const std::string label       = hasRow ? moduleDisplayName(emitter->modules[moduleIndex]) : "";
                 updateButton(ui, moduleRows[i], label);
                 if (hasRow && moduleIndex == selectedModuleIndex)
                     setRectColor(ui, moduleRows[i].rect, ToolTheme::buttonActive);
@@ -2482,14 +2580,22 @@ namespace gts::tools
         std::string effectSummary() const
         {
             if (!hasAsset)
-                return "OPEN AN EFFECT FROM SCENE";
+                return "Open from scene";
 
             std::ostringstream out;
-            const std::string  name =
-                currentAsset.metadata.name.empty() ? fileName(currentPath) : currentAsset.metadata.name;
-            out << name << (dirty ? " *" : "") << "  " << currentAsset.emitters.size() << " EMIT  "
+            out << currentAsset.emitters.size() << " emitter" << (currentAsset.emitters.size() == 1 ? "" : "s") << "  "
                 << graphStatusLabel();
-            return out.str();
+            return compact(out.str(), 26);
+        }
+
+        std::string toolbarTitleText() const
+        {
+            if (!hasAsset)
+                return "Particle FX";
+
+            const std::string name =
+                currentAsset.metadata.name.empty() ? fileName(currentPath) : currentAsset.metadata.name;
+            return compact(name + (dirty ? " *" : ""), 26);
         }
 
         struct GraphDiagnosticCounts
@@ -2502,10 +2608,10 @@ namespace gts::tools
         {
             const GraphDiagnosticCounts counts = selectedGraphDiagnosticCounts();
             if (counts.errors > 0)
-                return "GRAPH " + std::to_string(counts.errors) + " ERR";
+                return "Graph " + std::to_string(counts.errors) + " errors";
             if (counts.warnings > 0)
-                return "GRAPH " + std::to_string(counts.warnings) + " WARN";
-            return "GRAPH OK";
+                return "Graph " + std::to_string(counts.warnings) + " warnings";
+            return "Graph OK";
         }
 
         GraphDiagnosticCounts selectedGraphDiagnosticCounts() const
@@ -2559,8 +2665,9 @@ namespace gts::tools
             const std::string            selectedStableId = selected == nullptr ? std::string{} : selected->stableId;
 
             world.forEach<ParticleEmitterComponent, ParticleEmitterRuntimeComponent>(
-                [&](Entity, ParticleEmitterComponent& emitter, ParticleEmitterRuntimeComponent& runtime)
+                [&](Entity entity, ParticleEmitterComponent& emitter, ParticleEmitterRuntimeComponent& runtime)
                 {
+                    (void)entity;
                     if (emitter.effectPath != currentPath)
                         return;
 
@@ -2575,7 +2682,9 @@ namespace gts::tools
                     const bool selectedRuntime =
                         !selectedStableId.empty() && (emitter.effectEmitterId == selectedStableId ||
                                                       (emitter.effectEmitterId.empty() && selectedEmitterIndex == 0));
-                    if (!selectedRuntime || stats.selectedRuntimeFound)
+                    if (!selectedRuntime)
+                        return;
+                    if (stats.selectedRuntimeFound)
                         return;
 
                     stats.selectedRuntimeFound          = true;
@@ -2771,27 +2880,27 @@ namespace gts::tools
             switch (action)
             {
             case PreviewAction::TogglePan:
-                return "PAN";
+                return "Pan";
             case PreviewAction::FrameSelection:
-                return "FRAME";
+                return "Frame";
             case PreviewAction::FrameEffect:
-                return "ALL";
+                return "All";
             case PreviewAction::ResetCamera:
-                return "RESET";
+                return "Reset";
             case PreviewAction::ToggleGrid:
-                return "GRID";
+                return "Grid";
             case PreviewAction::ToggleOrigin:
-                return "ORI";
+                return "Origin";
             case PreviewAction::ToggleScale:
-                return "REF";
+                return "Scale";
             case PreviewAction::ToggleBounds:
-                return "BBOX";
+                return "Bounds";
             case PreviewAction::ToggleGizmos:
-                return "GIZ";
+                return "Gizmos";
             case PreviewAction::ToggleCollision:
-                return "COL";
+                return "Coll";
             case PreviewAction::ToggleCulling:
-                return "CUL";
+                return "Cull";
             }
             return "";
         }
@@ -2845,8 +2954,62 @@ namespace gts::tools
             if (!visible)
                 return;
 
-            setText(ctx.ui, notificationText, notificationMessage);
+            setText(ctx.ui, notificationText, displayStatusText(notificationMessage));
             setTextColor(ctx.ui, notificationText, notificationColor(notificationMessage));
+        }
+
+        static std::string displayStatusText(const std::string& message)
+        {
+            if (message.empty())
+                return {};
+
+            const auto prefix = [&](const char* raw, const char* display) -> std::optional<std::string>
+            {
+                const std::string rawPrefix(raw);
+                if (message.rfind(rawPrefix, 0) != 0)
+                    return std::nullopt;
+                return std::string(display) + message.substr(rawPrefix.size());
+            };
+
+            if (std::optional<std::string> opened = prefix("OPENED ", "Opened "))
+                return *opened;
+            if (std::optional<std::string> saved = prefix("SAVED ", "Saved "))
+                return *saved;
+            if (std::optional<std::string> selected = prefix("SELECTED ", "Selected "))
+                return *selected;
+            if (std::optional<std::string> found = prefix("FOUND ", "Found "))
+                return *found;
+            if (std::optional<std::string> missing = prefix("MISSING ", "Missing "))
+                return *missing;
+
+            bool hasLetter = false;
+            bool hasLower  = false;
+            for (unsigned char c : message)
+            {
+                if (!std::isalpha(c))
+                    continue;
+                hasLetter = true;
+                if (std::islower(c))
+                    hasLower = true;
+            }
+
+            if (!hasLetter || hasLower)
+                return message;
+
+            std::string display = message;
+            bool        word    = true;
+            for (char& ch : display)
+            {
+                const unsigned char c = static_cast<unsigned char>(ch);
+                if (std::isalpha(c))
+                {
+                    ch   = static_cast<char>(word ? std::toupper(c) : std::tolower(c));
+                    word = false;
+                    continue;
+                }
+                word = !std::isdigit(c);
+            }
+            return display;
         }
 
         static UiColor notificationColor(const std::string& message)
@@ -2867,46 +3030,70 @@ namespace gts::tools
             return ToolTheme::statusText;
         }
 
-        void publishPreviewViewport(EngineToolContext& ctx)
+        void syncPreviewWorld(EngineToolContext& ctx)
         {
+            if (!hasAsset || currentPath.empty())
+                return;
+
+            previewWorld.ensure(ctx.resources);
+            previewWorld.syncAsset(currentPath, currentAsset, playbackTimeScale, playbackPaused);
+        }
+
+        void clearPreviewRender(ECSWorld& world)
+        {
+            if (world.hasAny<EditorPreviewRenderComponent>())
+                world.getSingleton<EditorPreviewRenderComponent>().data.enabled = false;
+        }
+
+        void updatePreviewTextureImage(UiSystem& ui, texture_id_type textureID)
+        {
+            if (previewTextureImage == UI_INVALID_HANDLE)
+                return;
+
+            UiImageData image;
+            image.textureID = textureID;
+            image.tint = {1.0f, 1.0f, 1.0f, textureID == 0 ? 0.0f : 1.0f};
+            ui.setPayload(previewTextureImage, image);
+            setVisibleRecursive(ui, previewTextureImage, textureID != 0);
+        }
+
+        void publishPreviewRender(EngineToolContext& ctx)
+        {
+            if (!hasAsset || currentPath.empty())
+            {
+                clearPreviewRender(ctx.world);
+                updatePreviewTextureImage(ctx.ui, 0);
+                return;
+            }
+
             const UiNode* node = ctx.ui.findNode(previewSwatch);
             if (node == nullptr)
                 return;
 
             const UiRect& bounds = node->computedLayout.bounds;
-            if (bounds.width <= 0.001f || bounds.height <= 0.001f)
-                return;
+            const uint32_t width = std::max(
+                1u,
+                static_cast<uint32_t>(std::round(bounds.width * std::max(1.0f, ctx.windowPixelWidth))));
+            const uint32_t height = std::max(
+                1u,
+                static_cast<uint32_t>(std::round(bounds.height * std::max(1.0f, ctx.windowPixelHeight))));
 
-            const int windowWidth  = std::max(1, static_cast<int>(std::round(ctx.windowPixelWidth)));
-            const int windowHeight = std::max(1, static_cast<int>(std::round(ctx.windowPixelHeight)));
-            RenderViewportRect viewport{
-                static_cast<int>(std::round(bounds.x * static_cast<float>(windowWidth))),
-                static_cast<int>(std::round(bounds.y * static_cast<float>(windowHeight))),
-                static_cast<int>(std::round(bounds.width * static_cast<float>(windowWidth))),
-                static_cast<int>(std::round(bounds.height * static_cast<float>(windowHeight)))};
-            viewport = viewport.clampedTo(windowWidth, windowHeight);
+            texture_id_type previousTexture = 0;
+            if (ctx.world.hasAny<EditorPreviewRenderComponent>())
+                previousTexture = ctx.world.getSingleton<EditorPreviewRenderComponent>().data.colorTextureID;
 
-            RenderViewportComponent* renderViewport = nullptr;
-            if (ctx.world.hasAny<RenderViewportComponent>())
-                renderViewport = &ctx.world.getSingleton<RenderViewportComponent>();
+            const float dt = ctx.time == nullptr ? 1.0f / 60.0f : ctx.time->unscaledDeltaTime;
+            EditorPreviewRenderData data =
+                previewWorld.buildFrame(currentAsset, dt, !playbackPaused, playbackTimeScale, width, height);
+            data.colorTextureID = previousTexture;
+
+            EditorPreviewRenderComponent* component = nullptr;
+            if (ctx.world.hasAny<EditorPreviewRenderComponent>())
+                component = &ctx.world.getSingleton<EditorPreviewRenderComponent>();
             else
-                renderViewport = &ctx.world.createSingleton<RenderViewportComponent>();
-            renderViewport->sceneViewport = viewport;
-        }
-
-        void publishPreviewCamera(ECSWorld& world)
-        {
-            EngineToolPreviewCameraComponent* preview = nullptr;
-            if (world.hasAny<EngineToolPreviewCameraComponent>())
-                preview = &world.getSingleton<EngineToolPreviewCameraComponent>();
-            else
-                preview = &world.createSingleton<EngineToolPreviewCameraComponent>();
-
-            preview->active   = true;
-            preview->position = hasAsset ? currentAsset.preview.cameraPosition : glm::vec3{0.0f, 1.0f, 4.0f};
-            preview->target   = hasAsset ? currentAsset.preview.cameraTarget : glm::vec3{0.0f, 0.6f, 0.0f};
-            preview->up       = {0.0f, 1.0f, 0.0f};
-            preview->fov      = 70.0f;
+                component = &ctx.world.createSingleton<EditorPreviewRenderComponent>();
+            component->data = std::move(data);
+            updatePreviewTextureImage(ctx.ui, component->data.colorTextureID);
         }
 
         void updateInspectorSections(UiSystem& ui)
@@ -2939,7 +3126,7 @@ namespace gts::tools
                 }
                 else
                 {
-                    setRectColor(ui, binding.button.rect, color(0.048f, 0.052f, 0.054f, 0.860f));
+                    setRectColor(ui, binding.button.rect, ToolTheme::panelInset);
                     setTextColor(ui, binding.button.label, ToolTheme::mutedText);
                 }
             }
@@ -2980,14 +3167,14 @@ namespace gts::tools
         std::string inspectorObjectTitle() const
         {
             if (!hasAsset)
-                return "NO EFFECT SELECTED";
+                return "No Effect Selected";
             const ParticleEffectEmitter*  emitter = selectedEmitter();
             const ParticleModuleInstance* module  = selectedModule();
             if (selectedInspectorSection == InspectorSection::Parameters && module != nullptr)
-                return "MODULE  " + moduleDisplayName(*module);
+                return "Module  " + moduleDisplayName(*module);
             if (emitter != nullptr)
-                return "EMITTER  " + compact(emitter->name.empty() ? emitter->stableId : emitter->name, 34);
-            return "EFFECT  " + compact(currentAsset.metadata.name, 34);
+                return "Emitter  " + compact(emitter->name.empty() ? emitter->stableId : emitter->name, 34);
+            return "Effect  " + compact(currentAsset.metadata.name, 34);
         }
 
         std::string inspectorSectionSummary(InspectorSection section) const
@@ -3057,17 +3244,17 @@ namespace gts::tools
             switch (selectedWorkspaceTab)
             {
             case WorkspaceTab::Curves:
-                return "CURVES";
+                return "Curves";
             case WorkspaceTab::Timeline:
-                return "TIMELINE";
+                return "Timeline";
             case WorkspaceTab::Graph:
-                return "GRAPH COMPATIBILITY";
+                return "Graph Compatibility";
             case WorkspaceTab::Diagnostics:
-                return "DIAGNOSTICS";
+                return "Diagnostics";
             case WorkspaceTab::Preview:
-                return "PREVIEW SETTINGS";
+                return "Preview Settings";
             case WorkspaceTab::Output:
-                return "COMPILED OUTPUT";
+                return "Compiled Output";
             }
             return "";
         }
@@ -3256,17 +3443,17 @@ namespace gts::tools
             switch (tab)
             {
             case WorkspaceTab::Curves:
-                return "C Curves";
+                return "Curves";
             case WorkspaceTab::Timeline:
-                return "T Timeline";
+                return "Timeline";
             case WorkspaceTab::Graph:
-                return "G Graph";
+                return "Graph";
             case WorkspaceTab::Diagnostics:
-                return "! Diagnostics";
+                return "Diagnostics";
             case WorkspaceTab::Preview:
-                return "P Preview";
+                return "Preview";
             case WorkspaceTab::Output:
-                return "O Output";
+                return "Output";
             }
             return "";
         }
@@ -3449,7 +3636,7 @@ namespace gts::tools
                 label = std::string(executionStageShortLabel(definition->executionStage)) + " " + definition->category +
                         " " + label;
             if (!module.enabled)
-                label = "OFF " + label;
+                label = "Off " + label;
             return compact(label, 24);
         }
 
@@ -3457,9 +3644,9 @@ namespace gts::tools
         {
             const ParticleModuleDefinition* definition = findParticleModuleDefinition(module.typeId);
             if (definition == nullptr)
-                return "MODULE UNKNOWN";
+                return "Module unknown";
 
-            std::string label = "MODULE ";
+            std::string label = "Module ";
             label += executionStageLabel(definition->executionStage);
             label += " ";
             label += gts::particles::executionCategoryLabel(definition->executionCategory);
@@ -3964,7 +4151,7 @@ namespace gts::tools
             setParameterControlVisible(ui, control, true, true, false, false, true, true, false);
             setText(ui, control.slider.label, spec.displayName + "  " + formatValue(value, control.slider.wholeNumber));
             updateSlider(ui, control.slider, value, parameterSliderColor(definition));
-            updateButton(ui, control.reset, "RST");
+            updateButton(ui, control.reset, "Reset");
             updateButton(ui, control.decrement, "-");
             updateButton(ui, control.increment, "+");
         }
@@ -3996,7 +4183,7 @@ namespace gts::tools
                          parameterSliderColor(activeDefinition));
             updateButton(
                 ui, control.selector, rangeButtonLabel(*minParameter, *maxParameter, *view.primary, *view.secondary));
-            updateButton(ui, control.reset, "RST");
+            updateButton(ui, control.reset, "Reset");
             updateButton(ui, control.decrement, "-");
             updateButton(ui, control.increment, "+");
         }
@@ -4012,7 +4199,7 @@ namespace gts::tools
             setParameterControlVisible(ui, control, true, false, false, true, true, true, false);
             updateSlider(ui, control.slider, richSliderValue(parameter, definition), richSliderColor(definition));
             updateButton(ui, control.selector, richButtonLabel(parameter, definition));
-            updateButton(ui, control.reset, "RST");
+            updateButton(ui, control.reset, "Reset");
             updateButton(ui, control.decrement, "-");
             updateButton(ui, control.increment, "+");
         }
@@ -4343,7 +4530,7 @@ namespace gts::tools
         {
             if (definition.type == ParticleModuleParameterType::BurstTimeline && parameter.burstTimelineValue.empty())
             {
-                return compact(definition.label + " EMPTY", 24);
+                return compact(definition.label + " Empty", 24);
             }
 
             std::string label = definition.label + " K" + std::to_string(selectedRichKeyIndex + 1) + " ";
@@ -4368,10 +4555,10 @@ namespace gts::tools
             }
             if (definition.type == ParticleModuleParameterType::BurstTimeline)
             {
-                static const char* labels[] = {"TIME", "MIN", "MAX", "REPEAT", "LOOPS"};
+                static const char* labels[] = {"Time", "Min", "Max", "Repeat", "Loops"};
                 return labels[std::min<uint32_t>(selectedRichField, 4u)];
             }
-            return "VALUE";
+            return "Value";
         }
 
         static size_t richKeyCount(const ParticleModuleParameter&           parameter,
@@ -4694,7 +4881,7 @@ namespace gts::tools
         {
             const EditorPropertySpec spec = parameterPropertySpec(parameter, definition);
             if (definition.type == ParticleModuleParameterType::Bool)
-                return spec.displayName + (parameter.boolValue ? " ON" : " OFF");
+                return spec.displayName + (parameter.boolValue ? " On" : " Off");
             if (definition.type == ParticleModuleParameterType::Enum)
                 return spec.displayName + " " + spec.value;
             if (definition.type == ParticleModuleParameterType::String)
@@ -4707,7 +4894,7 @@ namespace gts::tools
                                            const ParticleModuleParameterDefinition& definition) const
         {
             return definition.label + " " +
-                   compact(parameter.stringValue.empty() ? "NONE" : fileName(parameter.stringValue), 22);
+                   compact(parameter.stringValue.empty() ? "None" : fileName(parameter.stringValue), 22);
         }
 
         std::string assetPathAtOffset(gts::particles::ParticleModuleAssetPicker picker,
@@ -5155,13 +5342,13 @@ namespace gts::tools
             switch (action)
             {
             case EffectAction::Save:
-                return dirty ? "S SAVE *" : "S SAVE";
+                return dirty ? "Save *" : "Save";
             case EffectAction::SaveAs:
-                return "AS SAVE";
+                return "Save As";
             case EffectAction::Duplicate:
-                return "2X COPY";
+                return "Copy";
             case EffectAction::Reload:
-                return "R RELOAD";
+                return "Reload";
             }
             return "";
         }
@@ -5173,26 +5360,26 @@ namespace gts::tools
             case EmitterAction::ToggleEnabled:
             {
                 const ParticleEffectEmitter* selected = selectedEmitter();
-                return selected != nullptr && selected->descriptor.enabled ? "EN ON" : "EN OFF";
+                return selected != nullptr && selected->descriptor.enabled ? "Enabled" : "Disabled";
             }
             case EmitterAction::Add:
-                return "+ ADD";
+                return "+ Add";
             case EmitterAction::Delete:
-                return "- DEL";
+                return "- Delete";
             case EmitterAction::Duplicate:
-                return "2X DUP";
+                return "Duplicate";
             case EmitterAction::Rename:
-                return "AB NAME";
+                return "Rename";
             case EmitterAction::MoveUp:
-                return "UP";
+                return "Up";
             case EmitterAction::MoveDown:
-                return "DN";
+                return "Down";
             case EmitterAction::ToggleSelection:
-                return selectedEmitter() != nullptr && isEmitterSelected(*selectedEmitter()) ? "SEL *" : "SEL";
+                return selectedEmitter() != nullptr && isEmitterSelected(*selectedEmitter()) ? "Selected" : "Select";
             case EmitterAction::Copy:
-                return selectedEmitterIds.empty() ? "CPY" : "CPY " + std::to_string(selectedEmitterIds.size());
+                return selectedEmitterIds.empty() ? "Copy" : "Copy " + std::to_string(selectedEmitterIds.size());
             case EmitterAction::Paste:
-                return emitterClipboard.empty() ? "PST" : "PST *";
+                return emitterClipboard.empty() ? "Paste" : "Paste *";
             }
             return "";
         }
@@ -5202,13 +5389,13 @@ namespace gts::tools
             switch (action)
             {
             case ModuleAction::Copy:
-                return "M COPY";
+                return "Copy";
             case ModuleAction::Paste:
-                return moduleClipboard.has_value() ? "M PASTE *" : "M PASTE";
+                return moduleClipboard.has_value() ? "Paste *" : "Paste";
             case ModuleAction::Undo:
-                return undoStack.empty() ? "UNDO" : "UNDO *";
+                return undoStack.empty() ? "Undo" : "Undo *";
             case ModuleAction::Redo:
-                return redoStack.empty() ? "REDO" : "REDO *";
+                return redoStack.empty() ? "Redo" : "Redo *";
             }
             return "";
         }
@@ -5218,15 +5405,15 @@ namespace gts::tools
             switch (action)
             {
             case GraphAction::Search:
-                return "SEARCH";
+                return "Search";
             case GraphAction::AddNode:
-                return "ADD";
+                return "Add";
             case GraphAction::Link:
-                return "LINK";
+                return "Link";
             case GraphAction::Frame:
-                return "FRAME";
+                return "Frame";
             case GraphAction::Comment:
-                return "NOTE";
+                return "Note";
             }
             return "";
         }
@@ -5236,13 +5423,13 @@ namespace gts::tools
             switch (action)
             {
             case PlaybackAction::PlayPause:
-                return playbackPaused ? "> PLAY" : "|| PAUSE";
+                return playbackPaused ? "Play" : "Pause";
             case PlaybackAction::Restart:
-                return ">>";
+                return "Restart";
             case PlaybackAction::Background:
-                return "BG";
+                return "Bg";
             case PlaybackAction::CameraReset:
-                return "CAM";
+                return "Camera";
             }
             return "";
         }
@@ -5398,9 +5585,13 @@ namespace gts::tools
         UiColor previewColor() const
         {
             if (!hasAsset)
-                return color(0.018f, 0.021f, 0.025f, 0.720f);
+            {
+                UiColor background = ToolTheme::viewportBackground;
+                background.a       = 0.060f;
+                return background;
+            }
             const glm::vec4& colorValue = currentAsset.preview.backgroundColor;
-            return {colorValue.r, colorValue.g, colorValue.b, std::max(0.080f, std::min(colorValue.a, 0.180f))};
+            return {colorValue.r, colorValue.g, colorValue.b, std::max(0.020f, std::min(colorValue.a, 0.060f))};
         }
 
         static UiColor sliderColor(FloatField field)

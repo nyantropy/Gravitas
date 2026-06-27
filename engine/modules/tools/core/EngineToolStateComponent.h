@@ -15,9 +15,16 @@ namespace gts::tools
         WorldPick
     };
 
+    enum class EditorMode
+    {
+        Runtime,
+        ParticleEditor
+    };
+
     struct EngineToolStateComponent
     {
         bool visible = false;
+        EditorMode editorMode = EditorMode::Runtime;
         size_t activePanelIndex = 0;
         Entity selectedEntity{std::numeric_limits<entity_id_type>::max()};
         Entity hoveredEntity{std::numeric_limits<entity_id_type>::max()};

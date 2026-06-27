@@ -4,6 +4,7 @@
 #include <variant>
 #include <vector>
 
+#include "Types.h"
 #include "UiHandle.h"
 #include "UiTypes.h"
 
@@ -21,6 +22,7 @@ struct UiImagePrimitive
     UiRect       bounds;
     UiRect       clipRect;
     std::string  imageAsset;
+    texture_id_type textureID = 0;
     UiColor      tint;
     float        imageAspect = 1.0f;
     float        rotation = 0.0f;

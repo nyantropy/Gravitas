@@ -10,6 +10,7 @@
 #include <vulkan/vulkan.h>
 
 #include "CameraBufferResource.h"
+#include "EditorPreviewRenderData.h"
 #include "FramebufferManager.hpp"
 #include "FramebufferManagerConfig.h"
 #include "GtsFrameGraph.h"
@@ -49,6 +50,12 @@ class ParticleRenderStage : public GtsRenderStage
     };
 
 public:
+    enum class DataSource
+    {
+        RuntimeWorld,
+        EditorPreview
+    };
+
     ParticleRenderStage(RenderResourceManager* resources,
                         VulkanBackendContext&  backendContext,
                         DescriptorSetManager&  descriptorSetManager,
@@ -61,7 +68,8 @@ public:
                         GtsResourceHandle      outputHandle,
                         GtsResourceHandle      depthHandle,
                         VkImageLayout          colorInitialLayout,
-                        VkImageLayout          colorFinalLayout)
+                        VkImageLayout          colorFinalLayout,
+                        DataSource             dataSource = DataSource::RuntimeWorld)
         : GtsRenderStage("ParticleRenderStage")
         , resources(resources)
         , backendContext(backendContext)
@@ -71,6 +79,7 @@ public:
         , depthHandle(depthHandle)
         , colorInitialLayout(colorInitialLayout)
         , colorFinalLayout(colorFinalLayout)
+        , dataSource(dataSource)
         , instanceBuffer(backendContext,
                          VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                          1024u * sizeof(ParticleGpuInstance))
@@ -145,8 +154,13 @@ public:
 
     void declareResources(GtsFrameGraph& graph) override
     {
-        graph.requestData<ParticleFrameData>(this);
-        graph.requestData<RenderViewportFrame>(this);
+        if (dataSource == DataSource::EditorPreview)
+            graph.requestData<EditorPreviewRenderData>(this);
+        else
+        {
+            graph.requestData<ParticleFrameData>(this);
+            graph.requestData<RenderViewportFrame>(this);
+        }
 
         graph.declareWrite(this, outputHandle,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -162,9 +176,8 @@ public:
     void record(VkCommandBuffer cmd, GtsFrameGraph& graph,
                 uint32_t imageIndex, uint32_t currentFrame) override
     {
-        const ParticleFrameData& frameData = graph.getData<ParticleFrameData>();
-        const RenderViewportRect viewportRect = graph.getData<RenderViewportFrame>().sceneRenderViewport
-            .clampedTo(static_cast<int>(renderExtent.width), static_cast<int>(renderExtent.height));
+        const ParticleFrameData& frameData = resolveParticleData(graph);
+        const RenderViewportRect viewportRect = resolveViewport(graph);
         lastParticleCount = static_cast<uint32_t>(frameData.instances.size() + frameData.meshInstances.size());
         lastDrawCalls = 0;
 
@@ -353,6 +366,7 @@ private:
     GtsResourceHandle                   depthHandle;
     VkImageLayout                       colorInitialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     VkImageLayout                       colorFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    DataSource                          dataSource = DataSource::RuntimeWorld;
     VkSampler                           depthSampler = VK_NULL_HANDLE;
 
     VulkanDynamicBuffer instanceBuffer;
@@ -361,6 +375,24 @@ private:
     std::vector<ParticleMeshGpuInstance> meshUploadScratch;
     uint32_t lastParticleCount = 0;
     uint32_t lastDrawCalls = 0;
+
+    const ParticleFrameData& resolveParticleData(GtsFrameGraph& graph) const
+    {
+        if (dataSource == DataSource::EditorPreview)
+            return graph.getData<EditorPreviewRenderData>().particleData;
+        return graph.getData<ParticleFrameData>();
+    }
+
+    RenderViewportRect resolveViewport(GtsFrameGraph& graph) const
+    {
+        if (dataSource == DataSource::EditorPreview)
+        {
+            return graph.getData<EditorPreviewRenderData>().viewport
+                .clampedTo(static_cast<int>(renderExtent.width), static_cast<int>(renderExtent.height));
+        }
+        return graph.getData<RenderViewportFrame>().sceneRenderViewport
+            .clampedTo(static_cast<int>(renderExtent.width), static_cast<int>(renderExtent.height));
+    }
 
     VulkanPipelineConfig makePipelineConfig()
     {

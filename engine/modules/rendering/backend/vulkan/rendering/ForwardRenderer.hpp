@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cmath>
 #include <memory>
+#include <string>
 #include <vector>
 #include <vulkan/vulkan.h>
 
@@ -42,6 +43,8 @@ class ForwardRenderer : Renderer
         // Frame-level resources shared across all stages.
         std::unique_ptr<Attachment>            sceneColorAttachment;
         std::unique_ptr<Attachment>            depthAttachment;
+        std::unique_ptr<Attachment>            editorPreviewColorAttachment;
+        std::unique_ptr<Attachment>            editorPreviewDepthAttachment;
         std::unique_ptr<IFrameOutputTarget>    frameOutputTarget;
         std::unique_ptr<RenderResourceManager> resourceSystem;
         std::unique_ptr<FrameManager>          frameManager;
@@ -54,6 +57,8 @@ class ForwardRenderer : Renderer
         // Raw pointers into the frame graph — set during buildFrameGraph().
         SceneRenderStage* sceneStage = nullptr;
         ParticleRenderStage* particleStage = nullptr;
+        SceneRenderStage* editorPreviewSceneStage = nullptr;
+        ParticleRenderStage* editorPreviewParticleStage = nullptr;
         UiRenderStage*    uiStage    = nullptr;
 
         // Depth format — resolved once in createDepthAttachment(), reused by
@@ -84,6 +89,9 @@ class ForwardRenderer : Renderer
         bool minIntervalWarningLogged = false;
         ScreenshotManager screenshotManager;
         GtsPlatformEventBus& eventBus;
+        VkSampler editorPreviewSampler = VK_NULL_HANDLE;
+        texture_id_type editorPreviewTextureID = 0;
+        VkExtent2D editorPreviewExtent{0, 0};
 
 
         VkFormat findDepthFormat()
@@ -239,6 +247,8 @@ class ForwardRenderer : Renderer
                 *frameOutputTarget,
                 *depthAttachment,
                 sceneColorAttachment.get(),
+                editorPreviewColorAttachment.get(),
+                editorPreviewDepthAttachment.get(),
                 depthFormat,
                 sceneRenderExtent,
                 frameStats,
@@ -249,6 +259,8 @@ class ForwardRenderer : Renderer
                 ForwardFrameGraphBuilder::build(frameGraph, buildConfig);
             sceneStage = stageRefs.sceneStage;
             particleStage = stageRefs.particleStage;
+            editorPreviewSceneStage = stageRefs.editorPreviewSceneStage;
+            editorPreviewParticleStage = stageRefs.editorPreviewParticleStage;
             uiStage = stageRefs.uiStage;
         }
 
@@ -275,6 +287,8 @@ class ForwardRenderer : Renderer
             frameGraph.clear();
             sceneStage = nullptr;
             particleStage = nullptr;
+            editorPreviewSceneStage = nullptr;
+            editorPreviewParticleStage = nullptr;
             uiStage = nullptr;
             if (threadPool) threadPool.reset();
             if (frameManager) frameManager.reset();
@@ -283,6 +297,94 @@ class ForwardRenderer : Renderer
             if (frameOutputTarget) frameOutputTarget.reset();
             currentFrame = 0;
             framebufferResized = false;
+        }
+
+        void rebuildFrameGraph()
+        {
+            frameGraph.clear();
+            sceneStage = nullptr;
+            particleStage = nullptr;
+            editorPreviewSceneStage = nullptr;
+            editorPreviewParticleStage = nullptr;
+            uiStage = nullptr;
+            buildFrameGraph();
+        }
+
+        void createEditorPreviewSampler()
+        {
+            VkSamplerCreateInfo samplerInfo{};
+            samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+            samplerInfo.magFilter = VK_FILTER_LINEAR;
+            samplerInfo.minFilter = VK_FILTER_LINEAR;
+            samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            samplerInfo.anisotropyEnable = VK_FALSE;
+            samplerInfo.maxAnisotropy = 1.0f;
+            samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+            samplerInfo.unnormalizedCoordinates = VK_FALSE;
+            samplerInfo.compareEnable = VK_FALSE;
+            samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+            samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            samplerInfo.minLod = 0.0f;
+            samplerInfo.maxLod = 0.0f;
+
+            if (vkCreateSampler(backendContext.device(), &samplerInfo, nullptr, &editorPreviewSampler) != VK_SUCCESS)
+                throw std::runtime_error("failed to create editor preview sampler");
+        }
+
+        void destroyEditorPreviewTarget()
+        {
+            if (resourceSystem && editorPreviewTextureID != 0)
+                resourceSystem->unregisterTexture(editorPreviewTextureID);
+            editorPreviewTextureID = 0;
+
+            if (editorPreviewSampler != VK_NULL_HANDLE)
+            {
+                vkDestroySampler(backendContext.device(), editorPreviewSampler, nullptr);
+                editorPreviewSampler = VK_NULL_HANDLE;
+            }
+
+            editorPreviewDepthAttachment.reset();
+            editorPreviewColorAttachment.reset();
+            editorPreviewExtent = {0, 0};
+        }
+
+        void createEditorPreviewTarget(uint32_t width, uint32_t height)
+        {
+            editorPreviewExtent = {std::max(1u, width), std::max(1u, height)};
+
+            AttachmentConfig colorConfig;
+            colorConfig.width = editorPreviewExtent.width;
+            colorConfig.height = editorPreviewExtent.height;
+            colorConfig.format = frameOutputTarget->getFormat();
+            colorConfig.tiling = VK_IMAGE_TILING_OPTIMAL;
+            colorConfig.imageUsageFlags =
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+            colorConfig.memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+            colorConfig.imageAspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
+            editorPreviewColorAttachment = std::make_unique<Attachment>(backendContext, colorConfig);
+
+            AttachmentConfig depthConfig;
+            depthConfig.width = editorPreviewExtent.width;
+            depthConfig.height = editorPreviewExtent.height;
+            depthConfig.format = depthFormat;
+            depthConfig.tiling = VK_IMAGE_TILING_OPTIMAL;
+            depthConfig.imageUsageFlags =
+                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+            depthConfig.memoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+            depthConfig.imageAspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
+            editorPreviewDepthAttachment = std::make_unique<Attachment>(backendContext, depthConfig);
+
+            createEditorPreviewSampler();
+            editorPreviewTextureID = resourceSystem->registerSampledImageTexture(
+                "editor_preview_color_" + std::to_string(editorPreviewExtent.width) + "x" +
+                    std::to_string(editorPreviewExtent.height),
+                editorPreviewColorAttachment->getImageView(),
+                editorPreviewSampler,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                static_cast<int>(editorPreviewExtent.width),
+                static_cast<int>(editorPreviewExtent.height));
         }
 
         bool tryConsumeScreenshotRequest(float dt)
@@ -340,6 +442,7 @@ class ForwardRenderer : Renderer
                                  const ParticleFrameData& particleData,
                                  const RenderViewportRect& sceneViewport,
                                  const UiCommandBuffer& uiBuffer,
+                                 const EditorPreviewRenderData& editorPreview,
                                  VkCommandBuffer commandBuffer, uint32_t imageIndex)
         {
             VkCommandBufferBeginInfo beginInfo{};
@@ -353,6 +456,7 @@ class ForwardRenderer : Renderer
             frameGraph.provideData(&particleData);
             frameGraph.provideData(&viewportFrame);
             frameGraph.provideData(&uiBuffer);
+            frameGraph.provideData(&editorPreview);
             frameGraph.provideData(&frameStats);
             frameGraph.execute(commandBuffer, imageIndex, currentFrame);
 
@@ -394,6 +498,7 @@ class ForwardRenderer : Renderer
 
         ~ForwardRenderer()
         {
+            releaseEditorPreviewTarget();
             destroyFrameResources();
             if (resourceSystem)  resourceSystem.reset();
         }
@@ -445,6 +550,52 @@ class ForwardRenderer : Renderer
             frameOutputRecreateRequested = false;
         }
 
+        texture_id_type ensureEditorPreviewTarget(uint32_t width, uint32_t height) override
+        {
+            width = std::max(1u, width);
+            height = std::max(1u, height);
+            if (editorPreviewTextureID != 0 &&
+                editorPreviewExtent.width == width &&
+                editorPreviewExtent.height == height)
+            {
+                return editorPreviewTextureID;
+            }
+
+            vkDeviceWaitIdle(backendContext.device());
+            frameGraph.clear();
+            sceneStage = nullptr;
+            particleStage = nullptr;
+            editorPreviewSceneStage = nullptr;
+            editorPreviewParticleStage = nullptr;
+            uiStage = nullptr;
+            destroyEditorPreviewTarget();
+            createEditorPreviewTarget(width, height);
+            buildFrameGraph();
+            return editorPreviewTextureID;
+        }
+
+        void releaseEditorPreviewTarget() override
+        {
+            if (editorPreviewTextureID == 0 &&
+                editorPreviewColorAttachment == nullptr &&
+                editorPreviewDepthAttachment == nullptr &&
+                editorPreviewSampler == VK_NULL_HANDLE)
+            {
+                return;
+            }
+
+            vkDeviceWaitIdle(backendContext.device());
+            frameGraph.clear();
+            sceneStage = nullptr;
+            particleStage = nullptr;
+            editorPreviewSceneStage = nullptr;
+            editorPreviewParticleStage = nullptr;
+            uiStage = nullptr;
+            destroyEditorPreviewTarget();
+            if (frameOutputTarget && depthAttachment && resourceSystem && threadPool)
+                buildFrameGraph();
+        }
+
         bool consumeFrameOutputRecreateRequested()
         {
             const bool requested = frameOutputRecreateRequested;
@@ -458,6 +609,7 @@ class ForwardRenderer : Renderer
                          const ParticleFrameData& particleData,
                          const RenderViewportRect& sceneViewport,
                          const UiCommandBuffer& uiBuffer,
+                         const EditorPreviewRenderData& editorPreview,
                          const GtsFrameStats& stats) override
         {
             const auto frameStart = std::chrono::steady_clock::now();
@@ -488,6 +640,17 @@ class ForwardRenderer : Renderer
                     upload.cameraViewID,
                     upload.viewMatrix,
                     upload.projMatrix);
+            }
+            if (editorPreview.enabled)
+            {
+                for (const auto& upload : editorPreview.cameraUploads)
+                {
+                    resourceSystem->uploadCameraViewFrame(
+                        currentFrame,
+                        upload.cameraViewID,
+                        upload.viewMatrix,
+                        upload.projMatrix);
+                }
             }
 
             // Acquire frame output image
@@ -533,6 +696,21 @@ class ForwardRenderer : Renderer
                 if (writes == 0)
                     frameStats.backendObjectWritesSkipped += 1;
             }
+            if (editorPreview.enabled)
+            {
+                for (const auto& upload : editorPreview.objectUploads)
+                {
+                    ObjectUBO ubo;
+                    ubo.model = upload.modelMatrix;
+                    ubo.uvTransform = upload.uvTransform;
+                    ubo.tint = upload.tint;
+                    const uint32_t writes =
+                        resourceSystem->writeObjectSlotAllFrames(upload.objectSSBOSlot, ubo);
+                    frameStats.backendObjectWrites += writes;
+                    if (writes == 0)
+                        frameStats.backendObjectWritesSkipped += 1;
+                }
+            }
             resourceSystem->flushAllObjectSSBO();
             const auto objectWriteEnd = std::chrono::steady_clock::now();
             frameStats.backendObjectWriteCpuMs =
@@ -552,7 +730,13 @@ class ForwardRenderer : Renderer
                 std::chrono::duration<float, std::milli>(cmdResetEnd - cmdResetStart).count();
 
             const auto cmdRecordStart = std::chrono::steady_clock::now();
-            recordCommandBuffer(renderList, particleData, sceneViewport, uiBuffer, frame.commandBuffer, imageIndex);
+            recordCommandBuffer(renderList,
+                                particleData,
+                                sceneViewport,
+                                uiBuffer,
+                                editorPreview,
+                                frame.commandBuffer,
+                                imageIndex);
             const auto cmdRecordEnd = std::chrono::steady_clock::now();
             frameStats.backendCmdRecordCpuMs =
                 std::chrono::duration<float, std::milli>(cmdRecordEnd - cmdRecordStart).count();

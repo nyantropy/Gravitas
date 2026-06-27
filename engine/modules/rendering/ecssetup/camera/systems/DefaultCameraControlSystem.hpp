@@ -20,6 +20,9 @@ class DefaultCameraControlSystem : public ECSControllerSystem
 public:
     void update(const EcsControllerContext& ctx) override
     {
+        if (ctx.input == nullptr || ctx.time == nullptr)
+            return;
+
         const float zoomSpeed  = 6.0f;
         const float orbitSpeed = 1.5f;
 

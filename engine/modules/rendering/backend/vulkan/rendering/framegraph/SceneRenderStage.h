@@ -24,6 +24,7 @@
 #include "GraphicsConstants.h"
 #include "BufferUtil.hpp"
 #include "DescriptorSetManager.hpp"
+#include "EditorPreviewRenderData.h"
 #include "VulkanBackendContext.h"
 
 class SceneRenderStage : public GtsRenderStage
@@ -34,6 +35,12 @@ class SceneRenderStage : public GtsRenderStage
     };
 
 public:
+    enum class DataSource
+    {
+        RuntimeWorld,
+        EditorPreview
+    };
+
     SceneRenderStage(RenderResourceManager* resources,
                      ThreadPool*            threadPool,
                      VulkanBackendContext&  backendContext,
@@ -46,7 +53,8 @@ public:
                      VkFormat               depthFormat,
                      GtsResourceHandle      outputHandle,
                      GtsResourceHandle      depthHandle,
-                     VkImageLayout          colorFinalLayout)
+                     VkImageLayout          colorFinalLayout,
+                     DataSource             dataSource = DataSource::RuntimeWorld)
         : GtsRenderStage("SceneRenderStage")
         , resources(resources)
         , threadPool(threadPool)
@@ -56,6 +64,7 @@ public:
         , outputHandle(outputHandle)
         , depthHandle(depthHandle)
         , colorFinalLayout(colorFinalLayout)
+        , dataSource(dataSource)
     {
         VulkanRenderPassConfig rpConfig;
         rpConfig.colorFormat = colorFormat;
@@ -154,8 +163,13 @@ public:
 
     void declareResources(GtsFrameGraph& graph) override
     {
-        graph.requestData<std::vector<RenderCommand>>(this);
-        graph.requestData<RenderViewportFrame>(this);
+        if (dataSource == DataSource::EditorPreview)
+            graph.requestData<EditorPreviewRenderData>(this);
+        else
+        {
+            graph.requestData<std::vector<RenderCommand>>(this);
+            graph.requestData<RenderViewportFrame>(this);
+        }
 
         graph.declareWrite(this, outputHandle,
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -171,9 +185,8 @@ public:
     void record(VkCommandBuffer cmd, GtsFrameGraph& graph,
                 uint32_t imageIndex, uint32_t currentFrame) override
     {
-        const auto& renderList = graph.getData<std::vector<RenderCommand>>();
-        const RenderViewportRect viewport = graph.getData<RenderViewportFrame>().sceneRenderViewport
-            .clampedTo(static_cast<int>(renderExtent.width), static_cast<int>(renderExtent.height));
+        const std::vector<RenderCommand>& renderList = resolveRenderList(graph);
+        const RenderViewportRect viewport = resolveViewport(graph);
 
         prepareBatches(renderList, currentFrame);
         resetFrameStats();
@@ -280,6 +293,7 @@ private:
     GtsResourceHandle                   outputHandle;
     GtsResourceHandle                   depthHandle;
     VkImageLayout                       colorFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    DataSource                          dataSource = DataSource::RuntimeWorld;
 
     std::array<VkBuffer,       GraphicsConstants::MAX_FRAMES_IN_FLIGHT> instanceBuffers{};
     std::array<VkDeviceMemory, GraphicsConstants::MAX_FRAMES_IN_FLIGHT> instanceBufferMemory{};
@@ -299,6 +313,24 @@ private:
     std::vector<BatchRange>             chunkRanges;
     std::vector<VkCommandBuffer>        secondaryExecutionBuffers;
     std::vector<ChunkStats>             chunkStats;
+
+    const std::vector<RenderCommand>& resolveRenderList(GtsFrameGraph& graph) const
+    {
+        if (dataSource == DataSource::EditorPreview)
+            return graph.getData<EditorPreviewRenderData>().renderList;
+        return graph.getData<std::vector<RenderCommand>>();
+    }
+
+    RenderViewportRect resolveViewport(GtsFrameGraph& graph) const
+    {
+        if (dataSource == DataSource::EditorPreview)
+        {
+            return graph.getData<EditorPreviewRenderData>().viewport
+                .clampedTo(static_cast<int>(renderExtent.width), static_cast<int>(renderExtent.height));
+        }
+        return graph.getData<RenderViewportFrame>().sceneRenderViewport
+            .clampedTo(static_cast<int>(renderExtent.width), static_cast<int>(renderExtent.height));
+    }
 
     void initializeParallelRecordingResources()
     {

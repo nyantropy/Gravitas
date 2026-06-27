@@ -4,6 +4,7 @@
 #include <variant>
 #include <vector>
 
+#include "Types.h"
 #include "UiHandle.h"
 #include "UiLayout.h"
 #include "UiStyle.h"
@@ -24,6 +25,7 @@ struct UiRectData
 struct UiImageData
 {
     std::string imageAsset;
+    texture_id_type textureID = 0;
     UiColor     tint        = {1.0f, 1.0f, 1.0f, 1.0f};
     float       imageAspect = 1.0f;
     float       rotation    = 0.0f;

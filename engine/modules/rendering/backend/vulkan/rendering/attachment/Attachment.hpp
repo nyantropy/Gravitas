@@ -63,4 +63,9 @@ class Attachment
         {
             return view;
         }
+
+        VkExtent2D extent() const
+        {
+            return {config.width, config.height};
+        }
 };

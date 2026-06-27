@@ -45,6 +45,9 @@ target_include_directories(gravitas_rendering PUBLIC
     # Render pass visibility controls
     "${CMAKE_CURRENT_SOURCE_DIR}/core/visibility"
 
+    # Editor/tool preview render packets
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/preview"
+
     # Windowing
     "${CMAKE_CURRENT_SOURCE_DIR}/core/windowing/glfwWindow"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/windowing/output"

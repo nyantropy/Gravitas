@@ -22,6 +22,8 @@ struct ForwardFrameGraphBuildConfig
     IFrameOutputTarget& frameOutputTarget;
     Attachment& depthAttachment;
     Attachment* sceneColorAttachment;
+    Attachment* editorPreviewColorAttachment;
+    Attachment* editorPreviewDepthAttachment;
     VkFormat depthFormat;
     VkExtent2D sceneRenderExtent;
     GtsFrameStats& frameStats;
@@ -33,6 +35,8 @@ struct ForwardFrameGraphStageRefs
 {
     SceneRenderStage* sceneStage = nullptr;
     ParticleRenderStage* particleStage = nullptr;
+    SceneRenderStage* editorPreviewSceneStage = nullptr;
+    ParticleRenderStage* editorPreviewParticleStage = nullptr;
     UiRenderStage* uiStage = nullptr;
 };
 

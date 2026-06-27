@@ -44,7 +44,8 @@ public:
                   GtsFrameStats*         frameStats,
                   bool                   debugEnabledByDefault,
                   VkImageLayout          colorInitialLayout,
-                  VkImageLayout          colorFinalLayout)
+                  VkImageLayout          colorFinalLayout,
+                  GtsResourceHandle      previewSampleHandle = GTS_INVALID_RESOURCE)
         : GtsRenderStage("UiRenderStage")
         , resources(resources)
         , backendContext(backendContext)
@@ -53,6 +54,7 @@ public:
         , frameStats(frameStats)
         , colorInitialLayout(colorInitialLayout)
         , colorFinalLayout(colorFinalLayout)
+        , previewSampleHandle(previewSampleHandle)
         , vertexBuffer(backendContext,
                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                        INITIAL_VERTEX_CAP * sizeof(UiVertex))
@@ -116,6 +118,14 @@ public:
     void declareResources(GtsFrameGraph& graph) override
     {
         graph.requestData<UiCommandBuffer>(this);
+        if (previewSampleHandle != GTS_INVALID_RESOURCE)
+        {
+            graph.declareRead(this,
+                              previewSampleHandle,
+                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                              VK_ACCESS_SHADER_READ_BIT,
+                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        }
 
         // Write-after-write serialization orders UiRenderStage after
         // SceneRenderStage — no explicit read declaration needed here.
@@ -260,6 +270,7 @@ private:
     UiCommandBuffer                       overlayScratch;
     VkImageLayout                         colorInitialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     VkImageLayout                         colorFinalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    GtsResourceHandle                     previewSampleHandle = GTS_INVALID_RESOURCE;
 
     // Dynamic buffers — host-visible, persistently mapped, resized on demand.
     static constexpr uint32_t INITIAL_VERTEX_CAP = 1024;

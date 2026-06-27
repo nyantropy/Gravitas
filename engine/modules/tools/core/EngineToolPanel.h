@@ -24,6 +24,8 @@ namespace gts::tools
         virtual void update(EngineToolContext& ctx,
                             EngineToolStateComponent& state,
                             const UiInteractionResult& interaction) = 0;
+        virtual void onDeactivate(EngineToolContext&) {}
+        virtual void shutdown() {}
         virtual void setVisible(UiSystem& ui, bool visible) = 0;
         virtual void destroy(UiSystem& ui) = 0;
     };

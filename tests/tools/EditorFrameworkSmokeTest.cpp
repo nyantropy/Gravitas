@@ -101,7 +101,7 @@ int main()
         {"mesh", "Mesh", "cube.obj", "", "Assets", gts::tools::EditorPropertyWidgetKind::Asset, true, false, true}};
     const gts::tools::EditorWidgetHandles inspectorWidget = gts::tools::createEditorInspector(
         ui, splitHandles.second, {0.0f, 0.0f, 1.0f, 0.45f}, "Inspector", properties, nullptr);
-    require(inspectorWidget.buttons.size() == 3u, "property grid values were not created");
+    require(inspectorWidget.buttons.size() == 6u, "property grid values and reset controls were not created");
 
     const std::vector<gts::tools::EditorMenuItemSpec> menuItems = {{"copy", "Copy", "Ctrl+C", true, false, false},
                                                                    {"separator", "", "", true, false, true},
@@ -219,7 +219,7 @@ int main()
 
     const gts::tools::EditorWidgetHandles metadataGrid =
         gts::tools::createMetadataPropertyGrid(ui, handles.center, {0.04f, 0.04f, 0.32f, 0.18f}, descriptors, nullptr);
-    require(metadataGrid.buttons.size() == 3u, "metadata property grid did not create rows");
+    require(metadataGrid.buttons.size() == 6u, "metadata property grid did not create value and reset controls");
 
     int                               saveCount = 0;
     gts::tools::EditorCommandRegistry commands;

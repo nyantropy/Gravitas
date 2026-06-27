@@ -8,6 +8,7 @@
 #include "ECSWorld.hpp"
 #include "EcsControllerContext.hpp"
 #include "EcsExecutionProfile.h"
+#include "EditorPreviewRenderData.h"
 #include "EngineServiceRegistry.h"
 #include "FrustumCullingStrategy.h"
 #include "GtsCommand.h"
@@ -209,6 +210,32 @@ namespace gts::rendering
 
         static const UiCommandBuffer emptyUiBuffer;
         const UiCommandBuffer* uiBuffer = &emptyUiBuffer;
+        static const EditorPreviewRenderData emptyEditorPreview;
+        EditorPreviewRenderData* editorPreview = nullptr;
+        if (world.hasAny<EditorPreviewRenderComponent>())
+        {
+            editorPreview = &world.getSingleton<EditorPreviewRenderComponent>().data;
+            if (editorPreview->enabled)
+            {
+                editorPreview->width = std::max(1u, editorPreview->width);
+                editorPreview->height = std::max(1u, editorPreview->height);
+                editorPreview->viewport =
+                    RenderViewportRect::full(static_cast<int>(editorPreview->width),
+                                             static_cast<int>(editorPreview->height));
+                editorPreview->colorTextureID =
+                    graphics.ensureEditorPreviewTarget(editorPreview->width, editorPreview->height);
+            }
+            else
+            {
+                graphics.releaseEditorPreviewTarget();
+                editorPreview->colorTextureID = 0;
+            }
+        }
+        else
+        {
+            graphics.releaseEditorPreviewTarget();
+        }
+
         if (uiEnabled && frameBuildMode != FrameBuildMode::None)
         {
             uiSystem->setEnabled(true);
@@ -275,6 +302,7 @@ namespace gts::rendering
                              submittedParticleData,
                              sceneViewport,
                              *uiBuffer,
+                             editorPreview != nullptr && editorPreview->enabled ? *editorPreview : emptyEditorPreview,
                              stats);
         const auto submitEnd    = std::chrono::steady_clock::now();
         stats.renderSubmitCpuMs =

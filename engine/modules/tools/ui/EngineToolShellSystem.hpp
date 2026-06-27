@@ -21,6 +21,7 @@
 #include "GraphicsConstants.h"
 #include "ParticleEmitterInspectorPanel.hpp"
 #include "ParticleEffectEditorPanel.hpp"
+#include "RenderPassVisibilityComponent.h"
 #include "RenderViewportComponent.h"
 #include "SceneGizmoPanel.hpp"
 #include "SceneCatalogPanel.hpp"
@@ -62,6 +63,13 @@ namespace gts::tools
                 setToolsInputContext(ctx, false);
                 clearInputCapture(ctx.world);
                 clearPreviewCameraRequest(ctx.world);
+                EngineToolContext toolCtx = EngineToolContext::fromController(ctx);
+                for (auto& panel : registry.all())
+                {
+                    if (panel != nullptr)
+                        panel->onDeactivate(toolCtx);
+                }
+                publishEditorMode(ctx.world, state, false);
                 publishWorkspace(ctx, false);
                 return;
             }
@@ -95,10 +103,13 @@ namespace gts::tools
                 panel->setVisible(toolCtx.ui, active);
                 if (active)
                     panel->update(toolCtx, state, interaction);
+                else
+                    panel->onDeactivate(toolCtx);
             }
 
             setText(toolCtx.ui, footer, state.status);
             setText(toolCtx.ui, panelTitle, activePanelTitle(state));
+            publishEditorMode(ctx.world, state, activePanelWantsWorkspace(ctx.world));
         }
 
         void prepareVisibility(const EcsControllerContext& ctx)
@@ -110,10 +121,19 @@ namespace gts::tools
             processVisibilityToggle(ctx, state);
         }
 
+        void shutdown()
+        {
+            for (auto& panel : registry.all())
+            {
+                if (panel != nullptr)
+                    panel->shutdown();
+            }
+        }
+
         private:
-        static constexpr float TopTabX           = 0.122f;
+        static constexpr float TopTabX           = 0.210f;
         static constexpr float TopTabY           = 0.004f;
-        static constexpr float TopTabWidth       = 0.062f;
+        static constexpr float TopTabWidth       = 0.074f;
         static constexpr float TopTabHeight      = 0.016f;
         static constexpr float TopTabGap         = 0.004f;
         static constexpr float PaneHeaderHeight  = 0.066f;
@@ -138,6 +158,9 @@ namespace gts::tools
         std::vector<ToolButton> tabs;
         std::vector<ToolButton> leftTools;
         bool                    toolsContextRequested = false;
+        bool                    runtimePassOverrideActive = false;
+        bool                    savedRuntimePassVisibilityValid = false;
+        RenderPassVisibilityComponent savedRuntimePassVisibility;
         uint64_t                lastVisibilityToggleFrame = std::numeric_limits<uint64_t>::max();
 
         static constexpr const char* ToolsInputContext = "engine.tools";
@@ -173,6 +196,7 @@ namespace gts::tools
             {
                 clearInputCapture(ctx.world);
                 destroyUi(*ctx.ui);
+                publishEditorMode(ctx.world, state, false);
                 publishWorkspace(ctx, false);
             }
             return true;
@@ -223,8 +247,32 @@ namespace gts::tools
                 return false;
 
             font      = *loadedFont;
+            tuneEditorFont(font);
             fontReady = true;
             return true;
+        }
+
+        static void tuneEditorFont(BitmapFont& inFont)
+        {
+            inFont.lineHeight = 0.92f;
+            for (auto& glyphEntry : inFont.glyphs)
+            {
+                GlyphInfo& glyph = glyphEntry.second;
+                glyph.advance    = 0.62f;
+                glyph.size.x     = 0.82f;
+                glyph.size.y     = 0.92f;
+
+                const char ch = glyphEntry.first;
+                if (ch == ' ')
+                    glyph.advance = 0.34f;
+                else if (ch == 'i' || ch == 'l' || ch == 'I' || ch == '!' || ch == '.' || ch == ',' || ch == ':' ||
+                         ch == ';' || ch == '\'' || ch == '`')
+                    glyph.advance = 0.38f;
+                else if (ch == 'm' || ch == 'w' || ch == 'M' || ch == 'W')
+                    glyph.advance = 0.76f;
+                else if (ch >= 'A' && ch <= 'Z')
+                    glyph.advance = 0.66f;
+            }
         }
 
         bool ensureUi(EngineToolContext& ctx, EngineToolStateComponent& state)
@@ -239,11 +287,17 @@ namespace gts::tools
         void buildUi(EngineToolContext& ctx, EngineToolStateComponent& state)
         {
             root            = createContainer(ctx.ui, UI_INVALID_HANDLE, {0.0f, 0.0f, 1.0f, 1.0f});
+            createRect(ctx.ui, root, {0.0f, 0.0f, 1.0f, 1.0f}, ToolTheme::workspaceBackground);
             topBar          = createRect(ctx.ui, root, {0.0f, 0.0f, 1.0f, 0.024f}, ToolTheme::barBackground);
             viewportToolbar = createRect(ctx.ui, root, {0.0f, 0.024f, 1.0f, 0.024f}, ToolTheme::viewportBar);
             leftRail        = createRect(ctx.ui, root, {0.0f, 0.024f, 0.030f, 0.954f}, ToolTheme::railBackground);
             rightPane       = createRect(ctx.ui, root, {0.830f, 0.024f, 0.170f, 0.954f}, ToolTheme::paneBackground);
             bottomBar       = createRect(ctx.ui, root, {0.0f, 0.978f, 1.0f, 0.022f}, ToolTheme::barBackground);
+            createRect(ctx.ui, topBar, {0.0f, 0.023f, 1.0f, 0.001f}, ToolTheme::separator);
+            createRect(ctx.ui, viewportToolbar, {0.0f, 0.023f, 1.0f, 0.001f}, ToolTheme::separator);
+            createRect(ctx.ui, leftRail, {0.028f, 0.0f, 0.002f, 1.0f}, ToolTheme::separator);
+            createRect(ctx.ui, rightPane, {0.0f, 0.0f, 0.002f, 1.0f}, ToolTheme::separator);
+            createRect(ctx.ui, bottomBar, {0.0f, 0.0f, 1.0f, 0.001f}, ToolTheme::separator);
             title           = createText(ctx.ui,
                                          topBar,
                                          {ToolTheme::shellPadding, 0.004f, 0.100f, 0.016f},
@@ -251,6 +305,20 @@ namespace gts::tools
                                          "GRAVITAS",
                                          ToolTheme::text,
                                          ToolTheme::titleTextScale);
+            const char* menuItems[] = {"File", "Edit", "Window", "Tools", "Help"};
+            float       menuX       = 0.090f;
+            for (const char* item : menuItems)
+            {
+                UiHandle menuLabel = createText(ctx.ui,
+                                                topBar,
+                                                {menuX, 0.005f, 0.048f, 0.014f},
+                                                &font,
+                                                item,
+                                                ToolTheme::text,
+                                                ToolTheme::buttonTextScale);
+                setTextAlignment(ctx.ui, menuLabel, UiHorizontalAlign::Left, UiVerticalAlign::Middle);
+                menuX += 0.054f;
+            }
             viewportLabel   = createText(ctx.ui,
                                          viewportToolbar,
                                          {ToolTheme::shellPadding, 0.005f, 0.110f, 0.014f},
@@ -272,6 +340,7 @@ namespace gts::tools
                                          activePanelTitle(state),
                                          ToolTheme::text,
                                          ToolTheme::headerTextScale);
+            createRect(ctx.ui, rightPane, {ToolTheme::shellPadding, PaneHeaderHeight - 0.004f, 0.150f, 0.001f}, ToolTheme::separator);
             panelSubtitle   = createText(ctx.ui,
                                          rightPane,
                                          {ToolTheme::shellPadding, 0.036f, 0.150f, 0.018f},
@@ -342,6 +411,17 @@ namespace gts::tools
             const float paneWidth    = widePanel ? 1.0f - workspace.leftRailWidth : workspace.rightPaneWidth;
             const float chromeHeight = 1.0f - workspace.topBarHeight - workspace.bottomBarHeight;
 
+            setShellChromeVisible(ctx.ui, !widePanel);
+
+            if (widePanel)
+            {
+                setRect(ctx.ui, rightPane, {0.0f, 0.0f, 1.0f, 1.0f});
+                setRect(ctx.ui, contentRoot, {0.0f, 0.0f, 1.0f, 1.0f});
+                setRect(ctx.ui, panelTitle, {0.0f, 0.0f, 0.0f, 0.0f});
+                setRect(ctx.ui, panelSubtitle, {0.0f, 0.0f, 0.0f, 0.0f});
+                return;
+            }
+
             setRect(ctx.ui, topBar, {0.0f, 0.0f, 1.0f, workspace.topBarHeight});
             setRect(ctx.ui,
                     viewportToolbar,
@@ -377,6 +457,17 @@ namespace gts::tools
                 setRect(ctx.ui, tool.rect, {xPad, y, buttonWidth, 0.030f});
                 y += 0.038f;
             }
+        }
+
+        void setShellChromeVisible(UiSystem& ui, bool visible)
+        {
+            setVisibleRecursive(ui, topBar, visible);
+            setVisibleRecursive(ui, viewportToolbar, visible);
+            setVisibleRecursive(ui, leftRail, visible);
+            setVisibleRecursive(ui, bottomBar, visible);
+            setVisibleRecursive(ui, panelTitle, visible);
+            setVisibleRecursive(ui, panelSubtitle, visible);
+            setVisibleRecursive(ui, footer, visible);
         }
 
         void destroyUi(UiSystem& ui)
@@ -482,7 +573,15 @@ namespace gts::tools
 
                 updateButton(ctx.ui, tabs[i], tabLabel(i, state));
                 if (i == state.activePanelIndex)
+                {
                     setRectColor(ctx.ui, tabs[i].rect, ToolTheme::buttonActive);
+                    setTextColor(ctx.ui, tabs[i].label, ToolTheme::text);
+                }
+                else
+                {
+                    setRectColor(ctx.ui, tabs[i].rect, ToolTheme::buttonSecondary);
+                    setTextColor(ctx.ui, tabs[i].label, ToolTheme::mutedText);
+                }
             }
 
             updateLeftTools(ctx, state, interaction);
@@ -503,7 +602,15 @@ namespace gts::tools
 
                 updateButton(ctx.ui, leftTools[i], leftTools[i].text);
                 if (i == state.activePanelIndex)
+                {
                     setRectColor(ctx.ui, leftTools[i].rect, ToolTheme::buttonActive);
+                    setTextColor(ctx.ui, leftTools[i].label, ToolTheme::text);
+                }
+                else
+                {
+                    setRectColor(ctx.ui, leftTools[i].rect, ToolTheme::buttonSecondary);
+                    setTextColor(ctx.ui, leftTools[i].label, ToolTheme::iconMuted);
+                }
             }
         }
 
@@ -556,6 +663,60 @@ namespace gts::tools
                 return;
 
             world.getSingleton<EngineToolPreviewCameraComponent>().active = false;
+        }
+
+        void publishEditorMode(ECSWorld& world, EngineToolStateComponent& state, bool particleEditorActive)
+        {
+            state.editorMode = particleEditorActive ? EditorMode::ParticleEditor : EditorMode::Runtime;
+            if (particleEditorActive)
+            {
+                applyRuntimePassOverride(world);
+                return;
+            }
+
+            restoreRuntimePassVisibility(world);
+        }
+
+        void applyRuntimePassOverride(ECSWorld& world)
+        {
+            if (!runtimePassOverrideActive)
+            {
+                savedRuntimePassVisibilityValid = world.hasAny<RenderPassVisibilityComponent>();
+                if (savedRuntimePassVisibilityValid)
+                    savedRuntimePassVisibility = world.getSingleton<RenderPassVisibilityComponent>();
+                runtimePassOverrideActive = true;
+            }
+
+            RenderPassVisibilityComponent* visibility = nullptr;
+            if (world.hasAny<RenderPassVisibilityComponent>())
+                visibility = &world.getSingleton<RenderPassVisibilityComponent>();
+            else
+                visibility = &world.createSingleton<RenderPassVisibilityComponent>();
+
+            visibility->renderScene = false;
+            visibility->renderParticles = false;
+        }
+
+        void restoreRuntimePassVisibility(ECSWorld& world)
+        {
+            if (!runtimePassOverrideActive)
+                return;
+
+            if (savedRuntimePassVisibilityValid)
+            {
+                if (world.hasAny<RenderPassVisibilityComponent>())
+                    world.getSingleton<RenderPassVisibilityComponent>() = savedRuntimePassVisibility;
+                else
+                    world.createSingleton<RenderPassVisibilityComponent>() = savedRuntimePassVisibility;
+            }
+            else if (world.hasAny<RenderPassVisibilityComponent>())
+            {
+                world.destroyEntity(world.getSingletonEntity<RenderPassVisibilityComponent>());
+            }
+
+            runtimePassOverrideActive = false;
+            savedRuntimePassVisibilityValid = false;
+            savedRuntimePassVisibility = {};
         }
     };
 } // namespace gts::tools

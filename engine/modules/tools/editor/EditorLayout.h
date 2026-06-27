@@ -185,15 +185,31 @@ namespace gts::tools
                                                 const EditorTheme& theme = DefaultEditorTheme)
     {
         EditorBarHandles handles;
-        handles.root  = createRectRelative(ui, parent, toToolRect(rect), theme.colors.barBackground);
+        handles.root  = createRectRelative(ui, parent, toToolRect(rect), theme.colors.menuBarBackground);
+        createRectRelative(ui, handles.root, {0.0f, 0.96f, 1.0f, 0.04f}, theme.colors.separator);
         handles.label = createTextRelative(ui,
                                            handles.root,
-                                           {theme.spacing.shellPadding, 0.16f, 0.40f, 0.70f},
+                                           {theme.spacing.shellPadding, 0.16f, 0.080f, 0.70f},
                                            font,
                                            std::string(title),
                                            theme.colors.text,
-                                           theme.typography.titleScale);
+                                           theme.typography.applicationTitleScale);
         setTextAlignment(ui, handles.label, UiHorizontalAlign::Left, UiVerticalAlign::Middle);
+
+        const char* menuItems[] = {"File", "Edit", "Window", "Tools", "Help"};
+        float       x           = theme.spacing.shellPadding + 0.080f;
+        for (const char* item : menuItems)
+        {
+            UiHandle label = createTextRelative(ui,
+                                                handles.root,
+                                                {x, 0.18f, 0.052f, 0.66f},
+                                                font,
+                                                item,
+                                                theme.colors.textSecondary,
+                                                theme.typography.buttonScale);
+            setTextAlignment(ui, label, UiHorizontalAlign::Left, UiVerticalAlign::Middle);
+            x += 0.058f;
+        }
         return handles;
     }
 
@@ -204,7 +220,8 @@ namespace gts::tools
                                                 const EditorTheme& theme = DefaultEditorTheme)
     {
         EditorBarHandles handles;
-        handles.root  = createRectRelative(ui, parent, toToolRect(rect), theme.colors.railBackground);
+        handles.root  = createRectRelative(ui, parent, toToolRect(rect), theme.colors.sidebarBackground);
+        createRectRelative(ui, handles.root, {0.96f, 0.0f, 0.04f, 1.0f}, theme.colors.separator);
         handles.label = createTextRelative(ui,
                                            handles.root,
                                            {0.08f, 0.015f, 0.84f, 0.040f},
@@ -223,7 +240,8 @@ namespace gts::tools
                                                const EditorTheme& theme = DefaultEditorTheme)
     {
         EditorBarHandles handles;
-        handles.root  = createRectRelative(ui, parent, toToolRect(rect), theme.colors.barBackground);
+        handles.root  = createRectRelative(ui, parent, toToolRect(rect), theme.colors.statusBarBackground);
+        createRectRelative(ui, handles.root, {0.0f, 0.0f, 1.0f, 0.045f}, theme.colors.separator);
         handles.label = createTextRelative(ui,
                                            handles.root,
                                            {theme.spacing.shellPadding, 0.16f, 0.82f, 0.70f},
@@ -246,19 +264,25 @@ namespace gts::tools
         if (!panel.visible)
             return handles;
 
-        handles.root = createRectRelative(ui, parent, toToolRect(rect), theme.colors.panelSurface);
+        createRectRelative(ui,
+                           parent,
+                           {rect.x + 0.002f, rect.y + 0.004f, rect.width, rect.height},
+                           theme.shadow.color);
+        handles.root = createRectRelative(ui, parent, toToolRect(rect), theme.colors.panelBackground);
 
         const float headerRatio =
-            rect.height <= 0.0f ? 1.0f : std::clamp(theme.dimensions.compactRowHeight / rect.height, 0.08f, 1.0f);
+            rect.height <= 0.0f ? 1.0f : std::clamp(theme.dimensions.panelHeaderHeight / rect.height, 0.06f, 1.0f);
         handles.header =
-            createRectRelative(ui, handles.root, {0.0f, 0.0f, 1.0f, headerRatio}, theme.colors.sectionHeader);
+            createRectRelative(ui, handles.root, {0.0f, 0.0f, 1.0f, headerRatio}, theme.colors.headerBackground);
+        createRectRelative(ui, handles.root, {0.0f, std::max(0.0f, headerRatio - 0.003f), 1.0f, 0.003f}, theme.colors.separator);
+        createRectRelative(ui, handles.root, {0.0f, 0.0f, 1.0f, 0.002f}, theme.colors.highlight);
         handles.title    = createTextRelative(ui,
                                               handles.header,
                                               {0.025f, 0.12f, 0.52f, 0.76f},
                                               font,
                                               panel.title,
                                               theme.colors.text,
-                                              theme.typography.buttonScale);
+                                              theme.typography.panelTitleScale);
         handles.subtitle = createTextRelative(ui,
                                               handles.header,
                                               {0.56f, 0.14f, 0.27f, 0.72f},
@@ -271,12 +295,12 @@ namespace gts::tools
         if (panel.collapsible)
         {
             handles.collapseButton =
-                createRectRelative(ui, handles.header, {0.850f, 0.18f, 0.055f, 0.64f}, theme.colors.button, true);
+                createRectRelative(ui, handles.header, {0.850f, 0.22f, 0.055f, 0.56f}, theme.colors.buttonSecondary, true);
         }
         if (panel.closable)
         {
             handles.closeButton =
-                createRectRelative(ui, handles.header, {0.920f, 0.18f, 0.055f, 0.64f}, theme.colors.button, true);
+                createRectRelative(ui, handles.header, {0.920f, 0.22f, 0.055f, 0.56f}, theme.colors.buttonSecondary, true);
         }
 
         const float bodyY       = panel.collapsed ? 1.0f : headerRatio;
@@ -290,7 +314,7 @@ namespace gts::tools
         if (panel.resizable && !panel.collapsed)
         {
             handles.resizeHandle =
-                createRectRelative(ui, handles.root, {0.0f, 0.985f, 1.0f, 0.015f}, theme.colors.border, true);
+                createRectRelative(ui, handles.root, {0.0f, 0.990f, 1.0f, 0.010f}, theme.colors.borderSubtle, true);
         }
 
         return handles;
@@ -313,7 +337,8 @@ namespace gts::tools
                                                   const EditorTheme&                theme = DefaultEditorTheme)
     {
         EditorTabBarHandles handles;
-        handles.root = createContainerRelative(ui, parent, toToolRect(rect));
+        handles.root = createRectRelative(ui, parent, toToolRect(rect), theme.colors.toolbarBackground);
+        createRectRelative(ui, handles.root, {0.0f, 0.94f, 1.0f, 0.06f}, theme.colors.separator);
 
         const size_t visibleCount = static_cast<size_t>(std::count_if(tabs.begin(),
                                                                       tabs.end(),
@@ -334,10 +359,12 @@ namespace gts::tools
                 continue;
 
             const float x      = static_cast<float>(visibleIndex) * (width + gap);
-            ToolButton  button = createButtonRelative(
-                ui, handles.root, {x, 0.0f, width, 1.0f}, font, tab.label, theme.typography.buttonScale);
+            ToolButton button = createButtonRelative(
+                ui, handles.root, {x, 0.08f, width, 0.86f}, font, tab.label, theme.typography.buttonScale);
+            setRectColor(ui, button.rect, tab.active ? theme.colors.selection : theme.colors.panelInset);
+            setTextColor(ui, button.label, tab.active ? theme.colors.textPrimary : theme.colors.textSecondary);
             if (tab.active)
-                setRectColor(ui, button.rect, theme.colors.selection);
+                createRectRelative(ui, button.rect, {0.0f, 0.0f, 1.0f, 0.060f}, theme.colors.accent);
             handles.tabs.push_back(button);
             ++visibleIndex;
         }
@@ -396,7 +423,7 @@ namespace gts::tools
                                                          const EditorTheme&          theme = DefaultEditorTheme)
     {
         EditorDockLayoutHandles handles;
-        handles.root = createContainerRelative(ui, parent, {0.0f, 0.0f, 1.0f, 1.0f});
+        handles.root = createRectRelative(ui, parent, {0.0f, 0.0f, 1.0f, 1.0f}, theme.colors.workspaceBackground);
 
         UiRect remaining = {0.0f, 0.0f, 1.0f, 1.0f};
         if (spec.showToolbar)
@@ -461,12 +488,12 @@ namespace gts::tools
             }
 
             handles.panels.push_back(
-                createEditorPanel(ui, handles.root, insetRect(panelRect, theme.spacing.xs), panel, font, theme));
+                createEditorPanel(ui, handles.root, insetRect(panelRect, theme.spacing.panelGap), panel, font, theme));
         }
 
-        handles.centerRect = insetRect(remaining, theme.spacing.xs);
+        handles.centerRect = insetRect(remaining, theme.spacing.panelGap);
         handles.center =
-            createRectRelative(ui, handles.root, toToolRect(handles.centerRect), theme.colors.windowBackground);
+            createRectRelative(ui, handles.root, toToolRect(handles.centerRect), theme.colors.viewportBackground);
 
         for (const EditorPanelState& panel : spec.panels)
         {

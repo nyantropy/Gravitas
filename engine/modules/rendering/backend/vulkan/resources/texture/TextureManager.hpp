@@ -1,9 +1,10 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
-#include <string>
 #include <memory>
+#include <string>
 #include <unordered_map>
+#include <vector>
+#include <vulkan/vulkan.h>
 
 #include "DescriptorSetManager.hpp"
 #include "TextureResource.h"
@@ -47,16 +48,59 @@ class TextureManager
 
             auto resource = std::make_unique<TextureResource>();
             resource->texture = std::make_unique<VulkanTexture>(backendContext, path, nearestFilter, clampToEdge);
+            resource->width = resource->texture->getWidth();
+            resource->height = resource->texture->getHeight();
 
             resource->descriptorSets = descriptorSetManager.allocateForTexture(
                 resource->texture->getTextureImageView(),
                 resource->texture->getTextureSampler());
 
             texture_id_type id = nextID++;
+            resource->id = id;
+            resource->cacheKey = key;
             idToTexture[id] = std::move(resource);
             pathToID[key] = id;
 
             return id;
+        }
+
+        texture_id_type registerSampledImage(const std::string& key,
+                                             VkImageView imageView,
+                                             VkSampler sampler,
+                                             VkImageLayout imageLayout,
+                                             int width,
+                                             int height)
+        {
+            auto existing = pathToID.find(key);
+            if (existing != pathToID.end())
+                return existing->second;
+
+            auto resource = std::make_unique<TextureResource>();
+            resource->descriptorSets = descriptorSetManager.allocateForSampledImage(imageView, sampler, imageLayout);
+            resource->width = width;
+            resource->height = height;
+            resource->cacheKey = key;
+
+            texture_id_type id = nextID++;
+            resource->id = id;
+            idToTexture[id] = std::move(resource);
+            pathToID[key] = id;
+            return id;
+        }
+
+        void unregisterTexture(texture_id_type id)
+        {
+            auto it = idToTexture.find(id);
+            if (it == idToTexture.end())
+                return;
+
+            if (!it->second->descriptorSets.empty())
+                descriptorSetManager.freeSampledImageSets(it->second->descriptorSets);
+
+            if (!it->second->cacheKey.empty())
+                pathToID.erase(it->second->cacheKey);
+
+            idToTexture.erase(it);
         }
 
         // Resolves an ID to an actual TextureResource (used by renderer).
@@ -71,16 +115,16 @@ class TextureManager
         int getTextureWidth(texture_id_type id) const
         {
             auto it = idToTexture.find(id);
-            if (it == idToTexture.end() || !it->second || !it->second->texture)
+            if (it == idToTexture.end() || !it->second)
                 return 0;
-            return it->second->texture->getWidth();
+            return it->second->width;
         }
 
         int getTextureHeight(texture_id_type id) const
         {
             auto it = idToTexture.find(id);
-            if (it == idToTexture.end() || !it->second || !it->second->texture)
+            if (it == idToTexture.end() || !it->second)
                 return 0;
-            return it->second->texture->getHeight();
+            return it->second->height;
         }
 };

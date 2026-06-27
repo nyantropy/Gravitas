@@ -7,6 +7,7 @@
 #include "GtsFrameStats.h"
 #include "GraphicsConfig.h"
 #include "IResourceProvider.hpp"
+#include "EditorPreviewRenderData.h"
 #include "ParticleFrameData.h"
 #include "RenderCommand.h"
 #include "RenderViewport.h"
@@ -25,7 +26,10 @@ public:
                              const ParticleFrameData& particleData,
                              const RenderViewportRect& sceneViewport,
                              const UiCommandBuffer& uiBuffer,
+                             const EditorPreviewRenderData& editorPreview,
                              const GtsFrameStats& stats) = 0;
+    virtual texture_id_type ensureEditorPreviewTarget(uint32_t width, uint32_t height) = 0;
+    virtual void releaseEditorPreviewTarget() = 0;
     virtual void toggleDebugOverlay() = 0;
     virtual void cycleDebugOverlayPage() = 0;
     virtual void requestScreenshot() = 0;

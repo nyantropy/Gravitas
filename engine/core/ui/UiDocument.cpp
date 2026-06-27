@@ -380,6 +380,7 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, con
                 node.computedLayout.bounds,
                 effectiveClip,
                 data.imageAsset,
+                data.textureID,
                 data.tint,
                 data.imageAspect,
                 data.rotation

@@ -77,6 +77,9 @@ target_include_directories(gravitas_vulkan_backend PUBLIC
     # Generic render viewport contract
     "${CMAKE_CURRENT_SOURCE_DIR}/../../core/viewport"
 
+    # Editor/tool preview render packets
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../core/preview"
+
     # Rendering config/constants
     "${CMAKE_CURRENT_SOURCE_DIR}/../../core/init"
 )

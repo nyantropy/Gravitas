@@ -220,7 +220,10 @@ namespace gts::tools
         ToolButton          button =
             createButtonRelative(ui, parent, rect, font, std::string(label), theme.typography.buttonScale);
         if (active)
+        {
             setRectColor(ui, button.rect, theme.colors.selection);
+            createRectRelative(ui, button.rect, {0.0f, 0.0f, 1.0f, 0.060f}, theme.colors.accent);
+        }
         handles.root = button.rect;
         handles.buttons.push_back(button);
         return handles;
@@ -244,36 +247,61 @@ namespace gts::tools
                                                     const EditorTheme&                     theme = DefaultEditorTheme)
     {
         EditorWidgetHandles handles;
-        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelBackground);
+        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelInset);
 
         UiLayoutSpec rootLayout = relativeLayout(rect);
         rootLayout.clipMode     = UiClipMode::ClipChildren;
         ui.setLayout(handles.root, rootLayout);
 
-        float       y         = theme.spacing.xs;
+        float       y         = theme.spacing.sm;
         const float rowHeight = theme.dimensions.compactRowHeight;
         for (const EditorTreeNodeSpec& node : nodes)
         {
             if (!node.visible)
                 continue;
 
-            UiColor     rowColor = node.selected ? theme.colors.selection : theme.colors.panelSurface;
-            UiHandle    row      = createRectRelative(ui, handles.root, {0.0f, y, 1.0f, rowHeight}, rowColor, true);
-            const float indent   = std::min(0.30f, 0.025f * static_cast<float>(std::max(0, node.depth)));
+            UiColor     rowColor = node.selected ? theme.colors.selection : theme.colors.panelInset;
+            UiHandle    row      = createRectRelative(ui, handles.root, {0.012f, y, 0.976f, rowHeight}, rowColor, true);
+            const float indent   = std::min(0.30f, 0.030f * static_cast<float>(std::max(0, node.depth)));
+            if (node.depth > 0)
+            {
+                createEditorLineRelative(ui,
+                                         row,
+                                         {0.030f + indent - 0.014f, 0.0f},
+                                         {0.030f + indent - 0.014f, 1.0f},
+                                         theme.colors.borderSubtle,
+                                         0.0010f);
+            }
+            UiHandle disclosure = createTextRelative(ui,
+                                                     row,
+                                                     {0.018f + indent, 0.12f, 0.035f, 0.76f},
+                                                     font,
+                                                     node.expanded ? "v" : ">",
+                                                     theme.colors.iconMuted,
+                                                     theme.typography.metadataScale);
+            setTextAlignment(ui, disclosure, UiHorizontalAlign::Center, UiVerticalAlign::Middle);
+            UiHandle icon = createTextRelative(ui,
+                                               row,
+                                               {0.054f + indent, 0.12f, 0.040f, 0.76f},
+                                               font,
+                                               node.depth == 0 ? "*" : "o",
+                                               node.selected ? theme.colors.textPrimary : theme.colors.icon,
+                                               theme.typography.metadataScale);
+            setTextAlignment(ui, icon, UiHorizontalAlign::Center, UiVerticalAlign::Middle);
             UiHandle    label    = createTextRelative(ui,
                                                       row,
-                                                      {0.025f + indent, 0.12f, 0.62f - indent, 0.76f},
+                                                      {0.100f + indent, 0.12f, 0.52f - indent, 0.76f},
                                                       font,
                                                       node.label,
                                                       theme.colors.text,
-                                                      theme.typography.smallScale);
+                                                      theme.typography.valueScale);
             UiHandle    detail   = createTextRelative(ui,
                                                       row,
-                                                      {0.68f, 0.12f, 0.29f, 0.76f},
+                                                      {0.68f, 0.12f, 0.25f, 0.76f},
                                                       font,
                                                       node.detail,
                                                       theme.colors.mutedText,
-                                                      theme.typography.smallScale);
+                                                      theme.typography.metadataScale);
             setTextAlignment(ui, detail, UiHorizontalAlign::Right, UiVerticalAlign::Middle);
             handles.surfaces.push_back(row);
             handles.labels.push_back(label);
@@ -302,32 +330,67 @@ namespace gts::tools
                                                         const EditorTheme& theme = DefaultEditorTheme)
     {
         EditorWidgetHandles handles;
-        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelBackground);
+        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelInset);
+        UiLayoutSpec rootLayout = relativeLayout(rect);
+        rootLayout.clipMode     = UiClipMode::ClipChildren;
+        ui.setLayout(handles.root, rootLayout);
 
-        float       y         = theme.spacing.xs;
-        const float rowHeight = theme.dimensions.rowHeight;
+        float       y         = theme.spacing.sm;
+        const float rowHeight = theme.dimensions.propertyRowHeight;
+        std::string currentCategory;
         for (const EditorPropertySpec& property : properties)
         {
             if (!property.visible)
                 continue;
 
-            const UiColor rowColor = property.modified ? theme.colors.accentSoft : theme.colors.panelSurface;
-            UiHandle      row      = createRectRelative(ui, handles.root, {0.0f, y, 1.0f, rowHeight}, rowColor);
+            if (property.category != currentCategory)
+            {
+                currentCategory = property.category;
+                const std::string header = currentCategory.empty() ? "Properties" : currentCategory;
+                UiHandle headerRow = createRectRelative(
+                    ui, handles.root, {0.012f, y, 0.976f, theme.dimensions.compactRowHeight}, theme.colors.sectionHeader);
+                createRectRelative(ui, headerRow, {0.0f, 0.0f, 1.0f, 0.050f}, theme.colors.borderSubtle);
+                UiHandle headerLabel = createTextRelative(ui,
+                                                          headerRow,
+                                                          {0.025f, 0.12f, 0.70f, 0.76f},
+                                                          font,
+                                                          header,
+                                                          theme.colors.textPrimary,
+                                                          theme.typography.sectionHeaderScale);
+                setTextAlignment(ui, headerLabel, UiHorizontalAlign::Left, UiVerticalAlign::Middle);
+                y += theme.dimensions.compactRowHeight + theme.spacing.xs;
+            }
+
+            const UiColor rowColor = property.modified ? theme.colors.accentSoft : theme.colors.cardBackground;
+            UiHandle      row      = createRectRelative(ui, handles.root, {0.012f, y, 0.976f, rowHeight}, rowColor);
+            createRectRelative(ui, row, {0.0f, 0.0f, 1.0f, 0.030f}, theme.colors.highlight);
             UiHandle      label    = createTextRelative(ui,
                                                         row,
-                                                        {0.025f, 0.12f, 0.38f, 0.76f},
+                                                        {0.025f, 0.12f, 0.36f, 0.76f},
                                                         font,
                                                         property.displayName,
-                                                        property.readOnly ? theme.colors.mutedText : theme.colors.text,
-                                                        theme.typography.smallScale);
+                                                        property.readOnly ? theme.colors.textDisabled : theme.colors.textSecondary,
+                                                        theme.typography.labelScale);
             ToolButton    value    = createButtonRelative(
-                ui, row, {0.430f, 0.09f, 0.545f, 0.82f}, font, property.value, theme.typography.smallScale);
+                ui, row, {0.420f, 0.12f, 0.430f, 0.76f}, font, property.value, theme.typography.valueScale);
             if (property.readOnly)
+            {
                 setRectColor(ui, value.rect, theme.colors.disabled);
+                setTextColor(ui, value.label, theme.colors.textDisabled);
+            }
+            if (property.modified)
+            {
+                createRectRelative(ui, row, {0.875f, 0.30f, 0.025f, 0.40f}, theme.colors.accent);
+            }
+            ToolButton reset = createButtonRelative(
+                ui, row, {0.915f, 0.12f, 0.060f, 0.76f}, font, "R", theme.typography.metadataScale);
+            setRectColor(ui, reset.rect, theme.colors.buttonSecondary);
+            setTextColor(ui, reset.label, property.modified ? theme.colors.icon : theme.colors.iconMuted);
 
             handles.surfaces.push_back(row);
             handles.labels.push_back(label);
             handles.buttons.push_back(value);
+            handles.buttons.push_back(reset);
             y += rowHeight + theme.spacing.xs;
         }
 
@@ -343,16 +406,18 @@ namespace gts::tools
                                                      const EditorTheme&                     theme = DefaultEditorTheme)
     {
         EditorWidgetHandles handles;
-        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelSurface);
+        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelBackground);
+        createRectRelative(ui, handles.root, {0.0f, 0.0f, 1.0f, 0.085f}, theme.colors.headerBackground);
+        createRectRelative(ui, handles.root, {0.0f, 0.083f, 1.0f, 0.004f}, theme.colors.separator);
         handles.labels.push_back(createTextRelative(ui,
                                                     handles.root,
-                                                    {0.025f, 0.020f, 0.950f, 0.060f},
+                                                    {0.025f, 0.020f, 0.950f, 0.052f},
                                                     font,
                                                     std::string(title),
                                                     theme.colors.text,
                                                     theme.typography.headerScale));
         EditorWidgetHandles grid =
-            createEditorPropertyGrid(ui, handles.root, {0.025f, 0.095f, 0.950f, 0.880f}, properties, font, theme);
+            createEditorPropertyGrid(ui, handles.root, {0.018f, 0.105f, 0.964f, 0.870f}, properties, font, theme);
         handles.surfaces.push_back(grid.root);
         handles.buttons.insert(handles.buttons.end(), grid.buttons.begin(), grid.buttons.end());
         handles.labels.insert(handles.labels.end(), grid.labels.begin(), grid.labels.end());
@@ -387,7 +452,7 @@ namespace gts::tools
                                                 const EditorTheme&                     theme = DefaultEditorTheme)
     {
         EditorWidgetHandles handles;
-        handles.root          = createRectRelative(ui, parent, rect, theme.colors.overlay);
+        handles.root          = createRectRelative(ui, parent, rect, theme.colors.menuBackground);
         float       y         = theme.spacing.xs;
         const float rowHeight = theme.dimensions.compactRowHeight;
         for (const EditorMenuItemSpec& item : items)
@@ -395,7 +460,7 @@ namespace gts::tools
             if (item.separator)
             {
                 handles.surfaces.push_back(createRectRelative(
-                    ui, handles.root, {0.025f, y + rowHeight * 0.45f, 0.950f, 0.004f}, theme.colors.border));
+                    ui, handles.root, {0.025f, y + rowHeight * 0.45f, 0.950f, 0.004f}, theme.colors.separator));
                 y += rowHeight * 0.65f;
                 continue;
             }
@@ -453,7 +518,7 @@ namespace gts::tools
                                                        const EditorTheme&                  theme = DefaultEditorTheme)
     {
         EditorWidgetHandles handles;
-        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelSurface);
+        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelBackground);
         EditorWidgetHandles search =
             createEditorSearchField(ui, handles.root, {0.025f, 0.030f, 0.950f, 0.080f}, "SEARCH", query, font, theme);
         handles.fields.insert(handles.fields.end(), search.fields.begin(), search.fields.end());
@@ -464,7 +529,7 @@ namespace gts::tools
             if (!asset.visible)
                 continue;
 
-            const UiColor rowColor = asset.selected ? theme.colors.selection : theme.colors.panelBackground;
+            const UiColor rowColor = asset.selected ? theme.colors.selection : theme.colors.panelInset;
             UiHandle      row =
                 createRectRelative(ui, handles.root, {0.025f, y, 0.950f, theme.dimensions.rowHeight}, rowColor, true);
             UiHandle name = createTextRelative(ui,
@@ -522,7 +587,7 @@ namespace gts::tools
                                                            const EditorTheme& theme = DefaultEditorTheme)
     {
         EditorWidgetHandles handles;
-        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelBackground);
+        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelInset);
         handles.labels.push_back(createTextRelative(ui,
                                                     handles.root,
                                                     {0.0f, 0.0f, 0.30f, 1.0f},
@@ -554,7 +619,7 @@ namespace gts::tools
                                                         const EditorTheme& theme = DefaultEditorTheme)
     {
         EditorWidgetHandles handles;
-        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelBackground);
+        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelInset);
         handles.labels.push_back(createTextRelative(ui,
                                                     handles.root,
                                                     {0.025f, 0.12f, 0.38f, 0.76f},
@@ -579,7 +644,7 @@ namespace gts::tools
                                                        const EditorTheme&              theme = DefaultEditorTheme)
     {
         EditorWidgetHandles handles;
-        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelBackground);
+        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelInset);
         if (tags.empty())
             return handles;
 
@@ -603,7 +668,7 @@ namespace gts::tools
                                                        const EditorTheme& theme = DefaultEditorTheme)
     {
         EditorWidgetHandles handles;
-        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelBackground);
+        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelInset);
         handles.surfaces.push_back(createRectRelative(ui, handles.root, {0.025f, 0.18f, 0.180f, 0.64f}, color, true));
         handles.sliders.push_back(createSlider(ui, handles.root, 0.10f, "R", 0.0f, 1.0f, false, font));
         handles.sliders.push_back(createSlider(ui, handles.root, 0.40f, "G", 0.0f, 1.0f, false, font));
@@ -640,14 +705,14 @@ namespace gts::tools
                                                        const EditorTheme& theme = DefaultEditorTheme)
     {
         EditorWidgetHandles handles;
-        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelBackground);
+        handles.root = createRectRelative(ui, parent, rect, theme.colors.graphBackground);
         for (int i = 1; i < 4; ++i)
         {
             const float t = static_cast<float>(i) * 0.25f;
             handles.surfaces.push_back(
-                createEditorLineRelative(ui, handles.root, {t, 0.0f}, {t, 1.0f}, theme.colors.border, 0.001f));
+                createEditorLineRelative(ui, handles.root, {t, 0.0f}, {t, 1.0f}, theme.colors.graphGridMajor, 0.001f));
             handles.surfaces.push_back(
-                createEditorLineRelative(ui, handles.root, {0.0f, t}, {1.0f, t}, theme.colors.border, 0.001f));
+                createEditorLineRelative(ui, handles.root, {0.0f, t}, {1.0f, t}, theme.colors.graphGridMajor, 0.001f));
         }
         for (const EditorCurveKeySpec& key : keys)
         {
@@ -671,12 +736,12 @@ namespace gts::tools
                                                     const EditorTheme& theme = DefaultEditorTheme)
     {
         EditorWidgetHandles handles;
-        handles.root          = createRectRelative(ui, parent, rect, theme.colors.panelBackground);
+        handles.root          = createRectRelative(ui, parent, rect, theme.colors.graphBackground);
         const float rowHeight = tracks.empty() ? 1.0f : std::min(0.18f, 0.92f / static_cast<float>(tracks.size()));
         float       y         = 0.04f;
         for (const EditorTimelineTrackSpec& track : tracks)
         {
-            UiHandle row = createRectRelative(ui, handles.root, {0.0f, y, 1.0f, rowHeight}, theme.colors.panelSurface);
+            UiHandle row = createRectRelative(ui, handles.root, {0.0f, y, 1.0f, rowHeight}, theme.colors.timelineTrack);
             handles.labels.push_back(createTextRelative(ui,
                                                         row,
                                                         {0.025f, 0.12f, 0.20f, 0.76f},
@@ -705,7 +770,13 @@ namespace gts::tools
                                                        const EditorTheme& theme = DefaultEditorTheme)
     {
         EditorWidgetHandles handles;
-        handles.root = createRectRelative(ui, parent, rect, theme.colors.windowBackground);
+        handles.root = createRectRelative(ui, parent, rect, theme.colors.graphBackground);
+        for (int i = 1; i < 6; ++i)
+        {
+            const float t = static_cast<float>(i) / 6.0f;
+            createEditorLineRelative(ui, handles.root, {t, 0.0f}, {t, 1.0f}, theme.colors.graphGridMinor, 0.001f);
+            createEditorLineRelative(ui, handles.root, {0.0f, t}, {1.0f, t}, theme.colors.graphGridMinor, 0.001f);
+        }
         for (const EditorGraphLinkSpec& link : links)
         {
             if (link.fromIndex >= nodes.size() || link.toIndex >= nodes.size())
@@ -721,7 +792,7 @@ namespace gts::tools
         }
         for (const EditorGraphNodeSpec& node : nodes)
         {
-            UiColor  nodeColor = node.selected ? theme.colors.selection : theme.colors.panelSurface;
+            UiColor  nodeColor = node.selected ? theme.colors.selection : theme.colors.panelSurfaceRaised;
             UiHandle surface   = createRectRelative(ui, handles.root, toToolRect(node.rect), nodeColor, true);
             UiHandle label     = createTextRelative(ui,
                                                     surface,
@@ -766,13 +837,13 @@ namespace gts::tools
                                                            const EditorTheme& theme = DefaultEditorTheme)
     {
         EditorWidgetHandles handles;
-        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelBackground);
-        float y      = theme.spacing.xs;
+        handles.root = createRectRelative(ui, parent, rect, theme.colors.panelInset);
+        float y      = theme.spacing.sm;
         for (const EditorValidationMessageSpec& message : messages)
         {
             UiColor  color = validationColor(message.severity, theme);
             UiHandle row   = createRectRelative(
-                ui, handles.root, {0.0f, y, 1.0f, theme.dimensions.compactRowHeight}, theme.colors.panelSurface);
+                ui, handles.root, {0.012f, y, 0.976f, theme.dimensions.compactRowHeight}, theme.colors.cardBackground);
             handles.surfaces.push_back(createRectRelative(ui, row, {0.0f, 0.0f, 0.012f, 1.0f}, color));
             handles.labels.push_back(createTextRelative(
                 ui, row, {0.030f, 0.12f, 0.240f, 0.76f}, font, message.source, color, theme.typography.smallScale));
@@ -797,7 +868,7 @@ namespace gts::tools
                                                          const EditorTheme&              theme = DefaultEditorTheme)
     {
         EditorWidgetHandles handles;
-        handles.root = createRectRelative(ui, parent, rect, theme.colors.windowBackground);
+        handles.root = createRectRelative(ui, parent, rect, theme.colors.graphBackground);
         float y      = theme.spacing.xs;
         for (const std::string& line : lines)
         {

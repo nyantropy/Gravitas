@@ -100,6 +100,67 @@ ForwardFrameGraphStageRefs ForwardFrameGraphBuilder::build(
     refs.particleStage = ownedParticles.get();
     graph.addStage(std::move(ownedParticles));
 
+    GtsResourceHandle editorPreviewColorHandle = GTS_INVALID_RESOURCE;
+    if (config.editorPreviewColorAttachment != nullptr && config.editorPreviewDepthAttachment != nullptr)
+    {
+        editorPreviewColorHandle = graph.importResource(
+            "editor_preview_color",
+            config.editorPreviewColorAttachment->getImage(),
+            config.editorPreviewColorAttachment->getImageView(),
+            format,
+            config.editorPreviewColorAttachment->extent(),
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_IMAGE_ASPECT_COLOR_BIT,
+            VK_IMAGE_LAYOUT_UNDEFINED);
+        GtsResourceHandle editorPreviewDepthHandle = graph.importResource(
+            "editor_preview_depth",
+            config.editorPreviewDepthAttachment->getImage(),
+            config.editorPreviewDepthAttachment->getImageView(),
+            config.depthFormat,
+            config.editorPreviewDepthAttachment->extent(),
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_IMAGE_ASPECT_DEPTH_BIT,
+            VK_IMAGE_LAYOUT_UNDEFINED);
+
+        std::vector<VkImageView> previewColorViews(
+            images.size(), config.editorPreviewColorAttachment->getImageView());
+        auto ownedPreviewScene = std::make_unique<SceneRenderStage>(
+            &config.resources,
+            &config.threadPool,
+            config.backendContext,
+            descriptorSetManager,
+            previewColorViews,
+            static_cast<uint32_t>(images.size()),
+            format,
+            config.editorPreviewColorAttachment->extent(),
+            config.editorPreviewDepthAttachment->getImageView(),
+            config.depthFormat,
+            editorPreviewColorHandle,
+            editorPreviewDepthHandle,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            SceneRenderStage::DataSource::EditorPreview);
+        refs.editorPreviewSceneStage = ownedPreviewScene.get();
+        graph.addStage(std::move(ownedPreviewScene));
+
+        auto ownedPreviewParticles = std::make_unique<ParticleRenderStage>(
+            &config.resources,
+            config.backendContext,
+            descriptorSetManager,
+            previewColorViews,
+            static_cast<uint32_t>(images.size()),
+            format,
+            config.editorPreviewColorAttachment->extent(),
+            config.editorPreviewDepthAttachment->getImageView(),
+            config.depthFormat,
+            editorPreviewColorHandle,
+            editorPreviewDepthHandle,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            ParticleRenderStage::DataSource::EditorPreview);
+        refs.editorPreviewParticleStage = ownedPreviewParticles.get();
+        graph.addStage(std::move(ownedPreviewParticles));
+    }
+
     if (config.useInternalScaling)
     {
         auto ownedUpscale = std::make_unique<UpscaleRenderStage>(
@@ -122,7 +183,8 @@ ForwardFrameGraphStageRefs ForwardFrameGraphBuilder::build(
         &config.frameStats,
         config.debugOverlayEnabled,
         config.frameOutputTarget.getUiInitialLayout(),
-        config.frameOutputTarget.getUiFinalLayout());
+        config.frameOutputTarget.getUiFinalLayout(),
+        editorPreviewColorHandle);
     refs.uiStage = ownedUi.get();
     graph.addStage(std::move(ownedUi));
 

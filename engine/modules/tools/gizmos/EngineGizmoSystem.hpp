@@ -40,7 +40,8 @@ namespace gts::tools
             EngineToolInputCaptureComponent& capture = ctx.world.getSingleton<EngineToolInputCaptureComponent>();
             const ActiveCameraViewStateComponent& camera = ctx.world.getSingleton<ActiveCameraViewStateComponent>();
 
-            if (!toolState.visible || !gizmo.enabled || !camera.valid)
+            if (!toolState.visible || toolState.editorMode == EditorMode::ParticleEditor || !gizmo.enabled ||
+                !camera.valid)
             {
                 clearDrag(gizmo);
                 return;

@@ -391,6 +391,11 @@ class GravitasEngine
 
         platform.waitForGraphicsIdle();
         unloadActiveScene();
+        if (toolRuntime != nullptr)
+        {
+            toolRuntime->shutdown();
+            toolRuntime.reset();
+        }
         renderingRuntime->clearUi();
         uninstallEngineModules();
 

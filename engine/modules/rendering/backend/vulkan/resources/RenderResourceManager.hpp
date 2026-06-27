@@ -112,6 +112,21 @@ class RenderResourceManager : public IResourceProvider
             return textureManager->getTexture(id);
         }
 
+        texture_id_type registerSampledImageTexture(const std::string& key,
+                                                    VkImageView imageView,
+                                                    VkSampler sampler,
+                                                    VkImageLayout imageLayout,
+                                                    int width,
+                                                    int height)
+        {
+            return textureManager->registerSampledImage(key, imageView, sampler, imageLayout, width, height);
+        }
+
+        void unregisterTexture(texture_id_type id)
+        {
+            textureManager->unregisterTexture(id);
+        }
+
         // --- Font ---
         font_id_type requestFont(const std::string& path) override
         {

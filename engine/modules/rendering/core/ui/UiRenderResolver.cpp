@@ -513,9 +513,11 @@ void UiRenderResolver::buildCommandBuffer(
             }
             else if constexpr (std::is_same_v<T, UiImagePrimitive>)
             {
-                if (!resources || value.imageAsset.empty()) return;
+                if (!resources && value.textureID == 0) return;
+                if (value.textureID == 0 && value.imageAsset.empty()) return;
 
-                const texture_id_type textureId = resources->requestTexture(value.imageAsset);
+                const texture_id_type textureId =
+                    value.textureID != 0 ? value.textureID : resources->requestTexture(value.imageAsset);
                 if (textureId == 0) return;
 
                 const UiRect clipped = intersectRect(value.bounds, value.clipRect);
