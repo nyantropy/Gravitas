@@ -28,6 +28,8 @@
 namespace gts::tools
 {
     using gts::particles::buildModulesFromEmitterDescriptor;
+    using gts::particles::executionStageLabel;
+    using gts::particles::executionStageShortLabel;
     using gts::particles::findParticleModuleDefinition;
     using gts::particles::ParticleModuleDefinition;
     using gts::particles::ParticleModuleEnumOption;
@@ -1015,7 +1017,7 @@ namespace gts::tools
                 selectedModuleIndex    = moduleBrowserOffset + i;
                 parameterControlOffset = 0;
                 clearParameterSelectionState();
-                state.status = "MODULE " + moduleDisplayName(emitter->modules[selectedModuleIndex]);
+                state.status = selectedModuleStatus(emitter->modules[selectedModuleIndex]);
                 return;
             }
         }
@@ -1417,6 +1419,7 @@ namespace gts::tools
             setText(ctx.ui, summary, effectSummary());
             setRectColor(ctx.ui, previewSwatch, previewColor());
             setText(ctx.ui, previewText, previewSummary(ctx.world));
+            setText(ctx.ui, inspectorHeader, moduleInspectorTitle());
             setText(ctx.ui, footer, state.status);
             syncTextDraftsForDisplay();
             updateTextField(
@@ -1526,7 +1529,8 @@ namespace gts::tools
             std::ostringstream out;
             const std::string  name =
                 currentAsset.metadata.name.empty() ? fileName(currentPath) : currentAsset.metadata.name;
-            out << name << (dirty ? " *" : "") << "  " << currentAsset.emitters.size() << " EMIT";
+            out << name << (dirty ? " *" : "") << "  " << currentAsset.emitters.size() << " EMIT  "
+                << graphStatusLabel();
             return out.str();
         }
 
@@ -1551,6 +1555,36 @@ namespace gts::tools
             return out.str();
         }
 
+        std::string moduleInspectorTitle() const
+        {
+            return "MODULES " + graphStatusLabel();
+        }
+
+        std::string graphStatusLabel() const
+        {
+            const size_t errorCount = selectedGraphErrorCount();
+            if (errorCount == 0)
+                return "GRAPH OK";
+            return "GRAPH " + std::to_string(errorCount) + " ERR";
+        }
+
+        size_t selectedGraphErrorCount() const
+        {
+            const ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+                return 0;
+
+            std::vector<gts::particles::ParticleModuleGraphDiagnostic> diagnostics;
+            gts::particles::validateParticleModuleStack(emitter->modules, &diagnostics);
+            size_t errors = 0;
+            for (const gts::particles::ParticleModuleGraphDiagnostic& diagnostic : diagnostics)
+            {
+                if (diagnostic.severity == gts::particles::ParticleModuleGraphDiagnosticSeverity::Error)
+                    errors += 1;
+            }
+            return errors;
+        }
+
         std::string emitterRowLabel(const ParticleEffectEmitter& emitter) const
         {
             std::string label = emitter.name.empty() ? emitter.stableId : emitter.name;
@@ -1568,10 +1602,26 @@ namespace gts::tools
                                     ? (definition == nullptr ? module.typeId : definition->displayName)
                                     : module.displayName;
             if (definition != nullptr && !definition->category.empty())
-                label = definition->category + " " + label;
+                label = std::string(executionStageShortLabel(definition->executionStage)) + " " + definition->category +
+                        " " + label;
             if (!module.enabled)
                 label = "OFF " + label;
             return compact(label, 24);
+        }
+
+        std::string selectedModuleStatus(const ParticleModuleInstance& module) const
+        {
+            const ParticleModuleDefinition* definition = findParticleModuleDefinition(module.typeId);
+            if (definition == nullptr)
+                return "MODULE UNKNOWN";
+
+            std::string label = "MODULE ";
+            label += executionStageLabel(definition->executionStage);
+            label += " ";
+            label += gts::particles::executionCategoryLabel(definition->executionCategory);
+            label += " ";
+            label += module.displayName.empty() ? definition->displayName : module.displayName;
+            return compact(label, 48);
         }
 
         bool pointerOverModuleRows(const UiInteractionResult& interaction) const

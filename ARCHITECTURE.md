@@ -569,7 +569,14 @@ schema/version data, and typed parameters. Parameter values include scalars,
 integer values, booleans, enums, asset-path strings, float curves, color
 gradients, and burst timelines. String parameters may declare a picker role such
 as texture or mesh so the editor can discover compatible files without
-hardcoding renderer module behavior. The current runtime compatibility path
+hardcoding renderer module behavior. Module definitions also declare
+graph-compatible metadata: input ports, output ports, required or optional
+dependencies, execution category, and execution stage. The current execution
+stages are `Spawn`, `Initialize`, `Update`, and `Render`. The stack editor still
+shows a simple module list, but the registry can now validate that modules have
+stable graph node IDs, known definitions, unique parameter IDs, declared outputs,
+and required dependencies before a future graph compiler consumes them. The
+current runtime compatibility path
 compiles the selected emitter's modules back into `ParticleEmitterComponent`,
 copies that descriptor into the ECS component, and then executes the existing
 single-emitter simulation path. This preserves existing game behavior while
@@ -637,9 +644,11 @@ module type. Numeric min/max pairs are collapsed into range controls; curve,
 gradient, and burst timeline parameters expose compact key editing; texture and
 mesh string parameters cycle through discovered resources; and editor-local
 undo/redo, emitter copy/paste, module copy/paste, and multi-emitter batch
-selection are handled inside the panel. This panel is a retained-UI module/stack
-bridge, not the final graph editor. New particle authoring features should
-extend `ParticleEffectAsset` and the module registry, keep editor state separate from
+selection are handled inside the panel. Module rows display graph execution
+stage tags and the panel shows graph validation status for the selected
+emitter's module stack. This panel is a retained-UI module/stack bridge, not the
+final graph editor. New particle authoring features should extend
+`ParticleEffectAsset` and the module registry, keep editor state separate from
 `ParticleEmitterRuntimeComponent`, and keep runtime simulation consuming
 compiled or compatibility emitter data rather than editor UI structures.
 

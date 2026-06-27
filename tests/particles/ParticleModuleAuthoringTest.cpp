@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -30,6 +31,14 @@ int main()
     using namespace gts::particles;
 
     require(particleModuleDefinitions().size() == 10u, "expected initial module category set");
+    std::vector<ParticleModuleGraphDiagnostic> definitionDiagnostics;
+    require(validateParticleModuleDefinitions(&definitionDiagnostics),
+            "default module definitions should be graph compatible");
+    for (const ParticleModuleDefinition& definition : particleModuleDefinitions())
+    {
+        require(!definition.parameters.empty(), "module definition should expose parameters");
+        require(!definition.outputs.empty(), "module definition should expose graph outputs");
+    }
 
     ParticleEmitterComponent descriptor;
     descriptor.emissionRate    = 77.0f;
@@ -41,6 +50,32 @@ int main()
 
     std::vector<ParticleModuleInstance> modules = buildModulesFromEmitterDescriptor(descriptor);
     require(modules.size() == particleModuleDefinitions().size(), "descriptor should generate every module");
+    std::vector<ParticleModuleGraphDiagnostic> stackDiagnostics;
+    require(validateParticleModuleStack(modules, &stackDiagnostics), "default module stack should be graph compatible");
+    const std::vector<const ParticleModuleInstance*> plan = buildParticleModuleExecutionPlan(modules);
+    require(plan.size() == modules.size(), "execution plan should include every module");
+    require(moduleExecutionStage(plan.front()->typeId) == ParticleModuleExecutionStage::Spawn,
+            "execution plan should begin with spawn stage");
+    require(moduleExecutionStage(plan.back()->typeId) == ParticleModuleExecutionStage::Render,
+            "execution plan should end with render stage");
+
+    std::vector<ParticleModuleInstance> missingDependencyModules = modules;
+    missingDependencyModules.erase(std::remove_if(missingDependencyModules.begin(),
+                                                  missingDependencyModules.end(),
+                                                  [](const ParticleModuleInstance& module)
+                                                  {
+                                                      return module.typeId == "spawn.basic";
+                                                  }),
+                                   missingDependencyModules.end());
+    std::vector<ParticleModuleGraphDiagnostic> missingDependencyDiagnostics;
+    require(!validateParticleModuleStack(missingDependencyModules, &missingDependencyDiagnostics),
+            "missing required graph dependency should fail validation");
+
+    std::vector<ParticleModuleInstance> duplicateStableIdModules = modules;
+    duplicateStableIdModules.back().stableId                     = duplicateStableIdModules.front().stableId;
+    std::vector<ParticleModuleGraphDiagnostic> duplicateStableIdDiagnostics;
+    require(!validateParticleModuleStack(duplicateStableIdModules, &duplicateStableIdDiagnostics),
+            "duplicate stable graph node ids should fail validation");
 
     ParticleModuleInstance* spawn    = nullptr;
     ParticleModuleInstance* shape    = nullptr;

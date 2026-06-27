@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -31,6 +32,66 @@ namespace gts::particles
         None,
         Texture,
         Mesh
+    };
+
+    enum class ParticleModuleExecutionStage
+    {
+        Spawn,
+        Initialize,
+        Update,
+        Render
+    };
+
+    enum class ParticleModuleExecutionCategory
+    {
+        Emitter,
+        ParticleInitializer,
+        ParticleUpdater,
+        Renderer
+    };
+
+    enum class ParticleModulePortType
+    {
+        Flow,
+        ParticleStream,
+        Float,
+        UInt,
+        Bool,
+        Enum,
+        String,
+        FloatCurve,
+        ColorGradient,
+        BurstTimeline,
+        Vec3,
+        Vec4
+    };
+
+    struct ParticleModulePort
+    {
+        std::string            id;
+        std::string            label;
+        ParticleModulePortType type = ParticleModulePortType::Flow;
+    };
+
+    struct ParticleModuleDependency
+    {
+        std::string typeId;
+        std::string outputId;
+        bool        required = true;
+    };
+
+    enum class ParticleModuleGraphDiagnosticSeverity
+    {
+        Warning,
+        Error
+    };
+
+    struct ParticleModuleGraphDiagnostic
+    {
+        ParticleModuleGraphDiagnosticSeverity severity = ParticleModuleGraphDiagnosticSeverity::Error;
+        std::string                           moduleStableId;
+        std::string                           moduleTypeId;
+        std::string                           message;
     };
 
     struct ParticleModuleEnumOption
@@ -66,6 +127,11 @@ namespace gts::particles
         std::string                                    description;
         uint32_t                                       version = CurrentParticleModuleSchemaVersion;
         std::vector<ParticleModuleParameterDefinition> parameters;
+        ParticleModuleExecutionStage                   executionStage = ParticleModuleExecutionStage::Update;
+        ParticleModuleExecutionCategory       executionCategory = ParticleModuleExecutionCategory::ParticleUpdater;
+        std::vector<ParticleModulePort>       inputs;
+        std::vector<ParticleModulePort>       outputs;
+        std::vector<ParticleModuleDependency> dependencies;
     };
 
     struct ParticleModuleParameter
@@ -201,6 +267,78 @@ namespace gts::particles
         return param;
     }
 
+    inline ParticleModulePort port(const std::string& id, const std::string& label, ParticleModulePortType type)
+    {
+        ParticleModulePort result;
+        result.id    = id;
+        result.label = label;
+        result.type  = type;
+        return result;
+    }
+
+    inline ParticleModuleDependency
+    dependency(const std::string& typeId, const std::string& outputId = {}, bool required = true)
+    {
+        ParticleModuleDependency result;
+        result.typeId   = typeId;
+        result.outputId = outputId;
+        result.required = required;
+        return result;
+    }
+
+    inline const char* executionStageLabel(ParticleModuleExecutionStage stage)
+    {
+        switch (stage)
+        {
+        case ParticleModuleExecutionStage::Spawn:
+            return "Spawn";
+        case ParticleModuleExecutionStage::Initialize:
+            return "Initialize";
+        case ParticleModuleExecutionStage::Update:
+            return "Update";
+        case ParticleModuleExecutionStage::Render:
+            return "Render";
+        }
+        return "Update";
+    }
+
+    inline const char* executionStageShortLabel(ParticleModuleExecutionStage stage)
+    {
+        switch (stage)
+        {
+        case ParticleModuleExecutionStage::Spawn:
+            return "SP";
+        case ParticleModuleExecutionStage::Initialize:
+            return "IN";
+        case ParticleModuleExecutionStage::Update:
+            return "UP";
+        case ParticleModuleExecutionStage::Render:
+            return "RD";
+        }
+        return "UP";
+    }
+
+    inline const char* executionCategoryLabel(ParticleModuleExecutionCategory category)
+    {
+        switch (category)
+        {
+        case ParticleModuleExecutionCategory::Emitter:
+            return "Emitter";
+        case ParticleModuleExecutionCategory::ParticleInitializer:
+            return "Particle Init";
+        case ParticleModuleExecutionCategory::ParticleUpdater:
+            return "Particle Update";
+        case ParticleModuleExecutionCategory::Renderer:
+            return "Renderer";
+        }
+        return "Particle Update";
+    }
+
+    inline uint32_t executionStageOrder(ParticleModuleExecutionStage stage)
+    {
+        return static_cast<uint32_t>(stage);
+    }
+
     inline const std::vector<ParticleModuleEnumOption>& shapeOptions()
     {
         static const std::vector<ParticleModuleEnumOption> options = {
@@ -254,7 +392,12 @@ namespace gts::particles
              {boolParam("emitterEnabled", "ENABLED", true),
               floatParam("emissionRate", "RATE", 0.0f, 180.0f, 32.0f),
               uintParam("maxParticles", "MAX", 1u, 512u, 128u),
-              floatParam("intensity", "INTENSITY", 0.0f, 2.5f, 1.0f)}},
+              floatParam("intensity", "INTENSITY", 0.0f, 2.5f, 1.0f)},
+             ParticleModuleExecutionStage::Spawn,
+             ParticleModuleExecutionCategory::Emitter,
+             {},
+             {port("spawnRequests", "Spawn Requests", ParticleModulePortType::Flow)},
+             {}},
             {"lifetime.basic",
              "Lifetime",
              "Lifetime",
@@ -264,7 +407,12 @@ namespace gts::particles
               floatParam("lifetimeMin", "LIFE MIN", 0.01f, 6.0f, 1.0f),
               floatParam("lifetimeMax", "LIFE MAX", 0.01f, 8.0f, 2.0f),
               floatParam("duration", "DURATION", 0.0f, 12.0f, 0.0f),
-              floatParam("startDelay", "DELAY", 0.0f, 5.0f, 0.0f)}},
+              floatParam("startDelay", "DELAY", 0.0f, 5.0f, 0.0f)},
+             ParticleModuleExecutionStage::Initialize,
+             ParticleModuleExecutionCategory::ParticleInitializer,
+             {port("spawnRequests", "Spawn Requests", ParticleModulePortType::Flow)},
+             {port("particleLifetime", "Lifetime", ParticleModulePortType::Float)},
+             {dependency("spawn.basic", "spawnRequests")}},
             {"shape.basic",
              "Shape",
              "Shape",
@@ -279,7 +427,12 @@ namespace gts::particles
               floatParam("ringInnerRadius", "RING IN", 0.0f, 5.0f, 0.25f),
               floatParam("ringOuterRadius", "RING OUT", 0.01f, 5.0f, 0.65f),
               floatParam("cylinderRadius", "CYL R", 0.01f, 5.0f, 0.5f),
-              floatParam("cylinderHeight", "CYL H", 0.01f, 5.0f, 1.0f)}},
+              floatParam("cylinderHeight", "CYL H", 0.01f, 5.0f, 1.0f)},
+             ParticleModuleExecutionStage::Initialize,
+             ParticleModuleExecutionCategory::ParticleInitializer,
+             {port("spawnRequests", "Spawn Requests", ParticleModulePortType::Flow)},
+             {port("spawnPosition", "Spawn Position", ParticleModulePortType::Vec3)},
+             {dependency("spawn.basic", "spawnRequests")}},
             {"velocity.basic",
              "Velocity",
              "Velocity",
@@ -292,7 +445,12 @@ namespace gts::particles
               floatParam("radialVelocityMin", "RAD MIN", -5.0f, 5.0f, 0.0f),
               floatParam("radialVelocityMax", "RAD MAX", -5.0f, 5.0f, 0.0f),
               floatParam("tangentVelocity", "TANGENT", -5.0f, 5.0f, 0.0f),
-              floatParam("drag", "DRAG", 0.0f, 3.0f, 0.15f)}},
+              floatParam("drag", "DRAG", 0.0f, 3.0f, 0.15f)},
+             ParticleModuleExecutionStage::Initialize,
+             ParticleModuleExecutionCategory::ParticleInitializer,
+             {port("spawnPosition", "Spawn Position", ParticleModulePortType::Vec3)},
+             {port("initialVelocity", "Initial Velocity", ParticleModulePortType::Vec3)},
+             {dependency("shape.basic", "spawnPosition")}},
             {"forces.basic",
              "Forces",
              "Forces",
@@ -307,7 +465,12 @@ namespace gts::particles
               floatParam("vortex", "VORTEX", -2.0f, 2.0f, 0.0f),
               floatParam("radial", "RADIAL", -5.0f, 5.0f, 0.0f),
               floatParam("noiseStrength", "NOISE", 0.0f, 1.0f, 0.0f),
-              floatParam("noiseScale", "NOISE SC", 0.01f, 8.0f, 1.0f)}},
+              floatParam("noiseScale", "NOISE SC", 0.01f, 8.0f, 1.0f)},
+             ParticleModuleExecutionStage::Update,
+             ParticleModuleExecutionCategory::ParticleUpdater,
+             {port("initialVelocity", "Initial Velocity", ParticleModulePortType::Vec3)},
+             {port("particleVelocity", "Particle Velocity", ParticleModulePortType::Vec3)},
+             {dependency("velocity.basic", "initialVelocity")}},
             {"color.basic",
              "Color",
              "Color",
@@ -326,7 +489,12 @@ namespace gts::particles
                               1.0f,
                               {{0.0f, 0.0f}, {0.2f, 1.0f}, {0.8f, 1.0f}, {1.0f, 0.0f}}),
               floatParam("hueVariation", "HUE VAR", 0.0f, 1.0f, 0.0f),
-              floatParam("valueVariation", "VAL VAR", 0.0f, 1.0f, 0.0f)}},
+              floatParam("valueVariation", "VAL VAR", 0.0f, 1.0f, 0.0f)},
+             ParticleModuleExecutionStage::Initialize,
+             ParticleModuleExecutionCategory::ParticleInitializer,
+             {port("particleLifetime", "Lifetime", ParticleModulePortType::Float)},
+             {port("particleColor", "Particle Color", ParticleModulePortType::Vec4)},
+             {dependency("lifetime.basic", "particleLifetime")}},
             {"size.basic",
              "Size",
              "Size",
@@ -335,7 +503,12 @@ namespace gts::particles
              {floatCurveParam("sizeOverLifetime", "SIZE CURVE", 0.001f, 2.0f, {{0.0f, 0.35f}, {1.0f, 0.75f}}),
               floatParam("sizeRandomness", "SIZE RNG", 0.0f, 1.0f, 0.15f),
               floatParam("aspectRatioMin", "ASPECT MIN", 0.1f, 6.0f, 1.0f),
-              floatParam("aspectRatioMax", "ASPECT MAX", 0.1f, 6.0f, 1.0f)}},
+              floatParam("aspectRatioMax", "ASPECT MAX", 0.1f, 6.0f, 1.0f)},
+             ParticleModuleExecutionStage::Initialize,
+             ParticleModuleExecutionCategory::ParticleInitializer,
+             {port("particleLifetime", "Lifetime", ParticleModulePortType::Float)},
+             {port("particleSize", "Particle Size", ParticleModulePortType::Float)},
+             {dependency("lifetime.basic", "particleLifetime")}},
             {"rotation.basic",
              "Rotation",
              "Rotation",
@@ -349,7 +522,12 @@ namespace gts::particles
               floatParam("meshSpinXMax", "MESH X+", -8.0f, 8.0f, 0.8f),
               floatParam("meshSpinYMax", "MESH Y+", -8.0f, 8.0f, 0.8f),
               floatParam("meshSpinZMax", "MESH Z+", -8.0f, 8.0f, 0.8f),
-              boolParam("randomMeshRotation", "RANDOM MESH", true)}},
+              boolParam("randomMeshRotation", "RANDOM MESH", true)},
+             ParticleModuleExecutionStage::Initialize,
+             ParticleModuleExecutionCategory::ParticleInitializer,
+             {port("particleLifetime", "Lifetime", ParticleModulePortType::Float)},
+             {port("particleRotation", "Particle Rotation", ParticleModulePortType::Vec3)},
+             {dependency("lifetime.basic", "particleLifetime")}},
             {"renderer.basic",
              "Renderer",
              "Renderer",
@@ -368,13 +546,27 @@ namespace gts::particles
               floatParam("softness", "SOFT", 0.0f, 240.0f, 80.0f),
               floatParam("meshScaleX", "MESH X", 0.01f, 6.0f, 1.0f),
               floatParam("meshScaleY", "MESH Y", 0.01f, 6.0f, 1.0f),
-              floatParam("meshScaleZ", "MESH Z", 0.01f, 6.0f, 1.0f)}},
+              floatParam("meshScaleZ", "MESH Z", 0.01f, 6.0f, 1.0f)},
+             ParticleModuleExecutionStage::Render,
+             ParticleModuleExecutionCategory::Renderer,
+             {port("particleColor", "Particle Color", ParticleModulePortType::Vec4),
+              port("particleSize", "Particle Size", ParticleModulePortType::Float),
+              port("particleRotation", "Particle Rotation", ParticleModulePortType::Vec3)},
+             {port("renderParticles", "Render Particles", ParticleModulePortType::ParticleStream)},
+             {dependency("color.basic", "particleColor"),
+              dependency("size.basic", "particleSize"),
+              dependency("rotation.basic", "particleRotation", false)}},
             {"bursts.basic",
              "Bursts",
              "Bursts",
              "First burst authoring bridge for the current runtime burst list.",
              CurrentParticleModuleSchemaVersion,
-             {burstTimelineParam("bursts", "TIMELINE", {})}},
+             {burstTimelineParam("bursts", "TIMELINE", {})},
+             ParticleModuleExecutionStage::Spawn,
+             ParticleModuleExecutionCategory::Emitter,
+             {port("spawnRequests", "Spawn Requests", ParticleModulePortType::Flow)},
+             {port("burstRequests", "Burst Requests", ParticleModulePortType::Flow)},
+             {dependency("spawn.basic", "spawnRequests")}},
         };
         return definitions;
     }
@@ -389,6 +581,265 @@ namespace gts::particles
                                          return definition.typeId == typeId;
                                                });
         return it == definitions.end() ? nullptr : &*it;
+    }
+
+    inline ParticleModuleExecutionStage moduleExecutionStage(const std::string& typeId)
+    {
+        const ParticleModuleDefinition* definition = findParticleModuleDefinition(typeId);
+        return definition == nullptr ? ParticleModuleExecutionStage::Update : definition->executionStage;
+    }
+
+    inline const ParticleModulePort* findOutputPort(const ParticleModuleDefinition& definition, const std::string& id)
+    {
+        const auto it = std::find_if(definition.outputs.begin(),
+                                     definition.outputs.end(),
+                                     [&](const ParticleModulePort& output)
+                                     {
+                                         return output.id == id;
+                                     });
+        return it == definition.outputs.end() ? nullptr : &*it;
+    }
+
+    inline bool graphDiagnosticsHaveErrors(const std::vector<ParticleModuleGraphDiagnostic>& diagnostics)
+    {
+        for (const ParticleModuleGraphDiagnostic& diagnostic : diagnostics)
+        {
+            if (diagnostic.severity == ParticleModuleGraphDiagnosticSeverity::Error)
+                return true;
+        }
+        return false;
+    }
+
+    inline void addGraphDiagnostic(std::vector<ParticleModuleGraphDiagnostic>* diagnostics,
+                                   ParticleModuleGraphDiagnosticSeverity       severity,
+                                   const std::string&                          message,
+                                   const std::string&                          moduleTypeId   = {},
+                                   const std::string&                          moduleStableId = {})
+    {
+        if (diagnostics == nullptr)
+            return;
+
+        diagnostics->push_back({severity, moduleStableId, moduleTypeId, message});
+    }
+
+    inline bool hasDuplicateString(const std::vector<std::string>& values, const std::string& value)
+    {
+        return std::find(values.begin(), values.end(), value) != values.end();
+    }
+
+    inline bool validateParticleModuleDefinitions(std::vector<ParticleModuleGraphDiagnostic>* diagnostics = nullptr)
+    {
+        std::vector<ParticleModuleGraphDiagnostic> localDiagnostics;
+        if (diagnostics == nullptr)
+            diagnostics = &localDiagnostics;
+
+        const std::vector<ParticleModuleDefinition>& definitions = particleModuleDefinitions();
+        std::vector<std::string>                     typeIds;
+        for (const ParticleModuleDefinition& definition : definitions)
+        {
+            if (definition.typeId.empty())
+                addGraphDiagnostic(
+                    diagnostics, ParticleModuleGraphDiagnosticSeverity::Error, "module definition has empty type id");
+            else if (hasDuplicateString(typeIds, definition.typeId))
+                addGraphDiagnostic(diagnostics,
+                                   ParticleModuleGraphDiagnosticSeverity::Error,
+                                   "module definition type id is duplicated",
+                                   definition.typeId);
+            typeIds.push_back(definition.typeId);
+
+            std::vector<std::string> parameterIds;
+            for (const ParticleModuleParameterDefinition& parameter : definition.parameters)
+            {
+                if (parameter.id.empty())
+                    addGraphDiagnostic(diagnostics,
+                                       ParticleModuleGraphDiagnosticSeverity::Error,
+                                       "module parameter has empty id",
+                                       definition.typeId);
+                else if (hasDuplicateString(parameterIds, parameter.id))
+                    addGraphDiagnostic(diagnostics,
+                                       ParticleModuleGraphDiagnosticSeverity::Error,
+                                       "module parameter id is duplicated: " + parameter.id,
+                                       definition.typeId);
+                parameterIds.push_back(parameter.id);
+            }
+
+            if (definition.outputs.empty())
+                addGraphDiagnostic(diagnostics,
+                                   ParticleModuleGraphDiagnosticSeverity::Error,
+                                   "module definition has no outputs",
+                                   definition.typeId);
+
+            std::vector<std::string> inputIds;
+            for (const ParticleModulePort& input : definition.inputs)
+            {
+                if (input.id.empty())
+                    addGraphDiagnostic(diagnostics,
+                                       ParticleModuleGraphDiagnosticSeverity::Error,
+                                       "module input has empty id",
+                                       definition.typeId);
+                else if (hasDuplicateString(inputIds, input.id))
+                    addGraphDiagnostic(diagnostics,
+                                       ParticleModuleGraphDiagnosticSeverity::Error,
+                                       "module input id is duplicated: " + input.id,
+                                       definition.typeId);
+                inputIds.push_back(input.id);
+            }
+
+            std::vector<std::string> outputIds;
+            for (const ParticleModulePort& output : definition.outputs)
+            {
+                if (output.id.empty())
+                    addGraphDiagnostic(diagnostics,
+                                       ParticleModuleGraphDiagnosticSeverity::Error,
+                                       "module output has empty id",
+                                       definition.typeId);
+                else if (hasDuplicateString(outputIds, output.id))
+                    addGraphDiagnostic(diagnostics,
+                                       ParticleModuleGraphDiagnosticSeverity::Error,
+                                       "module output id is duplicated: " + output.id,
+                                       definition.typeId);
+                outputIds.push_back(output.id);
+            }
+
+            for (const ParticleModuleDependency& dependencyInfo : definition.dependencies)
+            {
+                const ParticleModuleDefinition* dependencyDefinition =
+                    findParticleModuleDefinition(dependencyInfo.typeId);
+                if (dependencyDefinition == nullptr)
+                {
+                    if (dependencyInfo.required)
+                        addGraphDiagnostic(diagnostics,
+                                           ParticleModuleGraphDiagnosticSeverity::Error,
+                                           "required module dependency is unknown: " + dependencyInfo.typeId,
+                                           definition.typeId);
+                    continue;
+                }
+
+                if (!dependencyInfo.outputId.empty() &&
+                    findOutputPort(*dependencyDefinition, dependencyInfo.outputId) == nullptr)
+                {
+                    addGraphDiagnostic(diagnostics,
+                                       ParticleModuleGraphDiagnosticSeverity::Error,
+                                       "module dependency output is unknown: " + dependencyInfo.outputId,
+                                       definition.typeId);
+                }
+
+                if (executionStageOrder(dependencyDefinition->executionStage) >
+                    executionStageOrder(definition.executionStage))
+                {
+                    addGraphDiagnostic(diagnostics,
+                                       ParticleModuleGraphDiagnosticSeverity::Error,
+                                       "module depends on a later execution stage: " + dependencyInfo.typeId,
+                                       definition.typeId);
+                }
+            }
+        }
+
+        return !graphDiagnosticsHaveErrors(*diagnostics);
+    }
+
+    inline bool validateParticleModuleStack(const std::vector<ParticleModuleInstance>&  modules,
+                                            std::vector<ParticleModuleGraphDiagnostic>* diagnostics = nullptr)
+    {
+        std::vector<ParticleModuleGraphDiagnostic> localDiagnostics;
+        if (diagnostics == nullptr)
+            diagnostics = &localDiagnostics;
+
+        validateParticleModuleDefinitions(diagnostics);
+
+        std::vector<std::string> stableIds;
+        for (const ParticleModuleInstance& module : modules)
+        {
+            const ParticleModuleDefinition* definition = findParticleModuleDefinition(module.typeId);
+            if (module.stableId.empty())
+                addGraphDiagnostic(diagnostics,
+                                   ParticleModuleGraphDiagnosticSeverity::Error,
+                                   "module instance has empty stable id",
+                                   module.typeId);
+            else if (hasDuplicateString(stableIds, module.stableId))
+                addGraphDiagnostic(diagnostics,
+                                   ParticleModuleGraphDiagnosticSeverity::Error,
+                                   "module stable id is duplicated",
+                                   module.typeId,
+                                   module.stableId);
+            stableIds.push_back(module.stableId);
+
+            if (definition == nullptr)
+            {
+                addGraphDiagnostic(diagnostics,
+                                   ParticleModuleGraphDiagnosticSeverity::Error,
+                                   "module type is not registered",
+                                   module.typeId,
+                                   module.stableId);
+                continue;
+            }
+
+            std::vector<std::string> parameterIds;
+            for (const ParticleModuleParameter& parameter : module.parameters)
+            {
+                if (parameter.id.empty())
+                    addGraphDiagnostic(diagnostics,
+                                       ParticleModuleGraphDiagnosticSeverity::Error,
+                                       "module parameter instance has empty id",
+                                       module.typeId,
+                                       module.stableId);
+                else if (hasDuplicateString(parameterIds, parameter.id))
+                    addGraphDiagnostic(diagnostics,
+                                       ParticleModuleGraphDiagnosticSeverity::Error,
+                                       "module parameter instance id is duplicated: " + parameter.id,
+                                       module.typeId,
+                                       module.stableId);
+                parameterIds.push_back(parameter.id);
+            }
+
+            for (const ParticleModuleDependency& dependencyInfo : definition->dependencies)
+            {
+                if (!dependencyInfo.required)
+                    continue;
+
+                const auto dependencyModule = std::find_if(modules.begin(),
+                                                           modules.end(),
+                                                           [&](const ParticleModuleInstance& candidate)
+                                                           {
+                                                               return candidate.typeId == dependencyInfo.typeId;
+                                                           });
+                if (dependencyModule == modules.end())
+                {
+                    addGraphDiagnostic(diagnostics,
+                                       ParticleModuleGraphDiagnosticSeverity::Error,
+                                       "required module dependency is missing: " + dependencyInfo.typeId,
+                                       module.typeId,
+                                       module.stableId);
+                }
+            }
+        }
+
+        return !graphDiagnosticsHaveErrors(*diagnostics);
+    }
+
+    inline std::vector<const ParticleModuleInstance*>
+    buildParticleModuleExecutionPlan(const std::vector<ParticleModuleInstance>& modules)
+    {
+        std::vector<const ParticleModuleInstance*> plan;
+        plan.reserve(modules.size());
+        for (const ParticleModuleInstance& module : modules)
+            plan.push_back(&module);
+
+        std::stable_sort(plan.begin(),
+                         plan.end(),
+                         [](const ParticleModuleInstance* lhs, const ParticleModuleInstance* rhs)
+                         {
+                             const ParticleModuleDefinition* lhsDefinition = findParticleModuleDefinition(lhs->typeId);
+                             const ParticleModuleDefinition* rhsDefinition = findParticleModuleDefinition(rhs->typeId);
+                             const uint32_t lhsStage = lhsDefinition == nullptr
+                                                           ? executionStageOrder(ParticleModuleExecutionStage::Update)
+                                                           : executionStageOrder(lhsDefinition->executionStage);
+                             const uint32_t rhsStage = rhsDefinition == nullptr
+                                                           ? executionStageOrder(ParticleModuleExecutionStage::Update)
+                                                           : executionStageOrder(rhsDefinition->executionStage);
+                             return lhsStage < rhsStage;
+                         });
+        return plan;
     }
 
     inline ParticleModuleParameter makeDefaultParameter(const ParticleModuleParameterDefinition& definition)
