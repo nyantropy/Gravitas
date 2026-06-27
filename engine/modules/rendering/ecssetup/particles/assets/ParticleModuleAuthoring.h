@@ -13,7 +13,8 @@
 
 namespace gts::particles
 {
-    inline constexpr uint32_t CurrentParticleModuleSchemaVersion = 1u;
+    inline constexpr uint32_t LegacyParticleModuleSchemaVersion  = 1u;
+    inline constexpr uint32_t CurrentParticleModuleSchemaVersion = 2u;
 
     enum class ParticleModuleParameterType
     {
@@ -600,6 +601,17 @@ namespace gts::particles
         return it == definition.outputs.end() ? nullptr : &*it;
     }
 
+    inline const ParticleModulePort* findInputPort(const ParticleModuleDefinition& definition, const std::string& id)
+    {
+        const auto it = std::find_if(definition.inputs.begin(),
+                                     definition.inputs.end(),
+                                     [&](const ParticleModulePort& input)
+                                     {
+                                         return input.id == id;
+                                     });
+        return it == definition.inputs.end() ? nullptr : &*it;
+    }
+
     inline bool graphDiagnosticsHaveErrors(const std::vector<ParticleModuleGraphDiagnostic>& diagnostics)
     {
         for (const ParticleModuleGraphDiagnostic& diagnostic : diagnostics)
@@ -723,6 +735,27 @@ namespace gts::particles
                                        "module dependency output is unknown: " + dependencyInfo.outputId,
                                        definition.typeId);
                 }
+                else if (!dependencyInfo.outputId.empty())
+                {
+                    const ParticleModulePort* dependencyOutput = findOutputPort(*dependencyDefinition,
+                                                                                dependencyInfo.outputId);
+                    const ParticleModulePort* localInput       = findInputPort(definition, dependencyInfo.outputId);
+                    if (localInput == nullptr)
+                    {
+                        addGraphDiagnostic(diagnostics,
+                                           ParticleModuleGraphDiagnosticSeverity::Warning,
+                                           "module dependency output has no matching stack input: " +
+                                               dependencyInfo.outputId,
+                                           definition.typeId);
+                    }
+                    else if (dependencyOutput != nullptr && dependencyOutput->type != localInput->type)
+                    {
+                        addGraphDiagnostic(diagnostics,
+                                           ParticleModuleGraphDiagnosticSeverity::Error,
+                                           "module dependency port type mismatch: " + dependencyInfo.outputId,
+                                           definition.typeId);
+                    }
+                }
 
                 if (executionStageOrder(dependencyDefinition->executionStage) >
                     executionStageOrder(definition.executionStage))
@@ -748,6 +781,7 @@ namespace gts::particles
         validateParticleModuleDefinitions(diagnostics);
 
         std::vector<std::string> stableIds;
+        std::vector<std::string> typeIds;
         for (const ParticleModuleInstance& module : modules)
         {
             const ParticleModuleDefinition* definition = findParticleModuleDefinition(module.typeId);
@@ -774,6 +808,25 @@ namespace gts::particles
                 continue;
             }
 
+            if (module.version > definition->version)
+            {
+                addGraphDiagnostic(diagnostics,
+                                   ParticleModuleGraphDiagnosticSeverity::Error,
+                                   "module version is newer than this engine",
+                                   module.typeId,
+                                   module.stableId);
+            }
+
+            if (hasDuplicateString(typeIds, module.typeId))
+            {
+                addGraphDiagnostic(diagnostics,
+                                   ParticleModuleGraphDiagnosticSeverity::Error,
+                                   "module type is duplicated in stack: " + module.typeId,
+                                   module.typeId,
+                                   module.stableId);
+            }
+            typeIds.push_back(module.typeId);
+
             std::vector<std::string> parameterIds;
             for (const ParticleModuleParameter& parameter : module.parameters)
             {
@@ -794,9 +847,6 @@ namespace gts::particles
 
             for (const ParticleModuleDependency& dependencyInfo : definition->dependencies)
             {
-                if (!dependencyInfo.required)
-                    continue;
-
                 const auto dependencyModule = std::find_if(modules.begin(),
                                                            modules.end(),
                                                            [&](const ParticleModuleInstance& candidate)
@@ -805,9 +855,56 @@ namespace gts::particles
                                                            });
                 if (dependencyModule == modules.end())
                 {
+                    if (dependencyInfo.required)
+                    {
+                        addGraphDiagnostic(diagnostics,
+                                           ParticleModuleGraphDiagnosticSeverity::Error,
+                                           "required module dependency is missing: " + dependencyInfo.typeId,
+                                           module.typeId,
+                                           module.stableId);
+                    }
+                    continue;
+                }
+
+                const ParticleModuleDefinition* dependencyDefinition =
+                    findParticleModuleDefinition(dependencyModule->typeId);
+                const ParticleModulePort* dependencyOutput =
+                    dependencyDefinition == nullptr || dependencyInfo.outputId.empty()
+                        ? nullptr
+                        : findOutputPort(*dependencyDefinition, dependencyInfo.outputId);
+                const ParticleModulePort* localInput =
+                    dependencyInfo.outputId.empty() ? nullptr : findInputPort(*definition, dependencyInfo.outputId);
+
+                if (dependencyInfo.required && !dependencyInfo.outputId.empty() && dependencyOutput == nullptr)
+                {
                     addGraphDiagnostic(diagnostics,
                                        ParticleModuleGraphDiagnosticSeverity::Error,
-                                       "required module dependency is missing: " + dependencyInfo.typeId,
+                                       "required module dependency output is missing: " + dependencyInfo.outputId,
+                                       module.typeId,
+                                       module.stableId);
+                }
+                if (dependencyInfo.required && dependencyOutput != nullptr && localInput == nullptr)
+                {
+                    addGraphDiagnostic(diagnostics,
+                                       ParticleModuleGraphDiagnosticSeverity::Error,
+                                       "required module input is missing: " + dependencyInfo.outputId,
+                                       module.typeId,
+                                       module.stableId);
+                }
+                if (dependencyOutput != nullptr && localInput != nullptr && dependencyOutput->type != localInput->type)
+                {
+                    addGraphDiagnostic(diagnostics,
+                                       ParticleModuleGraphDiagnosticSeverity::Error,
+                                       "required module dependency port type mismatch: " + dependencyInfo.outputId,
+                                       module.typeId,
+                                       module.stableId);
+                }
+                if (dependencyInfo.required && !dependencyModule->enabled)
+                {
+                    addGraphDiagnostic(diagnostics,
+                                       ParticleModuleGraphDiagnosticSeverity::Warning,
+                                       "dependency is disabled; default module output will be used: " +
+                                           dependencyInfo.typeId,
                                        module.typeId,
                                        module.stableId);
                 }
@@ -1131,20 +1228,23 @@ namespace gts::particles
         if (definition == nullptr)
             return;
 
+        const uint32_t sourceVersion =
+            module.version == 0 ? LegacyParticleModuleSchemaVersion : module.version;
         if (module.stableId.empty())
             module.stableId = definition->category;
         if (module.displayName.empty())
             module.displayName = definition->displayName;
-        if (module.version == 0)
-            module.version = definition->version;
 
+        std::vector<ParticleModuleParameter> migratedParameters;
+        migratedParameters.reserve(definition->parameters.size());
         for (const ParticleModuleParameterDefinition& parameterDefinition : definition->parameters)
         {
             ParticleModuleParameter* parameter = findParameter(module, parameterDefinition.id);
             if (parameter == nullptr)
             {
                 ParticleModuleParameter migrated = makeDefaultParameter(parameterDefinition);
-                if (module.typeId == "color.basic" && parameterDefinition.id == "colorOverLifetime")
+                if (sourceVersion < CurrentParticleModuleSchemaVersion && module.typeId == "color.basic" &&
+                    parameterDefinition.id == "colorOverLifetime")
                 {
                     migrated.colorGradientValue = {{0.0f,
                                                     {floatParameter(module, "baseTintR", 1.0f),
@@ -1157,17 +1257,20 @@ namespace gts::particles
                                                      floatParameter(module, "baseTintB", 1.0f),
                                                      floatParameter(module, "baseTintA", 1.0f)}}};
                 }
-                else if (module.typeId == "color.basic" && parameterDefinition.id == "alphaOverLifetime")
+                else if (sourceVersion < CurrentParticleModuleSchemaVersion && module.typeId == "color.basic" &&
+                         parameterDefinition.id == "alphaOverLifetime")
                 {
                     const float alphaPeak    = std::clamp(floatParameter(module, "alphaPeak", 1.0f), 0.0f, 1.0f);
                     migrated.floatCurveValue = {{0.0f, 0.0f}, {0.2f, alphaPeak}, {0.8f, alphaPeak}, {1.0f, 0.0f}};
                 }
-                else if (module.typeId == "size.basic" && parameterDefinition.id == "sizeOverLifetime")
+                else if (sourceVersion < CurrentParticleModuleSchemaVersion && module.typeId == "size.basic" &&
+                         parameterDefinition.id == "sizeOverLifetime")
                 {
                     migrated.floatCurveValue = {{0.0f, std::max(0.001f, floatParameter(module, "sizeStart", 0.35f))},
                                                 {1.0f, std::max(0.001f, floatParameter(module, "sizeEnd", 0.75f))}};
                 }
-                else if (module.typeId == "bursts.basic" && parameterDefinition.id == "bursts")
+                else if (sourceVersion < CurrentParticleModuleSchemaVersion && module.typeId == "bursts.basic" &&
+                         parameterDefinition.id == "bursts")
                 {
                     if (boolParameter(module, "burstEnabled", false))
                     {
@@ -1181,12 +1284,17 @@ namespace gts::particles
                         migrated.burstTimelineValue.push_back(burst);
                     }
                 }
-                module.parameters.push_back(std::move(migrated));
+                migratedParameters.push_back(std::move(migrated));
                 continue;
             }
 
             parameter->type = parameterDefinition.type;
+            migratedParameters.push_back(*parameter);
         }
+
+        module.parameters = std::move(migratedParameters);
+        if (module.version <= definition->version)
+            module.version = definition->version;
     }
 
     inline ParticleModuleInstance effectiveModule(const ParticleModuleInstance& module)
@@ -1200,9 +1308,13 @@ namespace gts::particles
     inline void applyParticleModulesToEmitterDescriptor(const std::vector<ParticleModuleInstance>& modules,
                                                         ParticleEmitterComponent&                  emitter)
     {
-        for (const ParticleModuleInstance& inputModule : modules)
+        const std::vector<const ParticleModuleInstance*> executionPlan = buildParticleModuleExecutionPlan(modules);
+        for (const ParticleModuleInstance* inputModule : executionPlan)
         {
-            const ParticleModuleInstance module = effectiveModule(inputModule);
+            if (inputModule == nullptr)
+                continue;
+
+            const ParticleModuleInstance module = effectiveModule(*inputModule);
             if (module.typeId == "spawn.basic")
             {
                 emitter.enabled      = boolParameter(module, "emitterEnabled", emitter.enabled);

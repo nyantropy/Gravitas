@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -9,6 +10,26 @@
 
 namespace
 {
+    struct JsonValue
+    {
+        enum class Type
+        {
+            Null,
+            Bool,
+            Number,
+            String,
+            Array,
+            Object
+        };
+
+        Type                                     type   = Type::Null;
+        bool                                     boolean = false;
+        double                                   number  = 0.0;
+        std::string                              string;
+        std::vector<JsonValue>                   array;
+        std::vector<std::pair<std::string, JsonValue>> object;
+    };
+
     void skipWhitespace(const std::string& source, size_t& pos)
     {
         while (pos < source.size() && std::isspace(static_cast<unsigned char>(source[pos])))
@@ -24,7 +45,9 @@ namespace
         return true;
     }
 
-    bool parseStringAt(const std::string& source, size_t& pos, std::string& value)
+    bool parseJsonValue(const std::string& source, size_t& pos, JsonValue& value);
+
+    bool parseJsonStringToken(const std::string& source, size_t& pos, std::string& value)
     {
         skipWhitespace(source, pos);
         if (pos >= source.size() || source[pos] != '"')
@@ -40,258 +63,346 @@ namespace
                 value = result;
                 return true;
             }
-            if (ch == '\\' && pos < source.size())
+            if (ch != '\\')
             {
-                result.push_back(source[pos++]);
+                result.push_back(ch);
                 continue;
             }
-            result.push_back(ch);
+            if (pos >= source.size())
+                return false;
+
+            const char escaped = source[pos++];
+            switch (escaped)
+            {
+            case '"':
+            case '\\':
+            case '/':
+                result.push_back(escaped);
+                break;
+            case 'b':
+                result.push_back('\b');
+                break;
+            case 'f':
+                result.push_back('\f');
+                break;
+            case 'n':
+                result.push_back('\n');
+                break;
+            case 'r':
+                result.push_back('\r');
+                break;
+            case 't':
+                result.push_back('\t');
+                break;
+            case 'u':
+                if (pos + 4 > source.size())
+                    return false;
+                result.push_back('?');
+                pos += 4;
+                break;
+            default:
+                return false;
+            }
         }
 
         return false;
     }
 
-    bool parseFloatAt(const std::string& source, size_t& pos, float& value)
+    bool parseJsonNumberToken(const std::string& source, size_t& pos, double& value)
     {
         skipWhitespace(source, pos);
-        size_t end = pos;
-        while (end < source.size())
-        {
-            const char ch = source[end];
-            if (!std::isdigit(static_cast<unsigned char>(ch)) && ch != '-' && ch != '+' && ch != '.' && ch != 'e' &&
-                ch != 'E')
-            {
-                break;
-            }
-            ++end;
-        }
-
-        if (end == pos)
+        const char* begin = source.c_str() + pos;
+        char*       end   = nullptr;
+        value             = std::strtod(begin, &end);
+        if (end == begin)
             return false;
-
-        value = std::stof(source.substr(pos, end - pos));
-        pos   = end;
+        pos = static_cast<size_t>(end - source.c_str());
         return true;
     }
 
-    bool parseBoolAt(const std::string& source, size_t& pos, bool& value)
-    {
-        skipWhitespace(source, pos);
-        if (source.compare(pos, 4, "true") == 0)
-        {
-            value = true;
-            pos += 4;
-            return true;
-        }
-        if (source.compare(pos, 5, "false") == 0)
-        {
-            value = false;
-            pos += 5;
-            return true;
-        }
-        return false;
-    }
-
-    bool parseVec3At(const std::string& source, size_t& pos, glm::vec3& value)
+    bool parseJsonArrayToken(const std::string& source, size_t& pos, JsonValue& value)
     {
         if (!consume(source, pos, '['))
             return false;
-        if (!parseFloatAt(source, pos, value.x))
-            return false;
-        if (!consume(source, pos, ','))
-            return false;
-        if (!parseFloatAt(source, pos, value.y))
-            return false;
-        if (!consume(source, pos, ','))
-            return false;
-        if (!parseFloatAt(source, pos, value.z))
-            return false;
-        return consume(source, pos, ']');
-    }
 
-    bool parseVec4At(const std::string& source, size_t& pos, glm::vec4& value)
-    {
-        if (!consume(source, pos, '['))
-            return false;
-        if (!parseFloatAt(source, pos, value.x))
-            return false;
-        if (!consume(source, pos, ','))
-            return false;
-        if (!parseFloatAt(source, pos, value.y))
-            return false;
-        if (!consume(source, pos, ','))
-            return false;
-        if (!parseFloatAt(source, pos, value.z))
-            return false;
-        if (!consume(source, pos, ','))
-            return false;
-        if (!parseFloatAt(source, pos, value.w))
-            return false;
-        return consume(source, pos, ']');
-    }
-
-    bool parseObjectAt(const std::string& source, size_t& pos, std::string& objectSource)
-    {
-        skipWhitespace(source, pos);
-        if (pos >= source.size() || source[pos] != '{')
-            return false;
-
-        const size_t start    = pos;
-        uint32_t     depth    = 0;
-        bool         inString = false;
-        bool         escaped  = false;
-        for (; pos < source.size(); ++pos)
-        {
-            const char ch = source[pos];
-            if (inString)
-            {
-                if (escaped)
-                {
-                    escaped = false;
-                    continue;
-                }
-                if (ch == '\\')
-                {
-                    escaped = true;
-                    continue;
-                }
-                if (ch == '"')
-                    inString = false;
-                continue;
-            }
-
-            if (ch == '"')
-            {
-                inString = true;
-                continue;
-            }
-            if (ch == '{')
-            {
-                ++depth;
-                continue;
-            }
-            if (ch != '}')
-                continue;
-
-            if (depth == 0)
-                return false;
-            --depth;
-            if (depth == 0)
-            {
-                ++pos;
-                objectSource = source.substr(start, pos - start);
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    size_t findValue(const std::string& source, const std::string& key)
-    {
-        const std::string quotedKey = "\"" + key + "\"";
-        const size_t      keyPos    = source.find(quotedKey);
-        if (keyPos == std::string::npos)
-            return std::string::npos;
-
-        const size_t colon = source.find(':', keyPos + quotedKey.size());
-        if (colon == std::string::npos)
-            return std::string::npos;
-
-        return colon + 1;
-    }
-
-    bool readObject(const std::string& source, const std::string& key, std::string& objectSource)
-    {
-        size_t pos = findValue(source, key);
-        return pos != std::string::npos && parseObjectAt(source, pos, objectSource);
-    }
-
-    bool readObjectArray(const std::string& source, const std::string& key, std::vector<std::string>& objectSources)
-    {
-        size_t pos = findValue(source, key);
-        if (pos == std::string::npos || !consume(source, pos, '['))
-            return false;
-
-        std::vector<std::string> parsed;
+        JsonValue parsed;
+        parsed.type = JsonValue::Type::Array;
         while (pos < source.size())
         {
             skipWhitespace(source, pos);
             if (pos < source.size() && source[pos] == ']')
             {
                 ++pos;
-                objectSources = std::move(parsed);
+                value = std::move(parsed);
                 return true;
             }
 
-            std::string objectSource;
-            if (!parseObjectAt(source, pos, objectSource))
+            JsonValue item;
+            if (!parseJsonValue(source, pos, item))
                 return false;
-            parsed.push_back(std::move(objectSource));
+            parsed.array.push_back(std::move(item));
 
             skipWhitespace(source, pos);
             if (pos < source.size() && source[pos] == ',')
+            {
                 ++pos;
+                continue;
+            }
+            if (pos < source.size() && source[pos] == ']')
+                continue;
+            return false;
         }
 
         return false;
     }
 
-    bool readString(const std::string& source, const std::string& key, std::string& value)
+    bool parseJsonObjectToken(const std::string& source, size_t& pos, JsonValue& value)
     {
-        const std::string quotedKey   = "\"" + key + "\"";
-        size_t            searchStart = 0;
-        while (searchStart < source.size())
+        if (!consume(source, pos, '{'))
+            return false;
+
+        JsonValue parsed;
+        parsed.type = JsonValue::Type::Object;
+        while (pos < source.size())
         {
-            const size_t keyPos = source.find(quotedKey, searchStart);
-            if (keyPos == std::string::npos)
-                return false;
-
-            const size_t colon = source.find(':', keyPos + quotedKey.size());
-            if (colon == std::string::npos)
-                return false;
-
-            size_t valuePos = colon + 1;
-            if (parseStringAt(source, valuePos, value))
+            skipWhitespace(source, pos);
+            if (pos < source.size() && source[pos] == '}')
+            {
+                ++pos;
+                value = std::move(parsed);
                 return true;
+            }
 
-            searchStart = keyPos + quotedKey.size();
+            std::string key;
+            if (!parseJsonStringToken(source, pos, key))
+                return false;
+            if (!consume(source, pos, ':'))
+                return false;
+
+            JsonValue member;
+            if (!parseJsonValue(source, pos, member))
+                return false;
+            parsed.object.push_back({std::move(key), std::move(member)});
+
+            skipWhitespace(source, pos);
+            if (pos < source.size() && source[pos] == ',')
+            {
+                ++pos;
+                continue;
+            }
+            if (pos < source.size() && source[pos] == '}')
+                continue;
+            return false;
         }
 
         return false;
     }
 
-    bool readFloat(const std::string& source, const std::string& key, float& value)
+    bool parseJsonValue(const std::string& source, size_t& pos, JsonValue& value)
     {
-        size_t pos = findValue(source, key);
-        return pos != std::string::npos && parseFloatAt(source, pos, value);
+        skipWhitespace(source, pos);
+        if (pos >= source.size())
+            return false;
+
+        if (source[pos] == '{')
+            return parseJsonObjectToken(source, pos, value);
+        if (source[pos] == '[')
+            return parseJsonArrayToken(source, pos, value);
+        if (source[pos] == '"')
+        {
+            JsonValue parsed;
+            parsed.type = JsonValue::Type::String;
+            if (!parseJsonStringToken(source, pos, parsed.string))
+                return false;
+            value = std::move(parsed);
+            return true;
+        }
+        if (source.compare(pos, 4, "true") == 0)
+        {
+            value.type    = JsonValue::Type::Bool;
+            value.boolean = true;
+            pos += 4;
+            return true;
+        }
+        if (source.compare(pos, 5, "false") == 0)
+        {
+            value.type    = JsonValue::Type::Bool;
+            value.boolean = false;
+            pos += 5;
+            return true;
+        }
+        if (source.compare(pos, 4, "null") == 0)
+        {
+            value = JsonValue{};
+            pos += 4;
+            return true;
+        }
+
+        JsonValue parsed;
+        parsed.type = JsonValue::Type::Number;
+        if (!parseJsonNumberToken(source, pos, parsed.number))
+            return false;
+        value = parsed;
+        return true;
     }
 
-    bool readUint(const std::string& source, const std::string& key, uint32_t& value)
+    bool parseJson(const std::string& source, JsonValue& value)
+    {
+        size_t pos = 0;
+        if (!parseJsonValue(source, pos, value))
+            return false;
+        skipWhitespace(source, pos);
+        return pos == source.size();
+    }
+
+    const JsonValue* findMember(const JsonValue& source, const std::string& key)
+    {
+        if (source.type != JsonValue::Type::Object)
+            return nullptr;
+        for (const auto& entry : source.object)
+        {
+            if (entry.first == key)
+                return &entry.second;
+        }
+        return nullptr;
+    }
+
+    const JsonValue* findTypedMemberDeep(const JsonValue& source, const std::string& key, JsonValue::Type type)
+    {
+        if (source.type != JsonValue::Type::Object)
+            return nullptr;
+
+        for (const auto& entry : source.object)
+        {
+            if (entry.first == key && entry.second.type == type)
+                return &entry.second;
+        }
+        for (const auto& entry : source.object)
+        {
+            if (entry.second.type == JsonValue::Type::Object)
+            {
+                if (const JsonValue* found = findTypedMemberDeep(entry.second, key, type))
+                    return found;
+            }
+        }
+        return nullptr;
+    }
+
+    const JsonValue* findTypedMember(const JsonValue& source,
+                                     const std::string& key,
+                                     JsonValue::Type    type,
+                                     bool               deep = true)
+    {
+        const JsonValue* direct = findMember(source, key);
+        if (direct != nullptr && direct->type == type)
+            return direct;
+        return deep ? findTypedMemberDeep(source, key, type) : nullptr;
+    }
+
+    bool readObject(const JsonValue& source, const std::string& key, const JsonValue*& objectValue)
+    {
+        objectValue = findTypedMember(source, key, JsonValue::Type::Object, false);
+        return objectValue != nullptr;
+    }
+
+    bool readObjectArray(const JsonValue& source,
+                         const std::string& key,
+                         std::vector<const JsonValue*>& objectValues)
+    {
+        const JsonValue* arrayValue = findTypedMember(source, key, JsonValue::Type::Array, false);
+        if (arrayValue == nullptr)
+            return false;
+
+        std::vector<const JsonValue*> parsed;
+        parsed.reserve(arrayValue->array.size());
+        for (const JsonValue& item : arrayValue->array)
+        {
+            if (item.type != JsonValue::Type::Object)
+                return false;
+            parsed.push_back(&item);
+        }
+
+        objectValues = std::move(parsed);
+        return true;
+    }
+
+    bool readString(const JsonValue& source, const std::string& key, std::string& value, bool deep = true)
+    {
+        const JsonValue* stringValue = findTypedMember(source, key, JsonValue::Type::String, deep);
+        if (stringValue == nullptr)
+            return false;
+        value = stringValue->string;
+        return true;
+    }
+
+    bool readFloat(const JsonValue& source, const std::string& key, float& value, bool deep = true)
+    {
+        const JsonValue* numberValue = findTypedMember(source, key, JsonValue::Type::Number, deep);
+        if (numberValue == nullptr)
+            return false;
+        value = static_cast<float>(numberValue->number);
+        return true;
+    }
+
+    bool readUint(const JsonValue& source, const std::string& key, uint32_t& value, bool deep = true)
     {
         float parsed = 0.0f;
-        if (!readFloat(source, key, parsed))
+        if (!readFloat(source, key, parsed, deep))
             return false;
         value = static_cast<uint32_t>(std::max(0.0f, parsed));
         return true;
     }
 
-    bool readBool(const std::string& source, const std::string& key, bool& value)
+    bool readBool(const JsonValue& source, const std::string& key, bool& value, bool deep = true)
     {
-        size_t pos = findValue(source, key);
-        return pos != std::string::npos && parseBoolAt(source, pos, value);
+        const JsonValue* boolValue = findTypedMember(source, key, JsonValue::Type::Bool, deep);
+        if (boolValue == nullptr)
+            return false;
+        value = boolValue->boolean;
+        return true;
     }
 
-    bool readVec3(const std::string& source, const std::string& key, glm::vec3& value)
+    bool readVec3Value(const JsonValue& source, glm::vec3& value)
     {
-        size_t pos = findValue(source, key);
-        return pos != std::string::npos && parseVec3At(source, pos, value);
+        if (source.type != JsonValue::Type::Array || source.array.size() != 3u)
+            return false;
+        for (const JsonValue& item : source.array)
+        {
+            if (item.type != JsonValue::Type::Number)
+                return false;
+        }
+        value = {static_cast<float>(source.array[0].number),
+                 static_cast<float>(source.array[1].number),
+                 static_cast<float>(source.array[2].number)};
+        return true;
     }
 
-    bool readVec4(const std::string& source, const std::string& key, glm::vec4& value)
+    bool readVec4Value(const JsonValue& source, glm::vec4& value)
     {
-        size_t pos = findValue(source, key);
-        return pos != std::string::npos && parseVec4At(source, pos, value);
+        if (source.type != JsonValue::Type::Array || source.array.size() != 4u)
+            return false;
+        for (const JsonValue& item : source.array)
+        {
+            if (item.type != JsonValue::Type::Number)
+                return false;
+        }
+        value = {static_cast<float>(source.array[0].number),
+                 static_cast<float>(source.array[1].number),
+                 static_cast<float>(source.array[2].number),
+                 static_cast<float>(source.array[3].number)};
+        return true;
+    }
+
+    bool readVec3(const JsonValue& source, const std::string& key, glm::vec3& value, bool deep = true)
+    {
+        const JsonValue* arrayValue = findTypedMember(source, key, JsonValue::Type::Array, deep);
+        return arrayValue != nullptr && readVec3Value(*arrayValue, value);
+    }
+
+    bool readVec4(const JsonValue& source, const std::string& key, glm::vec4& value, bool deep = true)
+    {
+        const JsonValue* arrayValue = findTypedMember(source, key, JsonValue::Type::Array, deep);
+        return arrayValue != nullptr && readVec4Value(*arrayValue, value);
     }
 
     ParticleEmitterShape shapeFromString(const std::string& value)
@@ -449,154 +560,100 @@ namespace
         return false;
     }
 
-    bool parseColorCurveAt(const std::string& source, size_t& pos, ParticleColorCurve& curve)
+    bool readColorCurveValue(const JsonValue& source, ParticleColorCurve& curve)
     {
-        if (!consume(source, pos, '['))
+        if (source.type != JsonValue::Type::Array)
             return false;
 
         ParticleColorCurve parsed;
-        while (pos < source.size())
+        for (const JsonValue& itemValue : source.array)
         {
-            skipWhitespace(source, pos);
-            if (pos < source.size() && source[pos] == ']')
-            {
-                ++pos;
-                curve = std::move(parsed);
-                return true;
-            }
-
-            if (!consume(source, pos, '['))
+            if (itemValue.type != JsonValue::Type::Array || itemValue.array.size() != 2u ||
+                itemValue.array[0].type != JsonValue::Type::Number)
                 return false;
             ParticleColorKey item;
-            if (!parseFloatAt(source, pos, item.t))
-                return false;
-            if (!consume(source, pos, ','))
-                return false;
-            if (!parseVec4At(source, pos, item.color))
-                return false;
-            if (!consume(source, pos, ']'))
+            item.t = static_cast<float>(itemValue.array[0].number);
+            if (!readVec4Value(itemValue.array[1], item.color))
                 return false;
             parsed.push_back(item);
-
-            skipWhitespace(source, pos);
-            if (pos < source.size() && source[pos] == ',')
-                ++pos;
         }
 
-        return false;
+        curve = std::move(parsed);
+        return true;
     }
 
-    bool readColorCurve(const std::string& source, const std::string& key, ParticleColorCurve& curve)
+    bool readColorCurve(const JsonValue& source, const std::string& key, ParticleColorCurve& curve, bool deep = true)
     {
-        size_t pos = findValue(source, key);
-        return pos != std::string::npos && parseColorCurveAt(source, pos, curve);
+        const JsonValue* arrayValue = findTypedMember(source, key, JsonValue::Type::Array, deep);
+        return arrayValue != nullptr && readColorCurveValue(*arrayValue, curve);
     }
 
-    bool parseFloatCurveAt(const std::string& source, size_t& pos, ParticleFloatCurve& curve)
+    bool readFloatCurveValue(const JsonValue& source, ParticleFloatCurve& curve)
     {
-        if (!consume(source, pos, '['))
+        if (source.type != JsonValue::Type::Array)
             return false;
 
         ParticleFloatCurve parsed;
-        while (pos < source.size())
+        for (const JsonValue& itemValue : source.array)
         {
-            skipWhitespace(source, pos);
-            if (pos < source.size() && source[pos] == ']')
-            {
-                ++pos;
-                curve = std::move(parsed);
-                return true;
-            }
-
-            if (!consume(source, pos, '['))
+            if (itemValue.type != JsonValue::Type::Array || itemValue.array.size() != 2u ||
+                itemValue.array[0].type != JsonValue::Type::Number ||
+                itemValue.array[1].type != JsonValue::Type::Number)
                 return false;
             ParticleFloatKey item;
-            if (!parseFloatAt(source, pos, item.t))
-                return false;
-            if (!consume(source, pos, ','))
-                return false;
-            if (!parseFloatAt(source, pos, item.value))
-                return false;
-            if (!consume(source, pos, ']'))
-                return false;
+            item.t     = static_cast<float>(itemValue.array[0].number);
+            item.value = static_cast<float>(itemValue.array[1].number);
             parsed.push_back(item);
-
-            skipWhitespace(source, pos);
-            if (pos < source.size() && source[pos] == ',')
-                ++pos;
         }
 
-        return false;
+        curve = std::move(parsed);
+        return true;
     }
 
-    bool readFloatCurve(const std::string& source, const std::string& key, ParticleFloatCurve& curve)
+    bool readFloatCurve(const JsonValue& source, const std::string& key, ParticleFloatCurve& curve, bool deep = true)
     {
-        size_t pos = findValue(source, key);
-        return pos != std::string::npos && parseFloatCurveAt(source, pos, curve);
+        const JsonValue* arrayValue = findTypedMember(source, key, JsonValue::Type::Array, deep);
+        return arrayValue != nullptr && readFloatCurveValue(*arrayValue, curve);
     }
 
-    bool parseBurstsAt(const std::string& source, size_t& pos, std::vector<ParticleBurst>& bursts)
+    bool readBurstsValue(const JsonValue& source, std::vector<ParticleBurst>& bursts)
     {
-        if (!consume(source, pos, '['))
+        if (source.type != JsonValue::Type::Array)
             return false;
 
         std::vector<ParticleBurst> parsed;
-        while (pos < source.size())
+        for (const JsonValue& itemValue : source.array)
         {
-            skipWhitespace(source, pos);
-            if (pos < source.size() && source[pos] == ']')
-            {
-                ++pos;
-                bursts = std::move(parsed);
-                return true;
-            }
-
-            if (!consume(source, pos, '['))
+            if (itemValue.type != JsonValue::Type::Array || itemValue.array.size() != 5u)
                 return false;
             ParticleBurst burst;
-            float         countMin    = 0.0f;
-            float         countMax    = 0.0f;
-            float         repeatCount = 0.0f;
-            if (!parseFloatAt(source, pos, burst.time))
-                return false;
-            if (!consume(source, pos, ','))
-                return false;
-            if (!parseFloatAt(source, pos, countMin))
-                return false;
-            if (!consume(source, pos, ','))
-                return false;
-            if (!parseFloatAt(source, pos, countMax))
-                return false;
-            if (!consume(source, pos, ','))
-                return false;
-            if (!parseFloatAt(source, pos, burst.repeatInterval))
-                return false;
-            if (!consume(source, pos, ','))
-                return false;
-            if (!parseFloatAt(source, pos, repeatCount))
-                return false;
-            if (!consume(source, pos, ']'))
-                return false;
+            for (const JsonValue& numberValue : itemValue.array)
+            {
+                if (numberValue.type != JsonValue::Type::Number)
+                    return false;
+            }
+            const float countMin    = static_cast<float>(itemValue.array[1].number);
+            const float countMax    = static_cast<float>(itemValue.array[2].number);
+            const float repeatCount = static_cast<float>(itemValue.array[4].number);
+            burst.time             = static_cast<float>(itemValue.array[0].number);
+            burst.repeatInterval   = static_cast<float>(itemValue.array[3].number);
             burst.countMin    = static_cast<uint32_t>(std::max(0.0f, countMin));
             burst.countMax    = static_cast<uint32_t>(std::max(countMin, countMax));
             burst.repeatCount = static_cast<uint32_t>(std::max(0.0f, repeatCount));
             parsed.push_back(burst);
-
-            skipWhitespace(source, pos);
-            if (pos < source.size() && source[pos] == ',')
-                ++pos;
         }
 
-        return false;
+        bursts = std::move(parsed);
+        return true;
     }
 
-    bool readBursts(const std::string& source, ParticleEmitterComponent& emitter)
+    bool readBursts(const JsonValue& source, ParticleEmitterComponent& emitter)
     {
-        size_t pos = findValue(source, "bursts");
-        return pos != std::string::npos && parseBurstsAt(source, pos, emitter.bursts);
+        const JsonValue* arrayValue = findTypedMember(source, "bursts", JsonValue::Type::Array, true);
+        return arrayValue != nullptr && readBurstsValue(*arrayValue, emitter.bursts);
     }
 
-    void readEmitter(const std::string& source, ParticleEmitterComponent& emitter)
+    void readEmitter(const JsonValue& source, ParticleEmitterComponent& emitter)
     {
         std::string text;
         readUint(source, "schemaVersion", emitter.schemaVersion);
@@ -793,27 +850,27 @@ namespace
         return stem.empty() ? "Particle Effect" : stem;
     }
 
-    void readMetadata(const std::string& source, ParticleEffectMetadata& metadata)
+    void readMetadata(const JsonValue& source, ParticleEffectMetadata& metadata)
     {
-        std::string metadataObject;
+        const JsonValue* metadataObject = nullptr;
         if (!readObject(source, "metadata", metadataObject))
             return;
 
-        readString(metadataObject, "name", metadata.name);
-        readString(metadataObject, "description", metadata.description);
-        readString(metadataObject, "author", metadata.author);
+        readString(*metadataObject, "name", metadata.name, false);
+        readString(*metadataObject, "description", metadata.description, false);
+        readString(*metadataObject, "author", metadata.author, false);
     }
 
-    void readPreview(const std::string& source, ParticleEffectPreviewSettings& preview)
+    void readPreview(const JsonValue& source, ParticleEffectPreviewSettings& preview)
     {
-        std::string previewObject;
+        const JsonValue* previewObject = nullptr;
         if (!readObject(source, "preview", previewObject))
             return;
 
-        readVec4(previewObject, "backgroundColor", preview.backgroundColor);
-        readVec3(previewObject, "cameraPosition", preview.cameraPosition);
-        readVec3(previewObject, "cameraTarget", preview.cameraTarget);
-        readFloat(previewObject, "orbitDistance", preview.orbitDistance);
+        readVec4(*previewObject, "backgroundColor", preview.backgroundColor, false);
+        readVec3(*previewObject, "cameraPosition", preview.cameraPosition, false);
+        readVec3(*previewObject, "cameraTarget", preview.cameraTarget, false);
+        readFloat(*previewObject, "orbitDistance", preview.orbitDistance, false);
     }
 
     const gts::particles::ParticleModuleParameterDefinition*
@@ -831,15 +888,15 @@ namespace
         return it == definition->parameters.end() ? nullptr : &*it;
     }
 
-    bool readModuleParameter(const std::string&                              source,
+    bool readModuleParameter(const JsonValue&                                source,
                              const gts::particles::ParticleModuleDefinition* definition,
                              gts::particles::ParticleModuleParameter&        parameter)
     {
-        if (!readString(source, "id", parameter.id) || parameter.id.empty())
+        if (!readString(source, "id", parameter.id, false) || parameter.id.empty())
             return false;
 
         std::string typeString;
-        if (readString(source, "type", typeString))
+        if (readString(source, "type", typeString, false))
         {
             if (!moduleParameterTypeFromString(typeString, parameter.type))
                 return false;
@@ -849,64 +906,70 @@ namespace
             parameter.type = parameterDefinition->type;
         }
 
-        size_t valuePos = findValue(source, "value");
-        if (valuePos == std::string::npos)
+        const JsonValue* value = findMember(source, "value");
+        if (value == nullptr)
             return true;
 
         switch (parameter.type)
         {
         case gts::particles::ParticleModuleParameterType::Float:
-            return parseFloatAt(source, valuePos, parameter.floatValue);
+            if (value->type != JsonValue::Type::Number)
+                return false;
+            parameter.floatValue = static_cast<float>(value->number);
+            return true;
         case gts::particles::ParticleModuleParameterType::UInt:
         case gts::particles::ParticleModuleParameterType::Enum:
-        {
-            float value = 0.0f;
-            if (!parseFloatAt(source, valuePos, value))
+            if (value->type != JsonValue::Type::Number)
                 return false;
-            parameter.uintValue = static_cast<uint32_t>(std::max(0.0f, value));
+            parameter.uintValue = static_cast<uint32_t>(std::max(0.0, value->number));
             return true;
-        }
         case gts::particles::ParticleModuleParameterType::Bool:
-            return parseBoolAt(source, valuePos, parameter.boolValue);
+            if (value->type != JsonValue::Type::Bool)
+                return false;
+            parameter.boolValue = value->boolean;
+            return true;
         case gts::particles::ParticleModuleParameterType::String:
-            return parseStringAt(source, valuePos, parameter.stringValue);
+            if (value->type != JsonValue::Type::String)
+                return false;
+            parameter.stringValue = value->string;
+            return true;
         case gts::particles::ParticleModuleParameterType::FloatCurve:
-            return parseFloatCurveAt(source, valuePos, parameter.floatCurveValue);
+            return readFloatCurveValue(*value, parameter.floatCurveValue);
         case gts::particles::ParticleModuleParameterType::ColorGradient:
-            return parseColorCurveAt(source, valuePos, parameter.colorGradientValue);
+            return readColorCurveValue(*value, parameter.colorGradientValue);
         case gts::particles::ParticleModuleParameterType::BurstTimeline:
-            return parseBurstsAt(source, valuePos, parameter.burstTimelineValue);
+            return readBurstsValue(*value, parameter.burstTimelineValue);
         }
         return false;
     }
 
-    bool readEmitterModules(const std::string& source, std::vector<gts::particles::ParticleModuleInstance>& modules)
+    bool readEmitterModules(const JsonValue& source, std::vector<gts::particles::ParticleModuleInstance>& modules)
     {
-        std::vector<std::string> moduleObjects;
+        std::vector<const JsonValue*> moduleObjects;
         if (!readObjectArray(source, "modules", moduleObjects))
             return false;
 
         std::vector<gts::particles::ParticleModuleInstance> parsedModules;
         parsedModules.reserve(moduleObjects.size());
-        for (const std::string& moduleObject : moduleObjects)
+        for (const JsonValue* moduleObject : moduleObjects)
         {
             gts::particles::ParticleModuleInstance module;
-            readString(moduleObject, "id", module.stableId);
-            readString(moduleObject, "type", module.typeId);
-            readString(moduleObject, "displayName", module.displayName);
-            readUint(moduleObject, "version", module.version);
-            readBool(moduleObject, "enabled", module.enabled);
+            readString(*moduleObject, "id", module.stableId, false);
+            readString(*moduleObject, "type", module.typeId, false);
+            readString(*moduleObject, "displayName", module.displayName, false);
+            readUint(*moduleObject, "version", module.version, false);
+            readBool(*moduleObject, "enabled", module.enabled, false);
 
             const gts::particles::ParticleModuleDefinition* definition =
                 gts::particles::findParticleModuleDefinition(module.typeId);
-            std::vector<std::string> parameterObjects;
-            if (readObjectArray(moduleObject, "parameters", parameterObjects))
+            std::vector<const JsonValue*> parameterObjects;
+            if (readObjectArray(*moduleObject, "parameters", parameterObjects))
             {
                 module.parameters.reserve(parameterObjects.size());
-                for (const std::string& parameterObject : parameterObjects)
+                for (const JsonValue* parameterObject : parameterObjects)
                 {
                     gts::particles::ParticleModuleParameter parameter;
-                    if (readModuleParameter(parameterObject, definition, parameter))
+                    if (readModuleParameter(*parameterObject, definition, parameter))
                         module.parameters.push_back(std::move(parameter));
                 }
             }
@@ -918,9 +981,9 @@ namespace
         return true;
     }
 
-    bool readEffectEmitters(const std::string& source, ParticleEffectAsset& asset)
+    bool readEffectEmitters(const JsonValue& source, ParticleEffectAsset& asset)
     {
-        std::vector<std::string> emitterObjects;
+        std::vector<const JsonValue*> emitterObjects;
         if (!readObjectArray(source, "emitters", emitterObjects))
             return false;
 
@@ -931,10 +994,10 @@ namespace
             ParticleEffectEmitter emitter;
             emitter.stableId = defaultEmitterId(i);
             emitter.name     = defaultEmitterName(i);
-            readString(emitterObjects[i], "id", emitter.stableId);
-            readString(emitterObjects[i], "name", emitter.name);
-            readEmitter(emitterObjects[i], emitter.descriptor);
-            readEmitterModules(emitterObjects[i], emitter.modules);
+            readString(*emitterObjects[i], "id", emitter.stableId, false);
+            readString(*emitterObjects[i], "name", emitter.name, false);
+            readEmitter(*emitterObjects[i], emitter.descriptor);
+            readEmitterModules(*emitterObjects[i], emitter.modules);
             emitters.push_back(std::move(emitter));
         }
 
@@ -1110,6 +1173,17 @@ namespace gts::particles
                 return false;
             }
             emitter.descriptor.schemaVersion = CurrentParticleEmitterSchemaVersion;
+            for (const gts::particles::ParticleModuleInstance& module : emitter.modules)
+            {
+                const gts::particles::ParticleModuleDefinition* definition =
+                    gts::particles::findParticleModuleDefinition(module.typeId);
+                if (definition != nullptr && module.version > definition->version)
+                {
+                    if (error != nullptr)
+                        *error = "particle module schema is newer than this engine";
+                    return false;
+                }
+            }
             gts::particles::migrateParticleEmitterModules(emitter.modules, emitter.descriptor);
         }
 
@@ -1141,16 +1215,20 @@ namespace gts::particles
         buffer << file.rdbuf();
         const std::string source = buffer.str();
 
+        JsonValue root;
+        if (!parseJson(source, root) || root.type != JsonValue::Type::Object)
+            return false;
+
         ParticleEffectAsset loaded;
-        const bool          schemaRead = readUint(source, "schemaVersion", loaded.schemaVersion);
-        readMetadata(source, loaded.metadata);
-        readPreview(source, loaded.preview);
-        if (!readEffectEmitters(source, loaded))
+        const bool          schemaRead = readUint(root, "schemaVersion", loaded.schemaVersion, false);
+        readMetadata(root, loaded.metadata);
+        readPreview(root, loaded.preview);
+        if (!readEffectEmitters(root, loaded))
         {
             ParticleEffectEmitter emitter;
             emitter.stableId = "emitter";
             emitter.name     = defaultEffectNameFromPath(path);
-            readEmitter(source, emitter.descriptor);
+            readEmitter(root, emitter.descriptor);
             loaded.schemaVersion = schemaRead ? loaded.schemaVersion : emitter.descriptor.schemaVersion;
             loaded.metadata.name =
                 loaded.metadata.name.empty() ? defaultEffectNameFromPath(path) : loaded.metadata.name;

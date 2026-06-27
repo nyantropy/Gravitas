@@ -118,7 +118,7 @@ namespace gts::tools
                 ctx.ui, font, 0.516f, {{EmitterAction::ToggleEnabled, "ON"}, {EmitterAction::ToggleSelection, "SEL"}});
 
             previewSwatch =
-                createRectRelative(ctx.ui, root, {0.0f, 0.560f, 1.0f, 0.042f}, ToolTheme::paneSurface, false);
+                createRectRelative(ctx.ui, root, {0.0f, 0.560f, 1.0f, 0.042f}, ToolTheme::paneSurface, true);
             previewText = createTextRelative(ctx.ui,
                                              previewSwatch,
                                              {0.040f, 0.120f, 0.920f, 0.760f},
@@ -169,7 +169,7 @@ namespace gts::tools
                      createButtonRelative(
                          ctx.ui, root, {0.0f, rowY, 1.0f, 0.027f}, font, "PARAM", ToolTheme::buttonTextScale),
                      createButtonRelative(
-                         ctx.ui, root, {0.0f, rowY, 0.360f, 0.027f}, font, "PARAM", ToolTheme::buttonTextScale),
+                         ctx.ui, root, {0.0f, rowY, 0.820f, 0.027f}, font, "PARAM", ToolTheme::buttonTextScale),
                      createButtonRelative(
                          ctx.ui, root, {0.835f, rowY, 0.075f, 0.027f}, font, "-", ToolTheme::buttonTextScale),
                      createButtonRelative(
@@ -209,6 +209,7 @@ namespace gts::tools
                 applyModuleRows(state, interaction);
                 applyModuleButtons(ctx.world, state, interaction);
                 applyPlaybackButtons(ctx.world, state, interaction);
+                applyPreviewOrbitDrag(state, interaction);
                 applySliders(ctx.ui, ctx.world, state, interaction);
                 applyModuleParameterControls(ctx.ui, ctx.world, state, interaction);
                 applyPlaybackToLive(ctx.world);
@@ -395,6 +396,8 @@ namespace gts::tools
         std::string                           selectedRangeParameterId;
         bool                                  selectedRangeMax = false;
         UiHandle                              activeUndoHandle = UI_INVALID_HANDLE;
+        bool                                  previewOrbitDragActive = false;
+        float                                 previewOrbitDragLastX  = 0.0f;
 
         void addEffectButtonRow(UiSystem&                                                ui,
                                 BitmapFont*                                              font,
@@ -1263,6 +1266,31 @@ namespace gts::tools
             }
         }
 
+        void applyPreviewOrbitDrag(EngineToolStateComponent& state, const UiInteractionResult& interaction)
+        {
+            if (interaction.pressed != previewSwatch)
+            {
+                previewOrbitDragActive = false;
+                return;
+            }
+
+            if (!previewOrbitDragActive)
+            {
+                previewOrbitDragActive = true;
+                previewOrbitDragLastX  = interaction.pointerX;
+                return;
+            }
+
+            const float deltaX = interaction.pointerX - previewOrbitDragLastX;
+            previewOrbitDragLastX = interaction.pointerX;
+            if (std::abs(deltaX) < 0.0001f)
+                return;
+
+            beginUndoForHandle(previewSwatch);
+            setPreviewOrbitYawDegrees(previewOrbitYawDegrees() + deltaX * 240.0f);
+            markDirty(state, "PREVIEW ORBIT");
+        }
+
         void applySliders(UiSystem&                  ui,
                           ECSWorld&                  world,
                           EngineToolStateComponent&  state,
@@ -1560,29 +1588,40 @@ namespace gts::tools
             return "MODULES " + graphStatusLabel();
         }
 
+        struct GraphDiagnosticCounts
+        {
+            size_t errors   = 0;
+            size_t warnings = 0;
+        };
+
         std::string graphStatusLabel() const
         {
-            const size_t errorCount = selectedGraphErrorCount();
-            if (errorCount == 0)
-                return "GRAPH OK";
-            return "GRAPH " + std::to_string(errorCount) + " ERR";
+            const GraphDiagnosticCounts counts = selectedGraphDiagnosticCounts();
+            if (counts.errors > 0)
+                return "GRAPH " + std::to_string(counts.errors) + " ERR";
+            if (counts.warnings > 0)
+                return "GRAPH " + std::to_string(counts.warnings) + " WARN";
+            return "GRAPH OK";
         }
 
-        size_t selectedGraphErrorCount() const
+        GraphDiagnosticCounts selectedGraphDiagnosticCounts() const
         {
             const ParticleEffectEmitter* emitter = selectedEmitter();
             if (emitter == nullptr)
-                return 0;
+                return {};
 
             std::vector<gts::particles::ParticleModuleGraphDiagnostic> diagnostics;
             gts::particles::validateParticleModuleStack(emitter->modules, &diagnostics);
-            size_t errors = 0;
+
+            GraphDiagnosticCounts counts;
             for (const gts::particles::ParticleModuleGraphDiagnostic& diagnostic : diagnostics)
             {
                 if (diagnostic.severity == gts::particles::ParticleModuleGraphDiagnosticSeverity::Error)
-                    errors += 1;
+                    counts.errors += 1;
+                else
+                    counts.warnings += 1;
             }
-            return errors;
+            return counts;
         }
 
         std::string emitterRowLabel(const ParticleEffectEmitter& emitter) const
@@ -1888,17 +1927,26 @@ namespace gts::tools
                                 const ParticleModuleParameterDefinition& definition,
                                 const ParameterControl&                  control)
         {
-            if (!wasClicked(interaction, control.button.rect))
+            const bool buttonClicked    = wasClicked(interaction, control.button.rect);
+            const bool selectorClicked  = wasClicked(interaction, control.selector.rect);
+            const bool decrementClicked = wasClicked(interaction, control.decrement.rect);
+            const bool incrementClicked = wasClicked(interaction, control.increment.rect);
+            if (!buttonClicked && !selectorClicked && !decrementClicked && !incrementClicked)
                 return false;
 
             ParticleModuleParameter* parameter = ensureModuleParameter(module, definition);
+            std::string              status    = "MODULE UPDATED";
             if (definition.type == ParticleModuleParameterType::Bool)
             {
+                if (!buttonClicked)
+                    return false;
                 pushUndoSnapshot();
                 parameter->boolValue = !parameter->boolValue;
             }
             else if (definition.type == ParticleModuleParameterType::Enum)
             {
+                if (!buttonClicked)
+                    return false;
                 pushUndoSnapshot();
                 parameter->uintValue = nextEnumValue(definition, parameter->uintValue);
             }
@@ -1906,18 +1954,34 @@ namespace gts::tools
             {
                 if (definition.assetPicker == gts::particles::ParticleModuleAssetPicker::None)
                 {
+                    if (!buttonClicked)
+                        return false;
                     state.status = "NO PICKER";
                     return true;
                 }
+
                 pushUndoSnapshot();
-                parameter->stringValue = nextAssetPath(definition.assetPicker, parameter->stringValue);
+                status = "ASSET PICKED";
+                if (selectorClicked)
+                {
+                    parameter->stringValue =
+                        parameter->stringValue.empty() ? assetPathAtOffset(definition.assetPicker,
+                                                                           parameter->stringValue,
+                                                                           1)
+                                                       : std::string{};
+                }
+                else
+                {
+                    parameter->stringValue = assetPathAtOffset(
+                        definition.assetPicker, parameter->stringValue, incrementClicked ? 1 : -1);
+                }
             }
             else
             {
                 return false;
             }
 
-            commitModuleEdit(world, state, emitter, "MODULE UPDATED");
+            commitModuleEdit(world, state, emitter, status);
             return true;
         }
 
@@ -2005,6 +2069,14 @@ namespace gts::tools
                      definition.type == ParticleModuleParameterType::BurstTimeline)
             {
                 updateRichControl(ui, *parameter, definition, control);
+            }
+            else if (definition.type == ParticleModuleParameterType::String &&
+                     definition.assetPicker != gts::particles::ParticleModuleAssetPicker::None)
+            {
+                setParameterControlVisible(ui, control, false, false, false, true, true, false);
+                updateButton(ui, control.selector, assetPickerButtonLabel(*parameter, definition));
+                updateButton(ui, control.decrement, "<");
+                updateButton(ui, control.increment, ">");
             }
             else
             {
@@ -2605,19 +2677,44 @@ namespace gts::tools
             return definition.label;
         }
 
-        std::string nextAssetPath(gts::particles::ParticleModuleAssetPicker picker, const std::string& current) const
+        std::string assetPickerButtonLabel(const ParticleModuleParameter&           parameter,
+                                           const ParticleModuleParameterDefinition& definition) const
         {
-            std::vector<std::string> paths = collectPickerPaths(picker);
-            paths.insert(paths.begin(), {});
-            sortUnique(paths);
+            return definition.label + " " +
+                   compact(parameter.stringValue.empty() ? "NONE" : fileName(parameter.stringValue), 22);
+        }
+
+        std::string assetPathAtOffset(gts::particles::ParticleModuleAssetPicker picker,
+                                      const std::string&                        current,
+                                      int                                      offset) const
+        {
+            std::vector<std::string> paths = pickerChoices(picker, current);
             if (paths.empty())
                 return current;
 
-            const auto it = std::find(paths.begin(), paths.end(), current);
+            auto it = std::find(paths.begin(), paths.end(), current);
             if (it == paths.end())
-                return paths.front();
-            const size_t index = static_cast<size_t>(std::distance(paths.begin(), it));
-            return paths[(index + 1) % paths.size()];
+                it = paths.begin();
+
+            const int count = static_cast<int>(paths.size());
+            int       index = static_cast<int>(std::distance(paths.begin(), it));
+            if (current.empty() && offset > 0 && paths.size() > 1u)
+                index = 0;
+            index = (index + offset) % count;
+            if (index < 0)
+                index += count;
+            return paths[static_cast<size_t>(index)];
+        }
+
+        static std::vector<std::string> pickerChoices(gts::particles::ParticleModuleAssetPicker picker,
+                                                      const std::string&                        current)
+        {
+            std::vector<std::string> paths = collectPickerPaths(picker);
+            if (!current.empty())
+                paths.push_back(current);
+            paths.insert(paths.begin(), {});
+            sortUnique(paths);
+            return paths;
         }
 
         static std::vector<std::string> collectPickerPaths(gts::particles::ParticleModuleAssetPicker picker)

@@ -9,7 +9,7 @@
 #include "ParticleEmitterComponent.h"
 #include "ParticleModuleAuthoring.h"
 
-inline constexpr uint32_t CurrentParticleEffectSchemaVersion  = 4u;
+inline constexpr uint32_t CurrentParticleEffectSchemaVersion  = 5u;
 inline constexpr uint32_t CurrentParticleEmitterSchemaVersion = 2u;
 
 struct ParticleEffectMetadata
