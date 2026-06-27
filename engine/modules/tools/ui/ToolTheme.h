@@ -1,39 +1,58 @@
 #pragma once
 
+#include "EditorTheme.h"
 #include "UiTypes.h"
 
 namespace gts::tools
 {
     struct ToolTheme
     {
-        static constexpr UiColor windowBackground = {0.014f, 0.017f, 0.020f, 0.99f};
-        static constexpr UiColor barBackground    = {0.025f, 0.029f, 0.034f, 0.98f};
-        static constexpr UiColor railBackground   = {0.020f, 0.024f, 0.029f, 0.99f};
-        static constexpr UiColor paneBackground   = {0.027f, 0.031f, 0.036f, 0.98f};
-        static constexpr UiColor paneSurface      = {0.038f, 0.044f, 0.050f, 0.96f};
-        static constexpr UiColor viewportBar      = {0.018f, 0.021f, 0.025f, 0.90f};
-        static constexpr UiColor button           = {0.067f, 0.077f, 0.088f, 0.96f};
-        static constexpr UiColor buttonHover      = {0.092f, 0.105f, 0.118f, 1.0f};
-        static constexpr UiColor buttonPressed    = {0.118f, 0.137f, 0.150f, 1.0f};
-        static constexpr UiColor buttonActive     = {0.105f, 0.172f, 0.210f, 1.0f};
-        static constexpr UiColor toggleActive     = {0.115f, 0.205f, 0.155f, 1.0f};
-        static constexpr UiColor border           = {0.135f, 0.150f, 0.165f, 0.88f};
-        static constexpr UiColor accent           = {0.260f, 0.560f, 0.780f, 1.0f};
-        static constexpr UiColor text             = {0.880f, 0.920f, 0.950f, 1.0f};
-        static constexpr UiColor mutedText        = {0.580f, 0.650f, 0.700f, 1.0f};
-        static constexpr UiColor statusText       = {0.720f, 0.780f, 0.830f, 1.0f};
+        static constexpr UiColor windowBackground   = DefaultEditorTheme.colors.windowBackground;
+        static constexpr UiColor barBackground      = DefaultEditorTheme.colors.barBackground;
+        static constexpr UiColor railBackground     = DefaultEditorTheme.colors.railBackground;
+        static constexpr UiColor paneBackground     = DefaultEditorTheme.colors.panelBackground;
+        static constexpr UiColor paneSurface        = DefaultEditorTheme.colors.panelSurface;
+        static constexpr UiColor viewportBar        = DefaultEditorTheme.colors.toolbarBackground;
+        static constexpr UiColor button             = DefaultEditorTheme.colors.button;
+        static constexpr UiColor buttonHover        = DefaultEditorTheme.colors.buttonHover;
+        static constexpr UiColor buttonPressed      = DefaultEditorTheme.colors.buttonPressed;
+        static constexpr UiColor buttonActive       = DefaultEditorTheme.colors.buttonActive;
+        static constexpr UiColor toggleActive       = DefaultEditorTheme.colors.toggleActive;
+        static constexpr UiColor toggleHover        = DefaultEditorTheme.colors.toggleHover;
+        static constexpr UiColor disabled           = DefaultEditorTheme.colors.disabled;
+        static constexpr UiColor inputBackground    = DefaultEditorTheme.colors.inputBackground;
+        static constexpr UiColor inputHover         = DefaultEditorTheme.colors.inputHover;
+        static constexpr UiColor sliderTrack        = DefaultEditorTheme.colors.sliderTrack;
+        static constexpr UiColor sectionHeader      = DefaultEditorTheme.colors.sectionHeader;
+        static constexpr UiColor sectionHeaderHover = DefaultEditorTheme.colors.sectionHeaderHover;
+        static constexpr UiColor border             = DefaultEditorTheme.colors.border;
+        static constexpr UiColor accent             = DefaultEditorTheme.colors.accent;
+        static constexpr UiColor text               = DefaultEditorTheme.colors.text;
+        static constexpr UiColor mutedText          = DefaultEditorTheme.colors.mutedText;
+        static constexpr UiColor statusText         = DefaultEditorTheme.colors.statusText;
+        static constexpr UiColor info               = DefaultEditorTheme.colors.info;
+        static constexpr UiColor success            = DefaultEditorTheme.colors.success;
+        static constexpr UiColor warning            = DefaultEditorTheme.colors.warning;
+        static constexpr UiColor error              = DefaultEditorTheme.colors.error;
+        static constexpr UiColor axisX              = DefaultEditorTheme.colors.axisX;
+        static constexpr UiColor axisY              = DefaultEditorTheme.colors.axisY;
+        static constexpr UiColor axisZ              = DefaultEditorTheme.colors.axisZ;
+        static constexpr UiColor alpha              = DefaultEditorTheme.colors.alpha;
+        static constexpr UiColor rotation           = DefaultEditorTheme.colors.rotation;
+        static constexpr UiColor scale              = DefaultEditorTheme.colors.scale;
+        static constexpr UiColor secondaryAccent    = DefaultEditorTheme.colors.secondaryAccent;
 
-        static constexpr float shellPadding     = 0.006f;
-        static constexpr float panelInset       = 0.040f;
+        static constexpr float shellPadding     = DefaultEditorTheme.spacing.shellPadding;
+        static constexpr float panelInset       = DefaultEditorTheme.spacing.panelInset;
         static constexpr float panelWidth       = 0.920f;
-        static constexpr float headerTextScale  = 0.0105f;
-        static constexpr float bodyTextScale    = 0.0088f;
-        static constexpr float smallTextScale   = 0.0078f;
-        static constexpr float buttonTextScale  = 0.0082f;
-        static constexpr float railIconScale    = 0.0110f;
-        static constexpr float titleTextScale   = 0.0108f;
-        static constexpr float rowHeight        = 0.036f;
-        static constexpr float compactRowHeight = 0.031f;
-        static constexpr float sliderHeight     = 0.030f;
+        static constexpr float headerTextScale  = DefaultEditorTheme.typography.headerScale;
+        static constexpr float bodyTextScale    = DefaultEditorTheme.typography.bodyScale;
+        static constexpr float smallTextScale   = DefaultEditorTheme.typography.smallScale;
+        static constexpr float buttonTextScale  = DefaultEditorTheme.typography.buttonScale;
+        static constexpr float railIconScale    = DefaultEditorTheme.typography.iconScale;
+        static constexpr float titleTextScale   = DefaultEditorTheme.typography.titleScale;
+        static constexpr float rowHeight        = DefaultEditorTheme.dimensions.rowHeight;
+        static constexpr float compactRowHeight = DefaultEditorTheme.dimensions.compactRowHeight;
+        static constexpr float sliderHeight     = DefaultEditorTheme.dimensions.sliderHeight;
     };
 } // namespace gts::tools

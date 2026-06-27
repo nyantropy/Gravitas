@@ -34,3 +34,23 @@ set_tests_properties(particle_module_authoring
     PROPERTIES
         LABELS "gravitas;particles;authoring"
 )
+
+if(TARGET gravitas_tools)
+    add_executable(EditorFrameworkSmokeTest
+        tools/EditorFrameworkSmokeTest.cpp
+    )
+
+    target_compile_features(EditorFrameworkSmokeTest PRIVATE cxx_std_20)
+
+    target_link_libraries(EditorFrameworkSmokeTest PRIVATE gravitas_tools)
+
+    add_test(
+        NAME editor_framework_smoke
+        COMMAND EditorFrameworkSmokeTest
+    )
+
+    set_tests_properties(editor_framework_smoke
+        PROPERTIES
+            LABELS "gravitas;tools;editor"
+    )
+endif()

@@ -17,6 +17,8 @@
 
 #include "EngineToolPanel.h"
 #include "EngineToolInputCaptureComponent.h"
+#include "EditorLayout.h"
+#include "EditorPropertySystem.h"
 #include "GtsKey.h"
 #include "InputBindingRegistry.h"
 #include "ParticleEffectAsset.h"
@@ -58,24 +60,54 @@ namespace gts::tools
         void build(EngineToolContext& ctx, UiHandle parent, BitmapFont* font) override
         {
             root           = createContainerRelative(ctx.ui, parent, {0.0f, 0.0f, 1.0f, 1.0f});
-            toolbarFrame   = createPanelFrameRelative(
-                ctx.ui, root, {0.0f, 0.000f, 1.0f, 0.092f}, font, "Particle FX", "Asset Authoring");
-            hierarchyFrame = createPanelFrameRelative(
-                ctx.ui, root, {0.0f, 0.105f, 0.220f, 0.585f}, font, "Hierarchy", "Effects / Emitters");
-            previewFrame = createPanelFrameRelative(
-                ctx.ui, root, {0.230f, 0.105f, 0.490f, 0.585f}, font, "Live Preview", "Immediate Feedback");
-            inspectorFrame = createPanelFrameRelative(
-                ctx.ui, root, {0.730f, 0.105f, 0.270f, 0.585f}, font, "Inspector", "Selection");
-            workspaceFrame = createPanelFrameRelative(
-                ctx.ui, root, {0.0f, 0.705f, 1.0f, 0.262f}, font, "Workspace", "Curves / Timeline / Graph");
+            toolbarFrame   = createFxPanelFrame(ctx.ui,
+                                                root,
+                                                {0.0f, 0.000f, 1.0f, 0.092f},
+                                                font,
+                                                "toolbar",
+                                                "Particle FX",
+                                                "Asset Authoring",
+                                                EditorDockArea::Top);
+            hierarchyFrame = createFxPanelFrame(ctx.ui,
+                                                root,
+                                                {0.0f, 0.105f, 0.220f, 0.585f},
+                                                font,
+                                                "hierarchy",
+                                                "Hierarchy",
+                                                "Effects / Emitters",
+                                                EditorDockArea::Left);
+            previewFrame   = createFxPanelFrame(ctx.ui,
+                                                root,
+                                                {0.230f, 0.105f, 0.490f, 0.585f},
+                                                font,
+                                                "preview",
+                                                "Live Preview",
+                                                "Immediate Feedback",
+                                                EditorDockArea::Center);
+            inspectorFrame = createFxPanelFrame(ctx.ui,
+                                                root,
+                                                {0.730f, 0.105f, 0.270f, 0.585f},
+                                                font,
+                                                "inspector",
+                                                "Inspector",
+                                                "Selection",
+                                                EditorDockArea::Right);
+            workspaceFrame = createFxPanelFrame(ctx.ui,
+                                                root,
+                                                {0.0f, 0.705f, 1.0f, 0.262f},
+                                                font,
+                                                "workspace",
+                                                "Workspace",
+                                                "Curves / Timeline / Graph",
+                                                EditorDockArea::Bottom);
 
-            header = createTextRelative(ctx.ui,
-                                        toolbarFrame.background,
-                                        {0.018f, 0.190f, 0.220f, 0.260f},
-                                        font,
-                                        "PARTICLE EFFECTS",
-                                        ToolTheme::text,
-                                        ToolTheme::headerTextScale);
+            header  = createTextRelative(ctx.ui,
+                                         toolbarFrame.background,
+                                         {0.018f, 0.190f, 0.220f, 0.260f},
+                                         font,
+                                         "PARTICLE EFFECTS",
+                                         ToolTheme::text,
+                                         ToolTheme::headerTextScale);
             summary = createTextRelative(ctx.ui,
                                          toolbarFrame.background,
                                          {0.018f, 0.535f, 0.250f, 0.220f},
@@ -100,7 +132,8 @@ namespace gts::tools
                                   {PlaybackAction::Restart, "RESET"},
                                   {PlaybackAction::Background, "BG"},
                                   {PlaybackAction::CameraReset, "CAM"}});
-            UiHandle toolbarSliders = createContainerRelative(ctx.ui, toolbarFrame.background, {0.785f, 0.165f, 0.195f, 0.700f});
+            UiHandle toolbarSliders =
+                createContainerRelative(ctx.ui, toolbarFrame.background, {0.785f, 0.165f, 0.195f, 0.700f});
             addSlider(ctx.ui, font, toolbarSliders, 0.080f, FloatField::TimeScale, "TIME", 0.0f, 2.0f);
             addSlider(ctx.ui, font, toolbarSliders, 0.520f, FloatField::OrbitYaw, "ORBIT", -180.0f, 180.0f);
 
@@ -171,30 +204,14 @@ namespace gts::tools
                                                  "SELECTION",
                                                  ToolTheme::text,
                                                  ToolTheme::headerTextScale);
-            addInspectorSection(ctx.ui,
-                                font,
-                                InspectorSection::General,
-                                {0.025f, 0.220f, 0.950f, 0.044f},
-                                "General",
-                                "");
-            addInspectorSection(ctx.ui,
-                                font,
-                                InspectorSection::Modules,
-                                {0.025f, 0.272f, 0.950f, 0.044f},
-                                "Modules",
-                                "");
-            addInspectorSection(ctx.ui,
-                                font,
-                                InspectorSection::Parameters,
-                                {0.025f, 0.324f, 0.950f, 0.044f},
-                                "Parameters",
-                                "");
-            addInspectorSection(ctx.ui,
-                                font,
-                                InspectorSection::Runtime,
-                                {0.025f, 0.376f, 0.950f, 0.044f},
-                                "Runtime",
-                                "");
+            addInspectorSection(
+                ctx.ui, font, InspectorSection::General, {0.025f, 0.220f, 0.950f, 0.044f}, "General", "");
+            addInspectorSection(
+                ctx.ui, font, InspectorSection::Modules, {0.025f, 0.272f, 0.950f, 0.044f}, "Modules", "");
+            addInspectorSection(
+                ctx.ui, font, InspectorSection::Parameters, {0.025f, 0.324f, 0.950f, 0.044f}, "Parameters", "");
+            addInspectorSection(
+                ctx.ui, font, InspectorSection::Runtime, {0.025f, 0.376f, 0.950f, 0.044f}, "Runtime", "");
 
             for (size_t i = 0; i < InspectorStatusRowCount; ++i)
             {
@@ -467,7 +484,7 @@ namespace gts::tools
         struct GraphButtonBinding
         {
             GraphAction action = GraphAction::Search;
-            ToolButton   button;
+            ToolButton  button;
         };
 
         struct PlaybackButtonBinding
@@ -484,7 +501,7 @@ namespace gts::tools
 
         struct InspectorSectionBinding
         {
-            InspectorSection section = InspectorSection::General;
+            InspectorSection  section = InspectorSection::General;
             ToolSectionHeader header;
         };
 
@@ -522,21 +539,21 @@ namespace gts::tools
         static constexpr size_t WorkspaceLineCount       = 6;
         static constexpr size_t MaxUndoSnapshots         = 32;
 
-        UiHandle root            = UI_INVALID_HANDLE;
-        UiHandle header          = UI_INVALID_HANDLE;
-        UiHandle summary         = UI_INVALID_HANDLE;
-        UiHandle emitterHeader   = UI_INVALID_HANDLE;
-        UiHandle previewSwatch   = UI_INVALID_HANDLE;
-        UiHandle previewText     = UI_INVALID_HANDLE;
-        UiHandle inspectorHeader = UI_INVALID_HANDLE;
-        UiHandle footer          = UI_INVALID_HANDLE;
+        UiHandle root              = UI_INVALID_HANDLE;
+        UiHandle header            = UI_INVALID_HANDLE;
+        UiHandle summary           = UI_INVALID_HANDLE;
+        UiHandle emitterHeader     = UI_INVALID_HANDLE;
+        UiHandle previewSwatch     = UI_INVALID_HANDLE;
+        UiHandle previewText       = UI_INVALID_HANDLE;
+        UiHandle inspectorHeader   = UI_INVALID_HANDLE;
+        UiHandle footer            = UI_INVALID_HANDLE;
         UiHandle workspaceHeadline = UI_INVALID_HANDLE;
 
-        ToolPanelFrame   toolbarFrame;
-        ToolPanelFrame   hierarchyFrame;
-        ToolPanelFrame   previewFrame;
-        ToolPanelFrame   inspectorFrame;
-        ToolPanelFrame   workspaceFrame;
+        ToolPanelFrame    toolbarFrame;
+        ToolPanelFrame    hierarchyFrame;
+        ToolPanelFrame    previewFrame;
+        ToolPanelFrame    inspectorFrame;
+        ToolPanelFrame    workspaceFrame;
         ToolSectionHeader effectListHeader;
         ToolSectionHeader emitterListHeader;
 
@@ -544,16 +561,16 @@ namespace gts::tools
         ToolTextField emitterNameField;
         ToolTextField emitterSearchField;
 
-        std::vector<ToolButton>            effectRows;
-        std::vector<ToolButton>            emitterRows;
-        std::vector<EffectButtonBinding>   effectButtons;
-        std::vector<EmitterButtonBinding>  emitterButtons;
-        std::vector<ModuleButtonBinding>   moduleButtons;
-        std::vector<GraphButtonBinding>    graphButtons;
-        std::vector<PlaybackButtonBinding> playbackButtons;
-        std::vector<ToolButton>            moduleRows;
-        std::vector<ParameterControl>      parameterControls;
-        std::vector<SliderBinding>         sliders;
+        std::vector<ToolButton>              effectRows;
+        std::vector<ToolButton>              emitterRows;
+        std::vector<EffectButtonBinding>     effectButtons;
+        std::vector<EmitterButtonBinding>    emitterButtons;
+        std::vector<ModuleButtonBinding>     moduleButtons;
+        std::vector<GraphButtonBinding>      graphButtons;
+        std::vector<PlaybackButtonBinding>   playbackButtons;
+        std::vector<ToolButton>              moduleRows;
+        std::vector<ParameterControl>        parameterControls;
+        std::vector<SliderBinding>           sliders;
         std::vector<InspectorSectionBinding> inspectorSections;
         std::vector<WorkspaceTabBinding>     workspaceTabs;
         std::vector<ToolStatusRow>           inspectorStatusRows;
@@ -561,18 +578,18 @@ namespace gts::tools
 
         ParticleEffectAsset                   currentAsset;
         std::string                           currentPath;
-        bool                                  hasAsset               = false;
-        bool                                  dirty                  = false;
-        size_t                                effectBrowserOffset    = 0;
-        size_t                                emitterBrowserOffset   = 0;
-        size_t                                selectedEmitterIndex   = 0;
-        size_t                                selectedModuleIndex    = 0;
-        size_t                                moduleBrowserOffset    = 0;
-        size_t                                parameterControlOffset = 0;
-        bool                                  playbackPaused         = false;
-        float                                 playbackTimeScale      = 1.0f;
-        uint32_t                              backgroundPreset       = 0;
-        ActiveTextField                       activeTextField        = ActiveTextField::None;
+        bool                                  hasAsset                 = false;
+        bool                                  dirty                    = false;
+        size_t                                effectBrowserOffset      = 0;
+        size_t                                emitterBrowserOffset     = 0;
+        size_t                                selectedEmitterIndex     = 0;
+        size_t                                selectedModuleIndex      = 0;
+        size_t                                moduleBrowserOffset      = 0;
+        size_t                                parameterControlOffset   = 0;
+        bool                                  playbackPaused           = false;
+        float                                 playbackTimeScale        = 1.0f;
+        uint32_t                              backgroundPreset         = 0;
+        ActiveTextField                       activeTextField          = ActiveTextField::None;
         InspectorSection                      selectedInspectorSection = InspectorSection::Parameters;
         WorkspaceTab                          selectedWorkspaceTab     = WorkspaceTab::Diagnostics;
         std::string                           effectNameDraft;
@@ -587,11 +604,28 @@ namespace gts::tools
         size_t                                selectedRichKeyIndex = 0;
         uint32_t                              selectedRichField    = 0;
         std::string                           selectedRangeParameterId;
-        bool                                  selectedRangeMax = false;
-        UiHandle                              activeUndoHandle = UI_INVALID_HANDLE;
+        bool                                  selectedRangeMax       = false;
+        UiHandle                              activeUndoHandle       = UI_INVALID_HANDLE;
         bool                                  previewOrbitDragActive = false;
         float                                 previewOrbitDragLastX  = 0.0f;
-        size_t                                graphSearchIndex        = 0;
+        size_t                                graphSearchIndex       = 0;
+
+        static ToolPanelFrame createFxPanelFrame(UiSystem&          ui,
+                                                 UiHandle           parent,
+                                                 const ToolRect&    rect,
+                                                 BitmapFont*        font,
+                                                 const std::string& id,
+                                                 const std::string& title,
+                                                 const std::string& subtitle,
+                                                 EditorDockArea     area)
+        {
+            EditorPanelState panel;
+            panel.id       = id;
+            panel.title    = title;
+            panel.subtitle = subtitle;
+            panel.area     = area;
+            return createEditorPanelFrameRelative(ui, parent, rect, font, panel);
+        }
 
         void addEffectButtonRow(UiSystem&                                                ui,
                                 BitmapFont*                                              font,
@@ -599,17 +633,20 @@ namespace gts::tools
                                 const ToolRect&                                          rowRect,
                                 const std::vector<std::pair<EffectAction, std::string>>& rowButtons)
         {
-            const float gap = 0.015f;
-            const float width =
-                (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
+            const float gap   = 0.015f;
+            const float width = (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) /
+                                static_cast<float>(rowButtons.size());
 
             for (size_t i = 0; i < rowButtons.size(); ++i)
             {
                 const float x = rowRect.x + static_cast<float>(i) * (width + gap);
-                effectButtons.push_back(
-                    {rowButtons[i].first,
-                     createButtonRelative(
-                         ui, parent, {x, rowRect.y, width, rowRect.height}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
+                effectButtons.push_back({rowButtons[i].first,
+                                         createButtonRelative(ui,
+                                                              parent,
+                                                              {x, rowRect.y, width, rowRect.height},
+                                                              font,
+                                                              rowButtons[i].second,
+                                                              ToolTheme::buttonTextScale)});
             }
         }
 
@@ -619,17 +656,20 @@ namespace gts::tools
                                  const ToolRect&                                           rowRect,
                                  const std::vector<std::pair<EmitterAction, std::string>>& rowButtons)
         {
-            const float gap = 0.015f;
-            const float width =
-                (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
+            const float gap   = 0.015f;
+            const float width = (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) /
+                                static_cast<float>(rowButtons.size());
 
             for (size_t i = 0; i < rowButtons.size(); ++i)
             {
                 const float x = rowRect.x + static_cast<float>(i) * (width + gap);
-                emitterButtons.push_back(
-                    {rowButtons[i].first,
-                     createButtonRelative(
-                         ui, parent, {x, rowRect.y, width, rowRect.height}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
+                emitterButtons.push_back({rowButtons[i].first,
+                                          createButtonRelative(ui,
+                                                               parent,
+                                                               {x, rowRect.y, width, rowRect.height},
+                                                               font,
+                                                               rowButtons[i].second,
+                                                               ToolTheme::buttonTextScale)});
             }
         }
 
@@ -639,17 +679,20 @@ namespace gts::tools
                                 const ToolRect&                                          rowRect,
                                 const std::vector<std::pair<ModuleAction, std::string>>& rowButtons)
         {
-            const float gap = 0.015f;
-            const float width =
-                (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
+            const float gap   = 0.015f;
+            const float width = (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) /
+                                static_cast<float>(rowButtons.size());
 
             for (size_t i = 0; i < rowButtons.size(); ++i)
             {
                 const float x = rowRect.x + static_cast<float>(i) * (width + gap);
-                moduleButtons.push_back(
-                    {rowButtons[i].first,
-                     createButtonRelative(
-                         ui, parent, {x, rowRect.y, width, rowRect.height}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
+                moduleButtons.push_back({rowButtons[i].first,
+                                         createButtonRelative(ui,
+                                                              parent,
+                                                              {x, rowRect.y, width, rowRect.height},
+                                                              font,
+                                                              rowButtons[i].second,
+                                                              ToolTheme::buttonTextScale)});
             }
         }
 
@@ -659,17 +702,20 @@ namespace gts::tools
                                const ToolRect&                                         rowRect,
                                const std::vector<std::pair<GraphAction, std::string>>& rowButtons)
         {
-            const float gap = 0.010f;
-            const float width =
-                (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
+            const float gap   = 0.010f;
+            const float width = (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) /
+                                static_cast<float>(rowButtons.size());
 
             for (size_t i = 0; i < rowButtons.size(); ++i)
             {
                 const float x = rowRect.x + static_cast<float>(i) * (width + gap);
-                graphButtons.push_back(
-                    {rowButtons[i].first,
-                     createButtonRelative(
-                         ui, parent, {x, rowRect.y, width, rowRect.height}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
+                graphButtons.push_back({rowButtons[i].first,
+                                        createButtonRelative(ui,
+                                                             parent,
+                                                             {x, rowRect.y, width, rowRect.height},
+                                                             font,
+                                                             rowButtons[i].second,
+                                                             ToolTheme::buttonTextScale)});
             }
         }
 
@@ -679,17 +725,20 @@ namespace gts::tools
                                   const ToolRect&                                            rowRect,
                                   const std::vector<std::pair<PlaybackAction, std::string>>& rowButtons)
         {
-            const float gap = 0.015f;
-            const float width =
-                (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) / static_cast<float>(rowButtons.size());
+            const float gap   = 0.015f;
+            const float width = (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) /
+                                static_cast<float>(rowButtons.size());
 
             for (size_t i = 0; i < rowButtons.size(); ++i)
             {
                 const float x = rowRect.x + static_cast<float>(i) * (width + gap);
-                playbackButtons.push_back(
-                    {rowButtons[i].first,
-                     createButtonRelative(
-                         ui, parent, {x, rowRect.y, width, rowRect.height}, font, rowButtons[i].second, ToolTheme::buttonTextScale)});
+                playbackButtons.push_back({rowButtons[i].first,
+                                           createButtonRelative(ui,
+                                                                parent,
+                                                                {x, rowRect.y, width, rowRect.height},
+                                                                font,
+                                                                rowButtons[i].second,
+                                                                ToolTheme::buttonTextScale)});
             }
         }
 
@@ -717,13 +766,12 @@ namespace gts::tools
                 {section, createSectionHeaderRelative(ui, inspectorFrame.background, rect, font, label, summary)});
         }
 
-        void addWorkspaceTab(UiSystem&          ui,
-                             BitmapFont*        font,
-                             WorkspaceTab       tab,
-                             const ToolRect&    rect,
-                             const std::string& label)
+        void addWorkspaceTab(
+            UiSystem& ui, BitmapFont* font, WorkspaceTab tab, const ToolRect& rect, const std::string& label)
         {
-            workspaceTabs.push_back({tab, createButtonRelative(ui, workspaceFrame.background, rect, font, label, ToolTheme::buttonTextScale)});
+            workspaceTabs.push_back(
+                {tab,
+                 createButtonRelative(ui, workspaceFrame.background, rect, font, label, ToolTheme::buttonTextScale)});
         }
 
         static std::vector<std::string> collectEffectPaths(ECSWorld& world)
@@ -1003,7 +1051,7 @@ namespace gts::tools
             if (activeTextField == ActiveTextField::EmitterSearch)
             {
                 emitterBrowserOffset = 0;
-                state.status = emitterSearchDraft.empty() ? "FILTER CLEARED" : "FILTER EMITTERS";
+                state.status         = emitterSearchDraft.empty() ? "FILTER CLEARED" : "FILTER EMITTERS";
                 return;
             }
 
@@ -1366,8 +1414,7 @@ namespace gts::tools
             }
         }
 
-        void
-        applyGraphButtons(ECSWorld& world, EngineToolStateComponent& state, const UiInteractionResult& interaction)
+        void applyGraphButtons(ECSWorld& world, EngineToolStateComponent& state, const UiInteractionResult& interaction)
         {
             for (const GraphButtonBinding& binding : graphButtons)
             {
@@ -1413,9 +1460,10 @@ namespace gts::tools
                 return;
             }
 
-            graphSearchIndex = (graphSearchIndex + 1u) % definitions.size();
+            graphSearchIndex                           = (graphSearchIndex + 1u) % definitions.size();
             const ParticleModuleDefinition& definition = definitions[graphSearchIndex];
-            if (const ParticleGraphNode* node = gts::particles::findParticleGraphNodeForType(emitter->graph, definition.typeId))
+            if (const ParticleGraphNode* node =
+                    gts::particles::findParticleGraphNodeForType(emitter->graph, definition.typeId))
             {
                 selectModuleByStableId(*emitter, node->moduleStableId);
                 state.status = "FOUND " + definition.displayName;
@@ -1454,7 +1502,8 @@ namespace gts::tools
                 state.status = "NODE ADD FAILED";
                 return;
             }
-            if (const ParticleGraphNode* node = gts::particles::findParticleGraphNodeForType(emitter->graph, definition.typeId))
+            if (const ParticleGraphNode* node =
+                    gts::particles::findParticleGraphNodeForType(emitter->graph, definition.typeId))
                 selectModuleByStableId(*emitter, node->moduleStableId);
             syncSelectedEmitterDescriptor(*emitter);
             markDirty(state, "NODE ADDED");
@@ -1768,7 +1817,7 @@ namespace gts::tools
                 return;
             }
 
-            const float deltaX = interaction.pointerX - previewOrbitDragLastX;
+            const float deltaX    = interaction.pointerX - previewOrbitDragLastX;
             previewOrbitDragLastX = interaction.pointerX;
             if (std::abs(deltaX) < 0.0001f)
                 return;
@@ -1935,18 +1984,14 @@ namespace gts::tools
                            EngineToolStateComponent&       state,
                            const std::vector<std::string>& effectPaths)
         {
-            updatePanelFrame(ctx.ui,
-                             toolbarFrame,
-                             "Particle FX",
-                             hasAsset ? graphStatusLabel() : std::string("Asset Authoring"));
+            updatePanelFrame(
+                ctx.ui, toolbarFrame, "Particle FX", hasAsset ? graphStatusLabel() : std::string("Asset Authoring"));
             updatePanelFrame(ctx.ui,
                              hierarchyFrame,
                              "Hierarchy",
-                             hasAsset ? std::to_string(currentAsset.emitters.size()) + " emitters" : "Effects / Emitters");
-            updatePanelFrame(ctx.ui,
-                             previewFrame,
-                             "Live Preview",
-                             playbackPaused ? "Paused" : "Playing");
+                             hasAsset ? std::to_string(currentAsset.emitters.size()) + " emitters"
+                                      : "Effects / Emitters");
+            updatePanelFrame(ctx.ui, previewFrame, "Live Preview", playbackPaused ? "Paused" : "Playing");
             updatePanelFrame(ctx.ui, inspectorFrame, "Inspector", inspectorSectionLabel(selectedInspectorSection));
             updatePanelFrame(ctx.ui, workspaceFrame, "Workspace", workspaceTabLabel(selectedWorkspaceTab));
 
@@ -1956,11 +2001,8 @@ namespace gts::tools
             setText(ctx.ui, inspectorHeader, inspectorObjectTitle());
             setText(ctx.ui, footer, state.status);
             syncTextDraftsForDisplay();
-            updateSectionHeader(ctx.ui,
-                                effectListHeader,
-                                "Effects",
-                                std::to_string(effectPaths.size()) + " assets",
-                                false);
+            updateSectionHeader(
+                ctx.ui, effectListHeader, "Effects", std::to_string(effectPaths.size()) + " assets", false);
             updateTextField(
                 ctx.ui,
                 effectNameField,
@@ -2157,32 +2199,32 @@ namespace gts::tools
 
         struct LiveEffectStats
         {
-            size_t liveEmitters  = 0;
-            size_t liveParticles = 0;
-            uint32_t spawnedThisFrame = 0;
-            uint32_t diedThisFrame = 0;
-            uint32_t collisionEventsThisFrame = 0;
-            uint32_t eventSpawnsThisFrame = 0;
-            uint32_t budgetSkippedSpawnsThisFrame = 0;
-            bool selectedRuntimeFound = false;
-            bool selectedRuntimeVisible = true;
-            ParticleCullReason selectedCullReason = ParticleCullReason::None;
-            float selectedDistanceToCamera = 0.0f;
-            float selectedLodSpawnScale = 1.0f;
-            float selectedLodRenderScale = 1.0f;
-            uint32_t selectedBudgetedMaxParticles = 0;
-            uint32_t selectedBudgetedSpawnPerFrame = 0;
-            bool hasFrameData = false;
-            ParticleFrameData frameData;
-            bool hasBudget = false;
+            size_t              liveEmitters                  = 0;
+            size_t              liveParticles                 = 0;
+            uint32_t            spawnedThisFrame              = 0;
+            uint32_t            diedThisFrame                 = 0;
+            uint32_t            collisionEventsThisFrame      = 0;
+            uint32_t            eventSpawnsThisFrame          = 0;
+            uint32_t            budgetSkippedSpawnsThisFrame  = 0;
+            bool                selectedRuntimeFound          = false;
+            bool                selectedRuntimeVisible        = true;
+            ParticleCullReason  selectedCullReason            = ParticleCullReason::None;
+            float               selectedDistanceToCamera      = 0.0f;
+            float               selectedLodSpawnScale         = 1.0f;
+            float               selectedLodRenderScale        = 1.0f;
+            uint32_t            selectedBudgetedMaxParticles  = 0;
+            uint32_t            selectedBudgetedSpawnPerFrame = 0;
+            bool                hasFrameData                  = false;
+            ParticleFrameData   frameData;
+            bool                hasBudget = false;
             ParticleBudgetState budget;
         };
 
         LiveEffectStats liveEffectStats(ECSWorld& world) const
         {
-            LiveEffectStats stats;
-            const ParticleEffectEmitter* selected = selectedEmitter();
-            const std::string selectedStableId = selected == nullptr ? std::string{} : selected->stableId;
+            LiveEffectStats              stats;
+            const ParticleEffectEmitter* selected         = selectedEmitter();
+            const std::string            selectedStableId = selected == nullptr ? std::string{} : selected->stableId;
 
             world.forEach<ParticleEmitterComponent, ParticleEmitterRuntimeComponent>(
                 [&](Entity, ParticleEmitterComponent& emitter, ParticleEmitterRuntimeComponent& runtime)
@@ -2199,31 +2241,30 @@ namespace gts::tools
                     stats.budgetSkippedSpawnsThisFrame += runtime.budgetSkippedSpawnsThisFrame;
 
                     const bool selectedRuntime =
-                        !selectedStableId.empty() &&
-                        (emitter.effectEmitterId == selectedStableId ||
-                         (emitter.effectEmitterId.empty() && selectedEmitterIndex == 0));
+                        !selectedStableId.empty() && (emitter.effectEmitterId == selectedStableId ||
+                                                      (emitter.effectEmitterId.empty() && selectedEmitterIndex == 0));
                     if (!selectedRuntime || stats.selectedRuntimeFound)
                         return;
 
-                    stats.selectedRuntimeFound = true;
-                    stats.selectedRuntimeVisible = runtime.visible;
-                    stats.selectedCullReason = runtime.cullReason;
-                    stats.selectedDistanceToCamera = runtime.distanceToCamera;
-                    stats.selectedLodSpawnScale = runtime.lodSpawnScale;
-                    stats.selectedLodRenderScale = runtime.lodRenderScale;
-                    stats.selectedBudgetedMaxParticles = runtime.budgetedMaxParticles;
+                    stats.selectedRuntimeFound          = true;
+                    stats.selectedRuntimeVisible        = runtime.visible;
+                    stats.selectedCullReason            = runtime.cullReason;
+                    stats.selectedDistanceToCamera      = runtime.distanceToCamera;
+                    stats.selectedLodSpawnScale         = runtime.lodSpawnScale;
+                    stats.selectedLodRenderScale        = runtime.lodRenderScale;
+                    stats.selectedBudgetedMaxParticles  = runtime.budgetedMaxParticles;
                     stats.selectedBudgetedSpawnPerFrame = runtime.budgetedSpawnPerFrame;
                 });
 
             if (world.hasAny<ParticleFrameDataComponent>())
             {
                 stats.hasFrameData = true;
-                stats.frameData = world.getSingleton<ParticleFrameDataComponent>().frameData;
+                stats.frameData    = world.getSingleton<ParticleFrameDataComponent>().frameData;
             }
             if (world.hasAny<ParticleBudgetComponent>())
             {
                 stats.hasBudget = true;
-                stats.budget = world.getSingleton<ParticleBudgetComponent>().state;
+                stats.budget    = world.getSingleton<ParticleBudgetComponent>().state;
             }
             return stats;
         }
@@ -2266,10 +2307,9 @@ namespace gts::tools
 
         void syncInspectorSectionVisibility(UiSystem& ui)
         {
-            const bool showStatus =
-                selectedInspectorSection == InspectorSection::General ||
-                selectedInspectorSection == InspectorSection::Runtime;
-            const bool showModules = selectedInspectorSection == InspectorSection::Modules;
+            const bool showStatus     = selectedInspectorSection == InspectorSection::General ||
+                                        selectedInspectorSection == InspectorSection::Runtime;
+            const bool showModules    = selectedInspectorSection == InspectorSection::Modules;
             const bool showParameters = selectedInspectorSection == InspectorSection::Parameters;
 
             for (const ToolStatusRow& row : inspectorStatusRows)
@@ -2292,8 +2332,8 @@ namespace gts::tools
         {
             if (!hasAsset)
                 return "NO EFFECT SELECTED";
-            const ParticleEffectEmitter* emitter = selectedEmitter();
-            const ParticleModuleInstance* module = selectedModule();
+            const ParticleEffectEmitter*  emitter = selectedEmitter();
+            const ParticleModuleInstance* module  = selectedModule();
             if (selectedInspectorSection == InspectorSection::Parameters && module != nullptr)
                 return "MODULE  " + moduleDisplayName(*module);
             if (emitter != nullptr)
@@ -2312,7 +2352,7 @@ namespace gts::tools
                 return emitter == nullptr ? "0" : std::to_string(emitter->modules.size());
             case InspectorSection::Parameters:
             {
-                const ParticleModuleInstance* module = selectedModule();
+                const ParticleModuleInstance*   module = selectedModule();
                 const ParticleModuleDefinition* definition =
                     module == nullptr ? nullptr : findParticleModuleDefinition(module->typeId);
                 return definition == nullptr ? "0" : std::to_string(editableParameters(*definition).size());
@@ -2325,16 +2365,16 @@ namespace gts::tools
 
         std::string inspectorStatusLabel(size_t index) const
         {
-            static const char* labels[] = {"Effect", "Emitter", "Module", "Graph", "Runtime", "Budget", "LOD"};
-            constexpr size_t labelCount = sizeof(labels) / sizeof(labels[0]);
+            static const char* labels[]   = {"Effect", "Emitter", "Module", "Graph", "Runtime", "Budget", "LOD"};
+            constexpr size_t   labelCount = sizeof(labels) / sizeof(labels[0]);
             return index < labelCount ? labels[index] : "";
         }
 
         std::string inspectorStatusValue(size_t index, ECSWorld& world) const
         {
-            const LiveEffectStats stats = liveEffectStats(world);
-            const ParticleEffectEmitter* emitter = selectedEmitter();
-            const ParticleModuleInstance* module = selectedModule();
+            const LiveEffectStats         stats   = liveEffectStats(world);
+            const ParticleEffectEmitter*  emitter = selectedEmitter();
+            const ParticleModuleInstance* module  = selectedModule();
             switch (index)
             {
             case 0:
@@ -2356,10 +2396,9 @@ namespace gts::tools
                                              std::to_string(stats.budget.requestedSimulatedParticles) + " simulated"
                                        : "No budget frame";
             case 6:
-                return stats.selectedRuntimeFound
-                           ? formatPercent(stats.selectedLodSpawnScale) + " spawn / " +
-                                 formatPercent(stats.selectedLodRenderScale) + " render"
-                           : "No selected runtime";
+                return stats.selectedRuntimeFound ? formatPercent(stats.selectedLodSpawnScale) + " spawn / " +
+                                                        formatPercent(stats.selectedLodRenderScale) + " render"
+                                                  : "No selected runtime";
             }
             return "";
         }
@@ -2406,8 +2445,8 @@ namespace gts::tools
 
         std::string curveWorkspaceLine(size_t index) const
         {
-            const ParticleEffectEmitter* emitter = selectedEmitter();
-            const ParticleModuleInstance* module = selectedModule();
+            const ParticleEffectEmitter*  emitter = selectedEmitter();
+            const ParticleModuleInstance* module  = selectedModule();
             if (emitter == nullptr)
                 return index == 0 ? "No emitter selected" : "";
             switch (index)
@@ -2423,7 +2462,8 @@ namespace gts::tools
             case 3:
                 return richSelectionSummary();
             case 4:
-                return "Selected field: " + (selectedRichParameterId.empty() ? std::string{"--"} : selectedRichParameterId);
+                return "Selected field: " +
+                       (selectedRichParameterId.empty() ? std::string{"--"} : selectedRichParameterId);
             case 5:
                 return "Asset curves: live preview synchronized";
             }
@@ -2442,11 +2482,12 @@ namespace gts::tools
             case 0:
                 return "Emitter: " + compact(emitter->name, 36);
             case 1:
-                return "Duration: " + formatSeconds(descriptor.duration) + "  Delay: " +
-                       formatSeconds(descriptor.startDelay) + "  Loop: " + formatBool(descriptor.looping);
+                return "Duration: " + formatSeconds(descriptor.duration) +
+                       "  Delay: " + formatSeconds(descriptor.startDelay) + "  Loop: " + formatBool(descriptor.looping);
             case 2:
-                return "Spawn rate: " + formatFloat(descriptor.emissionRate) + "/s  Lifetime: " +
-                       formatSeconds(descriptor.lifetimeMin) + ".." + formatSeconds(descriptor.lifetimeMax);
+                return "Spawn rate: " + formatFloat(descriptor.emissionRate) +
+                       "/s  Lifetime: " + formatSeconds(descriptor.lifetimeMin) + ".." +
+                       formatSeconds(descriptor.lifetimeMax);
             case 3:
                 return "Bursts: " + burstSummary(descriptor.bursts);
             case 4:
@@ -2468,11 +2509,12 @@ namespace gts::tools
             switch (index)
             {
             case 0:
-                return "Nodes: " + std::to_string(graph.nodes.size()) + "  Links: " +
-                       std::to_string(graph.links.size()) + "  Frames: " + std::to_string(graph.frames.size());
+                return "Nodes: " + std::to_string(graph.nodes.size()) +
+                       "  Links: " + std::to_string(graph.links.size()) +
+                       "  Frames: " + std::to_string(graph.frames.size());
             case 1:
-                return "Comments: " + std::to_string(graph.comments.size()) + "  Modules: " +
-                       std::to_string(emitter->modules.size());
+                return "Comments: " + std::to_string(graph.comments.size()) +
+                       "  Modules: " + std::to_string(emitter->modules.size());
             case 2:
                 return selectedGraphNodeSummary(*emitter);
             case 3:
@@ -2491,34 +2533,33 @@ namespace gts::tools
             switch (index)
             {
             case 0:
-                return "Live emitters: " + std::to_string(stats.liveEmitters) + "  Alive particles: " +
-                       std::to_string(stats.liveParticles);
+                return "Live emitters: " + std::to_string(stats.liveEmitters) +
+                       "  Alive particles: " + std::to_string(stats.liveParticles);
             case 1:
-                return stats.hasFrameData ? "Frame emitters: " + std::to_string(stats.frameData.visibleEmitterCount) +
-                                                " visible / " + std::to_string(stats.frameData.culledEmitterCount) +
-                                                " culled"
-                                          : "Frame emitters: --";
+                return stats.hasFrameData
+                           ? "Frame emitters: " + std::to_string(stats.frameData.visibleEmitterCount) + " visible / " +
+                                 std::to_string(stats.frameData.culledEmitterCount) + " culled"
+                           : "Frame emitters: --";
             case 2:
-                return stats.hasFrameData ? "Particles: " + std::to_string(stats.frameData.simulatedParticleCount) +
-                                                " simulated / " +
-                                                std::to_string(stats.frameData.renderedParticleCount) + " rendered"
-                                          : "Particles: --";
+                return stats.hasFrameData
+                           ? "Particles: " + std::to_string(stats.frameData.simulatedParticleCount) + " simulated / " +
+                                 std::to_string(stats.frameData.renderedParticleCount) + " rendered"
+                           : "Particles: --";
             case 3:
-                return stats.hasFrameData ? "Budget clipped: " +
-                                                std::to_string(stats.frameData.budgetClippedParticleCount) +
-                                                " particles  Render budget: " +
-                                                std::to_string(stats.frameData.renderBudget)
-                                          : "Budget clipped: --";
+                return stats.hasFrameData
+                           ? "Budget clipped: " + std::to_string(stats.frameData.budgetClippedParticleCount) +
+                                 " particles  Render budget: " + std::to_string(stats.frameData.renderBudget)
+                           : "Budget clipped: --";
             case 4:
                 return "Events: " + std::to_string(stats.collisionEventsThisFrame) + " collisions / " +
-                       std::to_string(stats.diedThisFrame) + " deaths / " +
-                       std::to_string(stats.eventSpawnsThisFrame) + " spawned";
+                       std::to_string(stats.diedThisFrame) + " deaths / " + std::to_string(stats.eventSpawnsThisFrame) +
+                       " spawned";
             case 5:
-                return stats.selectedRuntimeFound ? "Selected runtime: " +
-                                                        std::string(stats.selectedRuntimeVisible ? "visible" : "culled") +
-                                                        "  " + cullReasonLabel(stats.selectedCullReason) +
-                                                        "  distance " + formatFloat(stats.selectedDistanceToCamera)
-                                                  : "Selected runtime: not active";
+                return stats.selectedRuntimeFound
+                           ? "Selected runtime: " + std::string(stats.selectedRuntimeVisible ? "visible" : "culled") +
+                                 "  " + cullReasonLabel(stats.selectedCullReason) + "  distance " +
+                                 formatFloat(stats.selectedDistanceToCamera)
+                           : "Selected runtime: not active";
             }
             return "";
         }
@@ -2537,8 +2578,8 @@ namespace gts::tools
                 return "Orbit distance: " + formatFloat(currentAsset.preview.orbitDistance) +
                        "  Orbit yaw: " + formatFloat(previewOrbitYawDegrees());
             case 4:
-                return "Time scale: " + formatFloat(playbackTimeScale) + "  Playback: " +
-                       std::string(playbackPaused ? "paused" : "playing");
+                return "Time scale: " + formatFloat(playbackTimeScale) +
+                       "  Playback: " + std::string(playbackPaused ? "paused" : "playing");
             case 5:
                 return "Preview asset state: " + std::string(dirty ? "modified" : "saved");
             }
@@ -2599,8 +2640,9 @@ namespace gts::tools
             else if (parameter->type == ParticleModuleParameterType::BurstTimeline)
                 keyCount = parameter->burstTimelineValue.size();
 
-            return "Rich parameter: " + selectedRichParameterId + "  Key: " +
-                   std::to_string(keyCount == 0 ? 0 : selectedRichKeyIndex + 1) + "/" + std::to_string(keyCount);
+            return "Rich parameter: " + selectedRichParameterId +
+                   "  Key: " + std::to_string(keyCount == 0 ? 0 : selectedRichKeyIndex + 1) + "/" +
+                   std::to_string(keyCount);
         }
 
         static std::string burstSummary(const std::vector<ParticleBurst>& bursts)
@@ -2635,9 +2677,10 @@ namespace gts::tools
             if (diagnostics.empty())
                 return "Validation: no warnings";
 
-            const auto& diagnostic = diagnostics.front();
+            const auto&       diagnostic = diagnostics.front();
             const std::string severity =
-                diagnostic.severity == gts::particles::ParticleModuleGraphDiagnosticSeverity::Error ? "Error" : "Warning";
+                diagnostic.severity == gts::particles::ParticleModuleGraphDiagnosticSeverity::Error ? "Error"
+                                                                                                    : "Warning";
             return severity + ": " + compact(diagnostic.message, 76);
         }
 
@@ -2652,7 +2695,8 @@ namespace gts::tools
         static std::string moduleStageLabel(const ParticleModuleInstance& module)
         {
             const ParticleModuleDefinition* definition = findParticleModuleDefinition(module.typeId);
-            return definition == nullptr ? std::string{"Unknown"} : std::string(executionStageLabel(definition->executionStage));
+            return definition == nullptr ? std::string{"Unknown"}
+                                         : std::string(executionStageLabel(definition->executionStage));
         }
 
         static std::string cullReasonLabel(ParticleCullReason reason)
@@ -2711,11 +2755,11 @@ namespace gts::tools
                 return std::string("Compilation: ") + (program.valid ? "valid" : "invalid") +
                        "  Backend: CPU descriptor";
             case 1:
-                return "Modules: " + std::to_string(program.modules.size()) + "  Static params: " +
-                       std::to_string(program.staticParametersEvaluated);
+                return "Modules: " + std::to_string(program.modules.size()) +
+                       "  Static params: " + std::to_string(program.staticParametersEvaluated);
             case 2:
-                return "Curves baked: " + std::to_string(program.curvesBaked) + "  Modules fused: " +
-                       std::to_string(program.modulesFused);
+                return "Curves baked: " + std::to_string(program.curvesBaked) +
+                       "  Modules fused: " + std::to_string(program.modulesFused);
             case 3:
                 return "Dead nodes eliminated: " + std::to_string(program.deadNodesEliminated);
             case 4:
@@ -3068,16 +3112,14 @@ namespace gts::tools
                 status = "ASSET PICKED";
                 if (selectorClicked)
                 {
-                    parameter->stringValue =
-                        parameter->stringValue.empty() ? assetPathAtOffset(definition.assetPicker,
-                                                                           parameter->stringValue,
-                                                                           1)
-                                                       : std::string{};
+                    parameter->stringValue = parameter->stringValue.empty()
+                                                 ? assetPathAtOffset(definition.assetPicker, parameter->stringValue, 1)
+                                                 : std::string{};
                 }
                 else
                 {
-                    parameter->stringValue = assetPathAtOffset(
-                        definition.assetPicker, parameter->stringValue, incrementClicked ? 1 : -1);
+                    parameter->stringValue =
+                        assetPathAtOffset(definition.assetPicker, parameter->stringValue, incrementClicked ? 1 : -1);
                 }
             }
             else
@@ -3195,9 +3237,10 @@ namespace gts::tools
                                   ParameterControl&                        control)
         {
             configureSlider(control.slider, definition, false);
-            const float value = numericParameterValue(parameter, definition);
+            const float              value = numericParameterValue(parameter, definition);
+            const EditorPropertySpec spec  = parameterPropertySpec(parameter, definition);
             setParameterControlVisible(ui, control, true, true, false, false, true, false);
-            setText(ui, control.slider.label, definition.label + " " + formatValue(value, control.slider.wholeNumber));
+            setText(ui, control.slider.label, spec.displayName + " " + formatValue(value, control.slider.wholeNumber));
             updateSlider(ui, control.slider, value, parameterSliderColor(definition));
             updateButton(ui, control.decrement, "-");
             updateButton(ui, control.increment, "+");
@@ -3638,16 +3681,16 @@ namespace gts::tools
             if (definition.type == ParticleModuleParameterType::ColorGradient)
             {
                 if (selectedRichField == 1)
-                    return color(0.88f, 0.22f, 0.24f, 1.0f);
+                    return ToolTheme::error;
                 if (selectedRichField == 2)
-                    return color(0.20f, 0.72f, 0.36f, 1.0f);
+                    return ToolTheme::success;
                 if (selectedRichField == 3)
-                    return color(0.22f, 0.50f, 0.92f, 1.0f);
+                    return ToolTheme::axisZ;
                 if (selectedRichField == 4)
-                    return color(0.72f, 0.76f, 0.82f, 1.0f);
+                    return ToolTheme::alpha;
             }
             if (definition.type == ParticleModuleParameterType::BurstTimeline)
-                return color(0.88f, 0.62f, 0.22f, 1.0f);
+                return ToolTheme::warning;
             return parameterSliderColor(definition);
         }
 
@@ -3756,29 +3799,181 @@ namespace gts::tools
         {
             if (definition.id.find("TintR") != std::string::npos ||
                 definition.id.find("baseTintR") != std::string::npos)
-                return color(0.88f, 0.22f, 0.24f, 1.0f);
+                return ToolTheme::error;
             if (definition.id.find("TintG") != std::string::npos ||
                 definition.id.find("baseTintG") != std::string::npos)
-                return color(0.20f, 0.72f, 0.36f, 1.0f);
+                return ToolTheme::success;
             if (definition.id.find("TintB") != std::string::npos ||
                 definition.id.find("baseTintB") != std::string::npos)
-                return color(0.22f, 0.50f, 0.92f, 1.0f);
+                return ToolTheme::axisZ;
             if (definition.id.find("alpha") != std::string::npos || definition.id.find("Alpha") != std::string::npos)
-                return color(0.72f, 0.76f, 0.82f, 1.0f);
+                return ToolTheme::alpha;
             return ToolTheme::accent;
+        }
+
+        static EditorPropertyValue defaultPropertyValue(const ParticleModuleParameterDefinition& definition)
+        {
+            switch (definition.type)
+            {
+            case ParticleModuleParameterType::Float:
+            {
+                EditorPropertyValue value;
+                value.type       = EditorPropertyValueType::Float;
+                value.floatValue = definition.defaultFloat;
+                return value;
+            }
+            case ParticleModuleParameterType::UInt:
+            {
+                EditorPropertyValue value;
+                value.type      = EditorPropertyValueType::UInt;
+                value.uintValue = definition.defaultUInt;
+                return value;
+            }
+            case ParticleModuleParameterType::Bool:
+            {
+                EditorPropertyValue value;
+                value.type      = EditorPropertyValueType::Bool;
+                value.boolValue = definition.defaultBool;
+                return value;
+            }
+            case ParticleModuleParameterType::Enum:
+                return textPropertyValue(EditorPropertyValueType::Enum, enumLabel(definition, definition.defaultUInt));
+            case ParticleModuleParameterType::String:
+                return textPropertyValue(definition.assetPicker == gts::particles::ParticleModuleAssetPicker::None
+                                             ? EditorPropertyValueType::Text
+                                             : EditorPropertyValueType::Asset,
+                                         definition.defaultString);
+            case ParticleModuleParameterType::FloatCurve:
+                return textPropertyValue(EditorPropertyValueType::Curve, "Curve");
+            case ParticleModuleParameterType::ColorGradient:
+                return textPropertyValue(EditorPropertyValueType::Gradient, "Gradient");
+            case ParticleModuleParameterType::BurstTimeline:
+                return textPropertyValue(EditorPropertyValueType::Text, "Bursts");
+            }
+            return {};
+        }
+
+        static EditorPropertyValue parameterPropertyValue(const ParticleModuleParameter&           parameter,
+                                                          const ParticleModuleParameterDefinition& definition)
+        {
+            switch (definition.type)
+            {
+            case ParticleModuleParameterType::Float:
+            {
+                EditorPropertyValue value;
+                value.type       = EditorPropertyValueType::Float;
+                value.floatValue = parameter.floatValue;
+                return value;
+            }
+            case ParticleModuleParameterType::UInt:
+            {
+                EditorPropertyValue value;
+                value.type      = EditorPropertyValueType::UInt;
+                value.uintValue = parameter.uintValue;
+                return value;
+            }
+            case ParticleModuleParameterType::Bool:
+            {
+                EditorPropertyValue value;
+                value.type      = EditorPropertyValueType::Bool;
+                value.boolValue = parameter.boolValue;
+                return value;
+            }
+            case ParticleModuleParameterType::Enum:
+                return textPropertyValue(EditorPropertyValueType::Enum, enumLabel(definition, parameter.uintValue));
+            case ParticleModuleParameterType::String:
+                return textPropertyValue(definition.assetPicker == gts::particles::ParticleModuleAssetPicker::None
+                                             ? EditorPropertyValueType::Text
+                                             : EditorPropertyValueType::Asset,
+                                         parameter.stringValue);
+            case ParticleModuleParameterType::FloatCurve:
+                return textPropertyValue(EditorPropertyValueType::Curve, "Curve");
+            case ParticleModuleParameterType::ColorGradient:
+                return textPropertyValue(EditorPropertyValueType::Gradient, "Gradient");
+            case ParticleModuleParameterType::BurstTimeline:
+                return textPropertyValue(EditorPropertyValueType::Text, "Bursts");
+            }
+            return {};
+        }
+
+        static EditorPropertyDescriptor parameterDescriptor(const ParticleModuleParameter&           parameter,
+                                                            const ParticleModuleParameterDefinition& definition)
+        {
+            EditorPropertyDescriptor descriptor;
+            descriptor.metadata.id             = definition.id;
+            descriptor.metadata.displayName    = definition.label;
+            descriptor.metadata.description    = definition.id;
+            descriptor.metadata.tooltip        = definition.id;
+            descriptor.metadata.defaultValue   = defaultPropertyValue(definition);
+            descriptor.metadata.limits.hasMin  = definition.type == ParticleModuleParameterType::Float ||
+                                                 definition.type == ParticleModuleParameterType::UInt;
+            descriptor.metadata.limits.hasMax  = descriptor.metadata.limits.hasMin;
+            descriptor.metadata.limits.min     = definition.minValue;
+            descriptor.metadata.limits.max     = definition.maxValue;
+            descriptor.metadata.limits.softMin = definition.minValue;
+            descriptor.metadata.limits.softMax = definition.maxValue;
+            descriptor.metadata.limits.step    = definition.wholeNumber ? 1.0f : 0.01f;
+
+            switch (definition.type)
+            {
+            case ParticleModuleParameterType::Float:
+                descriptor.metadata.type = EditorPropertyValueType::Float;
+                break;
+            case ParticleModuleParameterType::UInt:
+                descriptor.metadata.type = EditorPropertyValueType::UInt;
+                break;
+            case ParticleModuleParameterType::Bool:
+                descriptor.metadata.type = EditorPropertyValueType::Bool;
+                break;
+            case ParticleModuleParameterType::Enum:
+                descriptor.metadata.type = EditorPropertyValueType::Enum;
+                for (const ParticleModuleEnumOption& option : definition.enumOptions)
+                    descriptor.metadata.enumOptions.push_back({std::to_string(option.value), option.label});
+                break;
+            case ParticleModuleParameterType::String:
+                descriptor.metadata.type = definition.assetPicker == gts::particles::ParticleModuleAssetPicker::None
+                                               ? EditorPropertyValueType::Text
+                                               : EditorPropertyValueType::Asset;
+                if (definition.assetPicker == gts::particles::ParticleModuleAssetPicker::Texture)
+                    descriptor.metadata.assetType = "Texture";
+                else if (definition.assetPicker == gts::particles::ParticleModuleAssetPicker::Mesh)
+                    descriptor.metadata.assetType = "Mesh";
+                break;
+            case ParticleModuleParameterType::FloatCurve:
+                descriptor.metadata.type = EditorPropertyValueType::Curve;
+                break;
+            case ParticleModuleParameterType::ColorGradient:
+                descriptor.metadata.type = EditorPropertyValueType::Gradient;
+                break;
+            case ParticleModuleParameterType::BurstTimeline:
+                descriptor.metadata.type  = EditorPropertyValueType::Text;
+                descriptor.metadata.group = "Timeline";
+                break;
+            }
+
+            descriptor.value = parameterPropertyValue(parameter, definition);
+            return descriptor;
+        }
+
+        static EditorPropertySpec parameterPropertySpec(const ParticleModuleParameter&           parameter,
+                                                        const ParticleModuleParameterDefinition& definition)
+        {
+            const EditorPropertyDescriptor descriptor = parameterDescriptor(parameter, definition);
+            return toPropertySpec(descriptor, {descriptor});
         }
 
         std::string parameterButtonLabel(const ParticleModuleParameter&           parameter,
                                          const ParticleModuleParameterDefinition& definition) const
         {
+            const EditorPropertySpec spec = parameterPropertySpec(parameter, definition);
             if (definition.type == ParticleModuleParameterType::Bool)
-                return definition.label + (parameter.boolValue ? " ON" : " OFF");
+                return spec.displayName + (parameter.boolValue ? " ON" : " OFF");
             if (definition.type == ParticleModuleParameterType::Enum)
-                return definition.label + " " + enumLabel(definition, parameter.uintValue);
+                return spec.displayName + " " + spec.value;
             if (definition.type == ParticleModuleParameterType::String)
-                return definition.label + " " +
+                return spec.displayName + " " +
                        compact(parameter.stringValue.empty() ? "-" : fileName(parameter.stringValue), 14);
-            return definition.label;
+            return spec.displayName;
         }
 
         std::string assetPickerButtonLabel(const ParticleModuleParameter&           parameter,
@@ -3790,7 +3985,7 @@ namespace gts::tools
 
         std::string assetPathAtOffset(gts::particles::ParticleModuleAssetPicker picker,
                                       const std::string&                        current,
-                                      int                                      offset) const
+                                      int                                       offset) const
         {
             std::vector<std::string> paths = pickerChoices(picker, current);
             if (paths.empty())
@@ -4340,9 +4535,9 @@ namespace gts::tools
             switch (field)
             {
             case FloatField::TimeScale:
-                return color(0.30f, 0.68f, 0.86f, 1.0f);
+                return ToolTheme::info;
             case FloatField::OrbitYaw:
-                return color(0.70f, 0.54f, 0.86f, 1.0f);
+                return ToolTheme::secondaryAccent;
             }
             return ToolTheme::accent;
         }
@@ -4500,8 +4695,8 @@ namespace gts::tools
                 return true;
 
             const std::string query = lowerCopy(emitterSearchDraft);
-            std::string       haystack = emitter.name + " " + emitter.stableId + " " + emitter.descriptor.effectEmitterId;
-            haystack = lowerCopy(haystack);
+            std::string haystack    = emitter.name + " " + emitter.stableId + " " + emitter.descriptor.effectEmitterId;
+            haystack                = lowerCopy(haystack);
             return haystack.find(query) != std::string::npos;
         }
 

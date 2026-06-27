@@ -554,20 +554,20 @@ namespace gts::tools
             switch (field)
             {
             case FloatField::TintR:
-                return color(0.88f, 0.22f, 0.24f, 1.0f);
+                return ToolTheme::error;
             case FloatField::TintG:
-                return color(0.20f, 0.72f, 0.36f, 1.0f);
+                return ToolTheme::success;
             case FloatField::TintB:
-                return color(0.22f, 0.50f, 0.92f, 1.0f);
+                return ToolTheme::axisZ;
             case FloatField::TintA:
             case FloatField::AlphaPeak:
-                return color(0.72f, 0.76f, 0.82f, 1.0f);
+                return ToolTheme::alpha;
             case FloatField::Vortex:
-                return color(0.96f, 0.50f, 0.20f, 1.0f);
+                return ToolTheme::warning;
             case FloatField::NoiseStrength:
-                return color(0.40f, 0.76f, 0.86f, 1.0f);
+                return ToolTheme::info;
             default:
-                return color(0.25f, 0.62f, 0.92f, 1.0f);
+                return ToolTheme::accent;
             }
         }
 

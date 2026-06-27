@@ -868,6 +868,70 @@ which render thick colored screen-space segments for graph-like widgets such as
 skill-tree links, retained circle nodes for icon buttons or graph nodes that need
 circular hit targets, and retained nine-slice image nodes for scalable panels.
 
+Editor-specific styling lives above the retained UI layer in
+`modules/tools/editor/EditorTheme.h`. `EditorTheme` is a data-only token set for
+typography, spacing, borders, corner radii, shadows, animations, widget
+dimensions, semantic colors, panel/background layers, and named icon IDs.
+The retained UI system does not read those tokens directly; editor widgets and
+tool panels resolve them into normal UI node payloads. `ToolTheme` remains as a
+compatibility facade over the default editor theme for existing tool panels.
+
+Reusable editor layout primitives live beside the theme in
+`modules/tools/editor/EditorLayout.h`. This layer models editor concepts such as
+dock areas, panel state, split views, panel headers/bodies, tab bars, toolbars,
+sidebars, footers, collapsed/hidden/restored panel state, and resize handles,
+then emits ordinary retained UI nodes. Dock dragging is not implemented yet, but
+panels already carry stable ids, areas, size limits, collapsed state, visibility,
+and restored sizes so future docking and workspace persistence can extend the
+same state model instead of rewriting panel layout.
+
+Reusable editor widgets live in `modules/tools/editor/EditorWidgets.h`. These
+are framework-level builders and specs for hierarchy/tree views, property grids,
+inspectors, asset pickers, search fields, breadcrumbs, foldouts, context and
+popup menus, toolbar and icon buttons, numeric and range controls, enum
+dropdowns, tag selectors, color/gradient/curve editors, timelines, graph
+canvases, search palettes, validation panels, console output, and diagnostics.
+The first pass is retained-UI backed and handle-oriented; command routing,
+metadata binding, popup stacking, and richer interaction policy are layered on
+top by later editor framework milestones.
+
+Metadata-driven property inspection lives in
+`modules/tools/editor/EditorPropertySystem.h`. It converts generic property
+descriptors into `EditorPropertySpec` rows consumed by the property grid.
+Metadata covers display names, descriptions/tooltips, category/group, default
+values, hard and soft numeric limits, step size, visibility rules, read-only
+state, asset type, units, and enum options. The conversion layer chooses the
+appropriate standard widget kind from the value type, detects modified values
+against defaults, applies simple dependency visibility rules, and keeps the
+inspector independent from particle, scene, or component-specific data models.
+
+Editor command routing lives in `modules/tools/editor/EditorCommands.h`.
+Commands use stable string ids, labels, descriptions, shortcut action names,
+enabled/checked state, and optional handlers. The standard command vocabulary
+includes undo, redo, copy, paste, duplicate, delete, rename, frame selection,
+reset camera, save, and reload. Input actions should resolve through the command
+registry before widget-local behavior so shortcuts invoke reusable editor
+commands rather than individual controls directly. `EditorUndoStack` provides a
+small command-history integration point for editor applications that need local
+undo/redo callbacks.
+
+Editor workspace state lives in `modules/tools/editor/EditorWorkspace.h`.
+Workspace data records stable workspace ids, display names, selected workspace
+tabs, docked panel areas, open/hidden/collapsed panel state, panel sizes,
+selected panel tabs, and toolbar command visibility/order. The first persistence
+format is a compact quoted text format with load/save helpers; it is deliberately
+separate from `EngineToolWorkspaceComponent`, which remains the per-frame scene
+viewport publication surface used by the runtime and renderer.
+
+`ParticleEffectEditorPanel` is the first editor application consuming the
+framework layer. It still owns particle-specific asset editing, preview
+application, module mutation, and live runtime synchronization, but its editor
+regions are now described through framework panel state and its module
+parameter rows can derive display metadata through the generic property system.
+Further migration should continue moving shell/layout/property/command behavior
+into `modules/tools/editor` while leaving particle asset semantics under the
+particle rendering authoring module.
+
 `UiPanelSkin` is the reusable panel styling contract for retained UI surfaces.
 It can describe a solid-color panel, a single image panel, or a nine-slice image
 panel, plus tint, source slice fractions, and content padding. `UiPanelStateSkin`

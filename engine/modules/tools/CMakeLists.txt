@@ -15,6 +15,7 @@ endif()
 
 target_include_directories(gravitas_tools PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/core"
+    "${CMAKE_CURRENT_SOURCE_DIR}/editor"
     "${CMAKE_CURRENT_SOURCE_DIR}/ui"
     "${CMAKE_CURRENT_SOURCE_DIR}/inspectors"
     "${CMAKE_CURRENT_SOURCE_DIR}/assets"

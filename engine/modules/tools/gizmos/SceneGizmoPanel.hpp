@@ -145,9 +145,9 @@ namespace gts::tools
             updateButton(ui, spaceButton, gizmo.space == EngineGizmoSpace::World ? "WORLD" : "LOCAL");
             updateToggleButton(ui, snapButton, "SNAP", gizmo.snapEnabled);
 
-            updateSlider(ui, lengthSlider, gizmo.handleLength, color(0.88f, 0.28f, 0.30f, 1.0f));
-            updateSlider(ui, snapSlider, gizmo.snapStep, color(0.80f, 0.58f, 0.24f, 1.0f));
-            updateSlider(ui, radiusSlider, gizmo.pickRadius, color(0.25f, 0.52f, 0.92f, 1.0f));
+            updateSlider(ui, lengthSlider, gizmo.handleLength, ToolTheme::axisX);
+            updateSlider(ui, snapSlider, gizmo.snapStep, ToolTheme::warning);
+            updateSlider(ui, radiusSlider, gizmo.pickRadius, ToolTheme::axisZ);
 
             if (gizmo.activeAxis != EngineGizmoAxis::None)
                 setText(ui, footer, "DRAG " + axisName(gizmo.activeAxis));

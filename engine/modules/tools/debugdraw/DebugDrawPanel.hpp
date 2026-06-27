@@ -142,9 +142,9 @@ namespace gts::tools
             updateToggleButton(ui, toggles[4], "FRUSTUM", settings.cameraFrustum);
             updateToggleButton(ui, toggles[5], "RAY", settings.pickRay);
 
-            updateSlider(ui, thicknessSlider, settings.lineThickness, color(0.90f, 0.82f, 0.24f, 1.0f));
-            updateSlider(ui, axisSlider, settings.axisLength, color(0.33f, 0.72f, 0.88f, 1.0f));
-            updateSlider(ui, raySlider, settings.pickRayLength, color(0.55f, 0.62f, 0.88f, 1.0f));
+            updateSlider(ui, thicknessSlider, settings.lineThickness, ToolTheme::warning);
+            updateSlider(ui, axisSlider, settings.axisLength, ToolTheme::info);
+            updateSlider(ui, raySlider, settings.pickRayLength, ToolTheme::secondaryAccent);
             setText(ui, footer, state.status);
         }
     };

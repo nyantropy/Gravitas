@@ -188,52 +188,32 @@ namespace gts::tools
             createRectRelative(ui,
                                parent,
                                {SliderTrackX, y + SliderTrackY * SliderH, SliderTrackW, SliderTrackH * SliderH},
-                               color(0.055f, 0.063f, 0.071f, 1.0f),
+                               ToolTheme::sliderTrack,
                                true);
         slider.fill = createRectRelative(ui, slider.track, {0.0f, 0.0f, 0.001f, 1.0f}, ToolTheme::accent);
         return slider;
     }
 
-    ToolTextField createTextField(UiSystem&          ui,
-                                  UiHandle           parent,
-                                  float              y,
-                                  const std::string& name,
-                                  BitmapFont*        font)
+    ToolTextField createTextField(UiSystem& ui, UiHandle parent, float y, const std::string& name, BitmapFont* font)
     {
         ToolTextField field;
         field.name  = name;
-        field.label = createTextRelative(ui,
-                                         parent,
-                                         {FieldLabelX, y, 0.305f, FieldH},
-                                         font,
-                                         name,
-                                         ToolTheme::mutedText,
-                                         ToolTheme::smallTextScale);
-        field.rect  = createRectRelative(ui,
-                                        parent,
-                                        {FieldRectX, y + 0.002f, FieldRectW, FieldH - 0.004f},
-                                        color(0.045f, 0.052f, 0.060f, 1.0f),
-                                        true);
-        field.value = createTextRelative(ui,
-                                         field.rect,
-                                         {0.025f, 0.120f, 0.950f, 0.760f},
-                                         font,
-                                         "",
-                                         ToolTheme::text,
-                                         ToolTheme::smallTextScale);
+        field.label = createTextRelative(
+            ui, parent, {FieldLabelX, y, 0.305f, FieldH}, font, name, ToolTheme::mutedText, ToolTheme::smallTextScale);
+        field.rect = createRectRelative(
+            ui, parent, {FieldRectX, y + 0.002f, FieldRectW, FieldH - 0.004f}, ToolTheme::inputBackground, true);
+        field.value = createTextRelative(
+            ui, field.rect, {0.025f, 0.120f, 0.950f, 0.760f}, font, "", ToolTheme::text, ToolTheme::smallTextScale);
         setTextAlignment(ui, field.value, UiHorizontalAlign::Left, UiVerticalAlign::Middle);
         return field;
     }
 
-    ToolTextField createSearchFieldRelative(UiSystem&          ui,
-                                            UiHandle           parent,
-                                            const ToolRect&    rect,
-                                            const std::string& name,
-                                            BitmapFont*        font)
+    ToolTextField createSearchFieldRelative(
+        UiSystem& ui, UiHandle parent, const ToolRect& rect, const std::string& name, BitmapFont* font)
     {
         ToolTextField field;
         field.name  = name;
-        field.rect  = createRectRelative(ui, parent, rect, color(0.045f, 0.052f, 0.060f, 1.0f), true);
+        field.rect  = createRectRelative(ui, parent, rect, ToolTheme::inputBackground, true);
         field.label = createTextRelative(ui,
                                          field.rect,
                                          {SearchLabelX, 0.120f, 0.200f, 0.760f},
@@ -264,19 +244,19 @@ namespace gts::tools
         frame.background = createRectRelative(ui, parent, rect, ToolTheme::paneSurface);
         frame.accent     = createRectRelative(ui, frame.background, {0.0f, 0.0f, 1.0f, 0.010f}, ToolTheme::border);
         frame.title      = createTextRelative(ui,
-                                         frame.background,
-                                         {0.025f, 0.030f, 0.560f, 0.105f},
-                                         font,
-                                         title,
-                                         ToolTheme::text,
-                                         ToolTheme::headerTextScale);
+                                              frame.background,
+                                              {0.025f, 0.030f, 0.560f, 0.105f},
+                                              font,
+                                              title,
+                                              ToolTheme::text,
+                                              ToolTheme::headerTextScale);
         frame.subtitle   = createTextRelative(ui,
-                                            frame.background,
-                                            {0.600f, 0.036f, 0.375f, 0.090f},
-                                            font,
-                                            subtitle,
-                                            ToolTheme::mutedText,
-                                            ToolTheme::smallTextScale);
+                                              frame.background,
+                                              {0.600f, 0.036f, 0.375f, 0.090f},
+                                              font,
+                                              subtitle,
+                                              ToolTheme::mutedText,
+                                              ToolTheme::smallTextScale);
         setTextAlignment(ui, frame.subtitle, UiHorizontalAlign::Right, UiVerticalAlign::Top);
         return frame;
     }
@@ -289,14 +269,14 @@ namespace gts::tools
                                                   const std::string& summary)
     {
         ToolSectionHeader header;
-        header.rect  = createRectRelative(ui, parent, rect, color(0.032f, 0.038f, 0.044f, 1.0f), true);
-        header.label = createTextRelative(ui,
-                                          header.rect,
-                                          {0.025f, 0.130f, 0.520f, 0.740f},
-                                          font,
-                                          label,
-                                          ToolTheme::text,
-                                          ToolTheme::buttonTextScale);
+        header.rect    = createRectRelative(ui, parent, rect, ToolTheme::sectionHeader, true);
+        header.label   = createTextRelative(ui,
+                                            header.rect,
+                                            {0.025f, 0.130f, 0.520f, 0.740f},
+                                            font,
+                                            label,
+                                            ToolTheme::text,
+                                            ToolTheme::buttonTextScale);
         header.summary = createTextRelative(ui,
                                             header.rect,
                                             {0.560f, 0.150f, 0.415f, 0.700f},
@@ -427,7 +407,7 @@ namespace gts::tools
         const bool    pressed     = node != nullptr && node->state.pressed;
         UiColor       buttonColor = enabled ? ToolTheme::toggleActive : ToolTheme::button;
         if (hovered)
-            buttonColor = enabled ? color(0.145f, 0.260f, 0.195f, 1.0f) : ToolTheme::buttonHover;
+            buttonColor = enabled ? ToolTheme::toggleHover : ToolTheme::buttonHover;
         if (pressed)
             buttonColor = ToolTheme::buttonPressed;
 
@@ -449,9 +429,9 @@ namespace gts::tools
     {
         const UiNode* node    = ui.findNode(field.rect);
         const bool    hovered = node != nullptr && node->state.hovered;
-        UiColor       fill    = color(0.045f, 0.052f, 0.060f, 1.0f);
+        UiColor       fill    = ToolTheme::inputBackground;
         if (hovered)
-            fill = color(0.060f, 0.070f, 0.080f, 1.0f);
+            fill = ToolTheme::inputHover;
         if (focused)
             fill = ToolTheme::buttonActive;
 
@@ -459,10 +439,8 @@ namespace gts::tools
         setText(ui, field.value, value);
     }
 
-    void updatePanelFrame(UiSystem&           ui,
-                          const ToolPanelFrame& frame,
-                          const std::string&    title,
-                          const std::string&    subtitle)
+    void
+    updatePanelFrame(UiSystem& ui, const ToolPanelFrame& frame, const std::string& title, const std::string& subtitle)
     {
         setText(ui, frame.title, title);
         setText(ui, frame.subtitle, subtitle);
@@ -476,9 +454,9 @@ namespace gts::tools
     {
         const UiNode* node    = ui.findNode(header.rect);
         const bool    hovered = node != nullptr && node->state.hovered;
-        UiColor       fill    = active ? ToolTheme::buttonActive : color(0.032f, 0.038f, 0.044f, 1.0f);
+        UiColor       fill    = active ? ToolTheme::buttonActive : ToolTheme::sectionHeader;
         if (hovered && !active)
-            fill = ToolTheme::buttonHover;
+            fill = ToolTheme::sectionHeaderHover;
 
         setRectColor(ui, header.rect, fill);
         setText(ui, header.label, label);

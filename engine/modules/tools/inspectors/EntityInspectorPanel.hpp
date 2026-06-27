@@ -358,21 +358,21 @@ namespace gts::tools
             switch (field)
             {
             case Field::PosX:
-                return color(0.88f, 0.28f, 0.30f, 1.0f);
+                return ToolTheme::axisX;
             case Field::PosY:
-                return color(0.30f, 0.76f, 0.42f, 1.0f);
+                return ToolTheme::axisY;
             case Field::PosZ:
-                return color(0.25f, 0.52f, 0.92f, 1.0f);
+                return ToolTheme::axisZ;
             case Field::RotX:
             case Field::RotY:
             case Field::RotZ:
-                return color(0.80f, 0.58f, 0.24f, 1.0f);
+                return ToolTheme::rotation;
             case Field::ScaleX:
             case Field::ScaleY:
             case Field::ScaleZ:
-                return color(0.58f, 0.66f, 0.86f, 1.0f);
+                return ToolTheme::scale;
             }
-            return color(0.25f, 0.62f, 0.92f, 1.0f);
+            return ToolTheme::accent;
         }
     };
 } // namespace gts::tools
