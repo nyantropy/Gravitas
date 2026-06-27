@@ -562,11 +562,14 @@ Feature layout:
 Application code currently authors `ParticleEmitterComponent` plus
 `TransformComponent`, but `effectPath` is now treated as a particle effect asset
 reference rather than only a flat emitter preset. `ParticleEffectAsset` owns
-metadata, preview settings, and one or more named emitter descriptors. The
-current runtime compatibility path selects `effectEmitterId` or the first
-emitter from the asset, copies that emitter descriptor into the ECS component,
-and then executes the existing single-emitter simulation path. This preserves
-existing game behavior while moving authoring ownership toward assets.
+metadata, preview settings, and one or more named emitters. Each emitter now
+owns authoring modules in addition to its compatibility runtime descriptor.
+Modules have stable instance IDs, module type IDs, display metadata,
+schema/version data, and typed parameters. The current runtime compatibility
+path compiles the selected emitter's modules back into `ParticleEmitterComponent`,
+copies that descriptor into the ECS component, and then executes the existing
+single-emitter simulation path. This preserves existing game behavior while
+moving authoring ownership toward asset modules.
 
 The engine creates `ParticleEmitterRuntimeComponent`, simulates particles every
 controller frame, sorts alpha particles by camera depth, batches by primitive,
@@ -592,11 +595,26 @@ Particle controls currently include:
 - texture path, optional mesh path, effect asset path, and optional selected
   emitter id
 
+Initial particle authoring module categories are:
+
+- `Spawn`
+- `Lifetime`
+- `Shape`
+- `Velocity`
+- `Forces`
+- `Color`
+- `Size`
+- `Rotation`
+- `Renderer`
+- `Bursts`
+
 `ParticleEffectHotReloadSystem` loads effect files into a singleton registry and
 copies selected asset-emitter values onto ECS emitters whose `effectPath` is set
 and `reloadFromEffect` is true. Existing flat JSON emitter presets are migrated
-in memory into one-emitter `ParticleEffectAsset` values. Saving through the
-asset IO path writes the new effect-asset format.
+in memory into one-emitter `ParticleEffectAsset` values, and missing module
+authoring data is generated from the legacy descriptor. Saving through the asset
+IO path writes the module-based effect-asset format plus compatibility
+descriptor fields.
 
 The legacy particle inspector still edits a selected live ECS emitter descriptor
 for low-level debugging. The dedicated `ParticleEffectEditorPanel` is the
@@ -606,11 +624,13 @@ edits effect/emitter data in memory, saves or duplicates effect files, and
 applies the selected asset emitter onto matching live ECS emitters for immediate
 preview only. The panel owns inline tool text fields for effect and emitter
 names, captures keyboard input while a field is active so the tool camera does
-not move during typing, and stores preview background plus camera orbit/reset
-settings on the asset. This panel is a retained-UI module/stack bridge, not the
-final graph editor. New particle authoring features should extend
-`ParticleEffectAsset` and keep editor state separate from
-`ParticleEmitterRuntimeComponent`; runtime simulation should continue consuming
+not move during typing, stores preview background plus camera orbit/reset
+settings on the asset, and presents emitter modules as a dynamic stack.
+Parameter rows are built from the module registry rather than hardcoded per
+module type. This panel is a retained-UI module/stack bridge, not the final graph
+editor. New particle authoring features should extend `ParticleEffectAsset` and
+the module registry, keep editor state separate from
+`ParticleEmitterRuntimeComponent`, and keep runtime simulation consuming
 compiled or compatibility emitter data rather than editor UI structures.
 
 ### Frustum Culling

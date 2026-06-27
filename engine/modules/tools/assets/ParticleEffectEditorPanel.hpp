@@ -26,6 +26,15 @@
 
 namespace gts::tools
 {
+    using gts::particles::ParticleModuleDefinition;
+    using gts::particles::ParticleModuleEnumOption;
+    using gts::particles::ParticleModuleInstance;
+    using gts::particles::ParticleModuleParameter;
+    using gts::particles::ParticleModuleParameterDefinition;
+    using gts::particles::ParticleModuleParameterType;
+    using gts::particles::buildModulesFromEmitterDescriptor;
+    using gts::particles::findParticleModuleDefinition;
+
     class ParticleEffectEditorPanel : public EngineToolPanel
     {
         public:
@@ -128,25 +137,24 @@ namespace gts::tools
                                                  root,
                                                  {0.0f, 0.704f, 1.0f, 0.024f},
                                                  font,
-                                                 "INSPECTOR",
+                                                 "MODULES",
                                                  ToolTheme::text,
                                                  ToolTheme::headerTextScale);
-            float y = 0.731f;
-            addSlider(ctx.ui, font, y, FloatField::EmissionRate, "RATE", 0.0f, 180.0f);
-            y += 0.030f;
-            addSlider(ctx.ui, font, y, FloatField::MaxParticles, "MAX", 8.0f, 512.0f, true);
-            y += 0.030f;
-            addSlider(ctx.ui, font, y, FloatField::Intensity, "INTENSITY", 0.0f, 2.5f);
-            y += 0.030f;
-            addSlider(ctx.ui, font, y, FloatField::LifetimeMin, "LIFE MIN", 0.05f, 6.0f);
-            y += 0.030f;
-            addSlider(ctx.ui, font, y, FloatField::LifetimeMax, "LIFE MAX", 0.05f, 8.0f);
-            y += 0.030f;
-            addSlider(ctx.ui, font, y, FloatField::SizeStart, "SIZE IN", 0.02f, 2.0f);
-            y += 0.030f;
-            addSlider(ctx.ui, font, y, FloatField::SizeEnd, "SIZE OUT", 0.02f, 2.0f);
-            y += 0.030f;
-            addSlider(ctx.ui, font, y, FloatField::AlphaPeak, "ALPHA", 0.0f, 1.0f);
+            for (size_t i = 0; i < ModuleRowCount; ++i)
+            {
+                const float rowY = 0.731f + static_cast<float>(i) * 0.031f;
+                moduleRows.push_back(createButtonRelative(
+                    ctx.ui, root, {0.0f, rowY, 1.0f, 0.028f}, font, "MODULE", ToolTheme::buttonTextScale));
+            }
+
+            for (size_t i = 0; i < ParameterControlRowCount; ++i)
+            {
+                const float rowY = 0.833f + static_cast<float>(i) * 0.030f;
+                parameterControls.push_back(
+                    {createSlider(ctx.ui, root, rowY, "PARAM", 0.0f, 1.0f, false, font),
+                     createButtonRelative(
+                         ctx.ui, root, {0.0f, rowY, 1.0f, 0.027f}, font, "PARAM", ToolTheme::buttonTextScale)});
+            }
 
             footer = createTextRelative(ctx.ui,
                                         root,
@@ -175,8 +183,10 @@ namespace gts::tools
                 applyEffectButtons(ctx.world, state, interaction);
                 applyEmitterRows(ctx.world, state, interaction);
                 applyEmitterButtons(ctx.world, state, interaction);
+                applyModuleRows(state, interaction);
                 applyPlaybackButtons(ctx.world, state, interaction);
                 applySliders(ctx.ui, ctx.world, state, interaction);
+                applyModuleParameterControls(ctx.ui, ctx.world, state, interaction);
                 applyPlaybackToLive(ctx.world);
             }
             claimKeyboardIfEditing(ctx.world);
@@ -199,6 +209,8 @@ namespace gts::tools
             effectButtons.clear();
             emitterButtons.clear();
             playbackButtons.clear();
+            moduleRows.clear();
+            parameterControls.clear();
             sliders.clear();
         }
 
@@ -233,15 +245,7 @@ namespace gts::tools
         enum class FloatField
         {
             TimeScale,
-            OrbitYaw,
-            EmissionRate,
-            MaxParticles,
-            Intensity,
-            LifetimeMin,
-            LifetimeMax,
-            SizeStart,
-            SizeEnd,
-            AlphaPeak
+            OrbitYaw
         };
 
         enum class ActiveTextField
@@ -271,12 +275,20 @@ namespace gts::tools
 
         struct SliderBinding
         {
-            FloatField field = FloatField::EmissionRate;
+            FloatField field = FloatField::TimeScale;
             ToolSlider slider;
+        };
+
+        struct ParameterControl
+        {
+            ToolSlider slider;
+            ToolButton button;
         };
 
         static constexpr size_t EffectRowCount = 4;
         static constexpr size_t EmitterRowCount = 3;
+        static constexpr size_t ModuleRowCount = 3;
+        static constexpr size_t ParameterControlRowCount = 4;
 
         UiHandle root = UI_INVALID_HANDLE;
         UiHandle header = UI_INVALID_HANDLE;
@@ -295,6 +307,8 @@ namespace gts::tools
         std::vector<EffectButtonBinding>    effectButtons;
         std::vector<EmitterButtonBinding>   emitterButtons;
         std::vector<PlaybackButtonBinding>  playbackButtons;
+        std::vector<ToolButton>             moduleRows;
+        std::vector<ParameterControl>       parameterControls;
         std::vector<SliderBinding>          sliders;
 
         ParticleEffectAsset currentAsset;
@@ -303,6 +317,9 @@ namespace gts::tools
         bool                dirty = false;
         size_t              effectBrowserOffset = 0;
         size_t              selectedEmitterIndex = 0;
+        size_t              selectedModuleIndex = 0;
+        size_t              moduleBrowserOffset = 0;
+        size_t              parameterControlOffset = 0;
         bool                playbackPaused = false;
         float               playbackTimeScale = 1.0f;
         uint32_t            backgroundPreset = 0;
@@ -795,6 +812,7 @@ namespace gts::tools
 
             for (ParticleEffectEmitter& emitter : asset.emitters)
             {
+                gts::particles::migrateParticleEmitterModules(emitter.modules, emitter.descriptor);
                 emitter.descriptor.effectPath.clear();
                 emitter.descriptor.effectEmitterId.clear();
                 emitter.descriptor.schemaVersion = CurrentParticleEmitterSchemaVersion;
@@ -815,6 +833,9 @@ namespace gts::tools
                 if (wasClicked(interaction, emitterRows[i].rect))
                 {
                     selectedEmitterIndex = rowOffset + i;
+                    selectedModuleIndex = 0;
+                    moduleBrowserOffset = 0;
+                    parameterControlOffset = 0;
                     syncEmitterNameDraft();
                     applySelectedEmitterToLive(world, false);
                     state.status = "SELECTED " + currentAsset.emitters[selectedEmitterIndex].name;
@@ -864,6 +885,103 @@ namespace gts::tools
             }
         }
 
+        void applyModuleRows(EngineToolStateComponent& state, const UiInteractionResult& interaction)
+        {
+            ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+                return;
+
+            clampModuleSelection(*emitter);
+            if (interaction.scrollY != 0.0f && pointerOverModuleRows(interaction))
+            {
+                const size_t maxOffset = maxModuleBrowserOffset(*emitter);
+                if (interaction.scrollY < 0.0f)
+                    moduleBrowserOffset = std::min(moduleBrowserOffset + 1, maxOffset);
+                else if (moduleBrowserOffset > 0)
+                    moduleBrowserOffset -= 1;
+            }
+
+            for (size_t i = 0; i < moduleRows.size() && moduleBrowserOffset + i < emitter->modules.size(); ++i)
+            {
+                if (!wasClicked(interaction, moduleRows[i].rect))
+                    continue;
+
+                selectedModuleIndex = moduleBrowserOffset + i;
+                parameterControlOffset = 0;
+                state.status = "MODULE " + moduleDisplayName(emitter->modules[selectedModuleIndex]);
+                return;
+            }
+        }
+
+        void applyModuleParameterControls(UiSystem&                 ui,
+                                          ECSWorld&                 world,
+                                          EngineToolStateComponent& state,
+                                          const UiInteractionResult& interaction)
+        {
+            ParticleEffectEmitter* emitter = selectedEmitter();
+            ParticleModuleInstance* module = selectedModule();
+            if (emitter == nullptr || module == nullptr)
+                return;
+
+            const ParticleModuleDefinition* definition = findParticleModuleDefinition(module->typeId);
+            if (definition == nullptr)
+                return;
+
+            const std::vector<const ParticleModuleParameterDefinition*> parameters = editableParameters(*definition);
+            clampParameterControlOffset(parameters);
+            if (interaction.scrollY != 0.0f && pointerOverParameterControls(interaction))
+            {
+                const size_t maxOffset = maxParameterControlOffset(parameters);
+                if (interaction.scrollY < 0.0f)
+                    parameterControlOffset = std::min(parameterControlOffset + 1, maxOffset);
+                else if (parameterControlOffset > 0)
+                    parameterControlOffset -= 1;
+            }
+
+            for (size_t row = 0; row < parameterControls.size() && parameterControlOffset + row < parameters.size();
+                 ++row)
+            {
+                const ParticleModuleParameterDefinition& parameterDefinition =
+                    *parameters[parameterControlOffset + row];
+                ParameterControl& control = parameterControls[row];
+                configureParameterControl(ui, control, parameterDefinition);
+
+                if (parameterDefinition.type == ParticleModuleParameterType::Float ||
+                    parameterDefinition.type == ParticleModuleParameterType::UInt)
+                {
+                    if (!isPressed(interaction, control.slider.track))
+                        continue;
+
+                    ParticleModuleParameter* parameter = ensureModuleParameter(*module, parameterDefinition);
+                    const float value = valueFromSliderPointer(ui, control.slider, interaction.pointerX);
+                    if (parameterDefinition.type == ParticleModuleParameterType::UInt)
+                        parameter->uintValue = static_cast<uint32_t>(std::max(0.0f, value));
+                    else
+                        parameter->floatValue = value;
+                    syncSelectedEmitterDescriptor(*emitter);
+                    markDirty(state, "MODULE UPDATED");
+                    applySelectedEmitterToLive(world, false);
+                    return;
+                }
+
+                if (!wasClicked(interaction, control.button.rect))
+                    continue;
+
+                ParticleModuleParameter* parameter = ensureModuleParameter(*module, parameterDefinition);
+                if (parameterDefinition.type == ParticleModuleParameterType::Bool)
+                    parameter->boolValue = !parameter->boolValue;
+                else if (parameterDefinition.type == ParticleModuleParameterType::Enum)
+                    parameter->uintValue = nextEnumValue(parameterDefinition, parameter->uintValue);
+                else
+                    continue;
+
+                syncSelectedEmitterDescriptor(*emitter);
+                markDirty(state, "MODULE UPDATED");
+                applySelectedEmitterToLive(world, false);
+                return;
+            }
+        }
+
         void addEmitter(EngineToolStateComponent& state)
         {
             ParticleEffectEmitter emitter;
@@ -871,8 +989,12 @@ namespace gts::tools
             emitter.name = "Emitter " + std::to_string(currentAsset.emitters.size() + 1);
             emitter.descriptor.effectEmitterId.clear();
             emitter.descriptor.effectPath.clear();
+            emitter.modules = buildModulesFromEmitterDescriptor(emitter.descriptor);
             currentAsset.emitters.push_back(std::move(emitter));
             selectedEmitterIndex = currentAsset.emitters.size() - 1;
+            selectedModuleIndex = 0;
+            moduleBrowserOffset = 0;
+            parameterControlOffset = 0;
             syncEmitterNameDraft();
             markDirty(state, "EMITTER ADDED");
         }
@@ -889,6 +1011,9 @@ namespace gts::tools
                                         static_cast<std::ptrdiff_t>(selectedEmitterIndex));
             if (selectedEmitterIndex >= currentAsset.emitters.size())
                 selectedEmitterIndex = currentAsset.emitters.size() - 1;
+            selectedModuleIndex = 0;
+            moduleBrowserOffset = 0;
+            parameterControlOffset = 0;
             syncEmitterNameDraft();
             markDirty(state, "EMITTER DELETED");
         }
@@ -909,6 +1034,9 @@ namespace gts::tools
                                              static_cast<std::ptrdiff_t>(selectedEmitterIndex + 1),
                                          std::move(copy));
             selectedEmitterIndex += 1;
+            selectedModuleIndex = 0;
+            moduleBrowserOffset = 0;
+            parameterControlOffset = 0;
             syncEmitterNameDraft();
             markDirty(state, "EMITTER COPIED");
         }
@@ -956,6 +1084,7 @@ namespace gts::tools
             }
 
             selected->descriptor.enabled = !selected->descriptor.enabled;
+            setEmitterEnabledModuleParameter(*selected, selected->descriptor.enabled);
             markDirty(state, selected->descriptor.enabled ? "EMITTER ENABLED" : "EMITTER DISABLED");
         }
 
@@ -1014,15 +1143,6 @@ namespace gts::tools
                     markDirty(state, "PREVIEW CAMERA");
                     return;
                 }
-
-                ParticleEffectEmitter* selected = selectedEmitter();
-                if (selected == nullptr)
-                    return;
-
-                writeField(selected->descriptor, binding.field, value);
-                markDirty(state, "EMITTER UPDATED");
-                applySelectedEmitterToLive(world, false);
-                return;
             }
         }
 
@@ -1186,6 +1306,9 @@ namespace gts::tools
                     setRectColor(ctx.ui, emitterRows[i].rect, ToolTheme::buttonActive);
             }
 
+            updateModuleRows(ctx.ui);
+            updateParameterControls(ctx.ui);
+
             for (const EffectButtonBinding& binding : effectButtons)
                 updateButton(ctx.ui, binding.button, effectButtonLabel(binding.action));
             for (const EmitterButtonBinding& binding : emitterButtons)
@@ -1195,6 +1318,73 @@ namespace gts::tools
 
             for (const SliderBinding& binding : sliders)
                 updateSlider(ctx.ui, binding.slider, readSliderValue(binding.field), sliderColor(binding.field));
+        }
+
+        void updateModuleRows(UiSystem& ui)
+        {
+            ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+            {
+                for (ToolButton& row : moduleRows)
+                    updateButton(ui, row, "NO MODULE");
+                return;
+            }
+
+            clampModuleSelection(*emitter);
+            const size_t rowOffset = moduleRowOffset(*emitter);
+            for (size_t i = 0; i < moduleRows.size(); ++i)
+            {
+                const size_t moduleIndex = rowOffset + i;
+                const bool hasRow = moduleIndex < emitter->modules.size();
+                const std::string label = hasRow ? moduleDisplayName(emitter->modules[moduleIndex]) : "EMPTY";
+                updateButton(ui, moduleRows[i], label);
+                if (hasRow && moduleIndex == selectedModuleIndex)
+                    setRectColor(ui, moduleRows[i].rect, ToolTheme::buttonActive);
+            }
+        }
+
+        void updateParameterControls(UiSystem& ui)
+        {
+            ParticleModuleInstance* module = selectedModule();
+            const ParticleModuleDefinition* definition =
+                module == nullptr ? nullptr : findParticleModuleDefinition(module->typeId);
+            if (module == nullptr || definition == nullptr)
+            {
+                for (ParameterControl& control : parameterControls)
+                    setParameterControlVisible(ui, control, false, false);
+                return;
+            }
+
+            const std::vector<const ParticleModuleParameterDefinition*> parameters = editableParameters(*definition);
+            clampParameterControlOffset(parameters);
+            for (size_t row = 0; row < parameterControls.size(); ++row)
+            {
+                const size_t parameterIndex = parameterControlOffset + row;
+                ParameterControl& control = parameterControls[row];
+                if (parameterIndex >= parameters.size())
+                {
+                    setParameterControlVisible(ui, control, false, false);
+                    continue;
+                }
+
+                const ParticleModuleParameterDefinition& parameterDefinition = *parameters[parameterIndex];
+                configureParameterControl(ui, control, parameterDefinition);
+                const ParticleModuleParameter* parameter = ensureModuleParameter(*module, parameterDefinition);
+                if (parameterDefinition.type == ParticleModuleParameterType::Float ||
+                    parameterDefinition.type == ParticleModuleParameterType::UInt)
+                {
+                    setParameterControlVisible(ui, control, true, false);
+                    updateSlider(ui,
+                                 control.slider,
+                                 parameterValueForSlider(*parameter, parameterDefinition),
+                                 parameterSliderColor(parameterDefinition));
+                }
+                else
+                {
+                    setParameterControlVisible(ui, control, false, true);
+                    updateButton(ui, control.button, parameterButtonLabel(*parameter, parameterDefinition));
+                }
+            }
         }
 
         std::string effectSummary() const
@@ -1236,6 +1426,205 @@ namespace gts::tools
             if (!emitter.descriptor.enabled)
                 label = "OFF " + label;
             return compact(label, 24);
+        }
+
+        std::string moduleDisplayName(const ParticleModuleInstance& module) const
+        {
+            const ParticleModuleDefinition* definition = findParticleModuleDefinition(module.typeId);
+            std::string label = module.displayName.empty()
+                                    ? (definition == nullptr ? module.typeId : definition->displayName)
+                                    : module.displayName;
+            if (definition != nullptr && !definition->category.empty())
+                label = definition->category + " " + label;
+            if (!module.enabled)
+                label = "OFF " + label;
+            return compact(label, 24);
+        }
+
+        bool pointerOverModuleRows(const UiInteractionResult& interaction) const
+        {
+            for (const ToolButton& row : moduleRows)
+            {
+                if (interaction.hovered == row.rect || interaction.pressed == row.rect)
+                    return true;
+            }
+            return false;
+        }
+
+        bool pointerOverParameterControls(const UiInteractionResult& interaction) const
+        {
+            for (const ParameterControl& control : parameterControls)
+            {
+                if (interaction.hovered == control.button.rect || interaction.pressed == control.button.rect ||
+                    interaction.hovered == control.slider.track || interaction.pressed == control.slider.track)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        void clampModuleSelection(ParticleEffectEmitter& emitter)
+        {
+            gts::particles::migrateParticleEmitterModules(emitter.modules, emitter.descriptor);
+            if (emitter.modules.empty())
+            {
+                selectedModuleIndex = 0;
+                moduleBrowserOffset = 0;
+                parameterControlOffset = 0;
+                return;
+            }
+
+            selectedModuleIndex = std::min(selectedModuleIndex, emitter.modules.size() - 1);
+            moduleBrowserOffset = std::min(moduleBrowserOffset, maxModuleBrowserOffset(emitter));
+            if (selectedModuleIndex < moduleBrowserOffset)
+                moduleBrowserOffset = selectedModuleIndex;
+            else if (selectedModuleIndex >= moduleBrowserOffset + ModuleRowCount)
+                moduleBrowserOffset = selectedModuleIndex - ModuleRowCount + 1;
+        }
+
+        size_t moduleRowOffset(const ParticleEffectEmitter& emitter) const
+        {
+            if (emitter.modules.size() <= ModuleRowCount || selectedModuleIndex < ModuleRowCount)
+                return 0;
+            return std::min(selectedModuleIndex - ModuleRowCount + 1, emitter.modules.size() - ModuleRowCount);
+        }
+
+        size_t maxModuleBrowserOffset(const ParticleEffectEmitter& emitter) const
+        {
+            return emitter.modules.size() <= ModuleRowCount ? 0 : emitter.modules.size() - ModuleRowCount;
+        }
+
+        std::vector<const ParticleModuleParameterDefinition*> editableParameters(
+            const ParticleModuleDefinition& definition) const
+        {
+            std::vector<const ParticleModuleParameterDefinition*> parameters;
+            parameters.reserve(definition.parameters.size());
+            for (const ParticleModuleParameterDefinition& parameter : definition.parameters)
+                parameters.push_back(&parameter);
+            return parameters;
+        }
+
+        void clampParameterControlOffset(
+            const std::vector<const ParticleModuleParameterDefinition*>& parameters)
+        {
+            parameterControlOffset = std::min(parameterControlOffset, maxParameterControlOffset(parameters));
+        }
+
+        size_t maxParameterControlOffset(
+            const std::vector<const ParticleModuleParameterDefinition*>& parameters) const
+        {
+            return parameters.size() <= ParameterControlRowCount ? 0 : parameters.size() - ParameterControlRowCount;
+        }
+
+        ParticleModuleParameter* ensureModuleParameter(ParticleModuleInstance&                 module,
+                                                       const ParticleModuleParameterDefinition& definition) const
+        {
+            if (ParticleModuleParameter* parameter = gts::particles::findParameter(module, definition.id))
+            {
+                parameter->type = definition.type;
+                return parameter;
+            }
+
+            module.parameters.push_back(gts::particles::makeDefaultParameter(definition));
+            return &module.parameters.back();
+        }
+
+        void configureParameterControl(UiSystem&                              ui,
+                                       ParameterControl&                      control,
+                                       const ParticleModuleParameterDefinition& definition) const
+        {
+            control.slider.minValue = definition.minValue;
+            control.slider.maxValue = definition.maxValue;
+            control.slider.wholeNumber =
+                definition.wholeNumber || definition.type == ParticleModuleParameterType::UInt;
+            setText(ui, control.slider.label, definition.label);
+        }
+
+        static void setParameterControlVisible(UiSystem& ui,
+                                               const ParameterControl& control,
+                                               bool sliderVisible,
+                                               bool buttonVisible)
+        {
+            setVisibleRecursive(ui, control.slider.label, sliderVisible);
+            setVisibleRecursive(ui, control.slider.value, sliderVisible);
+            setVisibleRecursive(ui, control.slider.track, sliderVisible);
+            setVisibleRecursive(ui, control.button.rect, buttonVisible);
+        }
+
+        static float parameterValueForSlider(const ParticleModuleParameter&           parameter,
+                                             const ParticleModuleParameterDefinition& definition)
+        {
+            if (definition.type == ParticleModuleParameterType::UInt)
+                return static_cast<float>(parameter.uintValue);
+            return parameter.floatValue;
+        }
+
+        static UiColor parameterSliderColor(const ParticleModuleParameterDefinition& definition)
+        {
+            if (definition.id.find("TintR") != std::string::npos || definition.id.find("baseTintR") != std::string::npos)
+                return color(0.88f, 0.22f, 0.24f, 1.0f);
+            if (definition.id.find("TintG") != std::string::npos || definition.id.find("baseTintG") != std::string::npos)
+                return color(0.20f, 0.72f, 0.36f, 1.0f);
+            if (definition.id.find("TintB") != std::string::npos || definition.id.find("baseTintB") != std::string::npos)
+                return color(0.22f, 0.50f, 0.92f, 1.0f);
+            if (definition.id.find("alpha") != std::string::npos || definition.id.find("Alpha") != std::string::npos)
+                return color(0.72f, 0.76f, 0.82f, 1.0f);
+            return ToolTheme::accent;
+        }
+
+        std::string parameterButtonLabel(const ParticleModuleParameter&           parameter,
+                                         const ParticleModuleParameterDefinition& definition) const
+        {
+            if (definition.type == ParticleModuleParameterType::Bool)
+                return definition.label + (parameter.boolValue ? " ON" : " OFF");
+            if (definition.type == ParticleModuleParameterType::Enum)
+                return definition.label + " " + enumLabel(definition, parameter.uintValue);
+            if (definition.type == ParticleModuleParameterType::String)
+                return definition.label + " " + compact(parameter.stringValue.empty() ? "-" : parameter.stringValue, 12);
+            return definition.label;
+        }
+
+        static std::string enumLabel(const ParticleModuleParameterDefinition& definition, uint32_t value)
+        {
+            for (const ParticleModuleEnumOption& option : definition.enumOptions)
+            {
+                if (option.value == value)
+                    return option.label;
+            }
+            return std::to_string(value);
+        }
+
+        static uint32_t nextEnumValue(const ParticleModuleParameterDefinition& definition, uint32_t current)
+        {
+            if (definition.enumOptions.empty())
+                return current;
+
+            for (size_t i = 0; i < definition.enumOptions.size(); ++i)
+            {
+                if (definition.enumOptions[i].value != current)
+                    continue;
+                return definition.enumOptions[(i + 1) % definition.enumOptions.size()].value;
+            }
+            return definition.enumOptions.front().value;
+        }
+
+        void syncSelectedEmitterDescriptor(ParticleEffectEmitter& emitter)
+        {
+            gts::particles::migrateParticleEmitterModules(emitter.modules, emitter.descriptor);
+            gts::particles::applyParticleModulesToEmitterDescriptor(emitter.modules, emitter.descriptor);
+        }
+
+        static void setEmitterEnabledModuleParameter(ParticleEffectEmitter& emitter, bool enabled)
+        {
+            for (ParticleModuleInstance& module : emitter.modules)
+            {
+                if (module.typeId != "spawn.basic")
+                    continue;
+                if (ParticleModuleParameter* parameter = gts::particles::findParameter(module, "emitterEnabled"))
+                    parameter->boolValue = enabled;
+                return;
+            }
         }
 
         std::string effectButtonLabel(EffectAction action) const
@@ -1297,102 +1686,14 @@ namespace gts::tools
 
         float readSliderValue(FloatField field) const
         {
-            const ParticleEffectEmitter* selected = selectedEmitter();
             switch (field)
             {
             case FloatField::TimeScale:
                 return playbackTimeScale;
             case FloatField::OrbitYaw:
                 return previewOrbitYawDegrees();
-            case FloatField::EmissionRate:
-                return selected == nullptr ? 0.0f : selected->descriptor.emissionRate;
-            case FloatField::MaxParticles:
-                return selected == nullptr ? 0.0f : static_cast<float>(selected->descriptor.maxParticles);
-            case FloatField::Intensity:
-                return selected == nullptr ? 0.0f : selected->descriptor.intensity;
-            case FloatField::LifetimeMin:
-                return selected == nullptr ? 0.0f : selected->descriptor.lifetimeMin;
-            case FloatField::LifetimeMax:
-                return selected == nullptr ? 0.0f : selected->descriptor.lifetimeMax;
-            case FloatField::SizeStart:
-                return selected == nullptr || selected->descriptor.sizeOverLifetime.empty()
-                           ? 0.0f
-                           : selected->descriptor.sizeOverLifetime.front().value;
-            case FloatField::SizeEnd:
-                return selected == nullptr || selected->descriptor.sizeOverLifetime.empty()
-                           ? 0.0f
-                           : selected->descriptor.sizeOverLifetime.back().value;
-            case FloatField::AlphaPeak:
-                return selected == nullptr ? 0.0f : alphaPeak(selected->descriptor);
             }
             return 0.0f;
-        }
-
-        static void writeField(ParticleEmitterComponent& emitter, FloatField field, float value)
-        {
-            switch (field)
-            {
-            case FloatField::EmissionRate:
-                emitter.emissionRate = std::max(0.0f, value);
-                break;
-            case FloatField::MaxParticles:
-                emitter.maxParticles = static_cast<uint32_t>(std::max(1.0f, value));
-                break;
-            case FloatField::Intensity:
-                emitter.intensity = std::max(0.0f, value);
-                break;
-            case FloatField::LifetimeMin:
-                emitter.lifetimeMin = std::clamp(value, 0.01f, std::max(0.01f, emitter.lifetimeMax));
-                break;
-            case FloatField::LifetimeMax:
-                emitter.lifetimeMax = std::max(emitter.lifetimeMin, value);
-                break;
-            case FloatField::SizeStart:
-                ensureSizeCurve(emitter);
-                emitter.sizeOverLifetime.front().value = std::max(0.001f, value);
-                break;
-            case FloatField::SizeEnd:
-                ensureSizeCurve(emitter);
-                emitter.sizeOverLifetime.back().value = std::max(0.001f, value);
-                break;
-            case FloatField::AlphaPeak:
-                ensureAlphaCurve(emitter);
-                for (ParticleFloatKey& key : emitter.alphaOverLifetime)
-                {
-                    if (key.t > 0.0f && key.t < 1.0f)
-                        key.value = std::clamp(value, 0.0f, 1.0f);
-                }
-                break;
-            case FloatField::TimeScale:
-            case FloatField::OrbitYaw:
-                break;
-            }
-        }
-
-        static void ensureSizeCurve(ParticleEmitterComponent& emitter)
-        {
-            if (emitter.sizeOverLifetime.empty())
-            {
-                emitter.sizeOverLifetime.push_back({0.0f, 0.4f});
-                emitter.sizeOverLifetime.push_back({1.0f, 0.8f});
-                return;
-            }
-            if (emitter.sizeOverLifetime.size() == 1)
-                emitter.sizeOverLifetime.push_back({1.0f, emitter.sizeOverLifetime.front().value});
-        }
-
-        static void ensureAlphaCurve(ParticleEmitterComponent& emitter)
-        {
-            if (emitter.alphaOverLifetime.empty())
-                emitter.alphaOverLifetime = {{0.0f, 0.0f}, {0.2f, 1.0f}, {1.0f, 0.0f}};
-        }
-
-        static float alphaPeak(const ParticleEmitterComponent& emitter)
-        {
-            float peak = 0.0f;
-            for (const ParticleFloatKey& key : emitter.alphaOverLifetime)
-                peak = std::max(peak, key.value);
-            return peak;
         }
 
         float previewOrbitYawDegrees() const
@@ -1429,11 +1730,8 @@ namespace gts::tools
                 return color(0.30f, 0.68f, 0.86f, 1.0f);
             case FloatField::OrbitYaw:
                 return color(0.70f, 0.54f, 0.86f, 1.0f);
-            case FloatField::AlphaPeak:
-                return color(0.72f, 0.76f, 0.82f, 1.0f);
-            default:
-                return ToolTheme::accent;
             }
+            return ToolTheme::accent;
         }
 
         ParticleEffectEmitter* selectedEmitter()
@@ -1449,6 +1747,23 @@ namespace gts::tools
             if (!hasAsset || currentAsset.emitters.empty())
                 return nullptr;
             return &currentAsset.emitters[std::min(selectedEmitterIndex, currentAsset.emitters.size() - 1)];
+        }
+
+        ParticleModuleInstance* selectedModule()
+        {
+            ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr || emitter->modules.empty())
+                return nullptr;
+            clampModuleSelection(*emitter);
+            return &emitter->modules[selectedModuleIndex];
+        }
+
+        const ParticleModuleInstance* selectedModule() const
+        {
+            const ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr || emitter->modules.empty())
+                return nullptr;
+            return &emitter->modules[std::min(selectedModuleIndex, emitter->modules.size() - 1)];
         }
 
         void syncTextDraftsForDisplay()

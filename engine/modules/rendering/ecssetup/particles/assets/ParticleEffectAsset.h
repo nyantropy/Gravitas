@@ -7,8 +7,9 @@
 
 #include "GlmConfig.h"
 #include "ParticleEmitterComponent.h"
+#include "ParticleModuleAuthoring.h"
 
-inline constexpr uint32_t CurrentParticleEffectSchemaVersion  = 3u;
+inline constexpr uint32_t CurrentParticleEffectSchemaVersion  = 4u;
 inline constexpr uint32_t CurrentParticleEmitterSchemaVersion = 2u;
 
 struct ParticleEffectMetadata
@@ -31,6 +32,7 @@ struct ParticleEffectEmitter
     std::string              stableId = "emitter";
     std::string              name     = "Emitter";
     ParticleEmitterComponent descriptor;
+    std::vector<gts::particles::ParticleModuleInstance> modules;
 };
 
 struct ParticleEffectAsset

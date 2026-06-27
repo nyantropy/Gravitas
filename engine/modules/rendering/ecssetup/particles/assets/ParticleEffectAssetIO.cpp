@@ -380,6 +380,54 @@ namespace
         return "softCircle";
     }
 
+    std::string moduleParameterTypeToString(gts::particles::ParticleModuleParameterType type)
+    {
+        switch (type)
+        {
+        case gts::particles::ParticleModuleParameterType::Float:
+            return "float";
+        case gts::particles::ParticleModuleParameterType::UInt:
+            return "uint";
+        case gts::particles::ParticleModuleParameterType::Bool:
+            return "bool";
+        case gts::particles::ParticleModuleParameterType::Enum:
+            return "enum";
+        case gts::particles::ParticleModuleParameterType::String:
+            return "string";
+        }
+        return "float";
+    }
+
+    bool moduleParameterTypeFromString(const std::string& value, gts::particles::ParticleModuleParameterType& type)
+    {
+        if (value == "float")
+        {
+            type = gts::particles::ParticleModuleParameterType::Float;
+            return true;
+        }
+        if (value == "uint")
+        {
+            type = gts::particles::ParticleModuleParameterType::UInt;
+            return true;
+        }
+        if (value == "bool")
+        {
+            type = gts::particles::ParticleModuleParameterType::Bool;
+            return true;
+        }
+        if (value == "enum")
+        {
+            type = gts::particles::ParticleModuleParameterType::Enum;
+            return true;
+        }
+        if (value == "string")
+        {
+            type = gts::particles::ParticleModuleParameterType::String;
+            return true;
+        }
+        return false;
+    }
+
     bool readColorCurve(const std::string& source, const std::string& key, ParticleColorCurve& curve)
     {
         size_t pos = findValue(source, key);
@@ -645,6 +693,48 @@ namespace
         out << ']';
     }
 
+    void writeModuleParameter(std::ostream& out,
+                              const gts::particles::ParticleModuleParameter& parameter,
+                              bool                                           last)
+    {
+        out << "          {\"id\": \"" << escaped(parameter.id) << "\", \"type\": \""
+            << moduleParameterTypeToString(parameter.type) << "\", \"value\": ";
+        switch (parameter.type)
+        {
+        case gts::particles::ParticleModuleParameterType::Float:
+            out << parameter.floatValue;
+            break;
+        case gts::particles::ParticleModuleParameterType::UInt:
+        case gts::particles::ParticleModuleParameterType::Enum:
+            out << parameter.uintValue;
+            break;
+        case gts::particles::ParticleModuleParameterType::Bool:
+            out << (parameter.boolValue ? "true" : "false");
+            break;
+        case gts::particles::ParticleModuleParameterType::String:
+            out << '"' << escaped(parameter.stringValue) << '"';
+            break;
+        }
+        out << "}" << (last ? "\n" : ",\n");
+    }
+
+    void writeModuleObject(std::ostream& out,
+                           const gts::particles::ParticleModuleInstance& module,
+                           bool                                          last)
+    {
+        out << "        {\n";
+        out << "          \"id\": \"" << escaped(module.stableId) << "\",\n";
+        out << "          \"type\": \"" << escaped(module.typeId) << "\",\n";
+        out << "          \"displayName\": \"" << escaped(module.displayName) << "\",\n";
+        out << "          \"version\": " << module.version << ",\n";
+        out << "          \"enabled\": " << (module.enabled ? "true" : "false") << ",\n";
+        out << "          \"parameters\": [\n";
+        for (size_t i = 0; i < module.parameters.size(); ++i)
+            writeModuleParameter(out, module.parameters[i], i + 1 == module.parameters.size());
+        out << "          ]\n";
+        out << "        }" << (last ? "\n" : ",\n");
+    }
+
     std::string defaultEmitterId(size_t index)
     {
         return index == 0 ? "emitter" : "emitter_" + std::to_string(index + 1);
@@ -685,6 +775,103 @@ namespace
         readFloat(previewObject, "orbitDistance", preview.orbitDistance);
     }
 
+    const gts::particles::ParticleModuleParameterDefinition* findParameterDefinition(
+        const gts::particles::ParticleModuleDefinition* definition,
+        const std::string&                              parameterId)
+    {
+        if (definition == nullptr)
+            return nullptr;
+
+        const auto it = std::find_if(definition->parameters.begin(),
+                                     definition->parameters.end(),
+                                     [&](const gts::particles::ParticleModuleParameterDefinition& parameter)
+                                     {
+                                         return parameter.id == parameterId;
+                                     });
+        return it == definition->parameters.end() ? nullptr : &*it;
+    }
+
+    bool readModuleParameter(const std::string&                                     source,
+                             const gts::particles::ParticleModuleDefinition*        definition,
+                             gts::particles::ParticleModuleParameter&               parameter)
+    {
+        if (!readString(source, "id", parameter.id) || parameter.id.empty())
+            return false;
+
+        std::string typeString;
+        if (readString(source, "type", typeString))
+        {
+            if (!moduleParameterTypeFromString(typeString, parameter.type))
+                return false;
+        }
+        else if (const auto* parameterDefinition = findParameterDefinition(definition, parameter.id))
+        {
+            parameter.type = parameterDefinition->type;
+        }
+
+        size_t valuePos = findValue(source, "value");
+        if (valuePos == std::string::npos)
+            return true;
+
+        switch (parameter.type)
+        {
+        case gts::particles::ParticleModuleParameterType::Float:
+            return parseFloatAt(source, valuePos, parameter.floatValue);
+        case gts::particles::ParticleModuleParameterType::UInt:
+        case gts::particles::ParticleModuleParameterType::Enum:
+        {
+            float value = 0.0f;
+            if (!parseFloatAt(source, valuePos, value))
+                return false;
+            parameter.uintValue = static_cast<uint32_t>(std::max(0.0f, value));
+            return true;
+        }
+        case gts::particles::ParticleModuleParameterType::Bool:
+            return parseBoolAt(source, valuePos, parameter.boolValue);
+        case gts::particles::ParticleModuleParameterType::String:
+            return parseStringAt(source, valuePos, parameter.stringValue);
+        }
+        return false;
+    }
+
+    bool readEmitterModules(const std::string& source, std::vector<gts::particles::ParticleModuleInstance>& modules)
+    {
+        std::vector<std::string> moduleObjects;
+        if (!readObjectArray(source, "modules", moduleObjects))
+            return false;
+
+        std::vector<gts::particles::ParticleModuleInstance> parsedModules;
+        parsedModules.reserve(moduleObjects.size());
+        for (const std::string& moduleObject : moduleObjects)
+        {
+            gts::particles::ParticleModuleInstance module;
+            readString(moduleObject, "id", module.stableId);
+            readString(moduleObject, "type", module.typeId);
+            readString(moduleObject, "displayName", module.displayName);
+            readUint(moduleObject, "version", module.version);
+            readBool(moduleObject, "enabled", module.enabled);
+
+            const gts::particles::ParticleModuleDefinition* definition =
+                gts::particles::findParticleModuleDefinition(module.typeId);
+            std::vector<std::string> parameterObjects;
+            if (readObjectArray(moduleObject, "parameters", parameterObjects))
+            {
+                module.parameters.reserve(parameterObjects.size());
+                for (const std::string& parameterObject : parameterObjects)
+                {
+                    gts::particles::ParticleModuleParameter parameter;
+                    if (readModuleParameter(parameterObject, definition, parameter))
+                        module.parameters.push_back(std::move(parameter));
+                }
+            }
+
+            parsedModules.push_back(std::move(module));
+        }
+
+        modules = std::move(parsedModules);
+        return true;
+    }
+
     bool readEffectEmitters(const std::string& source, ParticleEffectAsset& asset)
     {
         std::vector<std::string> emitterObjects;
@@ -701,6 +888,7 @@ namespace
             readString(emitterObjects[i], "id", emitter.stableId);
             readString(emitterObjects[i], "name", emitter.name);
             readEmitter(emitterObjects[i], emitter.descriptor);
+            readEmitterModules(emitterObjects[i], emitter.modules);
             emitters.push_back(std::move(emitter));
         }
 
@@ -715,6 +903,11 @@ namespace
         out << "    {\n";
         out << "      \"id\": \"" << escaped(effectEmitter.stableId) << "\",\n";
         out << "      \"name\": \"" << escaped(effectEmitter.name) << "\",\n";
+
+        out << "      \"modules\": [\n";
+        for (size_t i = 0; i < effectEmitter.modules.size(); ++i)
+            writeModuleObject(out, effectEmitter.modules[i], i + 1 == effectEmitter.modules.size());
+        out << "      ],\n";
 
         out << "      \"simulation\": {\n";
         out << "        \"schemaVersion\": " << emitter.schemaVersion << ",\n";
@@ -871,6 +1064,7 @@ namespace gts::particles
                 return false;
             }
             emitter.descriptor.schemaVersion = CurrentParticleEmitterSchemaVersion;
+            gts::particles::migrateParticleEmitterModules(emitter.modules, emitter.descriptor);
         }
 
         return true;
