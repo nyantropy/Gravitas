@@ -601,14 +601,17 @@ asset IO path writes the new effect-asset format.
 The legacy particle inspector still edits a selected live ECS emitter descriptor
 for low-level debugging. The dedicated `ParticleEffectEditorPanel` is the
 asset-authored workflow: it discovers known effect paths from the hot-reload
-registry and live emitters, loads `ParticleEffectAsset`, edits effect/emitter
-data in memory, saves or duplicates effect files, and applies the selected
-asset emitter onto matching live ECS emitters for immediate preview only. This
-panel is a retained-UI module/stack bridge, not the final graph editor. New
-particle authoring features should extend `ParticleEffectAsset` and keep editor
-state separate from `ParticleEmitterRuntimeComponent`; runtime simulation should
-continue consuming compiled or compatibility emitter data rather than editor UI
-structures.
+registry, live emitters, and `resources/particles`, loads `ParticleEffectAsset`,
+edits effect/emitter data in memory, saves or duplicates effect files, and
+applies the selected asset emitter onto matching live ECS emitters for immediate
+preview only. The panel owns inline tool text fields for effect and emitter
+names, captures keyboard input while a field is active so the tool camera does
+not move during typing, and stores preview background plus camera orbit/reset
+settings on the asset. This panel is a retained-UI module/stack bridge, not the
+final graph editor. New particle authoring features should extend
+`ParticleEffectAsset` and keep editor state separate from
+`ParticleEmitterRuntimeComponent`; runtime simulation should continue consuming
+compiled or compatibility emitter data rather than editor UI structures.
 
 ### Frustum Culling
 

@@ -13,6 +13,7 @@
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
 #include "EngineToolCameraStateComponent.h"
+#include "EngineToolInputCaptureComponent.h"
 #include "EngineToolStateComponent.h"
 #include "RenderViewportComponent.h"
 #include "ToolEntityLabelComponent.h"
@@ -294,7 +295,9 @@ namespace gts::tools
                 ctx.world.getComponent<CameraDescriptionComponent>(state.toolCameraEntity);
 
             const float dt = ctx.time == nullptr ? 0.0f : ctx.time->unscaledDeltaTime;
-            if (ctx.input != nullptr)
+            const bool keyboardCaptured = ctx.world.hasAny<EngineToolInputCaptureComponent>() &&
+                                          ctx.world.getSingleton<EngineToolInputCaptureComponent>().keyboardCaptured;
+            if (ctx.input != nullptr && !keyboardCaptured)
             {
                 if (ctx.input->isHeld("engine.tool_camera_yaw_left"))
                     yaw += ROTATE_SPEED * dt;
@@ -317,7 +320,7 @@ namespace gts::tools
             const glm::vec3 hForward{-std::sin(yaw), 0.0f, -std::cos(yaw)};
             const glm::vec3 right = glm::normalize(glm::cross(hForward, glm::vec3(0.0f, 1.0f, 0.0f)));
 
-            if (ctx.input != nullptr)
+            if (ctx.input != nullptr && !keyboardCaptured)
             {
                 if (ctx.input->isHeld("engine.tool_camera_forward"))
                     transform.position += forward * MOVE_SPEED * dt;

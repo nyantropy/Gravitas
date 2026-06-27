@@ -22,6 +22,10 @@ namespace gts::tools
         constexpr float SliderH      = ToolTheme::sliderHeight;
         constexpr float SliderTrackY = 0.310f;
         constexpr float SliderTrackH = 0.350f;
+        constexpr float FieldLabelX  = 0.000f;
+        constexpr float FieldRectX   = 0.330f;
+        constexpr float FieldRectW   = 0.670f;
+        constexpr float FieldH       = 0.030f;
 
         UiHandle createNodeWithState(
             UiSystem& ui, UiNodeType type, UiHandle parent, const UiLayoutSpec& layout, bool interactable)
@@ -188,6 +192,37 @@ namespace gts::tools
         return slider;
     }
 
+    ToolTextField createTextField(UiSystem&          ui,
+                                  UiHandle           parent,
+                                  float              y,
+                                  const std::string& name,
+                                  BitmapFont*        font)
+    {
+        ToolTextField field;
+        field.name  = name;
+        field.label = createTextRelative(ui,
+                                         parent,
+                                         {FieldLabelX, y, 0.305f, FieldH},
+                                         font,
+                                         name,
+                                         ToolTheme::mutedText,
+                                         ToolTheme::smallTextScale);
+        field.rect  = createRectRelative(ui,
+                                        parent,
+                                        {FieldRectX, y + 0.002f, FieldRectW, FieldH - 0.004f},
+                                        color(0.045f, 0.052f, 0.060f, 1.0f),
+                                        true);
+        field.value = createTextRelative(ui,
+                                         field.rect,
+                                         {0.025f, 0.120f, 0.950f, 0.760f},
+                                         font,
+                                         "",
+                                         ToolTheme::text,
+                                         ToolTheme::smallTextScale);
+        setTextAlignment(ui, field.value, UiHorizontalAlign::Left, UiVerticalAlign::Middle);
+        return field;
+    }
+
     void setRect(UiSystem& ui, UiHandle handle, const ToolRect& rect)
     {
         ui.setLayout(handle, fixedLayout(rect));
@@ -297,6 +332,20 @@ namespace gts::tools
         setRelativeRect(ui, slider.fill, {0.0f, 0.0f, t, 1.0f});
         setRectColor(ui, slider.fill, fillColor);
         setText(ui, slider.value, formatValue(value, slider.wholeNumber));
+    }
+
+    void updateTextField(UiSystem& ui, const ToolTextField& field, const std::string& value, bool focused)
+    {
+        const UiNode* node    = ui.findNode(field.rect);
+        const bool    hovered = node != nullptr && node->state.hovered;
+        UiColor       fill    = color(0.045f, 0.052f, 0.060f, 1.0f);
+        if (hovered)
+            fill = color(0.060f, 0.070f, 0.080f, 1.0f);
+        if (focused)
+            fill = ToolTheme::buttonActive;
+
+        setRectColor(ui, field.rect, fill);
+        setText(ui, field.value, value);
     }
 
     float valueFromSliderPointer(UiSystem& ui, const ToolSlider& slider, float pointerX)

@@ -428,6 +428,7 @@ namespace gts::tools
             EngineToolInputCaptureComponent& capture = ensureInputCapture(world);
             capture.pointerOverToolUi                = interaction.hovered != UI_INVALID_HANDLE;
             capture.toolUiPressed                    = interaction.pressed != UI_INVALID_HANDLE;
+            capture.keyboardCaptured                 = false;
             capture.worldConsumed                    = false;
             capture.pointerX                         = interaction.pointerX;
             capture.pointerY                         = interaction.pointerY;

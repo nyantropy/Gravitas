@@ -1,16 +1,22 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <limits>
+#include <optional>
 #include <sstream>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <vector>
 
 #include "EngineToolPanel.h"
+#include "EngineToolInputCaptureComponent.h"
+#include "GtsKey.h"
+#include "InputBindingRegistry.h"
 #include "ParticleEffectAsset.h"
 #include "ParticleEffectAssetIO.h"
 #include "ParticleEmitterComponent.h"
@@ -50,17 +56,18 @@ namespace gts::tools
                                          "NO EFFECT",
                                          ToolTheme::mutedText,
                                          ToolTheme::smallTextScale);
+            effectNameField = createTextField(ctx.ui, root, 0.058f, "EFFECT", font);
 
             for (size_t i = 0; i < EffectRowCount; ++i)
             {
-                const float y = 0.064f + static_cast<float>(i) * 0.034f;
+                const float y = 0.092f + static_cast<float>(i) * 0.031f;
                 effectRows.push_back(createButtonRelative(
                     ctx.ui, root, {0.0f, y, 1.0f, 0.029f}, font, "EMPTY", ToolTheme::buttonTextScale));
             }
 
             addEffectButtonRow(ctx.ui,
                                font,
-                               0.207f,
+                               0.224f,
                                {{EffectAction::Save, "SAVE"},
                                 {EffectAction::SaveAs, "SAVE AS"},
                                 {EffectAction::Duplicate, "COPY"},
@@ -68,34 +75,35 @@ namespace gts::tools
 
             emitterHeader = createTextRelative(ctx.ui,
                                                root,
-                                               {0.0f, 0.256f, 1.0f, 0.026f},
+                                               {0.0f, 0.270f, 1.0f, 0.026f},
                                                font,
                                                "EMITTERS",
                                                ToolTheme::text,
                                                ToolTheme::headerTextScale);
+            emitterNameField = createTextField(ctx.ui, root, 0.298f, "NAME", font);
             for (size_t i = 0; i < EmitterRowCount; ++i)
             {
-                const float y = 0.287f + static_cast<float>(i) * 0.034f;
+                const float y = 0.333f + static_cast<float>(i) * 0.031f;
                 emitterRows.push_back(createButtonRelative(
                     ctx.ui, root, {0.0f, y, 1.0f, 0.029f}, font, "EMPTY", ToolTheme::buttonTextScale));
             }
 
             addEmitterButtonRow(ctx.ui,
                                 font,
-                                0.395f,
+                                0.430f,
                                 {{EmitterAction::Add, "ADD"},
                                  {EmitterAction::Delete, "DEL"},
                                  {EmitterAction::Duplicate, "COPY"},
                                  {EmitterAction::Rename, "NAME"}});
             addEmitterButtonRow(ctx.ui,
                                 font,
-                                0.441f,
+                                0.473f,
                                 {{EmitterAction::MoveUp, "UP"},
                                  {EmitterAction::MoveDown, "DOWN"},
                                  {EmitterAction::ToggleEnabled, "ON"}});
 
             previewSwatch =
-                createRectRelative(ctx.ui, root, {0.0f, 0.491f, 1.0f, 0.056f}, ToolTheme::paneSurface, false);
+                createRectRelative(ctx.ui, root, {0.0f, 0.522f, 1.0f, 0.056f}, ToolTheme::paneSurface, false);
             previewText = createTextRelative(ctx.ui,
                                              previewSwatch,
                                              {0.040f, 0.120f, 0.920f, 0.760f},
@@ -107,37 +115,37 @@ namespace gts::tools
 
             addPlaybackButtonRow(ctx.ui,
                                  font,
-                                 0.558f,
+                                 0.589f,
                                  {{PlaybackAction::PlayPause, "PAUSE"},
                                   {PlaybackAction::Restart, "RESET"},
                                   {PlaybackAction::Background, "BG"},
                                   {PlaybackAction::CameraReset, "CAM"}});
 
-            addSlider(ctx.ui, font, 0.611f, FloatField::TimeScale, "TIME", 0.0f, 2.0f);
-            addSlider(ctx.ui, font, 0.646f, FloatField::OrbitDistance, "ORBIT", 1.0f, 12.0f);
+            addSlider(ctx.ui, font, 0.637f, FloatField::TimeScale, "TIME", 0.0f, 2.0f);
+            addSlider(ctx.ui, font, 0.668f, FloatField::OrbitYaw, "ORBIT", -180.0f, 180.0f);
 
             inspectorHeader = createTextRelative(ctx.ui,
                                                  root,
-                                                 {0.0f, 0.690f, 1.0f, 0.024f},
+                                                 {0.0f, 0.704f, 1.0f, 0.024f},
                                                  font,
                                                  "INSPECTOR",
                                                  ToolTheme::text,
                                                  ToolTheme::headerTextScale);
-            float y = 0.719f;
+            float y = 0.731f;
             addSlider(ctx.ui, font, y, FloatField::EmissionRate, "RATE", 0.0f, 180.0f);
-            y += 0.033f;
+            y += 0.030f;
             addSlider(ctx.ui, font, y, FloatField::MaxParticles, "MAX", 8.0f, 512.0f, true);
-            y += 0.033f;
+            y += 0.030f;
             addSlider(ctx.ui, font, y, FloatField::Intensity, "INTENSITY", 0.0f, 2.5f);
-            y += 0.033f;
+            y += 0.030f;
             addSlider(ctx.ui, font, y, FloatField::LifetimeMin, "LIFE MIN", 0.05f, 6.0f);
-            y += 0.033f;
+            y += 0.030f;
             addSlider(ctx.ui, font, y, FloatField::LifetimeMax, "LIFE MAX", 0.05f, 8.0f);
-            y += 0.033f;
+            y += 0.030f;
             addSlider(ctx.ui, font, y, FloatField::SizeStart, "SIZE IN", 0.02f, 2.0f);
-            y += 0.033f;
+            y += 0.030f;
             addSlider(ctx.ui, font, y, FloatField::SizeEnd, "SIZE OUT", 0.02f, 2.0f);
-            y += 0.033f;
+            y += 0.030f;
             addSlider(ctx.ui, font, y, FloatField::AlphaPeak, "ALPHA", 0.0f, 1.0f);
 
             footer = createTextRelative(ctx.ui,
@@ -154,13 +162,16 @@ namespace gts::tools
         {
             std::vector<std::string> effectPaths = collectEffectPaths(ctx.world);
             includeCurrentPath(effectPaths);
+            clampEffectBrowserOffset(effectPaths);
 
             if (!hasAsset && !effectPaths.empty())
                 openEffect(ctx.world, effectPaths.front(), state, false);
 
             applyEffectBrowser(ctx.world, state, effectPaths, interaction);
+            applyTextFieldFocus(ctx.world, state, interaction);
             if (hasAsset)
             {
+                applyTextInput(ctx, state);
                 applyEffectButtons(ctx.world, state, interaction);
                 applyEmitterRows(ctx.world, state, interaction);
                 applyEmitterButtons(ctx.world, state, interaction);
@@ -168,6 +179,7 @@ namespace gts::tools
                 applySliders(ctx.ui, ctx.world, state, interaction);
                 applyPlaybackToLive(ctx.world);
             }
+            claimKeyboardIfEditing(ctx.world);
 
             updateDisplay(ctx, state, effectPaths);
         }
@@ -221,7 +233,7 @@ namespace gts::tools
         enum class FloatField
         {
             TimeScale,
-            OrbitDistance,
+            OrbitYaw,
             EmissionRate,
             MaxParticles,
             Intensity,
@@ -230,6 +242,13 @@ namespace gts::tools
             SizeStart,
             SizeEnd,
             AlphaPeak
+        };
+
+        enum class ActiveTextField
+        {
+            None,
+            EffectName,
+            EmitterName
         };
 
         struct EffectButtonBinding
@@ -268,6 +287,9 @@ namespace gts::tools
         UiHandle inspectorHeader = UI_INVALID_HANDLE;
         UiHandle footer = UI_INVALID_HANDLE;
 
+        ToolTextField effectNameField;
+        ToolTextField emitterNameField;
+
         std::vector<ToolButton>             effectRows;
         std::vector<ToolButton>             emitterRows;
         std::vector<EffectButtonBinding>    effectButtons;
@@ -279,10 +301,14 @@ namespace gts::tools
         std::string         currentPath;
         bool                hasAsset = false;
         bool                dirty = false;
+        size_t              effectBrowserOffset = 0;
         size_t              selectedEmitterIndex = 0;
         bool                playbackPaused = false;
         float               playbackTimeScale = 1.0f;
         uint32_t            backgroundPreset = 0;
+        ActiveTextField     activeTextField = ActiveTextField::None;
+        std::string         effectNameDraft;
+        std::string         emitterNameDraft;
 
         void addEffectButtonRow(UiSystem&                                                    ui,
                                 BitmapFont*                                                  font,
@@ -375,6 +401,10 @@ namespace gts::tools
                         paths.push_back(emitter.effectPath);
                 });
 
+            scanParticleEffectDirectory(paths, "resources/particles");
+            scanParticleEffectDirectory(paths, "../../resources/particles");
+            scanParticleEffectDirectory(paths, "../resources/particles");
+
             sortUnique(paths);
             return paths;
         }
@@ -394,19 +424,250 @@ namespace gts::tools
             paths.erase(std::unique(paths.begin(), paths.end()), paths.end());
         }
 
+        static void scanParticleEffectDirectory(std::vector<std::string>& paths, const std::filesystem::path& rootPath)
+        {
+            std::error_code ec;
+            if (!std::filesystem::exists(rootPath, ec) || !std::filesystem::is_directory(rootPath, ec))
+                return;
+
+            const std::filesystem::recursive_directory_iterator end;
+            std::filesystem::recursive_directory_iterator it(
+                rootPath, std::filesystem::directory_options::skip_permission_denied, ec);
+            while (!ec && it != end)
+            {
+                const std::filesystem::directory_entry& entry = *it;
+                if (entry.is_regular_file(ec) && entry.path().extension() == ".json")
+                    paths.push_back(entry.path().generic_string());
+                it.increment(ec);
+            }
+        }
+
         void applyEffectBrowser(ECSWorld&                  world,
                                 EngineToolStateComponent&  state,
                                 const std::vector<std::string>& paths,
                                 const UiInteractionResult& interaction)
         {
-            for (size_t i = 0; i < effectRows.size() && i < paths.size(); ++i)
+            if (!paths.empty() && interaction.scrollY != 0.0f && pointerOverEffectRows(interaction))
+            {
+                if (interaction.scrollY < 0.0f)
+                    effectBrowserOffset = std::min(effectBrowserOffset + 1, maxEffectBrowserOffset(paths));
+                else if (effectBrowserOffset > 0)
+                    effectBrowserOffset -= 1;
+            }
+
+            for (size_t i = 0; i < effectRows.size() && effectBrowserOffset + i < paths.size(); ++i)
             {
                 if (wasClicked(interaction, effectRows[i].rect))
                 {
-                    openEffect(world, paths[i], state, true);
+                    openEffect(world, paths[effectBrowserOffset + i], state, true);
                     return;
                 }
             }
+        }
+
+        bool pointerOverEffectRows(const UiInteractionResult& interaction) const
+        {
+            for (const ToolButton& row : effectRows)
+            {
+                if (interaction.hovered == row.rect || interaction.pressed == row.rect)
+                    return true;
+            }
+            return false;
+        }
+
+        void clampEffectBrowserOffset(const std::vector<std::string>& paths)
+        {
+            effectBrowserOffset = std::min(effectBrowserOffset, maxEffectBrowserOffset(paths));
+        }
+
+        size_t maxEffectBrowserOffset(const std::vector<std::string>& paths) const
+        {
+            return paths.size() <= EffectRowCount ? 0 : paths.size() - EffectRowCount;
+        }
+
+        void revealEffectPath(const std::vector<std::string>& paths, const std::string& path)
+        {
+            const auto it = std::find(paths.begin(), paths.end(), path);
+            if (it == paths.end())
+                return;
+
+            const size_t index = static_cast<size_t>(std::distance(paths.begin(), it));
+            if (index < effectBrowserOffset)
+                effectBrowserOffset = index;
+            else if (index >= effectBrowserOffset + EffectRowCount)
+                effectBrowserOffset = index - EffectRowCount + 1;
+        }
+
+        void applyTextFieldFocus(ECSWorld&                 world,
+                                 EngineToolStateComponent& state,
+                                 const UiInteractionResult& interaction)
+        {
+            if (wasClicked(interaction, effectNameField.rect))
+            {
+                if (!hasAsset)
+                {
+                    state.status = "NO EFFECT";
+                    return;
+                }
+
+                activeTextField = ActiveTextField::EffectName;
+                effectNameDraft = currentAsset.metadata.name;
+                state.status = "EDIT EFFECT NAME";
+                claimKeyboardIfEditing(world);
+                return;
+            }
+
+            if (wasClicked(interaction, emitterNameField.rect))
+            {
+                if (selectedEmitter() == nullptr)
+                {
+                    state.status = "NO EMITTER";
+                    return;
+                }
+
+                activeTextField = ActiveTextField::EmitterName;
+                syncEmitterNameDraft();
+                state.status = "EDIT EMITTER NAME";
+                claimKeyboardIfEditing(world);
+                return;
+            }
+
+            if (interaction.clicked != UI_INVALID_HANDLE && activeTextField != ActiveTextField::None)
+                finishActiveTextField(state);
+        }
+
+        void applyTextInput(EngineToolContext& ctx, EngineToolStateComponent& state)
+        {
+            if (activeTextField == ActiveTextField::None || ctx.input == nullptr)
+                return;
+
+            const std::optional<InputTrigger> trigger = ctx.input->getLastPressedTrigger();
+            if (!trigger.has_value() || trigger->type != InputTrigger::Type::Key)
+                return;
+            if (has(trigger->modifiers, ModifierFlags::Ctrl) ||
+                has(trigger->modifiers, ModifierFlags::Alt) ||
+                has(trigger->modifiers, ModifierFlags::Super))
+            {
+                return;
+            }
+
+            const GtsKey key = static_cast<GtsKey>(trigger->code);
+            if (key == GtsKey::Escape)
+            {
+                cancelActiveTextField();
+                state.status = "EDIT CANCELED";
+                return;
+            }
+            if (key == GtsKey::Enter || key == GtsKey::Tab)
+            {
+                finishActiveTextField(state);
+                return;
+            }
+            if (key == GtsKey::Backspace)
+            {
+                std::string& draft = activeTextDraft();
+                if (!draft.empty())
+                {
+                    draft.pop_back();
+                    applyActiveTextDraft(state);
+                }
+                return;
+            }
+
+            const bool shift = has(trigger->modifiers, ModifierFlags::Shift);
+            const char typed = characterForKey(key, shift);
+            if (typed == '\0')
+                return;
+
+            std::string& draft = activeTextDraft();
+            if (draft.size() >= 48)
+                return;
+            draft.push_back(typed);
+            applyActiveTextDraft(state);
+        }
+
+        void claimKeyboardIfEditing(ECSWorld& world)
+        {
+            if (activeTextField == ActiveTextField::None)
+                return;
+
+            EngineToolInputCaptureComponent* capture = nullptr;
+            if (world.hasAny<EngineToolInputCaptureComponent>())
+                capture = &world.getSingleton<EngineToolInputCaptureComponent>();
+            else
+                capture = &world.createSingleton<EngineToolInputCaptureComponent>();
+            capture->keyboardCaptured = true;
+        }
+
+        std::string& activeTextDraft()
+        {
+            return activeTextField == ActiveTextField::EffectName ? effectNameDraft : emitterNameDraft;
+        }
+
+        void applyActiveTextDraft(EngineToolStateComponent& state)
+        {
+            if (activeTextField == ActiveTextField::EffectName)
+            {
+                currentAsset.metadata.name = effectNameDraft;
+                markDirty(state, "EFFECT NAME UPDATED");
+                return;
+            }
+
+            ParticleEffectEmitter* selected = selectedEmitter();
+            if (selected == nullptr)
+                return;
+
+            selected->name = emitterNameDraft;
+            markDirty(state, "EMITTER NAME UPDATED");
+        }
+
+        void finishActiveTextField(EngineToolStateComponent& state)
+        {
+            if (activeTextField == ActiveTextField::EffectName && effectNameDraft.empty())
+            {
+                effectNameDraft = std::filesystem::path(currentPath).stem().string();
+                currentAsset.metadata.name = effectNameDraft;
+                dirty = true;
+            }
+            else if (activeTextField == ActiveTextField::EmitterName && emitterNameDraft.empty())
+            {
+                emitterNameDraft = "Emitter " + std::to_string(selectedEmitterIndex + 1);
+                if (ParticleEffectEmitter* selected = selectedEmitter())
+                {
+                    selected->name = emitterNameDraft;
+                    dirty = true;
+                }
+            }
+
+            activeTextField = ActiveTextField::None;
+            state.status = dirty ? "EDIT APPLIED" : "EDIT DONE";
+        }
+
+        void cancelActiveTextField()
+        {
+            if (activeTextField == ActiveTextField::EffectName)
+                effectNameDraft = currentAsset.metadata.name;
+            else if (activeTextField == ActiveTextField::EmitterName)
+                syncEmitterNameDraft();
+            activeTextField = ActiveTextField::None;
+        }
+
+        static char characterForKey(GtsKey key, bool shift)
+        {
+            if (key >= GtsKey::A && key <= GtsKey::Z)
+            {
+                const int offset = static_cast<int>(key) - static_cast<int>(GtsKey::A);
+                const char base = shift ? 'A' : 'a';
+                return static_cast<char>(base + offset);
+            }
+            if (key >= GtsKey::Digit0 && key <= GtsKey::Digit9)
+            {
+                const int offset = static_cast<int>(key) - static_cast<int>(GtsKey::Digit0);
+                return static_cast<char>('0' + offset);
+            }
+            if (key == GtsKey::Space)
+                return ' ';
+            return '\0';
         }
 
         bool openEffect(ECSWorld&                 world,
@@ -440,6 +701,9 @@ namespace gts::tools
             playbackPaused = false;
             playbackTimeScale = 1.0f;
             backgroundPreset = closestBackgroundPreset(currentAsset.preview.backgroundColor);
+            activeTextField = ActiveTextField::None;
+            effectNameDraft = currentAsset.metadata.name;
+            syncEmitterNameDraft();
             state.status = "OPENED " + fileName(path);
             return true;
         }
@@ -551,6 +815,7 @@ namespace gts::tools
                 if (wasClicked(interaction, emitterRows[i].rect))
                 {
                     selectedEmitterIndex = rowOffset + i;
+                    syncEmitterNameDraft();
                     applySelectedEmitterToLive(world, false);
                     state.status = "SELECTED " + currentAsset.emitters[selectedEmitterIndex].name;
                     return;
@@ -608,6 +873,7 @@ namespace gts::tools
             emitter.descriptor.effectPath.clear();
             currentAsset.emitters.push_back(std::move(emitter));
             selectedEmitterIndex = currentAsset.emitters.size() - 1;
+            syncEmitterNameDraft();
             markDirty(state, "EMITTER ADDED");
         }
 
@@ -623,6 +889,7 @@ namespace gts::tools
                                         static_cast<std::ptrdiff_t>(selectedEmitterIndex));
             if (selectedEmitterIndex >= currentAsset.emitters.size())
                 selectedEmitterIndex = currentAsset.emitters.size() - 1;
+            syncEmitterNameDraft();
             markDirty(state, "EMITTER DELETED");
         }
 
@@ -642,20 +909,21 @@ namespace gts::tools
                                              static_cast<std::ptrdiff_t>(selectedEmitterIndex + 1),
                                          std::move(copy));
             selectedEmitterIndex += 1;
+            syncEmitterNameDraft();
             markDirty(state, "EMITTER COPIED");
         }
 
         void renameEmitter(EngineToolStateComponent& state)
         {
-            ParticleEffectEmitter* selected = selectedEmitter();
-            if (selected == nullptr)
+            if (selectedEmitter() == nullptr)
             {
                 state.status = "NO EMITTER";
                 return;
             }
 
-            selected->name = "Emitter " + std::to_string(selectedEmitterIndex + 1);
-            markDirty(state, "EMITTER RENAMED");
+            syncEmitterNameDraft();
+            activeTextField = ActiveTextField::EmitterName;
+            state.status = "EDIT EMITTER NAME";
         }
 
         void moveEmitter(EngineToolStateComponent& state, int delta)
@@ -674,6 +942,7 @@ namespace gts::tools
             std::swap(currentAsset.emitters[static_cast<size_t>(current)],
                       currentAsset.emitters[static_cast<size_t>(next)]);
             selectedEmitterIndex = static_cast<size_t>(next);
+            syncEmitterNameDraft();
             markDirty(state, "EMITTER MOVED");
         }
 
@@ -739,9 +1008,9 @@ namespace gts::tools
                     state.status = "TIME SCALE";
                     return;
                 }
-                if (binding.field == FloatField::OrbitDistance)
+                if (binding.field == FloatField::OrbitYaw)
                 {
-                    currentAsset.preview.orbitDistance = std::max(0.1f, value);
+                    setPreviewOrbitYawDegrees(value);
                     markDirty(state, "PREVIEW CAMERA");
                     return;
                 }
@@ -884,13 +1153,25 @@ namespace gts::tools
             setRectColor(ctx.ui, previewSwatch, previewColor());
             setText(ctx.ui, previewText, previewSummary(ctx.world));
             setText(ctx.ui, footer, state.status);
+            syncTextDraftsForDisplay();
+            updateTextField(ctx.ui,
+                            effectNameField,
+                            textFieldDisplay(hasAsset ? effectNameDraft : "--",
+                                             activeTextField == ActiveTextField::EffectName),
+                            activeTextField == ActiveTextField::EffectName);
+            updateTextField(ctx.ui,
+                            emitterNameField,
+                            textFieldDisplay(selectedEmitter() == nullptr ? "--" : emitterNameDraft,
+                                             activeTextField == ActiveTextField::EmitterName),
+                            activeTextField == ActiveTextField::EmitterName);
 
             for (size_t i = 0; i < effectRows.size(); ++i)
             {
-                const bool hasRow = i < effectPaths.size();
-                const std::string label = hasRow ? fileName(effectPaths[i]) : "EMPTY";
+                const size_t effectIndex = effectBrowserOffset + i;
+                const bool hasRow = effectIndex < effectPaths.size();
+                const std::string label = hasRow ? fileName(effectPaths[effectIndex]) : "EMPTY";
                 updateButton(ctx.ui, effectRows[i], label);
-                if (hasRow && effectPaths[i] == currentPath)
+                if (hasRow && effectPaths[effectIndex] == currentPath)
                     setRectColor(ctx.ui, effectRows[i].rect, ToolTheme::buttonActive);
             }
 
@@ -1021,8 +1302,8 @@ namespace gts::tools
             {
             case FloatField::TimeScale:
                 return playbackTimeScale;
-            case FloatField::OrbitDistance:
-                return currentAsset.preview.orbitDistance;
+            case FloatField::OrbitYaw:
+                return previewOrbitYawDegrees();
             case FloatField::EmissionRate:
                 return selected == nullptr ? 0.0f : selected->descriptor.emissionRate;
             case FloatField::MaxParticles:
@@ -1083,7 +1364,7 @@ namespace gts::tools
                 }
                 break;
             case FloatField::TimeScale:
-            case FloatField::OrbitDistance:
+            case FloatField::OrbitYaw:
                 break;
             }
         }
@@ -1114,6 +1395,24 @@ namespace gts::tools
             return peak;
         }
 
+        float previewOrbitYawDegrees() const
+        {
+            const glm::vec3 offset = currentAsset.preview.cameraPosition - currentAsset.preview.cameraTarget;
+            return glm::degrees(std::atan2(offset.x, offset.z));
+        }
+
+        void setPreviewOrbitYawDegrees(float degrees)
+        {
+            const float yawRadians = glm::radians(degrees);
+            const glm::vec3 offset = currentAsset.preview.cameraPosition - currentAsset.preview.cameraTarget;
+            const float planarDistance = std::sqrt(offset.x * offset.x + offset.z * offset.z);
+            const float radius = std::max(0.1f, planarDistance > 0.001f ? planarDistance
+                                                                         : currentAsset.preview.orbitDistance);
+            currentAsset.preview.orbitDistance = radius;
+            currentAsset.preview.cameraPosition = currentAsset.preview.cameraTarget +
+                glm::vec3(std::sin(yawRadians) * radius, offset.y, std::cos(yawRadians) * radius);
+        }
+
         UiColor previewColor() const
         {
             if (!hasAsset)
@@ -1128,7 +1427,7 @@ namespace gts::tools
             {
             case FloatField::TimeScale:
                 return color(0.30f, 0.68f, 0.86f, 1.0f);
-            case FloatField::OrbitDistance:
+            case FloatField::OrbitYaw:
                 return color(0.70f, 0.54f, 0.86f, 1.0f);
             case FloatField::AlphaPeak:
                 return color(0.72f, 0.76f, 0.82f, 1.0f);
@@ -1150,6 +1449,35 @@ namespace gts::tools
             if (!hasAsset || currentAsset.emitters.empty())
                 return nullptr;
             return &currentAsset.emitters[std::min(selectedEmitterIndex, currentAsset.emitters.size() - 1)];
+        }
+
+        void syncTextDraftsForDisplay()
+        {
+            if (!hasAsset)
+            {
+                effectNameDraft.clear();
+                emitterNameDraft.clear();
+                return;
+            }
+
+            if (activeTextField != ActiveTextField::EffectName)
+                effectNameDraft = currentAsset.metadata.name;
+            if (activeTextField != ActiveTextField::EmitterName)
+                syncEmitterNameDraft();
+        }
+
+        void syncEmitterNameDraft()
+        {
+            const ParticleEffectEmitter* selected = selectedEmitter();
+            emitterNameDraft = selected == nullptr ? std::string{} : selected->name;
+        }
+
+        static std::string textFieldDisplay(const std::string& text, bool focused)
+        {
+            std::string display = compact(text, focused ? 23 : 24);
+            if (focused)
+                display += "|";
+            return display;
         }
 
         size_t emitterRowOffset() const

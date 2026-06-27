@@ -39,6 +39,14 @@ namespace gts::tools
         std::string name;
     };
 
+    struct ToolTextField
+    {
+        UiHandle    label = UI_INVALID_HANDLE;
+        UiHandle    rect  = UI_INVALID_HANDLE;
+        UiHandle    value = UI_INVALID_HANDLE;
+        std::string name;
+    };
+
     UiColor      color(float r, float g, float b, float a = 1.0f);
     UiLayoutSpec fixedLayout(const ToolRect& rect);
     UiLayoutSpec relativeLayout(const ToolRect& rect);
@@ -83,6 +91,11 @@ namespace gts::tools
                             float              maxValue,
                             bool               wholeNumber,
                             BitmapFont*        font);
+    ToolTextField createTextField(UiSystem&          ui,
+                                  UiHandle           parent,
+                                  float              y,
+                                  const std::string& name,
+                                  BitmapFont*        font);
 
     void setRect(UiSystem& ui, UiHandle handle, const ToolRect& rect);
     void setRelativeRect(UiSystem& ui, UiHandle handle, const ToolRect& rect);
@@ -98,6 +111,7 @@ namespace gts::tools
     void        updateButton(UiSystem& ui, const ToolButton& button, const std::string& label);
     void        updateToggleButton(UiSystem& ui, const ToolButton& button, const std::string& label, bool enabled);
     void        updateSlider(UiSystem& ui, const ToolSlider& slider, float value, UiColor fillColor);
+    void        updateTextField(UiSystem& ui, const ToolTextField& field, const std::string& value, bool focused);
     float       valueFromSliderPointer(UiSystem& ui, const ToolSlider& slider, float pointerX);
     std::string formatValue(float value, bool wholeNumber);
 } // namespace gts::tools
