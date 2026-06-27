@@ -572,7 +572,9 @@ The engine creates `ParticleEmitterRuntimeComponent`, simulates particles every
 controller frame, sorts alpha particles by camera depth, batches by primitive,
 mesh, texture, and blend mode, and renders particles in `ParticleRenderStage`.
 Hot-reload bookkeeping, including the last applied effect asset version, lives
-in `ParticleEmitterRuntimeComponent`.
+in `ParticleEmitterRuntimeComponent`. Tool-preview playback overrides, such as
+pause and time scale, also live in runtime state so they do not become authored
+particle asset data.
 
 Particle controls currently include:
 
@@ -596,8 +598,13 @@ and `reloadFromEffect` is true. Existing flat JSON emitter presets are migrated
 in memory into one-emitter `ParticleEffectAsset` values. Saving through the
 asset IO path writes the new effect-asset format.
 
-The near-term editor bridge still edits the live ECS descriptor, so it is a
-compatibility workflow rather than the final artist authoring model. New
+The legacy particle inspector still edits a selected live ECS emitter descriptor
+for low-level debugging. The dedicated `ParticleEffectEditorPanel` is the
+asset-authored workflow: it discovers known effect paths from the hot-reload
+registry and live emitters, loads `ParticleEffectAsset`, edits effect/emitter
+data in memory, saves or duplicates effect files, and applies the selected
+asset emitter onto matching live ECS emitters for immediate preview only. This
+panel is a retained-UI module/stack bridge, not the final graph editor. New
 particle authoring features should extend `ParticleEffectAsset` and keep editor
 state separate from `ParticleEmitterRuntimeComponent`; runtime simulation should
 continue consuming compiled or compatibility emitter data rather than editor UI
@@ -934,7 +941,8 @@ Current tool feature layout:
 - `modules/tools/ui/`: tool widget helpers built on retained UI
 - `modules/tools/runtime/`: global tool runtime and scene-change state handoff
 - `modules/tools/inspectors/`: entity and particle emitter inspector panels
-- `modules/tools/assets/`: particle asset/hot-reload status panel
+- `modules/tools/assets/`: particle effect editor and particle asset/hot-reload
+  status panel
 - `modules/tools/scenes/`: generic registered-scene browser panel
 - `modules/tools/selection/`: input capture, world picking, selection labels,
   selection highlight, and shared raycast helpers

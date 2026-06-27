@@ -29,6 +29,8 @@ struct ParticleEmitterRuntimeComponent
     std::vector<ParticleState> particles;
     float spawnAccumulator = 0.0f;
     float emitterAge = 0.0f;
+    bool playbackPaused = false;
+    float playbackTimeScale = 1.0f;
     uint32_t rngState = 1u;
     std::vector<uint32_t> burstRepeatCounts;
 

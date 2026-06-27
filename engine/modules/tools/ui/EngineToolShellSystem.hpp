@@ -19,6 +19,7 @@
 #include "EntityInspectorPanel.hpp"
 #include "GraphicsConstants.h"
 #include "ParticleEmitterInspectorPanel.hpp"
+#include "ParticleEffectEditorPanel.hpp"
 #include "RenderViewportComponent.h"
 #include "SceneGizmoPanel.hpp"
 #include "SceneCatalogPanel.hpp"
@@ -37,6 +38,7 @@ namespace gts::tools
             registry.addPanel<SceneGizmoPanel>();
             registry.addPanel<CameraPanel>();
             registry.addPanel<ParticleEmitterInspectorPanel>();
+            registry.addPanel<ParticleEffectEditorPanel>();
             registry.addPanel<DebugDrawPanel>();
             registry.addPanel<AssetStatusPanel>();
             registry.addPanel<SceneCatalogPanel>();
@@ -320,7 +322,7 @@ namespace gts::tools
         void buildLeftTools(EngineToolContext& ctx)
         {
             leftTools.clear();
-            const char* labels[] = {"E", "G", "C", "P", "D", "A", "S"};
+            const char* labels[] = {"E", "G", "C", "P", "X", "D", "A", "S"};
             float       y        = 0.012f;
             for (const char* label : labels)
             {
@@ -508,6 +510,8 @@ namespace gts::tools
                 return "Gizmo";
             if (panel->id() == "particles")
                 return "FX";
+            if (panel->id() == "particle_effects")
+                return "PFX";
             return std::string(panel->title());
         }
 

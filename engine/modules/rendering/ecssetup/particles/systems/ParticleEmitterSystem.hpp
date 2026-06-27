@@ -44,7 +44,9 @@ public:
                 TransformComponent& transform)
             {
                 frameData.emitterCount += 1;
-                updateEmitter(ctx, emitter, runtime, transform, dt);
+                const float emitterDt =
+                    runtime.playbackPaused ? 0.0f : dt * std::max(0.0f, runtime.playbackTimeScale);
+                updateEmitter(ctx, emitter, runtime, transform, emitterDt);
 
                 if (camera.viewID == 0 || runtime.textureID == 0)
                     return;
@@ -149,6 +151,9 @@ private:
                               float dt)
     {
         bindResourcesIfNeeded(ctx, emitter, runtime);
+        if (dt <= 0.0f)
+            return;
+
         const float previousEmitterAge = runtime.emitterAge;
         runtime.emitterAge += dt;
 
