@@ -197,11 +197,7 @@ namespace gts::tools
 
             previewSwatch = createRectRelative(
                 ctx.ui, previewFrame.background, {0.014f, 0.120f, 0.972f, 0.800f}, previewColor(), true);
-            previewTextureImage = ctx.ui.createNode(UiNodeType::Image, previewSwatch);
-            ctx.ui.setLayout(previewTextureImage, relativeLayout({0.0f, 0.0f, 1.0f, 1.0f}));
-            ctx.ui.setState(previewTextureImage,
-                            UiStateFlags{.visible = true, .enabled = false, .interactable = false});
-            ctx.ui.setPayload(previewTextureImage, UiImageData{});
+            previewTextureImage = createImageRelative(ctx.ui, previewSwatch, {0.0f, 0.0f, 1.0f, 1.0f});
             buildPreviewReferenceOverlay(ctx.ui, previewSwatch, font);
             previewText = createTextRelative(ctx.ui,
                                              previewSwatch,
@@ -921,21 +917,7 @@ namespace gts::tools
                                 const ToolRect&                                          rowRect,
                                 const std::vector<std::pair<EffectAction, std::string>>& rowButtons)
         {
-            const float gap   = 0.015f;
-            const float width = (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) /
-                                static_cast<float>(rowButtons.size());
-
-            for (size_t i = 0; i < rowButtons.size(); ++i)
-            {
-                const float x = rowRect.x + static_cast<float>(i) * (width + gap);
-                effectButtons.push_back({rowButtons[i].first,
-                                         createButtonRelative(ui,
-                                                              parent,
-                                                              {x, rowRect.y, width, rowRect.height},
-                                                              font,
-                                                              rowButtons[i].second,
-                                                              ToolTheme::buttonTextScale)});
-            }
+            addButtonRow(ui, font, parent, rowRect, rowButtons, effectButtons, 0.015f);
         }
 
         void addEmitterButtonRow(UiSystem&                                                 ui,
@@ -944,21 +926,7 @@ namespace gts::tools
                                  const ToolRect&                                           rowRect,
                                  const std::vector<std::pair<EmitterAction, std::string>>& rowButtons)
         {
-            const float gap   = 0.015f;
-            const float width = (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) /
-                                static_cast<float>(rowButtons.size());
-
-            for (size_t i = 0; i < rowButtons.size(); ++i)
-            {
-                const float x = rowRect.x + static_cast<float>(i) * (width + gap);
-                emitterButtons.push_back({rowButtons[i].first,
-                                          createButtonRelative(ui,
-                                                               parent,
-                                                               {x, rowRect.y, width, rowRect.height},
-                                                               font,
-                                                               rowButtons[i].second,
-                                                               ToolTheme::buttonTextScale)});
-            }
+            addButtonRow(ui, font, parent, rowRect, rowButtons, emitterButtons, 0.015f);
         }
 
         void addModuleButtonRow(UiSystem&                                                ui,
@@ -967,21 +935,7 @@ namespace gts::tools
                                 const ToolRect&                                          rowRect,
                                 const std::vector<std::pair<ModuleAction, std::string>>& rowButtons)
         {
-            const float gap   = 0.015f;
-            const float width = (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) /
-                                static_cast<float>(rowButtons.size());
-
-            for (size_t i = 0; i < rowButtons.size(); ++i)
-            {
-                const float x = rowRect.x + static_cast<float>(i) * (width + gap);
-                moduleButtons.push_back({rowButtons[i].first,
-                                         createButtonRelative(ui,
-                                                              parent,
-                                                              {x, rowRect.y, width, rowRect.height},
-                                                              font,
-                                                              rowButtons[i].second,
-                                                              ToolTheme::buttonTextScale)});
-            }
+            addButtonRow(ui, font, parent, rowRect, rowButtons, moduleButtons, 0.015f);
         }
 
         void addGraphButtonRow(UiSystem&                                               ui,
@@ -990,21 +944,7 @@ namespace gts::tools
                                const ToolRect&                                         rowRect,
                                const std::vector<std::pair<GraphAction, std::string>>& rowButtons)
         {
-            const float gap   = 0.010f;
-            const float width = (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) /
-                                static_cast<float>(rowButtons.size());
-
-            for (size_t i = 0; i < rowButtons.size(); ++i)
-            {
-                const float x = rowRect.x + static_cast<float>(i) * (width + gap);
-                graphButtons.push_back({rowButtons[i].first,
-                                        createButtonRelative(ui,
-                                                             parent,
-                                                             {x, rowRect.y, width, rowRect.height},
-                                                             font,
-                                                             rowButtons[i].second,
-                                                             ToolTheme::buttonTextScale)});
-            }
+            addButtonRow(ui, font, parent, rowRect, rowButtons, graphButtons, 0.010f);
         }
 
         void addPlaybackButtonRow(UiSystem&                                                  ui,
@@ -1013,21 +953,7 @@ namespace gts::tools
                                   const ToolRect&                                            rowRect,
                                   const std::vector<std::pair<PlaybackAction, std::string>>& rowButtons)
         {
-            const float gap   = 0.015f;
-            const float width = (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) /
-                                static_cast<float>(rowButtons.size());
-
-            for (size_t i = 0; i < rowButtons.size(); ++i)
-            {
-                const float x = rowRect.x + static_cast<float>(i) * (width + gap);
-                playbackButtons.push_back({rowButtons[i].first,
-                                           createButtonRelative(ui,
-                                                                parent,
-                                                                {x, rowRect.y, width, rowRect.height},
-                                                                font,
-                                                                rowButtons[i].second,
-                                                                ToolTheme::buttonTextScale)});
-            }
+            addButtonRow(ui, font, parent, rowRect, rowButtons, playbackButtons, 0.015f);
         }
 
         void addPreviewButtonRow(UiSystem&                                                 ui,
@@ -1036,20 +962,34 @@ namespace gts::tools
                                  const ToolRect&                                           rowRect,
                                  const std::vector<std::pair<PreviewAction, std::string>>& rowButtons)
         {
-            const float gap   = 0.010f;
+            addButtonRow(ui, font, parent, rowRect, rowButtons, previewButtons, 0.010f);
+        }
+
+        template <typename Action, typename Binding>
+        static void addButtonRow(UiSystem&                                         ui,
+                                 BitmapFont*                                       font,
+                                 UiHandle                                          parent,
+                                 const ToolRect&                                   rowRect,
+                                 const std::vector<std::pair<Action, std::string>>& rowButtons,
+                                 std::vector<Binding>&                             bindings,
+                                 float                                             gap)
+        {
+            if (rowButtons.empty())
+                return;
+
             const float width = (rowRect.width - gap * static_cast<float>(rowButtons.size() - 1)) /
                                 static_cast<float>(rowButtons.size());
 
             for (size_t i = 0; i < rowButtons.size(); ++i)
             {
                 const float x = rowRect.x + static_cast<float>(i) * (width + gap);
-                previewButtons.push_back({rowButtons[i].first,
-                                          createButtonRelative(ui,
-                                                               parent,
-                                                               {x, rowRect.y, width, rowRect.height},
-                                                               font,
-                                                               rowButtons[i].second,
-                                                               ToolTheme::buttonTextScale)});
+                bindings.push_back({rowButtons[i].first,
+                                    createButtonRelative(ui,
+                                                         parent,
+                                                         {x, rowRect.y, width, rowRect.height},
+                                                         font,
+                                                         rowButtons[i].second,
+                                                         ToolTheme::buttonTextScale)});
             }
         }
 

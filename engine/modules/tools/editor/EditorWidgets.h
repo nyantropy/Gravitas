@@ -148,21 +148,13 @@ namespace gts::tools
     inline UiHandle createEditorCircleRelative(
         UiSystem& ui, UiHandle parent, const ToolRect& rect, UiColor color, bool interactable = false)
     {
-        UiHandle handle = ui.createNode(UiNodeType::Circle, parent);
-        ui.setLayout(handle, relativeLayout(rect));
-        ui.setState(handle, UiStateFlags{.visible = true, .enabled = true, .interactable = interactable});
-        ui.setPayload(handle, UiCircleData{color, 24});
-        return handle;
+        return createCircleRelative(ui, parent, rect, color, 24, interactable);
     }
 
     inline UiHandle createEditorLineRelative(
         UiSystem& ui, UiHandle parent, UiVec2 start, UiVec2 end, UiColor color, float thickness = 0.002f)
     {
-        UiHandle handle = ui.createNode(UiNodeType::Line, parent);
-        ui.setLayout(handle, relativeLayout({0.0f, 0.0f, 1.0f, 1.0f}));
-        ui.setState(handle, UiStateFlags{.visible = true, .enabled = false, .interactable = false});
-        ui.setPayload(handle, UiLineData{start, end, color, thickness});
-        return handle;
+        return createLineRelative(ui, parent, start, end, color, thickness);
     }
 
     inline EditorWidgetHandles createEditorSearchField(UiSystem&          ui,

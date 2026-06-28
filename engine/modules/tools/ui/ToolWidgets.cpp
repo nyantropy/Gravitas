@@ -91,6 +91,34 @@ namespace gts::tools
         return handle;
     }
 
+    UiHandle createImageRelative(
+        UiSystem& ui, UiHandle parent, const ToolRect& rect, const UiImageData& image, bool interactable)
+    {
+        UiHandle handle = createNodeWithState(ui, UiNodeType::Image, parent, relativeLayout(rect), interactable);
+        ui.setPayload(handle, image);
+        return handle;
+    }
+
+    UiHandle createLineRelative(
+        UiSystem& ui, UiHandle parent, UiVec2 start, UiVec2 end, UiColor inColor, float thickness)
+    {
+        UiHandle handle =
+            createNodeWithState(ui, UiNodeType::Line, parent, relativeLayout({0.0f, 0.0f, 1.0f, 1.0f}), false);
+        UiStateFlags state = ui.findNode(handle)->state;
+        state.enabled      = false;
+        ui.setState(handle, state);
+        ui.setPayload(handle, UiLineData{start, end, inColor, thickness});
+        return handle;
+    }
+
+    UiHandle createCircleRelative(
+        UiSystem& ui, UiHandle parent, const ToolRect& rect, UiColor inColor, int segments, bool interactable)
+    {
+        UiHandle handle = createNodeWithState(ui, UiNodeType::Circle, parent, relativeLayout(rect), interactable);
+        ui.setPayload(handle, UiCircleData{inColor, segments});
+        return handle;
+    }
+
     UiHandle createText(UiSystem&          ui,
                         UiHandle           parent,
                         const ToolRect&    rect,

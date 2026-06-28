@@ -77,6 +77,23 @@ namespace gts::tools
     UiHandle createRect(UiSystem& ui, UiHandle parent, const ToolRect& rect, UiColor color, bool interactable = false);
     UiHandle
     createRectRelative(UiSystem& ui, UiHandle parent, const ToolRect& rect, UiColor color, bool interactable = false);
+    UiHandle createImageRelative(UiSystem& ui,
+                                 UiHandle parent,
+                                 const ToolRect& rect,
+                                 const UiImageData& image = {},
+                                 bool interactable = false);
+    UiHandle createLineRelative(UiSystem& ui,
+                                UiHandle parent,
+                                UiVec2 start,
+                                UiVec2 end,
+                                UiColor color,
+                                float thickness = 0.002f);
+    UiHandle createCircleRelative(UiSystem& ui,
+                                  UiHandle parent,
+                                  const ToolRect& rect,
+                                  UiColor color,
+                                  int segments = 24,
+                                  bool interactable = false);
     UiHandle createText(UiSystem&          ui,
                         UiHandle           parent,
                         const ToolRect&    rect,
