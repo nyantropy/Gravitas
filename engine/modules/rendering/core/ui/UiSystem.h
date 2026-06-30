@@ -1,12 +1,14 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <unordered_map>
 
 #include "BitmapFont.h"
 #include "IResourceProvider.hpp"
 #include "UiCommand.h"
+#include "UiComposition.h"
 #include "UiDocument.h"
 #include "UiFocusManager.h"
 #include "UiInputDispatcher.h"
@@ -90,11 +92,33 @@ public:
     UiMountId      rootMount() const;
     UiHandle       mountRoot(UiMountId mountId) const;
 
+    UiCompositionId mountComposition(std::unique_ptr<UiComposition> composition,
+                                     const UiMountDesc& desc = {});
+    UiCompositionId attachComposition(UiMountId mountId, std::unique_ptr<UiComposition> composition);
+    bool            updateComposition(UiCompositionId compositionId);
+    void            updateCompositions();
+    bool            rebuildComposition(UiCompositionId compositionId);
+    bool            destroyComposition(UiCompositionId compositionId);
+    UiComposition*       findComposition(UiCompositionId compositionId);
+    const UiComposition* findComposition(UiCompositionId compositionId) const;
+    UiCompositionId      compositionFromMount(UiMountId mountId) const;
+    UiMountId            compositionMount(UiCompositionId compositionId) const;
+
     UiCommandBuffer extractCommands(int viewportWidth, int viewportHeight);
     const UiCommandBuffer& extractCommandsRef(int viewportWidth, int viewportHeight);
 
 private:
+    struct MountedComposition
+    {
+        UiCompositionId id = UI_INVALID_COMPOSITION;
+        UiMountId mount = UI_INVALID_MOUNT;
+        std::unique_ptr<UiComposition> composition;
+    };
+
     void removeTextBindingsRecursive(UiHandle handle);
+    UiCompositionContext makeCompositionContext(UiMountId mountId);
+    void destroyCompositionRecordsForMount(UiMountId mountId);
+    void destroyAllCompositionRecords();
 
     IResourceProvider*                         resources = nullptr;
     bool                                       enabled   = true;
@@ -105,6 +129,9 @@ private:
     UiInputDispatcher                          inputDispatcher;
     UiRenderResolver                           resolver;
     std::unordered_map<UiHandle, BitmapFont*>  textBindings;
+    std::unordered_map<UiCompositionId, MountedComposition> compositions;
+    std::unordered_map<UiMountId, UiCompositionId> mountToComposition;
+    UiCompositionId                            nextCompositionId = UI_INVALID_COMPOSITION + 1;
     uint64_t                                   textBindingRevision = 1;
     UiCommandBuffer                            commandCache;
     UiCommandBuffer                            emptyCommandBuffer;

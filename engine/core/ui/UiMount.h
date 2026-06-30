@@ -60,6 +60,7 @@ public:
     UiMountId mountFromNode(const UiDocument& document, UiHandle handle) const;
     UiMountId mountFromRoot(UiHandle root) const;
     UiHandle rootForMount(UiMountId mountId) const;
+    std::vector<UiMountId> mountsInLayer(UiLayerId layerId) const;
 
 private:
     bool resolveAttachment(const UiDocument& document,

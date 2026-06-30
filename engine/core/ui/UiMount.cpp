@@ -197,6 +197,17 @@ UiHandle UiMountManager::rootForMount(UiMountId mountId) const
     return mount == nullptr ? UI_INVALID_HANDLE : mount->root;
 }
 
+std::vector<UiMountId> UiMountManager::mountsInLayer(UiLayerId layerId) const
+{
+    std::vector<UiMountId> result;
+    for (const auto& [mountId, mount] : mounts)
+    {
+        if (mountId != UI_ROOT_MOUNT && mount.layer == layerId)
+            result.push_back(mountId);
+    }
+    return result;
+}
+
 bool UiMountManager::resolveAttachment(const UiDocument& document,
                                        UiMountId mountingId,
                                        const UiMountAttachment& requested,

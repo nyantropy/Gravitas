@@ -1,5 +1,6 @@
 #include "UiSystem.h"
 
+#include <algorithm>
 #include <chrono>
 #include <variant>
 
@@ -13,6 +14,7 @@ UiSystem::UiSystem(IResourceProvider* inResources)
 
 void UiSystem::clear()
 {
+    destroyAllCompositionRecords();
     document.clear();
     textBindings.clear();
     ++textBindingRevision;
@@ -22,6 +24,7 @@ void UiSystem::clear()
     modalState.clear();
     focusState.clear();
     inputDispatcher.clear();
+    nextCompositionId = UI_INVALID_COMPOSITION + 1;
 }
 
 void UiSystem::setEnabled(bool inEnabled)
@@ -54,8 +57,10 @@ bool UiSystem::removeLayer(UiLayerId layerId)
     if (root == UI_INVALID_HANDLE)
         return false;
 
+    const std::vector<UiMountId> layerMounts = mountState.mountsInLayer(layerId);
+    for (UiMountId mount : layerMounts)
+        destroyMount(mount);
     removeTextBindingsRecursive(root);
-    mountState.destroyMountsInLayer(document, focusState, modalState, layerId);
     const bool removed = document.removeLayer(layerId);
     if (!removed)
         return false;
@@ -306,6 +311,7 @@ bool UiSystem::destroyMount(UiMountId mountId)
     if (root == UI_INVALID_HANDLE || root == document.getDocumentRoot())
         return false;
 
+    destroyCompositionRecordsForMount(mountId);
     removeTextBindingsRecursive(root);
     const bool destroyed = mountState.destroyMount(document, focusState, modalState, mountId);
     if (!destroyed)
@@ -358,6 +364,130 @@ UiMountId UiSystem::rootMount() const
 UiHandle UiSystem::mountRoot(UiMountId mountId) const
 {
     return mountState.rootForMount(mountId);
+}
+
+UiCompositionId UiSystem::mountComposition(std::unique_ptr<UiComposition> composition,
+                                           const UiMountDesc& desc)
+{
+    if (!composition)
+        return UI_INVALID_COMPOSITION;
+
+    const UiMountId mount = createMount(desc);
+    if (mount == UI_INVALID_MOUNT)
+        return UI_INVALID_COMPOSITION;
+
+    const UiCompositionId compositionId = attachComposition(mount, std::move(composition));
+    if (compositionId == UI_INVALID_COMPOSITION)
+        destroyMount(mount);
+
+    return compositionId;
+}
+
+UiCompositionId UiSystem::attachComposition(UiMountId mountId,
+                                            std::unique_ptr<UiComposition> composition)
+{
+    if (!composition || findMount(mountId) == nullptr || mountToComposition.find(mountId) != mountToComposition.end())
+        return UI_INVALID_COMPOSITION;
+
+    MountedComposition record;
+    record.id = nextCompositionId++;
+    record.mount = mountId;
+    record.composition = std::move(composition);
+
+    const UiCompositionId id = record.id;
+    compositions.emplace(id, std::move(record));
+    mountToComposition[mountId] = id;
+
+    UiCompositionContext context = makeCompositionContext(mountId);
+    compositions.at(id).composition->build(context);
+    commandCacheValid = false;
+    return id;
+}
+
+bool UiSystem::updateComposition(UiCompositionId compositionId)
+{
+    auto it = compositions.find(compositionId);
+    if (it == compositions.end() || it->second.composition == nullptr)
+        return false;
+
+    UiCompositionContext context = makeCompositionContext(it->second.mount);
+    if (context.root == UI_INVALID_HANDLE)
+        return false;
+
+    it->second.composition->update(context);
+    return true;
+}
+
+void UiSystem::updateCompositions()
+{
+    std::vector<UiCompositionId> ids;
+    ids.reserve(compositions.size());
+    for (const auto& [id, record] : compositions)
+        ids.push_back(id);
+    std::sort(ids.begin(), ids.end());
+
+    for (UiCompositionId id : ids)
+        updateComposition(id);
+}
+
+bool UiSystem::rebuildComposition(UiCompositionId compositionId)
+{
+    auto it = compositions.find(compositionId);
+    if (it == compositions.end() || it->second.composition == nullptr)
+        return false;
+
+    UiCompositionContext context = makeCompositionContext(it->second.mount);
+    if (context.root == UI_INVALID_HANDLE)
+        return false;
+
+    it->second.composition->destroy(context);
+    it->second.composition->build(context);
+    commandCacheValid = false;
+    return true;
+}
+
+bool UiSystem::destroyComposition(UiCompositionId compositionId)
+{
+    auto it = compositions.find(compositionId);
+    if (it == compositions.end())
+        return false;
+
+    const UiMountId mount = it->second.mount;
+    std::unique_ptr<UiComposition> composition = std::move(it->second.composition);
+    mountToComposition.erase(mount);
+    compositions.erase(it);
+
+    if (composition != nullptr)
+    {
+        UiCompositionContext context = makeCompositionContext(mount);
+        composition->destroy(context);
+    }
+
+    return destroyMount(mount);
+}
+
+UiComposition* UiSystem::findComposition(UiCompositionId compositionId)
+{
+    const auto it = compositions.find(compositionId);
+    return it == compositions.end() ? nullptr : it->second.composition.get();
+}
+
+const UiComposition* UiSystem::findComposition(UiCompositionId compositionId) const
+{
+    const auto it = compositions.find(compositionId);
+    return it == compositions.end() ? nullptr : it->second.composition.get();
+}
+
+UiCompositionId UiSystem::compositionFromMount(UiMountId mountId) const
+{
+    const auto it = mountToComposition.find(mountId);
+    return it == mountToComposition.end() ? UI_INVALID_COMPOSITION : it->second;
+}
+
+UiMountId UiSystem::compositionMount(UiCompositionId compositionId) const
+{
+    const auto it = compositions.find(compositionId);
+    return it == compositions.end() ? UI_INVALID_MOUNT : it->second.mount;
 }
 
 UiCommandBuffer UiSystem::extractCommands(int viewportWidth, int viewportHeight)
@@ -451,5 +581,68 @@ void UiSystem::removeTextBindingsRecursive(UiHandle handle)
     {
         ++textBindingRevision;
         commandCacheValid = false;
+    }
+}
+
+UiCompositionContext UiSystem::makeCompositionContext(UiMountId mountId)
+{
+    return UiCompositionContext{
+        .ui = *this,
+        .document = document,
+        .resources = resources,
+        .mount = mountId,
+        .root = mountState.rootForMount(mountId)
+    };
+}
+
+void UiSystem::destroyCompositionRecordsForMount(UiMountId mountId)
+{
+    const UiMount* mount = mountState.findMount(mountId);
+    if (mount == nullptr)
+        return;
+
+    const std::vector<UiMountId> children = mount->childMounts;
+    for (UiMountId child : children)
+        destroyCompositionRecordsForMount(child);
+
+    const auto ownerIt = mountToComposition.find(mountId);
+    if (ownerIt == mountToComposition.end())
+        return;
+
+    const UiCompositionId compositionId = ownerIt->second;
+    auto compositionIt = compositions.find(compositionId);
+    std::unique_ptr<UiComposition> composition;
+    if (compositionIt != compositions.end())
+    {
+        composition = std::move(compositionIt->second.composition);
+        compositions.erase(compositionIt);
+    }
+
+    mountToComposition.erase(ownerIt);
+
+    if (composition != nullptr)
+    {
+        UiCompositionContext context = makeCompositionContext(mountId);
+        composition->destroy(context);
+    }
+}
+
+void UiSystem::destroyAllCompositionRecords()
+{
+    std::vector<MountedComposition> records;
+    records.reserve(compositions.size());
+    for (auto& [id, record] : compositions)
+        records.push_back(MountedComposition{record.id, record.mount, std::move(record.composition)});
+
+    compositions.clear();
+    mountToComposition.clear();
+
+    for (MountedComposition& record : records)
+    {
+        if (record.composition == nullptr)
+            continue;
+
+        UiCompositionContext context = makeCompositionContext(record.mount);
+        record.composition->destroy(context);
     }
 }

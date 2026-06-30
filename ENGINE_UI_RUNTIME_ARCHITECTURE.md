@@ -650,24 +650,37 @@ Rejected alternative:
   but it does not express input blocking, modal participation, layer transitions,
   or surface-level ordering policy.
 
-### UiMount and Composition
+### UiMount and UiComposition
 
 UI should become compositional. A dialogue interface, inventory, shop, settings
 panel, debug window, codex, terminal, skill tree, or tooltip should be a
 composition that can be mounted into a host.
 
-The first `UiMount` primitive is now implemented as ownership and attachment
-only. It creates a retained container root, tracks parent/child mounts, supports
-attachment to layers, nodes, or other mounts, and owns teardown cleanup.
-`UiComposition` is still future work and should build on this mount primitive.
+`UiMount` is the ownership and attachment primitive. It creates a retained
+container root, tracks parent/child mounts, supports attachment to layers, nodes,
+or other mounts, and owns teardown cleanup.
+
+`UiComposition` is the authoring primitive. It is a reusable object that builds
+retained UI into a mount, owns feature-local UI runtime state and cached handles,
+and receives update/destroy callbacks through a `UiCompositionContext`.
+
+The responsibilities are intentionally separate:
+
+- `UiMount` owns lifetime and attachment.
+- `UiComposition` owns authoring and local behavior.
+- `UiNode` owns retained rendering data.
 
 Composition responsibilities:
 
 - Build a reusable UI tree.
-- Receive a typed mount context.
-- Expose typed state/update/event hooks.
-- Own child mounts if needed.
-- Unmount cleanly through a mount token.
+- Receive a mount-bound runtime context.
+- Own cached handles privately.
+- Own local UI runtime state such as expansion, transient selection, or
+  animation phase.
+- Expose typed feature parameters through the concrete composition class.
+- Update retained nodes from those parameters.
+- Destroy its authored nodes when requested.
+- Create child mounts/compositions when needed.
 
 Mount responsibilities:
 
@@ -676,9 +689,9 @@ Mount responsibilities:
 - Destroy child mounts recursively.
 - Clear focus, capture, active pointer, text focus, navigation focus, and modal
   ownership for the subtree.
-- Preserve or restore focus when requested.
 - Attach below a surface/layer/mount point.
-- Optionally provide local services such as theme, localization, or data model.
+- Provide the future target for local services such as theme, localization, or
+  data model.
 
 Why this abstraction exists:
 
@@ -693,6 +706,9 @@ Rejected alternative:
 
 - Feature-specific roots owned directly by scene controllers. That keeps every
   UI feature responsible for lifetime, ordering, input, and focus policy.
+- A widget-library-first design. Widgets need composition boundaries, lifetime,
+  focus, modal ownership, and event routing targets before a durable widget
+  framework can exist.
 
 ### UiInputDispatcher
 
@@ -1195,31 +1211,52 @@ Status:
 
 Objectives:
 
-- Add composition hosts on top of mounts.
+- Add composition ownership on top of mounts.
 - Make feature UIs reusable units that build into a mount context.
-- Start with engine tools or menus because they are mostly self-contained.
+- Preserve handle-builder compatibility while moving cached handles inside
+  concrete composition classes.
+- Prove the model with a small migrated game UI surface.
 
 Files/classes involved:
 
 - New `UiComposition`
+- `UiSystem`
 - `UiMount`
-- tool UI widgets
-- menu UI builders
+- `InteractionPromptComposition`
 
 Expected API changes:
 
-- `mount(layer, composition)`
-- `unmount(token)`
-- mount-local context
+- `mountComposition`
+- `attachComposition`
+- `updateComposition`
+- `updateCompositions`
+- `rebuildComposition`
+- `destroyComposition`
+- `findComposition`
+- `compositionFromMount`
+- `compositionMount`
+- mount-bound `UiCompositionContext`
 
 Compatibility:
 
 - Existing handle structs can be owned inside composition instances initially.
+- Existing retained builders can continue returning handle structs until they are
+  wrapped or rewritten as concrete compositions.
 
 Validation:
 
-- Test composition build/update/unmount lifecycle.
-- Tool/menu smoke test.
+- Test composition create/attach/update/rebuild/destroy lifecycle.
+- Test nested composition cleanup through mount destruction.
+- Test focus and modal cleanup through composition-owned mounts.
+- Test layer removal and document clear cleanup.
+
+Status:
+
+- Composition lifecycle implemented in Phase 5.
+- The dungeon interaction prompt now demonstrates the migrated pattern: the
+  concrete composition owns prompt handles and update parameters, while the
+  dungeon sync system only feeds state and asks `UiSystem` to update the
+  composition.
 
 ### Phase 6: Surfaces
 
@@ -2105,23 +2142,155 @@ mount creation:
 - Shared widgets still return interior handle bundles.
 
 These are compatibility paths. The migration should wrap top-level feature UI
-roots in mounts first, then later move builders into `UiComposition`.
+roots in mounts and then move builder/sync handle bundles into concrete
+`UiComposition` classes.
+
+## 11. Phase 5 Implementation Report
+
+### Retained Builder Investigation
+
+Before Phase 5, mount ownership existed but most UI authoring was still
+procedural and handle-oriented:
+
+- VN dialogue builds a retained root, panel skin nodes, nameplate, text, and
+  choice handles through `VNDialogueUiHandles`; update and choice-hit helpers
+  operate on that exposed handle bundle.
+- Dungeon HUD builds debug/minimap roots and caches handles in
+  `DungeonHudSyncSystem`.
+- The interaction prompt built a root/background/label handle bundle and the
+  sync system owned the handle cache directly.
+- Inventory, merchant, menu, and skill-tree coordinators build handle structs,
+  copy them into event handlers and sync systems, and synchronize state by
+  mutating raw retained handles every frame.
+- Combat scene setup builds `CombatUiHandles` during scene load and passes them
+  to combat sync systems and billboard state.
+- Engine tool panels implement their own `build/update/destroy` pattern and
+  usually store one root handle plus panel-local handles.
+- Shared UI helpers such as panel skins, dropdowns, HP bars, and editor widgets
+  return interior handle bundles for callers to store.
+
+The duplicated behavior is consistent: each feature creates nodes, exposes
+handles, stores the handles elsewhere, syncs from feature state, and manually
+removes the root. Mounts now own lifetime, but without compositions the runtime
+still could not say which reusable UI object authored a subtree or owned its
+cached handles.
+
+### Implemented Composition Model
+
+`UiComposition` is now the reusable retained UI authoring primitive:
+
+- `UiCompositionId` identifies a mounted composition.
+- `UiCompositionContext` exposes the owning `UiSystem`, `UiDocument`, resource
+  provider, mount id, and mount root.
+- `UiComposition::build(...)` creates retained nodes under the mount root.
+- `UiComposition::update(...)` synchronizes retained nodes from composition
+  parameters or local runtime state.
+- `UiComposition::destroy(...)` lets the composition release its authored nodes
+  and private handle caches before mount teardown.
+- `UiSystem::rebuildComposition(...)` runs destroy/build on the same mount for
+  explicit rebuild flows.
+
+The runtime deliberately does not prescribe gameplay parameters. Concrete
+composition classes own their own typed setters, state structs, or future data
+bindings. The engine only owns lifecycle and mount integration.
+
+### API Surface
+
+New engine-facing APIs:
+
+- `UiSystem::mountComposition(...)`
+- `UiSystem::attachComposition(...)`
+- `UiSystem::updateComposition(...)`
+- `UiSystem::updateCompositions()`
+- `UiSystem::rebuildComposition(...)`
+- `UiSystem::destroyComposition(...)`
+- `UiSystem::findComposition(...)`
+- `UiSystem::compositionFromMount(...)`
+- `UiSystem::compositionMount(...)`
+
+Composition cleanup is integrated into `UiSystem::destroyMount(...)`,
+`UiSystem::removeLayer(...)`, and `UiSystem::clear()`. Destroying a parent mount
+destroys child composition records before the retained subtree is removed.
+
+### Feature Demonstration
+
+The dungeon interaction prompt now demonstrates the migration model:
+
+- `InteractionPromptComposition` owns the prompt handles and prompt update
+  parameters.
+- `DungeonUiController` mounts the composition through
+  `UiSystem::mountComposition(...)`.
+- `InteractionPromptSyncSystem` stores a `UiCompositionId`, feeds prompt text and
+  viewport parameters into the concrete composition, and calls
+  `UiSystem::updateComposition(...)`.
+- The old handle-based constructor remains as a compatibility path for scenes
+  that still build the prompt directly.
+
+This proves the intended migration without rewriting inventory, merchant, menu,
+VN, tool, or combat UI.
+
+### Validation
+
+Added `ui_composition_runtime`, covering:
+
+- composition creation
+- mounting into a new mount
+- attachment to an existing mount
+- update and parameter synchronization
+- explicit rebuild
+- destroy lifecycle
+- nested composition cleanup through parent mount destruction
+- focus cleanup through composition-owned mount destruction
+- modal cleanup through composition-owned mount destruction
+- layer removal cleanup
+- document clear cleanup
+
+The existing layer, input-dispatcher, focus-manager, modal-manager, and mount
+runtime tests continue to pass.
+
+### Remaining Builder Patterns
+
+The following compatibility paths remain:
+
+- VN dialogue still exposes `VNDialogueUiHandles`.
+- Dungeon HUD still exposes `DungeonHudHandles`.
+- The Yune spatial test scene still uses the handle-backed interaction prompt
+  path.
+- Inventory, merchant, menu, and skill-tree coordinators still expose handle
+  structs to sync and event systems.
+- Combat UI and billboard UI still build raw handles during scene load.
+- Engine tool panels still use panel-local root handles.
+- Shared widgets still return interior handle bundles.
+
+These should migrate one composition at a time. The preferred pattern is now:
+
+`feature state -> concrete UiComposition parameters -> updateComposition -> retained nodes`
 
 ### Next Primitive
 
-The single highest-value missing primitive is now `UiComposition`.
+The single highest-value missing primitive is now event propagation.
 
-Mounts answer who owns a subtree and how it is attached. They do not answer how
-a reusable UI unit is authored, updated, parameterized, or unmounted as a
-coherent feature. `UiComposition` should come next because it turns the current
-builder/handle-struct pattern into a reusable runtime object that builds into a
-mount context.
+Compositions now give the runtime a reusable unit of authored UI. The next
+architectural blocker is that input is still consumed largely by feature sync
+systems polling `UiDispatchResult` and comparing raw handles. That keeps click,
+hover, keyboard, cancel, drag, and text behavior distributed across feature
+systems even though dispatch, focus, modal ownership, lifetime, and authoring
+boundaries are centralized.
 
-Surfaces, event propagation, layout, styling, animation, navigation, and
-drag/drop all become cleaner after composition exists because they can target
-composition boundaries instead of feature-specific handle bundles.
+Event propagation should come next because it connects the existing primitives:
 
-## 11. Final Recommendation
+- Dispatch creates frame events.
+- Modal policy decides what is blocked.
+- Focus decides persistent owners.
+- Mounts provide subtree ownership.
+- Compositions provide behavior owners.
+
+Without event propagation, styling, animation, navigation, drag/drop, and
+widgets still need ad hoc feature-owned input glue. With propagation, those
+systems can target composition and node paths through a single engine event
+model.
+
+## 12. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -2143,9 +2312,10 @@ The first committed direction was explicit layers. The second committed
 direction is centralized retained UI input dispatch. The third committed
 direction is engine-owned focus management. The fourth committed direction is
 engine-owned modal policy. The fifth committed direction is engine-owned mount
-lifetime.
+lifetime. The sixth committed direction is engine-owned composition authoring.
 
-The next milestone should implement `UiComposition` on top of `UiMount`.
-Composition should precede surfaces, event propagation, layout expansion,
-styling, animation, navigation, and drag/drop because it creates the reusable
-UI unit those systems need to target.
+The next milestone should implement retained UI event propagation. It should
+precede surfaces, layout expansion, styling, animation, navigation, and drag/drop
+because those systems need a single way to deliver pointer, keyboard,
+navigation, text, and cancel events to composition-owned UI instead of expanding
+feature-specific polling.

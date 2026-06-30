@@ -851,9 +851,9 @@ profile buckets after printing.
 
 The retained UI model is an engine core service. `UiDocument` stores retained
 nodes and explicit document layers, `UiSystem` owns per-frame extraction and
-coordinates input dispatch, focus state, modal state, and mount lifetime, and
-tool widgets in `modules/tools/ui/` provide reusable engine-editor controls on
-top of that UI system.
+coordinates input dispatch, focus state, modal state, mount lifetime, and
+composition authoring, and tool widgets in `modules/tools/ui/` provide reusable
+engine-editor controls on top of that UI system.
 
 `UiDocument` now has a hidden document root plus one or more ordered layer roots.
 Existing callers that create nodes without specifying a parent still attach to
@@ -895,6 +895,16 @@ and dismisses modal ownership associated with the subtree. Existing handle
 builders still work, but new runtime-owned UI should be attached through mounts.
 If compatibility code removes an exact mount root through `removeNode`, the
 mount is destroyed instead of leaving stale ownership state.
+
+`UiComposition` is the retained UI authoring primitive. `UiSystem` can
+`mountComposition(...)` into a new mount or `attachComposition(...)` to an
+existing mount, then calls the composition's `build`, `update`, `destroy`, and
+`rebuild` lifecycle through a `UiCompositionContext`. The context exposes the
+owning `UiSystem`, `UiDocument`, resource provider, mount id, and mount root.
+Compositions own cached handles and feature-local UI runtime state; mounts own
+attachment and lifetime; nodes own rendering data. Destroying a composition
+destroys its mount, and destroying a mount, layer, or document clear also invokes
+composition cleanup before retained subtree teardown.
 
 UI extraction now enforces primitive clipping before draw-command generation.
 Layout specs include a default-zero child `contentOffset`, so a clipped
@@ -1298,6 +1308,11 @@ override systems that own a `CameraOverrideComponent`.
 
 Prefer extending `ToolWidgets` for reusable controls instead of building
 one-off retained UI interaction code inside a panel.
+
+New reusable retained UI should prefer a `UiComposition` mounted through
+`UiSystem` instead of storing top-level handles in a controller or scene. Legacy
+tool panels still use the older panel interface and should migrate one panel at
+a time after retained event propagation exists.
 
 ---
 
