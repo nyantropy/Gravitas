@@ -135,21 +135,30 @@ namespace gts::vn
             setTextAlignment(ui, handles.continueIndicator, UiHorizontalAlign::Right, UiVerticalAlign::Middle);
 
             handles.choiceLayer = ui.createNode(UiNodeType::Container, handles.root);
-            ui.setLayout(handles.choiceLayer, rectToAnchored(profile.layout.choices));
+            UiLayoutSpec choiceLayerLayout = rectToAnchored(profile.layout.choices);
+            choiceLayerLayout.layoutMode = UiLayoutMode::Stack;
+            choiceLayerLayout.stackAxis = UiLayoutAxis::Vertical;
+            choiceLayerLayout.crossAxisAlignment = UiLayoutAlignment::Stretch;
+            const float choiceRowHeight = profile.layout.choices.height /
+                static_cast<float>(std::max<size_t>(1, profile.layout.maxChoices));
+            const float choiceGap = std::min(profile.layout.choiceRowGap * profile.layout.choices.height,
+                                             choiceRowHeight * 0.40f);
+            choiceLayerLayout.gap = choiceGap;
+            ui.setLayout(handles.choiceLayer, choiceLayerLayout);
             setState(ui, handles.choiceLayer, false, false);
 
             handles.choiceButtons.reserve(profile.layout.maxChoices);
             handles.choiceLabels.reserve(profile.layout.maxChoices);
             for (size_t i = 0; i < profile.layout.maxChoices; ++i)
             {
-                const float rowHeight = 1.0f / static_cast<float>(std::max<size_t>(1, profile.layout.maxChoices));
-                const float gap = std::min(profile.layout.choiceRowGap, rowHeight * 0.40f);
-                const float y = static_cast<float>(i) * rowHeight + gap * 0.5f;
+                UiLayoutSpec choiceLayout;
+                choiceLayout.constraints.preferredHeight =
+                    {UiLayoutUnit::Normalized, std::max(0.0f, choiceRowHeight - choiceGap)};
 
                 gts::ui::UiPanelSkinNodeHandles choice = gts::ui::UiPanelSkinNode::build(
                     ui,
                     handles.choiceLayer,
-                    anchored(0.0f, y, 1.0f, std::max(0.0f, rowHeight - gap)),
+                    choiceLayout,
                     true);
                 gts::ui::UiPanelSkinNode::setState(ui, choice, false, true);
                 gts::ui::UiPanelSkinNode::applyStateSkin(ui, choice, profile.dialogueSkin.choice);

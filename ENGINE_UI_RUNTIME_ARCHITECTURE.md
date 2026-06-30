@@ -46,6 +46,11 @@ The eighth foundational primitive is now implemented: `UiSurface` owns a
 surface-local UI universe: coordinate conversion, document, layers, focus,
 modal state, mounts, dispatcher, and input/render participation.
 
+The ninth foundational primitive is now implemented: the retained layout engine
+owns surface-local UI geometry through measurement, arrangement, typed units,
+constraints, and reusable layout containers while preserving anchored layout as
+the compatibility canvas path.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
@@ -133,7 +138,8 @@ Missing from `UiSystem` today:
   `UiInputFrame` still carries only the primary pointer.
 - Drag/drop as a runtime primitive.
 - Modal enter/exit transitions.
-- Rich layout primitives beyond absolute and anchored retained layout.
+- Mature layout services such as per-node invalidation boundaries, two-pass
+  constrained text wrapping, and virtualized scroll content.
 
 ### UiDocument
 
@@ -223,7 +229,8 @@ Remaining lifetime limitations:
 
 - Existing feature builders are not yet authored as mounted compositions.
 - Raw handles are not generation checked.
-- There is no composition object or mount-local event lifecycle yet.
+- Node-local callback registration and widget lifecycle hooks are future layers
+  on top of composition and event propagation.
 
 ### Coordinate Systems
 
@@ -235,46 +242,65 @@ vertices.
 Existing game UI code frequently computes pixel layouts manually, then converts
 them to normalized offsets and fixed sizes before writing `UiLayoutSpec`.
 
-Current coordinate limitations:
+Current coordinate model and limitations:
 
-- No typed unit system.
-- No explicit pixel units in layout specs.
-- No viewport units separate from normalized document units.
-- No parent-relative percent unit beyond anchors.
+- `UiLayoutSpec` now has typed layout lengths for normalized values, parent
+  percentages, surface width/height, content, em, and preliminary pixel units.
+- The first pixel-unit implementation is normalized against the surface axis;
+  true DPI-aware physical pixel scaling remains future work.
+- Parent-relative layout is available through constraints and containers, while
+  legacy anchors remain supported by `Canvas`.
 - No world-space or render-target-local coordinate domains.
 - No surface transforms for terminals, monitors, split-screen, VR, or AR.
 
 ### Layout
 
-`UiLayoutSpec` supports two position modes:
+`UiLayoutSpec` is now both the compatibility canvas layout descriptor and the
+first retained layout container descriptor. Existing absolute and anchored
+fields remain supported through `UiLayoutMode::Canvas`, preserving old builders
+that directly set offsets, anchors, fixed sizes, margins, padding, clip mode,
+and `contentOffset`.
 
-- `Absolute`
-- `Anchored`
+The document update path is now:
 
-It supports two size modes:
+1. Measure every visible subtree.
+2. Arrange every subtree from the surface root down.
+3. Store computed bounds, content rect, clip rect, and measured size on each
+   `UiNode`.
+4. Rebuild the visual list from computed geometry.
 
-- `Fixed`
-- `FromAnchors`
+Implemented layout modes:
 
-Anchored layout computes from the parent content rect, using anchor min/max,
-offset min/max, margins, and padding. Absolute layout positions relative to the
-parent content rect and uses fixed width/height after margins. `contentOffset`
-shifts the child layout content rect, which is currently used for scroll-like or
-pan-like behavior without moving the container itself.
+- `Canvas`: compatibility absolute/anchored placement.
+- `Stack`: vertical or horizontal flow with gap, main-axis alignment,
+  cross-axis stretch, and grow distribution.
+- `Grid`: equal row/column grid with gaps, cell coordinates, and spans.
+- `Dock`: top/bottom/left/right/fill panel arrangement.
+- `Overlay`: children share the parent content rect and use constraints for
+  alignment and size.
+- `Scroll`: canvas arrangement with forced clipping and `contentOffset`.
+- `Aspect`: overlay-style arrangement with aspect-ratio constraints.
+- `Constraint`: children resolve preferred/min/max size and alignment inside
+  the parent content rect.
+
+Implemented constraints include preferred size, min/max size, grow/shrink,
+aspect ratio, horizontal/vertical alignment, margin, padding, and gaps. Text,
+image, and grid payloads contribute intrinsic measurement. Rendering extraction
+passes a font-backed text measurement callback so text nodes can participate in
+content sizing; input dispatch uses the same layout pass with approximate text
+measurement when render extraction has not run yet.
 
 Current layout limitations:
 
-- No measurement pass for child-driven size.
-- No auto/content sizing.
-- No stack layout.
-- No dock layout.
-- No grid layout manager.
-- No flex layout.
-- No min/max constraints.
-- No aspect-ratio constraint.
-- No layout invalidation boundaries.
-- No intrinsic text measurement integration into layout.
-- No reusable layout containers.
+- Layout invalidation is document-level dirty-flag based, not yet a per-subtree
+  invalidation graph.
+- Text wrapping is measured before final arranged width, so constrained
+  re-measurement for width-dependent wrapping is still future work.
+- Scroll layout clips and offsets content but does not yet own scrollbars,
+  scroll ranges, virtualization, or input gestures.
+- Pixel units are preliminary and not yet DPI-aware.
+- Existing game UI is still mostly manually positioned and must migrate
+  incrementally.
 
 ### Rendering
 
@@ -515,8 +541,8 @@ Specific weaknesses:
   built on it.
 - Keyboard focus exists, but keyboard events are not yet routed to it.
 - Controller navigation does not exist in the UI runtime.
-- Event propagation does not exist.
-- Handler-level event consumption does not exist.
+- Event propagation exists at the composition level, but node/widget-level
+  handler registration is not implemented yet.
 - Modal ownership exists in the engine, but existing game UI has not yet
   migrated its open/closed state and gameplay gates onto modal descriptors.
 - Gameplay input blocking is still game-specific and manually checks feature
@@ -524,9 +550,10 @@ Specific weaknesses:
 - Inventory, merchant grids, and tools implement their own input routing.
 - Feature UIs are still built mostly as raw handle structs, not as reusable
   mounted compositions.
-- Mount ownership exists, but existing game/tool UI has not yet migrated to it.
 - Raw handles are not generation checked.
-- Layout is too low-level for long-lived engine use.
+- Layout now has measure/arrange containers, but most existing feature UI still
+  computes geometry manually and the layout engine is not yet a mature
+  widget-grade solver.
 - Styling is not structured around reusable themes or skins.
 - UI animation is not integrated into the runtime.
 - There is no separation between render tree, focus tree, semantic tree, and
@@ -2740,7 +2767,161 @@ content measurement, and invalidation. It should preserve the current retained
 node model while replacing hand-authored fixed geometry as the default way to
 compose UI.
 
-## 14. Final Recommendation
+## 14. Phase 8 Implementation Report
+
+### Manual Layout Investigation
+
+Before Phase 8, the runtime owned interaction, lifetime, composition, and
+surface boundaries, but feature code still owned most geometry. The repeated
+patterns were:
+
+- VN choice rows computed row height, row gap, and y offsets manually.
+- Dungeon interaction prompt code converted scene-viewport pixels to normalized
+  offsets every frame.
+- Inventory and merchant UI builders compute panel, grid, cell, icon, label,
+  and button rectangles manually.
+- Menu and skill-tree builders use local helpers for fixed normalized
+  rectangles, content offsets, clipped panels, and graph node placement.
+- Engine tool widgets still author fixed panel/control rectangles directly.
+- HUD and prompt builders mostly create anchored/fixed retained nodes and then
+  sync systems update visibility/text.
+
+The geometry that belongs in the engine is repeated container behavior:
+stacking, overlay alignment, grid/dock placement, scroll clipping, preferred
+size, min/max constraints, aspect ratio, padding, margins, and text
+measurement. Geometry that remains composition-owned is feature intent: which
+controls exist, which data they show, and feature-specific spatial layouts such
+as a skill-tree graph or inventory item footprint until drag/drop/widgets are
+introduced.
+
+### Implemented Layout Architecture
+
+The retained `UiNode` hierarchy is now also the layout hierarchy. A separate
+layout tree was rejected for this phase because it would duplicate retained
+ownership before the engine has a widget framework, semantic tree, or style
+tree. Keeping layout on `UiNode` preserves compatibility and gives
+compositions one authored tree:
+
+`UiSurface -> UiDocument -> UiLayer -> UiMount -> UiComposition -> UiNode/Layout`
+
+`UiDocument::updateLayout(...)` now performs a two-pass layout update:
+
+1. Measure visible nodes bottom-up.
+2. Arrange nodes top-down from the surface root.
+
+Measurement computes `UiComputedLayout::measuredSize` from explicit
+constraints, content measurement, primitive intrinsic size, child layout, and
+padding. Arrangement computes `bounds`, `contentRect`, and `clipRect`.
+Rendering and hit testing consume only computed layout.
+
+`UiLayoutSpec` gained:
+
+- `UiLayoutMode`: `Canvas`, `Stack`, `Grid`, `Dock`, `Overlay`, `Scroll`,
+  `Aspect`, and `Constraint`.
+- `UiLayoutLength`: `Auto`, `Normalized`, `Percent`, `SurfaceWidth`,
+  `SurfaceHeight`, `ParentWidth`, `ParentHeight`, `Content`, `Em`, and
+  preliminary `Pixels`.
+- `UiLayoutConstraints`: preferred/min/max sizes, grow/shrink, aspect ratio,
+  and alignment.
+- Container fields for stack axis/alignment/gap, grid rows/columns/gaps/spans,
+  dock edge, margins, padding, clipping, and content offset.
+
+`Canvas` is the compatibility adapter for existing absolute and anchored
+layouts. Existing builders can keep using old `positionMode`, `anchorMin`,
+`anchorMax`, `offsetMin`, `offsetMax`, `fixedWidth`, and `fixedHeight` fields.
+New compositions should prefer container intent and constraints.
+
+### Text Measurement And Surface Integration
+
+`UiSystem::extractSurfaceCommandsRef(...)` now passes a text measurement
+callback into `UiDocument::updateLayout(...)`. The callback uses surface-local
+text bindings and `GlyphLayoutEngine::measureUiText(...)`. Dispatch-side layout
+still works without renderer extraction by falling back to approximate text
+measurement.
+
+Layout remains surface-local. Each `UiSurface` owns one document and each
+document computes normalized local geometry before the surface extraction step
+maps vertices into the surface output rect.
+
+### Feature Demonstrations
+
+Two representative migrations prove the intended authoring model:
+
+- `InteractionPromptComposition` now turns its mount root into an `Overlay`
+  host and lets the prompt root declare preferred size, bottom margin, and
+  center/end alignment. The composition no longer receives viewport pixel
+  dimensions or recomputes absolute coordinates every frame.
+- `VNDialogueUi` choice rows now use a vertical `Stack` on the choice layer.
+  Choice buttons declare measured row height through constraints; the stack
+  owns row placement and gaps.
+
+The old interaction-prompt handle path remains as a compatibility fallback and
+continues to perform manual viewport conversion. Inventory, merchant, menus,
+skill tree, HUD, and tool widgets still contain substantial manual layout and
+should migrate incrementally as they are touched.
+
+### Validation
+
+Added `ui_layout_runtime`, covering:
+
+- stack layout
+- grid layout
+- dock layout
+- overlay alignment
+- aspect-ratio constraints
+- scroll clipping and content offset
+- text measurement invalidation
+- nested layout and percent constraints
+- anchored layout compatibility
+- surface-local layout extraction
+
+Regression status:
+
+- `ui_layer_runtime`
+- `ui_input_dispatcher_runtime`
+- `ui_focus_manager_runtime`
+- `ui_modal_manager_runtime`
+- `ui_mount_runtime`
+- `ui_composition_runtime`
+- `ui_event_propagation_runtime`
+- `ui_surface_runtime`
+- `ui_layout_runtime`
+
+all pass in the engine release build.
+
+### Remaining Layout Debt
+
+- Dirty tracking is still document-level. The next performance improvement is a
+  subtree invalidation graph with cached measure/arrange results.
+- Text wrapping measurement is not yet width-constrained by the final arranged
+  slot; a mature text layout pass should remeasure when final width changes.
+- `Scroll` provides clipping and content offset but not scrollbars, scroll
+  range calculation, virtualized children, wheel ownership, or kinetic input.
+- Pixel units are preliminary and need DPI/pixel-density semantics.
+- Existing feature UI remains mostly manually positioned.
+- Layout has no style/theme metrics yet, so spacing and typography are still
+  authored ad hoc by each feature.
+
+### Next Primitive
+
+With Layers, Dispatch, Focus, Modals, Mounts, Compositions, Event Propagation,
+UiSurface, and Layout implemented, the single highest-leverage next primitive is
+the **Styling / Theme System**.
+
+Styling should precede animation, navigation, drag/drop, data binding, and a
+widget framework because layout now provides geometry slots, but visuals and
+metrics are still duplicated across features. A theme system centralizes color,
+typography, spacing, borders, panel skins, state visuals, and metric tokens. It
+will make future widgets and compositions reusable across game HUDs, VN
+frontends, editor tools, terminals, and debug panels without copying colors,
+font scales, padding, and button-state code into every feature.
+
+Animation depends on stable style/layout properties to transition. Navigation
+depends on consistent focusable widgets. Drag/drop depends on styled hit
+targets and layout regions. Data binding needs reusable widgets. A widget
+framework should come after layout and styling define how controls size and look.
+
+## 15. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -2764,9 +2945,10 @@ direction is engine-owned focus management. The fourth committed direction is
 engine-owned modal policy. The fifth committed direction is engine-owned mount
 lifetime. The sixth committed direction is engine-owned composition authoring.
 The seventh committed direction is retained UI event propagation. The eighth
-committed direction is surface-local UI ownership through `UiSurface`.
+committed direction is surface-local UI ownership through `UiSurface`. The ninth
+committed direction is engine-owned retained layout.
 
-The next milestone should implement the layout engine expansion. It should
-precede styling, animation, navigation, drag/drop, data binding, and a widget
-framework because those systems all depend on predictable surface-local geometry
-instead of feature code manually positioning retained nodes.
+The next milestone should implement a structured Styling / Theme System. It
+should precede animation, navigation, drag/drop, data binding, and a widget
+framework because those systems need reusable visual state, metrics, typography,
+and skin contracts on top of the now-implemented layout geometry.

@@ -1,6 +1,7 @@
 #include "UiDocument.h"
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 #include <vector>
 
@@ -53,6 +54,118 @@ namespace
             std::max(0.0f, right - left),
             std::max(0.0f, bottom - top)
         };
+    }
+
+    UiRect applyMargin(const UiRect& rect, const UiThickness& margin)
+    {
+        return insetRect(rect, margin);
+    }
+
+    UiVec2 makeSize(float width, float height)
+    {
+        return {std::max(0.0f, width), std::max(0.0f, height)};
+    }
+
+    bool lengthIsExplicit(const UiLayoutLength& length)
+    {
+        return length.unit != UiLayoutUnit::Auto && length.unit != UiLayoutUnit::Content;
+    }
+
+    float resolveLength(const UiLayoutLength& length,
+                        float parentAxis,
+                        float surfaceWidth,
+                        float surfaceHeight,
+                        float contentAxis,
+                        float emSize)
+    {
+        switch (length.unit)
+        {
+            case UiLayoutUnit::Auto:
+                return 0.0f;
+
+            case UiLayoutUnit::Normalized:
+                return length.value;
+
+            case UiLayoutUnit::Percent:
+            case UiLayoutUnit::ParentWidth:
+            case UiLayoutUnit::ParentHeight:
+                return parentAxis * length.value;
+
+            case UiLayoutUnit::SurfaceWidth:
+                return surfaceWidth * length.value;
+
+            case UiLayoutUnit::SurfaceHeight:
+                return surfaceHeight * length.value;
+
+            case UiLayoutUnit::Content:
+                return contentAxis;
+
+            case UiLayoutUnit::Em:
+                return emSize * length.value;
+
+            case UiLayoutUnit::Pixels:
+                return surfaceWidth > 1.0f ? length.value / surfaceWidth : length.value;
+        }
+
+        return 0.0f;
+    }
+
+    float clampAxis(float value,
+                    const UiLayoutLength& minLength,
+                    const UiLayoutLength& maxLength,
+                    float parentAxis,
+                    const UiVec2& surfaceSize,
+                    float contentAxis,
+                    float emSize)
+    {
+        float result = std::max(0.0f, value);
+        if (minLength.unit != UiLayoutUnit::Auto)
+        {
+            result = std::max(result,
+                              resolveLength(minLength,
+                                            parentAxis,
+                                            surfaceSize.x,
+                                            surfaceSize.y,
+                                            contentAxis,
+                                            emSize));
+        }
+        if (maxLength.unit != UiLayoutUnit::Auto)
+        {
+            result = std::min(result,
+                              resolveLength(maxLength,
+                                            parentAxis,
+                                            surfaceSize.x,
+                                            surfaceSize.y,
+                                            contentAxis,
+                                            emSize));
+        }
+        return std::max(0.0f, result);
+    }
+
+    float alignmentOffset(UiLayoutAlignment alignment, float available, float size)
+    {
+        switch (alignment)
+        {
+            case UiLayoutAlignment::Start:
+            case UiLayoutAlignment::Stretch:
+                return 0.0f;
+
+            case UiLayoutAlignment::Center:
+                return (available - size) * 0.5f;
+
+            case UiLayoutAlignment::End:
+                return available - size;
+        }
+
+        return 0.0f;
+    }
+
+    UiVec2 approximateTextSize(const UiTextData& text)
+    {
+        const float scale = std::max(0.0f, text.scale);
+        const float width = static_cast<float>(text.text.size()) * scale * 0.55f;
+        const float height = scale * 1.25f * static_cast<float>(std::max(1, text.maxLines == 0 ? 1 : text.maxLines));
+        return makeSize(width, height);
     }
 }
 
@@ -357,7 +470,7 @@ bool UiDocument::setState(UiHandle handle, const UiStateFlags& state)
     if (node->state == state) return true;
 
     node->state = state;
-    markDirty(handle, UiDirtyFlags::Visual);
+    markDirty(handle, UiDirtyFlags::Layout | UiDirtyFlags::Visual);
     return true;
 }
 
@@ -368,7 +481,10 @@ bool UiDocument::setPayload(UiHandle handle, const UiNodePayload& payload)
     if (node->payload == payload) return true;
 
     node->payload = payload;
-    markDirty(handle, UiDirtyFlags::Visual);
+    const bool layoutAffectsPayload = std::holds_alternative<UiTextData>(payload)
+        || std::holds_alternative<UiImageData>(payload)
+        || std::holds_alternative<UiGridData>(payload);
+    markDirty(handle, (layoutAffectsPayload ? UiDirtyFlags::Layout : UiDirtyFlags{}) | UiDirtyFlags::Visual);
     return true;
 }
 
@@ -406,16 +522,31 @@ void UiDocument::setViewportSize(float inViewportWidth, float inViewportHeight)
 
 void UiDocument::updateLayout(float inViewportWidth, float inViewportHeight)
 {
+    updateLayout(inViewportWidth, inViewportHeight, UiTextMeasureCallback{});
+}
+
+void UiDocument::updateLayout(float inViewportWidth,
+                              float inViewportHeight,
+                              const UiTextMeasureCallback& textMeasure)
+{
     viewportWidth  = inViewportWidth;
     viewportHeight = inViewportHeight;
+    const UiVec2 surfaceSize = {viewportWidth, viewportHeight};
 
     UiNode& root = nodes[rootHandle];
     root.computedLayout.bounds      = {0.0f, 0.0f, viewportWidth, viewportHeight};
     root.computedLayout.contentRect = root.computedLayout.bounds;
     root.computedLayout.clipRect    = root.computedLayout.bounds;
+    root.computedLayout.measuredSize = surfaceSize;
 
     for (UiHandle child : root.children)
-        computeLayoutRecursive(child, &root.computedLayout);
+        measureLayoutRecursive(child, surfaceSize, surfaceSize, textMeasure);
+
+    for (UiHandle child : root.children)
+    {
+        UiRect childRect = resolveCanvasChildRect(nodes[child], root.computedLayout.contentRect, surfaceSize);
+        arrangeLayoutRecursive(child, childRect, root.computedLayout.clipRect, surfaceSize, textMeasure);
+    }
 
     dirtyFlags = static_cast<UiDirtyFlags>(static_cast<uint8_t>(dirtyFlags)
         & ~static_cast<uint8_t>(UiDirtyFlags::Layout));
@@ -540,55 +671,561 @@ bool UiDocument::isLayerRoot(UiHandle handle) const
     return false;
 }
 
-void UiDocument::computeLayoutRecursive(UiHandle handle, const UiComputedLayout* parentLayout)
+UiVec2 UiDocument::measureLayoutRecursive(UiHandle handle,
+                                           const UiVec2& availableSize,
+                                           const UiVec2& surfaceSize,
+                                           const UiTextMeasureCallback& textMeasure)
 {
     UiNode& node = nodes[handle];
-    const UiRect& parentRect = parentLayout->contentRect;
+    UiVec2 contentSize = {};
 
+    if (node.type == UiNodeType::Text)
+    {
+        UiTextMeasurement measurement;
+        if (textMeasure && textMeasure(handle, measurement))
+            contentSize = makeSize(measurement.width, measurement.height);
+        else if (const auto* text = std::get_if<UiTextData>(&node.payload))
+            contentSize = approximateTextSize(*text);
+    }
+    else if (node.type == UiNodeType::Image)
+    {
+        if (const auto* image = std::get_if<UiImageData>(&node.payload))
+            contentSize = makeSize(image->imageAspect, 1.0f);
+    }
+    else if (node.type == UiNodeType::Grid)
+    {
+        if (const auto* grid = std::get_if<UiGridData>(&node.payload))
+            contentSize = makeSize(static_cast<float>(std::max(0, grid->columns)),
+                                   static_cast<float>(std::max(0, grid->rows)));
+    }
+
+    std::vector<UiVec2> childSizes;
+    childSizes.reserve(node.children.size());
+    for (UiHandle child : node.children)
+    {
+        UiNode& childNode = nodes[child];
+        if (!childNode.state.visible)
+        {
+            childNode.computedLayout.measuredSize = {};
+            childSizes.push_back({});
+            continue;
+        }
+        childSizes.push_back(measureLayoutRecursive(child, availableSize, surfaceSize, textMeasure));
+    }
+
+    UiVec2 childContentSize = {};
+    if (!childSizes.empty())
+    {
+        switch (node.layout.layoutMode)
+        {
+            case UiLayoutMode::Stack:
+            {
+                const bool horizontal = node.layout.stackAxis == UiLayoutAxis::Horizontal;
+                float main = 0.0f;
+                float cross = 0.0f;
+                int visibleCount = 0;
+                for (size_t i = 0; i < childSizes.size(); ++i)
+                {
+                    const UiNode& child = nodes[node.children[i]];
+                    if (!child.state.visible)
+                        continue;
+                    ++visibleCount;
+                    main += horizontal ? childSizes[i].x : childSizes[i].y;
+                    cross = std::max(cross, horizontal ? childSizes[i].y : childSizes[i].x);
+                }
+                if (visibleCount > 1)
+                    main += node.layout.gap * static_cast<float>(visibleCount - 1);
+                childContentSize = horizontal ? makeSize(main, cross) : makeSize(cross, main);
+                break;
+            }
+
+            case UiLayoutMode::Grid:
+            {
+                const int columns = std::max(1, node.layout.gridColumns);
+                const int rows = std::max(1, node.layout.gridRows);
+                float cellWidth = 0.0f;
+                float cellHeight = 0.0f;
+                for (UiVec2 size : childSizes)
+                {
+                    cellWidth = std::max(cellWidth, size.x);
+                    cellHeight = std::max(cellHeight, size.y);
+                }
+                childContentSize = makeSize(
+                    cellWidth * static_cast<float>(columns) +
+                        node.layout.gridColumnGap * static_cast<float>(std::max(0, columns - 1)),
+                    cellHeight * static_cast<float>(rows) +
+                        node.layout.gridRowGap * static_cast<float>(std::max(0, rows - 1)));
+                break;
+            }
+
+            case UiLayoutMode::Dock:
+            {
+                for (UiVec2 size : childSizes)
+                {
+                    childContentSize.x = std::max(childContentSize.x, size.x);
+                    childContentSize.y = std::max(childContentSize.y, size.y);
+                }
+                break;
+            }
+
+            case UiLayoutMode::Overlay:
+            case UiLayoutMode::Aspect:
+            case UiLayoutMode::Constraint:
+            case UiLayoutMode::Scroll:
+            case UiLayoutMode::Canvas:
+            {
+                for (UiVec2 size : childSizes)
+                {
+                    childContentSize.x = std::max(childContentSize.x, size.x);
+                    childContentSize.y = std::max(childContentSize.y, size.y);
+                }
+                break;
+            }
+        }
+    }
+
+    contentSize.x = std::max(contentSize.x, childContentSize.x + node.layout.padding.left + node.layout.padding.right);
+    contentSize.y = std::max(contentSize.y, childContentSize.y + node.layout.padding.top + node.layout.padding.bottom);
+
+    const float emSize = node.type == UiNodeType::Text && std::holds_alternative<UiTextData>(node.payload)
+        ? std::get<UiTextData>(node.payload).scale
+        : 0.02f;
+    const UiLayoutConstraints& constraints = node.layout.constraints;
+
+    float width = contentSize.x;
+    float height = contentSize.y;
+    if (lengthIsExplicit(constraints.preferredWidth))
+    {
+        width = resolveLength(constraints.preferredWidth,
+                              availableSize.x,
+                              surfaceSize.x,
+                              surfaceSize.y,
+                              contentSize.x,
+                              emSize);
+    }
+    else if (constraints.preferredWidth.unit == UiLayoutUnit::Content)
+    {
+        width = contentSize.x;
+    }
+    else if (node.layout.widthMode == UiSizeMode::Fixed && node.layout.fixedWidth > 0.0f)
+    {
+        width = node.layout.fixedWidth;
+    }
+
+    if (lengthIsExplicit(constraints.preferredHeight))
+    {
+        height = resolveLength(constraints.preferredHeight,
+                               availableSize.y,
+                               surfaceSize.x,
+                               surfaceSize.y,
+                               contentSize.y,
+                               emSize);
+    }
+    else if (constraints.preferredHeight.unit == UiLayoutUnit::Content)
+    {
+        height = contentSize.y;
+    }
+    else if (node.layout.heightMode == UiSizeMode::Fixed && node.layout.fixedHeight > 0.0f)
+    {
+        height = node.layout.fixedHeight;
+    }
+
+    width = clampAxis(width,
+                      constraints.minWidth,
+                      constraints.maxWidth,
+                      availableSize.x,
+                      surfaceSize,
+                      contentSize.x,
+                      emSize);
+    height = clampAxis(height,
+                       constraints.minHeight,
+                       constraints.maxHeight,
+                       availableSize.y,
+                       surfaceSize,
+                       contentSize.y,
+                       emSize);
+
+    node.computedLayout.measuredSize = makeSize(width, height);
+    return node.computedLayout.measuredSize;
+}
+
+void UiDocument::arrangeLayoutRecursive(UiHandle handle,
+                                         const UiRect& assignedRect,
+                                         const UiRect& inheritedClip,
+                                         const UiVec2& surfaceSize,
+                                         const UiTextMeasureCallback& textMeasure)
+{
+    UiNode& node = nodes[handle];
+    const bool forceClip = node.layout.layoutMode == UiLayoutMode::Scroll;
+    node.computedLayout.bounds = resolveBoxInRect(node, assignedRect, surfaceSize);
+    node.computedLayout.contentRect = insetRect(node.computedLayout.bounds, node.layout.padding);
+    node.computedLayout.clipRect = (node.layout.clipMode == UiClipMode::ClipChildren || forceClip)
+        ? intersectRect(inheritedClip, node.computedLayout.bounds)
+        : inheritedClip;
+
+    arrangeChildren(handle, surfaceSize, textMeasure);
+}
+
+void UiDocument::arrangeChildren(UiHandle handle,
+                                 const UiVec2& surfaceSize,
+                                 const UiTextMeasureCallback& textMeasure)
+{
+    UiNode& node = nodes[handle];
+    switch (node.layout.layoutMode)
+    {
+        case UiLayoutMode::Canvas:
+            arrangeCanvasChildren(handle, surfaceSize, textMeasure, false);
+            break;
+
+        case UiLayoutMode::Scroll:
+            arrangeCanvasChildren(handle, surfaceSize, textMeasure, true);
+            break;
+
+        case UiLayoutMode::Overlay:
+        case UiLayoutMode::Aspect:
+            arrangeOverlayChildren(handle, surfaceSize, textMeasure);
+            break;
+
+        case UiLayoutMode::Stack:
+            arrangeStackChildren(handle, surfaceSize, textMeasure);
+            break;
+
+        case UiLayoutMode::Grid:
+            arrangeGridChildren(handle, surfaceSize, textMeasure);
+            break;
+
+        case UiLayoutMode::Dock:
+            arrangeDockChildren(handle, surfaceSize, textMeasure);
+            break;
+
+        case UiLayoutMode::Constraint:
+            arrangeConstraintChildren(handle, surfaceSize, textMeasure);
+            break;
+    }
+}
+
+void UiDocument::arrangeCanvasChildren(UiHandle handle,
+                                       const UiVec2& surfaceSize,
+                                       const UiTextMeasureCallback& textMeasure,
+                                       bool forceClip)
+{
+    UiNode& node = nodes[handle];
+    UiRect parentRect = node.computedLayout.contentRect;
+    parentRect.x += node.layout.contentOffset.x;
+    parentRect.y += node.layout.contentOffset.y;
+
+    const UiRect childClip = forceClip ? intersectRect(node.computedLayout.clipRect, node.computedLayout.bounds)
+                                       : node.computedLayout.clipRect;
+    for (UiHandle child : node.children)
+    {
+        UiRect childRect = resolveCanvasChildRect(nodes[child], parentRect, surfaceSize);
+        arrangeLayoutRecursive(child, childRect, childClip, surfaceSize, textMeasure);
+    }
+}
+
+void UiDocument::arrangeOverlayChildren(UiHandle handle,
+                                        const UiVec2& surfaceSize,
+                                        const UiTextMeasureCallback& textMeasure)
+{
+    UiNode& node = nodes[handle];
+    for (UiHandle child : node.children)
+        arrangeLayoutRecursive(child, node.computedLayout.contentRect, node.computedLayout.clipRect, surfaceSize, textMeasure);
+}
+
+void UiDocument::arrangeStackChildren(UiHandle handle,
+                                      const UiVec2& surfaceSize,
+                                      const UiTextMeasureCallback& textMeasure)
+{
+    UiNode& node = nodes[handle];
+    const bool horizontal = node.layout.stackAxis == UiLayoutAxis::Horizontal;
+    const UiRect content = node.computedLayout.contentRect;
+    const float availableMain = horizontal ? content.width : content.height;
+    const float availableCross = horizontal ? content.height : content.width;
+
+    float fixedMain = 0.0f;
+    float growTotal = 0.0f;
+    int visibleCount = 0;
+    for (UiHandle child : node.children)
+    {
+        const UiNode& childNode = nodes[child];
+        if (!childNode.state.visible)
+            continue;
+
+        ++visibleCount;
+        fixedMain += horizontal
+            ? childNode.computedLayout.measuredSize.x + childNode.layout.margin.left + childNode.layout.margin.right
+            : childNode.computedLayout.measuredSize.y + childNode.layout.margin.top + childNode.layout.margin.bottom;
+        growTotal += std::max(0.0f, childNode.layout.constraints.grow);
+    }
+
+    const float gapTotal = visibleCount > 1
+        ? node.layout.gap * static_cast<float>(visibleCount - 1)
+        : 0.0f;
+    const float extraMain = std::max(0.0f, availableMain - fixedMain - gapTotal);
+    float stackMain = fixedMain + gapTotal + (growTotal > 0.0f ? extraMain : 0.0f);
+    float cursor = horizontal ? content.x : content.y;
+    cursor += alignmentOffset(node.layout.mainAxisAlignment, availableMain, stackMain);
+
+    for (UiHandle child : node.children)
+    {
+        UiNode& childNode = nodes[child];
+        if (!childNode.state.visible)
+            continue;
+
+        UiVec2 size = childNode.computedLayout.measuredSize;
+        const float grow = std::max(0.0f, childNode.layout.constraints.grow);
+        if (growTotal > 0.0f && grow > 0.0f)
+        {
+            if (horizontal)
+                size.x += extraMain * (grow / growTotal);
+            else
+                size.y += extraMain * (grow / growTotal);
+        }
+
+        if (node.layout.crossAxisAlignment == UiLayoutAlignment::Stretch)
+        {
+            if (horizontal)
+                size.y = std::max(0.0f, availableCross - childNode.layout.margin.top - childNode.layout.margin.bottom);
+            else
+                size.x = std::max(0.0f, availableCross - childNode.layout.margin.left - childNode.layout.margin.right);
+        }
+
+        UiRect slot;
+        if (horizontal)
+        {
+            slot = {
+                cursor,
+                content.y,
+                size.x + childNode.layout.margin.left + childNode.layout.margin.right,
+                availableCross
+            };
+            cursor += slot.width + node.layout.gap;
+        }
+        else
+        {
+            slot = {
+                content.x,
+                cursor,
+                availableCross,
+                size.y + childNode.layout.margin.top + childNode.layout.margin.bottom
+            };
+            cursor += slot.height + node.layout.gap;
+        }
+
+        arrangeLayoutRecursive(child, slot, node.computedLayout.clipRect, surfaceSize, textMeasure);
+    }
+}
+
+void UiDocument::arrangeGridChildren(UiHandle handle,
+                                     const UiVec2& surfaceSize,
+                                     const UiTextMeasureCallback& textMeasure)
+{
+    UiNode& node = nodes[handle];
+    const UiRect content = node.computedLayout.contentRect;
+    const int columns = std::max(1, node.layout.gridColumns);
+    const int rows = std::max(1, node.layout.gridRows);
+    const float columnGapTotal = node.layout.gridColumnGap * static_cast<float>(std::max(0, columns - 1));
+    const float rowGapTotal = node.layout.gridRowGap * static_cast<float>(std::max(0, rows - 1));
+    const float cellWidth = std::max(0.0f, (content.width - columnGapTotal) / static_cast<float>(columns));
+    const float cellHeight = std::max(0.0f, (content.height - rowGapTotal) / static_cast<float>(rows));
+
+    for (UiHandle child : node.children)
+    {
+        UiNode& childNode = nodes[child];
+        const int column = std::clamp(childNode.layout.gridColumn, 0, columns - 1);
+        const int row = std::clamp(childNode.layout.gridRow, 0, rows - 1);
+        const int columnSpan = std::clamp(childNode.layout.gridColumnSpan, 1, columns - column);
+        const int rowSpan = std::clamp(childNode.layout.gridRowSpan, 1, rows - row);
+
+        UiRect slot;
+        slot.x = content.x + static_cast<float>(column) * (cellWidth + node.layout.gridColumnGap);
+        slot.y = content.y + static_cast<float>(row) * (cellHeight + node.layout.gridRowGap);
+        slot.width = cellWidth * static_cast<float>(columnSpan) +
+            node.layout.gridColumnGap * static_cast<float>(columnSpan - 1);
+        slot.height = cellHeight * static_cast<float>(rowSpan) +
+            node.layout.gridRowGap * static_cast<float>(rowSpan - 1);
+        arrangeLayoutRecursive(child, slot, node.computedLayout.clipRect, surfaceSize, textMeasure);
+    }
+}
+
+void UiDocument::arrangeDockChildren(UiHandle handle,
+                                     const UiVec2& surfaceSize,
+                                     const UiTextMeasureCallback& textMeasure)
+{
+    UiNode& node = nodes[handle];
+    UiRect remaining = node.computedLayout.contentRect;
+
+    for (UiHandle child : node.children)
+    {
+        UiNode& childNode = nodes[child];
+        UiRect slot = remaining;
+        switch (childNode.layout.dock)
+        {
+            case UiDockEdge::Left:
+                slot.width = std::min(remaining.width, childNode.computedLayout.measuredSize.x);
+                remaining.x += slot.width + node.layout.gap;
+                remaining.width = std::max(0.0f, remaining.width - slot.width - node.layout.gap);
+                break;
+
+            case UiDockEdge::Right:
+                slot.width = std::min(remaining.width, childNode.computedLayout.measuredSize.x);
+                slot.x = remaining.x + remaining.width - slot.width;
+                remaining.width = std::max(0.0f, remaining.width - slot.width - node.layout.gap);
+                break;
+
+            case UiDockEdge::Top:
+                slot.height = std::min(remaining.height, childNode.computedLayout.measuredSize.y);
+                remaining.y += slot.height + node.layout.gap;
+                remaining.height = std::max(0.0f, remaining.height - slot.height - node.layout.gap);
+                break;
+
+            case UiDockEdge::Bottom:
+                slot.height = std::min(remaining.height, childNode.computedLayout.measuredSize.y);
+                slot.y = remaining.y + remaining.height - slot.height;
+                remaining.height = std::max(0.0f, remaining.height - slot.height - node.layout.gap);
+                break;
+
+            case UiDockEdge::Fill:
+                slot = remaining;
+                break;
+        }
+
+        arrangeLayoutRecursive(child, slot, node.computedLayout.clipRect, surfaceSize, textMeasure);
+    }
+}
+
+void UiDocument::arrangeConstraintChildren(UiHandle handle,
+                                           const UiVec2& surfaceSize,
+                                           const UiTextMeasureCallback& textMeasure)
+{
+    UiNode& node = nodes[handle];
+    for (UiHandle child : node.children)
+        arrangeLayoutRecursive(child, node.computedLayout.contentRect, node.computedLayout.clipRect, surfaceSize, textMeasure);
+}
+
+UiRect UiDocument::resolveCanvasChildRect(const UiNode& child,
+                                          const UiRect& parentRect,
+                                          const UiVec2& surfaceSize) const
+{
     float x = parentRect.x;
     float y = parentRect.y;
-    float width = node.layout.fixedWidth;
-    float height = node.layout.fixedHeight;
+    float width = child.layout.fixedWidth;
+    float height = child.layout.fixedHeight;
 
-    if (node.layout.positionMode == UiPositionMode::Anchored)
+    if (child.layout.positionMode == UiPositionMode::Anchored)
     {
-        const float left = parentRect.x + parentRect.width  * node.layout.anchorMin.x + node.layout.offsetMin.x + node.layout.margin.left;
-        const float top  = parentRect.y + parentRect.height * node.layout.anchorMin.y + node.layout.offsetMin.y + node.layout.margin.top;
+        const float left = parentRect.x + parentRect.width * child.layout.anchorMin.x + child.layout.offsetMin.x;
+        const float top = parentRect.y + parentRect.height * child.layout.anchorMin.y + child.layout.offsetMin.y;
         x = left;
         y = top;
 
-        if (node.layout.widthMode == UiSizeMode::FromAnchors)
+        if (child.layout.widthMode == UiSizeMode::FromAnchors)
         {
-            const float right = parentRect.x + parentRect.width * node.layout.anchorMax.x + node.layout.offsetMax.x - node.layout.margin.right;
+            const float right = parentRect.x + parentRect.width * child.layout.anchorMax.x + child.layout.offsetMax.x;
             width = std::max(0.0f, right - left);
         }
 
-        if (node.layout.heightMode == UiSizeMode::FromAnchors)
+        if (child.layout.heightMode == UiSizeMode::FromAnchors)
         {
-            const float bottom = parentRect.y + parentRect.height * node.layout.anchorMax.y + node.layout.offsetMax.y - node.layout.margin.bottom;
+            const float bottom = parentRect.y + parentRect.height * child.layout.anchorMax.y + child.layout.offsetMax.y;
             height = std::max(0.0f, bottom - top);
         }
     }
     else
     {
-        x = parentRect.x + node.layout.offsetMin.x + node.layout.margin.left;
-        y = parentRect.y + node.layout.offsetMin.y + node.layout.margin.top;
-        width  = std::max(0.0f, node.layout.fixedWidth  - node.layout.margin.left - node.layout.margin.right);
-        height = std::max(0.0f, node.layout.fixedHeight - node.layout.margin.top  - node.layout.margin.bottom);
+        x = parentRect.x + child.layout.offsetMin.x;
+        y = parentRect.y + child.layout.offsetMin.y;
     }
 
-    node.computedLayout.bounds      = {x, y, width, height};
-    node.computedLayout.contentRect = insetRect(node.computedLayout.bounds, node.layout.padding);
-    node.computedLayout.clipRect    = (node.layout.clipMode == UiClipMode::ClipChildren)
-        ? intersectRect(parentLayout->clipRect, node.computedLayout.bounds)
-        : parentLayout->clipRect;
+    if (width <= 0.0f)
+        width = child.computedLayout.measuredSize.x;
+    if (height <= 0.0f)
+        height = child.computedLayout.measuredSize.y;
 
-    UiComputedLayout childParentLayout = node.computedLayout;
-    childParentLayout.contentRect.x += node.layout.contentOffset.x;
-    childParentLayout.contentRect.y += node.layout.contentOffset.y;
+    return {x, y, width, height};
+}
 
-    for (UiHandle child : node.children)
-        computeLayoutRecursive(child, &childParentLayout);
+UiRect UiDocument::resolveBoxInRect(const UiNode& node,
+                                    const UiRect& slot,
+                                    const UiVec2& surfaceSize) const
+{
+    const UiRect innerSlot = applyMargin(slot, node.layout.margin);
+    const UiLayoutConstraints& constraints = node.layout.constraints;
+    const float emSize = node.type == UiNodeType::Text && std::holds_alternative<UiTextData>(node.payload)
+        ? std::get<UiTextData>(node.payload).scale
+        : 0.02f;
+
+    float width = innerSlot.width;
+    float height = innerSlot.height;
+
+    if (lengthIsExplicit(constraints.preferredWidth))
+    {
+        width = resolveLength(constraints.preferredWidth,
+                              innerSlot.width,
+                              surfaceSize.x,
+                              surfaceSize.y,
+                              node.computedLayout.measuredSize.x,
+                              emSize);
+    }
+    else if (constraints.preferredWidth.unit == UiLayoutUnit::Content)
+    {
+        width = node.computedLayout.measuredSize.x;
+    }
+    else if (constraints.horizontalAlignment != UiLayoutAlignment::Stretch)
+    {
+        width = std::min(width, node.computedLayout.measuredSize.x);
+    }
+
+    if (lengthIsExplicit(constraints.preferredHeight))
+    {
+        height = resolveLength(constraints.preferredHeight,
+                               innerSlot.height,
+                               surfaceSize.x,
+                               surfaceSize.y,
+                               node.computedLayout.measuredSize.y,
+                               emSize);
+    }
+    else if (constraints.preferredHeight.unit == UiLayoutUnit::Content)
+    {
+        height = node.computedLayout.measuredSize.y;
+    }
+    else if (constraints.verticalAlignment != UiLayoutAlignment::Stretch)
+    {
+        height = std::min(height, node.computedLayout.measuredSize.y);
+    }
+
+    width = clampAxis(width,
+                      constraints.minWidth,
+                      constraints.maxWidth,
+                      innerSlot.width,
+                      surfaceSize,
+                      node.computedLayout.measuredSize.x,
+                      emSize);
+    height = clampAxis(height,
+                       constraints.minHeight,
+                       constraints.maxHeight,
+                       innerSlot.height,
+                       surfaceSize,
+                       node.computedLayout.measuredSize.y,
+                       emSize);
+
+    const float aspect = constraints.aspectRatio;
+    if (aspect > 0.0f && width > 0.0f && height > 0.0f)
+    {
+        if (width / height > aspect)
+            width = height * aspect;
+        else
+            height = width / aspect;
+    }
+
+    width = std::min(width, innerSlot.width);
+    height = std::min(height, innerSlot.height);
+
+    const float x = innerSlot.x +
+        alignmentOffset(constraints.horizontalAlignment, innerSlot.width, width);
+    const float y = innerSlot.y +
+        alignmentOffset(constraints.verticalAlignment, innerSlot.height, height);
+    return {x, y, std::max(0.0f, width), std::max(0.0f, height)};
 }
 
 void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, const UiRect& inheritedClip)

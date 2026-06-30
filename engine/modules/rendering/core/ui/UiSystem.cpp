@@ -1068,8 +1068,30 @@ const UiCommandBuffer& UiSystem::extractSurfaceCommandsRef(UiSurfaceId surfaceId
 
     if (hasFlag(document.getDirtyFlags(), UiDirtyFlags::Layout))
     {
+        UiDocument::UiTextMeasureCallback textMeasure =
+            [&record, &document](UiHandle handle, UiTextMeasurement& outMeasurement)
+        {
+            const UiNode* node = document.findNode(handle);
+            if (node == nullptr || node->type != UiNodeType::Text)
+                return false;
+
+            const auto fontIt = record->textBindings.find(handle);
+            if (fontIt == record->textBindings.end() || fontIt->second == nullptr)
+                return false;
+
+            const UiTextData& data = std::get<UiTextData>(node->payload);
+            outMeasurement = GlyphLayoutEngine::measureUiText(
+                *fontIt->second,
+                data.text,
+                data.scale,
+                0.0f,
+                data.wrapMode,
+                data.maxLines);
+            return true;
+        };
+
         const auto start = std::chrono::steady_clock::now();
-        document.updateLayout(1.0f, 1.0f);
+        document.updateLayout(1.0f, 1.0f, textMeasure);
         const auto end = std::chrono::steady_clock::now();
         record->lastMetrics.layoutMs =
             std::chrono::duration<float, std::milli>(end - start).count();

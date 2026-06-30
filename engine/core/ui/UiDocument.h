@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -12,6 +13,8 @@
 class UiDocument
 {
 public:
+    using UiTextMeasureCallback = std::function<bool(UiHandle, UiTextMeasurement&)>;
+
     UiDocument();
     void clear();
 
@@ -48,6 +51,9 @@ public:
 
     void setViewportSize(float viewportWidth, float viewportHeight);
     void updateLayout(float viewportWidth, float viewportHeight);
+    void updateLayout(float viewportWidth,
+                      float viewportHeight,
+                      const UiTextMeasureCallback& textMeasure);
     void rebuildVisualList();
 
     const UiVisualList& getVisualList() const { return visualList; }
@@ -65,7 +71,43 @@ private:
     void     sortLayerRoots();
     void     createLayerRoot(UiLayer& layer);
     bool     isLayerRoot(UiHandle handle) const;
-    void     computeLayoutRecursive(UiHandle handle, const UiComputedLayout* parentLayout);
+    UiVec2   measureLayoutRecursive(UiHandle handle,
+                                     const UiVec2& availableSize,
+                                     const UiVec2& surfaceSize,
+                                     const UiTextMeasureCallback& textMeasure);
+    void     arrangeLayoutRecursive(UiHandle handle,
+                                    const UiRect& assignedRect,
+                                    const UiRect& inheritedClip,
+                                    const UiVec2& surfaceSize,
+                                    const UiTextMeasureCallback& textMeasure);
+    void     arrangeChildren(UiHandle handle,
+                             const UiVec2& surfaceSize,
+                             const UiTextMeasureCallback& textMeasure);
+    void     arrangeCanvasChildren(UiHandle handle,
+                                   const UiVec2& surfaceSize,
+                                   const UiTextMeasureCallback& textMeasure,
+                                   bool forceClip);
+    void     arrangeOverlayChildren(UiHandle handle,
+                                    const UiVec2& surfaceSize,
+                                    const UiTextMeasureCallback& textMeasure);
+    void     arrangeStackChildren(UiHandle handle,
+                                  const UiVec2& surfaceSize,
+                                  const UiTextMeasureCallback& textMeasure);
+    void     arrangeGridChildren(UiHandle handle,
+                                 const UiVec2& surfaceSize,
+                                 const UiTextMeasureCallback& textMeasure);
+    void     arrangeDockChildren(UiHandle handle,
+                                 const UiVec2& surfaceSize,
+                                 const UiTextMeasureCallback& textMeasure);
+    void     arrangeConstraintChildren(UiHandle handle,
+                                       const UiVec2& surfaceSize,
+                                       const UiTextMeasureCallback& textMeasure);
+    UiRect   resolveCanvasChildRect(const UiNode& child,
+                                    const UiRect& parentRect,
+                                    const UiVec2& surfaceSize) const;
+    UiRect   resolveBoxInRect(const UiNode& node,
+                              const UiRect& slot,
+                              const UiVec2& surfaceSize) const;
     void     rebuildVisualRecursive(UiHandle handle, bool parentVisible, const UiRect& inheritedClip);
     UiHandle hitTestRecursive(UiHandle handle, float x, float y, bool parentVisible) const;
 

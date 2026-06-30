@@ -921,6 +921,18 @@ Destroying a composition destroys its mount, and destroying a mount, layer,
 surface, or document clear also invokes composition cleanup before retained
 subtree teardown.
 
+Retained layout is now engine-owned. `UiLayoutSpec` keeps the old absolute and
+anchored fields as `UiLayoutMode::Canvas` compatibility, and also supports
+container modes for `Stack`, `Grid`, `Dock`, `Overlay`, `Scroll`, `Aspect`, and
+`Constraint`. `UiDocument::updateLayout(...)` performs a measure pass followed
+by an arrange pass, storing measured size, bounds, content rect, and clip rect
+on each node. Layout constraints include preferred/min/max size, grow/shrink,
+aspect ratio, alignment, padding, margin, and gaps, with typed layout lengths
+for normalized values, parent/surface percentages, content, em, and preliminary
+pixel units. Rendering and hit testing consume computed layout; feature
+compositions should declare layout intent instead of recomputing pixel offsets
+when a container can express the geometry.
+
 UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
 visible/render-enabled surfaces in surface order, resolves each surface's
 document into a surface-local command buffer, then transforms the vertices into
