@@ -16,6 +16,7 @@ public:
                                      UiModalManager& modalManager,
                                      const UiInputFrame& input,
                                      bool enabled,
+                                     UiSurfaceId surfaceId = UI_DEFAULT_SURFACE,
                                      uint64_t frameId = 0);
 
     const UiDispatchResult& dispatchResult() const { return lastDispatch; }
@@ -29,7 +30,7 @@ private:
     void clearInteractionState(UiDocument& document,
                                UiFocusManager& focusManager,
                                UiModalManager& modalManager);
-    UiDispatchResult makeDisabledResult(const UiInputFrame& input, uint64_t frameId);
+    UiDispatchResult makeDisabledResult(const UiInputFrame& input, UiSurfaceId surfaceId, uint64_t frameId);
     void assignLayers(const UiDocument& document, UiDispatchResult& result) const;
     void assignModalState(const UiModalManager& modalManager, UiDispatchResult& result) const;
     void buildEvents(const UiDocument& document,

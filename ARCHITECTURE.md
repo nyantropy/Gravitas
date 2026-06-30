@@ -849,49 +849,55 @@ profile buckets after printing.
 
 ## 8. Retained UI and Engine Tooling
 
-The retained UI model is an engine core service. `UiDocument` stores retained
-nodes and explicit document layers, `UiSystem` owns per-frame extraction and
-coordinates input dispatch, focus state, modal state, mount lifetime, and
-composition authoring, and tool widgets in `modules/tools/ui/` provide reusable
-engine-editor controls on top of that UI system.
+The retained UI model is an engine core service. `UiSurface` is the runtime
+boundary for a retained UI universe: it owns a `UiDocument`, explicit layers,
+focus state, modal state, mount lifetime, input dispatch, and coordinate
+conversion. `UiSystem` is the render-facing facade and compatibility surface
+router; existing APIs still target the default screen surface, while
+surface-aware APIs can create and address additional surfaces. Tool widgets in
+`modules/tools/ui/` provide reusable engine-editor controls on top of that UI
+system.
 
-`UiDocument` now has a hidden document root plus one or more ordered layer roots.
-Existing callers that create nodes without specifying a parent still attach to
-the default layer root returned by `UiSystem::getRoot()`, so current retained UI
-builders continue to work. New engine or game systems may create named layers
-through `UiSystem::createLayer(...)`, add nodes under `getLayerRoot(layerId)`,
-and change layer ordering or input participation without relying on scene
-construction order. Render traversal visits lower-order layers first and
-hit-testing walks the same layer roots in reverse order, so layer order is the
-first explicit UI stacking primitive. This is intentionally still one
-screen-space document; surfaces and propagated UI events are future runtime
-layers above this primitive.
+Each surface owns a `UiDocument` with a hidden document root plus one or more
+ordered layer roots. Existing callers that create nodes without specifying a
+surface or parent still attach to the default layer root returned by
+`UiSystem::getRoot()`, so current retained UI builders continue to work. New
+engine or game systems may create named layers through the default-surface APIs
+or through surface-aware overloads such as `UiSystem::createLayer(surface, ...)`,
+add nodes under `getLayerRoot(surface, layerId)`, and change layer ordering or
+input participation without relying on scene construction order. Render
+traversal visits lower-order layers first and hit-testing walks the same layer
+roots in reverse order, so layer order remains the explicit stacking primitive
+inside a surface.
 
 UI input dispatch is now centralized once per engine frame. After platform input
 has been sampled and before simulation/controller systems run,
 `RenderingRuntime::dispatchUiInput(...)` builds the frame's `UiInputFrame` from
 `InputBindingRegistry` and calls `UiSystem::dispatchInput(frame, frameId)`.
-`UiSystem` delegates to `UiInputDispatcher`, which performs the retained hit
-test, creates the frame's hovered/pressed/released/clicked/active/captured
-result, resolves owning layers, consults modal policy, stores a
-`UiDispatchResult`, and creates frame `UiEvent` values. Persistent interaction
-ownership lives in `UiFocusManager`, not in the dispatcher. The focus manager
-owns pointer hover per pointer id, pointer capture, active pointer owner,
-keyboard focus, text-input focus, navigation focus, focus scopes, and focus
-restoration. Modal ownership lives in `UiModalManager`, which owns the retained
-modal stack, layer blocking policy, cancel/back routing, and focus-scope
-restoration for nested modals. Retained node `hovered`, `focused`, and
-`pressed` flags are presentation reflection of focus-manager state, not
-authoritative owners.
+`UiSystem` selects the top ordered input-participating surface containing the
+pointer, or a surface that already owns pointer/cancel interaction, converts
+screen-normalized coordinates into that surface's local coordinates, and then
+delegates to that surface's `UiInputDispatcher`. The dispatcher performs the
+retained hit test, creates the frame's hovered/pressed/released/clicked/active/
+captured result, resolves owning layers, consults that surface's modal policy,
+stores a `UiDispatchResult`, and creates frame `UiEvent` values. Persistent
+interaction ownership lives in the surface's `UiFocusManager`, not in the
+dispatcher. The focus manager owns pointer hover per pointer id, pointer
+capture, active pointer owner, keyboard focus, text-input focus, navigation
+focus, focus scopes, and focus restoration. Modal ownership lives in the
+surface's `UiModalManager`, which owns the retained modal stack, layer blocking
+policy, cancel/back routing, and focus-scope restoration for nested modals.
+Retained node `hovered`, `focused`, and `pressed` flags are presentation
+reflection of focus-manager state, not authoritative owners.
 
-Retained UI event propagation is engine-owned. `UiSystem` resolves each event's
-target path, layer, mount, and composition, then delivers capture, target, and
-bubble phases to `UiComposition::onEvent(...)`. `event.consume()` stops
-propagation; `event.preventDefault()` marks default behavior as blocked without
-stopping propagation. Existing retained UI systems may still read
-`ctx.ui->dispatchResult()` during migration, but new composition-owned UI should
-prefer `onEvent(...)`. `UiSystem::updateInteraction(...)` remains only as a
-compatibility API over the dispatcher.
+Retained UI event propagation is engine-owned and surface-local. `UiSystem`
+resolves each event's surface, target path, layer, mount, and composition, then
+delivers capture, target, and bubble phases to `UiComposition::onEvent(...)`.
+`event.consume()` stops propagation; `event.preventDefault()` marks default
+behavior as blocked without stopping propagation. Existing retained UI systems
+may still read `ctx.ui->dispatchResult()` during migration, but new
+composition-owned UI should prefer `onEvent(...)`. `UiSystem::updateInteraction(...)`
+remains only as a compatibility API over the dispatcher.
 
 `UiMount` is the retained subtree ownership primitive. `UiSystem::createMount`
 creates a container root attached to a layer, node, or parent mount, while
@@ -904,14 +910,25 @@ mount is destroyed instead of leaving stale ownership state.
 
 `UiComposition` is the retained UI authoring primitive. `UiSystem` can
 `mountComposition(...)` into a new mount or `attachComposition(...)` to an
-existing mount, then calls the composition's `build`, `update`, `destroy`, and
-`rebuild` lifecycle plus event delivery through a `UiCompositionContext`. The
-context exposes the owning `UiSystem`, `UiDocument`, resource provider, mount
-id, and mount root. Compositions own cached handles, feature-local UI runtime
-state, and retained event behavior; mounts own attachment and lifetime; nodes
-own rendering data. Destroying a composition destroys its mount, and destroying a
-mount, layer, or document clear also invokes composition cleanup before retained
+existing mount on the default surface, and surface-aware overloads can mount the
+same composition type into another surface. The composition lifecycle is
+`build`, `update`, `destroy`, and `rebuild`, plus event delivery through a
+`UiCompositionContext`. The context exposes the owning `UiSystem`, surface id,
+surface-local `UiDocument`, resource provider, mount id, and mount root.
+Compositions own cached handles, feature-local UI runtime state, and retained
+event behavior; mounts own attachment and lifetime; nodes own rendering data.
+Destroying a composition destroys its mount, and destroying a mount, layer,
+surface, or document clear also invokes composition cleanup before retained
 subtree teardown.
+
+UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
+visible/render-enabled surfaces in surface order, resolves each surface's
+document into a surface-local command buffer, then transforms the vertices into
+that surface's normalized output rect before appending them to the submitted UI
+command buffer. The current Vulkan UI stage still composites the final combined
+buffer as a screen-space overlay; render-target, world-space, and multi-window
+surface targets are future renderer integrations above the implemented surface
+ownership boundary.
 
 UI extraction now enforces primitive clipping before draw-command generation.
 Layout specs include a default-zero child `contentOffset`, so a clipped

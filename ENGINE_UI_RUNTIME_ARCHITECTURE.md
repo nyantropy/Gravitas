@@ -34,60 +34,87 @@ The fifth foundational primitive is now implemented: `UiMount` owns retained UI
 subtree lifetime and attachment, and `UiSystem` cleans focus, pointer capture,
 modal ownership, text bindings, and child mounts when a mount is destroyed.
 
+The sixth foundational primitive is now implemented: `UiComposition` owns
+retained UI authoring and feature-local UI runtime state while `UiMount` owns
+lifetime.
+
+The seventh foundational primitive is now implemented: retained `UiEvent`
+propagation routes dispatcher-created events through capture, target, and bubble
+phases to `UiComposition::onEvent(...)`.
+
+The eighth foundational primitive is now implemented: `UiSurface` owns a
+surface-local UI universe: coordinate conversion, document, layers, focus,
+modal state, mounts, dispatcher, and input/render participation.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
 
 The retained UI runtime is currently centered on one `UiSystem` instance owned by
-the rendering runtime. That `UiSystem` owns one `UiDocument`, per-node text font
-bindings, a cached `UiCommandBuffer`, a `UiInputDispatcher`, a
-`UiFocusManager`, a `UiModalManager`, and a `UiMountManager`.
+the rendering runtime. `UiSystem` is now a surface-owning facade. It owns one
+default screen `UiSurface` for compatibility and can create additional surfaces.
+Each `UiSurface` owns one `UiDocument`, one layer stack, one
+`UiInputDispatcher`, one `UiFocusManager`, one `UiModalManager`, and one
+`UiMountManager`. Renderer-side text bindings and command caches are tracked per
+surface because `UiHandle` values remain document-local.
 
-The runtime currently has one screen-space document. The document coordinate
-space is normalized from `0..1` in both axes. Rendering later resolves those
-normalized coordinates into the current output pixel dimensions.
+The default screen surface preserves the old normalized `0..1` coordinate space.
+Additional surfaces declare a normalized output rect; screen input is converted
+into that surface's local `0..1` coordinate space before dispatch. Rendering
+extracts commands per visible/render-enabled surface and transforms the
+surface-local command vertices into the surface rect before submitting the
+combined screen-space UI command buffer.
 
 The render path is:
 
 1. Game or engine systems mutate retained nodes through `UiSystem`.
 2. `RenderingRuntime` asks `UiSystem` to extract commands for the output size.
-3. `UiSystem` updates layout if dirty, rebuilds the visual list if dirty, and
-   resolves the visual list into a `UiCommandBuffer`.
+3. `UiSystem` walks render-enabled surfaces in surface order, updates each
+   dirty surface document, rebuilds its visual list if dirty, resolves it into
+   a surface-local `UiCommandBuffer`, and appends it into the frame UI buffer.
 4. The Vulkan UI render stage draws that command buffer as an overlay after the
    scene and particle passes.
 
 The retained input path is now centralized once per engine frame.
-`RenderingRuntime::dispatchUiInput(...)` builds a `UiInputFrame` from
-`InputBindingRegistry`, calls `UiSystem::dispatchInput(...)`, and stores a
-`UiDispatchResult` for feature systems to read. The dispatcher consults
-`UiModalManager` before hit testing so the top modal can block lower layers and
-route cancel/back input. Inventory and merchant grid interactions still compute
-cell ownership manually because they are not yet modeled as retained UI widgets.
+`RenderingRuntime::dispatchUiInput(...)` builds a screen-normalized
+`UiInputFrame` from `InputBindingRegistry`, calls `UiSystem::dispatchInput(...)`,
+and stores a `UiDispatchResult` for compatibility systems to read. `UiSystem`
+selects the top ordered input-enabled surface under the pointer, or the surface
+that already owns pointer/cancel interaction, converts the frame to surface-local
+coordinates, and dispatches through that surface's dispatcher. The dispatcher
+consults that surface's `UiModalManager` before hit testing so the top modal can
+block lower layers and route cancel/back input. Inventory and merchant grid
+interactions still compute cell ownership manually because they are not yet
+modeled as retained UI widgets.
 
 ### UiSystem
 
-`UiSystem` is the render-facing facade over `UiDocument`. It exposes node
-creation, mutation, removal, layout/style/state/payload setters, text font
-bindings, measurement, interaction, and command extraction.
+`UiSystem` is the render-facing facade over `UiSurface`. It exposes legacy
+default-surface node creation, mutation, removal, layout/style/state/payload
+setters, text font bindings, measurement, interaction, and command extraction,
+plus surface-aware overloads for new runtime code.
 
 Current responsibilities:
 
-- Owns the retained document.
-- Owns text font bindings by `UiHandle`.
-- Owns the command buffer cache.
-- Owns the input dispatcher and focus manager.
-- Owns the modal manager.
-- Owns the mount manager.
+- Owns the surface registry and stable ordered surface list.
+- Owns renderer-side text bindings by `(surface, UiHandle)`.
+- Owns per-surface command buffer caches plus the combined extraction buffer.
+- Delegates document, dispatcher, focus, modal, and mount ownership to each
+  `UiSurface`.
 - Exposes the latest dispatch result.
-- Converts the retained visual list into renderer command data.
+- Converts retained visual lists into renderer command data per surface.
 
 `UiSystem::dispatchInput(...)` is the retained input entry point. It:
 
-- Forces document layout into normalized `1.0 x 1.0` space.
-- Delegates to `UiInputDispatcher`.
-- Lets the dispatcher run `UiDocument::hitTest(...)`.
-- Lets `UiFocusManager` own hover, capture, active pointer, and focus state.
-- Lets `UiModalManager` constrain hit testing and cancel routing.
+- Selects an input surface by surface order, visibility, input participation,
+  pointer containment, active pointer ownership, and cancel ownership.
+- Converts the frame into the chosen surface's local coordinates.
+- Forces that surface document layout into normalized `1.0 x 1.0` space.
+- Delegates to the chosen surface's `UiInputDispatcher`.
+- Lets the dispatcher run that surface document's `UiDocument::hitTest(...)`.
+- Lets that surface's `UiFocusManager` own hover, capture, active pointer, and
+  focus state.
+- Lets that surface's `UiModalManager` constrain hit testing and cancel routing.
 - Records the owning layer for hovered, focused, pressed, released, clicked,
   active, and captured handles.
 - Records modal ownership, blocking, and cancel/dismissal state.
@@ -98,18 +125,15 @@ dispatcher.
 
 Missing from `UiSystem` today:
 
-- Event queue.
-- Event propagation.
-- Per-surface dispatch.
-- Per-layer dispatch policy beyond the new layer root state.
-- Keyboard event routing.
-- Text input event routing.
+- Dedicated render-target, world-space, and multi-window extraction backends.
+- Per-surface keyboard/text/controller event routing beyond the current cancel
+  event and focus ownership fields.
 - Controller navigation graph.
-- Multiple surfaces.
 - Full multi-pointer dispatch. Focus state is already keyed by pointer id, but
   `UiInputFrame` still carries only the primary pointer.
 - Drag/drop as a runtime primitive.
 - Modal enter/exit transitions.
+- Rich layout primitives beyond absolute and anchored retained layout.
 
 ### UiDocument
 
@@ -477,15 +501,16 @@ runtime.
 
 Specific weaknesses:
 
-- Only one screen-space document exists.
-- No first-class UI surface abstraction exists.
+- The renderer currently composites all render-enabled surfaces into one
+  screen-space command buffer; render-target, world-space, split-screen, and
+  multi-window backends are not implemented yet.
+- Most existing feature UI still uses the default screen surface.
 - Layering was historically implicit; the new layer primitive starts to fix only
   the root-level ordering problem.
 - Most existing feature UI still uses the default layer.
 - Some UI ownership still bypasses retained dispatch, especially inventory
   grids, merchant grids, tool viewport picking, and drag/drop behavior.
-- Hit testing and render order are coupled to the same traversal, and input
-  routing still lacks event propagation.
+- Hit testing and render order are coupled to the same retained traversal.
 - Pointer capture exists, but routed pointer events and drag/drop are not yet
   built on it.
 - Keyboard focus exists, but keyboard events are not yet routed to it.
@@ -1330,32 +1355,46 @@ Objectives:
 
 - Promote current document to a default screen surface.
 - Add surface descriptors and extraction per surface.
-- Support viewport-local surfaces for split-screen/editor viewports.
-- Define world-space surface contract even if rendering remains basic initially.
+- Reserve surface kinds for viewport, render-target, world, window, and custom
+  hosts.
+- Keep the current renderer compatible by combining visible screen-space
+  surfaces into the existing UI command buffer.
 
 Files/classes involved:
 
 - New `UiSurface.h`
-- New `UiRuntime.h/.cpp`
-- `RenderingRuntime`
-- `UiRenderStage`
-- frame graph integration
+- New `UiSurface.cpp`
+- `UiSystem`
+- `UiInputDispatcher`
+- `UiComposition`
+- `RenderingRuntime` remains the default screen-surface caller.
 
 Expected API changes:
 
 - `createSurface`
 - `destroySurface`
-- `extract(surface)`
+- `setSurfaceDesc`
+- surface-aware node/layer/mount/composition APIs
+- `extractSurfaceCommandsRef(surface, ...)`
 
 Compatibility:
 
 - Current `UiSystem` remains a default-surface facade during migration.
+- Existing game UI continues to live on the default screen surface.
 
 Validation:
 
-- Test independent hit testing on two surfaces.
-- Test viewport-local coordinates.
-- Render smoke for default screen surface.
+- Test independent hit testing and input routing on two surfaces.
+- Test surface-local coordinate conversion.
+- Test surface-local focus and modal ownership.
+- Test multi-surface render extraction.
+
+Status:
+
+- `UiSurface` implemented in Phase 7.
+- Default screen-surface compatibility preserved.
+- Render-target, world-space, split-screen, and multi-window backends remain
+  future integrations.
 
 ### Phase 8: Layout Engine Expansion
 
@@ -2481,29 +2520,227 @@ The event system exists, but these compatibility paths remain:
 These should migrate after node/widget event registration and drag/drop are
 designed on top of the propagation path.
 
+## 13. Phase 7 Implementation Report
+
+### Single-Surface Assumption Investigation
+
+Before Phase 7, `UiSystem` was the UI universe. The concrete single-surface
+assumptions were:
+
+- `UiSystem` owned exactly one `UiDocument`.
+- `UiDocument` owned all layers, so layer ids were only meaningful inside that
+  one document.
+- `UiHandle` allocation restarted on `UiDocument::clear()`, and handles were
+  treated as globally meaningful because only one document existed.
+- `UiInputDispatcher` always wrote `UI_DEFAULT_SURFACE` into
+  `UiDispatchResult` and `UiEvent`.
+- `UiFocusManager` was global to the one document, so pointer hover, capture,
+  keyboard focus, text focus, and navigation focus had no surface boundary.
+- `UiModalManager` owned one modal stack for the whole runtime.
+- `UiMountManager` owned one mount tree rooted in the one document.
+- `UiComposition` records were keyed only by mount id, which would collide once
+  multiple mount managers existed.
+- Text font bindings were keyed only by `UiHandle`, which would collide once
+  multiple documents existed.
+- Event propagation resolved target paths against the one document and resolved
+  compositions by one global mount id map.
+- Rendering extraction resolved one visual list into one command buffer.
+- `RenderingRuntime::dispatchUiInput(...)` normalized mouse coordinates against
+  the output window and assumed that was the UI coordinate space.
+- The Vulkan `UiRenderStage` accepted one already-combined screen-space
+  `UiCommandBuffer`.
+
+Phase 7 changes these assumptions by making the default screen UI just one
+surface. Handles, layers, mounts, focus, modals, and dispatcher state are now
+surface-local. Compatibility APIs still target the default surface, but new
+surface-aware APIs preserve the surface id wherever a document-local id crosses
+runtime boundaries.
+
+### Implemented Surface Model
+
+`UiSurface` is now the engine primitive for a retained UI universe. It owns:
+
+- `UiSurfaceDesc`: name, kind, order, output rect, visibility, enabled state,
+  input participation, and render participation.
+- One `UiDocument`.
+- One ordered layer stack through the document.
+- One `UiInputDispatcher`.
+- One `UiFocusManager`.
+- One `UiModalManager`.
+- One `UiMountManager`.
+- Screen-to-surface coordinate conversion.
+
+Implemented surface kinds are:
+
+- `Screen`
+- `Viewport`
+- `RenderTarget`
+- `World`
+- `Window`
+- `Custom`
+
+Only screen-rect extraction is implemented now. The other kinds are stable
+engine vocabulary for future render-target, world-space, and window backends.
+
+### UiSystem Surface Facade
+
+`UiSystem` now owns the surface registry and remains the compatibility facade.
+Existing methods such as `createNode(...)`, `createLayer(...)`,
+`focusManager()`, `modalManager()`, `createMount(...)`, and
+`mountComposition(...)` still operate on `UI_DEFAULT_SURFACE`.
+
+New surface-aware APIs include:
+
+- `createSurface(...)`
+- `destroySurface(...)`
+- `setSurfaceDesc(...)`
+- `findSurface(...)`
+- `surfaceIds()`
+- `createLayer(surface, ...)`
+- `createNode(surface, ...)`
+- `setLayout(surface, ...)`
+- `setState(surface, ...)`
+- `setPayload(surface, ...)`
+- `setTextFont(surface, ...)`
+- `pushModal(surface, ...)`
+- `createMount(surface, ...)`
+- `mountComposition(surface, ...)`
+- `compositionFromMount(surface, mount)`
+- `compositionSurface(composition)`
+- `extractSurfaceCommandsRef(surface, ...)`
+
+Composition records now store both surface id and mount id. The internal
+composition lookup key is `(surface, mount)`, because mount ids remain
+surface-local. Text bindings and command caches are also per surface because
+node handles remain document-local.
+
+### Input Routing
+
+`UiSystem::dispatchInput(...)` still executes once per engine frame. It now:
+
+1. Selects the top ordered visible/enabled/input-enabled surface containing the
+   screen-space pointer.
+2. Falls back to a surface with active pointer ownership when the pointer leaves
+   its rect during a held interaction.
+3. Routes cancel/back to the highest ordered input-enabled surface with modal or
+   keyboard ownership.
+4. Converts the screen-normalized input frame into surface-local coordinates.
+5. Dispatches through that surface's `UiInputDispatcher`.
+6. Propagates generated events through the selected surface's retained tree.
+
+This is intentionally still a first version. It establishes the ownership
+boundary and surface-local routing without implementing world ray projection,
+multi-pointer routing, multi-window event sources, or controller navigation.
+
+### Focus And Modal Isolation
+
+Focus and modal state are now surface-local:
+
+- Surface A can have keyboard focus while Surface B has separate keyboard focus.
+- Pointer capture, hover, active pointer, text focus, and navigation focus live
+  inside the owning surface.
+- Modal stacks are independent per surface.
+- Cancel routing targets the selected surface's top modal owner.
+- Destroying a surface clears that surface's focus, capture, active pointer,
+  modal stack, mounts, and compositions without touching the default surface.
+
+`UiSystem::pushModal(surface, desc)` resolves a missing modal layer from the
+modal owner or owner mount before falling back to the surface default layer.
+This keeps modal policy surface-local while avoiding repetitive feature code for
+the common "modal owner already lives on a layer" case.
+
+### Composition And Mount Integration
+
+`UiCompositionContext` now includes `surface`. Surface-aware compositions should
+use `context.surface` when they call back into `UiSystem`, for example:
+
+`context.ui.createNode(context.surface, UiNodeType::Rect, context.root)`
+
+Existing compositions that use default-surface APIs continue to work on the
+default screen surface. New reusable compositions can mount into any surface and
+keep their handles private, but those handles remain meaningful only inside the
+composition's surface.
+
+### Render Extraction
+
+`UiSystem::extractCommandsRef(...)` now extracts visible/render-enabled surfaces
+in surface order. Each surface resolves its document into a surface-local
+`UiCommandBuffer`; the facade appends those commands into the final buffer after
+transforming vertex positions through the surface output rect.
+
+The current Vulkan UI stage still renders the final combined command buffer as a
+screen-space overlay. Future render-target, world-space, split-screen, and
+multi-window backends should reuse the same surface ownership model and replace
+or extend the extraction target.
+
+### Validation
+
+Added `ui_surface_runtime`, covering:
+
+- default surface compatibility
+- multiple surfaces
+- overlapping surface ordering
+- hidden surface input routing
+- input-disabled surface routing
+- surface-local coordinate conversion
+- surface-local focus isolation
+- surface-local modal isolation
+- cancel routing to a surface modal
+- mount/composition ownership on a custom surface
+- destroyed surface cleanup
+- multi-surface render extraction
+- clear restoring only the default surface
+
+The existing layer, input-dispatcher, focus-manager, modal-manager, mount,
+composition, and event-propagation runtime tests continue to pass.
+
+### Remaining Single-Surface Compatibility Paths
+
+The default surface compatibility path remains intentionally broad:
+
+- Game UI builders still call default-surface `UiSystem` APIs.
+- Most game features still store raw handles without storing a surface id.
+- `ctx.ui->dispatchResult()` still exposes only the selected surface's last
+  frame result rather than a history of all surfaces.
+- `RenderingRuntime` currently creates only the default screen surface.
+- The Vulkan UI stage consumes one combined screen-space command buffer.
+- World-space, render-target, split-screen, VR/AR, and multi-window surfaces are
+  not implemented yet.
+- `UiInputFrame` still represents one primary pointer in screen-normalized
+  coordinates.
+
+These are compatibility paths, not blockers. The important ownership boundary is
+now in place.
+
 ### Next Primitive
 
-The single highest-value missing primitive is now `UiSurface`.
+The single highest-value missing primitive is now the **Layout Engine**.
 
-Layers, dispatch, focus, modals, mounts, compositions, and events are still
-anchored to one retained screen-space document. That is now the largest
-architectural limit. `UiSurface` should come next because it introduces the
-runtime boundary for:
+With surfaces implemented, the runtime can finally answer where UI exists and
+which coordinate/input/render universe owns it. The next largest architectural
+limit is that authored UI is still mostly absolute or anchor-based retained
+node placement. That forces every reusable composition to hardcode geometry,
+which weakens the value of surfaces, compositions, styling, animation, and
+future widgets.
 
-- multiple windows
-- split-screen viewports
-- editor panels and scene views
-- render-target UI
-- world-space UI
-- in-world terminals
-- VR/AR pointer spaces
-- per-surface focus/modal/event routing
+Layout should come before styling, animation, navigation, drag/drop, data
+binding, and a widget framework because those systems need stable geometry
+contracts:
 
-Layout, styling, animation, navigation, drag/drop, and data binding all benefit
-from knowing which surface owns their coordinate system, resource scale, input
-devices, focus scope, and extraction target.
+- Styling needs metrics and layout slots before skins can scale consistently.
+- Animation needs layout participation for transitions and reflow.
+- Navigation needs spatial relationships and focusable layout groups.
+- Drag/drop needs hit regions and container-relative placement rules.
+- Data binding and widgets need reusable structural layout instead of raw
+  handle geometry.
 
-## 13. Final Recommendation
+The next milestone should introduce surface-local layout primitives such as
+stack, dock, grid, overlay, constraints, typed units, viewport/surface units,
+content measurement, and invalidation. It should preserve the current retained
+node model while replacing hand-authored fixed geometry as the default way to
+compose UI.
+
+## 14. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -2526,9 +2763,10 @@ direction is centralized retained UI input dispatch. The third committed
 direction is engine-owned focus management. The fourth committed direction is
 engine-owned modal policy. The fifth committed direction is engine-owned mount
 lifetime. The sixth committed direction is engine-owned composition authoring.
-The seventh committed direction is retained UI event propagation.
+The seventh committed direction is retained UI event propagation. The eighth
+committed direction is surface-local UI ownership through `UiSurface`.
 
-The next milestone should implement `UiSurface`. It should precede layout
-expansion, styling, animation, navigation, drag/drop, and data binding because
-those systems need a first-class coordinate/extraction/input boundary instead of
-assuming every retained UI tree lives in the one default screen document.
+The next milestone should implement the layout engine expansion. It should
+precede styling, animation, navigation, drag/drop, data binding, and a widget
+framework because those systems all depend on predictable surface-local geometry
+instead of feature code manually positioning retained nodes.

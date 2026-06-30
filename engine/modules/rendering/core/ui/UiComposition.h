@@ -13,6 +13,7 @@ struct UiCompositionContext
     UiSystem& ui;
     UiDocument& document;
     IResourceProvider* resources = nullptr;
+    UiSurfaceId surface = UI_DEFAULT_SURFACE;
     UiMountId mount = UI_INVALID_MOUNT;
     UiHandle root = UI_INVALID_HANDLE;
 };

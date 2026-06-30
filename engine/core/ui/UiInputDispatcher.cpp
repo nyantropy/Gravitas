@@ -9,6 +9,7 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
     UiModalManager& modalManager,
     const UiInputFrame& input,
     bool enabled,
+    UiSurfaceId surfaceId,
     uint64_t frameId)
 {
     if (frameId != 0 && lastDispatch.dispatched && lastDispatch.frameId == frameId)
@@ -17,7 +18,7 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
     if (!enabled)
     {
         clearInteractionState(document, focusManager, modalManager);
-        lastDispatch = makeDisabledResult(input, frameId);
+        lastDispatch = makeDisabledResult(input, surfaceId, frameId);
         return lastDispatch;
     }
 
@@ -94,7 +95,7 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
     result.dispatched       = true;
     result.frameId          = frameId;
     result.dispatchSequence = ++dispatchSequence;
-    result.surface          = UI_DEFAULT_SURFACE;
+    result.surface          = surfaceId;
     result.hovered          = focusManager.hoveredNode(UI_PRIMARY_POINTER);
     result.focused          = focusManager.focusedNode();
     result.pressed          = pressed;
@@ -172,13 +173,15 @@ void UiInputDispatcher::clearInteractionState(UiDocument& document,
     focusManager.clear(document);
 }
 
-UiDispatchResult UiInputDispatcher::makeDisabledResult(const UiInputFrame& input, uint64_t frameId)
+UiDispatchResult UiInputDispatcher::makeDisabledResult(const UiInputFrame& input,
+                                                       UiSurfaceId surfaceId,
+                                                       uint64_t frameId)
 {
     UiDispatchResult result;
     result.dispatched       = true;
     result.frameId          = frameId;
     result.dispatchSequence = ++dispatchSequence;
-    result.surface          = UI_DEFAULT_SURFACE;
+    result.surface          = surfaceId;
     result.pointerX         = input.pointerX;
     result.pointerY         = input.pointerY;
     result.scrollX          = input.scrollX;

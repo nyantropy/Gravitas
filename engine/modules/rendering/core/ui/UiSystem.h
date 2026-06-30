@@ -17,6 +17,7 @@
 #include "UiModalManager.h"
 #include "UiMount.h"
 #include "UiRenderResolver.h"
+#include "UiSurface.h"
 
 // Engine-owned retained UI model plus render-side text/resource bindings.
 class UiSystem
@@ -41,29 +42,56 @@ public:
     void setEnabled(bool enabled);
     bool isEnabled() const;
 
+    UiSurfaceId createSurface(const UiSurfaceDesc& desc = {});
+    bool        destroySurface(UiSurfaceId surfaceId);
+    bool        setSurfaceDesc(UiSurfaceId surfaceId, const UiSurfaceDesc& desc);
+    UiSurfaceId getDefaultSurface() const;
+    UiSurface*       findSurface(UiSurfaceId surfaceId);
+    const UiSurface* findSurface(UiSurfaceId surfaceId) const;
+    std::vector<UiSurfaceId> surfaceIds() const;
+
     UiHandle getRoot() const;
+    UiHandle getRoot(UiSurfaceId surfaceId) const;
     UiLayerId createLayer(const std::string& name, int order);
+    UiLayerId createLayer(UiSurfaceId surfaceId, const std::string& name, int order);
     bool      removeLayer(UiLayerId layerId);
+    bool      removeLayer(UiSurfaceId surfaceId, UiLayerId layerId);
     bool      setLayerOrder(UiLayerId layerId, int order);
+    bool      setLayerOrder(UiSurfaceId surfaceId, UiLayerId layerId, int order);
     bool      setLayerState(UiLayerId layerId, const UiLayerState& state);
+    bool      setLayerState(UiSurfaceId surfaceId, UiLayerId layerId, const UiLayerState& state);
     UiHandle  getLayerRoot(UiLayerId layerId) const;
+    UiHandle  getLayerRoot(UiSurfaceId surfaceId, UiLayerId layerId) const;
     UiLayerId getDefaultLayer() const;
+    UiLayerId getDefaultLayer(UiSurfaceId surfaceId) const;
 
     UiHandle createNode(UiNodeType type, UiHandle parent = UI_INVALID_HANDLE);
+    UiHandle createNode(UiSurfaceId surfaceId, UiNodeType type, UiHandle parent = UI_INVALID_HANDLE);
     bool     removeNode(UiHandle handle);
+    bool     removeNode(UiSurfaceId surfaceId, UiHandle handle);
     bool     reparentNode(UiHandle handle, UiHandle newParent);
+    bool     reparentNode(UiSurfaceId surfaceId, UiHandle handle, UiHandle newParent);
 
     UiNode*       findNode(UiHandle handle);
     const UiNode* findNode(UiHandle handle) const;
+    UiNode*       findNode(UiSurfaceId surfaceId, UiHandle handle);
+    const UiNode* findNode(UiSurfaceId surfaceId, UiHandle handle) const;
 
     bool setLayout(UiHandle handle, const UiLayoutSpec& layout);
+    bool setLayout(UiSurfaceId surfaceId, UiHandle handle, const UiLayoutSpec& layout);
     bool setStyle(UiHandle handle, const UiStyle& style);
+    bool setStyle(UiSurfaceId surfaceId, UiHandle handle, const UiStyle& style);
     bool setState(UiHandle handle, const UiStateFlags& state);
+    bool setState(UiSurfaceId surfaceId, UiHandle handle, const UiStateFlags& state);
     bool setPayload(UiHandle handle, const UiNodePayload& payload);
+    bool setPayload(UiSurfaceId surfaceId, UiHandle handle, const UiNodePayload& payload);
     bool setTextFont(UiHandle handle, BitmapFont* font);
+    bool setTextFont(UiSurfaceId surfaceId, UiHandle handle, BitmapFont* font);
 
     UiDocument&       getDocument();
     const UiDocument& getDocument() const;
+    UiDocument*       findDocument(UiSurfaceId surfaceId);
+    const UiDocument* findDocument(UiSurfaceId surfaceId) const;
     UiFocusManager&       focusManager();
     const UiFocusManager& focusManager() const;
     UiModalManager&       modalManager();
@@ -72,6 +100,7 @@ public:
     const UiMountManager& mountManager() const;
     Metrics           getLastMetrics() const;
     bool              measureText(UiHandle handle, UiTextMeasurement& outMeasurement) const;
+    bool              measureText(UiSurfaceId surfaceId, UiHandle handle, UiTextMeasurement& outMeasurement) const;
 
     UiInteractionResult     updateInteraction(const UiInputFrame& input);
     UiInteractionResult     getLastInteraction() const;
@@ -81,23 +110,44 @@ public:
     bool propagateEvent(UiEvent event);
 
     UiModalId pushModal(const UiModalDesc& desc);
+    UiModalId pushModal(UiSurfaceId surfaceId, const UiModalDesc& desc);
     bool      popModal(UiModalId modalId,
                        UiModalDismissReason reason = UiModalDismissReason::Programmatic);
+    bool      popModal(UiSurfaceId surfaceId,
+                       UiModalId modalId,
+                       UiModalDismissReason reason = UiModalDismissReason::Programmatic);
     bool      dismissTopModal(UiModalDismissReason reason = UiModalDismissReason::Programmatic);
+    bool      dismissTopModal(UiSurfaceId surfaceId,
+                              UiModalDismissReason reason = UiModalDismissReason::Programmatic);
 
     UiMountId createMount(const UiMountDesc& desc = {});
+    UiMountId createMount(UiSurfaceId surfaceId, const UiMountDesc& desc = {});
     bool      destroyMount(UiMountId mountId);
+    bool      destroyMount(UiSurfaceId surfaceId, UiMountId mountId);
     bool      attachMount(UiMountId mountId, const UiMountAttachment& attachment);
+    bool      attachMount(UiSurfaceId surfaceId, UiMountId mountId, const UiMountAttachment& attachment);
     bool      detachMount(UiMountId mountId);
+    bool      detachMount(UiSurfaceId surfaceId, UiMountId mountId);
     UiMount*       findMount(UiMountId mountId);
     const UiMount* findMount(UiMountId mountId) const;
+    UiMount*       findMount(UiSurfaceId surfaceId, UiMountId mountId);
+    const UiMount* findMount(UiSurfaceId surfaceId, UiMountId mountId) const;
     UiMountId      mountFromNode(UiHandle handle) const;
+    UiMountId      mountFromNode(UiSurfaceId surfaceId, UiHandle handle) const;
     UiMountId      rootMount() const;
+    UiMountId      rootMount(UiSurfaceId surfaceId) const;
     UiHandle       mountRoot(UiMountId mountId) const;
+    UiHandle       mountRoot(UiSurfaceId surfaceId, UiMountId mountId) const;
 
     UiCompositionId mountComposition(std::unique_ptr<UiComposition> composition,
                                      const UiMountDesc& desc = {});
+    UiCompositionId mountComposition(UiSurfaceId surfaceId,
+                                     std::unique_ptr<UiComposition> composition,
+                                     const UiMountDesc& desc = {});
     UiCompositionId attachComposition(UiMountId mountId, std::unique_ptr<UiComposition> composition);
+    UiCompositionId attachComposition(UiSurfaceId surfaceId,
+                                      UiMountId mountId,
+                                      std::unique_ptr<UiComposition> composition);
     bool            updateComposition(UiCompositionId compositionId);
     void            updateCompositions();
     bool            rebuildComposition(UiCompositionId compositionId);
@@ -105,50 +155,76 @@ public:
     UiComposition*       findComposition(UiCompositionId compositionId);
     const UiComposition* findComposition(UiCompositionId compositionId) const;
     UiCompositionId      compositionFromMount(UiMountId mountId) const;
+    UiCompositionId      compositionFromMount(UiSurfaceId surfaceId, UiMountId mountId) const;
     UiMountId            compositionMount(UiCompositionId compositionId) const;
+    UiSurfaceId          compositionSurface(UiCompositionId compositionId) const;
 
     UiCommandBuffer extractCommands(int viewportWidth, int viewportHeight);
     const UiCommandBuffer& extractCommandsRef(int viewportWidth, int viewportHeight);
+    const UiCommandBuffer& extractSurfaceCommandsRef(UiSurfaceId surfaceId,
+                                                     int viewportWidth,
+                                                     int viewportHeight);
 
 private:
+    struct SurfaceRecord
+    {
+        UiSurface surface;
+        std::unordered_map<UiHandle, BitmapFont*> textBindings;
+        uint64_t textBindingRevision = 1;
+        UiCommandBuffer commandCache;
+        bool commandCacheValid = false;
+        uint64_t cachedDocumentRevision = 0;
+        uint64_t cachedTextBindingRevision = 0;
+        int cachedViewportWidth = 0;
+        int cachedViewportHeight = 0;
+        uint64_t lastPropagatedDispatchSequence = 0;
+        Metrics lastMetrics;
+    };
+
     struct MountedComposition
     {
         UiCompositionId id = UI_INVALID_COMPOSITION;
+        UiSurfaceId surface = UI_INVALID_SURFACE;
         UiMountId mount = UI_INVALID_MOUNT;
         std::unique_ptr<UiComposition> composition;
     };
 
-    void removeTextBindingsRecursive(UiHandle handle);
-    UiCompositionContext makeCompositionContext(UiMountId mountId);
-    void destroyCompositionRecordsForMount(UiMountId mountId);
+    SurfaceRecord*       findSurfaceRecord(UiSurfaceId surfaceId);
+    const SurfaceRecord* findSurfaceRecord(UiSurfaceId surfaceId) const;
+    SurfaceRecord&       defaultSurfaceRecord();
+    const SurfaceRecord& defaultSurfaceRecord() const;
+    UiSurfaceId          selectInputSurface(const UiInputFrame& input) const;
+    void                 sortSurfaces();
+    void                 recreateDefaultSurface();
+    static uint64_t      mountCompositionKey(UiSurfaceId surfaceId, UiMountId mountId);
+
+    void removeTextBindingsRecursive(SurfaceRecord& record, UiHandle handle);
+    UiCompositionContext makeCompositionContext(UiSurfaceId surfaceId, UiMountId mountId);
+    void destroyCompositionRecordsForMount(UiSurfaceId surfaceId, UiMountId mountId);
+    void destroyCompositionRecordsForSurface(UiSurfaceId surfaceId);
     void destroyAllCompositionRecords();
-    void propagateDispatchEvents(uint64_t dispatchSequence);
+    void propagateDispatchEvents(SurfaceRecord& record, uint64_t dispatchSequence);
     bool routeEvent(UiEvent& event);
     bool deliverEventToCurrentTarget(UiEvent& event);
     void resolveEventTarget(UiEvent& event) const;
     void assignCurrentEventTarget(UiEvent& event, UiHandle currentTarget) const;
+    void appendSurfaceCommands(UiCommandBuffer& destination,
+                               const UiCommandBuffer& source,
+                               const UiRect& surfaceRect) const;
 
     IResourceProvider*                         resources = nullptr;
     bool                                       enabled   = true;
-    UiDocument                                 document;
-    UiFocusManager                             focusState;
-    UiModalManager                             modalState;
-    UiMountManager                             mountState;
-    UiInputDispatcher                          inputDispatcher;
     UiRenderResolver                           resolver;
-    std::unordered_map<UiHandle, BitmapFont*>  textBindings;
+    std::unordered_map<UiSurfaceId, SurfaceRecord> surfaces;
+    std::vector<UiSurfaceId>                   orderedSurfaces;
     std::unordered_map<UiCompositionId, MountedComposition> compositions;
-    std::unordered_map<UiMountId, UiCompositionId> mountToComposition;
+    std::unordered_map<uint64_t, UiCompositionId> mountToComposition;
     std::vector<UiEvent>                       lastEvents;
+    UiSurfaceId                                defaultSurfaceId = UI_DEFAULT_SURFACE;
+    UiSurfaceId                                nextSurfaceId = UI_DEFAULT_SURFACE + 1;
     UiCompositionId                            nextCompositionId = UI_INVALID_COMPOSITION + 1;
-    uint64_t                                   lastPropagatedDispatchSequence = 0;
-    uint64_t                                   textBindingRevision = 1;
+    UiDispatchResult                           lastDispatchResult;
     UiCommandBuffer                            commandCache;
     UiCommandBuffer                            emptyCommandBuffer;
-    uint64_t                                   cachedDocumentRevision = 0;
-    uint64_t                                   cachedTextBindingRevision = 0;
-    int                                        cachedViewportWidth = 0;
-    int                                        cachedViewportHeight = 0;
-    bool                                       commandCacheValid = false;
     Metrics                                    lastMetrics;
 };
