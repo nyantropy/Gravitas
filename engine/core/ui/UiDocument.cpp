@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <utility>
+#include <vector>
 
 namespace
 {
@@ -63,8 +64,10 @@ UiDocument::UiDocument()
 void UiDocument::clear()
 {
     nodes.clear();
+    layers.clear();
     visualList.primitives.clear();
     nextHandle = 1;
+    nextLayerId = UI_DEFAULT_LAYER + 1;
     dirtyFlags = UiDirtyFlags::Structure | UiDirtyFlags::Layout | UiDirtyFlags::Visual;
     ++visualRevision;
 
@@ -82,11 +85,112 @@ void UiDocument::clear()
     root.layout.heightMode   = UiSizeMode::Fixed;
     root.payload             = UiContainerData{};
     nodes.emplace(rootHandle, std::move(root));
+
+    UiLayer defaultLayer;
+    defaultLayer.id = UI_DEFAULT_LAYER;
+    defaultLayer.name = "default";
+    defaultLayer.order = 0;
+    createLayerRoot(defaultLayer);
+    defaultLayerRoot = defaultLayer.root;
+    layers.emplace(defaultLayer.id, std::move(defaultLayer));
+    sortLayerRoots();
+}
+
+UiLayerId UiDocument::createLayer(const std::string& name, int order)
+{
+    UiLayer layer;
+    layer.id = nextLayerId++;
+    layer.name = name;
+    layer.order = order;
+    createLayerRoot(layer);
+
+    const UiLayerId id = layer.id;
+    layers.emplace(id, std::move(layer));
+    sortLayerRoots();
+    markDirty(rootHandle, UiDirtyFlags::Structure | UiDirtyFlags::Layout | UiDirtyFlags::Visual);
+    return id;
+}
+
+bool UiDocument::removeLayer(UiLayerId layerId)
+{
+    if (layerId == UI_INVALID_LAYER || layerId == UI_DEFAULT_LAYER)
+        return false;
+
+    auto it = layers.find(layerId);
+    if (it == layers.end())
+        return false;
+
+    const UiHandle layerRoot = it->second.root;
+    detachFromParent(layerRoot);
+    removeNodeRecursive(layerRoot);
+    layers.erase(it);
+    markDirty(rootHandle, UiDirtyFlags::Structure | UiDirtyFlags::Layout | UiDirtyFlags::Visual);
+    return true;
+}
+
+bool UiDocument::setLayerOrder(UiLayerId layerId, int order)
+{
+    auto it = layers.find(layerId);
+    if (it == layers.end())
+        return false;
+    if (it->second.order == order)
+        return true;
+
+    it->second.order = order;
+    sortLayerRoots();
+    markDirty(rootHandle, UiDirtyFlags::Structure | UiDirtyFlags::Visual);
+    return true;
+}
+
+bool UiDocument::setLayerState(UiLayerId layerId, const UiLayerState& state)
+{
+    auto it = layers.find(layerId);
+    if (it == layers.end())
+        return false;
+    if (it->second.state == state)
+        return true;
+
+    it->second.state = state;
+
+    UiNode* root = findNode(it->second.root);
+    if (root != nullptr)
+    {
+        UiStateFlags rootState = root->state;
+        rootState.visible = state.visible;
+        rootState.enabled = state.inputEnabled;
+        rootState.interactable = false;
+        if (!state.visible || !state.inputEnabled)
+        {
+            rootState.hovered = false;
+            rootState.focused = false;
+            rootState.pressed = false;
+        }
+        setState(root->handle, rootState);
+    }
+
+    markDirty(rootHandle, UiDirtyFlags::Visual);
+    return true;
+}
+
+UiHandle UiDocument::getLayerRoot(UiLayerId layerId) const
+{
+    const auto it = layers.find(layerId);
+    return it == layers.end() ? UI_INVALID_HANDLE : it->second.root;
+}
+
+bool UiDocument::canRemoveNode(UiHandle handle) const
+{
+    return handle != UI_INVALID_HANDLE
+        && handle != rootHandle
+        && !isLayerRoot(handle)
+        && findNode(handle) != nullptr;
 }
 
 UiHandle UiDocument::createNode(UiNodeType type, UiHandle parent)
 {
-    const UiHandle effectiveParent = (parent == UI_INVALID_HANDLE) ? rootHandle : parent;
+    const UiHandle effectiveParent = (parent == UI_INVALID_HANDLE) ? defaultLayerRoot : parent;
+    if (effectiveParent == rootHandle)
+        return UI_INVALID_HANDLE;
     if (findNode(effectiveParent) == nullptr) return UI_INVALID_HANDLE;
 
     UiNode node;
@@ -119,7 +223,7 @@ UiHandle UiDocument::createNode(UiNodeType type, UiHandle parent)
 
 bool UiDocument::removeNode(UiHandle handle)
 {
-    if (handle == UI_INVALID_HANDLE || handle == rootHandle || findNode(handle) == nullptr)
+    if (!canRemoveNode(handle))
         return false;
 
     detachFromParent(handle);
@@ -130,7 +234,13 @@ bool UiDocument::removeNode(UiHandle handle)
 
 bool UiDocument::reparentNode(UiHandle handle, UiHandle newParent)
 {
-    if (handle == UI_INVALID_HANDLE || handle == rootHandle) return false;
+    if (handle == UI_INVALID_HANDLE
+        || handle == rootHandle
+        || isLayerRoot(handle)
+        || newParent == rootHandle)
+    {
+        return false;
+    }
     if (findNode(handle) == nullptr || findNode(newParent) == nullptr) return false;
 
     detachFromParent(handle);
@@ -292,6 +402,67 @@ void UiDocument::detachFromParent(UiHandle handle)
 void UiDocument::appendChild(UiHandle parent, UiHandle child)
 {
     nodes[parent].children.push_back(child);
+}
+
+void UiDocument::sortLayerRoots()
+{
+    UiNode* root = findNode(rootHandle);
+    if (root == nullptr)
+        return;
+
+    root->children.clear();
+    root->children.reserve(layers.size());
+
+    std::vector<const UiLayer*> sortedLayers;
+    sortedLayers.reserve(layers.size());
+    for (const auto& [_, layer] : layers)
+        sortedLayers.push_back(&layer);
+
+    std::sort(sortedLayers.begin(),
+              sortedLayers.end(),
+              [](const UiLayer* lhs, const UiLayer* rhs)
+              {
+                  if (lhs->order != rhs->order)
+                      return lhs->order < rhs->order;
+                  return lhs->id < rhs->id;
+              });
+
+    for (const UiLayer* layer : sortedLayers)
+    {
+        if (findNode(layer->root) != nullptr)
+            root->children.push_back(layer->root);
+    }
+}
+
+void UiDocument::createLayerRoot(UiLayer& layer)
+{
+    UiNode node;
+    node.handle = allocHandle();
+    node.type = UiNodeType::Container;
+    node.parent = rootHandle;
+    node.payload = UiContainerData{};
+    node.state.visible = layer.state.visible;
+    node.state.enabled = layer.state.inputEnabled;
+    node.state.interactable = false;
+    node.layout.positionMode = UiPositionMode::Anchored;
+    node.layout.widthMode = UiSizeMode::FromAnchors;
+    node.layout.heightMode = UiSizeMode::FromAnchors;
+    node.layout.anchorMin = {0.0f, 0.0f};
+    node.layout.anchorMax = {1.0f, 1.0f};
+
+    layer.root = node.handle;
+    nodes.emplace(node.handle, std::move(node));
+}
+
+bool UiDocument::isLayerRoot(UiHandle handle) const
+{
+    for (const auto& [_, layer] : layers)
+    {
+        if (layer.root == handle)
+            return true;
+    }
+
+    return false;
 }
 
 void UiDocument::computeLayoutRecursive(UiHandle handle, const UiComputedLayout* parentLayout)

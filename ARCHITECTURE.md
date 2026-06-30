@@ -850,9 +850,21 @@ profile buckets after printing.
 ## 8. Retained UI and Engine Tooling
 
 The retained UI model is an engine core service. `UiDocument` stores retained
-nodes, `UiSystem` owns per-frame extraction and interaction evaluation, and
-tool widgets in `modules/tools/ui/` provide reusable engine-editor controls
-on top of that UI system.
+nodes and explicit document layers, `UiSystem` owns per-frame extraction and
+interaction evaluation, and tool widgets in `modules/tools/ui/` provide reusable
+engine-editor controls on top of that UI system.
+
+`UiDocument` now has a hidden document root plus one or more ordered layer roots.
+Existing callers that create nodes without specifying a parent still attach to
+the default layer root returned by `UiSystem::getRoot()`, so current retained UI
+builders continue to work. New engine or game systems may create named layers
+through `UiSystem::createLayer(...)`, add nodes under `getLayerRoot(layerId)`,
+and change layer ordering or input participation without relying on scene
+construction order. Render traversal visits lower-order layers first and
+hit-testing walks the same layer roots in reverse order, so layer order is the
+first explicit UI stacking primitive. This is intentionally still one
+screen-space document; surfaces, modal ownership, and routed input dispatch are
+future runtime layers above this primitive.
 
 UI extraction now enforces primitive clipping before draw-command generation.
 Layout specs include a default-zero child `contentOffset`, so a clipped

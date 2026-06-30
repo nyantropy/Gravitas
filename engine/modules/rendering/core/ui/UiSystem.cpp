@@ -37,6 +37,57 @@ UiHandle UiSystem::getRoot() const
     return document.getRoot();
 }
 
+UiLayerId UiSystem::createLayer(const std::string& name, int order)
+{
+    commandCacheValid = false;
+    return document.createLayer(name, order);
+}
+
+bool UiSystem::removeLayer(UiLayerId layerId)
+{
+    if (layerId == UI_INVALID_LAYER || layerId == UI_DEFAULT_LAYER)
+        return false;
+
+    const UiHandle root = document.getLayerRoot(layerId);
+    if (root == UI_INVALID_HANDLE)
+        return false;
+
+    removeTextBindingsRecursive(root);
+    const bool removed = document.removeLayer(layerId);
+    if (!removed)
+        return false;
+
+    commandCacheValid = false;
+    if (activeHandle != UI_INVALID_HANDLE && document.findNode(activeHandle) == nullptr)
+        activeHandle = UI_INVALID_HANDLE;
+    if (focusedHandle != UI_INVALID_HANDLE && document.findNode(focusedHandle) == nullptr)
+        focusedHandle = UI_INVALID_HANDLE;
+    return true;
+}
+
+bool UiSystem::setLayerOrder(UiLayerId layerId, int order)
+{
+    const bool changed = document.setLayerOrder(layerId, order);
+    if (changed)
+        commandCacheValid = false;
+    return changed;
+}
+
+bool UiSystem::setLayerState(UiLayerId layerId, const UiLayerState& state)
+{
+    return document.setLayerState(layerId, state);
+}
+
+UiHandle UiSystem::getLayerRoot(UiLayerId layerId) const
+{
+    return document.getLayerRoot(layerId);
+}
+
+UiLayerId UiSystem::getDefaultLayer() const
+{
+    return document.getDefaultLayer();
+}
+
 UiHandle UiSystem::createNode(UiNodeType type, UiHandle parent)
 {
     return document.createNode(type, parent);
@@ -44,6 +95,9 @@ UiHandle UiSystem::createNode(UiNodeType type, UiHandle parent)
 
 bool UiSystem::removeNode(UiHandle handle)
 {
+    if (!document.canRemoveNode(handle))
+        return false;
+
     removeTextBindingsRecursive(handle);
     const bool removed = document.removeNode(handle);
     if (!removed)

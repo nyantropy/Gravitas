@@ -35,6 +35,24 @@ set_tests_properties(particle_module_authoring
         LABELS "gravitas;particles;authoring"
 )
 
+add_executable(UiLayerRuntimeTest
+    ui/UiLayerRuntimeTest.cpp
+)
+
+target_compile_features(UiLayerRuntimeTest PRIVATE cxx_std_20)
+
+target_link_libraries(UiLayerRuntimeTest PRIVATE gravitas_rendering)
+
+add_test(
+    NAME ui_layer_runtime
+    COMMAND UiLayerRuntimeTest
+)
+
+set_tests_properties(ui_layer_runtime
+    PROPERTIES
+        LABELS "gravitas;ui;runtime"
+)
+
 if(TARGET gravitas_tools)
     add_executable(EditorFrameworkSmokeTest
         tools/EditorFrameworkSmokeTest.cpp

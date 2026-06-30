@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <unordered_map>
 
 #include "BitmapFont.h"
@@ -33,6 +34,12 @@ public:
     bool isEnabled() const;
 
     UiHandle getRoot() const;
+    UiLayerId createLayer(const std::string& name, int order);
+    bool      removeLayer(UiLayerId layerId);
+    bool      setLayerOrder(UiLayerId layerId, int order);
+    bool      setLayerState(UiLayerId layerId, const UiLayerState& state);
+    UiHandle  getLayerRoot(UiLayerId layerId) const;
+    UiLayerId getDefaultLayer() const;
 
     UiHandle createNode(UiNodeType type, UiHandle parent = UI_INVALID_HANDLE);
     bool     removeNode(UiHandle handle);
