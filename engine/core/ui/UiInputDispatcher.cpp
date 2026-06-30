@@ -200,6 +200,7 @@ void UiInputDispatcher::assignModalState(const UiModalManager& modalManager, UiD
     result.modalDepth = modalState.depth;
     result.modal = modalState.modal;
     result.modalOwner = modalState.owner;
+    result.modalMount = modalState.ownerMount;
     result.modalLayer = modalState.layer;
     result.pointerBlocked = modalState.pointerBlocked;
     result.keyboardBlocked = modalState.keyboardBlocked;

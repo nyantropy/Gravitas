@@ -12,6 +12,7 @@
 #include "UiInputDispatcher.h"
 #include "UiInteraction.h"
 #include "UiModalManager.h"
+#include "UiMount.h"
 #include "UiRenderResolver.h"
 
 // Engine-owned retained UI model plus render-side text/resource bindings.
@@ -64,6 +65,8 @@ public:
     const UiFocusManager& focusManager() const;
     UiModalManager&       modalManager();
     const UiModalManager& modalManager() const;
+    UiMountManager&       mountManager();
+    const UiMountManager& mountManager() const;
     Metrics           getLastMetrics() const;
     bool              measureText(UiHandle handle, UiTextMeasurement& outMeasurement) const;
 
@@ -77,6 +80,16 @@ public:
                        UiModalDismissReason reason = UiModalDismissReason::Programmatic);
     bool      dismissTopModal(UiModalDismissReason reason = UiModalDismissReason::Programmatic);
 
+    UiMountId createMount(const UiMountDesc& desc = {});
+    bool      destroyMount(UiMountId mountId);
+    bool      attachMount(UiMountId mountId, const UiMountAttachment& attachment);
+    bool      detachMount(UiMountId mountId);
+    UiMount*       findMount(UiMountId mountId);
+    const UiMount* findMount(UiMountId mountId) const;
+    UiMountId      mountFromNode(UiHandle handle) const;
+    UiMountId      rootMount() const;
+    UiHandle       mountRoot(UiMountId mountId) const;
+
     UiCommandBuffer extractCommands(int viewportWidth, int viewportHeight);
     const UiCommandBuffer& extractCommandsRef(int viewportWidth, int viewportHeight);
 
@@ -88,6 +101,7 @@ private:
     UiDocument                                 document;
     UiFocusManager                             focusState;
     UiModalManager                             modalState;
+    UiMountManager                             mountState;
     UiInputDispatcher                          inputDispatcher;
     UiRenderResolver                           resolver;
     std::unordered_map<UiHandle, BitmapFont*>  textBindings;

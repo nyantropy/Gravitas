@@ -93,6 +93,44 @@ void UiModalManager::pruneInvalidModals(UiDocument& document, UiFocusManager& fo
     }
 }
 
+bool UiModalManager::dismissModalsOwnedByMount(UiDocument& document,
+                                               UiFocusManager& focusManager,
+                                               UiMountId mountId)
+{
+    if (mountId == UI_INVALID_MOUNT)
+        return false;
+
+    bool dismissed = false;
+    while (!modalStack.empty() && modalStack.back().desc.ownerMount == mountId)
+    {
+        dismissTopModal(document, focusManager, UiModalDismissReason::OwnerRemoved);
+        dismissed = true;
+    }
+
+    return dismissed;
+}
+
+bool UiModalManager::dismissModalsForSubtree(UiDocument& document,
+                                             UiFocusManager& focusManager,
+                                             UiHandle root)
+{
+    if (root == UI_INVALID_HANDLE || document.findNode(root) == nullptr)
+        return false;
+
+    bool dismissed = false;
+    while (!modalStack.empty())
+    {
+        const UiHandle owner = modalStack.back().desc.owner;
+        if (owner == UI_INVALID_HANDLE || !document.isDescendantOf(owner, root))
+            break;
+
+        dismissTopModal(document, focusManager, UiModalDismissReason::OwnerRemoved);
+        dismissed = true;
+    }
+
+    return dismissed;
+}
+
 UiModalId UiModalManager::topModalId() const
 {
     return modalStack.empty() ? UI_INVALID_MODAL : modalStack.back().id;
@@ -123,6 +161,7 @@ UiModalState UiModalManager::state() const
         const UiModal& modal = modalStack.back();
         result.modal = modal.id;
         result.owner = modal.desc.owner;
+        result.ownerMount = modal.desc.ownerMount;
         result.layer = modal.desc.layer;
         result.pointerBlocked = modal.desc.consumePointer;
         result.keyboardBlocked = modal.desc.consumeKeyboard;

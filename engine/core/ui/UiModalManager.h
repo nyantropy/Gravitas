@@ -6,6 +6,7 @@
 #include "UiDocument.h"
 #include "UiFocusManager.h"
 #include "UiInteraction.h"
+#include "UiMountTypes.h"
 
 enum class UiModalLayerBlocking : uint8_t
 {
@@ -27,6 +28,7 @@ struct UiModalDesc
 {
     UiLayerId layer = UI_INVALID_LAYER;
     UiHandle owner = UI_INVALID_HANDLE;
+    UiMountId ownerMount = UI_INVALID_MOUNT;
     UiHandle initialFocus = UI_INVALID_HANDLE;
     UiModalLayerBlocking layerBlocking = UiModalLayerBlocking::AllOtherLayers;
     bool dismissOnCancel = true;
@@ -50,6 +52,7 @@ struct UiModalState
     uint32_t depth = 0;
     UiModalId modal = UI_INVALID_MODAL;
     UiHandle owner = UI_INVALID_HANDLE;
+    UiMountId ownerMount = UI_INVALID_MOUNT;
     UiLayerId layer = UI_INVALID_LAYER;
     bool pointerBlocked = false;
     bool keyboardBlocked = false;
@@ -73,6 +76,8 @@ public:
     void clear();
     void clear(UiDocument& document, UiFocusManager& focusManager);
     void pruneInvalidModals(UiDocument& document, UiFocusManager& focusManager);
+    bool dismissModalsOwnedByMount(UiDocument& document, UiFocusManager& focusManager, UiMountId mountId);
+    bool dismissModalsForSubtree(UiDocument& document, UiFocusManager& focusManager, UiHandle root);
 
     bool hasModal() const { return !modalStack.empty(); }
     uint32_t depth() const { return static_cast<uint32_t>(modalStack.size()); }

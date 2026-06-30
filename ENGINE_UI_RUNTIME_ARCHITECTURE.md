@@ -30,6 +30,10 @@ The fourth foundational primitive is now implemented: `UiModalManager` owns the
 retained UI modal stack, layer blocking policy, cancel routing, and focus-scope
 restoration policy.
 
+The fifth foundational primitive is now implemented: `UiMount` owns retained UI
+subtree lifetime and attachment, and `UiSystem` cleans focus, pointer capture,
+modal ownership, text bindings, and child mounts when a mount is destroyed.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
@@ -37,7 +41,7 @@ restoration policy.
 The retained UI runtime is currently centered on one `UiSystem` instance owned by
 the rendering runtime. That `UiSystem` owns one `UiDocument`, per-node text font
 bindings, a cached `UiCommandBuffer`, a `UiInputDispatcher`, a
-`UiFocusManager`, and a `UiModalManager`.
+`UiFocusManager`, a `UiModalManager`, and a `UiMountManager`.
 
 The runtime currently has one screen-space document. The document coordinate
 space is normalized from `0..1` in both axes. Rendering later resolves those
@@ -73,6 +77,7 @@ Current responsibilities:
 - Owns the command buffer cache.
 - Owns the input dispatcher and focus manager.
 - Owns the modal manager.
+- Owns the mount manager.
 - Exposes the latest dispatch result.
 - Converts the retained visual list into renderer command data.
 
@@ -170,15 +175,31 @@ semantic tree, accessibility tree, focus tree, or composition tree.
 
 ### Lifetime
 
-Lifetime is manual and handle-based. Feature UI builders store handle structs.
-Feature sync/event systems later mutate those handles.
+Raw node lifetime is still handle-based, but the engine now has a first
+ownership primitive above raw handles. `UiMount` owns a retained subtree root,
+its attachment location, parent/child mount relationships, and automatic cleanup
+when the mount is destroyed.
 
-`UiSystem::clear()` clears the whole document and all text bindings. Individual
-nodes can be removed recursively. Layer roots and the hidden document root cannot
-be removed through `removeNode`.
+Feature UI builders still store handle structs for compatibility. Feature
+sync/event systems later mutate those handles. Those handle structs should
+migrate behind mounts incrementally; the mount becomes the lifetime owner while
+feature state remains free to cache interior handles for sync.
 
-There is no mount token, no scoped owner object, no automatic unmount on owner
-destruction, and no generation-checked handle type.
+`UiSystem::clear()` clears the whole document, text bindings, focus, modal
+state, dispatch state, and recreates the root mount. Individual nodes can still
+be removed recursively for compatibility. If a removed node is an exact mount
+root, `UiSystem::removeNode(...)` destroys the mount instead. Layer roots and
+the hidden document root cannot be removed through `removeNode`.
+
+Destroying a mount removes the retained subtree, destroys child mounts, clears
+focus, hover, pointer capture, active pointer, keyboard/text/navigation focus,
+prunes modal ownership, and removes text bindings under the subtree.
+
+Remaining lifetime limitations:
+
+- Existing feature builders are not yet authored as mounted compositions.
+- Raw handles are not generation checked.
+- There is no composition object or mount-local event lifecycle yet.
 
 ### Coordinate Systems
 
@@ -475,8 +496,9 @@ Specific weaknesses:
 - Gameplay input blocking is still game-specific and manually checks feature
   singleton state.
 - Inventory, merchant grids, and tools implement their own input routing.
-- Feature UIs are built as roots, not as reusable mountable compositions.
-- There is no mount token or scoped lifetime owner.
+- Feature UIs are still built mostly as raw handle structs, not as reusable
+  mounted compositions.
+- Mount ownership exists, but existing game/tool UI has not yet migrated to it.
 - Raw handles are not generation checked.
 - Layout is too low-level for long-lived engine use.
 - Styling is not structured around reusable themes or skins.
@@ -634,6 +656,11 @@ UI should become compositional. A dialogue interface, inventory, shop, settings
 panel, debug window, codex, terminal, skill tree, or tooltip should be a
 composition that can be mounted into a host.
 
+The first `UiMount` primitive is now implemented as ownership and attachment
+only. It creates a retained container root, tracks parent/child mounts, supports
+attachment to layers, nodes, or other mounts, and owns teardown cleanup.
+`UiComposition` is still future work and should build on this mount primitive.
+
 Composition responsibilities:
 
 - Build a reusable UI tree.
@@ -644,8 +671,11 @@ Composition responsibilities:
 
 Mount responsibilities:
 
-- Own the root handle(s) for a composition.
+- Own the retained subtree root for a composition or compatibility builder.
 - Destroy the tree when unmounted.
+- Destroy child mounts recursively.
+- Clear focus, capture, active pointer, text focus, navigation focus, and modal
+  ownership for the subtree.
 - Preserve or restore focus when requested.
 - Attach below a surface/layer/mount point.
 - Optionally provide local services such as theme, localization, or data model.
@@ -1122,7 +1152,76 @@ Status:
 - Focus manager implemented in Phase 3A.
 - Modal manager implemented in Phase 3B.
 
-### Phase 4: Surfaces
+### Phase 4: Mount Ownership
+
+Objectives:
+
+- Add mount tokens and attachment points.
+- Make retained subtrees engine-owned instead of only handle-owned.
+- Clean focus, capture, modal, text binding, and child mount state on unmount.
+- Preserve compatibility with current handle-struct builders.
+
+Files/classes involved:
+
+- New `UiMount.h/.cpp`
+- `UiDocument` subtree helpers
+- `UiFocusManager`
+- `UiModalManager`
+- `UiSystem`
+
+Expected API changes:
+
+- `createMount`
+- `destroyMount`
+- `attachMount`
+- `detachMount`
+- `mountFromNode`
+
+Compatibility:
+
+- Existing builders can keep returning handle structs while new code wraps
+  their roots in mounts.
+
+Validation:
+
+- Test unmount recursively removes nodes and clears focus/capture/modal state.
+- Test layer removal and document clear unwind mount ownership.
+
+Status:
+
+- Mount ownership implemented in Phase 4.
+
+### Phase 5: Composition API
+
+Objectives:
+
+- Add composition hosts on top of mounts.
+- Make feature UIs reusable units that build into a mount context.
+- Start with engine tools or menus because they are mostly self-contained.
+
+Files/classes involved:
+
+- New `UiComposition`
+- `UiMount`
+- tool UI widgets
+- menu UI builders
+
+Expected API changes:
+
+- `mount(layer, composition)`
+- `unmount(token)`
+- mount-local context
+
+Compatibility:
+
+- Existing handle structs can be owned inside composition instances initially.
+
+Validation:
+
+- Test composition build/update/unmount lifecycle.
+- Tool/menu smoke test.
+
+### Phase 6: Surfaces
 
 Objectives:
 
@@ -1155,38 +1254,7 @@ Validation:
 - Test viewport-local coordinates.
 - Render smoke for default screen surface.
 
-### Phase 5: Composition and Mount API
-
-Objectives:
-
-- Add mount tokens and composition hosts.
-- Make feature UIs mountable under layers.
-- Start with engine tools or menus because they are mostly self-contained.
-
-Files/classes involved:
-
-- New `UiComposition`
-- New `UiMount`
-- `UiDocument` lifetime helpers
-- tool UI widgets
-- menu UI builders
-
-Expected API changes:
-
-- `mount(layer, composition)`
-- `unmount(token)`
-- mount-local context
-
-Compatibility:
-
-- Existing handle structs can be owned inside composition instances initially.
-
-Validation:
-
-- Test unmount recursively removes nodes and clears focus/capture.
-- Tool/menu smoke test.
-
-### Phase 6: Layout Engine Expansion
+### Phase 7: Layout Engine Expansion
 
 Objectives:
 
@@ -1218,7 +1286,7 @@ Validation:
 - Unit tests for layout containers.
 - Visual smoke for inventory/menu/dialogue.
 
-### Phase 7: Styling and Themes
+### Phase 8: Styling and Themes
 
 Objectives:
 
@@ -1249,7 +1317,7 @@ Validation:
 - Theme swap test.
 - Button state style tests.
 
-### Phase 8: Animation and Transitions
+### Phase 9: Animation and Transitions
 
 Objectives:
 
@@ -1278,7 +1346,7 @@ Validation:
 - Unit tests for cancellation and unmount safety.
 - Visual smoke for modal transitions.
 
-### Phase 9: Feature Migration
+### Phase 10: Feature Migration
 
 Objectives:
 
@@ -1393,6 +1461,36 @@ Validation:
 - Covered nested modals, focus restoration, layer blocking, consumption flags,
   cancel routing, dismissals, hidden/disabled layer cleanup, hidden/disabled
   owner cleanup, destroyed owner cleanup, and non-blocking popup policy.
+
+### Implementation 5: Mount Ownership
+
+Done.
+
+Objectives:
+
+- Add an engine-owned lifetime object for retained UI subtrees.
+- Support attachment to layers, nodes, and parent mounts.
+- Destroy child mounts recursively.
+- Clean focus, capture, modal, and text binding state when a mount is destroyed.
+- Preserve current raw handle builders as compatibility users.
+
+Specific first files:
+
+- `UiMountTypes.h`
+- `UiMount.h/.cpp`
+- `UiDocument`
+- `UiFocusManager`
+- `UiModalManager`
+- `UiInteraction`
+- `UiInputDispatcher`
+- `UiSystem`
+
+Validation:
+
+- Added `ui_mount_runtime`.
+- Covered mount creation, parent-node attachment, nested mount destruction,
+  child destruction, focus/capture cleanup, modal cleanup, layer removal,
+  document clear, attach/detach, manual root removal, and invalid mount ids.
 
 ## 7. Phase 2 Implementation Report
 
@@ -1790,6 +1888,7 @@ The dispatcher reports:
 - `modalDepth`
 - `modal`
 - `modalOwner`
+- `modalMount`
 - `modalLayer`
 - `pointerBlocked`
 - `keyboardBlocked`
@@ -1862,9 +1961,10 @@ modal-like behavior onto descriptors:
 - VN execution profiles still own world sleep/render policy; that remains
   correct, but VN blocking policy can later also publish a modal descriptor.
 
-### Next Primitive
+### Phase 3B Handoff to Mount Ownership
 
-The single highest-value missing primitive is `UiMount`.
+At the end of Phase 3B, the single highest-value missing primitive was
+`UiMount`.
 
 Modal ownership now can say which layer owns interaction, but the runtime still
 has no generic lifetime/location object for a subtree. Feature UIs are still
@@ -1883,12 +1983,145 @@ stable unit of UI ownership.
   authoring
 
 `UiComposition` should follow as the authoring abstraction that builds into a
-mount. Surfaces can wait because the current default screen document is enough
-to migrate lifetime ownership first. Event propagation, navigation, drag/drop,
-layout, styling, and animation all become cleaner once they can target mounted
-subtrees instead of feature-specific root handles.
+mount. Surfaces could wait because the current default screen document was
+enough to migrate lifetime ownership first. Event propagation, navigation,
+drag/drop, layout, styling, and animation all become cleaner once they can
+target mounted subtrees instead of feature-specific root handles.
 
-## 10. Final Recommendation
+## 10. Phase 4 Implementation Report
+
+### Retained UI Ownership Investigation
+
+Before Phase 4, retained UI ownership was still distributed through raw handles:
+
+- VN dialogue UI built one root and stored `VNDialogueUiHandles`; destruction
+  manually removed the root.
+- Dungeon HUD and interaction prompt builders returned handle structs; sync
+  systems owned those handles and no automatic teardown existed beyond scene UI
+  clear.
+- Inventory, merchant, menu, and skill-tree coordinators built handle structs,
+  copied them into event handlers and sync systems, and reset the C++ wrappers
+  without engine-owned subtree lifetime.
+- Combat scenes built `CombatUiHandles` directly during scene load and passed
+  them into sync systems and billboard components.
+- Engine tool shell and tool panels each stored root handles and manually
+  removed them when tools were hidden or destroyed.
+- Shared widgets such as panel skins, dropdowns, sliders, HP bars, and tool
+  controls returned interior handles but did not own subtree lifetime.
+
+Those handle structs remain useful as sync caches. They are not good lifetime
+owners. Lifetime ownership, attachment, recursive teardown, focus cleanup, and
+modal cleanup now belong to mounts.
+
+### Implemented Mount Model
+
+`UiMount` is now the retained UI ownership primitive:
+
+- `UiMountId` identifies a mounted subtree.
+- Each mount owns one retained container root.
+- A mount can attach to a layer, an arbitrary parent node, or a parent mount.
+- Parent/child mount relationships are tracked explicitly.
+- Destroying a parent mount destroys all child mounts.
+- `UiSystem::removeNode(...)` treats removal of an exact mount root as mount
+  destruction.
+- Removing a layer destroys mounts attached to that layer.
+- `UiSystem::clear()` resets the mount table and recreates the root mount.
+
+The root mount is conceptual ownership for the document root. It cannot be
+destroyed and does not replace layer roots.
+
+### Cleanup Rules
+
+Destroying a mount automatically:
+
+- removes text bindings below the mount root
+- dismisses modals owned by the mount or by owner nodes inside the subtree
+- clears pointer hover under the subtree
+- releases pointer capture under the subtree
+- clears active pointer ownership under the subtree
+- clears keyboard focus under the subtree
+- clears text-input focus under the subtree
+- clears navigation focus under the subtree
+- removes focus scopes owned by nodes under the subtree
+- removes the retained subtree from `UiDocument`
+- removes child mount records recursively
+
+This cleanup is engine policy. Feature systems should not need to manually
+clear retained focus, capture, or modal state for mounted UI.
+
+### API Surface
+
+New engine-facing APIs:
+
+- `UiSystem::mountManager()`
+- `UiSystem::createMount(...)`
+- `UiSystem::destroyMount(...)`
+- `UiSystem::attachMount(...)`
+- `UiSystem::detachMount(...)`
+- `UiSystem::findMount(...)`
+- `UiSystem::mountFromNode(...)`
+- `UiSystem::rootMount()`
+- `UiSystem::mountRoot(...)`
+- `UiFocusManager::clearForSubtree(...)`
+- `UiModalManager::dismissModalsOwnedByMount(...)`
+- `UiModalManager::dismissModalsForSubtree(...)`
+
+`UiModalDesc` and `UiDispatchResult` now carry modal mount ownership through
+`ownerMount` / `modalMount`. `UiSystem::pushModal(...)` infers the owner mount
+from the modal owner node when the caller has not supplied one.
+
+### Validation
+
+Added `ui_mount_runtime`, covering:
+
+- mount creation
+- parent-node attachment and child-mount inference
+- nested mount destruction
+- child mount destruction without destroying the parent
+- focus, hover, active pointer, pointer capture, text focus, and navigation
+  cleanup
+- focus scope cleanup
+- modal mount ownership and cleanup
+- layer removal cleanup
+- document clear reset
+- attach/detach between layers
+- manual removal of a mount root through `removeNode`
+- invalid mount ids
+
+The existing layer, input-dispatcher, focus-manager, and modal-manager runtime
+tests continue to pass.
+
+### Remaining Compatibility Paths
+
+The engine primitive exists, but current feature UI has not yet migrated onto
+mount creation:
+
+- VN dialogue UI still returns `VNDialogueUiHandles`.
+- Dungeon HUD and prompt UI still return handle structs.
+- Inventory, merchant, menu, and skill-tree coordinators still pass handle
+  structs to handlers and sync systems.
+- Combat UI and billboard UI still use raw handles from scene load.
+- Engine tool panels still store and destroy root handles manually.
+- Shared widgets still return interior handle bundles.
+
+These are compatibility paths. The migration should wrap top-level feature UI
+roots in mounts first, then later move builders into `UiComposition`.
+
+### Next Primitive
+
+The single highest-value missing primitive is now `UiComposition`.
+
+Mounts answer who owns a subtree and how it is attached. They do not answer how
+a reusable UI unit is authored, updated, parameterized, or unmounted as a
+coherent feature. `UiComposition` should come next because it turns the current
+builder/handle-struct pattern into a reusable runtime object that builds into a
+mount context.
+
+Surfaces, event propagation, layout, styling, animation, navigation, and
+drag/drop all become cleaner after composition exists because they can target
+composition boundaries instead of feature-specific handle bundles.
+
+## 11. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -1909,11 +2142,10 @@ vocabulary to the engine.
 The first committed direction was explicit layers. The second committed
 direction is centralized retained UI input dispatch. The third committed
 direction is engine-owned focus management. The fourth committed direction is
-engine-owned modal policy.
+engine-owned modal policy. The fifth committed direction is engine-owned mount
+lifetime.
 
-The next milestone should implement `UiMount` as the engine-owned lifetime and
-attachment primitive for retained UI subtrees. Mount ownership should precede
-`UiComposition`, surfaces, event propagation, layout expansion, styling,
-animation, navigation, and drag/drop because all of those systems need a stable
-way to identify, attach, remove, focus, and clean up UI subtrees without
-feature-specific root conventions.
+The next milestone should implement `UiComposition` on top of `UiMount`.
+Composition should precede surfaces, event propagation, layout expansion,
+styling, animation, navigation, and drag/drop because it creates the reusable
+UI unit those systems need to target.

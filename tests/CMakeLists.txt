@@ -107,6 +107,24 @@ set_tests_properties(ui_modal_manager_runtime
         LABELS "gravitas;ui;runtime"
 )
 
+add_executable(UiMountRuntimeTest
+    ui/UiMountRuntimeTest.cpp
+)
+
+target_compile_features(UiMountRuntimeTest PRIVATE cxx_std_20)
+
+target_link_libraries(UiMountRuntimeTest PRIVATE gravitas_rendering)
+
+add_test(
+    NAME ui_mount_runtime
+    COMMAND UiMountRuntimeTest
+)
+
+set_tests_properties(ui_mount_runtime
+    PROPERTIES
+        LABELS "gravitas;ui;runtime"
+)
+
 if(TARGET gravitas_tools)
     add_executable(EditorFrameworkSmokeTest
         tools/EditorFrameworkSmokeTest.cpp

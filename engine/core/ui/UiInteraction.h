@@ -4,6 +4,7 @@
 
 #include "UiHandle.h"
 #include "UiLayer.h"
+#include "UiMountTypes.h"
 
 using UiSurfaceId = uint32_t;
 using UiInputDeviceId = uint32_t;
@@ -84,6 +85,7 @@ struct UiDispatchResult
     uint32_t modalDepth = 0;
     UiModalId modal = UI_INVALID_MODAL;
     UiHandle modalOwner = UI_INVALID_HANDLE;
+    UiMountId modalMount = UI_INVALID_MOUNT;
     UiLayerId modalLayer = UI_INVALID_LAYER;
     bool pointerBlocked = false;
     bool keyboardBlocked = false;

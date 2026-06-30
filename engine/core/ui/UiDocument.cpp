@@ -215,6 +215,26 @@ bool UiDocument::canRemoveNode(UiHandle handle) const
         && findNode(handle) != nullptr;
 }
 
+bool UiDocument::isDescendantOf(UiHandle handle, UiHandle ancestor) const
+{
+    if (handle == UI_INVALID_HANDLE || ancestor == UI_INVALID_HANDLE)
+        return false;
+
+    const UiNode* node = findNode(handle);
+    while (node != nullptr)
+    {
+        if (node->handle == ancestor)
+            return true;
+
+        if (node->parent == UI_INVALID_HANDLE)
+            return false;
+
+        node = findNode(node->parent);
+    }
+
+    return false;
+}
+
 UiHandle UiDocument::createNode(UiNodeType type, UiHandle parent)
 {
     const UiHandle effectiveParent = (parent == UI_INVALID_HANDLE) ? defaultLayerRoot : parent;

@@ -8,6 +8,7 @@
 UiSystem::UiSystem(IResourceProvider* inResources)
     : resources(inResources)
 {
+    mountState.reset(document);
 }
 
 void UiSystem::clear()
@@ -17,6 +18,7 @@ void UiSystem::clear()
     ++textBindingRevision;
     commandCache.clear();
     commandCacheValid = false;
+    mountState.reset(document);
     modalState.clear();
     focusState.clear();
     inputDispatcher.clear();
@@ -53,11 +55,13 @@ bool UiSystem::removeLayer(UiLayerId layerId)
         return false;
 
     removeTextBindingsRecursive(root);
+    mountState.destroyMountsInLayer(document, focusState, modalState, layerId);
     const bool removed = document.removeLayer(layerId);
     if (!removed)
         return false;
 
     commandCacheValid = false;
+    mountState.pruneInvalidMounts(document);
     modalState.pruneInvalidModals(document, focusState);
     focusState.pruneInvalidHandles(document);
     inputDispatcher.pruneMissingHandles(document);
@@ -103,11 +107,16 @@ bool UiSystem::removeNode(UiHandle handle)
     if (!document.canRemoveNode(handle))
         return false;
 
+    const UiMountId exactMount = mountState.mountFromRoot(handle);
+    if (exactMount != UI_INVALID_MOUNT && exactMount != UI_ROOT_MOUNT)
+        return destroyMount(exactMount);
+
     removeTextBindingsRecursive(handle);
     const bool removed = document.removeNode(handle);
     if (!removed)
         return false;
 
+    mountState.pruneInvalidMounts(document);
     inputDispatcher.pruneMissingHandles(document);
     modalState.pruneInvalidModals(document, focusState);
     focusState.pruneInvalidHandles(document);
@@ -206,6 +215,16 @@ const UiModalManager& UiSystem::modalManager() const
     return modalState;
 }
 
+UiMountManager& UiSystem::mountManager()
+{
+    return mountState;
+}
+
+const UiMountManager& UiSystem::mountManager() const
+{
+    return mountState;
+}
+
 UiSystem::Metrics UiSystem::getLastMetrics() const
 {
     return lastMetrics;
@@ -257,7 +276,12 @@ const UiDispatchResult& UiSystem::dispatchResult() const
 
 UiModalId UiSystem::pushModal(const UiModalDesc& desc)
 {
-    return modalState.pushModal(document, focusState, desc);
+    UiModalDesc resolved = desc;
+    if (resolved.ownerMount == UI_INVALID_MOUNT && resolved.owner != UI_INVALID_HANDLE)
+        resolved.ownerMount = mountState.mountFromNode(document, resolved.owner);
+    if (resolved.owner == UI_INVALID_HANDLE && resolved.ownerMount != UI_INVALID_MOUNT)
+        resolved.owner = mountState.rootForMount(resolved.ownerMount);
+    return modalState.pushModal(document, focusState, resolved);
 }
 
 bool UiSystem::popModal(UiModalId modalId, UiModalDismissReason reason)
@@ -268,6 +292,72 @@ bool UiSystem::popModal(UiModalId modalId, UiModalDismissReason reason)
 bool UiSystem::dismissTopModal(UiModalDismissReason reason)
 {
     return modalState.dismissTopModal(document, focusState, reason);
+}
+
+UiMountId UiSystem::createMount(const UiMountDesc& desc)
+{
+    commandCacheValid = false;
+    return mountState.createMount(document, desc);
+}
+
+bool UiSystem::destroyMount(UiMountId mountId)
+{
+    const UiHandle root = mountState.rootForMount(mountId);
+    if (root == UI_INVALID_HANDLE || root == document.getDocumentRoot())
+        return false;
+
+    removeTextBindingsRecursive(root);
+    const bool destroyed = mountState.destroyMount(document, focusState, modalState, mountId);
+    if (!destroyed)
+        return false;
+
+    commandCacheValid = false;
+    inputDispatcher.pruneMissingHandles(document);
+    modalState.pruneInvalidModals(document, focusState);
+    focusState.pruneInvalidHandles(document);
+    return true;
+}
+
+bool UiSystem::attachMount(UiMountId mountId, const UiMountAttachment& attachment)
+{
+    const bool attached = mountState.attachMount(document, mountId, attachment);
+    if (attached)
+    {
+        commandCacheValid = false;
+        modalState.pruneInvalidModals(document, focusState);
+        focusState.pruneInvalidHandles(document);
+    }
+    return attached;
+}
+
+bool UiSystem::detachMount(UiMountId mountId)
+{
+    return attachMount(mountId, UiMountAttachment{.layer = document.getDefaultLayer(), .parentMount = UI_ROOT_MOUNT});
+}
+
+UiMount* UiSystem::findMount(UiMountId mountId)
+{
+    return mountState.findMount(mountId);
+}
+
+const UiMount* UiSystem::findMount(UiMountId mountId) const
+{
+    return mountState.findMount(mountId);
+}
+
+UiMountId UiSystem::mountFromNode(UiHandle handle) const
+{
+    return mountState.mountFromNode(document, handle);
+}
+
+UiMountId UiSystem::rootMount() const
+{
+    return mountState.rootMount();
+}
+
+UiHandle UiSystem::mountRoot(UiMountId mountId) const
+{
+    return mountState.rootForMount(mountId);
 }
 
 UiCommandBuffer UiSystem::extractCommands(int viewportWidth, int viewportHeight)

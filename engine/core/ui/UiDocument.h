@@ -26,6 +26,7 @@ public:
     bool      getLayerOrder(UiLayerId layerId, int& outOrder) const;
     UiLayerId getDefaultLayer() const { return UI_DEFAULT_LAYER; }
     bool      canRemoveNode(UiHandle handle) const;
+    bool      isDescendantOf(UiHandle handle, UiHandle ancestor) const;
 
     UiHandle createNode(UiNodeType type, UiHandle parent = UI_INVALID_HANDLE);
     bool     removeNode(UiHandle handle);

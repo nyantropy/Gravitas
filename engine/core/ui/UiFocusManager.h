@@ -94,6 +94,7 @@ public:
     UiHandle activePointerNode(UiPointerId pointerId = UI_PRIMARY_POINTER) const;
 
     void clearPointer(UiDocument& document, UiPointerId pointerId);
+    void clearForSubtree(UiDocument& document, UiHandle root);
     void pruneInvalidHandles(UiDocument& document);
 
 private:

@@ -851,9 +851,9 @@ profile buckets after printing.
 
 The retained UI model is an engine core service. `UiDocument` stores retained
 nodes and explicit document layers, `UiSystem` owns per-frame extraction and
-coordinates input dispatch, focus state, and modal state, and tool widgets in
-`modules/tools/ui/` provide reusable engine-editor controls on top of that UI
-system.
+coordinates input dispatch, focus state, modal state, and mount lifetime, and
+tool widgets in `modules/tools/ui/` provide reusable engine-editor controls on
+top of that UI system.
 
 `UiDocument` now has a hidden document root plus one or more ordered layer roots.
 Existing callers that create nodes without specifying a parent still attach to
@@ -886,6 +886,15 @@ Retained UI systems should read `ctx.ui->dispatchResult()` during their
 controller update instead of initiating their own hit test.
 `UiSystem::updateInteraction(...)` remains only as a compatibility API over the
 dispatcher.
+
+`UiMount` is the retained subtree ownership primitive. `UiSystem::createMount`
+creates a container root attached to a layer, node, or parent mount, while
+`destroyMount` removes that subtree, destroys child mounts, removes text
+bindings below the root, clears retained focus/capture/text/navigation state,
+and dismisses modal ownership associated with the subtree. Existing handle
+builders still work, but new runtime-owned UI should be attached through mounts.
+If compatibility code removes an exact mount root through `removeNode`, the
+mount is destroyed instead of leaving stale ownership state.
 
 UI extraction now enforces primitive clipping before draw-command generation.
 Layout specs include a default-zero child `contentOffset`, so a clipped

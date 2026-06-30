@@ -1,5 +1,7 @@
 #include "UiFocusManager.h"
 
+#include <algorithm>
+
 #include "UiNode.h"
 
 UiFocusManager::UiFocusManager()
@@ -274,6 +276,101 @@ void UiFocusManager::clearPointer(UiDocument& document, UiPointerId pointerId)
 
     reflectHovered(document, hovered, anyPointerHovered(hovered));
     reflectPressed(document, active, anyPointerActive(active));
+}
+
+void UiFocusManager::clearForSubtree(UiDocument& document, UiHandle root)
+{
+    if (root == UI_INVALID_HANDLE || document.findNode(root) == nullptr)
+        return;
+
+    std::vector<UiFocusScopeId> removedScopes;
+    for (const auto& [scopeId, scope] : scopes)
+    {
+        if (scopeId != UI_ROOT_FOCUS_SCOPE &&
+            scope.owner != UI_INVALID_HANDLE &&
+            document.isDescendantOf(scope.owner, root))
+        {
+            removedScopes.push_back(scopeId);
+        }
+    }
+
+    for (auto& [_, pointer] : pointers)
+    {
+        if (pointer.hovered != UI_INVALID_HANDLE && document.isDescendantOf(pointer.hovered, root))
+        {
+            const UiHandle previous = pointer.hovered;
+            pointer.hovered = UI_INVALID_HANDLE;
+            reflectHovered(document, previous, anyPointerHovered(previous));
+        }
+
+        if (pointer.captured != UI_INVALID_HANDLE && document.isDescendantOf(pointer.captured, root))
+            pointer.captured = UI_INVALID_HANDLE;
+
+        if (pointer.active != UI_INVALID_HANDLE && document.isDescendantOf(pointer.active, root))
+        {
+            const UiHandle previous = pointer.active;
+            pointer.active = UI_INVALID_HANDLE;
+            reflectPressed(document, previous, anyPointerActive(previous));
+        }
+    }
+
+    restorationStack.erase(
+        std::remove_if(restorationStack.begin(),
+                       restorationStack.end(),
+                       [&](const UiFocusRestoreEntry& restore)
+                       {
+                           return restore.handle != UI_INVALID_HANDLE &&
+                                  document.isDescendantOf(restore.handle, root);
+                       }),
+        restorationStack.end());
+
+    if (!removedScopes.empty())
+    {
+        restorationStack.erase(
+            std::remove_if(restorationStack.begin(),
+                           restorationStack.end(),
+                           [&](const UiFocusRestoreEntry& restore)
+                           {
+                               return std::find(removedScopes.begin(), removedScopes.end(), restore.scope) !=
+                                      removedScopes.end();
+                           }),
+            restorationStack.end());
+
+        for (UiFocusScopeId scopeId : removedScopes)
+        {
+            scopes.erase(scopeId);
+            scopeStack.erase(std::remove(scopeStack.begin(), scopeStack.end(), scopeId), scopeStack.end());
+        }
+
+        const UiFocusScopeId fallbackScope = activeScope();
+        for (auto& [_, scope] : scopes)
+        {
+            if (std::find(removedScopes.begin(), removedScopes.end(), scope.parent) != removedScopes.end())
+                scope.parent = fallbackScope;
+        }
+
+        if (std::find(removedScopes.begin(), removedScopes.end(), keyboardFocusScope) != removedScopes.end())
+            keyboardFocusScope = fallbackScope;
+    }
+
+    if (keyboardFocus != UI_INVALID_HANDLE && document.isDescendantOf(keyboardFocus, root))
+    {
+        reflectFocused(document, keyboardFocus, false);
+        keyboardFocus = UI_INVALID_HANDLE;
+        keyboardFocusScope = UI_INVALID_FOCUS_SCOPE;
+        restoreFocus(document);
+    }
+
+    if (textInputFocus != UI_INVALID_HANDLE && document.isDescendantOf(textInputFocus, root))
+        textInputFocus = UI_INVALID_HANDLE;
+
+    for (auto it = navigationFocus.begin(); it != navigationFocus.end();)
+    {
+        if (it->second != UI_INVALID_HANDLE && document.isDescendantOf(it->second, root))
+            it = navigationFocus.erase(it);
+        else
+            ++it;
+    }
 }
 
 void UiFocusManager::pruneInvalidHandles(UiDocument& document)
