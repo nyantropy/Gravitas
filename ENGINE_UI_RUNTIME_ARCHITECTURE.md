@@ -335,15 +335,16 @@ Interaction is currently centralized pointer dispatch plus a result struct:
 - pointer, keyboard, navigation, and text-input blocking flags
 - cancel target and dismissed modal for cancel/back input
 
-There are no explicit events such as pointer enter/leave/down/up/click/move,
-wheel, key down/up, text input, submit, cancel, navigation move, focus gained, or
-focus lost. The event vocabulary exists in `UiEvent.h`, but propagation is not
-implemented yet.
+Explicit retained events now exist for pointer enter/leave/down/up/click/move,
+wheel, navigation cancel, and focus gained/lost. Keyboard key events, text
+input, navigation move/submit, drag/drop, and lifecycle event delivery are still
+future extensions of the same `UiEvent` route.
 
 Retained interaction ownership is no longer initiated by feature systems.
-Menus, merchant buttons, skill-tree nodes, VN choices, and engine tool widgets
-read `ctx.ui->dispatchResult()`. Manual inventory-grid, merchant-grid, and
-tool-world pointer ownership still bypass retained dispatch.
+VN choices now receive composition events. Menus, merchant buttons, skill-tree
+nodes, and engine tool widgets still read `ctx.ui->dispatchResult()` during
+migration. Manual inventory-grid, merchant-grid, and tool-world pointer ownership
+still bypass retained dispatch.
 
 ### Keyboard, Focus, and Navigation
 
@@ -732,14 +733,19 @@ Dispatch responsibilities:
 - Walk layers from highest to lowest priority.
 - Respect modal stack and layer blocking policy.
 - Hit test once per pointer event.
-- Build an event target path.
-- Deliver capture phase.
-- Deliver target phase.
-- Deliver bubble phase.
-- Stop routing when consumed by policy or handler.
 - Ask `UiFocusManager` to apply hover, active pointer, capture, and focus
   transitions.
 - Publish a frame result for gameplay/tool gating.
+
+Event propagation responsibilities:
+
+- Build an event target path from retained parent hierarchy.
+- Resolve target layer, mount, and composition ownership.
+- Deliver capture phase from root toward the target.
+- Deliver target phase at the target node.
+- Deliver bubble phase from target back toward root.
+- Stop routing when a handler consumes the event.
+- Preserve `preventDefault()` independently from propagation.
 
 Phase 2 replaces production feature-owned calls to
 `UiSystem::updateInteraction`.
@@ -768,6 +774,12 @@ UI events should be explicit values:
 - `NavigationCancel`
 - `FocusGained`
 - `FocusLost`
+- `ModalOpened`
+- `ModalClosed`
+- `MountAttached`
+- `MountDetached`
+- `CompositionMounted`
+- `CompositionDestroyed`
 - `DragStart`
 - `DragMove`
 - `DragDrop`
@@ -780,14 +792,20 @@ Events should include:
 - pointer id where applicable
 - local and screen coordinates
 - target node
+- target layer
+- target mount
+- target composition
 - target path
+- current propagation target
 - modifiers
 - consumed flag
 - default-prevented flag
 
-Nodes and compositions should be able to register event handlers. The runtime
-should support capture/target/bubble propagation because parent widgets such as
-scroll views, lists, windows, and modals need policy control around child nodes.
+`UiInputDispatcher` creates frame events from the dispatch result. `UiSystem`
+resolves the retained target path and routes each event through capture, target,
+and bubble. `UiComposition::onEvent(...)` is the current event receiver.
+Node-local callbacks and widget registration remain future layers on top of the
+same propagation path.
 
 ### Focus Manager
 
@@ -808,8 +826,8 @@ Implemented first-pass focus concepts:
 
 Future focus concepts:
 
-- modal focus traps
-- focus lost/gained events
+- modal focus traps beyond the current modal focus scope
+- richer focus reasons in propagated events
 
 Focus scopes should let a mounted composition own local navigation without
 knowing where it is mounted. A settings panel should be able to trap tab focus
@@ -1258,7 +1276,55 @@ Status:
   dungeon sync system only feeds state and asks `UiSystem` to update the
   composition.
 
-### Phase 6: Surfaces
+### Phase 6: Event Propagation
+
+Objectives:
+
+- Convert dispatch results into retained UI events.
+- Route events through capture, target, and bubble phases.
+- Make `UiComposition` the first event receiver.
+- Preserve compatibility with existing polling systems.
+- Migrate one representative system from handle polling to composition events.
+
+Files/classes involved:
+
+- `UiEvent`
+- `UiInputDispatcher`
+- `UiSystem`
+- `UiComposition`
+- `UiDocument`
+- `VNDialogueComposition`
+
+Expected API changes:
+
+- `UiComposition::onEvent(...)`
+- `UiSystem::events()`
+- `UiSystem::propagateEvent(...)`
+- event target path and mount/composition metadata
+
+Compatibility:
+
+- `UiDispatchResult` remains available.
+- `UiSystem::updateInteraction(...)` remains a compatibility wrapper.
+- Existing feature handlers may continue polling during migration.
+
+Validation:
+
+- Test pointer enter/leave.
+- Test pointer click capture/target/bubble.
+- Test consumption and default prevention.
+- Test nested mounts/compositions.
+- Test modal routing and cancel.
+- Test focus gained/lost events.
+- Test destroyed targets are ignored.
+
+Status:
+
+- Event propagation implemented in Phase 6.
+- VN choice selection now uses `VNDialogueComposition::onEvent(...)` instead of
+  `VNSystem` comparing clicked handles from `UiDispatchResult`.
+
+### Phase 7: Surfaces
 
 Objectives:
 
@@ -1291,7 +1357,7 @@ Validation:
 - Test viewport-local coordinates.
 - Render smoke for default screen surface.
 
-### Phase 7: Layout Engine Expansion
+### Phase 8: Layout Engine Expansion
 
 Objectives:
 
@@ -1323,7 +1389,7 @@ Validation:
 - Unit tests for layout containers.
 - Visual smoke for inventory/menu/dialogue.
 
-### Phase 8: Styling and Themes
+### Phase 9: Styling and Themes
 
 Objectives:
 
@@ -1354,7 +1420,7 @@ Validation:
 - Theme swap test.
 - Button state style tests.
 
-### Phase 9: Animation and Transitions
+### Phase 10: Animation and Transitions
 
 Objectives:
 
@@ -1383,7 +1449,7 @@ Validation:
 - Unit tests for cancellation and unmount safety.
 - Visual smoke for modal transitions.
 
-### Phase 10: Feature Migration
+### Phase 11: Feature Migration
 
 Objectives:
 
@@ -1686,8 +1752,8 @@ Feature-owned state still exists outside retained focus:
 - Engine tools still publish `EngineToolInputCaptureComponent` for tool chrome,
   viewport pointer ownership, world picking, and gizmo interaction. Gizmo
   hovered/active axis and selected entity remain tool-domain state.
-- VN choice clicks consume retained dispatch results, but VN playback/choice
-  selection remains VN runtime state.
+- VN choice clicks now arrive through `VNDialogueComposition::onEvent(...)`, but
+  VN playback/choice selection remains VN runtime state.
 
 Those feature states are not all engine focus. Grid selection, selected combat
 action, selected entity, and dragged inventory item are domain state. Pointer
@@ -2133,7 +2199,7 @@ tests continue to pass.
 The engine primitive exists, but current feature UI has not yet migrated onto
 mount creation:
 
-- VN dialogue UI still returns `VNDialogueUiHandles`.
+- At this phase, VN dialogue UI still returned `VNDialogueUiHandles`.
 - Dungeon HUD and prompt UI still return handle structs.
 - Inventory, merchant, menu, and skill-tree coordinators still pass handle
   structs to handlers and sync systems.
@@ -2252,7 +2318,6 @@ runtime tests continue to pass.
 
 The following compatibility paths remain:
 
-- VN dialogue still exposes `VNDialogueUiHandles`.
 - Dungeon HUD still exposes `DungeonHudHandles`.
 - The Yune spatial test scene still uses the handle-backed interaction prompt
   path.
@@ -2262,35 +2327,183 @@ The following compatibility paths remain:
 - Engine tool panels still use panel-local root handles.
 - Shared widgets still return interior handle bundles.
 
+`VNDialogueUiHandles` still exists as an internal helper cache owned by
+`VNDialogueComposition`.
+
 These should migrate one composition at a time. The preferred pattern is now:
 
 `feature state -> concrete UiComposition parameters -> updateComposition -> retained nodes`
 
+## 12. Phase 6 Implementation Report
+
+### Polling Investigation
+
+Before Phase 6, the runtime owned hit testing but feature systems still
+interpreted interaction manually:
+
+- VN read `ctx.ui->dispatchResult().toInteractionResult()` and compared clicked
+  handles against choice buttons and labels.
+- Menu UI read clicked handles for scrim, resume, panel navigation, settings
+  rows, dropdown options, and wheel scrolling.
+- Skill tree UI read hovered/clicked handles for node hover, unlock requests,
+  and viewport panning.
+- Inventory UI mapped raw pointer position into grid cells, then used input
+  press/release edges for drag/drop.
+- Merchant UI combined raw pointer-to-grid mapping with clicked handles for
+  buttons, scrim, pay/sell/leave, and confirmation flows.
+- Engine tool panels received `UiInteractionResult` and compared hovered,
+  pressed, clicked, and scroll fields against panel-local handles.
+- Tool world picking and gizmos still use tool-specific capture state outside
+  retained UI.
+
+The common duplication was: poll dispatch result, compare raw handles, infer an
+event, perform feature behavior. Phase 6 establishes the engine path that makes
+those inferred events explicit.
+
+### Implemented Event Pipeline
+
+The retained event pipeline is now:
+
+`Platform/Input -> UiInputDispatcher -> UiEvent values -> UiSystem propagation -> UiComposition::onEvent(...)`
+
+`UiInputDispatcher` creates events for the currently implemented input surface:
+
+- pointer enter
+- pointer leave
+- pointer move
+- pointer down
+- pointer up
+- pointer click
+- pointer wheel
+- navigation cancel
+- focus gained
+- focus lost
+
+`UiSystem` owns propagation because it can resolve the ownership data that the
+core dispatcher should not know:
+
+- target path from retained parent hierarchy
+- target layer
+- target mount
+- target composition
+- current propagation target
+- current mount
+- current composition
+- target-local pointer position
+
+### Propagation Semantics
+
+Propagation has three phases:
+
+- Capture: root toward the target's parent.
+- Target: the target node.
+- Bubble: target back toward root.
+
+`event.consume()` stops further propagation. `event.preventDefault()` records
+that default behavior should not run but does not stop propagation. This
+separation is important for future widgets: a child can prevent a default
+action while still allowing parent containers, analytics, tool overlays, or
+accessibility layers to observe the event.
+
+`UiComposition::onEvent(...)` is invoked when the current propagation node
+belongs to a mounted composition. This means parent compositions can observe
+capture/bubble around child compositions, while child compositions receive
+events for their own subtree.
+
+Destroyed targets are invalidated before routing. If a handler destroys the
+target subtree during propagation, routing stops safely.
+
+### API Surface
+
+New or expanded APIs:
+
+- `UiEvent`
+- `UiComposition::onEvent(...)`
+- `UiSystem::events()`
+- `UiSystem::propagateEvent(...)`
+- `UiDocument::pathFromRoot(...)`
+- `UiInputDispatcher::events()`
+
+`UiDispatchResult` remains available for compatibility and for gameplay/tool
+input gating during migration.
+
+### Feature Demonstration
+
+VN choice selection now demonstrates composition-owned event behavior:
+
+- `VNDialogueComposition` builds/syncs/destroys the VN dialogue UI inside a
+  mount.
+- `VNDialogueComposition::onEvent(...)` receives `PointerClick`, maps it to a
+  choice using the event target path, consumes the event, and records the choice
+  intent.
+- `VNSystem` no longer compares clicked handles from `UiDispatchResult` for
+  choices. It consumes the choice intent from the composition.
+
+This preserves VN runtime behavior while moving the actual retained UI
+interaction into the composition that authored the choice buttons.
+
+### Validation
+
+Added `ui_event_propagation_runtime`, covering:
+
+- pointer enter
+- pointer leave
+- pointer click
+- capture phase
+- target phase
+- bubble phase
+- consumption
+- default prevention
+- nested compositions
+- modal click routing
+- modal cancel routing
+- focus gained
+- focus lost
+- destroyed target cleanup
+
+The existing layer, input-dispatcher, focus-manager, modal-manager, mount, and
+composition runtime tests continue to pass.
+
+### Remaining Polling Paths
+
+The event system exists, but these compatibility paths remain:
+
+- Menu UI still maps propagated intent through `UiInteractionResult` style
+  handle comparisons.
+- Skill tree still polls hovered/clicked handles and raw scroll.
+- Inventory and merchant still map raw pointer position into grids and own drag
+  state.
+- Engine tool panels still receive `UiInteractionResult`.
+- Tool viewport capture, world picking, and gizmos still use tool-specific
+  capture.
+- Shared widget helpers still expose handles rather than registering handlers.
+
+These should migrate after node/widget event registration and drag/drop are
+designed on top of the propagation path.
+
 ### Next Primitive
 
-The single highest-value missing primitive is now event propagation.
+The single highest-value missing primitive is now `UiSurface`.
 
-Compositions now give the runtime a reusable unit of authored UI. The next
-architectural blocker is that input is still consumed largely by feature sync
-systems polling `UiDispatchResult` and comparing raw handles. That keeps click,
-hover, keyboard, cancel, drag, and text behavior distributed across feature
-systems even though dispatch, focus, modal ownership, lifetime, and authoring
-boundaries are centralized.
+Layers, dispatch, focus, modals, mounts, compositions, and events are still
+anchored to one retained screen-space document. That is now the largest
+architectural limit. `UiSurface` should come next because it introduces the
+runtime boundary for:
 
-Event propagation should come next because it connects the existing primitives:
+- multiple windows
+- split-screen viewports
+- editor panels and scene views
+- render-target UI
+- world-space UI
+- in-world terminals
+- VR/AR pointer spaces
+- per-surface focus/modal/event routing
 
-- Dispatch creates frame events.
-- Modal policy decides what is blocked.
-- Focus decides persistent owners.
-- Mounts provide subtree ownership.
-- Compositions provide behavior owners.
+Layout, styling, animation, navigation, drag/drop, and data binding all benefit
+from knowing which surface owns their coordinate system, resource scale, input
+devices, focus scope, and extraction target.
 
-Without event propagation, styling, animation, navigation, drag/drop, and
-widgets still need ad hoc feature-owned input glue. With propagation, those
-systems can target composition and node paths through a single engine event
-model.
-
-## 12. Final Recommendation
+## 13. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -2313,9 +2526,9 @@ direction is centralized retained UI input dispatch. The third committed
 direction is engine-owned focus management. The fourth committed direction is
 engine-owned modal policy. The fifth committed direction is engine-owned mount
 lifetime. The sixth committed direction is engine-owned composition authoring.
+The seventh committed direction is retained UI event propagation.
 
-The next milestone should implement retained UI event propagation. It should
-precede surfaces, layout expansion, styling, animation, navigation, and drag/drop
-because those systems need a single way to deliver pointer, keyboard,
-navigation, text, and cancel events to composition-owned UI instead of expanding
-feature-specific polling.
+The next milestone should implement `UiSurface`. It should precede layout
+expansion, styling, animation, navigation, drag/drop, and data binding because
+those systems need a first-class coordinate/extraction/input boundary instead of
+assuming every retained UI tree lives in the one default screen document.

@@ -1,14 +1,12 @@
 #pragma once
 
 #include "IResourceProvider.hpp"
+#include "UiCompositionTypes.h"
 #include "UiDocument.h"
+#include "UiEvent.h"
 #include "UiMountTypes.h"
 
 class UiSystem;
-
-using UiCompositionId = uint32_t;
-
-inline constexpr UiCompositionId UI_INVALID_COMPOSITION = 0;
 
 struct UiCompositionContext
 {
@@ -26,5 +24,6 @@ public:
 
     virtual void build(UiCompositionContext& context) = 0;
     virtual void update(UiCompositionContext& context) {}
+    virtual void onEvent(UiCompositionContext& context, UiEvent& event) {}
     virtual void destroy(UiCompositionContext& context) {}
 };

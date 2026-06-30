@@ -873,19 +873,25 @@ has been sampled and before simulation/controller systems run,
 `InputBindingRegistry` and calls `UiSystem::dispatchInput(frame, frameId)`.
 `UiSystem` delegates to `UiInputDispatcher`, which performs the retained hit
 test, creates the frame's hovered/pressed/released/clicked/active/captured
-result, resolves owning layers, consults modal policy, and stores a
-`UiDispatchResult`. Persistent interaction ownership lives in `UiFocusManager`,
-not in the dispatcher. The focus manager owns pointer hover per pointer id,
-pointer capture, active pointer owner, keyboard focus, text-input focus,
-navigation focus, focus scopes, and focus restoration. Modal ownership lives in
-`UiModalManager`, which owns the retained modal stack, layer blocking policy,
-cancel/back routing, and focus-scope restoration for nested modals. Retained
-node `hovered`, `focused`, and `pressed` flags are presentation reflection of
-focus-manager state, not authoritative owners.
-Retained UI systems should read `ctx.ui->dispatchResult()` during their
-controller update instead of initiating their own hit test.
-`UiSystem::updateInteraction(...)` remains only as a compatibility API over the
-dispatcher.
+result, resolves owning layers, consults modal policy, stores a
+`UiDispatchResult`, and creates frame `UiEvent` values. Persistent interaction
+ownership lives in `UiFocusManager`, not in the dispatcher. The focus manager
+owns pointer hover per pointer id, pointer capture, active pointer owner,
+keyboard focus, text-input focus, navigation focus, focus scopes, and focus
+restoration. Modal ownership lives in `UiModalManager`, which owns the retained
+modal stack, layer blocking policy, cancel/back routing, and focus-scope
+restoration for nested modals. Retained node `hovered`, `focused`, and
+`pressed` flags are presentation reflection of focus-manager state, not
+authoritative owners.
+
+Retained UI event propagation is engine-owned. `UiSystem` resolves each event's
+target path, layer, mount, and composition, then delivers capture, target, and
+bubble phases to `UiComposition::onEvent(...)`. `event.consume()` stops
+propagation; `event.preventDefault()` marks default behavior as blocked without
+stopping propagation. Existing retained UI systems may still read
+`ctx.ui->dispatchResult()` during migration, but new composition-owned UI should
+prefer `onEvent(...)`. `UiSystem::updateInteraction(...)` remains only as a
+compatibility API over the dispatcher.
 
 `UiMount` is the retained subtree ownership primitive. `UiSystem::createMount`
 creates a container root attached to a layer, node, or parent mount, while
@@ -899,12 +905,13 @@ mount is destroyed instead of leaving stale ownership state.
 `UiComposition` is the retained UI authoring primitive. `UiSystem` can
 `mountComposition(...)` into a new mount or `attachComposition(...)` to an
 existing mount, then calls the composition's `build`, `update`, `destroy`, and
-`rebuild` lifecycle through a `UiCompositionContext`. The context exposes the
-owning `UiSystem`, `UiDocument`, resource provider, mount id, and mount root.
-Compositions own cached handles and feature-local UI runtime state; mounts own
-attachment and lifetime; nodes own rendering data. Destroying a composition
-destroys its mount, and destroying a mount, layer, or document clear also invokes
-composition cleanup before retained subtree teardown.
+`rebuild` lifecycle plus event delivery through a `UiCompositionContext`. The
+context exposes the owning `UiSystem`, `UiDocument`, resource provider, mount
+id, and mount root. Compositions own cached handles, feature-local UI runtime
+state, and retained event behavior; mounts own attachment and lifetime; nodes
+own rendering data. Destroying a composition destroys its mount, and destroying a
+mount, layer, or document clear also invokes composition cleanup before retained
+subtree teardown.
 
 UI extraction now enforces primitive clipping before draw-command generation.
 Layout specs include a default-zero child `contentOffset`, so a clipped
@@ -1310,9 +1317,10 @@ Prefer extending `ToolWidgets` for reusable controls instead of building
 one-off retained UI interaction code inside a panel.
 
 New reusable retained UI should prefer a `UiComposition` mounted through
-`UiSystem` instead of storing top-level handles in a controller or scene. Legacy
-tool panels still use the older panel interface and should migrate one panel at
-a time after retained event propagation exists.
+`UiSystem` and should handle retained input through `UiComposition::onEvent(...)`
+instead of storing top-level handles in a controller or scene. Legacy tool
+panels still use the older panel interface and should migrate one panel at a
+time after node/widget event registration and drag/drop are designed.
 
 ---
 

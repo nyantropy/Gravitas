@@ -235,6 +235,23 @@ bool UiDocument::isDescendantOf(UiHandle handle, UiHandle ancestor) const
     return false;
 }
 
+std::vector<UiHandle> UiDocument::pathFromRoot(UiHandle handle) const
+{
+    std::vector<UiHandle> path;
+    const UiNode* node = findNode(handle);
+    while (node != nullptr)
+    {
+        path.push_back(node->handle);
+        if (node->parent == UI_INVALID_HANDLE)
+            break;
+
+        node = findNode(node->parent);
+    }
+
+    std::reverse(path.begin(), path.end());
+    return path;
+}
+
 UiHandle UiDocument::createNode(UiNodeType type, UiHandle parent)
 {
     const UiHandle effectiveParent = (parent == UI_INVALID_HANDLE) ? defaultLayerRoot : parent;

@@ -23,6 +23,7 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
 
     modalManager.pruneInvalidModals(document, focusManager);
     focusManager.pruneInvalidHandles(document);
+    const UiDispatchResult previousDispatch = lastDispatch;
 
     document.setViewportSize(1.0f, 1.0f);
     if (hasFlag(document.getDirtyFlags(), UiDirtyFlags::Layout))
@@ -30,8 +31,12 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
 
     bool dismissedByCancel = false;
     UiModalId cancelTarget = UI_INVALID_MODAL;
+    UiHandle cancelTargetOwner = UI_INVALID_HANDLE;
     if (input.cancelPressed)
+    {
+        cancelTargetOwner = modalManager.topOwner();
         cancelTarget = modalManager.routeCancel(document, focusManager, dismissedByCancel);
+    }
 
     modalManager.pruneInvalidModals(document, focusManager);
 
@@ -106,6 +111,7 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
     result.primaryReleased  = input.primaryReleased;
     result.cancelPressed    = input.cancelPressed;
     result.cancelTargetModal = cancelTarget;
+    result.cancelTargetOwner = cancelTargetOwner;
     result.dismissedModal = dismissedByCancel ? cancelTarget : UI_INVALID_MODAL;
     assignLayers(document, result);
     assignModalState(modalManager, result);
@@ -126,6 +132,7 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
     result.textInputConsumed = focusManager.textInputFocusedNode() != UI_INVALID_HANDLE ||
                                result.textBlocked;
 
+    buildEvents(document, previousDispatch, result, cancelTargetOwner);
     lastDispatch = result;
     return lastDispatch;
 }
@@ -133,6 +140,7 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
 void UiInputDispatcher::clear()
 {
     lastDispatch     = {};
+    generatedEvents.clear();
     dispatchSequence = 0;
 }
 
@@ -179,6 +187,7 @@ UiDispatchResult UiInputDispatcher::makeDisabledResult(const UiInputFrame& input
     result.primaryPressed   = input.primaryPressed;
     result.primaryReleased  = input.primaryReleased;
     result.cancelPressed    = input.cancelPressed;
+    generatedEvents.clear();
     return result;
 }
 
@@ -206,4 +215,97 @@ void UiInputDispatcher::assignModalState(const UiModalManager& modalManager, UiD
     result.keyboardBlocked = modalState.keyboardBlocked;
     result.navigationBlocked = modalState.navigationBlocked;
     result.textBlocked = modalState.textBlocked;
+}
+
+void UiInputDispatcher::buildEvents(const UiDocument& document,
+                                    const UiDispatchResult& previous,
+                                    const UiDispatchResult& result,
+                                    UiHandle cancelTargetOwner)
+{
+    generatedEvents.clear();
+
+    if (previous.hovered != result.hovered)
+    {
+        if (previous.hovered != UI_INVALID_HANDLE)
+            generatedEvents.push_back(makePointerEvent(document, UiEventType::PointerLeave, previous.hovered, result));
+        if (result.hovered != UI_INVALID_HANDLE)
+            generatedEvents.push_back(makePointerEvent(document, UiEventType::PointerEnter, result.hovered, result));
+    }
+
+    const UiHandle pointerTarget =
+        result.captured != UI_INVALID_HANDLE ? result.captured : result.hovered;
+    if (pointerTarget != UI_INVALID_HANDLE)
+        generatedEvents.push_back(makePointerEvent(document, UiEventType::PointerMove, pointerTarget, result));
+
+    if (result.primaryPressed && result.pressed != UI_INVALID_HANDLE)
+        generatedEvents.push_back(makePointerEvent(document, UiEventType::PointerDown, result.pressed, result));
+
+    if (result.primaryReleased && result.released != UI_INVALID_HANDLE)
+        generatedEvents.push_back(makePointerEvent(document, UiEventType::PointerUp, result.released, result));
+
+    if (result.clicked != UI_INVALID_HANDLE)
+        generatedEvents.push_back(makePointerEvent(document, UiEventType::PointerClick, result.clicked, result));
+
+    if ((result.scrollX != 0.0f || result.scrollY != 0.0f) && result.hovered != UI_INVALID_HANDLE)
+        generatedEvents.push_back(makePointerEvent(document, UiEventType::PointerWheel, result.hovered, result));
+
+    if (result.cancelPressed)
+    {
+        UiHandle target = cancelTargetOwner;
+        if (target == UI_INVALID_HANDLE)
+            target = result.focused;
+        if (target != UI_INVALID_HANDLE)
+        {
+            UiEvent event = makePointerEvent(document, UiEventType::NavigationCancel, target, result);
+            event.pointerId = 0;
+            event.deviceId = UI_PRIMARY_INPUT_DEVICE;
+            generatedEvents.push_back(event);
+        }
+    }
+
+    if (previous.focused != result.focused)
+    {
+        if (previous.focused != UI_INVALID_HANDLE)
+            generatedEvents.push_back(makeFocusEvent(document, UiEventType::FocusLost, previous.focused, result));
+        if (result.focused != UI_INVALID_HANDLE)
+            generatedEvents.push_back(makeFocusEvent(document, UiEventType::FocusGained, result.focused, result));
+    }
+}
+
+UiEvent UiInputDispatcher::makePointerEvent(const UiDocument& document,
+                                            UiEventType type,
+                                            UiHandle target,
+                                            const UiDispatchResult& result) const
+{
+    UiEvent event;
+    event.type = type;
+    event.surface = result.surface;
+    event.layer = document.getNodeLayer(target);
+    event.target = target;
+    event.timestamp = result.dispatchSequence;
+    event.deviceId = UI_PRIMARY_INPUT_DEVICE;
+    event.pointerId = UI_PRIMARY_POINTER;
+    event.pointerX = result.pointerX;
+    event.pointerY = result.pointerY;
+    event.scrollX = result.scrollX;
+    event.scrollY = result.scrollY;
+    return event;
+}
+
+UiEvent UiInputDispatcher::makeFocusEvent(const UiDocument& document,
+                                          UiEventType type,
+                                          UiHandle target,
+                                          const UiDispatchResult& result) const
+{
+    UiEvent event;
+    event.type = type;
+    event.surface = result.surface;
+    event.layer = document.getNodeLayer(target);
+    event.target = target;
+    event.timestamp = result.dispatchSequence;
+    event.deviceId = UI_PRIMARY_INPUT_DEVICE;
+    event.pointerId = 0;
+    event.pointerX = result.pointerX;
+    event.pointerY = result.pointerY;
+    return event;
 }

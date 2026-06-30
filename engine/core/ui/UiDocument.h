@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "UiLayer.h"
 #include "UiNode.h"
@@ -27,6 +28,7 @@ public:
     UiLayerId getDefaultLayer() const { return UI_DEFAULT_LAYER; }
     bool      canRemoveNode(UiHandle handle) const;
     bool      isDescendantOf(UiHandle handle, UiHandle ancestor) const;
+    std::vector<UiHandle> pathFromRoot(UiHandle handle) const;
 
     UiHandle createNode(UiNodeType type, UiHandle parent = UI_INVALID_HANDLE);
     bool     removeNode(UiHandle handle);

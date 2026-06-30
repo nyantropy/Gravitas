@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "BitmapFont.h"
+#include "UiEvent.h"
 #include "UiInteraction.h"
 #include "UiNode.h"
 #include "UiPanelSkinNode.h"
@@ -47,10 +48,15 @@ namespace gts::vn
     public:
         static VNDialogueUiHandles build(UiSystem& ui, const VNDialogueUiConfig& config)
         {
+            return build(ui, UI_INVALID_HANDLE, config);
+        }
+
+        static VNDialogueUiHandles build(UiSystem& ui, UiHandle parent, const VNDialogueUiConfig& config)
+        {
             VNDialogueUiHandles handles;
             const VNPresentationProfile& profile = config.profile;
 
-            handles.root = ui.createNode(UiNodeType::Container);
+            handles.root = ui.createNode(UiNodeType::Container, parent);
             ui.setLayout(handles.root, anchored(0.0f, 0.0f, 1.0f, 1.0f));
             setState(ui, handles.root, false, false);
 
@@ -210,7 +216,34 @@ namespace gts::vn
             return -1;
         }
 
+        static int choiceIndexFromEvent(const VNDialogueUiHandles& handles, const UiEvent& event)
+        {
+            if (event.type != UiEventType::PointerClick)
+                return -1;
+
+            for (size_t i = 0; i < handles.choiceButtons.size(); ++i)
+            {
+                if (eventTargetsHandle(event, handles.choiceButtons[i].root)
+                    || eventTargetsHandle(event, handles.choiceLabels[i]))
+                {
+                    return static_cast<int>(i);
+                }
+            }
+
+            return -1;
+        }
+
     private:
+        static bool eventTargetsHandle(const UiEvent& event, UiHandle handle)
+        {
+            if (handle == UI_INVALID_HANDLE)
+                return false;
+            if (event.target == handle)
+                return true;
+
+            return std::find(event.targetPath.begin(), event.targetPath.end(), handle) != event.targetPath.end();
+        }
+
         static UiLayoutSpec anchored(float x, float y, float width, float height)
         {
             UiLayoutSpec layout;

@@ -143,6 +143,24 @@ set_tests_properties(ui_composition_runtime
         LABELS "gravitas;ui;runtime"
 )
 
+add_executable(UiEventPropagationRuntimeTest
+    ui/UiEventPropagationRuntimeTest.cpp
+)
+
+target_compile_features(UiEventPropagationRuntimeTest PRIVATE cxx_std_20)
+
+target_link_libraries(UiEventPropagationRuntimeTest PRIVATE gravitas_rendering)
+
+add_test(
+    NAME ui_event_propagation_runtime
+    COMMAND UiEventPropagationRuntimeTest
+)
+
+set_tests_properties(ui_event_propagation_runtime
+    PROPERTIES
+        LABELS "gravitas;ui;runtime"
+)
+
 if(TARGET gravitas_tools)
     add_executable(EditorFrameworkSmokeTest
         tools/EditorFrameworkSmokeTest.cpp

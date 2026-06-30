@@ -56,6 +56,7 @@ struct UiDispatchResult
     UiHandle active = UI_INVALID_HANDLE;
     UiHandle captured = UI_INVALID_HANDLE;
     UiModalId cancelTargetModal = UI_INVALID_MODAL;
+    UiHandle cancelTargetOwner = UI_INVALID_HANDLE;
     UiModalId dismissedModal = UI_INVALID_MODAL;
 
     UiLayerId hoveredLayer = UI_INVALID_LAYER;

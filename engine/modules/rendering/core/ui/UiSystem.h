@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "BitmapFont.h"
 #include "IResourceProvider.hpp"
@@ -76,6 +77,8 @@ public:
     UiInteractionResult     getLastInteraction() const;
     const UiDispatchResult& dispatchInput(const UiInputFrame& input, uint64_t frameId = 0);
     const UiDispatchResult& dispatchResult() const;
+    const std::vector<UiEvent>& events() const;
+    bool propagateEvent(UiEvent event);
 
     UiModalId pushModal(const UiModalDesc& desc);
     bool      popModal(UiModalId modalId,
@@ -119,6 +122,11 @@ private:
     UiCompositionContext makeCompositionContext(UiMountId mountId);
     void destroyCompositionRecordsForMount(UiMountId mountId);
     void destroyAllCompositionRecords();
+    void propagateDispatchEvents(uint64_t dispatchSequence);
+    bool routeEvent(UiEvent& event);
+    bool deliverEventToCurrentTarget(UiEvent& event);
+    void resolveEventTarget(UiEvent& event) const;
+    void assignCurrentEventTarget(UiEvent& event, UiHandle currentTarget) const;
 
     IResourceProvider*                         resources = nullptr;
     bool                                       enabled   = true;
@@ -131,7 +139,9 @@ private:
     std::unordered_map<UiHandle, BitmapFont*>  textBindings;
     std::unordered_map<UiCompositionId, MountedComposition> compositions;
     std::unordered_map<UiMountId, UiCompositionId> mountToComposition;
+    std::vector<UiEvent>                       lastEvents;
     UiCompositionId                            nextCompositionId = UI_INVALID_COMPOSITION + 1;
+    uint64_t                                   lastPropagatedDispatchSequence = 0;
     uint64_t                                   textBindingRevision = 1;
     UiCommandBuffer                            commandCache;
     UiCommandBuffer                            emptyCommandBuffer;

@@ -24,7 +24,9 @@ void UiSystem::clear()
     modalState.clear();
     focusState.clear();
     inputDispatcher.clear();
+    lastEvents.clear();
     nextCompositionId = UI_INVALID_COMPOSITION + 1;
+    lastPropagatedDispatchSequence = 0;
 }
 
 void UiSystem::setEnabled(bool inEnabled)
@@ -70,6 +72,7 @@ bool UiSystem::removeLayer(UiLayerId layerId)
     modalState.pruneInvalidModals(document, focusState);
     focusState.pruneInvalidHandles(document);
     inputDispatcher.pruneMissingHandles(document);
+    lastEvents.clear();
     return true;
 }
 
@@ -125,6 +128,7 @@ bool UiSystem::removeNode(UiHandle handle)
     inputDispatcher.pruneMissingHandles(document);
     modalState.pruneInvalidModals(document, focusState);
     focusState.pruneInvalidHandles(document);
+    lastEvents.clear();
     return true;
 }
 
@@ -271,12 +275,27 @@ UiInteractionResult UiSystem::getLastInteraction() const
 
 const UiDispatchResult& UiSystem::dispatchInput(const UiInputFrame& input, uint64_t frameId)
 {
-    return inputDispatcher.dispatch(document, focusState, modalState, input, enabled, frameId);
+    const UiDispatchResult& result =
+        inputDispatcher.dispatch(document, focusState, modalState, input, enabled, frameId);
+    propagateDispatchEvents(result.dispatchSequence);
+    return result;
 }
 
 const UiDispatchResult& UiSystem::dispatchResult() const
 {
     return inputDispatcher.dispatchResult();
+}
+
+const std::vector<UiEvent>& UiSystem::events() const
+{
+    return lastEvents;
+}
+
+bool UiSystem::propagateEvent(UiEvent event)
+{
+    const bool delivered = routeEvent(event);
+    lastEvents.push_back(event);
+    return delivered;
 }
 
 UiModalId UiSystem::pushModal(const UiModalDesc& desc)
@@ -321,6 +340,7 @@ bool UiSystem::destroyMount(UiMountId mountId)
     inputDispatcher.pruneMissingHandles(document);
     modalState.pruneInvalidModals(document, focusState);
     focusState.pruneInvalidHandles(document);
+    lastEvents.clear();
     return true;
 }
 
@@ -645,4 +665,107 @@ void UiSystem::destroyAllCompositionRecords()
         UiCompositionContext context = makeCompositionContext(record.mount);
         record.composition->destroy(context);
     }
+}
+
+void UiSystem::propagateDispatchEvents(uint64_t dispatchSequence)
+{
+    if (dispatchSequence == 0 || lastPropagatedDispatchSequence == dispatchSequence)
+        return;
+
+    lastEvents.clear();
+    lastPropagatedDispatchSequence = dispatchSequence;
+    for (UiEvent event : inputDispatcher.events())
+        propagateEvent(event);
+}
+
+bool UiSystem::routeEvent(UiEvent& event)
+{
+    resolveEventTarget(event);
+    if (event.target == UI_INVALID_HANDLE || event.targetPath.empty())
+        return false;
+
+    bool delivered = false;
+    if (event.targetPath.size() > 1)
+    {
+        event.phase = UiEventPhase::Capture;
+        for (size_t i = 0; i + 1 < event.targetPath.size(); ++i)
+        {
+            assignCurrentEventTarget(event, event.targetPath[i]);
+            delivered = deliverEventToCurrentTarget(event) || delivered;
+            if (event.consumed || document.findNode(event.target) == nullptr)
+                return delivered;
+        }
+    }
+
+    event.phase = UiEventPhase::Target;
+    assignCurrentEventTarget(event, event.target);
+    delivered = deliverEventToCurrentTarget(event) || delivered;
+    if (event.consumed || document.findNode(event.target) == nullptr)
+        return delivered;
+
+    event.phase = UiEventPhase::Bubble;
+    for (auto it = event.targetPath.rbegin(); it != event.targetPath.rend(); ++it)
+    {
+        if (document.findNode(*it) == nullptr)
+            return delivered;
+
+        assignCurrentEventTarget(event, *it);
+        delivered = deliverEventToCurrentTarget(event) || delivered;
+        if (event.consumed || document.findNode(event.target) == nullptr)
+            return delivered;
+    }
+
+    event.phase = UiEventPhase::None;
+    event.currentTarget = UI_INVALID_HANDLE;
+    event.currentMount = UI_INVALID_MOUNT;
+    event.currentComposition = UI_INVALID_COMPOSITION;
+    return delivered;
+}
+
+bool UiSystem::deliverEventToCurrentTarget(UiEvent& event)
+{
+    if (event.currentTarget == UI_INVALID_HANDLE ||
+        event.currentComposition == UI_INVALID_COMPOSITION)
+    {
+        return false;
+    }
+
+    auto it = compositions.find(event.currentComposition);
+    if (it == compositions.end() || it->second.composition == nullptr)
+        return false;
+
+    UiCompositionContext context = makeCompositionContext(event.currentMount);
+    it->second.composition->onEvent(context, event);
+    return true;
+}
+
+void UiSystem::resolveEventTarget(UiEvent& event) const
+{
+    if (event.target == UI_INVALID_HANDLE || document.findNode(event.target) == nullptr)
+    {
+        event.target = UI_INVALID_HANDLE;
+        event.targetPath.clear();
+        event.layer = UI_INVALID_LAYER;
+        event.targetMount = UI_INVALID_MOUNT;
+        event.targetComposition = UI_INVALID_COMPOSITION;
+        return;
+    }
+
+    event.targetPath = document.pathFromRoot(event.target);
+    event.layer = document.getNodeLayer(event.target);
+    event.targetMount = mountState.mountFromNode(document, event.target);
+    event.targetComposition = compositionFromMount(event.targetMount);
+
+    if (const UiNode* node = document.findNode(event.target))
+    {
+        event.localX = event.pointerX - node->computedLayout.bounds.x;
+        event.localY = event.pointerY - node->computedLayout.bounds.y;
+    }
+}
+
+void UiSystem::assignCurrentEventTarget(UiEvent& event, UiHandle currentTarget) const
+{
+    event.currentTarget = currentTarget;
+    event.currentMount = mountState.mountFromNode(document, currentTarget);
+    event.currentComposition = compositionFromMount(event.currentMount);
 }

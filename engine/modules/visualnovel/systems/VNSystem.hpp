@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -15,6 +16,7 @@
 #include "InputBindingRegistry.h"
 #include "RenderPassVisibilityComponent.h"
 #include "UiSystem.h"
+#include "VNDialogueComposition.h"
 #include "VNDialogueUi.h"
 #include "VNExternalPresentationComponent.h"
 #include "VNPlaybackStateComponent.h"
@@ -81,21 +83,20 @@ namespace gts::vn
                 && runtime.isActive()
                 && runtime.getConfig().capturePointerInput)
             {
-                const UiInteractionResult interaction = ctx.ui->dispatchResult().toInteractionResult();
-                input.clickedChoiceIndex = VNDialogueUi::choiceIndexFromInteraction(handles, interaction);
+                if (VNDialogueComposition* composition = dialogueComposition(ctx.ui))
+                    input.clickedChoiceIndex = composition->consumeClickedChoiceIndex();
             }
 
             runtime.update(ctx, input);
             writePlaybackState(ctx.world);
 
-            if (ctx.ui != nullptr && uiBuilt)
-                VNDialogueUi::sync(*ctx.ui, handles, config.ui, runtime);
+            syncUi(ctx.ui);
         }
 
     private:
         VNSystemConfig config;
         VNRuntime runtime;
-        VNDialogueUiHandles handles;
+        UiCompositionId dialogueCompositionId = UI_INVALID_COMPOSITION;
         bool uiBuilt = false;
         bool renderPassVisibilityOverridden = false;
         bool executionProfilePushed = false;
@@ -113,8 +114,26 @@ namespace gts::vn
             if (uiBuilt || ui == nullptr)
                 return;
 
-            handles = VNDialogueUi::build(*ui, config.ui);
-            uiBuilt = true;
+            UiMountDesc desc;
+            desc.name = "vn-dialogue";
+            dialogueCompositionId = ui->mountComposition(
+                std::make_unique<VNDialogueComposition>(config.ui, runtime),
+                desc);
+            uiBuilt = dialogueCompositionId != UI_INVALID_COMPOSITION;
+        }
+
+        VNDialogueComposition* dialogueComposition(UiSystem* ui) const
+        {
+            if (ui == nullptr || dialogueCompositionId == UI_INVALID_COMPOSITION)
+                return nullptr;
+
+            return dynamic_cast<VNDialogueComposition*>(ui->findComposition(dialogueCompositionId));
+        }
+
+        void syncUi(UiSystem* ui)
+        {
+            if (ui != nullptr && uiBuilt)
+                ui->updateComposition(dialogueCompositionId);
         }
 
         bool continuePressed(const EcsControllerContext& ctx) const
@@ -149,8 +168,8 @@ namespace gts::vn
                 && uiBuilt
                 && runtime.getConfig().capturePointerInput)
             {
-                const UiInteractionResult interaction = ctx.ui->dispatchResult().toInteractionResult();
-                clickedChoiceIndex = VNDialogueUi::choiceIndexFromInteraction(handles, interaction);
+                if (VNDialogueComposition* composition = dialogueComposition(ctx.ui))
+                    clickedChoiceIndex = composition->consumeClickedChoiceIndex();
             }
 
             if (clickedChoiceIndex >= 0)
@@ -180,8 +199,7 @@ namespace gts::vn
             }
 
             writePlaybackState(ctx.world);
-            if (ctx.ui != nullptr && uiBuilt)
-                VNDialogueUi::sync(*ctx.ui, handles, config.ui, runtime);
+            syncUi(ctx.ui);
         }
 
         void presentDialogueRuntime(const gts::dialogue::DialogueRuntime& dialogueRuntime)
