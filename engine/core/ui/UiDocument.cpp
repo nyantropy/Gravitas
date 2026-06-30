@@ -459,7 +459,7 @@ bool UiDocument::setStyle(UiHandle handle, const UiStyle& style)
     if (node->style == style) return true;
 
     node->style = style;
-    markDirty(handle, UiDirtyFlags::Visual);
+    markDirty(handle, UiDirtyFlags::Layout | UiDirtyFlags::Visual);
     return true;
 }
 
@@ -522,12 +522,13 @@ void UiDocument::setViewportSize(float inViewportWidth, float inViewportHeight)
 
 void UiDocument::updateLayout(float inViewportWidth, float inViewportHeight)
 {
-    updateLayout(inViewportWidth, inViewportHeight, UiTextMeasureCallback{});
+    updateLayout(inViewportWidth, inViewportHeight, UiTextMeasureCallback{}, nullptr);
 }
 
 void UiDocument::updateLayout(float inViewportWidth,
                               float inViewportHeight,
-                              const UiTextMeasureCallback& textMeasure)
+                              const UiTextMeasureCallback& textMeasure,
+                              const UiTheme* theme)
 {
     viewportWidth  = inViewportWidth;
     viewportHeight = inViewportHeight;
@@ -540,23 +541,23 @@ void UiDocument::updateLayout(float inViewportWidth,
     root.computedLayout.measuredSize = surfaceSize;
 
     for (UiHandle child : root.children)
-        measureLayoutRecursive(child, surfaceSize, surfaceSize, textMeasure);
+        measureLayoutRecursive(child, surfaceSize, surfaceSize, textMeasure, theme);
 
     for (UiHandle child : root.children)
     {
         UiRect childRect = resolveCanvasChildRect(nodes[child], root.computedLayout.contentRect, surfaceSize);
-        arrangeLayoutRecursive(child, childRect, root.computedLayout.clipRect, surfaceSize, textMeasure);
+        arrangeLayoutRecursive(child, childRect, root.computedLayout.clipRect, surfaceSize, textMeasure, theme);
     }
 
     dirtyFlags = static_cast<UiDirtyFlags>(static_cast<uint8_t>(dirtyFlags)
         & ~static_cast<uint8_t>(UiDirtyFlags::Layout));
 }
 
-void UiDocument::rebuildVisualList()
+void UiDocument::rebuildVisualList(const UiTheme* theme)
 {
     visualList.primitives.clear();
     const UiRect rootClip = nodes[rootHandle].computedLayout.clipRect;
-    rebuildVisualRecursive(rootHandle, true, rootClip);
+    rebuildVisualRecursive(rootHandle, true, rootClip, theme);
 
     dirtyFlags = static_cast<UiDirtyFlags>(static_cast<uint8_t>(dirtyFlags)
         & ~static_cast<uint8_t>(UiDirtyFlags::Visual));
@@ -674,18 +675,20 @@ bool UiDocument::isLayerRoot(UiHandle handle) const
 UiVec2 UiDocument::measureLayoutRecursive(UiHandle handle,
                                            const UiVec2& availableSize,
                                            const UiVec2& surfaceSize,
-                                           const UiTextMeasureCallback& textMeasure)
+                                           const UiTextMeasureCallback& textMeasure,
+                                           const UiTheme* theme)
 {
     UiNode& node = nodes[handle];
     UiVec2 contentSize = {};
 
     if (node.type == UiNodeType::Text)
     {
+        const UiTextData textData = resolveTextData(node, theme);
         UiTextMeasurement measurement;
-        if (textMeasure && textMeasure(handle, measurement))
+        if (textMeasure && textMeasure(handle, textData, measurement))
             contentSize = makeSize(measurement.width, measurement.height);
-        else if (const auto* text = std::get_if<UiTextData>(&node.payload))
-            contentSize = approximateTextSize(*text);
+        else
+            contentSize = approximateTextSize(textData);
     }
     else if (node.type == UiNodeType::Image)
     {
@@ -710,7 +713,7 @@ UiVec2 UiDocument::measureLayoutRecursive(UiHandle handle,
             childSizes.push_back({});
             continue;
         }
-        childSizes.push_back(measureLayoutRecursive(child, availableSize, surfaceSize, textMeasure));
+        childSizes.push_back(measureLayoutRecursive(child, availableSize, surfaceSize, textMeasure, theme));
     }
 
     UiVec2 childContentSize = {};
@@ -853,7 +856,8 @@ void UiDocument::arrangeLayoutRecursive(UiHandle handle,
                                          const UiRect& assignedRect,
                                          const UiRect& inheritedClip,
                                          const UiVec2& surfaceSize,
-                                         const UiTextMeasureCallback& textMeasure)
+                                         const UiTextMeasureCallback& textMeasure,
+                                         const UiTheme* theme)
 {
     UiNode& node = nodes[handle];
     const bool forceClip = node.layout.layoutMode == UiLayoutMode::Scroll;
@@ -863,43 +867,44 @@ void UiDocument::arrangeLayoutRecursive(UiHandle handle,
         ? intersectRect(inheritedClip, node.computedLayout.bounds)
         : inheritedClip;
 
-    arrangeChildren(handle, surfaceSize, textMeasure);
+    arrangeChildren(handle, surfaceSize, textMeasure, theme);
 }
 
 void UiDocument::arrangeChildren(UiHandle handle,
                                  const UiVec2& surfaceSize,
-                                 const UiTextMeasureCallback& textMeasure)
+                                 const UiTextMeasureCallback& textMeasure,
+                                 const UiTheme* theme)
 {
     UiNode& node = nodes[handle];
     switch (node.layout.layoutMode)
     {
         case UiLayoutMode::Canvas:
-            arrangeCanvasChildren(handle, surfaceSize, textMeasure, false);
+            arrangeCanvasChildren(handle, surfaceSize, textMeasure, theme, false);
             break;
 
         case UiLayoutMode::Scroll:
-            arrangeCanvasChildren(handle, surfaceSize, textMeasure, true);
+            arrangeCanvasChildren(handle, surfaceSize, textMeasure, theme, true);
             break;
 
         case UiLayoutMode::Overlay:
         case UiLayoutMode::Aspect:
-            arrangeOverlayChildren(handle, surfaceSize, textMeasure);
+            arrangeOverlayChildren(handle, surfaceSize, textMeasure, theme);
             break;
 
         case UiLayoutMode::Stack:
-            arrangeStackChildren(handle, surfaceSize, textMeasure);
+            arrangeStackChildren(handle, surfaceSize, textMeasure, theme);
             break;
 
         case UiLayoutMode::Grid:
-            arrangeGridChildren(handle, surfaceSize, textMeasure);
+            arrangeGridChildren(handle, surfaceSize, textMeasure, theme);
             break;
 
         case UiLayoutMode::Dock:
-            arrangeDockChildren(handle, surfaceSize, textMeasure);
+            arrangeDockChildren(handle, surfaceSize, textMeasure, theme);
             break;
 
         case UiLayoutMode::Constraint:
-            arrangeConstraintChildren(handle, surfaceSize, textMeasure);
+            arrangeConstraintChildren(handle, surfaceSize, textMeasure, theme);
             break;
     }
 }
@@ -907,6 +912,7 @@ void UiDocument::arrangeChildren(UiHandle handle,
 void UiDocument::arrangeCanvasChildren(UiHandle handle,
                                        const UiVec2& surfaceSize,
                                        const UiTextMeasureCallback& textMeasure,
+                                       const UiTheme* theme,
                                        bool forceClip)
 {
     UiNode& node = nodes[handle];
@@ -919,22 +925,24 @@ void UiDocument::arrangeCanvasChildren(UiHandle handle,
     for (UiHandle child : node.children)
     {
         UiRect childRect = resolveCanvasChildRect(nodes[child], parentRect, surfaceSize);
-        arrangeLayoutRecursive(child, childRect, childClip, surfaceSize, textMeasure);
+        arrangeLayoutRecursive(child, childRect, childClip, surfaceSize, textMeasure, theme);
     }
 }
 
 void UiDocument::arrangeOverlayChildren(UiHandle handle,
                                         const UiVec2& surfaceSize,
-                                        const UiTextMeasureCallback& textMeasure)
+                                        const UiTextMeasureCallback& textMeasure,
+                                        const UiTheme* theme)
 {
     UiNode& node = nodes[handle];
     for (UiHandle child : node.children)
-        arrangeLayoutRecursive(child, node.computedLayout.contentRect, node.computedLayout.clipRect, surfaceSize, textMeasure);
+        arrangeLayoutRecursive(child, node.computedLayout.contentRect, node.computedLayout.clipRect, surfaceSize, textMeasure, theme);
 }
 
 void UiDocument::arrangeStackChildren(UiHandle handle,
                                       const UiVec2& surfaceSize,
-                                      const UiTextMeasureCallback& textMeasure)
+                                      const UiTextMeasureCallback& textMeasure,
+                                      const UiTheme* theme)
 {
     UiNode& node = nodes[handle];
     const bool horizontal = node.layout.stackAxis == UiLayoutAxis::Horizontal;
@@ -1012,13 +1020,14 @@ void UiDocument::arrangeStackChildren(UiHandle handle,
             cursor += slot.height + node.layout.gap;
         }
 
-        arrangeLayoutRecursive(child, slot, node.computedLayout.clipRect, surfaceSize, textMeasure);
+        arrangeLayoutRecursive(child, slot, node.computedLayout.clipRect, surfaceSize, textMeasure, theme);
     }
 }
 
 void UiDocument::arrangeGridChildren(UiHandle handle,
                                      const UiVec2& surfaceSize,
-                                     const UiTextMeasureCallback& textMeasure)
+                                     const UiTextMeasureCallback& textMeasure,
+                                     const UiTheme* theme)
 {
     UiNode& node = nodes[handle];
     const UiRect content = node.computedLayout.contentRect;
@@ -1044,13 +1053,14 @@ void UiDocument::arrangeGridChildren(UiHandle handle,
             node.layout.gridColumnGap * static_cast<float>(columnSpan - 1);
         slot.height = cellHeight * static_cast<float>(rowSpan) +
             node.layout.gridRowGap * static_cast<float>(rowSpan - 1);
-        arrangeLayoutRecursive(child, slot, node.computedLayout.clipRect, surfaceSize, textMeasure);
+        arrangeLayoutRecursive(child, slot, node.computedLayout.clipRect, surfaceSize, textMeasure, theme);
     }
 }
 
 void UiDocument::arrangeDockChildren(UiHandle handle,
                                      const UiVec2& surfaceSize,
-                                     const UiTextMeasureCallback& textMeasure)
+                                     const UiTextMeasureCallback& textMeasure,
+                                     const UiTheme* theme)
 {
     UiNode& node = nodes[handle];
     UiRect remaining = node.computedLayout.contentRect;
@@ -1090,17 +1100,18 @@ void UiDocument::arrangeDockChildren(UiHandle handle,
                 break;
         }
 
-        arrangeLayoutRecursive(child, slot, node.computedLayout.clipRect, surfaceSize, textMeasure);
+        arrangeLayoutRecursive(child, slot, node.computedLayout.clipRect, surfaceSize, textMeasure, theme);
     }
 }
 
 void UiDocument::arrangeConstraintChildren(UiHandle handle,
                                            const UiVec2& surfaceSize,
-                                           const UiTextMeasureCallback& textMeasure)
+                                           const UiTextMeasureCallback& textMeasure,
+                                           const UiTheme* theme)
 {
     UiNode& node = nodes[handle];
     for (UiHandle child : node.children)
-        arrangeLayoutRecursive(child, node.computedLayout.contentRect, node.computedLayout.clipRect, surfaceSize, textMeasure);
+        arrangeLayoutRecursive(child, node.computedLayout.contentRect, node.computedLayout.clipRect, surfaceSize, textMeasure, theme);
 }
 
 UiRect UiDocument::resolveCanvasChildRect(const UiNode& child,
@@ -1228,7 +1239,68 @@ UiRect UiDocument::resolveBoxInRect(const UiNode& node,
     return {x, y, std::max(0.0f, width), std::max(0.0f, height)};
 }
 
-void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, const UiRect& inheritedClip)
+UiComputedStyle UiDocument::resolveComputedStyle(const UiNode& node, const UiTheme* theme) const
+{
+    UiComputedStyle computed;
+    if (theme != nullptr)
+        theme->resolveNodeStyle(node.style, node.state, computed);
+    return computed;
+}
+
+UiTextData UiDocument::resolveTextData(const UiNode& node, const UiTheme* theme) const
+{
+    UiTextData data = std::get<UiTextData>(node.payload);
+    const UiComputedStyle style = resolveComputedStyle(node, theme);
+
+    if (style.hasForegroundColor)
+        data.color = style.foregroundColor;
+    if (style.hasTypography)
+    {
+        if (!style.typography.fontAsset.empty())
+            data.fontAsset = style.typography.fontAsset;
+        data.scale = style.typography.scale;
+    }
+    if (style.hasOpacity)
+        data.color.a *= style.opacity;
+
+    return data;
+}
+
+UiColor UiDocument::resolveFillColor(const UiNode& node, const UiTheme* theme, UiColor fallback) const
+{
+    const UiComputedStyle style = resolveComputedStyle(node, theme);
+    UiColor color = fallback;
+
+    if (style.hasSkin && style.skin.type == UiPanelSkinType::SolidColor)
+        color = style.skin.color;
+    else if (style.hasBackgroundColor)
+        color = style.backgroundColor;
+
+    if (style.hasOpacity)
+        color.a *= style.opacity;
+    return color;
+}
+
+UiPanelSkin UiDocument::resolvePanelSkinForNode(const UiNode& node,
+                                                const UiTheme* theme,
+                                                UiPanelSkin fallback) const
+{
+    const UiComputedStyle style = resolveComputedStyle(node, theme);
+    UiPanelSkin skin = style.hasSkin ? style.skin : fallback;
+    if (style.hasPadding)
+        skin.contentPadding = style.padding;
+    if (style.hasOpacity)
+    {
+        skin.color.a *= style.opacity;
+        skin.tint.a *= style.opacity;
+    }
+    return skin;
+}
+
+void UiDocument::rebuildVisualRecursive(UiHandle handle,
+                                        bool parentVisible,
+                                        const UiRect& inheritedClip,
+                                        const UiTheme* theme)
 {
     const UiNode& node = nodes[handle];
     const bool visible = parentVisible && node.isVisible();
@@ -1246,11 +1318,12 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, con
         case UiNodeType::Rect:
         {
             const auto& data = std::get<UiRectData>(node.payload);
+            const UiColor color = resolveFillColor(node, theme, data.color);
             visualList.primitives.push_back(UiRectPrimitive{
                 node.handle,
                 node.computedLayout.bounds,
                 effectiveClip,
-                data.color
+                color
             });
             break;
         }
@@ -1258,13 +1331,18 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, con
         case UiNodeType::Image:
         {
             const auto& data = std::get<UiImageData>(node.payload);
+            UiPanelSkin fallback;
+            fallback.type = UiPanelSkinType::Image;
+            fallback.imageAsset = data.imageAsset;
+            fallback.tint = data.tint;
+            const UiPanelSkin skin = resolvePanelSkinForNode(node, theme, fallback);
             visualList.primitives.push_back(UiImagePrimitive{
                 node.handle,
                 node.computedLayout.bounds,
                 effectiveClip,
-                data.imageAsset,
+                skin.type == UiPanelSkinType::Image ? skin.imageAsset : data.imageAsset,
                 data.textureID,
-                data.tint,
+                skin.type == UiPanelSkinType::Image ? skin.tint : data.tint,
                 data.imageAspect,
                 data.rotation
             });
@@ -1274,20 +1352,26 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, con
         case UiNodeType::NineSlice:
         {
             const auto& data = std::get<UiNineSliceData>(node.payload);
+            UiPanelSkin fallback;
+            fallback.type = UiPanelSkinType::NineSlice;
+            fallback.imageAsset = data.imageAsset;
+            fallback.tint = data.tint;
+            fallback.slice = data.slice;
+            const UiPanelSkin skin = resolvePanelSkinForNode(node, theme, fallback);
             visualList.primitives.push_back(UiNineSlicePrimitive{
                 node.handle,
                 node.computedLayout.bounds,
                 effectiveClip,
-                data.imageAsset,
-                data.tint,
-                data.slice
+                skin.type == UiPanelSkinType::NineSlice ? skin.imageAsset : data.imageAsset,
+                skin.type == UiPanelSkinType::NineSlice ? skin.tint : data.tint,
+                skin.type == UiPanelSkinType::NineSlice ? skin.slice : data.slice
             });
             break;
         }
 
         case UiNodeType::Text:
         {
-            const auto& data = std::get<UiTextData>(node.payload);
+            const UiTextData data = resolveTextData(node, theme);
             visualList.primitives.push_back(UiTextPrimitive{
                 node.handle,
                 node.computedLayout.bounds,
@@ -1353,7 +1437,7 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, con
                 start,
                 end,
                 effectiveClip,
-                data.color,
+                resolveFillColor(node, theme, data.color),
                 data.thickness
             });
             break;
@@ -1366,7 +1450,7 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, con
                 node.handle,
                 node.computedLayout.bounds,
                 effectiveClip,
-                data.color,
+                resolveFillColor(node, theme, data.color),
                 data.segments
             });
             break;
@@ -1374,7 +1458,7 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle, bool parentVisible, con
     }
 
     for (UiHandle child : node.children)
-        rebuildVisualRecursive(child, visible, effectiveClip);
+        rebuildVisualRecursive(child, visible, effectiveClip, theme);
 }
 
 UiHandle UiDocument::hitTestRecursive(UiHandle handle, float x, float y, bool parentVisible) const

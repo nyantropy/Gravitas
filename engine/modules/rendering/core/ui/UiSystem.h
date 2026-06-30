@@ -79,8 +79,14 @@ public:
 
     bool setLayout(UiHandle handle, const UiLayoutSpec& layout);
     bool setLayout(UiSurfaceId surfaceId, UiHandle handle, const UiLayoutSpec& layout);
+    bool setTheme(const UiTheme& theme);
+    bool setTheme(UiSurfaceId surfaceId, const UiTheme& theme);
+    const UiTheme& theme() const;
+    const UiTheme* theme(UiSurfaceId surfaceId) const;
     bool setStyle(UiHandle handle, const UiStyle& style);
     bool setStyle(UiSurfaceId surfaceId, UiHandle handle, const UiStyle& style);
+    bool setStyleClass(UiHandle handle, const std::string& styleClass);
+    bool setStyleClass(UiSurfaceId surfaceId, UiHandle handle, const std::string& styleClass);
     bool setState(UiHandle handle, const UiStateFlags& state);
     bool setState(UiSurfaceId surfaceId, UiHandle handle, const UiStateFlags& state);
     bool setPayload(UiHandle handle, const UiNodePayload& payload);

@@ -851,9 +851,9 @@ profile buckets after printing.
 
 The retained UI model is an engine core service. `UiSurface` is the runtime
 boundary for a retained UI universe: it owns a `UiDocument`, explicit layers,
-focus state, modal state, mount lifetime, input dispatch, and coordinate
-conversion. `UiSystem` is the render-facing facade and compatibility surface
-router; existing APIs still target the default screen surface, while
+focus state, modal state, mount lifetime, input dispatch, active theme, and
+coordinate conversion. `UiSystem` is the render-facing facade and compatibility
+surface router; existing APIs still target the default screen surface, while
 surface-aware APIs can create and address additional surfaces. Tool widgets in
 `modules/tools/ui/` provide reusable engine-editor controls on top of that UI
 system.
@@ -933,6 +933,18 @@ pixel units. Rendering and hit testing consume computed layout; feature
 compositions should declare layout intent instead of recomputing pixel offsets
 when a container can express the geometry.
 
+Retained styling is now engine-owned. `UiTheme` stores semantic colors,
+metrics, typography, skins, panel state skins, and style classes with
+state-specific overrides and inheritance. Each surface owns one active theme.
+`UiSystem::setTheme(...)`, `UiSystem::theme(...)`, and
+`UiSystem::setStyleClass(...)` are the main public compatibility APIs.
+`UiDocument::updateLayout(...)` resolves typography during text measurement, and
+`UiDocument::rebuildVisualList(...)` resolves style classes into visual
+primitive colors, skins, text scale/color, image tint, and opacity. Payload-local
+colors and text scales remain valid for existing builders, but new compositions
+should request style classes and theme metrics instead of hardcoding
+presentation constants.
+
 UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
 visible/render-enabled surfaces in surface order, resolves each surface's
 document into a surface-local command buffer, then transforms the vertices into
@@ -958,11 +970,12 @@ circular hit targets, and retained nine-slice image nodes for scalable panels.
 
 Editor-specific styling lives above the retained UI layer in
 `modules/tools/editor/EditorTheme.h`. `EditorTheme` is a data-only token set for
-typography, spacing, borders, corner radii, shadows, animations, widget
+editor typography, spacing, borders, corner radii, shadows, animations, widget
 dimensions, semantic colors, panel/background layers, and named icon IDs.
-The retained UI system does not read those tokens directly; editor widgets and
-tool panels resolve them into normal UI node payloads. `ToolTheme` remains as a
-compatibility facade over the default editor theme for existing tool panels.
+It should migrate toward constructing or adapting a `UiTheme`; today editor
+widgets and tool panels still resolve many editor tokens manually into retained
+node payloads. `ToolTheme` remains as a compatibility facade over the default
+editor theme for existing tool panels.
 
 Reusable editor layout primitives live beside the theme in
 `modules/tools/editor/EditorLayout.h`. This layer models editor concepts such as

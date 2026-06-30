@@ -9,6 +9,7 @@
 #include "UiInteraction.h"
 #include "UiModalManager.h"
 #include "UiMount.h"
+#include "UiTheme.h"
 #include "UiTypes.h"
 
 enum class UiSurfaceKind : uint8_t
@@ -72,6 +73,9 @@ public:
     const UiMountManager& mountManager() const { return mountState; }
     UiInputDispatcher& inputDispatcher() { return dispatcher; }
     const UiInputDispatcher& inputDispatcher() const { return dispatcher; }
+    UiTheme& theme() { return themeState; }
+    const UiTheme& theme() const { return themeState; }
+    void setTheme(const UiTheme& theme);
 
 private:
     UiSurfaceId surfaceId = UI_INVALID_SURFACE;
@@ -81,4 +85,5 @@ private:
     UiModalManager modalState;
     UiMountManager mountState;
     UiInputDispatcher dispatcher;
+    UiTheme themeState;
 };

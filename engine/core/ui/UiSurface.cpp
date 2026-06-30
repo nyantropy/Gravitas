@@ -18,6 +18,7 @@ void UiSurface::reset(UiSurfaceId inSurfaceId, const UiSurfaceDesc& desc)
     surfaceDesc = desc;
     if (surfaceDesc.name.empty())
         surfaceDesc.name = surfaceId == UI_DEFAULT_SURFACE ? "default-screen" : "surface";
+    themeState = defaultUiTheme();
 
     clear();
 }
@@ -115,4 +116,9 @@ UiInputFrame UiSurface::toLocalInput(const UiInputFrame& input) const
     if (r.height > 0.0f)
         local.pointerY = (input.pointerY - r.y) / r.height;
     return local;
+}
+
+void UiSurface::setTheme(const UiTheme& theme)
+{
+    themeState = theme;
 }

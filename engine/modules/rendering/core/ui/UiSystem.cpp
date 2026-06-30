@@ -372,6 +372,38 @@ bool UiSystem::setLayout(UiSurfaceId surfaceId, UiHandle handle, const UiLayoutS
     return changed;
 }
 
+bool UiSystem::setTheme(const UiTheme& theme)
+{
+    return setTheme(defaultSurfaceId, theme);
+}
+
+bool UiSystem::setTheme(UiSurfaceId surfaceId, const UiTheme& theme)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    if (record == nullptr)
+        return false;
+
+    if (record->surface.theme() == theme)
+        return true;
+
+    record->surface.setTheme(theme);
+    record->surface.document().markAllDirty(UiDirtyFlags::Layout | UiDirtyFlags::Visual);
+    record->commandCacheValid = false;
+    commandCache.clear();
+    return true;
+}
+
+const UiTheme& UiSystem::theme() const
+{
+    return defaultSurfaceRecord().surface.theme();
+}
+
+const UiTheme* UiSystem::theme(UiSurfaceId surfaceId) const
+{
+    const SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record == nullptr ? nullptr : &record->surface.theme();
+}
+
 bool UiSystem::setStyle(UiHandle handle, const UiStyle& style)
 {
     return setStyle(defaultSurfaceId, handle, style);
@@ -383,6 +415,32 @@ bool UiSystem::setStyle(UiSurfaceId surfaceId, UiHandle handle, const UiStyle& s
     if (record == nullptr)
         return false;
 
+    const bool changed = record->surface.document().setStyle(handle, style);
+    if (changed)
+    {
+        record->commandCacheValid = false;
+        commandCache.clear();
+    }
+    return changed;
+}
+
+bool UiSystem::setStyleClass(UiHandle handle, const std::string& styleClass)
+{
+    return setStyleClass(defaultSurfaceId, handle, styleClass);
+}
+
+bool UiSystem::setStyleClass(UiSurfaceId surfaceId, UiHandle handle, const std::string& styleClass)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    if (record == nullptr)
+        return false;
+
+    UiNode* node = record->surface.document().findNode(handle);
+    if (node == nullptr)
+        return false;
+
+    UiStyle style = node->style;
+    style.styleClass = styleClass;
     const bool changed = record->surface.document().setStyle(handle, style);
     if (changed)
     {
@@ -537,7 +595,16 @@ bool UiSystem::measureText(UiSurfaceId surfaceId, UiHandle handle, UiTextMeasure
     if (fontIt == record->textBindings.end() || fontIt->second == nullptr)
         return false;
 
-    const UiTextData& data = std::get<UiTextData>(node->payload);
+    UiTextData data = std::get<UiTextData>(node->payload);
+    UiComputedStyle computedStyle;
+    if (record->surface.theme().resolveNodeStyle(node->style, node->state, computedStyle)
+        && computedStyle.hasTypography)
+    {
+        if (!computedStyle.typography.fontAsset.empty())
+            data.fontAsset = computedStyle.typography.fontAsset;
+        data.scale = computedStyle.typography.scale;
+    }
+
     const float maxWidth = data.wrapMode == UiTextWrapMode::Word
         ? node->computedLayout.bounds.width
         : 0.0f;
@@ -1069,7 +1136,9 @@ const UiCommandBuffer& UiSystem::extractSurfaceCommandsRef(UiSurfaceId surfaceId
     if (hasFlag(document.getDirtyFlags(), UiDirtyFlags::Layout))
     {
         UiDocument::UiTextMeasureCallback textMeasure =
-            [&record, &document](UiHandle handle, UiTextMeasurement& outMeasurement)
+            [&record, &document](UiHandle handle,
+                                 const UiTextData& data,
+                                 UiTextMeasurement& outMeasurement)
         {
             const UiNode* node = document.findNode(handle);
             if (node == nullptr || node->type != UiNodeType::Text)
@@ -1079,7 +1148,6 @@ const UiCommandBuffer& UiSystem::extractSurfaceCommandsRef(UiSurfaceId surfaceId
             if (fontIt == record->textBindings.end() || fontIt->second == nullptr)
                 return false;
 
-            const UiTextData& data = std::get<UiTextData>(node->payload);
             outMeasurement = GlyphLayoutEngine::measureUiText(
                 *fontIt->second,
                 data.text,
@@ -1091,7 +1159,7 @@ const UiCommandBuffer& UiSystem::extractSurfaceCommandsRef(UiSurfaceId surfaceId
         };
 
         const auto start = std::chrono::steady_clock::now();
-        document.updateLayout(1.0f, 1.0f, textMeasure);
+        document.updateLayout(1.0f, 1.0f, textMeasure, &surface.theme());
         const auto end = std::chrono::steady_clock::now();
         record->lastMetrics.layoutMs =
             std::chrono::duration<float, std::milli>(end - start).count();
@@ -1100,7 +1168,7 @@ const UiCommandBuffer& UiSystem::extractSurfaceCommandsRef(UiSurfaceId surfaceId
     if (hasFlag(document.getDirtyFlags(), UiDirtyFlags::Visual))
     {
         const auto start = std::chrono::steady_clock::now();
-        document.rebuildVisualList();
+        document.rebuildVisualList(&surface.theme());
         const auto end = std::chrono::steady_clock::now();
         record->lastMetrics.visualMs =
             std::chrono::duration<float, std::milli>(end - start).count();

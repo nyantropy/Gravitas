@@ -51,6 +51,12 @@ owns surface-local UI geometry through measurement, arrangement, typed units,
 constraints, and reusable layout containers while preserving anchored layout as
 the compatibility canvas path.
 
+The tenth foundational primitive is now implemented: `UiTheme` owns structured
+presentation data for semantic colors, metrics, typography, skins, state
+styles, and style classes. Each `UiSurface` owns its active theme, and
+`UiDocument` resolves computed presentation during layout measurement and visual
+list rebuild.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
@@ -59,9 +65,10 @@ The retained UI runtime is currently centered on one `UiSystem` instance owned b
 the rendering runtime. `UiSystem` is now a surface-owning facade. It owns one
 default screen `UiSurface` for compatibility and can create additional surfaces.
 Each `UiSurface` owns one `UiDocument`, one layer stack, one
-`UiInputDispatcher`, one `UiFocusManager`, one `UiModalManager`, and one
-`UiMountManager`. Renderer-side text bindings and command caches are tracked per
-surface because `UiHandle` values remain document-local.
+`UiInputDispatcher`, one `UiFocusManager`, one `UiModalManager`, one
+`UiMountManager`, and one active `UiTheme`. Renderer-side text bindings and
+command caches are tracked per surface because `UiHandle` values remain
+document-local.
 
 The default screen surface preserves the old normalized `0..1` coordinate space.
 Additional surfaces declare a normalized output rect; screen input is converted
@@ -417,14 +424,33 @@ Missing:
 
 ### Styling
 
-`UiStyle` exists, but most visible styling is payload-local. Rect colors, text
-colors/scales, image tint, panel skins, and button state colors are usually
-written directly by feature builders or sync systems.
+`UiStyle` is now the retained node's style request rather than the complete
+presentation payload. A node may name a `styleClass`, request an explicit state
+override, or provide explicit compatibility overrides for background color,
+foreground color, and opacity.
 
-There is no theme system, no style class system, no skin registry, no typography
-scale, no metric token system, and no inherited visual style model. Higher-level
-systems such as VN presentation profiles and engine tool widgets provide some
-structure above the raw UI runtime, but that structure is feature-local.
+`UiTheme` is the surface-local presentation data source. It owns:
+
+- semantic color tokens.
+- named metrics.
+- named typography.
+- named skins.
+- named panel state skins.
+- style classes with optional parent classes.
+- state-specific style properties for normal, hover, pressed, focused,
+  selected, disabled, active, checked, expanded, and error states.
+- parent-theme inheritance.
+
+`UiDocument::updateLayout(...)` receives the active theme so text measurement can
+use resolved typography. `UiDocument::rebuildVisualList(...)` receives the same
+theme so rect, image, nine-slice, text, line, and circle primitives can be
+emitted from computed style. Legacy payload-local colors, text scales, image
+tints, and panel skins still work when no style class or explicit style override
+is present.
+
+Higher-level systems such as VN presentation profiles, engine tool themes,
+menus, inventory, merchant UI, and HUDs still contain feature-local styling.
+Those are now migration targets, not separate engine styling models.
 
 ### Animation
 
@@ -554,7 +580,8 @@ Specific weaknesses:
 - Layout now has measure/arrange containers, but most existing feature UI still
   computes geometry manually and the layout engine is not yet a mature
   widget-grade solver.
-- Styling is not structured around reusable themes or skins.
+- Styling is now structured around themes, but most existing feature UI still
+  hardcodes presentation and has not migrated to style classes.
 - UI animation is not integrated into the runtime.
 - There is no separation between render tree, focus tree, semantic tree, and
   composition ownership.
@@ -1466,25 +1493,34 @@ Objectives:
 Files/classes involved:
 
 - `UiStyle.h`
-- new `UiTheme.h`
+- `UiTheme.h`
+- `UiTheme.cpp`
+- `UiSurface`
+- `UiDocument`
+- `UiSystem`
 - tool widgets
 - VN presentation profile bridge
 - game UI builders
 
 Expected API changes:
 
-- theme registry
-- style classes
+- surface-local `UiTheme`
+- `UiSystem::setTheme(...)`
+- `UiSystem::theme(...)`
+- `UiSystem::setStyleClass(...)`
 - state style resolution
 
 Compatibility:
 
 - Payload-local colors still work.
+- Existing `UiStyle` callers continue to work.
 
 Validation:
 
 - Theme swap test.
 - Button state style tests.
+- Surface-local theme tests.
+- Typography-driven layout tests.
 
 ### Phase 10: Animation and Transitions
 
@@ -2899,8 +2935,8 @@ all pass in the engine release build.
   range calculation, virtualized children, wheel ownership, or kinetic input.
 - Pixel units are preliminary and need DPI/pixel-density semantics.
 - Existing feature UI remains mostly manually positioned.
-- Layout has no style/theme metrics yet, so spacing and typography are still
-  authored ad hoc by each feature.
+- Layout can consume theme metrics through compositions, but `UiLayoutSpec`
+  itself does not yet support metric-backed length values.
 
 ### Next Primitive
 
@@ -2921,7 +2957,154 @@ depends on consistent focusable widgets. Drag/drop depends on styled hit
 targets and layout regions. Data binding needs reusable widgets. A widget
 framework should come after layout and styling define how controls size and look.
 
-## 15. Final Recommendation
+## 15. Phase 9 Implementation Report
+
+### Styling Investigation
+
+Before Phase 9, the runtime owned interaction, lifetime, surfaces, composition,
+events, and geometry, but presentation was still scattered across features.
+The repeated patterns were:
+
+- `UiRectData` colors authored directly in combat, dungeon, inventory, merchant,
+  menu, HUD, and tool builders.
+- `UiTextData` colors and scales authored directly by builders and sync systems.
+- `UiPanelSkin` and `UiPanelStateSkin` used for panel-like visuals, but without
+  a generic registry or style-class lookup.
+- `VNPresentationProfile` structured dialogue panel, nameplate, choice, and text
+  appearance for VN only.
+- `EditorTheme` and `ToolTheme` structured editor/tool presentation above the
+  retained runtime, but widgets resolved those tokens manually into payloads.
+- Inventory, merchant, menus, skill-tree, HUD, and prompt code each carried
+  local spacing, padding, button, text, and panel constants.
+
+The presentation that belongs in the engine is the reusable mechanism:
+semantic tokens, metrics, typography, skins, style classes, state styles,
+inheritance, and theme resolution. Vocabulary remains application-owned. The
+engine should know how to resolve `PrimaryButton`; it should not know what a
+merchant, dialogue choice, inventory slot, or dungeon prompt means.
+
+### Implemented Styling Architecture
+
+The implemented flow is:
+
+`UiComposition -> style request -> UiSurface theme -> computed style -> retained visual primitive`
+
+`UiTheme` now owns:
+
+- semantic color lookup through string tokens.
+- metric lookup for spacing and sizing values.
+- typography lookup for font asset, scale, weight, line height, letter spacing,
+  and paragraph spacing.
+- skin lookup for panels and future skinnable primitives.
+- panel state skin lookup for compatibility with existing panel helpers.
+- style class lookup with parent class inheritance.
+- state-specific properties for hover, pressed, focused, selected, disabled,
+  active, checked, expanded, and error states.
+- parent theme inheritance, with inherited style classes resolving color and
+  typography tokens through the active child theme.
+
+`UiStyle` now carries a style-class request and explicit compatibility
+overrides. This keeps raw payload styling working while allowing new
+compositions to name presentation intent.
+
+`UiSurface` owns the active theme. `UiSystem::setTheme(...)`,
+`UiSystem::theme(...)`, and surface-aware overloads expose theme assignment and
+lookup. Theme changes mark the surface document layout and visuals dirty because
+typography and metrics can affect measurement, not only rendering.
+
+`UiDocument::updateLayout(...)` accepts the active theme so text measurement
+uses resolved typography. `UiDocument::rebuildVisualList(...)` accepts the same
+theme so node payloads are converted into visual primitives through computed
+style. Rendering remains independent; the command resolver consumes already
+resolved primitives and does not know theme policy.
+
+### Feature Demonstration
+
+The dungeon interaction prompt now has a feature-owned
+`src/dungeon/ui/DungeonUiTheme.h`. `DungeonUiController` assigns that theme to
+the default screen surface. `InteractionPromptBuilder` consumes theme metrics
+for prompt size, bottom margin, and text inset, and assigns style classes for
+the prompt panel and label. `InteractionPromptComposition` updates text content
+without reauthoring text color or font scale.
+
+The old non-composition interaction-prompt sync path remains as a compatibility
+fallback and still contains hardcoded presentation constants. Inventory,
+merchant, menus, skill tree, HUD, VN profiles, and editor tools still have
+substantial local styling and should migrate incrementally.
+
+### Validation
+
+Added `ui_theme_runtime`, covering:
+
+- semantic color lookup.
+- metric lookup.
+- typography lookup.
+- style class inheritance.
+- state style resolution.
+- missing-style fallback.
+- parent-theme inheritance with child token override.
+- panel skin and panel state skin lookup.
+- theme-driven visual primitive colors.
+- runtime theme switching.
+- surface-local themes.
+- payload-color compatibility.
+- typography-driven layout and visual primitive resolution.
+- explicit node style overrides.
+
+Regression status:
+
+- `ui_layer_runtime`
+- `ui_input_dispatcher_runtime`
+- `ui_focus_manager_runtime`
+- `ui_modal_manager_runtime`
+- `ui_mount_runtime`
+- `ui_composition_runtime`
+- `ui_event_propagation_runtime`
+- `ui_surface_runtime`
+- `ui_layout_runtime`
+- `ui_theme_runtime`
+
+all pass in the engine release build.
+
+### Remaining Styling Debt
+
+- Themes are C++ authored. Data-driven theme assets and hot reload are future
+  work.
+- Style properties include border and shadow fields, but retained primitives do
+  not render borders, radii, or shadows yet.
+- Metrics are available through `UiTheme`, but `UiLayoutSpec` still stores
+  numeric values directly. A later pass should add metric-backed layout lengths
+  or composition helpers.
+- Font weight, line height, letter spacing, and paragraph spacing are stored but
+  not fully consumed by text layout.
+- There is no selector language, cascade, or widget state machine. Style classes
+  are intentionally explicit for now.
+- Existing feature UI remains mostly hardcoded and must migrate gradually.
+- Editor/VN/game presentation profiles should become theme builders or theme
+  adapters instead of independent styling systems.
+
+### Next Primitive
+
+With Layers, Dispatch, Focus, Modals, Mounts, Compositions, Event Propagation,
+UiSurface, Layout, and Styling implemented, the single highest-value remaining
+primitive is the **Widget Framework**.
+
+The engine now has the required lower-level architecture for reusable controls:
+ownership, surfaces, layout, presentation, focus, modal policy, and event
+propagation. Without widgets, every composition will continue to recreate
+buttons, lists, sliders, scrollbars, tabs, text inputs, checkboxes, dropdowns,
+toolbars, and panels from raw nodes. That preserves duplication even though the
+runtime primitives are now sound.
+
+Widget Framework should precede animation, navigation, drag/drop, and data
+binding because those systems need concrete reusable controls to attach to.
+Animation needs widget state transitions. Navigation needs focusable widget
+roles and traversal metadata. Drag/drop needs widgets that expose draggable
+sources and drop targets. Data binding needs stable widget properties. A
+minimal engine widget layer on top of composition, events, layout, and styling
+unlocks all of those without adding gameplay vocabulary.
+
+## 16. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -2946,9 +3129,10 @@ engine-owned modal policy. The fifth committed direction is engine-owned mount
 lifetime. The sixth committed direction is engine-owned composition authoring.
 The seventh committed direction is retained UI event propagation. The eighth
 committed direction is surface-local UI ownership through `UiSurface`. The ninth
-committed direction is engine-owned retained layout.
+committed direction is engine-owned retained layout. The tenth committed
+direction is surface-local styling and theme resolution.
 
-The next milestone should implement a structured Styling / Theme System. It
-should precede animation, navigation, drag/drop, data binding, and a widget
-framework because those systems need reusable visual state, metrics, typography,
-and skin contracts on top of the now-implemented layout geometry.
+The next milestone should implement a minimal Widget Framework. It should
+precede animation, navigation, drag/drop, and data binding because those systems
+need reusable styled, laid-out, event-owning controls instead of raw retained
+nodes and feature-local handle structs.
