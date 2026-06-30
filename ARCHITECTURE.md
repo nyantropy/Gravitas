@@ -851,8 +851,8 @@ profile buckets after printing.
 
 The retained UI model is an engine core service. `UiDocument` stores retained
 nodes and explicit document layers, `UiSystem` owns per-frame extraction and
-interaction evaluation, and tool widgets in `modules/tools/ui/` provide reusable
-engine-editor controls on top of that UI system.
+coordinates input dispatch/focus state, and tool widgets in `modules/tools/ui/`
+provide reusable engine-editor controls on top of that UI system.
 
 `UiDocument` now has a hidden document root plus one or more ordered layer roots.
 Existing callers that create nodes without specifying a parent still attach to
@@ -871,11 +871,17 @@ has been sampled and before simulation/controller systems run,
 `RenderingRuntime::dispatchUiInput(...)` builds the frame's `UiInputFrame` from
 `InputBindingRegistry` and calls `UiSystem::dispatchInput(frame, frameId)`.
 `UiSystem` delegates to `UiInputDispatcher`, which performs the retained hit
-test, updates hover/pressed/focused presentation flags, records clicked/released
-handles, resolves owning layers, and stores a `UiDispatchResult`. Retained UI
-systems should read `ctx.ui->dispatchResult()` during their controller update
-instead of initiating their own hit test. `UiSystem::updateInteraction(...)`
-remains only as a compatibility API over the dispatcher.
+test, creates the frame's hovered/pressed/released/clicked/active/captured
+result, resolves owning layers, and stores a `UiDispatchResult`. Persistent
+interaction ownership lives in `UiFocusManager`, not in the dispatcher. The
+focus manager owns pointer hover per pointer id, pointer capture, active
+pointer owner, keyboard focus, text-input focus, navigation focus, focus scopes,
+and focus restoration. Retained node `hovered`, `focused`, and `pressed` flags
+are presentation reflection of focus-manager state, not authoritative owners.
+Retained UI systems should read `ctx.ui->dispatchResult()` during their
+controller update instead of initiating their own hit test.
+`UiSystem::updateInteraction(...)` remains only as a compatibility API over the
+dispatcher.
 
 UI extraction now enforces primitive clipping before draw-command generation.
 Layout specs include a default-zero child `contentOffset`, so a clipped

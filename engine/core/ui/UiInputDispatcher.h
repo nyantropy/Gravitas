@@ -2,14 +2,14 @@
 
 #include <cstdint>
 
+#include "UiFocusManager.h"
 #include "UiInteraction.h"
-
-class UiDocument;
 
 class UiInputDispatcher
 {
 public:
     const UiDispatchResult& dispatch(UiDocument& document,
+                                     UiFocusManager& focusManager,
                                      const UiInputFrame& input,
                                      bool enabled,
                                      uint64_t frameId = 0);
@@ -21,17 +21,10 @@ public:
     void pruneMissingHandles(const UiDocument& document);
 
 private:
-    void clearInteractionState(UiDocument& document);
-    void applyInteractionState(UiDocument& document,
-                               UiHandle handle,
-                               bool hovered,
-                               bool focused,
-                               bool pressed);
+    void clearInteractionState(UiDocument& document, UiFocusManager& focusManager);
     UiDispatchResult makeDisabledResult(const UiInputFrame& input, uint64_t frameId);
     void assignLayers(const UiDocument& document, UiDispatchResult& result) const;
 
     UiDispatchResult lastDispatch;
-    UiHandle activeHandle = UI_INVALID_HANDLE;
-    UiHandle focusedHandle = UI_INVALID_HANDLE;
     uint64_t dispatchSequence = 0;
 };

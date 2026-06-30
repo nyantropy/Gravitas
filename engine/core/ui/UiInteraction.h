@@ -6,9 +6,13 @@
 #include "UiLayer.h"
 
 using UiSurfaceId = uint32_t;
+using UiInputDeviceId = uint32_t;
+using UiPointerId = uint32_t;
 
 static constexpr UiSurfaceId UI_INVALID_SURFACE = 0;
 static constexpr UiSurfaceId UI_DEFAULT_SURFACE = 1;
+static constexpr UiInputDeviceId UI_PRIMARY_INPUT_DEVICE = 1;
+static constexpr UiPointerId UI_PRIMARY_POINTER = 1;
 
 struct UiInputFrame
 {
@@ -46,6 +50,7 @@ struct UiDispatchResult
     UiHandle released = UI_INVALID_HANDLE;
     UiHandle clicked = UI_INVALID_HANDLE;
     UiHandle active = UI_INVALID_HANDLE;
+    UiHandle captured = UI_INVALID_HANDLE;
 
     UiLayerId hoveredLayer = UI_INVALID_LAYER;
     UiLayerId focusedLayer = UI_INVALID_LAYER;
@@ -53,6 +58,7 @@ struct UiDispatchResult
     UiLayerId releasedLayer = UI_INVALID_LAYER;
     UiLayerId clickedLayer = UI_INVALID_LAYER;
     UiLayerId activeLayer = UI_INVALID_LAYER;
+    UiLayerId capturedLayer = UI_INVALID_LAYER;
 
     float pointerX = 0.0f;
     float pointerY = 0.0f;

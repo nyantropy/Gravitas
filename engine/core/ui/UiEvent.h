@@ -35,9 +35,6 @@ enum class UiEventPhase : uint8_t
     Bubble
 };
 
-using UiInputDeviceId = uint32_t;
-using UiPointerId = uint32_t;
-
 struct UiEvent
 {
     UiEventType type = UiEventType::PointerMove;

@@ -8,6 +8,7 @@
 #include "IResourceProvider.hpp"
 #include "UiCommand.h"
 #include "UiDocument.h"
+#include "UiFocusManager.h"
 #include "UiInputDispatcher.h"
 #include "UiInteraction.h"
 #include "UiRenderResolver.h"
@@ -58,11 +59,13 @@ public:
 
     UiDocument&       getDocument();
     const UiDocument& getDocument() const;
+    UiFocusManager& focusManager();
+    const UiFocusManager& focusManager() const;
     Metrics           getLastMetrics() const;
     bool              measureText(UiHandle handle, UiTextMeasurement& outMeasurement) const;
 
-    UiInteractionResult updateInteraction(const UiInputFrame& input);
-    UiInteractionResult getLastInteraction() const;
+    UiInteractionResult     updateInteraction(const UiInputFrame& input);
+    UiInteractionResult     getLastInteraction() const;
     const UiDispatchResult& dispatchInput(const UiInputFrame& input, uint64_t frameId = 0);
     const UiDispatchResult& dispatchResult() const;
 
@@ -75,6 +78,7 @@ private:
     IResourceProvider*                         resources = nullptr;
     bool                                       enabled   = true;
     UiDocument                                 document;
+    UiFocusManager                             focusState;
     UiInputDispatcher                          inputDispatcher;
     UiRenderResolver                           resolver;
     std::unordered_map<UiHandle, BitmapFont*>  textBindings;

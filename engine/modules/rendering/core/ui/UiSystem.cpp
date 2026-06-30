@@ -17,6 +17,7 @@ void UiSystem::clear()
     ++textBindingRevision;
     commandCache.clear();
     commandCacheValid = false;
+    focusState.clear();
     inputDispatcher.clear();
 }
 
@@ -56,6 +57,7 @@ bool UiSystem::removeLayer(UiLayerId layerId)
         return false;
 
     commandCacheValid = false;
+    focusState.pruneInvalidHandles(document);
     inputDispatcher.pruneMissingHandles(document);
     return true;
 }
@@ -70,7 +72,10 @@ bool UiSystem::setLayerOrder(UiLayerId layerId, int order)
 
 bool UiSystem::setLayerState(UiLayerId layerId, const UiLayerState& state)
 {
-    return document.setLayerState(layerId, state);
+    const bool changed = document.setLayerState(layerId, state);
+    if (changed)
+        focusState.pruneInvalidHandles(document);
+    return changed;
 }
 
 UiHandle UiSystem::getLayerRoot(UiLayerId layerId) const
@@ -99,12 +104,16 @@ bool UiSystem::removeNode(UiHandle handle)
         return false;
 
     inputDispatcher.pruneMissingHandles(document);
+    focusState.pruneInvalidHandles(document);
     return true;
 }
 
 bool UiSystem::reparentNode(UiHandle handle, UiHandle newParent)
 {
-    return document.reparentNode(handle, newParent);
+    const bool changed = document.reparentNode(handle, newParent);
+    if (changed)
+        focusState.pruneInvalidHandles(document);
+    return changed;
 }
 
 UiNode* UiSystem::findNode(UiHandle handle)
@@ -129,7 +138,10 @@ bool UiSystem::setStyle(UiHandle handle, const UiStyle& style)
 
 bool UiSystem::setState(UiHandle handle, const UiStateFlags& state)
 {
-    return document.setState(handle, state);
+    const bool changed = document.setState(handle, state);
+    if (changed)
+        focusState.pruneInvalidHandles(document);
+    return changed;
 }
 
 bool UiSystem::setPayload(UiHandle handle, const UiNodePayload& payload)
@@ -160,6 +172,16 @@ UiDocument& UiSystem::getDocument()
 const UiDocument& UiSystem::getDocument() const
 {
     return document;
+}
+
+UiFocusManager& UiSystem::focusManager()
+{
+    return focusState;
+}
+
+const UiFocusManager& UiSystem::focusManager() const
+{
+    return focusState;
 }
 
 UiSystem::Metrics UiSystem::getLastMetrics() const
@@ -203,7 +225,7 @@ UiInteractionResult UiSystem::getLastInteraction() const
 
 const UiDispatchResult& UiSystem::dispatchInput(const UiInputFrame& input, uint64_t frameId)
 {
-    return inputDispatcher.dispatch(document, input, enabled, frameId);
+    return inputDispatcher.dispatch(document, focusState, input, enabled, frameId);
 }
 
 const UiDispatchResult& UiSystem::dispatchResult() const

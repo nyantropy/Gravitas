@@ -22,14 +22,18 @@ performs one retained UI dispatch per engine frame, and retained UI feature
 systems read `ctx.ui->dispatchResult()` instead of initiating their own document
 hit test.
 
+The third foundational primitive is now implemented: `UiFocusManager` owns
+persistent retained UI focus state, while `UiInputDispatcher` is responsible for
+dispatching the frame's input and publishing the frame result.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
 
 The retained UI runtime is currently centered on one `UiSystem` instance owned by
 the rendering runtime. That `UiSystem` owns one `UiDocument`, per-node text font
-bindings, a cached `UiCommandBuffer`, and a `UiInputDispatcher` that owns the
-current retained pointer interaction state.
+bindings, a cached `UiCommandBuffer`, a `UiInputDispatcher`, and a
+`UiFocusManager`.
 
 The runtime currently has one screen-space document. The document coordinate
 space is normalized from `0..1` in both axes. Rendering later resolves those
@@ -62,20 +66,19 @@ Current responsibilities:
 - Owns the retained document.
 - Owns text font bindings by `UiHandle`.
 - Owns the command buffer cache.
-- Owns the input dispatcher and exposes the latest dispatch result.
+- Owns the input dispatcher and focus manager.
+- Exposes the latest dispatch result.
 - Converts the retained visual list into renderer command data.
 
 `UiSystem::dispatchInput(...)` is the retained input entry point. It:
 
 - Forces document layout into normalized `1.0 x 1.0` space.
-- Runs `UiDocument::hitTest(...)`.
-- On primary press, stores the hovered handle as the active handle.
-- On primary press over a node, stores that node as the focused handle.
-- On primary release, reports a click if the release target is the same as the
-  active target.
-- Mutates hovered, focused, and pressed flags on affected nodes.
-- Records the owning layer for hovered, focused, pressed, released, clicked, and
-  active handles.
+- Delegates to `UiInputDispatcher`.
+- Lets the dispatcher run `UiDocument::hitTest(...)`.
+- Lets `UiFocusManager` own hover, capture, active pointer, and focus state.
+- Records the owning layer for hovered, focused, pressed, released, clicked,
+  active, and captured handles.
+- Publishes the frame's `UiDispatchResult`.
 
 `UiSystem::updateInteraction(...)` remains as a compatibility helper over the
 dispatcher.
@@ -87,11 +90,12 @@ Missing from `UiSystem` today:
 - Per-surface dispatch.
 - Per-layer dispatch policy beyond the new layer root state.
 - Keyboard event routing.
-- Text input routing.
-- Controller navigation.
-- Multi-pointer support.
+- Text input event routing.
+- Controller navigation graph.
+- Multiple surfaces.
+- Full multi-pointer dispatch. Focus state is already keyed by pointer id, but
+  `UiInputFrame` still carries only the primary pointer.
 - Drag/drop as a runtime primitive.
-- Focus scopes.
 - Modal ownership.
 
 ### UiDocument
@@ -312,16 +316,16 @@ tool-world pointer ownership still bypass retained dispatch.
 ### Keyboard, Focus, and Navigation
 
 Keyboard input is currently handled outside the UI runtime through
-`InputBindingRegistry` and feature-specific code. UI focus is not a keyboard
-focus system. It is a handle set when primary pointer press lands on an
-interactable node.
+`InputBindingRegistry` and feature-specific code. `UiFocusManager` now owns
+keyboard focus, text-input focus, navigation focus, pointer hover, pointer
+capture, active pointer, focus scopes, and focus restoration. Primary pointer
+press requests keyboard focus through the focus manager, but key events, text
+input events, and navigation events are not routed through retained UI yet.
 
 Missing:
 
-- Keyboard focus owner.
-- Text input owner.
-- Focus scopes.
-- Focus restoration.
+- Keyboard event routing to the focused owner.
+- Text input routing to the text-input owner.
 - Tab order.
 - Controller navigation graph.
 - Navigation submit/cancel routing.
@@ -449,11 +453,12 @@ Specific weaknesses:
   grids, merchant grids, tool viewport picking, and drag/drop behavior.
 - Hit testing and render order are coupled to the same traversal, but input
   routing still lacks propagation and modal policy.
-- Pointer capture is only an internal active handle.
-- Keyboard focus is not a real focus system.
+- Pointer capture exists, but routed pointer events and drag/drop are not yet
+  built on it.
+- Keyboard focus exists, but keyboard events are not yet routed to it.
 - Controller navigation does not exist in the UI runtime.
 - Event propagation does not exist.
-- Event consumption does not exist.
+- Handler-level event consumption does not exist.
 - Modal ownership does not exist.
 - Gameplay input blocking is game-specific and manually checks feature
   singleton state.
@@ -674,7 +679,8 @@ Dispatch responsibilities:
 - Deliver target phase.
 - Deliver bubble phase.
 - Stop routing when consumed by policy or handler.
-- Write hover, capture, and focus transitions.
+- Ask `UiFocusManager` to apply hover, active pointer, capture, and focus
+  transitions.
 - Publish a frame result for gameplay/tool gating.
 
 Phase 2 replaces production feature-owned calls to
@@ -727,18 +733,23 @@ scroll views, lists, windows, and modals need policy control around child nodes.
 
 ### Focus Manager
 
-Focus must be a runtime subsystem, not a node flag set by pointer press.
+Focus is a runtime subsystem, not a node flag set by pointer press.
 
-Required focus concepts:
+Implemented first-pass focus concepts:
 
 - pointer hover per pointer id
 - pointer capture per pointer id
+- active pointer owner per pointer id
 - keyboard focus
 - text input focus
 - controller/navigation focus
 - focus scopes
 - nested focus scopes
 - focus restoration stack
+- node state reflection for hovered, focused, and pressed
+
+Future focus concepts:
+
 - modal focus traps
 - focus lost/gained events
 
@@ -919,10 +930,16 @@ public:
 class UiFocusManager
 {
 public:
-    void requestFocus(UiNodeId node, UiFocusReason reason);
-    void clearFocus(UiFocusScopeId scope);
-    UiNodeId keyboardFocus() const;
-    UiNodeId navigationFocus(UiInputDeviceId device) const;
+    bool requestFocus(UiDocument& document, UiHandle handle, UiFocusReason reason);
+    bool clearFocus(UiDocument& document, UiFocusReason reason);
+    bool restoreFocus(UiDocument& document);
+    bool capturePointer(UiDocument& document, UiPointerId pointer, UiHandle handle);
+    bool releasePointer(UiPointerId pointer);
+    UiFocusScopeId pushScope(UiHandle owner);
+    bool popScope(UiDocument& document, UiFocusScopeId scope);
+    UiHandle keyboardFocusedNode() const;
+    UiHandle textInputFocusedNode() const;
+    UiHandle navigationFocusedNode(UiInputDeviceId device) const;
 };
 ```
 
@@ -1082,6 +1099,11 @@ Validation:
 
 - Unit tests for nested modal focus trap and restoration.
 - Gameplay smoke test for inventory/menu/dialogue input blocking.
+
+Status:
+
+- Focus manager implemented in Phase 3A.
+- Modal manager not started.
 
 ### Phase 4: Surfaces
 
@@ -1308,6 +1330,8 @@ Validation:
 
 ### Implementation 3: Focus State Extraction
 
+Done.
+
 Objectives:
 
 - Move hover, active pointer, and focus out of `UiSystem` into a dedicated focus
@@ -1322,8 +1346,9 @@ Specific first files:
 
 Validation:
 
-- Pointer capture tests.
-- Focus restoration tests.
+- Added `ui_focus_manager_runtime`.
+- Covered pointer capture, focus restoration, invalid handle pruning, layer
+  interactions, and dispatcher capture targeting.
 
 ### Implementation 4: Modal Stack
 
@@ -1420,7 +1445,7 @@ from racing each other to mutate retained interaction state.
 
 `UiDispatchResult` is the new runtime result surface. It contains:
 
-- hovered, focused, pressed, released, clicked, and active handles
+- hovered, focused, pressed, released, clicked, active, and captured handles
 - owning layer ids for each handle
 - default surface id for the current screen-space document
 - pointer position and scroll delta
@@ -1428,9 +1453,11 @@ from racing each other to mutate retained interaction state.
 - pointer, keyboard, navigation, and text-input consumed flags
 - frame id and dispatch sequence
 
-The first implementation only performs pointer dispatch. Keyboard, navigation,
-text input, focus, modal routing, event propagation, and surface routing have
-reserved fields and event types but are intentionally not implemented yet.
+The current implementation performs primary-pointer dispatch and reads focus
+ownership from `UiFocusManager`. Keyboard event routing, navigation event
+routing, text input event routing, modal routing, event propagation, and surface
+routing have reserved fields and event types but are intentionally not
+implemented yet.
 
 ### Event Model
 
@@ -1443,8 +1470,9 @@ reserved fields and event types but are intentionally not implemented yet.
 - focus gained/lost
 - drag start, move, drop, and cancel
 
-The dispatcher does not yet bubble or capture events. These types are the stable
-foundation for the next focus and modal phases.
+The dispatcher does not yet bubble or capture events. These types remain the
+stable foundation for modal, navigation, text input, drag/drop, and composition
+phases.
 
 ### Compatibility
 
@@ -1471,7 +1499,176 @@ Added `ui_input_dispatcher_runtime`, covering:
 - release-away behavior
 - dispatch exactly once per frame through frame-id caching
 
-## 8. Final Recommendation
+## 8. Phase 3A Implementation Report
+
+### Focus Ownership Investigation
+
+Before Phase 3A, retained UI ownership was split incorrectly:
+
+- `UiInputDispatcher` owned `activeHandle` and `focusedHandle`.
+- `UiInputDispatcher` used `lastDispatch.hovered` and `lastDispatch.pressed` as
+  persistent state to mutate retained node flags.
+- `UiStateFlags::hovered`, `focused`, and `pressed` were treated as both
+  presentation flags and de facto ownership state.
+- `UiDispatchResult` reported per-frame hovered/focused/pressed/clicked state,
+  but there was no separate canonical runtime owner for focus.
+
+Feature-owned state still exists outside retained focus:
+
+- `InventoryUiState` owns hovered cells, hovered item id, dragged item id, and a
+  `dragging` flag from raw mouse position and primary-button edges.
+- `MerchantUiState` owns hovered pane/cell/item and selected pane/item for
+  inventory grids; retained buttons use centralized dispatch.
+- `SkillTreeUiState` owns hovered skill node id and canvas dragging/panning
+  state; retained node/button hits use centralized dispatch.
+- `MenuUiState` owns key-rebind capture state through `captureAction` and
+  `captureArmed`.
+- Combat UI owns action-menu selection index as gameplay/menu state, not engine
+  UI focus.
+- Engine tools still publish `EngineToolInputCaptureComponent` for tool chrome,
+  viewport pointer ownership, world picking, and gizmo interaction. Gizmo
+  hovered/active axis and selected entity remain tool-domain state.
+- VN choice clicks consume retained dispatch results, but VN playback/choice
+  selection remains VN runtime state.
+
+Those feature states are not all engine focus. Grid selection, selected combat
+action, selected entity, and dragged inventory item are domain state. Pointer
+hover, pointer capture, active pointer, keyboard focus, text-input focus,
+navigation focus, and focus restoration are engine UI runtime state.
+
+### Implemented Focus Model
+
+`UiFocusManager` is now the authoritative owner for persistent retained UI
+interaction ownership:
+
+- `pointer id -> hovered node`
+- `pointer id -> captured node`
+- `pointer id -> active pointer node`
+- keyboard-focused node
+- text-input-focused node
+- `input device id -> navigation-focused node`
+- focus scope stack
+- focus restoration stack
+
+The current runtime still dispatches only the primary pointer because
+`UiInputFrame` has one pointer position and primary button state. The focus
+manager API is keyed by `UiPointerId` and `UiInputDeviceId` so future mouse,
+touch, stylus, VR pointer, and gamepad paths can attach without redesigning the
+ownership model.
+
+Retained node `hovered`, `focused`, and `pressed` flags are now reflection.
+`UiFocusManager` mutates those flags so existing skins and widgets continue to
+work, but the flags are not authoritative ownership. If a node is hidden,
+disabled, moved under a hidden/disabled layer root, removed, or reparented into
+an unavailable branch, `UiSystem` prunes focus-manager ownership.
+
+Pointer capture is separate from hover. Hit testing still reports the physical
+hovered node. If a pointer is captured, the dispatcher uses the captured node as
+the pointer target for press/release/click ownership and keeps
+`pointerConsumed` true while capture exists.
+
+Focus scopes are stack-based. Pushing a scope records the previous keyboard
+focus and focus scope. Popping the top scope restores that recorded focus when
+it is still valid, otherwise it falls back through the restoration stack. This
+is the primitive modal ownership needs for focus restoration.
+
+### Dispatcher Changes
+
+`UiInputDispatcher` now dispatches input; it no longer owns persistent focus
+state. It receives `UiFocusManager&` from `UiSystem::dispatchInput(...)` and:
+
+- Prunes invalid focus handles before dispatch.
+- Updates pointer hover through the focus manager.
+- Uses captured pointer owner as the pointer target when capture is active.
+- Requests active pointer and keyboard focus through the focus manager on
+  primary press.
+- Reports released/clicked handles from this frame's pointer transition.
+- Publishes hovered, focused, pressed, released, clicked, active, and captured
+  handles plus their owning layers in `UiDispatchResult`.
+- Reports pointer, keyboard, navigation, and text-input consumed flags from
+  focus ownership.
+
+`UiSystem::updateInteraction(...)` remains a compatibility helper over the
+central dispatch path.
+
+### API Surface
+
+New public runtime API:
+
+- `UiSystem::focusManager()`
+- `UiFocusManager::requestFocus(...)`
+- `UiFocusManager::clearFocus(...)`
+- `UiFocusManager::restoreFocus(...)`
+- `UiFocusManager::requestTextInputFocus(...)`
+- `UiFocusManager::setNavigationFocus(...)`
+- `UiFocusManager::setHovered(...)`
+- `UiFocusManager::capturePointer(...)`
+- `UiFocusManager::releasePointer(...)`
+- `UiFocusManager::setActivePointer(...)`
+- `UiFocusManager::pushScope(...)`
+- `UiFocusManager::popScope(...)`
+
+`UiDispatchResult` now also reports:
+
+- `captured`
+- `capturedLayer`
+
+`UiInputDeviceId`, `UiPointerId`, `UI_PRIMARY_INPUT_DEVICE`, and
+`UI_PRIMARY_POINTER` live beside the input/dispatch result types so focus and
+events share device identity vocabulary.
+
+### Validation
+
+Added `ui_focus_manager_runtime`, covering:
+
+- hover transitions
+- focus transitions and restoration
+- pointer capture
+- pointer capture release
+- capture surviving hover changes
+- active pointer pressed-state reflection
+- nested scopes and focus restoration
+- disabled node focus rejection
+- hidden node focus rejection
+- destroyed node focus/capture/active pruning
+- layer visibility/input interactions
+- independent keyboard, text input, and navigation focus
+- dispatcher use of captured pointer target
+
+The existing layer and input-dispatcher runtime tests still pass.
+
+### Remaining Technical Debt
+
+- `UiInputFrame` still represents one primary pointer. The focus manager is
+  multi-pointer-ready, but dispatch input is not.
+- There is no navigation graph or navigation event delivery yet.
+- There are no text widgets or IME/text event routing yet.
+- Focus gained/lost events are defined in `UiEvent.h` but not emitted.
+- Event propagation, capture/target/bubble delivery, and handler registration
+  are still future work.
+- Feature-owned inventory grid drag/drop, skill-tree pan, key-rebind capture,
+  tool viewport capture, world picking, and gizmo drag remain outside generic UI
+  focus.
+
+### Modal Readiness
+
+`UiModalManager` is the next correct milestone. The engine now has the required
+foundation for first-pass modal ownership:
+
+- explicit ordered layers
+- centralized dispatch
+- focus scopes
+- focus restoration
+- pointer capture and active pointer ownership
+- dispatch consumed flags
+
+No additional primitive needs to precede modal ownership. The modal manager
+should start as policy over existing layers and focus scopes, not as a
+composition/mount rewrite. Composition and mounts should follow after modal
+policy exists, because modal ownership can then define where mounted trees
+participate in focus, input blocking, and restoration.
+
+## 9. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -1490,8 +1687,8 @@ render-target UI, modding, and future UI systems without adding gameplay
 vocabulary to the engine.
 
 The first committed direction was explicit layers. The second committed
-direction is centralized retained UI input dispatch. The next milestone should
-extract pointer hover, active pointer, and focus state from `UiInputDispatcher`
-into a dedicated `UiFocusManager`, followed by a `UiModalManager` that can use
-layer ownership, dispatch consumption, and focus scopes without redesigning the
-Phase 2 dispatch result.
+direction is centralized retained UI input dispatch. The third committed
+direction is engine-owned focus management. The next milestone should implement
+`UiModalManager` on top of layer ownership, centralized dispatch consumption,
+focus scopes, and focus restoration without redesigning the Phase 2/3A
+primitives.
