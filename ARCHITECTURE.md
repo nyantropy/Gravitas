@@ -866,6 +866,17 @@ first explicit UI stacking primitive. This is intentionally still one
 screen-space document; surfaces, modal ownership, and routed input dispatch are
 future runtime layers above this primitive.
 
+UI input dispatch is now centralized once per engine frame. After platform input
+has been sampled and before simulation/controller systems run,
+`RenderingRuntime::dispatchUiInput(...)` builds the frame's `UiInputFrame` from
+`InputBindingRegistry` and calls `UiSystem::dispatchInput(frame, frameId)`.
+`UiSystem` delegates to `UiInputDispatcher`, which performs the retained hit
+test, updates hover/pressed/focused presentation flags, records clicked/released
+handles, resolves owning layers, and stores a `UiDispatchResult`. Retained UI
+systems should read `ctx.ui->dispatchResult()` during their controller update
+instead of initiating their own hit test. `UiSystem::updateInteraction(...)`
+remains only as a compatibility API over the dispatcher.
+
 UI extraction now enforces primitive clipping before draw-command generation.
 Layout specs include a default-zero child `contentOffset`, so a clipped
 container can behave as a scroll view or pannable canvas without moving the

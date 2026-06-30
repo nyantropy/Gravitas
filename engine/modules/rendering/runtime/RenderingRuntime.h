@@ -9,6 +9,7 @@
 class GtsScene;
 class IGtsGraphicsModule;
 class IResourceProvider;
+class InputBindingRegistry;
 class ProfileAccumulator;
 class RenderPipeline;
 class UiSystem;
@@ -49,6 +50,10 @@ namespace gts::rendering
         void applySceneViewportMetrics(EcsControllerContext& ctx,
                                        int windowPixelWidth,
                                        int windowPixelHeight) const;
+        void dispatchUiInput(const InputBindingRegistry* input,
+                             int windowPixelWidth,
+                             int windowPixelHeight,
+                             uint64_t frameId);
 
         void renderFrame(float dt,
                          GtsScene& activeScene,

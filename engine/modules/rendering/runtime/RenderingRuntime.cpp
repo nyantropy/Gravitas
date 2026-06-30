@@ -1,5 +1,6 @@
 #include "RenderingRuntime.h"
 
+#include <algorithm>
 #include <any>
 #include <chrono>
 #include <utility>
@@ -16,6 +17,7 @@
 #include "GtsScene.hpp"
 #include "IGtsGraphicsModule.hpp"
 #include "IResourceProvider.hpp"
+#include "InputBindingRegistry.h"
 #include "ParticleFrameData.h"
 #include "ProfileAccumulator.h"
 #include "RenderEngineCommands.h"
@@ -165,6 +167,30 @@ namespace gts::rendering
         ctx.sceneViewportPixelWidth  = static_cast<float>(viewport.width);
         ctx.sceneViewportPixelHeight = static_cast<float>(viewport.height);
         ctx.sceneViewportAspectRatio = viewport.aspect();
+    }
+
+    void RenderingRuntime::dispatchUiInput(const InputBindingRegistry* input,
+                                           int windowPixelWidth,
+                                           int windowPixelHeight,
+                                           uint64_t frameId)
+    {
+        UiInputFrame frame;
+        if (input != nullptr)
+        {
+            const float width = std::max(1.0f, static_cast<float>(windowPixelWidth));
+            const float height = std::max(1.0f, static_cast<float>(windowPixelHeight));
+            frame.pointerX = std::clamp(static_cast<float>(input->mouseX()) / width, 0.0f, 1.0f);
+            frame.pointerY = std::clamp(static_cast<float>(input->mouseY()) / height, 0.0f, 1.0f);
+            const char* primaryAction =
+                input->isContextActive("engine.tools") ? "engine.tools_select" : "engine.ui_primary";
+            frame.primaryDown = input->isHeld(primaryAction);
+            frame.primaryPressed = input->isPressed(primaryAction);
+            frame.primaryReleased = input->isReleased(primaryAction);
+            frame.scrollX = static_cast<float>(input->scrollX());
+            frame.scrollY = static_cast<float>(input->scrollY());
+        }
+
+        uiSystem->dispatchInput(frame, frameId);
     }
 
     void RenderingRuntime::renderFrame(float dt,

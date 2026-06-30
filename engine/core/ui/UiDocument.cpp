@@ -178,6 +178,25 @@ UiHandle UiDocument::getLayerRoot(UiLayerId layerId) const
     return it == layers.end() ? UI_INVALID_HANDLE : it->second.root;
 }
 
+UiLayerId UiDocument::getNodeLayer(UiHandle handle) const
+{
+    const UiNode* node = findNode(handle);
+    while (node != nullptr)
+    {
+        for (const auto& [layerId, layer] : layers)
+        {
+            if (layer.root == node->handle)
+                return layerId;
+        }
+
+        if (node->parent == UI_INVALID_HANDLE)
+            break;
+        node = findNode(node->parent);
+    }
+
+    return UI_INVALID_LAYER;
+}
+
 bool UiDocument::canRemoveNode(UiHandle handle) const
 {
     return handle != UI_INVALID_HANDLE

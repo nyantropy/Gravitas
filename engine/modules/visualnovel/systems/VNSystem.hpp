@@ -81,7 +81,7 @@ namespace gts::vn
                 && runtime.isActive()
                 && runtime.getConfig().capturePointerInput)
             {
-                const UiInteractionResult interaction = updateInteraction(ctx);
+                const UiInteractionResult interaction = ctx.ui->dispatchResult().toInteractionResult();
                 input.clickedChoiceIndex = VNDialogueUi::choiceIndexFromInteraction(handles, interaction);
             }
 
@@ -134,25 +134,6 @@ namespace gts::vn
             return std::find(triggers.begin(), triggers.end(), *lastPressed) != triggers.end();
         }
 
-        UiInteractionResult updateInteraction(const EcsControllerContext& ctx) const
-        {
-            if (ctx.input == nullptr || ctx.ui == nullptr)
-                return {};
-
-            const float width = std::max(1.0f, ctx.windowPixelWidth);
-            const float height = std::max(1.0f, ctx.windowPixelHeight);
-
-            UiInputFrame frame;
-            frame.pointerX = std::clamp(static_cast<float>(ctx.input->mouseX()) / width, 0.0f, 1.0f);
-            frame.pointerY = std::clamp(static_cast<float>(ctx.input->mouseY()) / height, 0.0f, 1.0f);
-            frame.primaryDown = ctx.input->isHeld("engine.ui_primary");
-            frame.primaryPressed = ctx.input->isPressed("engine.ui_primary");
-            frame.primaryReleased = ctx.input->isReleased("engine.ui_primary");
-            frame.scrollX = static_cast<float>(ctx.input->scrollX());
-            frame.scrollY = static_cast<float>(ctx.input->scrollY());
-            return ctx.ui->updateInteraction(frame);
-        }
-
         void updateDialoguePresentation(const EcsControllerContext& ctx)
         {
             auto& dialogueRuntime =
@@ -168,7 +149,7 @@ namespace gts::vn
                 && uiBuilt
                 && runtime.getConfig().capturePointerInput)
             {
-                const UiInteractionResult interaction = updateInteraction(ctx);
+                const UiInteractionResult interaction = ctx.ui->dispatchResult().toInteractionResult();
                 clickedChoiceIndex = VNDialogueUi::choiceIndexFromInteraction(handles, interaction);
             }
 

@@ -341,6 +341,7 @@ class GravitasEngine
             timeContext.simulationAlpha = gameLoop.alpha();
 
             ECSWorld& world = sceneManager->getActiveScene()->getWorld();
+            renderingRuntime->dispatchUiInput(input, windowPixelWidth, windowPixelHeight, timeContext.frame);
 
             {
                 const auto simStart = std::chrono::steady_clock::now();

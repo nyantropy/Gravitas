@@ -85,7 +85,7 @@ namespace gts::tools
             syncLayout(toolCtx, workspace);
             syncPreviewCameraRequest(toolCtx.world);
 
-            UiInteractionResult interaction = updateInteraction(ctx, state);
+            UiInteractionResult interaction = ctx.ui->dispatchResult().toInteractionResult();
             updateInputCapture(ctx.world, state, interaction, ctx);
             updateTabs(toolCtx, state, interaction);
 
@@ -493,27 +493,6 @@ namespace gts::tools
             footer          = UI_INVALID_HANDLE;
             tabs.clear();
             leftTools.clear();
-        }
-
-        UiInteractionResult updateInteraction(const EcsControllerContext& ctx, const EngineToolStateComponent&)
-        {
-            if (ctx.input == nullptr || ctx.ui == nullptr)
-                return {};
-
-            const float width  = std::max(1.0f, ctx.windowPixelWidth);
-            const float height = std::max(1.0f, ctx.windowPixelHeight);
-
-            UiInputFrame frame;
-            frame.pointerX = std::clamp(static_cast<float>(ctx.input->mouseX()) / width, 0.0f, 1.0f);
-            frame.pointerY = std::clamp(static_cast<float>(ctx.input->mouseY()) / height, 0.0f, 1.0f);
-            const char* primaryAction =
-                ctx.input->isContextActive(ToolsInputContext) ? ToolsSelectAction : "engine.ui_primary";
-            frame.primaryDown     = ctx.input->isHeld(primaryAction);
-            frame.primaryPressed  = ctx.input->isPressed(primaryAction);
-            frame.primaryReleased = ctx.input->isReleased(primaryAction);
-            frame.scrollX         = static_cast<float>(ctx.input->scrollX());
-            frame.scrollY         = static_cast<float>(ctx.input->scrollY());
-            return ctx.ui->updateInteraction(frame);
         }
 
         void updateInputCapture(ECSWorld& world,

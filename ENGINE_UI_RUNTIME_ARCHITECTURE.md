@@ -17,14 +17,19 @@ The first foundational primitive has been implemented during this investigation:
 the default layer root, while newer systems can create named layers and attach UI
 trees below those layer roots.
 
+The second foundational primitive is also now implemented: `UiInputDispatcher`
+performs one retained UI dispatch per engine frame, and retained UI feature
+systems read `ctx.ui->dispatchResult()` instead of initiating their own document
+hit test.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
 
 The retained UI runtime is currently centered on one `UiSystem` instance owned by
 the rendering runtime. That `UiSystem` owns one `UiDocument`, per-node text font
-bindings, a cached `UiCommandBuffer`, and a small interaction state consisting of
-the last hovered, focused, pressed, clicked, and active handles.
+bindings, a cached `UiCommandBuffer`, and a `UiInputDispatcher` that owns the
+current retained pointer interaction state.
 
 The runtime currently has one screen-space document. The document coordinate
 space is normalized from `0..1` in both axes. Rendering later resolves those
@@ -39,11 +44,12 @@ The render path is:
 4. The Vulkan UI render stage draws that command buffer as an overlay after the
    scene and particle passes.
 
-The input path is not a single central path. Several feature systems construct
-their own `UiInputFrame` from `InputBindingRegistry` and call
-`UiSystem::updateInteraction(...)` directly. Each call recomputes global hover,
-pressed, and focused state for the same document. Inventory grid interaction
-does not use the engine hit test at all; it computes cell ownership manually.
+The retained input path is now centralized once per engine frame.
+`RenderingRuntime::dispatchUiInput(...)` builds a `UiInputFrame` from
+`InputBindingRegistry`, calls `UiSystem::dispatchInput(...)`, and stores a
+`UiDispatchResult` for feature systems to read. Inventory and merchant grid
+interactions still compute cell ownership manually because they are not yet
+modeled as retained UI widgets.
 
 ### UiSystem
 
@@ -56,21 +62,23 @@ Current responsibilities:
 - Owns the retained document.
 - Owns text font bindings by `UiHandle`.
 - Owns the command buffer cache.
-- Owns the last interaction result.
-- Owns the current active pointer handle.
-- Owns the current focused handle, though focus is only click-assigned.
+- Owns the input dispatcher and exposes the latest dispatch result.
 - Converts the retained visual list into renderer command data.
 
-`UiSystem::updateInteraction(...)` is not an event dispatcher. It is a polling
-helper. It:
+`UiSystem::dispatchInput(...)` is the retained input entry point. It:
 
 - Forces document layout into normalized `1.0 x 1.0` space.
 - Runs `UiDocument::hitTest(...)`.
-- On primary press, stores the hovered handle as `activeHandle`.
-- On primary press over a node, stores that node as `focusedHandle`.
+- On primary press, stores the hovered handle as the active handle.
+- On primary press over a node, stores that node as the focused handle.
 - On primary release, reports a click if the release target is the same as the
   active target.
 - Mutates hovered, focused, and pressed flags on affected nodes.
+- Records the owning layer for hovered, focused, pressed, released, clicked, and
+  active handles.
+
+`UiSystem::updateInteraction(...)` remains as a compatibility helper over the
+dispatcher.
 
 Missing from `UiSystem` today:
 
@@ -269,7 +277,7 @@ Current hit test limitations:
 - No capture phase.
 - No bubble phase.
 - No event consumption.
-- No pointer capture except `UiSystem::activeHandle`.
+- No pointer capture except the dispatcher's active handle.
 - No hover ownership per pointer id.
 - No layer blocking policy beyond disabled layer roots.
 - No surface priority.
@@ -278,23 +286,28 @@ Current hit test limitations:
 
 ### Interaction
 
-Interaction is currently state mutation plus a small result struct:
+Interaction is currently centralized pointer dispatch plus a result struct:
 
 - `hovered`
 - `focused`
 - `pressed`
+- `released`
 - `clicked`
+- `active`
+- owning layers
 - pointer coordinates
 - scroll deltas
+- consumed flags
 
 There are no explicit events such as pointer enter/leave/down/up/click/move,
 wheel, key down/up, text input, submit, cancel, navigation move, focus gained, or
-focus lost.
+focus lost. The event vocabulary exists in `UiEvent.h`, but propagation is not
+implemented yet.
 
-Interaction ownership is distributed. The current direct callers of
-`updateInteraction` include menu UI, merchant UI, skill-tree UI, visual novel UI,
-and engine tool UI. Each caller can overwrite global hover/focus/press state for
-the shared document during the same frame.
+Retained interaction ownership is no longer initiated by feature systems.
+Menus, merchant buttons, skill-tree nodes, VN choices, and engine tool widgets
+read `ctx.ui->dispatchResult()`. Manual inventory-grid, merchant-grid, and
+tool-world pointer ownership still bypass retained dispatch.
 
 ### Keyboard, Focus, and Navigation
 
@@ -345,9 +358,9 @@ state, and routes choice clicks or continue input back to the dialogue runtime.
 VN stage data includes background mode, dimming, sprites, sprite z-order, and
 tweened stage motion.
 
-VN UI currently competes through the same global document and the same
-`updateInteraction` call as other feature UIs. Because it is built lazily, it has
-historically relied on creation order for its overlay position.
+VN UI currently reads the centralized dispatch result for choice clicks. Because
+it is built lazily and still uses the default screen document, it should move to
+an explicit VN/dialogue layer during a later migration.
 
 ### Merchant UI
 
@@ -355,11 +368,11 @@ Merchant UI is game-owned and feature-local under `src/inventory/ui/`. It builds
 a retained full-screen scrim/window and many retained handles for cells, item
 icons, labels, buttons, and text.
 
-Merchant UI calls `UiSystem::updateInteraction(...)` for buttons and retained
-interactive nodes, but also computes grid cell hover/selection behavior manually
-from its own pixel layout. Merchant open/closed state is stored in a game
-singleton component. Merchant input blocking is handled by `DungeonInputGate`,
-not by a generic modal system.
+Merchant UI reads centralized dispatch results for retained buttons and scrim
+clicks, but still computes grid cell hover/selection behavior manually from its
+own pixel layout. Merchant open/closed state is stored in a game singleton
+component. Merchant input blocking is handled by `DungeonInputGate`, not by a
+generic modal system.
 
 ### Inventory UI
 
@@ -375,7 +388,7 @@ feature-specific ownership and feature-specific input routing.
 
 Game menus are feature-local under `src/menus/ui/`. Menu state is stored in
 `GameMenuStateComponent`. Menu event handling uses both semantic input actions
-and `UiSystem::updateInteraction(...)`. Menu open state is also part of
+and centralized retained UI dispatch. Menu open state is also part of
 `DungeonInputGate` input blocking.
 
 The skill tree is opened through menu state but owns a separate UI root and a
@@ -392,9 +405,10 @@ their roots are hidden by feature sync code.
 ### Debug and Tool UI
 
 Engine tools are global development UI systems that run after the active scene's
-controller systems. They build retained UI using tool widgets and call
-`UiSystem::updateInteraction(...)`. Tool input capture is represented by
-tool-specific singleton components, not by a generic UI capture primitive.
+controller systems. They build retained UI using tool widgets and read
+centralized dispatch results. Tool viewport and world input capture is
+represented by tool-specific singleton components, not by a generic UI capture
+primitive.
 
 Tool UI currently benefits from update/build timing: it is produced after scene
 UI, which tends to put it above scene UI in the shared document unless explicit
@@ -431,11 +445,10 @@ Specific weaknesses:
 - Layering was historically implicit; the new layer primitive starts to fix only
   the root-level ordering problem.
 - Most existing feature UI still uses the default layer.
-- Input dispatch is distributed across multiple feature systems.
-- Multiple systems can call `updateInteraction` in one frame and overwrite the
-  same global hover/focus/pressed flags.
+- Some UI ownership still bypasses retained dispatch, especially inventory
+  grids, merchant grids, tool viewport picking, and drag/drop behavior.
 - Hit testing and render order are coupled to the same traversal, but input
-  ownership is not centralized.
+  routing still lacks propagation and modal policy.
 - Pointer capture is only an internal active handle.
 - Keyboard focus is not a real focus system.
 - Controller navigation does not exist in the UI runtime.
@@ -664,7 +677,8 @@ Dispatch responsibilities:
 - Write hover, capture, and focus transitions.
 - Publish a frame result for gameplay/tool gating.
 
-This should replace feature-owned calls to `UiSystem::updateInteraction`.
+Phase 2 replaces production feature-owned calls to
+`UiSystem::updateInteraction`.
 
 Rejected alternative:
 
@@ -1028,6 +1042,10 @@ Validation:
 - Add tests for overlapping roots where only the top target receives click.
 - Verify old menu/merchant/VN behavior remains functional.
 
+Status:
+
+- Implemented.
+
 ### Phase 3: Focus and Modal Stack
 
 Objectives:
@@ -1226,7 +1244,8 @@ Validation:
 Objectives:
 
 - Move merchant, inventory, menus, VN, HUD, and tools onto surfaces/layers/mounts.
-- Remove feature-owned calls to `updateInteraction`.
+- Remove remaining feature-owned manual pointer ownership where it should become
+  retained UI behavior.
 - Replace `DungeonInputGate` UI checks with runtime modal/input dispatch state.
 - Keep gameplay vocabulary outside engine core.
 
@@ -1260,7 +1279,7 @@ Validated by:
 
 ### Implementation 2: Input Dispatch Skeleton
 
-Next.
+Done.
 
 Objectives:
 
@@ -1279,13 +1298,13 @@ Specific first files:
 - `engine/engine/modules/rendering/core/ui/UiSystem.h`
 - `engine/engine/modules/rendering/core/ui/UiSystem.cpp`
 - `engine/engine/modules/rendering/runtime/RenderingRuntime.cpp`
-- direct callers of `UiSystem::updateInteraction`
+- retained UI callers that previously initiated `UiSystem::updateInteraction`
 
 Validation:
 
-- Add `UiInputDispatcherTest`.
-- Verify direct callers are reduced.
-- Run engine build and targeted UI tests.
+- Added `ui_input_dispatcher_runtime`.
+- Verified production retained UI callers no longer call `updateInteraction`.
+- Ran engine build, top-level game build, and targeted UI tests.
 
 ### Implementation 3: Focus State Extraction
 
@@ -1327,7 +1346,132 @@ Validation:
 - Nested modal tests.
 - Dungeon scene manual smoke.
 
-## 7. Final Recommendation
+## 7. Phase 2 Implementation Report
+
+### Investigation Graph
+
+Before Phase 2, retained UI dispatch flowed through feature systems:
+
+```
+Platform input
+    -> InputManager
+    -> InputBindingRegistry
+    -> feature UI event system
+    -> feature-owned UiInputFrame construction
+    -> UiSystem::updateInteraction(...)
+    -> UiDocument::hitTest(...)
+    -> UiInteractionResult
+    -> feature UI event system
+```
+
+The direct retained dispatch initiators were:
+
+- `src/menus/ui/MenuUiEventHandler.cpp`
+- `src/inventory/ui/MerchantUiEventHandler.cpp`
+- `src/classes/ui/SkillTreeUiEventHandler.h`
+- `engine/modules/visualnovel/systems/VNSystem.hpp`
+- `engine/modules/tools/ui/EngineToolShellSystem.hpp`
+
+Each duplicated the same normalized pointer conversion, primary-button mapping,
+scroll capture, call into `UiSystem::updateInteraction(...)`, and result
+interpretation.
+
+Several paths bypass retained UI dispatch and still compute ownership from raw
+input:
+
+- `src/inventory/ui/InventoryUiEventHandler.cpp` maps raw mouse position to
+  inventory cells and performs drag/drop with raw primary-button edges.
+- `src/inventory/ui/MerchantUiEventHandler.cpp` maps raw mouse position to
+  merchant/player grid cells and selects grid items with raw primary-button
+  edges.
+- `src/classes/ui/SkillTreeUiEventHandler.h` still uses raw scroll and
+  primary-button state for canvas pan/drag, while node/button hover and click now
+  come from central dispatch.
+- `engine/modules/tools/ui/EngineToolShellSystem.hpp` still computes viewport
+  pointer capture from raw mouse position for tool world picking.
+- Tool world picking and gizmo systems consume `EngineToolInputCaptureComponent`
+  rather than retained UI hit testing.
+- Camera/debug systems may read raw mouse deltas for non-UI control, which is
+  outside retained UI dispatch.
+
+### New Dispatch Flow
+
+After Phase 2, retained UI dispatch flows through the engine:
+
+```
+Platform input
+    -> InputManager
+    -> InputBindingRegistry
+    -> RenderingRuntime::dispatchUiInput(...)
+    -> UiSystem::dispatchInput(...)
+    -> UiInputDispatcher
+    -> UiDocument::hitTest(...)
+    -> UiDispatchResult
+    -> feature UI systems read ctx.ui->dispatchResult()
+```
+
+`RenderingRuntime::dispatchUiInput(...)` runs once in `GravitasEngine` after
+`platform.beginFrame()` and engine-level input handling, before fixed simulation
+ticks and before controller systems. This placement gives every scene and tool
+controller the same dispatch result for the frame and prevents feature systems
+from racing each other to mutate retained interaction state.
+
+### Dispatch Result
+
+`UiDispatchResult` is the new runtime result surface. It contains:
+
+- hovered, focused, pressed, released, clicked, and active handles
+- owning layer ids for each handle
+- default surface id for the current screen-space document
+- pointer position and scroll delta
+- primary-button state
+- pointer, keyboard, navigation, and text-input consumed flags
+- frame id and dispatch sequence
+
+The first implementation only performs pointer dispatch. Keyboard, navigation,
+text input, focus, modal routing, event propagation, and surface routing have
+reserved fields and event types but are intentionally not implemented yet.
+
+### Event Model
+
+`UiEvent.h` defines the future event vocabulary:
+
+- pointer move, enter, leave, down, up, click, and wheel
+- key down/up
+- text input
+- navigation move, submit, and cancel
+- focus gained/lost
+- drag start, move, drop, and cancel
+
+The dispatcher does not yet bubble or capture events. These types are the stable
+foundation for the next focus and modal phases.
+
+### Compatibility
+
+`UiSystem::updateInteraction(...)` remains as a compatibility API over
+`UiInputDispatcher`. Production retained UI systems no longer call it after Phase
+2. The remaining first-party references are the compatibility API itself and the
+older `ui_layer_runtime` regression test.
+
+Manual grid and tool-world pointer ownership remains intentionally unmigrated.
+Those paths need retained grid widgets, drag/drop ownership, focus scopes, and
+modal policy before they can become purely dispatch-result consumers.
+
+### Validation
+
+Added `ui_input_dispatcher_runtime`, covering:
+
+- overlapping UI sibling priority
+- explicit layer priority
+- click ownership
+- hover changes and node state updates
+- disabled layers
+- hidden layers
+- click/release behavior
+- release-away behavior
+- dispatch exactly once per frame through frame-id caching
+
+## 8. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -1345,7 +1489,9 @@ tools, debug interfaces, split-screen, multiple windows, world-space terminals,
 render-target UI, modding, and future UI systems without adding gameplay
 vocabulary to the engine.
 
-The first committed direction should be the explicit layer primitive already
-implemented here. The next implementation should be centralized input dispatch,
-because input ownership is currently the deepest architectural fault exposed by
-the VN/dialogue/merchant/inventory layering issue.
+The first committed direction was explicit layers. The second committed
+direction is centralized retained UI input dispatch. The next milestone should
+extract pointer hover, active pointer, and focus state from `UiInputDispatcher`
+into a dedicated `UiFocusManager`, followed by a `UiModalManager` that can use
+layer ownership, dispatch consumption, and focus scopes without redesigning the
+Phase 2 dispatch result.

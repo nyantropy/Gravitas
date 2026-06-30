@@ -22,6 +22,7 @@ public:
     bool      setLayerOrder(UiLayerId layerId, int order);
     bool      setLayerState(UiLayerId layerId, const UiLayerState& state);
     UiHandle  getLayerRoot(UiLayerId layerId) const;
+    UiLayerId getNodeLayer(UiHandle handle) const;
     UiLayerId getDefaultLayer() const { return UI_DEFAULT_LAYER; }
     bool      canRemoveNode(UiHandle handle) const;
 

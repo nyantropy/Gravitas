@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 
@@ -7,6 +8,7 @@
 #include "IResourceProvider.hpp"
 #include "UiCommand.h"
 #include "UiDocument.h"
+#include "UiInputDispatcher.h"
 #include "UiInteraction.h"
 #include "UiRenderResolver.h"
 
@@ -61,20 +63,19 @@ public:
 
     UiInteractionResult updateInteraction(const UiInputFrame& input);
     UiInteractionResult getLastInteraction() const;
+    const UiDispatchResult& dispatchInput(const UiInputFrame& input, uint64_t frameId = 0);
+    const UiDispatchResult& dispatchResult() const;
 
     UiCommandBuffer extractCommands(int viewportWidth, int viewportHeight);
     const UiCommandBuffer& extractCommandsRef(int viewportWidth, int viewportHeight);
 
 private:
     void removeTextBindingsRecursive(UiHandle handle);
-    void applyInteractionState(UiHandle handle,
-                               bool hovered,
-                               bool focused,
-                               bool pressed);
 
     IResourceProvider*                         resources = nullptr;
     bool                                       enabled   = true;
     UiDocument                                 document;
+    UiInputDispatcher                          inputDispatcher;
     UiRenderResolver                           resolver;
     std::unordered_map<UiHandle, BitmapFont*>  textBindings;
     uint64_t                                   textBindingRevision = 1;
@@ -86,7 +87,4 @@ private:
     int                                        cachedViewportHeight = 0;
     bool                                       commandCacheValid = false;
     Metrics                                    lastMetrics;
-    UiInteractionResult                        lastInteraction;
-    UiHandle                                   activeHandle = UI_INVALID_HANDLE;
-    UiHandle                                   focusedHandle = UI_INVALID_HANDLE;
 };
