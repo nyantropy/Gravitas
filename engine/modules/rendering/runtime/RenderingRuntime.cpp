@@ -186,6 +186,7 @@ namespace gts::rendering
             frame.primaryDown = input->isHeld(primaryAction);
             frame.primaryPressed = input->isPressed(primaryAction);
             frame.primaryReleased = input->isReleased(primaryAction);
+            frame.cancelPressed = input->isPressed("engine.ui_cancel");
             frame.scrollX = static_cast<float>(input->scrollX());
             frame.scrollY = static_cast<float>(input->scrollY());
         }

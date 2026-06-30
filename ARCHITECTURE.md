@@ -851,8 +851,9 @@ profile buckets after printing.
 
 The retained UI model is an engine core service. `UiDocument` stores retained
 nodes and explicit document layers, `UiSystem` owns per-frame extraction and
-coordinates input dispatch/focus state, and tool widgets in `modules/tools/ui/`
-provide reusable engine-editor controls on top of that UI system.
+coordinates input dispatch, focus state, and modal state, and tool widgets in
+`modules/tools/ui/` provide reusable engine-editor controls on top of that UI
+system.
 
 `UiDocument` now has a hidden document root plus one or more ordered layer roots.
 Existing callers that create nodes without specifying a parent still attach to
@@ -863,8 +864,8 @@ and change layer ordering or input participation without relying on scene
 construction order. Render traversal visits lower-order layers first and
 hit-testing walks the same layer roots in reverse order, so layer order is the
 first explicit UI stacking primitive. This is intentionally still one
-screen-space document; surfaces, modal ownership, and routed input dispatch are
-future runtime layers above this primitive.
+screen-space document; surfaces and propagated UI events are future runtime
+layers above this primitive.
 
 UI input dispatch is now centralized once per engine frame. After platform input
 has been sampled and before simulation/controller systems run,
@@ -872,12 +873,15 @@ has been sampled and before simulation/controller systems run,
 `InputBindingRegistry` and calls `UiSystem::dispatchInput(frame, frameId)`.
 `UiSystem` delegates to `UiInputDispatcher`, which performs the retained hit
 test, creates the frame's hovered/pressed/released/clicked/active/captured
-result, resolves owning layers, and stores a `UiDispatchResult`. Persistent
-interaction ownership lives in `UiFocusManager`, not in the dispatcher. The
-focus manager owns pointer hover per pointer id, pointer capture, active
-pointer owner, keyboard focus, text-input focus, navigation focus, focus scopes,
-and focus restoration. Retained node `hovered`, `focused`, and `pressed` flags
-are presentation reflection of focus-manager state, not authoritative owners.
+result, resolves owning layers, consults modal policy, and stores a
+`UiDispatchResult`. Persistent interaction ownership lives in `UiFocusManager`,
+not in the dispatcher. The focus manager owns pointer hover per pointer id,
+pointer capture, active pointer owner, keyboard focus, text-input focus,
+navigation focus, focus scopes, and focus restoration. Modal ownership lives in
+`UiModalManager`, which owns the retained modal stack, layer blocking policy,
+cancel/back routing, and focus-scope restoration for nested modals. Retained
+node `hovered`, `focused`, and `pressed` flags are presentation reflection of
+focus-manager state, not authoritative owners.
 Retained UI systems should read `ctx.ui->dispatchResult()` during their
 controller update instead of initiating their own hit test.
 `UiSystem::updateInteraction(...)` remains only as a compatibility API over the

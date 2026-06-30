@@ -17,6 +17,7 @@ void UiSystem::clear()
     ++textBindingRevision;
     commandCache.clear();
     commandCacheValid = false;
+    modalState.clear();
     focusState.clear();
     inputDispatcher.clear();
 }
@@ -57,6 +58,7 @@ bool UiSystem::removeLayer(UiLayerId layerId)
         return false;
 
     commandCacheValid = false;
+    modalState.pruneInvalidModals(document, focusState);
     focusState.pruneInvalidHandles(document);
     inputDispatcher.pruneMissingHandles(document);
     return true;
@@ -74,7 +76,10 @@ bool UiSystem::setLayerState(UiLayerId layerId, const UiLayerState& state)
 {
     const bool changed = document.setLayerState(layerId, state);
     if (changed)
+    {
+        modalState.pruneInvalidModals(document, focusState);
         focusState.pruneInvalidHandles(document);
+    }
     return changed;
 }
 
@@ -104,6 +109,7 @@ bool UiSystem::removeNode(UiHandle handle)
         return false;
 
     inputDispatcher.pruneMissingHandles(document);
+    modalState.pruneInvalidModals(document, focusState);
     focusState.pruneInvalidHandles(document);
     return true;
 }
@@ -112,7 +118,10 @@ bool UiSystem::reparentNode(UiHandle handle, UiHandle newParent)
 {
     const bool changed = document.reparentNode(handle, newParent);
     if (changed)
+    {
+        modalState.pruneInvalidModals(document, focusState);
         focusState.pruneInvalidHandles(document);
+    }
     return changed;
 }
 
@@ -140,7 +149,10 @@ bool UiSystem::setState(UiHandle handle, const UiStateFlags& state)
 {
     const bool changed = document.setState(handle, state);
     if (changed)
+    {
+        modalState.pruneInvalidModals(document, focusState);
         focusState.pruneInvalidHandles(document);
+    }
     return changed;
 }
 
@@ -184,6 +196,16 @@ const UiFocusManager& UiSystem::focusManager() const
     return focusState;
 }
 
+UiModalManager& UiSystem::modalManager()
+{
+    return modalState;
+}
+
+const UiModalManager& UiSystem::modalManager() const
+{
+    return modalState;
+}
+
 UiSystem::Metrics UiSystem::getLastMetrics() const
 {
     return lastMetrics;
@@ -225,12 +247,27 @@ UiInteractionResult UiSystem::getLastInteraction() const
 
 const UiDispatchResult& UiSystem::dispatchInput(const UiInputFrame& input, uint64_t frameId)
 {
-    return inputDispatcher.dispatch(document, focusState, input, enabled, frameId);
+    return inputDispatcher.dispatch(document, focusState, modalState, input, enabled, frameId);
 }
 
 const UiDispatchResult& UiSystem::dispatchResult() const
 {
     return inputDispatcher.dispatchResult();
+}
+
+UiModalId UiSystem::pushModal(const UiModalDesc& desc)
+{
+    return modalState.pushModal(document, focusState, desc);
+}
+
+bool UiSystem::popModal(UiModalId modalId, UiModalDismissReason reason)
+{
+    return modalState.popModal(document, focusState, modalId, reason);
+}
+
+bool UiSystem::dismissTopModal(UiModalDismissReason reason)
+{
+    return modalState.dismissTopModal(document, focusState, reason);
 }
 
 UiCommandBuffer UiSystem::extractCommands(int viewportWidth, int viewportHeight)

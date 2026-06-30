@@ -11,6 +11,7 @@
 #include "UiFocusManager.h"
 #include "UiInputDispatcher.h"
 #include "UiInteraction.h"
+#include "UiModalManager.h"
 #include "UiRenderResolver.h"
 
 // Engine-owned retained UI model plus render-side text/resource bindings.
@@ -59,8 +60,10 @@ public:
 
     UiDocument&       getDocument();
     const UiDocument& getDocument() const;
-    UiFocusManager& focusManager();
+    UiFocusManager&       focusManager();
     const UiFocusManager& focusManager() const;
+    UiModalManager&       modalManager();
+    const UiModalManager& modalManager() const;
     Metrics           getLastMetrics() const;
     bool              measureText(UiHandle handle, UiTextMeasurement& outMeasurement) const;
 
@@ -68,6 +71,11 @@ public:
     UiInteractionResult     getLastInteraction() const;
     const UiDispatchResult& dispatchInput(const UiInputFrame& input, uint64_t frameId = 0);
     const UiDispatchResult& dispatchResult() const;
+
+    UiModalId pushModal(const UiModalDesc& desc);
+    bool      popModal(UiModalId modalId,
+                       UiModalDismissReason reason = UiModalDismissReason::Programmatic);
+    bool      dismissTopModal(UiModalDismissReason reason = UiModalDismissReason::Programmatic);
 
     UiCommandBuffer extractCommands(int viewportWidth, int viewportHeight);
     const UiCommandBuffer& extractCommandsRef(int viewportWidth, int viewportHeight);
@@ -79,6 +87,7 @@ private:
     bool                                       enabled   = true;
     UiDocument                                 document;
     UiFocusManager                             focusState;
+    UiModalManager                             modalState;
     UiInputDispatcher                          inputDispatcher;
     UiRenderResolver                           resolver;
     std::unordered_map<UiHandle, BitmapFont*>  textBindings;

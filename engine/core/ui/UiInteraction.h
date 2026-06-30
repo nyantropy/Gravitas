@@ -8,11 +8,13 @@
 using UiSurfaceId = uint32_t;
 using UiInputDeviceId = uint32_t;
 using UiPointerId = uint32_t;
+using UiModalId = uint32_t;
 
 static constexpr UiSurfaceId UI_INVALID_SURFACE = 0;
 static constexpr UiSurfaceId UI_DEFAULT_SURFACE = 1;
 static constexpr UiInputDeviceId UI_PRIMARY_INPUT_DEVICE = 1;
 static constexpr UiPointerId UI_PRIMARY_POINTER = 1;
+static constexpr UiModalId UI_INVALID_MODAL = 0;
 
 struct UiInputFrame
 {
@@ -21,6 +23,7 @@ struct UiInputFrame
     bool  primaryDown = false;
     bool  primaryPressed = false;
     bool  primaryReleased = false;
+    bool  cancelPressed = false;
     float scrollX = 0.0f;
     float scrollY = 0.0f;
 };
@@ -51,6 +54,8 @@ struct UiDispatchResult
     UiHandle clicked = UI_INVALID_HANDLE;
     UiHandle active = UI_INVALID_HANDLE;
     UiHandle captured = UI_INVALID_HANDLE;
+    UiModalId cancelTargetModal = UI_INVALID_MODAL;
+    UiModalId dismissedModal = UI_INVALID_MODAL;
 
     UiLayerId hoveredLayer = UI_INVALID_LAYER;
     UiLayerId focusedLayer = UI_INVALID_LAYER;
@@ -67,11 +72,23 @@ struct UiDispatchResult
     bool primaryDown = false;
     bool primaryPressed = false;
     bool primaryReleased = false;
+    bool cancelPressed = false;
+    bool cancelConsumed = false;
 
     bool pointerConsumed = false;
     bool keyboardConsumed = false;
     bool navigationConsumed = false;
     bool textInputConsumed = false;
+
+    bool modalActive = false;
+    uint32_t modalDepth = 0;
+    UiModalId modal = UI_INVALID_MODAL;
+    UiHandle modalOwner = UI_INVALID_HANDLE;
+    UiLayerId modalLayer = UI_INVALID_LAYER;
+    bool pointerBlocked = false;
+    bool keyboardBlocked = false;
+    bool navigationBlocked = false;
+    bool textBlocked = false;
 
     UiInteractionResult toInteractionResult() const
     {

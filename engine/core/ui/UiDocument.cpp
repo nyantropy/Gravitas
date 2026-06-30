@@ -197,6 +197,16 @@ UiLayerId UiDocument::getNodeLayer(UiHandle handle) const
     return UI_INVALID_LAYER;
 }
 
+bool UiDocument::getLayerOrder(UiLayerId layerId, int& outOrder) const
+{
+    const auto it = layers.find(layerId);
+    if (it == layers.end())
+        return false;
+
+    outOrder = it->second.order;
+    return true;
+}
+
 bool UiDocument::canRemoveNode(UiHandle handle) const
 {
     return handle != UI_INVALID_HANDLE
@@ -387,6 +397,15 @@ void UiDocument::rebuildVisualList()
 UiHandle UiDocument::hitTest(float x, float y) const
 {
     return hitTestRecursive(rootHandle, x, y, true);
+}
+
+UiHandle UiDocument::hitTestLayer(UiLayerId layerId, float x, float y) const
+{
+    const UiHandle layerRoot = getLayerRoot(layerId);
+    if (layerRoot == UI_INVALID_HANDLE)
+        return UI_INVALID_HANDLE;
+
+    return hitTestRecursive(layerRoot, x, y, true);
 }
 
 UiHandle UiDocument::allocHandle()

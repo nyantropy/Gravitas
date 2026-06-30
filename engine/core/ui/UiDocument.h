@@ -23,6 +23,7 @@ public:
     bool      setLayerState(UiLayerId layerId, const UiLayerState& state);
     UiHandle  getLayerRoot(UiLayerId layerId) const;
     UiLayerId getNodeLayer(UiHandle handle) const;
+    bool      getLayerOrder(UiLayerId layerId, int& outOrder) const;
     UiLayerId getDefaultLayer() const { return UI_DEFAULT_LAYER; }
     bool      canRemoveNode(UiHandle handle) const;
 
@@ -51,6 +52,7 @@ public:
     uint64_t            getVisualRevision() const { return visualRevision; }
     size_t              getNodeCount() const { return nodes.size(); }
     UiHandle            hitTest(float x, float y) const;
+    UiHandle            hitTestLayer(UiLayerId layerId, float x, float y) const;
 
 private:
     UiHandle allocHandle();

@@ -26,14 +26,18 @@ The third foundational primitive is now implemented: `UiFocusManager` owns
 persistent retained UI focus state, while `UiInputDispatcher` is responsible for
 dispatching the frame's input and publishing the frame result.
 
+The fourth foundational primitive is now implemented: `UiModalManager` owns the
+retained UI modal stack, layer blocking policy, cancel routing, and focus-scope
+restoration policy.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
 
 The retained UI runtime is currently centered on one `UiSystem` instance owned by
 the rendering runtime. That `UiSystem` owns one `UiDocument`, per-node text font
-bindings, a cached `UiCommandBuffer`, a `UiInputDispatcher`, and a
-`UiFocusManager`.
+bindings, a cached `UiCommandBuffer`, a `UiInputDispatcher`, a
+`UiFocusManager`, and a `UiModalManager`.
 
 The runtime currently has one screen-space document. The document coordinate
 space is normalized from `0..1` in both axes. Rendering later resolves those
@@ -51,9 +55,10 @@ The render path is:
 The retained input path is now centralized once per engine frame.
 `RenderingRuntime::dispatchUiInput(...)` builds a `UiInputFrame` from
 `InputBindingRegistry`, calls `UiSystem::dispatchInput(...)`, and stores a
-`UiDispatchResult` for feature systems to read. Inventory and merchant grid
-interactions still compute cell ownership manually because they are not yet
-modeled as retained UI widgets.
+`UiDispatchResult` for feature systems to read. The dispatcher consults
+`UiModalManager` before hit testing so the top modal can block lower layers and
+route cancel/back input. Inventory and merchant grid interactions still compute
+cell ownership manually because they are not yet modeled as retained UI widgets.
 
 ### UiSystem
 
@@ -67,6 +72,7 @@ Current responsibilities:
 - Owns text font bindings by `UiHandle`.
 - Owns the command buffer cache.
 - Owns the input dispatcher and focus manager.
+- Owns the modal manager.
 - Exposes the latest dispatch result.
 - Converts the retained visual list into renderer command data.
 
@@ -76,8 +82,10 @@ Current responsibilities:
 - Delegates to `UiInputDispatcher`.
 - Lets the dispatcher run `UiDocument::hitTest(...)`.
 - Lets `UiFocusManager` own hover, capture, active pointer, and focus state.
+- Lets `UiModalManager` constrain hit testing and cancel routing.
 - Records the owning layer for hovered, focused, pressed, released, clicked,
   active, and captured handles.
+- Records modal ownership, blocking, and cancel/dismissal state.
 - Publishes the frame's `UiDispatchResult`.
 
 `UiSystem::updateInteraction(...)` remains as a compatibility helper over the
@@ -96,7 +104,7 @@ Missing from `UiSystem` today:
 - Full multi-pointer dispatch. Focus state is already keyed by pointer id, but
   `UiInputFrame` still carries only the primary pointer.
 - Drag/drop as a runtime primitive.
-- Modal ownership.
+- Modal enter/exit transitions.
 
 ### UiDocument
 
@@ -129,7 +137,8 @@ Current layer model:
 - Layer input participation maps to the layer root `enabled` state.
 
 This is a useful first primitive, but it is still document-local. It is not yet a
-surface system, not yet a modal system, and not yet a full input router.
+surface system and not yet a full input router. Modal policy lives above the
+document in `UiModalManager`, not in layer roots themselves.
 
 ### Node Hierarchy
 
@@ -281,11 +290,9 @@ Current hit test limitations:
 - No capture phase.
 - No bubble phase.
 - No event consumption.
-- No pointer capture except the dispatcher's active handle.
-- No hover ownership per pointer id.
-- No layer blocking policy beyond disabled layer roots.
+- No handler-owned propagation path.
 - No surface priority.
-- No modal stack.
+- No hit-test path object for parent/child event routing.
 - No separation between "visible", "hit test visible", and "receives input".
 
 ### Interaction
@@ -298,10 +305,14 @@ Interaction is currently centralized pointer dispatch plus a result struct:
 - `released`
 - `clicked`
 - `active`
+- `captured`
 - owning layers
 - pointer coordinates
 - scroll deltas
 - consumed flags
+- modal ownership, modal depth, modal owner, and modal layer
+- pointer, keyboard, navigation, and text-input blocking flags
+- cancel target and dismissed modal for cancel/back input
 
 There are no explicit events such as pointer enter/leave/down/up/click/move,
 wheel, key down/up, text input, submit, cancel, navigation move, focus gained, or
@@ -329,7 +340,7 @@ Missing:
 - Tab order.
 - Controller navigation graph.
 - Navigation submit/cancel routing.
-- Modal focus trap.
+- Event-level modal focus trap.
 - Focus lost/gained events.
 
 ### Styling
@@ -451,16 +462,17 @@ Specific weaknesses:
 - Most existing feature UI still uses the default layer.
 - Some UI ownership still bypasses retained dispatch, especially inventory
   grids, merchant grids, tool viewport picking, and drag/drop behavior.
-- Hit testing and render order are coupled to the same traversal, but input
-  routing still lacks propagation and modal policy.
+- Hit testing and render order are coupled to the same traversal, and input
+  routing still lacks event propagation.
 - Pointer capture exists, but routed pointer events and drag/drop are not yet
   built on it.
 - Keyboard focus exists, but keyboard events are not yet routed to it.
 - Controller navigation does not exist in the UI runtime.
 - Event propagation does not exist.
 - Handler-level event consumption does not exist.
-- Modal ownership does not exist.
-- Gameplay input blocking is game-specific and manually checks feature
+- Modal ownership exists in the engine, but existing game UI has not yet
+  migrated its open/closed state and gameplay gates onto modal descriptors.
+- Gameplay input blocking is still game-specific and manually checks feature
   singleton state.
 - Inventory, merchant grids, and tools implement their own input routing.
 - Feature UIs are built as roots, not as reusable mountable compositions.
@@ -761,10 +773,15 @@ inside itself when modal, or participate in a parent focus scope when embedded.
 
 Modal ownership should be first-class and generic.
 
+The first retained-screen implementation now owns the modal stack, layer
+blocking, cancel routing, and focus-scope restoration through `UiModalManager`.
+The mature surface/composition architecture should extend that model per
+surface/window.
+
 Modal responsibilities:
 
 - Maintain a modal stack per surface/window.
-- Mount modal content into a modal layer or host.
+- Associate modal content with a layer, and later with a mount or host.
 - Decide whether lower layers receive input.
 - Decide whether lower layers remain visible.
 - Trap keyboard/controller focus.
@@ -1103,7 +1120,7 @@ Validation:
 Status:
 
 - Focus manager implemented in Phase 3A.
-- Modal manager not started.
+- Modal manager implemented in Phase 3B.
 
 ### Phase 4: Surfaces
 
@@ -1352,24 +1369,30 @@ Validation:
 
 ### Implementation 4: Modal Stack
 
+Done.
+
 Objectives:
 
 - Add generic modal policy.
-- Mount modal content into a modal layer.
+- Associate modal ownership with an existing layer and owner node.
 - Route cancel/back through the top modal.
 - Produce UI input-blocking results for gameplay systems.
 
 Specific first files:
 
 - `UiModalManager.h/.cpp`
-- `UiLayer.h`
 - `UiInputDispatcher`
-- game menu/inventory/merchant integration points
+- `UiFocusManager`
+- `UiSystem`
+- `UiInteraction`
+- `RenderingRuntime`
 
 Validation:
 
-- Nested modal tests.
-- Dungeon scene manual smoke.
+- Added `ui_modal_manager_runtime`.
+- Covered nested modals, focus restoration, layer blocking, consumption flags,
+  cancel routing, dismissals, hidden/disabled layer cleanup, hidden/disabled
+  owner cleanup, destroyed owner cleanup, and non-blocking popup policy.
 
 ## 7. Phase 2 Implementation Report
 
@@ -1453,10 +1476,10 @@ from racing each other to mutate retained interaction state.
 - pointer, keyboard, navigation, and text-input consumed flags
 - frame id and dispatch sequence
 
-The current implementation performs primary-pointer dispatch and reads focus
-ownership from `UiFocusManager`. Keyboard event routing, navigation event
-routing, text input event routing, modal routing, event propagation, and surface
-routing have reserved fields and event types but are intentionally not
+At the end of Phase 2 the implementation performed primary-pointer dispatch and
+read focus ownership from `UiFocusManager`. Keyboard event routing, navigation
+event routing, text input event routing, modal routing, event propagation, and
+surface routing had reserved fields and event types but were intentionally not
 implemented yet.
 
 ### Event Model
@@ -1650,10 +1673,10 @@ The existing layer and input-dispatcher runtime tests still pass.
   tool viewport capture, world picking, and gizmo drag remain outside generic UI
   focus.
 
-### Modal Readiness
+### Phase 3A Handoff to Modal Ownership
 
-`UiModalManager` is the next correct milestone. The engine now has the required
-foundation for first-pass modal ownership:
+At the end of Phase 3A, `UiModalManager` was the next correct milestone because
+the engine had the required foundation for first-pass modal ownership:
 
 - explicit ordered layers
 - centralized dispatch
@@ -1662,13 +1685,210 @@ foundation for first-pass modal ownership:
 - pointer capture and active pointer ownership
 - dispatch consumed flags
 
-No additional primitive needs to precede modal ownership. The modal manager
-should start as policy over existing layers and focus scopes, not as a
+No additional primitive needed to precede modal ownership. The modal manager
+started as policy over existing layers and focus scopes, not as a
 composition/mount rewrite. Composition and mounts should follow after modal
-policy exists, because modal ownership can then define where mounted trees
-participate in focus, input blocking, and restoration.
+policy because modal ownership can now define where mounted trees participate
+in focus, input blocking, and restoration.
 
-## 9. Final Recommendation
+## 9. Phase 3B Implementation Report
+
+### Modal Behavior Investigation
+
+Before Phase 3B, modal-like ownership was distributed across engine modules and
+game feature state:
+
+- `DungeonInputGate` manually locked gameplay input while floor transitions,
+  combat transitions, menu state, inventory state, merchant state, or blocking
+  VN playback were active.
+- `DungeonInputSystem` preserved only menu commands while that gate reported
+  gameplay locked.
+- `MenuUiEventHandler` opened and closed the game menu, controls/video panels,
+  skill tree, and keybinding capture state through feature singletons and
+  feature actions.
+- `InventoryUiEventHandler` blocked inventory interaction behind merchant, menu,
+  and VN state, then performed raw pointer and drag/drop ownership for the
+  inventory grid.
+- `MerchantUiEventHandler` closed on Back and used centralized dispatch for
+  retained buttons, while merchant/player grids still computed hover/selection
+  manually from raw pointer position.
+- The VN runtime used playback state, presentation state, and execution
+  profiles such as `dialogue_overlay` and `fullscreen_dialogue` to block or
+  freeze gameplay, capture pointer input, and control render build policy.
+- Engine tools used `EngineToolInputCaptureComponent` to distinguish tool chrome
+  pointer ownership, viewport/world consumption, keyboard capture, and gizmo
+  state.
+
+These paths contain both engine modal policy and legitimate domain state.
+Open/closed inventory state, selected merchant item, selected skill, selected
+entity, dragged inventory item, and VN playback state remain game/tool domain
+state. Exclusive UI interaction, layer blocking, focus-scope activation, cancel
+routing, and input-consumption summaries are engine modal policy.
+
+### Implemented Modal Model
+
+`UiModalManager` is now the retained UI runtime owner for modal policy:
+
+- Maintains a stack of modal descriptors.
+- Tracks modal id, owner node, layer, and focus scope.
+- Supports nested modals by pushing one focus scope per modal.
+- Restores focus by popping the modal's focus scope through
+  `UiFocusManager`.
+- Routes cancel/back to the top modal only.
+- Dismisses the top modal when its descriptor allows cancel dismissal.
+- Prunes invalid modals when their layer is removed, hidden, disabled, or when
+  their owner node is destroyed.
+- Publishes modal state for dispatch results.
+
+The first modal descriptor intentionally describes policy rather than content:
+
+- modal layer
+- owner node
+- optional initial focus node
+- layer blocking policy
+- cancel-dismiss policy
+- focus restoration policy
+- pointer, keyboard, navigation, and text-input consumption flags
+
+Implemented layer blocking policies are:
+
+- `AllOtherLayers`: the top modal layer is the only pointer-hit-tested layer.
+- `LowerLayers`: layers at or below the modal layer order are blocked, while
+  higher layers can remain interactive.
+- `None`: the modal participates in focus/cancel policy without pointer layer
+  blocking.
+
+The manager does not create UI nodes, build windows, render overlays, animate
+transitions, or know gameplay vocabulary.
+
+### Dispatcher Integration
+
+The dispatch path is now:
+
+```
+Platform input
+    -> InputManager
+    -> InputBindingRegistry
+    -> RenderingRuntime::dispatchUiInput(...)
+    -> UiSystem::dispatchInput(...)
+    -> UiInputDispatcher
+    -> UiModalManager policy query
+    -> UiDocument hit test
+    -> UiFocusManager ownership update
+    -> UiDispatchResult
+```
+
+`UiInputDispatcher` consults `UiModalManager` before pointer hit testing. If the
+top modal restricts pointer interaction to its layer, dispatch performs a layer
+scoped hit test through `UiDocument::hitTestLayer(...)`. If the hovered result
+belongs to a blocked layer, dispatch clears the hover target. Captured and
+active pointer owners are released if their layers become blocked.
+
+The dispatcher reports:
+
+- `modalActive`
+- `modalDepth`
+- `modal`
+- `modalOwner`
+- `modalLayer`
+- `pointerBlocked`
+- `keyboardBlocked`
+- `navigationBlocked`
+- `textBlocked`
+- `cancelTargetModal`
+- `dismissedModal`
+- `cancelPressed`
+- `cancelConsumed`
+
+Keyboard, navigation, and text-input blocking are exposed as consumed flags, but
+key event routing, navigation event routing, and text input delivery remain
+future work.
+
+### Public API Surface
+
+New engine-facing APIs:
+
+- `UiSystem::modalManager()`
+- `UiSystem::pushModal(...)`
+- `UiSystem::popModal(...)`
+- `UiSystem::dismissTopModal(...)`
+- `UiModalManager::pushModal(...)`
+- `UiModalManager::popModal(...)`
+- `UiModalManager::dismissTopModal(...)`
+- `UiModalManager::routeCancel(...)`
+- `UiModalManager::pruneInvalidModals(...)`
+- `UiModalManager::isLayerBlockedForPointer(...)`
+- `UiModalManager::state()`
+
+Compatibility remains intact. Existing feature systems can continue to use their
+singletons and read `ctx.ui->dispatchResult()` while migrating incrementally.
+`UiSystem::updateInteraction(...)` remains a compatibility API over the
+centralized dispatcher.
+
+### Validation
+
+Added `ui_modal_manager_runtime`, covering:
+
+- single modal state publication
+- nested modal stack integrity
+- focus restoration
+- pointer and layer blocking
+- keyboard, navigation, and text-input blocking flags
+- cancel routing to the top modal only
+- manual dismiss
+- nested dismiss
+- hidden layer cleanup
+- disabled layer cleanup
+- hidden owner cleanup
+- disabled owner cleanup
+- destroyed owner cleanup
+- non-blocking popup policy
+
+The existing `ui_layer_runtime`, `ui_input_dispatcher_runtime`, and
+`ui_focus_manager_runtime` regressions continue to pass.
+
+### Remaining Compatibility Paths
+
+The engine primitive exists, but game/tool systems have not yet migrated their
+modal-like behavior onto descriptors:
+
+- `DungeonInputGate` still manually checks game feature state.
+- Menu/inventory/merchant/VN open state still lives in game or module
+  singletons.
+- Inventory and merchant grids still own raw pointer hover/click/drag behavior.
+- Keybinding capture still uses menu-local state.
+- Tool viewport capture, world picking, and gizmo manipulation still use
+  tool-specific capture state.
+- VN execution profiles still own world sleep/render policy; that remains
+  correct, but VN blocking policy can later also publish a modal descriptor.
+
+### Next Primitive
+
+The single highest-value missing primitive is `UiMount`.
+
+Modal ownership now can say which layer owns interaction, but the runtime still
+has no generic lifetime/location object for a subtree. Feature UIs are still
+manually-created roots with handles scattered through feature state. A mount
+token should come before surfaces, event propagation, layout, styling,
+animation, navigation, and drag/drop because it gives every later system a
+stable unit of UI ownership.
+
+`UiMount` should own:
+
+- the root subtree attached under a layer or future mount point
+- unmount cleanup
+- focus/capture/modal pruning for the subtree
+- optional parent/child mount relationships
+- the bridge from current handle-based builders to future `UiComposition`
+  authoring
+
+`UiComposition` should follow as the authoring abstraction that builds into a
+mount. Surfaces can wait because the current default screen document is enough
+to migrate lifetime ownership first. Event propagation, navigation, drag/drop,
+layout, styling, and animation all become cleaner once they can target mounted
+subtrees instead of feature-specific root handles.
+
+## 10. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -1688,7 +1908,12 @@ vocabulary to the engine.
 
 The first committed direction was explicit layers. The second committed
 direction is centralized retained UI input dispatch. The third committed
-direction is engine-owned focus management. The next milestone should implement
-`UiModalManager` on top of layer ownership, centralized dispatch consumption,
-focus scopes, and focus restoration without redesigning the Phase 2/3A
-primitives.
+direction is engine-owned focus management. The fourth committed direction is
+engine-owned modal policy.
+
+The next milestone should implement `UiMount` as the engine-owned lifetime and
+attachment primitive for retained UI subtrees. Mount ownership should precede
+`UiComposition`, surfaces, event propagation, layout expansion, styling,
+animation, navigation, and drag/drop because all of those systems need a stable
+way to identify, attach, remove, focus, and clean up UI subtrees without
+feature-specific root conventions.

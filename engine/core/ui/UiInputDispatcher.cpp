@@ -4,28 +4,61 @@
 #include "UiTypes.h"
 
 const UiDispatchResult& UiInputDispatcher::dispatch(
-    UiDocument& document, UiFocusManager& focusManager, const UiInputFrame& input, bool enabled, uint64_t frameId)
+    UiDocument& document,
+    UiFocusManager& focusManager,
+    UiModalManager& modalManager,
+    const UiInputFrame& input,
+    bool enabled,
+    uint64_t frameId)
 {
     if (frameId != 0 && lastDispatch.dispatched && lastDispatch.frameId == frameId)
         return lastDispatch;
 
     if (!enabled)
     {
-        clearInteractionState(document, focusManager);
+        clearInteractionState(document, focusManager, modalManager);
         lastDispatch = makeDisabledResult(input, frameId);
         return lastDispatch;
     }
 
+    modalManager.pruneInvalidModals(document, focusManager);
     focusManager.pruneInvalidHandles(document);
 
     document.setViewportSize(1.0f, 1.0f);
     if (hasFlag(document.getDirtyFlags(), UiDirtyFlags::Layout))
         document.updateLayout(1.0f, 1.0f);
 
-    const UiHandle hovered = document.hitTest(input.pointerX, input.pointerY);
+    bool dismissedByCancel = false;
+    UiModalId cancelTarget = UI_INVALID_MODAL;
+    if (input.cancelPressed)
+        cancelTarget = modalManager.routeCancel(document, focusManager, dismissedByCancel);
+
+    modalManager.pruneInvalidModals(document, focusManager);
+
+    UiHandle hovered = UI_INVALID_HANDLE;
+    if (modalManager.restrictsPointerToTopLayer())
+        hovered = document.hitTestLayer(modalManager.topLayer(), input.pointerX, input.pointerY);
+    else
+        hovered = document.hitTest(input.pointerX, input.pointerY);
+
+    const UiLayerId hoveredLayer = document.getNodeLayer(hovered);
+    if (modalManager.isLayerBlockedForPointer(document, hoveredLayer))
+        hovered = UI_INVALID_HANDLE;
     focusManager.setHovered(document, UI_PRIMARY_POINTER, hovered);
 
-    const UiHandle captured      = focusManager.capturedNode(UI_PRIMARY_POINTER);
+    UiHandle captured = focusManager.capturedNode(UI_PRIMARY_POINTER);
+    const UiLayerId capturedLayer = document.getNodeLayer(captured);
+    if (modalManager.isLayerBlockedForPointer(document, capturedLayer))
+    {
+        focusManager.releasePointer(UI_PRIMARY_POINTER);
+        captured = UI_INVALID_HANDLE;
+    }
+
+    const UiHandle activeBeforeInput = focusManager.activePointerNode(UI_PRIMARY_POINTER);
+    const UiLayerId activeLayer = document.getNodeLayer(activeBeforeInput);
+    if (modalManager.isLayerBlockedForPointer(document, activeLayer))
+        focusManager.clearActivePointer(document, UI_PRIMARY_POINTER);
+
     const UiHandle pointerTarget = captured != UI_INVALID_HANDLE ? captured : hovered;
 
     if (input.primaryPressed)
@@ -71,16 +104,27 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
     result.primaryDown      = input.primaryDown;
     result.primaryPressed   = input.primaryPressed;
     result.primaryReleased  = input.primaryReleased;
+    result.cancelPressed    = input.cancelPressed;
+    result.cancelTargetModal = cancelTarget;
+    result.dismissedModal = dismissedByCancel ? cancelTarget : UI_INVALID_MODAL;
     assignLayers(document, result);
+    assignModalState(modalManager, result);
 
     result.pointerConsumed = result.hovered != UI_INVALID_HANDLE || result.pressed != UI_INVALID_HANDLE ||
                              result.released != UI_INVALID_HANDLE || result.clicked != UI_INVALID_HANDLE ||
-                             result.active != UI_INVALID_HANDLE || result.captured != UI_INVALID_HANDLE;
+                             result.active != UI_INVALID_HANDLE || result.captured != UI_INVALID_HANDLE ||
+                             result.pointerBlocked;
     if ((result.scrollX != 0.0f || result.scrollY != 0.0f) && result.hovered != UI_INVALID_HANDLE)
         result.pointerConsumed = true;
-    result.keyboardConsumed   = focusManager.focusedNode() != UI_INVALID_HANDLE;
-    result.navigationConsumed = focusManager.navigationFocusedNode(UI_PRIMARY_INPUT_DEVICE) != UI_INVALID_HANDLE;
-    result.textInputConsumed  = focusManager.textInputFocusedNode() != UI_INVALID_HANDLE;
+    result.cancelConsumed = result.cancelTargetModal != UI_INVALID_MODAL;
+    result.keyboardConsumed = focusManager.focusedNode() != UI_INVALID_HANDLE ||
+                              result.keyboardBlocked ||
+                              result.cancelConsumed;
+    result.navigationConsumed =
+        focusManager.navigationFocusedNode(UI_PRIMARY_INPUT_DEVICE) != UI_INVALID_HANDLE ||
+        result.navigationBlocked;
+    result.textInputConsumed = focusManager.textInputFocusedNode() != UI_INVALID_HANDLE ||
+                               result.textBlocked;
 
     lastDispatch = result;
     return lastDispatch;
@@ -112,8 +156,11 @@ void UiInputDispatcher::pruneMissingHandles(const UiDocument& document)
     assignLayers(document, lastDispatch);
 }
 
-void UiInputDispatcher::clearInteractionState(UiDocument& document, UiFocusManager& focusManager)
+void UiInputDispatcher::clearInteractionState(UiDocument& document,
+                                              UiFocusManager& focusManager,
+                                              UiModalManager& modalManager)
 {
+    modalManager.clear(document, focusManager);
     focusManager.clear(document);
 }
 
@@ -131,6 +178,7 @@ UiDispatchResult UiInputDispatcher::makeDisabledResult(const UiInputFrame& input
     result.primaryDown      = input.primaryDown;
     result.primaryPressed   = input.primaryPressed;
     result.primaryReleased  = input.primaryReleased;
+    result.cancelPressed    = input.cancelPressed;
     return result;
 }
 
@@ -143,4 +191,18 @@ void UiInputDispatcher::assignLayers(const UiDocument& document, UiDispatchResul
     result.clickedLayer  = document.getNodeLayer(result.clicked);
     result.activeLayer   = document.getNodeLayer(result.active);
     result.capturedLayer = document.getNodeLayer(result.captured);
+}
+
+void UiInputDispatcher::assignModalState(const UiModalManager& modalManager, UiDispatchResult& result) const
+{
+    const UiModalState modalState = modalManager.state();
+    result.modalActive = modalState.active;
+    result.modalDepth = modalState.depth;
+    result.modal = modalState.modal;
+    result.modalOwner = modalState.owner;
+    result.modalLayer = modalState.layer;
+    result.pointerBlocked = modalState.pointerBlocked;
+    result.keyboardBlocked = modalState.keyboardBlocked;
+    result.navigationBlocked = modalState.navigationBlocked;
+    result.textBlocked = modalState.textBlocked;
 }
