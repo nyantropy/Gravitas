@@ -215,6 +215,24 @@ set_tests_properties(ui_theme_runtime
         LABELS "gravitas;ui;runtime"
 )
 
+add_executable(UiWidgetRuntimeTest
+    ui/UiWidgetRuntimeTest.cpp
+)
+
+target_compile_features(UiWidgetRuntimeTest PRIVATE cxx_std_20)
+
+target_link_libraries(UiWidgetRuntimeTest PRIVATE gravitas_rendering)
+
+add_test(
+    NAME ui_widget_runtime
+    COMMAND UiWidgetRuntimeTest
+)
+
+set_tests_properties(ui_widget_runtime
+    PROPERTIES
+        LABELS "gravitas;ui;runtime"
+)
+
 if(TARGET gravitas_tools)
     add_executable(EditorFrameworkSmokeTest
         tools/EditorFrameworkSmokeTest.cpp

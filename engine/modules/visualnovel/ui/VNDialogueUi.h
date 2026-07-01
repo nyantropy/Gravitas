@@ -11,6 +11,7 @@
 #include "UiNode.h"
 #include "UiPanelSkinNode.h"
 #include "UiSystem.h"
+#include "UiWidget.h"
 #include "VNPresentationProfile.h"
 #include "VNRuntime.h"
 
@@ -39,8 +40,7 @@ namespace gts::vn
         UiHandle bodyText = UI_INVALID_HANDLE;
         UiHandle continueIndicator = UI_INVALID_HANDLE;
         UiHandle choiceLayer = UI_INVALID_HANDLE;
-        std::vector<gts::ui::UiPanelSkinNodeHandles> choiceButtons;
-        std::vector<UiHandle> choiceLabels;
+        std::vector<gts::ui::UiButtonWidget> choiceButtons;
     };
 
     class VNDialogueUi
@@ -147,34 +147,31 @@ namespace gts::vn
             ui.setLayout(handles.choiceLayer, choiceLayerLayout);
             setState(ui, handles.choiceLayer, false, false);
 
+            gts::ui::UiWidgetContext widgetContext(ui);
             handles.choiceButtons.reserve(profile.layout.maxChoices);
-            handles.choiceLabels.reserve(profile.layout.maxChoices);
             for (size_t i = 0; i < profile.layout.maxChoices; ++i)
             {
                 UiLayoutSpec choiceLayout;
                 choiceLayout.constraints.preferredHeight =
                     {UiLayoutUnit::Normalized, std::max(0.0f, choiceRowHeight - choiceGap)};
 
-                gts::ui::UiPanelSkinNodeHandles choice = gts::ui::UiPanelSkinNode::build(
-                    ui,
-                    handles.choiceLayer,
-                    choiceLayout,
-                    true);
-                gts::ui::UiPanelSkinNode::setState(ui, choice, false, true);
-                gts::ui::UiPanelSkinNode::applyStateSkin(ui, choice, profile.dialogueSkin.choice);
+                gts::ui::UiButtonDesc choiceDesc;
+                choiceDesc.layout = choiceLayout;
+                choiceDesc.labelLayout = anchored(0.045f, 0.0f, 0.910f, 1.0f);
+                choiceDesc.font = config.font;
+                choiceDesc.styleClass.clear();
+                choiceDesc.labelStyleClass.clear();
+                choiceDesc.panelStateSkin = profile.dialogueSkin.choice;
+                choiceDesc.textColor = profile.dialogueSkin.choiceText;
+                choiceDesc.textScale = profile.dialogueSkin.choiceTextScale;
+                choiceDesc.horizontalAlign = UiHorizontalAlign::Left;
+                choiceDesc.verticalAlign = UiVerticalAlign::Middle;
+                choiceDesc.wrapMode = UiTextWrapMode::Word;
+                choiceDesc.maxLines = 2;
+                choiceDesc.visible = false;
 
-                UiHandle label = ui.createNode(UiNodeType::Text, choice.content);
-                ui.setLayout(label, anchored(0.045f, 0.0f, 0.910f, 1.0f));
-                setTextNode(ui,
-                            label,
-                            config.font,
-                            "",
-                            profile.dialogueSkin.choiceText,
-                            profile.dialogueSkin.choiceTextScale);
-                setTextAlignment(ui, label, UiHorizontalAlign::Left, UiVerticalAlign::Middle);
-
-                handles.choiceButtons.push_back(choice);
-                handles.choiceLabels.push_back(label);
+                handles.choiceButtons.emplace_back();
+                handles.choiceButtons.back().build(widgetContext, handles.choiceLayer, choiceDesc);
             }
 
             return handles;
@@ -189,7 +186,7 @@ namespace gts::vn
         }
 
         static void sync(UiSystem& ui,
-                         const VNDialogueUiHandles& handles,
+                         VNDialogueUiHandles& handles,
                          const VNDialogueUiConfig& config,
                          const VNRuntime& runtime)
         {
@@ -215,8 +212,8 @@ namespace gts::vn
 
             for (size_t i = 0; i < handles.choiceButtons.size(); ++i)
             {
-                if (interaction.clicked == handles.choiceButtons[i].root
-                    || interaction.clicked == handles.choiceLabels[i])
+                if (interaction.clicked == handles.choiceButtons[i].root()
+                    || interaction.clicked == handles.choiceButtons[i].label())
                 {
                     return static_cast<int>(i);
                 }
@@ -232,11 +229,27 @@ namespace gts::vn
 
             for (size_t i = 0; i < handles.choiceButtons.size(); ++i)
             {
-                if (eventTargetsHandle(event, handles.choiceButtons[i].root)
-                    || eventTargetsHandle(event, handles.choiceLabels[i]))
+                if (eventTargetsHandle(event, handles.choiceButtons[i].root())
+                    || eventTargetsHandle(event, handles.choiceButtons[i].label()))
                 {
                     return static_cast<int>(i);
                 }
+            }
+
+            return -1;
+        }
+
+        static int handleChoiceEvent(UiSystem& ui, VNDialogueUiHandles& handles, UiEvent& event)
+        {
+            if (event.type != UiEventType::PointerClick)
+                return -1;
+
+            gts::ui::UiWidgetContext widgetContext(ui);
+            for (size_t i = 0; i < handles.choiceButtons.size(); ++i)
+            {
+                handles.choiceButtons[i].onEvent(widgetContext, event);
+                if (handles.choiceButtons[i].consumePressed())
+                    return static_cast<int>(i);
             }
 
             return -1;
@@ -412,11 +425,12 @@ namespace gts::vn
         }
 
         static void syncDialogue(UiSystem& ui,
-                                 const VNDialogueUiHandles& handles,
+                                 VNDialogueUiHandles& handles,
                                  const VNDialogueUiConfig& config,
                                  const VNDialogueState& dialogue)
         {
             const VNPresentationProfile& profile = config.profile;
+            gts::ui::UiWidgetContext widgetContext(ui);
             const bool showDialogue = dialogue.visible || !dialogue.choices.empty();
             setState(ui, handles.dialogueLayer, showDialogue, false);
             setState(ui, handles.choiceLayer, !dialogue.choices.empty(), false);
@@ -448,23 +462,12 @@ namespace gts::vn
             for (size_t i = 0; i < handles.choiceButtons.size(); ++i)
             {
                 const bool visible = i < dialogue.choices.size();
-                gts::ui::UiPanelSkinNode::setState(ui, handles.choiceButtons[i], visible, true);
-                setState(ui, handles.choiceLabels[i], visible, false);
+                handles.choiceButtons[i].setVisible(widgetContext, visible);
 
                 if (!visible)
                     continue;
 
-                gts::ui::UiPanelSkinNode::applyStateSkin(ui, handles.choiceButtons[i], profile.dialogueSkin.choice);
-
-                UiTextData label;
-                label.text = dialogue.choices[i].label;
-                label.color = profile.dialogueSkin.choiceText;
-                label.scale = profile.dialogueSkin.choiceTextScale;
-                label.horizontalAlign = UiHorizontalAlign::Left;
-                label.verticalAlign = UiVerticalAlign::Middle;
-                label.wrapMode = UiTextWrapMode::Word;
-                label.maxLines = 2;
-                ui.setPayload(handles.choiceLabels[i], label);
+                handles.choiceButtons[i].setText(widgetContext, dialogue.choices[i].label);
             }
         }
     };

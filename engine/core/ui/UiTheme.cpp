@@ -474,5 +474,17 @@ UiTheme defaultUiTheme()
     button.states[UiStyleState::Disabled].backgroundColor = {0.045f, 0.051f, 0.060f, 0.62f};
     theme.setStyleClass("Button", button);
 
+    UiStyleClass separator;
+    separator.base.backgroundColorToken = UiThemeTokens::Separator;
+    theme.setStyleClass("Separator", separator);
+
+    UiStyleClass progressTrack;
+    progressTrack.base.backgroundColorToken = UiThemeTokens::BackgroundSecondary;
+    theme.setStyleClass("ProgressBar.Track", progressTrack);
+
+    UiStyleClass progressFill;
+    progressFill.base.backgroundColorToken = UiThemeTokens::Accent;
+    theme.setStyleClass("ProgressBar.Fill", progressFill);
+
     return theme;
 }

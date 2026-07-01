@@ -854,9 +854,9 @@ boundary for a retained UI universe: it owns a `UiDocument`, explicit layers,
 focus state, modal state, mount lifetime, input dispatch, active theme, and
 coordinate conversion. `UiSystem` is the render-facing facade and compatibility
 surface router; existing APIs still target the default screen surface, while
-surface-aware APIs can create and address additional surfaces. Tool widgets in
-`modules/tools/ui/` provide reusable engine-editor controls on top of that UI
-system.
+surface-aware APIs can create and address additional surfaces. `UiWidget`
+provides reusable composition-owned controls on top of retained nodes, layout,
+themes, and propagated events.
 
 Each surface owns a `UiDocument` with a hidden document root plus one or more
 ordered layer roots. Existing callers that create nodes without specifying a
@@ -944,6 +944,17 @@ primitive colors, skins, text scale/color, image tint, and opacity. Payload-loca
 colors and text scales remain valid for existing builders, but new compositions
 should request style classes and theme metrics instead of hardcoding
 presentation constants.
+
+Reusable retained widgets now sit above primitive nodes and below
+compositions. `UiWidgetContext` exposes only the runtime access a widget needs:
+`UiSystem`, surface id, document, resource provider, mount id, and composition
+root. Widgets own their retained subtree and local interaction state, consume
+retained events forwarded by their composition, request layout and style intent,
+and expose semantic behavior such as button pressed callbacks. The first engine
+widget set includes labels, panels, buttons, images, stacks, spacers,
+separators, scroll views, and progress bars. Widgets remain clients of the UI
+runtime; they do not own surfaces, mounts, focus, modal policy, rendering, or
+composition lifetime.
 
 UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
 visible/render-enabled surfaces in surface order, resolves each surface's

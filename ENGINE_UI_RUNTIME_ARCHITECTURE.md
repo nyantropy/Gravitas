@@ -57,6 +57,11 @@ styles, and style classes. Each `UiSurface` owns its active theme, and
 `UiDocument` resolves computed presentation during layout measurement and visual
 list rebuild.
 
+The eleventh foundational primitive is now implemented: the Widget Framework
+provides reusable composition-owned controls that build retained node subtrees,
+consume retained events, request layout and theme intent, and expose semantic
+callbacks without owning mounts, surfaces, focus, modal policy, or rendering.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
@@ -98,6 +103,16 @@ consults that surface's `UiModalManager` before hit testing so the top modal can
 block lower layers and route cancel/back input. Inventory and merchant grid
 interactions still compute cell ownership manually because they are not yet
 modeled as retained UI widgets.
+
+The retained authoring path now has one more layer above primitive nodes:
+`UiComposition` can build reusable widgets such as labels, panels, buttons,
+stacks, separators, scroll containers, images, spacers, and progress bars.
+Widgets are clients of the runtime. They own their retained subtree and local
+interaction state, but their lifetime is still owned by the enclosing
+composition and mount. They receive retained `UiEvent` values through
+composition forwarding and expose semantic behavior such as button pressed
+callbacks so feature code no longer needs to compare raw handles for every
+control.
 
 ### UiSystem
 
@@ -147,6 +162,8 @@ Missing from `UiSystem` today:
 - Modal enter/exit transitions.
 - Mature layout services such as per-node invalidation boundaries, two-pass
   constrained text wrapping, and virtualized scroll content.
+- Keyboard/controller navigation graph for focusable widgets.
+- Animation runtime for widget state transitions.
 
 ### UiDocument
 
@@ -3083,28 +3100,158 @@ all pass in the engine release build.
 - Editor/VN/game presentation profiles should become theme builders or theme
   adapters instead of independent styling systems.
 
+## 16. Phase 10 Implementation: Widget Framework
+
+### Investigation
+
+The retained UI runtime had reached a point where ownership, interaction,
+geometry, and presentation were engine-owned, but feature code still assembled
+common controls directly from primitive nodes. Repeated patterns included:
+
+- menu buttons, VN choice buttons, tool buttons, and prompt buttons built as a
+  rect or panel plus a text child, then tested by raw handle comparison.
+- panels and dialogue boxes built as rect/nine-slice containers with local
+  padding conventions.
+- labels, separators, scroll containers, spacers, and progress indicators
+  reauthored by each feature.
+- inventory and merchant slots, skill nodes, editor rows, and toolbar buttons
+  combining the same panel/image/text/overlay structure with feature-local
+  hover/pressed/selected behavior.
+
+Those patterns map cleanly to reusable widgets. The widget layer should absorb
+control-local retained node ownership, local state, style requests, layout
+intent, and semantic callbacks. Composition remains the owner of feature UI
+behavior and lifetime; widgets remain clients of composition, layout, styling,
+events, and retained nodes.
+
+### Architecture
+
+`UiWidget` is the base class for reusable composition-owned controls. A widget:
+
+- owns a retained subtree root and any child handles it creates.
+- receives retained `UiEvent` values through composition forwarding.
+- translates pointer/focus state into local control state.
+- requests theme style classes, typography, metrics, and layout intent.
+- exposes semantic behavior, such as `UiButtonWidget::onPressed`.
+
+A widget does not own surfaces, mounts, modal policy, focus management, event
+propagation, rendering, or composition lifetime. `UiWidgetContext` deliberately
+contains only the runtime access a widget needs: `UiSystem`, surface id,
+surface-local document, resource provider, mount id, and composition root.
+
+The initial engine widget set is intentionally small but representative:
+
+- `UiLabelWidget`
+- `UiPanelWidget`
+- `UiButtonWidget`
+- `UiImageWidget`
+- `UiStackWidget`
+- `UiSpacerWidget`
+- `UiSeparatorWidget`
+- `UiScrollViewWidget`
+- `UiProgressBarWidget`
+
+This set proves the core framework across text, containers, interactive
+controls, layout containers, visual primitives, clipped containers, and
+stateful value display without introducing gameplay vocabulary.
+
+### Implementation
+
+`UiWidget.h` implements the first widget framework in the rendering UI module.
+Widgets use surface-aware `UiSystem` APIs and build ordinary retained nodes, so
+primitive nodes remain the rendering substrate and all compatibility code
+continues to work.
+
+Important implementation decisions:
+
+- Widgets are value objects owned by compositions. They are not registered as a
+  global runtime system.
+- Widgets keep child containers enabled for hierarchy traversal while leaving
+  `interactable` false unless the widget itself should receive hits.
+- `UiButtonWidget` consumes retained `PointerClick` target events and exposes a
+  semantic pressed callback plus `consumePressed()` for compatibility callers.
+- `UiPanelWidget`, `UiStackWidget`, and `UiScrollViewWidget` express layout
+  containers through `UiLayoutSpec` instead of computing positions.
+- `UiSeparatorWidget` and `UiProgressBarWidget` use theme style classes
+  (`Separator`, `ProgressBar.Track`, `ProgressBar.Fill`) added to the default
+  theme.
+
+### Feature Demonstration
+
+The dungeon interaction prompt now uses `UiPanelWidget` and `UiLabelWidget`
+inside `InteractionPromptComposition`. The composition still owns the prompt's
+feature state, while widgets own the retained panel/text subtrees and consume
+the dungeon theme's style and metric requests.
+
+The VN dialogue choice rows now use `UiButtonWidget`. The public
+`consumeClickedChoiceIndex()` flow remains compatible, but the composition now
+forwards retained click events into the buttons and consumes the widget's
+semantic pressed result instead of treating the choice as a hand-assembled
+panel plus label.
+
+### Validation
+
+Added `ui_widget_runtime`, covering:
+
+- widget creation through composition mount.
+- nested panel/stack/label/button/separator/progress subtrees.
+- theme-driven widget visual primitives.
+- layout-driven stack geometry and progress fill geometry.
+- event propagation into `UiButtonWidget`.
+- hover, pressed, and focused state reflection on button nodes.
+- semantic button pressed callback.
+- click consumption and default prevention.
+- disabled button behavior.
+- composition destruction cleaning widget subtrees.
+
+Regression status now includes:
+
+- `ui_layer_runtime`
+- `ui_input_dispatcher_runtime`
+- `ui_focus_manager_runtime`
+- `ui_modal_manager_runtime`
+- `ui_mount_runtime`
+- `ui_composition_runtime`
+- `ui_event_propagation_runtime`
+- `ui_surface_runtime`
+- `ui_layout_runtime`
+- `ui_theme_runtime`
+- `ui_widget_runtime`
+
+### Remaining Widget Debt
+
+- Widgets are C++ authored value objects. There is no data-driven widget asset
+  format or factory registry yet.
+- The first set does not include text fields, checkboxes, sliders, dropdowns,
+  tabs, list views, tree views, tables, property rows, or toolbars.
+- Widget event forwarding is explicit from composition code. A future event
+  registration layer can reduce boilerplate once widget identity and navigation
+  metadata mature.
+- Button state is pointer-driven only. Keyboard/controller activation needs a
+  navigation graph and activation events.
+- Existing editor widgets, menu builders, inventory slots, merchant slots, HUD
+  widgets, and many VN panel elements still use primitive-node builders and
+  should migrate gradually.
+
 ### Next Primitive
 
 With Layers, Dispatch, Focus, Modals, Mounts, Compositions, Event Propagation,
-UiSurface, Layout, and Styling implemented, the single highest-value remaining
-primitive is the **Widget Framework**.
+UiSurface, Layout, Styling, and Widgets implemented, the single highest-value
+remaining primitive is the **Navigation Graph**.
 
-The engine now has the required lower-level architecture for reusable controls:
-ownership, surfaces, layout, presentation, focus, modal policy, and event
-propagation. Without widgets, every composition will continue to recreate
-buttons, lists, sliders, scrollbars, tabs, text inputs, checkboxes, dropdowns,
-toolbars, and panels from raw nodes. That preserves duplication even though the
-runtime primitives are now sound.
+Widgets create the first reusable focusable controls. The next architectural
+gap is not visual polish; it is how keyboard, controller, Steam Deck, console,
+and accessibility-oriented input move between those controls predictably.
+Navigation should build directly on the focus manager, event propagation,
+layout geometry, style states, and widget roles. Animation, drag/drop, data
+binding, and virtualization all benefit from widgets, but none of them solves
+the engine-wide question of which control receives non-pointer interaction.
 
-Widget Framework should precede animation, navigation, drag/drop, and data
-binding because those systems need concrete reusable controls to attach to.
-Animation needs widget state transitions. Navigation needs focusable widget
-roles and traversal metadata. Drag/drop needs widgets that expose draggable
-sources and drop targets. Data binding needs stable widget properties. A
-minimal engine widget layer on top of composition, events, layout, and styling
-unlocks all of those without adding gameplay vocabulary.
+Navigation Graph should therefore precede animation, drag/drop, data binding,
+accessibility, and large-list virtualization. It will turn the widget layer from
+pointer-capable controls into fully navigable engine UI primitives.
 
-## 16. Final Recommendation
+## 17. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -3114,7 +3261,7 @@ Keep the current retained node primitives as the low-level drawing and layout
 substrate, but stop treating `UiSystem` plus one document as the whole UI
 runtime. The engine should own explicit surfaces, layers, mountable
 compositions, centralized input dispatch, focus, modal policy, layout, styling,
-and animation.
+widgets, navigation, and animation.
 
 This architecture is the smallest durable set of primitives that naturally
 supports visual novels, RPG HUDs, strategy panels, action-game overlays, editor
@@ -3130,9 +3277,11 @@ lifetime. The sixth committed direction is engine-owned composition authoring.
 The seventh committed direction is retained UI event propagation. The eighth
 committed direction is surface-local UI ownership through `UiSurface`. The ninth
 committed direction is engine-owned retained layout. The tenth committed
-direction is surface-local styling and theme resolution.
+direction is surface-local styling and theme resolution. The eleventh committed
+direction is reusable composition-owned widgets.
 
-The next milestone should implement a minimal Widget Framework. It should
-precede animation, navigation, drag/drop, and data binding because those systems
-need reusable styled, laid-out, event-owning controls instead of raw retained
-nodes and feature-local handle structs.
+The next milestone should implement a Navigation Graph. It should precede
+animation, drag/drop, data binding, accessibility, and virtualization because
+the widget layer has created reusable controls, and the highest-leverage missing
+runtime policy is now non-pointer focus traversal and activation across those
+controls.

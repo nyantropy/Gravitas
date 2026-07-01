@@ -27,12 +27,12 @@ namespace gts::vn
             VNDialogueUi::sync(context.ui, handles, config, runtime);
         }
 
-        void onEvent(UiCompositionContext& /*context*/, UiEvent& event) override
+        void onEvent(UiCompositionContext& context, UiEvent& event) override
         {
             if (event.phase != UiEventPhase::Target)
                 return;
 
-            const int choiceIndex = VNDialogueUi::choiceIndexFromEvent(handles, event);
+            const int choiceIndex = VNDialogueUi::handleChoiceEvent(context.ui, handles, event);
             if (choiceIndex < 0)
                 return;
 
