@@ -9,6 +9,7 @@
 #include "UiInteraction.h"
 #include "UiModalManager.h"
 #include "UiMount.h"
+#include "UiNavigationGraph.h"
 #include "UiTheme.h"
 #include "UiTypes.h"
 
@@ -73,6 +74,8 @@ public:
     const UiMountManager& mountManager() const { return mountState; }
     UiInputDispatcher& inputDispatcher() { return dispatcher; }
     const UiInputDispatcher& inputDispatcher() const { return dispatcher; }
+    UiNavigationGraph& navigationGraph() { return navigationState; }
+    const UiNavigationGraph& navigationGraph() const { return navigationState; }
     UiTheme& theme() { return themeState; }
     const UiTheme& theme() const { return themeState; }
     void setTheme(const UiTheme& theme);
@@ -85,5 +88,6 @@ private:
     UiModalManager modalState;
     UiMountManager mountState;
     UiInputDispatcher dispatcher;
+    UiNavigationGraph navigationState;
     UiTheme themeState;
 };

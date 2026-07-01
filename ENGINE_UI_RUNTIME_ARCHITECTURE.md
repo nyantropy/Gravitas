@@ -62,6 +62,12 @@ provides reusable composition-owned controls that build retained node subtrees,
 consume retained events, request layout and theme intent, and expose semantic
 callbacks without owning mounts, surfaces, focus, modal policy, or rendering.
 
+The twelfth foundational primitive is now implemented: `UiNavigationGraph`
+owns surface-local non-pointer traversal between focusable UI controls. Widgets
+declare navigation metadata, the graph resolves move/submit requests, the focus
+manager owns the resulting focus, and retained events deliver navigation
+activation to compositions and widgets.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
@@ -114,6 +120,16 @@ composition forwarding and expose semantic behavior such as button pressed
 callbacks so feature code no longer needs to compare raw handles for every
 control.
 
+The retained non-pointer path is now graph-driven. `UiInputFrame` carries
+abstract navigation requests (`Up`, `Down`, `Left`, `Right`, `Next`,
+`Previous`, and `Submit`). The selected surface's `UiNavigationGraph` resolves
+those requests against registered focusable nodes, explicit neighbor overrides,
+computed layout bounds, tab indexes, groups, modal ownership, and node
+visibility/enabled state. It asks `UiFocusManager` to apply focus; it does not
+own focus itself. The dispatcher then emits retained `NavigationMove`,
+`NavigationSubmit`, `NavigationWrap`, and `NavigationBlocked` events through
+the normal capture/target/bubble pipeline.
+
 ### UiSystem
 
 `UiSystem` is the render-facing facade over `UiSurface`. It exposes legacy
@@ -153,16 +169,15 @@ dispatcher.
 Missing from `UiSystem` today:
 
 - Dedicated render-target, world-space, and multi-window extraction backends.
-- Per-surface keyboard/text/controller event routing beyond the current cancel
-  event and focus ownership fields.
-- Controller navigation graph.
+- Per-surface keyboard/text event routing and physical controller-device mapping
+  beyond the current cancel/navigation intent fields.
+- Held-navigation repeat policy.
 - Full multi-pointer dispatch. Focus state is already keyed by pointer id, but
   `UiInputFrame` still carries only the primary pointer.
 - Drag/drop as a runtime primitive.
 - Modal enter/exit transitions.
 - Mature layout services such as per-node invalidation boundaries, two-pass
   constrained text wrapping, and virtualized scroll content.
-- Keyboard/controller navigation graph for focusable widgets.
 - Animation runtime for widget state transitions.
 
 ### UiDocument
@@ -426,16 +441,17 @@ Keyboard input is currently handled outside the UI runtime through
 `InputBindingRegistry` and feature-specific code. `UiFocusManager` now owns
 keyboard focus, text-input focus, navigation focus, pointer hover, pointer
 capture, active pointer, focus scopes, and focus restoration. Primary pointer
-press requests keyboard focus through the focus manager, but key events, text
-input events, and navigation events are not routed through retained UI yet.
+press requests keyboard focus through the focus manager. Abstract navigation
+requests now route through each surface's `UiNavigationGraph`; raw key events,
+text input events, physical controller devices, and held-repeat policy are still
+future routing work.
 
 Missing:
 
 - Keyboard event routing to the focused owner.
 - Text input routing to the text-input owner.
-- Tab order.
-- Controller navigation graph.
-- Navigation submit/cancel routing.
+- Physical gamepad/controller mapping into navigation intent.
+- Held-navigation repeat policy.
 - Event-level modal focus trap.
 - Focus lost/gained events.
 
@@ -1984,7 +2000,9 @@ The existing layer and input-dispatcher runtime tests still pass.
 
 - `UiInputFrame` still represents one primary pointer. The focus manager is
   multi-pointer-ready, but dispatch input is not.
-- There is no navigation graph or navigation event delivery yet.
+- The navigation graph now handles abstract traversal and submit; physical
+  gamepad mapping, held-repeat policy, and richer role-specific behavior remain
+  future work.
 - There are no text widgets or IME/text event routing yet.
 - Focus gained/lost events are defined in `UiEvent.h` but not emitted.
 - Event propagation, capture/target/bubble delivery, and handler registration
@@ -3227,8 +3245,8 @@ Regression status now includes:
 - Widget event forwarding is explicit from composition code. A future event
   registration layer can reduce boilerplate once widget identity and navigation
   metadata mature.
-- Button state is pointer-driven only. Keyboard/controller activation needs a
-  navigation graph and activation events.
+- Button activation now supports pointer clicks and navigation submit. Richer
+  widget roles, value editing, and text-entry behavior remain future work.
 - Existing editor widgets, menu builders, inventory slots, merchant slots, HUD
   widgets, and many VN panel elements still use primitive-node builders and
   should migrate gradually.
@@ -3251,7 +3269,164 @@ Navigation Graph should therefore precede animation, drag/drop, data binding,
 accessibility, and large-list virtualization. It will turn the widget layer from
 pointer-capable controls into fully navigable engine UI primitives.
 
-## 17. Final Recommendation
+## 17. Phase 11 Implementation: Navigation Graph
+
+### Investigation
+
+The runtime already distinguished persistent focus from per-frame dispatch, but
+non-pointer movement still had no engine policy. Current assumptions were:
+
+- Pointer clicks assigned keyboard focus through `UiFocusManager`.
+- `UiFocusManager` had a navigation-focus slot per input device, but no graph
+  computed traversal.
+- `UiInputFrame` carried pointer and cancel state only.
+- `RenderingRuntime` only mapped mouse primary and cancel into retained UI
+  dispatch.
+- VN choice buttons had become widgets, but activation was still pointer-first.
+- Menus, inventory, merchant, skill tree, and editor/tool controls still owned
+  feature-local interaction or polling compatibility paths.
+
+The ownership split is now:
+
+- Widgets declare navigation metadata and semantic activation behavior.
+- `UiNavigationGraph` chooses traversal targets.
+- `UiFocusManager` owns focused, navigation-focused, and restored nodes.
+- `UiInputDispatcher` creates navigation events and publishes dispatch result
+  ownership.
+- Compositions and widgets react to retained navigation events.
+
+### Architecture
+
+`UiNavigationGraph` is surface-local. It stores focusable navigation nodes
+identified by retained `UiHandle`, with metadata for:
+
+- focusable/enabled state.
+- semantic role.
+- focus scope id.
+- navigation group.
+- explicit tab index.
+- wrap policy.
+- explicit neighbor overrides for `Up`, `Down`, `Left`, `Right`, `Next`, and
+  `Previous`.
+- submit activation participation.
+
+Traversal is hybrid:
+
+- Explicit neighbors win when present.
+- `Next` and `Previous` use explicit tab index first, then computed spatial
+  top-left order, with registration order only as a stable final tie-breaker.
+- Directional movement uses computed layout bounds and chooses the nearest
+  candidate in the requested direction.
+- Disabled, hidden, destroyed, wrong-scope, wrong-group, and modal-blocked
+  nodes are skipped.
+- Modal navigation remains inside the top modal owner or layer when the modal
+  consumes navigation.
+
+The graph does not own focus. A successful movement calls
+`UiFocusManager::setNavigationFocus(...)` and `requestFocus(...)`. Focus events
+continue to come from focus changes, not from the graph owning focus state.
+
+### Implementation
+
+Implemented:
+
+- `UiNavigationTypes.h`
+- `UiNavigationGraph.h`
+- `UiNavigationGraph.cpp`
+- surface-local `UiSurface::navigationGraph()`
+- `UiSystem::navigationGraph(...)`, `registerNavigationNode(...)`, and
+  `unregisterNavigationNode(...)`
+- `UiInputFrame` navigation request fields.
+- `UiDispatchResult` navigation ownership fields.
+- retained `NavigationMove`, `NavigationSubmit`, `NavigationWrap`, and
+  `NavigationBlocked` event generation.
+- default engine input bindings for arrows, Tab, Shift+Tab, Enter, Space, and
+  Escape.
+- `RenderingRuntime::dispatchUiInput(...)` mapping of engine UI navigation
+  actions into `UiInputFrame`.
+
+`UiSystem` also unregisters navigation nodes during layer, node, and mount
+teardown before the document loses ancestry information. Each surface clears
+its graph when cleared.
+
+### Widget Integration
+
+`UiButtonWidget` now registers itself as a navigation node by default and
+handles `NavigationSubmit` as semantic activation. Button descriptors can set
+navigation role, group, tab index, and wrap behavior. Pointer-driven behavior
+continues unchanged.
+
+### Feature Demonstration
+
+VN dialogue choice buttons are now graph-driven because they are
+`UiButtonWidget` instances. A navigation move focuses a choice, and navigation
+submit activates the same semantic choice path as a pointer click.
+
+The existing handle-backed game menu now registers its major buttons, settings
+rows, and video rows as navigation nodes. The menu remains a compatibility
+polling path, but `NavigationSubmit` is translated into the existing clicked
+handle path so activation comes from the graph.
+
+### Validation
+
+Added `ui_navigation_runtime`, covering:
+
+- tab order independent of creation order.
+- Shift+Tab/previous traversal.
+- directional movement through computed layout bounds.
+- disabled node skipping.
+- hidden node skipping.
+- wrap behavior.
+- widget activation through navigation submit.
+- submit event consumption/default prevention by `UiButtonWidget`.
+- modal navigation restriction.
+- surface-local navigation routing.
+- destroyed composition pruning.
+
+Regression status now includes:
+
+- `ui_layer_runtime`
+- `ui_input_dispatcher_runtime`
+- `ui_focus_manager_runtime`
+- `ui_modal_manager_runtime`
+- `ui_mount_runtime`
+- `ui_composition_runtime`
+- `ui_event_propagation_runtime`
+- `ui_surface_runtime`
+- `ui_layout_runtime`
+- `ui_theme_runtime`
+- `ui_widget_runtime`
+- `ui_navigation_runtime`
+
+### Remaining Navigation Debt
+
+- Navigation nodes are C++ registered. There is no data-driven navigation
+  metadata format yet.
+- There is no controller/gamepad physical-device mapping yet; the runtime now
+  consumes abstract navigation intent.
+- Widget roles are stored but not yet consumed by accessibility or specialized
+  value-editing behavior.
+- There is no repeat-rate policy for held navigation actions.
+- Existing inventory, merchant, skill-tree, editor, and tool controls still own
+  manual selection or drag-like pointer behavior.
+- Explicit neighbor editing tools do not exist yet.
+
+### Next Primitive
+
+With Layers, Dispatch, Focus, Modals, Mounts, Compositions, Event Propagation,
+UiSurface, Layout, Styling, Widgets, and Navigation implemented, the single
+highest-value remaining primitive is the **Drag & Drop Runtime**.
+
+Drag/drop should precede animation, data binding, accessibility, and
+virtualized lists because it is the remaining core interaction ownership model.
+Inventories, merchant grids, editor docking, asset browsers, graph editors,
+resize handles, viewport gizmos, and world terminals all need the same engine
+answer to: who owns the drag, what is the payload, what is the drop target, how
+does capture behave, and how does cancellation restore state? The runtime now
+has the necessary foundations: surfaces, focus, modal policy, event
+propagation, layout bounds, widgets, and navigation roles.
+
+## 18. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -3261,7 +3436,7 @@ Keep the current retained node primitives as the low-level drawing and layout
 substrate, but stop treating `UiSystem` plus one document as the whole UI
 runtime. The engine should own explicit surfaces, layers, mountable
 compositions, centralized input dispatch, focus, modal policy, layout, styling,
-widgets, navigation, and animation.
+widgets, navigation, and future direct-manipulation/presentation systems.
 
 This architecture is the smallest durable set of primitives that naturally
 supports visual novels, RPG HUDs, strategy panels, action-game overlays, editor
@@ -3278,10 +3453,14 @@ The seventh committed direction is retained UI event propagation. The eighth
 committed direction is surface-local UI ownership through `UiSurface`. The ninth
 committed direction is engine-owned retained layout. The tenth committed
 direction is surface-local styling and theme resolution. The eleventh committed
-direction is reusable composition-owned widgets.
+direction is reusable composition-owned widgets. The twelfth committed
+direction is surface-local non-pointer traversal and activation through
+`UiNavigationGraph`.
 
-The next milestone should implement a Navigation Graph. It should precede
-animation, drag/drop, data binding, accessibility, and virtualization because
-the widget layer has created reusable controls, and the highest-leverage missing
-runtime policy is now non-pointer focus traversal and activation across those
-controls.
+The next milestone should implement a Drag & Drop Runtime. It should precede
+animation, data binding, accessibility, and virtualization because direct
+manipulation is now the largest remaining feature-owned interaction policy:
+capture ownership, payload identity, drop targeting, cancellation, and
+restoration should become engine concepts before higher-level editor, inventory,
+docking, graph, asset-browser, and world-terminal UI systems build more
+special cases.

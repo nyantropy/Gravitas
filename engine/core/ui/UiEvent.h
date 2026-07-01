@@ -21,6 +21,10 @@ enum class UiEventType : uint8_t
     NavigationMove,
     NavigationSubmit,
     NavigationCancel,
+    NavigationFocus,
+    NavigationBlur,
+    NavigationWrap,
+    NavigationBlocked,
     FocusGained,
     FocusLost,
     ModalOpened,
@@ -65,6 +69,7 @@ struct UiEvent
     float localY = 0.0f;
     float scrollX = 0.0f;
     float scrollY = 0.0f;
+    UiNavigationDirection navigationDirection = UiNavigationDirection::None;
     int keyCode = 0;
     uint32_t modifiers = 0;
     char32_t textCodepoint = 0;

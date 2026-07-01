@@ -149,6 +149,13 @@ class GtsPlatform
                                   ActivationMode::Pressed,
                                   "",
                                   PausePolicy::AlwaysActive);
+            bindingRegistry->bind(InputBinding{
+                                  "engine.ui_cancel",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Escape)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive,
+                                  true});
             bindingRegistry->bind("engine.close",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Escape)},
                                   ActivationMode::Pressed,
@@ -164,6 +171,23 @@ class GtsPlatform
                                   ActivationMode::Pressed,
                                   "",
                                   PausePolicy::AlwaysActive);
+            bindingRegistry->bind(InputBinding{
+                                  "engine.ui_nav_next",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Tab)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive,
+                                  true});
+            bindingRegistry->bind(InputBinding{
+                                  "engine.ui_nav_previous",
+                                  InputTrigger{
+                                      InputTrigger::Type::Key,
+                                      static_cast<int>(GtsKey::Tab),
+                                      ModifierFlags::Shift},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive,
+                                  true});
             bindingRegistry->bind("engine.debug_overlay_page",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Tab)},
                                   ActivationMode::Pressed,
@@ -185,27 +209,69 @@ class GtsPlatform
                                   "",
                                   PausePolicy::AlwaysActive);
             bindingRegistry->bind(InputBinding{
+                                  "engine.ui_submit",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Enter)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive,
+                                  true});
+            bindingRegistry->bind(InputBinding{
+                                  "engine.ui_submit",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Space)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive,
+                                  true});
+            bindingRegistry->bind(InputBinding{
                                   "engine.tools_select",
                                   InputTrigger{InputTrigger::Type::MouseButton, 0},
                                   ActivationMode::Held,
                                   "engine.tools",
                                   PausePolicy::AlwaysActive,
                                   false});
+            bindingRegistry->bind(InputBinding{
+                                  "engine.ui_nav_up",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowUp)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive,
+                                  true});
             bindingRegistry->bind("engine.zoom_in",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowUp)},
                                   ActivationMode::Held,
                                   "",
                                   PausePolicy::AlwaysActive);
+            bindingRegistry->bind(InputBinding{
+                                  "engine.ui_nav_down",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowDown)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive,
+                                  true});
             bindingRegistry->bind("engine.zoom_out",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowDown)},
                                   ActivationMode::Held,
                                   "",
                                   PausePolicy::AlwaysActive);
+            bindingRegistry->bind(InputBinding{
+                                  "engine.ui_nav_left",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowLeft)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive,
+                                  true});
             bindingRegistry->bind("engine.orbit_left",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowLeft)},
                                   ActivationMode::Held,
                                   "",
                                   PausePolicy::AlwaysActive);
+            bindingRegistry->bind(InputBinding{
+                                  "engine.ui_nav_right",
+                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowRight)},
+                                  ActivationMode::Pressed,
+                                  "",
+                                  PausePolicy::AlwaysActive,
+                                  true});
             bindingRegistry->bind("engine.orbit_right",
                                   InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowRight)},
                                   ActivationMode::Held,

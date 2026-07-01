@@ -7,6 +7,7 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
     UiDocument& document,
     UiFocusManager& focusManager,
     UiModalManager& modalManager,
+    UiNavigationGraph& navigationGraph,
     const UiInputFrame& input,
     bool enabled,
     UiSurfaceId surfaceId,
@@ -24,6 +25,7 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
 
     modalManager.pruneInvalidModals(document, focusManager);
     focusManager.pruneInvalidHandles(document);
+    navigationGraph.pruneInvalidNodes(document);
     const UiDispatchResult previousDispatch = lastDispatch;
 
     document.setViewportSize(1.0f, 1.0f);
@@ -88,6 +90,26 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
         focusManager.clearActivePointer(document, UI_PRIMARY_POINTER);
     }
 
+    const UiNavigationDirection navigationDirection = input.navigationDirection();
+    UiNavigationMoveResult navigationMove;
+    if (navigationDirection != UiNavigationDirection::None)
+    {
+        navigationMove = navigationGraph.move(document,
+                                             focusManager,
+                                             modalManager,
+                                             navigationDirection,
+                                             UI_PRIMARY_INPUT_DEVICE);
+    }
+
+    UiNavigationSubmitResult navigationSubmit;
+    if (input.navigationSubmitPressed)
+    {
+        navigationSubmit = navigationGraph.submit(document,
+                                                 focusManager,
+                                                 modalManager,
+                                                 UI_PRIMARY_INPUT_DEVICE);
+    }
+
     const UiHandle active  = focusManager.activePointerNode(UI_PRIMARY_POINTER);
     const UiHandle pressed = input.primaryDown ? active : UI_INVALID_HANDLE;
 
@@ -111,6 +133,16 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
     result.primaryPressed   = input.primaryPressed;
     result.primaryReleased  = input.primaryReleased;
     result.cancelPressed    = input.cancelPressed;
+    result.navigationMoveRequested = navigationMove.requested;
+    result.navigationSubmitPressed = input.navigationSubmitPressed;
+    result.navigationMoved = navigationMove.moved;
+    result.navigationSubmitted = navigationSubmit.submitted;
+    result.navigationRequestBlocked = navigationMove.blocked || navigationSubmit.blocked;
+    result.navigationWrapped = navigationMove.wrapped;
+    result.navigationDirection = navigationDirection;
+    result.navigationFrom = navigationMove.from;
+    result.navigationTo = navigationMove.to;
+    result.navigationSubmitTarget = navigationSubmit.target;
     result.cancelTargetModal = cancelTarget;
     result.cancelTargetOwner = cancelTargetOwner;
     result.dismissedModal = dismissedByCancel ? cancelTarget : UI_INVALID_MODAL;
@@ -129,6 +161,9 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
                               result.cancelConsumed;
     result.navigationConsumed =
         focusManager.navigationFocusedNode(UI_PRIMARY_INPUT_DEVICE) != UI_INVALID_HANDLE ||
+        result.navigationMoved ||
+        result.navigationSubmitted ||
+        result.navigationRequestBlocked ||
         result.navigationBlocked;
     result.textInputConsumed = focusManager.textInputFocusedNode() != UI_INVALID_HANDLE ||
                                result.textBlocked;
@@ -161,6 +196,15 @@ void UiInputDispatcher::pruneMissingHandles(const UiDocument& document)
         lastDispatch.active = UI_INVALID_HANDLE;
     if (lastDispatch.captured != UI_INVALID_HANDLE && document.findNode(lastDispatch.captured) == nullptr)
         lastDispatch.captured = UI_INVALID_HANDLE;
+    if (lastDispatch.navigationFrom != UI_INVALID_HANDLE && document.findNode(lastDispatch.navigationFrom) == nullptr)
+        lastDispatch.navigationFrom = UI_INVALID_HANDLE;
+    if (lastDispatch.navigationTo != UI_INVALID_HANDLE && document.findNode(lastDispatch.navigationTo) == nullptr)
+        lastDispatch.navigationTo = UI_INVALID_HANDLE;
+    if (lastDispatch.navigationSubmitTarget != UI_INVALID_HANDLE &&
+        document.findNode(lastDispatch.navigationSubmitTarget) == nullptr)
+    {
+        lastDispatch.navigationSubmitTarget = UI_INVALID_HANDLE;
+    }
 
     assignLayers(document, lastDispatch);
 }
@@ -190,6 +234,9 @@ UiDispatchResult UiInputDispatcher::makeDisabledResult(const UiInputFrame& input
     result.primaryPressed   = input.primaryPressed;
     result.primaryReleased  = input.primaryReleased;
     result.cancelPressed    = input.cancelPressed;
+    result.navigationMoveRequested = input.hasNavigationMove();
+    result.navigationSubmitPressed = input.navigationSubmitPressed;
+    result.navigationDirection = input.navigationDirection();
     generatedEvents.clear();
     return result;
 }
@@ -252,6 +299,30 @@ void UiInputDispatcher::buildEvents(const UiDocument& document,
     if ((result.scrollX != 0.0f || result.scrollY != 0.0f) && result.hovered != UI_INVALID_HANDLE)
         generatedEvents.push_back(makePointerEvent(document, UiEventType::PointerWheel, result.hovered, result));
 
+    if (result.navigationMoved && result.navigationTo != UI_INVALID_HANDLE)
+    {
+        generatedEvents.push_back(makeNavigationEvent(document, UiEventType::NavigationMove, result.navigationTo, result));
+        if (result.navigationWrapped)
+            generatedEvents.push_back(makeNavigationEvent(document, UiEventType::NavigationWrap, result.navigationTo, result));
+    }
+
+    if (result.navigationRequestBlocked)
+    {
+        UiHandle target = result.focused;
+        if (target == UI_INVALID_HANDLE)
+            target = result.navigationFrom;
+        if (target != UI_INVALID_HANDLE)
+            generatedEvents.push_back(makeNavigationEvent(document, UiEventType::NavigationBlocked, target, result));
+    }
+
+    if (result.navigationSubmitted && result.navigationSubmitTarget != UI_INVALID_HANDLE)
+    {
+        generatedEvents.push_back(makeNavigationEvent(document,
+                                                     UiEventType::NavigationSubmit,
+                                                     result.navigationSubmitTarget,
+                                                     result));
+    }
+
     if (result.cancelPressed)
     {
         UiHandle target = cancelTargetOwner;
@@ -310,5 +381,24 @@ UiEvent UiInputDispatcher::makeFocusEvent(const UiDocument& document,
     event.pointerId = 0;
     event.pointerX = result.pointerX;
     event.pointerY = result.pointerY;
+    return event;
+}
+
+UiEvent UiInputDispatcher::makeNavigationEvent(const UiDocument& document,
+                                               UiEventType type,
+                                               UiHandle target,
+                                               const UiDispatchResult& result) const
+{
+    UiEvent event;
+    event.type = type;
+    event.surface = result.surface;
+    event.layer = document.getNodeLayer(target);
+    event.target = target;
+    event.timestamp = result.dispatchSequence;
+    event.deviceId = UI_PRIMARY_INPUT_DEVICE;
+    event.pointerId = 0;
+    event.pointerX = result.pointerX;
+    event.pointerY = result.pointerY;
+    event.navigationDirection = result.navigationDirection;
     return event;
 }

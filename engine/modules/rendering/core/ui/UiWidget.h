@@ -261,6 +261,11 @@ namespace gts::ui
         bool enabled = true;
         bool consumeClick = true;
         bool preventDefault = true;
+        bool focusable = true;
+        UiNavigationRole navigationRole = UiNavigationRole::Button;
+        std::string navigationGroup;
+        int tabIndex = UI_NAVIGATION_AUTO_TAB_INDEX;
+        bool wrapNavigation = false;
         std::function<void()> onPressed;
     };
 
@@ -278,6 +283,7 @@ namespace gts::ui
             if (!desc.styleClass.empty())
                 context.ui.setStyleClass(context.surface, rootHandle, desc.styleClass);
             context.ui.setPayload(context.surface, rootHandle, UiRectData{});
+            registerNavigation(context);
 
             labelHandle = context.ui.createNode(context.surface, UiNodeType::Text, rootHandle);
             context.ui.setLayout(context.surface, labelHandle, desc.labelLayout);
@@ -335,8 +341,11 @@ namespace gts::ui
                 applyPanelStateSkin(context);
             }
 
-            if (event.phase != UiEventPhase::Target || event.type != UiEventType::PointerClick)
+            if (event.phase != UiEventPhase::Target ||
+                (event.type != UiEventType::PointerClick && event.type != UiEventType::NavigationSubmit))
+            {
                 return;
+            }
 
             const UiNode* node = context.ui.findNode(context.surface, rootHandle);
             if (node == nullptr || !node->state.visible || !node->state.enabled)
@@ -355,6 +364,7 @@ namespace gts::ui
 
         void destroy(UiWidgetContext& context) override
         {
+            context.ui.unregisterNavigationNode(context.surface, rootHandle);
             UiWidget::destroy(context);
             labelHandle = UI_INVALID_HANDLE;
             pressed = false;
@@ -391,6 +401,20 @@ namespace gts::ui
             const UiPanelSkin& skin = resolvePanelSkin(*buttonDesc.panelStateSkin, node->state);
             if (skin.type == UiPanelSkinType::SolidColor)
                 context.ui.setPayload(context.surface, rootHandle, UiRectData{skin.color});
+        }
+
+        void registerNavigation(UiWidgetContext& context)
+        {
+            if (!buttonDesc.focusable || rootHandle == UI_INVALID_HANDLE)
+                return;
+
+            UiNavigationNodeDesc desc;
+            desc.role = buttonDesc.navigationRole;
+            desc.group = buttonDesc.navigationGroup;
+            desc.tabIndex = buttonDesc.tabIndex;
+            desc.wrapNavigation = buttonDesc.wrapNavigation;
+            desc.activateOnSubmit = true;
+            context.ui.registerNavigationNode(context.surface, rootHandle, desc);
         }
 
         UiButtonDesc buttonDesc;

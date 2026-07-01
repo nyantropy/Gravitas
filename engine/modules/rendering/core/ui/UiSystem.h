@@ -102,6 +102,14 @@ public:
     const UiFocusManager& focusManager() const;
     UiModalManager&       modalManager();
     const UiModalManager& modalManager() const;
+    UiNavigationGraph&       navigationGraph();
+    const UiNavigationGraph& navigationGraph() const;
+    UiNavigationGraph*       navigationGraph(UiSurfaceId surfaceId);
+    const UiNavigationGraph* navigationGraph(UiSurfaceId surfaceId) const;
+    bool registerNavigationNode(UiHandle handle, const UiNavigationNodeDesc& desc = {});
+    bool registerNavigationNode(UiSurfaceId surfaceId, UiHandle handle, const UiNavigationNodeDesc& desc = {});
+    bool unregisterNavigationNode(UiHandle handle);
+    bool unregisterNavigationNode(UiSurfaceId surfaceId, UiHandle handle);
     UiMountManager&       mountManager();
     const UiMountManager& mountManager() const;
     Metrics           getLastMetrics() const;

@@ -856,7 +856,7 @@ coordinate conversion. `UiSystem` is the render-facing facade and compatibility
 surface router; existing APIs still target the default screen surface, while
 surface-aware APIs can create and address additional surfaces. `UiWidget`
 provides reusable composition-owned controls on top of retained nodes, layout,
-themes, and propagated events.
+themes, propagated events, and surface-local navigation.
 
 Each surface owns a `UiDocument` with a hidden document root plus one or more
 ordered layer roots. Existing callers that create nodes without specifying a
@@ -955,6 +955,19 @@ widget set includes labels, panels, buttons, images, stacks, spacers,
 separators, scroll views, and progress bars. Widgets remain clients of the UI
 runtime; they do not own surfaces, mounts, focus, modal policy, rendering, or
 composition lifetime.
+
+Navigation is engine-owned and surface-local. Widgets or compatibility builders
+register focusable retained handles with a surface's `UiNavigationGraph`,
+including role, group, tab index, wrap policy, and optional explicit neighbors.
+`RenderingRuntime::dispatchUiInput(...)` maps keyboard bindings into abstract
+navigation intent (`Up`, `Down`, `Left`, `Right`, `Next`, `Previous`, and
+`Submit`), and the dispatcher asks the selected surface graph to resolve that
+intent. Explicit neighbors win first; linear traversal uses tab order with
+layout order as fallback; directional traversal uses computed layout bounds.
+The graph requests focus changes through `UiFocusManager` and emits retained
+navigation events through the dispatcher, but it does not own focus itself.
+Navigation respects surface boundaries, modal blocking, focus scopes, groups,
+visibility, and enabled state. Pointer interaction remains compatible.
 
 UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
 visible/render-enabled surfaces in surface order, resolves each surface's

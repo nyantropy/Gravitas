@@ -29,6 +29,7 @@ void UiSurface::clear()
     focusState.clear();
     modalState.clear();
     mountState.reset(documentState);
+    navigationState.clear();
     dispatcher.clear();
 }
 

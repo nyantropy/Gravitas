@@ -17,6 +17,17 @@ static constexpr UiInputDeviceId UI_PRIMARY_INPUT_DEVICE = 1;
 static constexpr UiPointerId UI_PRIMARY_POINTER = 1;
 static constexpr UiModalId UI_INVALID_MODAL = 0;
 
+enum class UiNavigationDirection : uint8_t
+{
+    None = 0,
+    Up,
+    Down,
+    Left,
+    Right,
+    Next,
+    Previous
+};
+
 struct UiInputFrame
 {
     float pointerX = 0.0f;
@@ -25,8 +36,47 @@ struct UiInputFrame
     bool  primaryPressed = false;
     bool  primaryReleased = false;
     bool  cancelPressed = false;
+    bool  navigationUpPressed = false;
+    bool  navigationDownPressed = false;
+    bool  navigationLeftPressed = false;
+    bool  navigationRightPressed = false;
+    bool  navigationNextPressed = false;
+    bool  navigationPreviousPressed = false;
+    bool  navigationSubmitPressed = false;
     float scrollX = 0.0f;
     float scrollY = 0.0f;
+
+    bool hasNavigationMove() const
+    {
+        return navigationUpPressed ||
+               navigationDownPressed ||
+               navigationLeftPressed ||
+               navigationRightPressed ||
+               navigationNextPressed ||
+               navigationPreviousPressed;
+    }
+
+    bool hasNavigationRequest() const
+    {
+        return hasNavigationMove() || navigationSubmitPressed || cancelPressed;
+    }
+
+    UiNavigationDirection navigationDirection() const
+    {
+        if (navigationNextPressed)
+            return UiNavigationDirection::Next;
+        if (navigationPreviousPressed)
+            return UiNavigationDirection::Previous;
+        if (navigationUpPressed)
+            return UiNavigationDirection::Up;
+        if (navigationDownPressed)
+            return UiNavigationDirection::Down;
+        if (navigationLeftPressed)
+            return UiNavigationDirection::Left;
+        if (navigationRightPressed)
+            return UiNavigationDirection::Right;
+        return UiNavigationDirection::None;
+    }
 };
 
 struct UiInteractionResult
@@ -76,6 +126,16 @@ struct UiDispatchResult
     bool primaryReleased = false;
     bool cancelPressed = false;
     bool cancelConsumed = false;
+    bool navigationMoveRequested = false;
+    bool navigationSubmitPressed = false;
+    bool navigationMoved = false;
+    bool navigationSubmitted = false;
+    bool navigationRequestBlocked = false;
+    bool navigationWrapped = false;
+    UiNavigationDirection navigationDirection = UiNavigationDirection::None;
+    UiHandle navigationFrom = UI_INVALID_HANDLE;
+    UiHandle navigationTo = UI_INVALID_HANDLE;
+    UiHandle navigationSubmitTarget = UI_INVALID_HANDLE;
 
     bool pointerConsumed = false;
     bool keyboardConsumed = false;

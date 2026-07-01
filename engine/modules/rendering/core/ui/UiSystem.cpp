@@ -172,6 +172,7 @@ bool UiSystem::removeLayer(UiSurfaceId surfaceId, UiLayerId layerId)
     const std::vector<UiMountId> layerMounts = mountState.mountsInLayer(layerId);
     for (UiMountId mount : layerMounts)
         destroyMount(surfaceId, mount);
+    record->surface.navigationGraph().unregisterSubtree(document, root);
     removeTextBindingsRecursive(*record, root);
     const bool removed = document.removeLayer(layerId);
     if (!removed)
@@ -290,6 +291,7 @@ bool UiSystem::removeNode(UiSurfaceId surfaceId, UiHandle handle)
     if (exactMount != UI_INVALID_MOUNT && exactMount != UI_ROOT_MOUNT)
         return destroyMount(surfaceId, exactMount);
 
+    record->surface.navigationGraph().unregisterSubtree(document, handle);
     removeTextBindingsRecursive(*record, handle);
     const bool removed = document.removeNode(handle);
     if (!removed)
@@ -560,6 +562,53 @@ const UiModalManager& UiSystem::modalManager() const
     return defaultSurfaceRecord().surface.modalManager();
 }
 
+UiNavigationGraph& UiSystem::navigationGraph()
+{
+    return defaultSurfaceRecord().surface.navigationGraph();
+}
+
+const UiNavigationGraph& UiSystem::navigationGraph() const
+{
+    return defaultSurfaceRecord().surface.navigationGraph();
+}
+
+UiNavigationGraph* UiSystem::navigationGraph(UiSurfaceId surfaceId)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record == nullptr ? nullptr : &record->surface.navigationGraph();
+}
+
+const UiNavigationGraph* UiSystem::navigationGraph(UiSurfaceId surfaceId) const
+{
+    const SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record == nullptr ? nullptr : &record->surface.navigationGraph();
+}
+
+bool UiSystem::registerNavigationNode(UiHandle handle, const UiNavigationNodeDesc& desc)
+{
+    return registerNavigationNode(defaultSurfaceId, handle, desc);
+}
+
+bool UiSystem::registerNavigationNode(UiSurfaceId surfaceId, UiHandle handle, const UiNavigationNodeDesc& desc)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    if (record == nullptr || record->surface.document().findNode(handle) == nullptr)
+        return false;
+
+    return record->surface.navigationGraph().registerNode(handle, desc);
+}
+
+bool UiSystem::unregisterNavigationNode(UiHandle handle)
+{
+    return unregisterNavigationNode(defaultSurfaceId, handle);
+}
+
+bool UiSystem::unregisterNavigationNode(UiSurfaceId surfaceId, UiHandle handle)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record != nullptr && record->surface.navigationGraph().unregisterNode(handle);
+}
+
 UiMountManager& UiSystem::mountManager()
 {
     return defaultSurfaceRecord().surface.mountManager();
@@ -673,6 +722,7 @@ const UiDispatchResult& UiSystem::dispatchInput(const UiInputFrame& input, uint6
         surface.inputDispatcher().dispatch(surface.document(),
                                            surface.focusManager(),
                                            surface.modalManager(),
+                                           surface.navigationGraph(),
                                            localInput,
                                            surface.isEnabled(),
                                            surface.id(),
@@ -797,6 +847,7 @@ bool UiSystem::destroyMount(UiSurfaceId surfaceId, UiMountId mountId)
         return false;
 
     destroyCompositionRecordsForMount(surfaceId, mountId);
+    record->surface.navigationGraph().unregisterSubtree(document, root);
     removeTextBindingsRecursive(*record, root);
     const bool destroyed = mountState.destroyMount(document,
                                                    record->surface.focusManager(),
@@ -1238,6 +1289,18 @@ const UiSystem::SurfaceRecord& UiSystem::defaultSurfaceRecord() const
 
 UiSurfaceId UiSystem::selectInputSurface(const UiInputFrame& input) const
 {
+    if (input.hasNavigationRequest())
+    {
+        for (auto it = orderedSurfaces.rbegin(); it != orderedSurfaces.rend(); ++it)
+        {
+            const SurfaceRecord* record = findSurfaceRecord(*it);
+            if (record == nullptr || !record->surface.participatesInInput())
+                continue;
+            if (record->surface.hasKeyboardOwnership())
+                return *it;
+        }
+    }
+
     for (auto it = orderedSurfaces.rbegin(); it != orderedSurfaces.rend(); ++it)
     {
         const SurfaceRecord* record = findSurfaceRecord(*it);
@@ -1254,18 +1317,6 @@ UiSurfaceId UiSystem::selectInputSurface(const UiInputFrame& input) const
             continue;
         if (record->surface.hasPointerOwnership())
             return *it;
-    }
-
-    if (input.cancelPressed)
-    {
-        for (auto it = orderedSurfaces.rbegin(); it != orderedSurfaces.rend(); ++it)
-        {
-            const SurfaceRecord* record = findSurfaceRecord(*it);
-            if (record == nullptr || !record->surface.participatesInInput())
-                continue;
-            if (record->surface.hasKeyboardOwnership())
-                return *it;
-        }
     }
 
     return surfaces.find(defaultSurfaceId) == surfaces.end() ? UI_INVALID_SURFACE : defaultSurfaceId;

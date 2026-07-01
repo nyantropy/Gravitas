@@ -187,6 +187,13 @@ namespace gts::rendering
             frame.primaryPressed = input->isPressed(primaryAction);
             frame.primaryReleased = input->isReleased(primaryAction);
             frame.cancelPressed = input->isPressed("engine.ui_cancel");
+            frame.navigationUpPressed = input->isPressed("engine.ui_nav_up");
+            frame.navigationDownPressed = input->isPressed("engine.ui_nav_down");
+            frame.navigationLeftPressed = input->isPressed("engine.ui_nav_left");
+            frame.navigationRightPressed = input->isPressed("engine.ui_nav_right");
+            frame.navigationNextPressed = input->isPressed("engine.ui_nav_next");
+            frame.navigationPreviousPressed = input->isPressed("engine.ui_nav_previous");
+            frame.navigationSubmitPressed = input->isPressed("engine.ui_submit");
             frame.scrollX = static_cast<float>(input->scrollX());
             frame.scrollY = static_cast<float>(input->scrollY());
         }

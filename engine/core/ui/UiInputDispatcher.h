@@ -7,6 +7,7 @@
 #include "UiFocusManager.h"
 #include "UiInteraction.h"
 #include "UiModalManager.h"
+#include "UiNavigationGraph.h"
 
 class UiInputDispatcher
 {
@@ -14,6 +15,7 @@ public:
     const UiDispatchResult& dispatch(UiDocument& document,
                                      UiFocusManager& focusManager,
                                      UiModalManager& modalManager,
+                                     UiNavigationGraph& navigationGraph,
                                      const UiInputFrame& input,
                                      bool enabled,
                                      UiSurfaceId surfaceId = UI_DEFAULT_SURFACE,
@@ -45,6 +47,10 @@ private:
                            UiEventType type,
                            UiHandle target,
                            const UiDispatchResult& result) const;
+    UiEvent makeNavigationEvent(const UiDocument& document,
+                                UiEventType type,
+                                UiHandle target,
+                                const UiDispatchResult& result) const;
 
     UiDispatchResult lastDispatch;
     std::vector<UiEvent> generatedEvents;
