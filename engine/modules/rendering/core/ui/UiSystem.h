@@ -9,6 +9,7 @@
 #include "BitmapFont.h"
 #include "IResourceProvider.hpp"
 #include "UiAnimationManager.h"
+#include "UiAssetRuntime.h"
 #include "UiBindingManager.h"
 #include "UiCommand.h"
 #include "UiComposition.h"
@@ -260,6 +261,9 @@ public:
                                                const IUiSerializedBindingResolver* bindingResolver = nullptr);
     UiWidgetAssetRegistry&       widgetAssets();
     const UiWidgetAssetRegistry& widgetAssets() const;
+    UiAssetRuntime&       uiAssets();
+    const UiAssetRuntime& uiAssets() const;
+    UiAssetReloadResult processUiAssetReloads();
     UiSerializedLoadResult instantiateWidgetAsset(const UiWidgetAssetInstanceDesc& desc,
                                                    UiMountId mountId,
                                                    const IUiSerializedBindingResolver* bindingResolver = nullptr);
@@ -334,6 +338,7 @@ private:
     UiCompositionId                            nextCompositionId = UI_INVALID_COMPOSITION + 1;
     UiDispatchResult                           lastDispatchResult;
     UiWidgetAssetRegistry                      widgetAssetRegistry;
+    UiAssetRuntime                             uiAssetRuntime;
     UiCommandBuffer                            commandCache;
     UiCommandBuffer                            emptyCommandBuffer;
     Metrics                                    lastMetrics;

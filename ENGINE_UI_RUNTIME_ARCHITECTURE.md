@@ -4531,27 +4531,144 @@ Added `visual_ui_editor_runtime`, covering:
   full property widgets, undo/redo, and typed layout editors are next layers.
 - Asset browser integration is sample-backed; package/directory discovery is
   future asset infrastructure.
-- Preview rebuild is explicit; file watching and live hot reload are future
-  capabilities.
+- Preview rebuild remains available as a compatibility path, but save-driven
+  live preview refresh is now owned by the UI asset runtime.
 - No drag hierarchy editing, copy/paste, multi-select, or visual canvas handles
   are implemented yet.
 - Behavior attachment remains C++ by stable id, as intended.
 
+## 25. Phase 19 Implementation: Live Hot Reload & Asset Dependency Runtime
+
+### Investigation
+
+Authored UI data now exists in three engine-owned forms:
+
+- `UiSerializedAsset` describes durable UI documents: surface/layer metadata,
+  widget trees, layout, style references, bindings, navigation, drag/drop,
+  animation intent, and accessibility metadata.
+- `UiWidgetAssetDefinition` describes reusable authored widget assets:
+  stable ids, versions, parameters, slots, variants, inheritance, dependencies,
+  and a serialized root widget.
+- `UiTheme` is still C++ authored, but surfaces already consume theme objects
+  and therefore can participate in runtime theme asset reloads.
+
+The previous Visual UI Editor workflow saved authored widget assets and then
+explicitly rebuilt the preview. Runtime uses of widget assets were not tracked,
+so changing a base widget asset, theme, or serialized UI document could not
+answer which previews or mounted game UI needed refresh.
+
+### Architecture
+
+`UiAssetRuntime` is the engine-owned asset dependency and reload runtime. It is
+not a file watcher and it is not a replacement for serialization or widget
+asset expansion. Its responsibilities are:
+
+- stable asset identity: type, id, authoring version, runtime version, source
+  path, load state, validation state, and dependencies.
+- dependency graph ownership: forward dependencies and reverse invalidation
+  edges across serialized UI assets, widget assets, and theme assets.
+- reload queue ownership: explicit in-memory reloads, source-path reloads, and
+  future watcher/editor/network reload inputs feed one queue.
+- validation-before-replacement: invalid authored assets publish validation
+  failure events and do not replace the previous valid widget registry/runtime
+  data.
+- runtime consumer tracking: mounted serialized UI assets, mounted widget
+  assets, and surface theme consumers register the assets they depend on.
+- dependency-aware rebuild: changed assets recursively invalidate dependents,
+  then each affected consumer rebuilds once.
+- state preservation: widget consumers preserve keyboard focus by stable
+  serialized widget id when the rebuilt asset still contains the focused id.
+
+The ownership boundary is:
+
+`Authoring Asset -> UiAssetRuntime -> UiWidgetAssetRegistry / UiSerializationRuntime -> UiSurface / UiMount -> Runtime UI`
+
+`UiWidgetAssetRegistry` remains the widget-definition cache and expander.
+`UiSerializationRuntime` remains the runtime graph loader. The editor is only a
+client that saves an asset and asks `UiSystem::processUiAssetReloads()` to run
+the pending reload queue.
+
+### Implementation
+
+Added `UiAssetRuntime` under the retained UI runtime:
+
+- `UiAssetReference`, `UiAssetRecord`, and `UiAssetConsumerState` describe
+  asset identity, graph state, and runtime consumers.
+- `registerSerializedAsset`, `registerWidgetAsset`, and `registerThemeAsset`
+  load valid assets into the dependency graph.
+- `queueSerializedAssetReload`, `queueWidgetAssetReload`,
+  `queueThemeReload`, and `queueReloadFromSource` feed the reload pipeline.
+- `processReloads(...)` validates queued changes, updates dependency edges,
+  emits reload events, recursively invalidates dependents, and rebuilds
+  affected consumers.
+- `dependentsOf(...)` and `dependenciesOf(...)` expose graph inspection for
+  tests, tools, and future diagnostics.
+- `UiSystem::instantiateUiAsset(...)` and
+  `UiSystem::instantiateWidgetAsset(...)` now register live consumers
+  automatically while preserving their existing public behavior.
+- Surface and mount destruction unregister live consumers so reload state
+  cannot outlive the subtree it describes.
+- `VisualUiEditorDocument::saveAndReload(...)` and
+  `saveAsAndReload(...)` save authored widget assets, queue a widget asset
+  reload, process the runtime reload queue, and sync preview state from the
+  rebuilt live consumer.
+
+### Reload Lifecycle
+
+The implemented lifecycle is:
+
+`Asset Saved / Explicit Reload -> Queue -> Validate -> Update Dependency Graph -> Invalidate Dependents -> Rebuild Consumers -> Preserve Focus -> Publish Events`
+
+OS file watching is intentionally not implemented. Future watchers, editor
+save notifications, network collaboration, or package update systems should all
+enqueue reloads into this same runtime.
+
+### Tests
+
+Added `ui_asset_runtime`, covering:
+
+- dependency graph construction.
+- base widget asset invalidating derived widget assets.
+- mounted consumer rebuild after widget asset reload.
+- keyboard focus restoration by stable widget id.
+- failed validation preserving the previous valid runtime and registry data.
+- theme asset reload applied through a surface theme consumer.
+- source-path reload for widget assets.
+
+Extended `visual_ui_editor_runtime`, covering:
+
+- saving an edited interaction prompt widget asset.
+- automatic runtime validation/reload.
+- preview consumer rebuild without an explicit preview rebuild call.
+- stable editor selection preservation across live reload.
+
+### Remaining Live Reload Debt
+
+- There is no OS-level file watcher yet; reloads are explicit runtime requests.
+- Theme assets are runtime objects, not serialized theme files.
+- Reload state preservation currently covers focus by stable widget id; scroll
+  position, expanded hierarchy state, selection ranges, and animation transfer
+  are future preservation policies.
+- Consumer rebuild is mount-level, not a structural diff/patch of existing
+  retained nodes.
+- Package ownership, plugin discovery, mod override policy, and dependency
+  namespace isolation are future asset-platform layers.
+
 ### Next Capability
 
-With the Visual UI Editor complete, the single highest-value capability to
-build next is **Live Hot Reload**.
+With live hot reload complete, the single highest-value capability to build
+next is **Package / Plugin System**.
 
-The runtime now has durable assets and an editor that can save them, but the
-authoring loop still requires explicit preview rebuilds and runtime consumers
-do not yet receive asset changes automatically. Live hot reload should come
-before localization, automation, virtualized lists, or plugins because it turns
-serialization, widget asset definitions, validation, preview surfaces, and the
-editor document model into a production authoring loop: edit, validate, reload,
-preserve selection/state where possible, and update every instantiated preview
-or runtime use of the asset.
+The platform now has durable assets, reusable widget assets, a visual editor,
+validation, dependency tracking, and live reload. The next missing boundary is
+ownership above individual assets: packages/plugins should define where assets
+come from, how ids are namespaced, how dependencies are declared, how mods or
+tool extensions override assets, and how future localization/theme/widget packs
+are discovered. This should precede localization, asset browser polish,
+automation, or collaborative editing because those systems need package-level
+identity, dependency, and override rules to scale beyond built-in sample assets.
 
-## 25. Final Recommendation
+## 26. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 

@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "UiSystem.h"
@@ -51,6 +52,13 @@ namespace
         return "root=" + std::to_string(result.instance.root) +
                " handles=" + std::to_string(result.instance.handles.size()) +
                " validation=" + validationSummary(result.validation);
+    }
+
+    const UiTextData& textPayload(UiSystem& ui, UiSurfaceId surface, UiHandle handle)
+    {
+        const UiNode* node = ui.findNode(surface, handle);
+        require(node != nullptr && node->type == UiNodeType::Text, "text node missing");
+        return std::get<UiTextData>(node->payload);
     }
 
     gts::tools::VisualUiEditorDocument openPromptDocument()
@@ -182,6 +190,38 @@ namespace
         UiSerializedValidationResult invalid = invalidDocument.validate(ui.widgetAssets());
         require(!invalid.valid(), "missing base asset did not validate as an error");
     }
+
+    void testSaveTriggersLivePreviewReload()
+    {
+        UiSystem ui(nullptr);
+        ui.setTheme(editorPreviewTheme());
+        registerSampleDependencies(ui);
+
+        gts::tools::VisualUiEditorDocument document = openPromptDocument();
+        UiSerializedValidationResult registrationValidation;
+        require(ui.widgetAssets().registerAsset(document.asset(), &registrationValidation),
+                "interaction prompt did not register before live reload preview");
+        require(document.rebuildPreview(ui), "initial live reload preview failed");
+        const uint32_t initialRebuildCount = document.preview().rebuildCount;
+        require(document.selectWidget("label"), "label selection for live reload failed");
+        require(document.setSelectedText("Saved through hot reload"), "live reload text edit failed");
+
+        const std::filesystem::path path =
+            std::filesystem::temp_directory_path() / "gravitas_visual_ui_editor_live_reload_test.uiwidget.json";
+        std::string error;
+        require(document.saveAsAndReload(ui, path, &error), "save and live reload failed: " + error);
+
+        const gts::tools::VisualUiEditorPreviewState preview = document.preview();
+        require(preview.rebuildCount == initialRebuildCount + 1,
+                "live reload did not advance preview rebuild count");
+        require(preview.loadResult.instance.handles.count("label") == 1,
+                "live reload preview label handle missing");
+        require(textPayload(ui, preview.surface, preview.loadResult.instance.handles.at("label")).text ==
+                    "Saved through hot reload",
+                "live reload preview did not reflect saved authored text");
+        require(document.selectedWidgetId() == "label",
+                "live reload did not preserve editor stable-id selection");
+    }
 }
 
 int main()
@@ -189,5 +229,6 @@ int main()
     testOpenSelectionAndAuthoredEdits();
     testValidationPreviewSurfaceAndCleanup();
     testSaveRoundTripAndInvalidValidation();
+    testSaveTriggersLivePreviewReload();
     return 0;
 }

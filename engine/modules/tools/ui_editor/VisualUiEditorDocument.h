@@ -27,6 +27,7 @@ namespace gts::tools
     {
         UiSurfaceId surface = UI_INVALID_SURFACE;
         UiMountId mount = UI_INVALID_MOUNT;
+        std::string consumerId;
         UiSerializedLoadResult loadResult;
         uint32_t rebuildCount = 0;
     };
@@ -56,9 +57,12 @@ namespace gts::tools
 
         bool save(std::string* outError = nullptr);
         bool saveAs(const std::filesystem::path& path, std::string* outError = nullptr);
+        bool saveAndReload(UiSystem& ui, std::string* outError = nullptr);
+        bool saveAsAndReload(UiSystem& ui, const std::filesystem::path& path, std::string* outError = nullptr);
 
         bool ensurePreviewSurface(UiSystem& ui);
         bool rebuildPreview(UiSystem& ui);
+        bool syncPreviewFromLiveConsumer(const UiSystem& ui);
         void setPreviewVisible(UiSystem& ui, bool visible);
         void destroyPreview(UiSystem& ui);
         const VisualUiEditorPreviewState& preview() const { return previewState; }

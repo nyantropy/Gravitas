@@ -229,6 +229,54 @@ namespace gts::tools
         return true;
     }
 
+    bool VisualUiEditorDocument::saveAndReload(UiSystem& ui, std::string* outError)
+    {
+        if (!save(outError))
+            return false;
+
+        if (!ui.uiAssets().queueWidgetAssetReload(assetDefinition, sourcePath))
+        {
+            if (outError != nullptr)
+                *outError = "Widget asset reload could not be queued.";
+            return false;
+        }
+
+        UiAssetReloadResult result = ui.processUiAssetReloads();
+        syncPreviewFromLiveConsumer(ui);
+        if (!result.success)
+        {
+            if (outError != nullptr)
+                *outError = "Widget asset reload failed validation.";
+            return false;
+        }
+        return true;
+    }
+
+    bool VisualUiEditorDocument::saveAsAndReload(UiSystem& ui,
+                                                 const std::filesystem::path& path,
+                                                 std::string* outError)
+    {
+        if (!saveAs(path, outError))
+            return false;
+
+        if (!ui.uiAssets().queueWidgetAssetReload(assetDefinition, sourcePath))
+        {
+            if (outError != nullptr)
+                *outError = "Widget asset reload could not be queued.";
+            return false;
+        }
+
+        UiAssetReloadResult result = ui.processUiAssetReloads();
+        syncPreviewFromLiveConsumer(ui);
+        if (!result.success)
+        {
+            if (outError != nullptr)
+                *outError = "Widget asset reload failed validation.";
+            return false;
+        }
+        return true;
+    }
+
     bool VisualUiEditorDocument::ensurePreviewSurface(UiSystem& ui)
     {
         if (previewState.surface != UI_INVALID_SURFACE && ui.findSurface(previewState.surface) != nullptr)
@@ -282,8 +330,25 @@ namespace gts::tools
         UiWidgetAssetInstanceDesc desc;
         desc.assetId = assetDefinition.id;
         previewState.loadResult = ui.instantiateWidgetAsset(previewState.surface, desc, previewState.mount);
+        previewState.consumerId = uiWidgetAssetConsumerId(desc, previewState.surface, previewState.mount);
         ++previewState.rebuildCount;
         return previewState.loadResult.success;
+    }
+
+    bool VisualUiEditorDocument::syncPreviewFromLiveConsumer(const UiSystem& ui)
+    {
+        if (previewState.consumerId.empty())
+            return false;
+
+        const UiAssetConsumerState* consumer = ui.uiAssets().findConsumer(previewState.consumerId);
+        if (consumer == nullptr)
+            return false;
+
+        previewState.surface = consumer->desc.surface;
+        previewState.mount = consumer->desc.mount;
+        previewState.loadResult = consumer->loadResult;
+        previewState.rebuildCount = consumer->rebuildCount + 1;
+        return true;
     }
 
     void VisualUiEditorDocument::setPreviewVisible(UiSystem& ui, bool visible)
@@ -318,6 +383,7 @@ namespace gts::tools
         }
 
         previewState.loadResult = {};
+        previewState.consumerId.clear();
     }
 
     UiSerializedWidget* VisualUiEditorDocument::findWidget(const std::string& widgetId)

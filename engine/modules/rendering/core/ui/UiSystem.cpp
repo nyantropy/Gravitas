@@ -7,6 +7,23 @@
 
 #include "GlyphLayoutEngine.h"
 
+namespace
+{
+    UiMountDesc mountDescFromMount(const UiMount* mount)
+    {
+        UiMountDesc desc;
+        if (mount == nullptr)
+            return desc;
+
+        desc.name = mount->name;
+        desc.attachment.layer = mount->layer;
+        desc.attachment.parentMount = mount->parentMount;
+        desc.attachment.parentNode = mount->parentNode;
+        return desc;
+    }
+
+}
+
 UiSystem::UiSystem(IResourceProvider* inResources)
     : resources(inResources)
 {
@@ -20,6 +37,7 @@ void UiSystem::clear()
     orderedSurfaces.clear();
     commandCache.clear();
     emptyCommandBuffer.clear();
+    uiAssetRuntime.clearConsumers();
     lastEvents.clear();
     lastDispatchResult = {};
     lastMetrics = {};
@@ -73,6 +91,7 @@ bool UiSystem::destroySurface(UiSurfaceId surfaceId)
     if (it == surfaces.end())
         return false;
 
+    uiAssetRuntime.unregisterConsumersForSurface(surfaceId);
     destroyCompositionRecordsForSurface(surfaceId);
     it->second.surface.clear();
     surfaces.erase(it);
@@ -1364,6 +1383,7 @@ bool UiSystem::destroyMount(UiSurfaceId surfaceId, UiMountId mountId)
     if (root == UI_INVALID_HANDLE || root == document.getDocumentRoot())
         return false;
 
+    uiAssetRuntime.unregisterConsumersForMount(surfaceId, mountId);
     destroyCompositionRecordsForMount(surfaceId, mountId);
     record->surface.bindingManager().unbindSubtree(document, root);
     record->surface.animationManager().cancelSubtree(document, root);
@@ -1662,13 +1682,26 @@ UiSerializedLoadResult UiSystem::instantiateUiAsset(UiSurfaceId surfaceId,
                                                     const IUiSerializedBindingResolver* bindingResolver)
 {
     const UiTheme* activeTheme = theme(surfaceId);
-    return UiSerializationRuntime::instantiate(*this,
-                                               surfaceId,
-                                               mountId,
-                                               asset,
-                                               bindingResolver,
-                                               activeTheme,
-                                               &widgetAssetRegistry);
+    UiSerializedLoadResult result = UiSerializationRuntime::instantiate(*this,
+                                                                        surfaceId,
+                                                                        mountId,
+                                                                        asset,
+                                                                        bindingResolver,
+                                                                        activeTheme,
+                                                                        &widgetAssetRegistry);
+    if (result.success)
+    {
+        UiAssetConsumerDesc consumer;
+        consumer.id = uiSerializedAssetConsumerId(asset, surfaceId, mountId);
+        consumer.kind = UiAssetConsumerKind::SerializedUi;
+        consumer.surface = surfaceId;
+        consumer.mount = mountId;
+        consumer.mountDesc = mountDescFromMount(findMount(surfaceId, mountId));
+        consumer.serializedAsset = asset;
+        consumer.bindingResolver = bindingResolver;
+        uiAssetRuntime.trackConsumer(consumer, &result);
+    }
+    return result;
 }
 
 UiWidgetAssetRegistry& UiSystem::widgetAssets()
@@ -1679,6 +1712,21 @@ UiWidgetAssetRegistry& UiSystem::widgetAssets()
 const UiWidgetAssetRegistry& UiSystem::widgetAssets() const
 {
     return widgetAssetRegistry;
+}
+
+UiAssetRuntime& UiSystem::uiAssets()
+{
+    return uiAssetRuntime;
+}
+
+const UiAssetRuntime& UiSystem::uiAssets() const
+{
+    return uiAssetRuntime;
+}
+
+UiAssetReloadResult UiSystem::processUiAssetReloads()
+{
+    return uiAssetRuntime.processReloads(*this);
 }
 
 UiSerializedLoadResult UiSystem::instantiateWidgetAsset(const UiWidgetAssetInstanceDesc& desc,
@@ -1693,12 +1741,25 @@ UiSerializedLoadResult UiSystem::instantiateWidgetAsset(UiSurfaceId surfaceId,
                                                         UiMountId mountId,
                                                         const IUiSerializedBindingResolver* bindingResolver)
 {
-    return widgetAssetRegistry.instantiate(*this,
-                                           surfaceId,
-                                           mountId,
-                                           desc,
-                                           bindingResolver,
-                                           theme(surfaceId));
+    UiSerializedLoadResult result = widgetAssetRegistry.instantiate(*this,
+                                                                    surfaceId,
+                                                                    mountId,
+                                                                    desc,
+                                                                    bindingResolver,
+                                                                    theme(surfaceId));
+    if (result.success)
+    {
+        UiAssetConsumerDesc consumer;
+        consumer.id = uiWidgetAssetConsumerId(desc, surfaceId, mountId);
+        consumer.kind = UiAssetConsumerKind::WidgetAsset;
+        consumer.surface = surfaceId;
+        consumer.mount = mountId;
+        consumer.mountDesc = mountDescFromMount(findMount(surfaceId, mountId));
+        consumer.widgetAsset = desc;
+        consumer.bindingResolver = bindingResolver;
+        uiAssetRuntime.trackConsumer(consumer, &result);
+    }
+    return result;
 }
 
 UiCommandBuffer UiSystem::extractCommands(int viewportWidth, int viewportHeight)

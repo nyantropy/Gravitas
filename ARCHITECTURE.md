@@ -1048,6 +1048,19 @@ demonstrates the interaction-prompt widget asset workflow and establishes the
 pattern future visual layout/theme/binding/accessibility editors should follow:
 fix runtime gaps instead of adding editor-only UI systems.
 
+UI live reload is engine-owned by `UiAssetRuntime`. It tracks authored asset
+identity, source paths, runtime versions, validation state, dependencies, and
+runtime consumers for serialized UI assets, widget assets, and theme assets.
+`UiSystem::instantiateUiAsset(...)` and `UiSystem::instantiateWidgetAsset(...)`
+register mounted runtime consumers automatically; mount and surface destruction
+unregister them. Reload requests validate before replacement, update the
+dependency graph, recursively invalidate dependents, rebuild affected consumers,
+and preserve keyboard focus by stable widget id when possible. The Visual UI
+Editor now saves widget assets and lets this runtime refresh the preview instead
+of owning a private reload path. OS file watching, package/plugin ownership,
+theme file serialization, and deeper state transfer are future clients of this
+asset runtime.
+
 UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
 visible/render-enabled surfaces in surface order, resolves each surface's
 document into a surface-local command buffer, then transforms the vertices into
