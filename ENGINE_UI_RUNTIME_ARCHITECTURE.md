@@ -118,6 +118,15 @@ edits authored properties, validates through the widget asset registry,
 previews by instantiating real widget assets into a dedicated `UiSurface`, and
 saves through the serialization runtime.
 
+The next asset-platform primitives are now implemented: `UiAssetRuntime` owns
+dependency-aware live reload and mounted asset consumers, `UiPackageRuntime`
+owns package-level authored asset ownership, namespace-aware lookup, dependency
+validation, override policy, package events, and plugin metadata, and Phase 21A
+of `UiLocalizationRuntime` owns package-aware localization catalogs, active and
+default locale state, locale fallback chains, key lookup, catalog validation,
+JSON parse/serialize helpers, missing-key diagnostics, and `UiSystem` facade
+access.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
@@ -130,7 +139,10 @@ Each `UiSurface` owns one `UiDocument`, one layer stack, one
 `UiMountManager`, one `UiNavigationGraph`, one `UiDragDropManager`, and one
 `UiAnimationManager`, one `UiBindingManager`, one `UiAccessibilityManager`, and
 one active `UiTheme`. `UiSystem` also owns one `UiWidgetAssetRegistry` for
-authored reusable widget assets.
+authored reusable widget assets, one `UiAssetRuntime` for dependency-aware live
+asset consumers, one `UiPackageRuntime` for package-level ownership, and one
+global `UiLocalizationRuntime` for package-aware localization catalogs and
+locale lookup.
 Renderer-side font bindings and command caches are tracked per surface because
 `UiHandle` values remain
 document-local.
@@ -4842,7 +4854,185 @@ that immediately exercises package ownership across runtime assets, authoring
 data, accessibility semantics, bindings, and editor workflows without requiring
 new executable plugin infrastructure.
 
-## 27. Final Recommendation
+## 27. Phase 21A Implementation: Localization Runtime Core
+
+### Investigation
+
+Package ownership gave authored UI assets a durable origin, but localized text
+still had no engine-owned runtime. User-facing strings were embedded directly
+in serialized widgets, widget asset parameters, semantic descriptors, C++
+widget descriptors, binding formatters, and editor sample assets. That kept
+existing UI compatible, but it could not answer package ownership, locale
+fallback, language-pack catalogs, missing-key diagnostics, or editor validation
+for translated content.
+
+Phase 21A establishes only the localization spine. It does not migrate retained
+UI structure onto localization keys yet, and it does not refresh mounted UI
+when the active language changes. Those are later localization subphases.
+
+### Architecture
+
+`UiLocalizationRuntime` is a global UI platform runtime owned by `UiSystem`.
+It is not surface-local by default because catalogs, package namespaces, and
+language packs are package-level authored data. Surface locale overrides remain
+a future preview/multi-window extension.
+
+The ownership boundary is:
+
+`Package -> Localization Catalog -> UiLocalizationRuntime -> UI clients`
+
+`UiPackageRuntime` continues to own package identity, namespace, dependencies,
+load order, and override policy. `UiAssetRuntime` continues to own live reload
+and mounted consumer invalidation for serialized UI, widget assets, and themes;
+localization live reload is intentionally not implemented in Phase 21A.
+
+### Implemented Runtime Model
+
+`UiLocalizationRuntime` now owns:
+
+- registered localization catalogs by `UiAssetReference`.
+- active runtime locale.
+- default runtime fallback locale.
+- locale parent fallback, such as `de-AT -> de`.
+- catalog-declared fallback and source locale participation.
+- package/namespace-aware key lookup.
+- inline fallback text handling.
+- missing-key diagnostics.
+- catalog validation.
+
+`UiAssetType` now includes `Localization`, and dependency strings can name
+localization assets with `locale:` or `localization:` prefixes. Existing asset
+runtime behavior is preserved; localization catalogs are registered through the
+localization runtime rather than treated as mounted UI consumers.
+
+### Catalog Asset Format
+
+Localization catalogs are versioned JSON assets:
+
+```json
+{
+  "schema": 1,
+  "id": "game.ui.locale.en-US",
+  "package": "game.ui",
+  "namespace": "game.ui",
+  "locale": "en-US",
+  "sourceLocale": "en-US",
+  "fallbackLocale": "en",
+  "entries": {
+    "interaction_prompt.label": {
+      "text": "Press {input} to interact",
+      "context": "interaction prompt label",
+      "note": "Shown near the bottom of the screen"
+    }
+  }
+}
+```
+
+Entries are deliberately local to a package namespace. Parameter substitution,
+plural forms, select/gender variants, and text-key fields in serialized UI are
+future work. Phase 21A validates balanced placeholder braces but leaves
+`{input}` literal at lookup time.
+
+### Key Resolution
+
+Lookup supports explicit and package-relative keys.
+
+Resolution rules:
+
+1. If a `UiLocalizationKey` supplies `packageId` or `namespaceId`, lookup is
+   constrained to that package/namespace.
+2. If a raw key starts with a registered namespace prefix, such as
+   `game.ui.interaction_prompt.label`, it is treated as an absolute key and the
+   namespace prefix is stripped before entry lookup.
+3. Otherwise the requesting `UiLocalizationScope` supplies package and
+   namespace for relative keys such as `interaction_prompt.label`.
+4. As a compatibility path, an unscoped key may resolve against any matching
+   catalog entry when no package/namespace scope is provided.
+
+This lets current tools and tests resolve simple keys while package-authored
+assets can resolve relative to their owning package.
+
+### Locale Fallback
+
+Phase 21A fallback is deterministic:
+
+1. active locale.
+2. active locale parent chain.
+3. catalog-declared fallback locale and its parents.
+4. runtime default locale and its parents.
+5. catalog source locale and its parents.
+6. inline fallback text.
+7. diagnostic placeholder.
+
+Missing keys record diagnostics so tests and future editor validation can show
+which key, locale, and scope failed to resolve.
+
+### Package Integration
+
+`UiPackageAssetDesc` can now carry `UiLocalizationAsset`. Package validation
+requires localization assets to include package and namespace identity matching
+the owning manifest. Package load registers effective localization catalogs
+with `UiLocalizationRuntime`; package unload unregisters them. This is basic
+package ownership, not language-pack override policy or live reload.
+
+The Visual UI Editor sample packages now include minimal English catalogs:
+
+- `engine.ui` owns `engine.ui.locale.en-US`.
+- `game.ui` owns `game.ui.locale.en-US`, including
+  `interaction_prompt.label -> "Press {input} to interact"`.
+
+### API Surface
+
+New public runtime APIs include:
+
+- `UiLocalizationRuntime::registerCatalog(...)`
+- `UiLocalizationRuntime::unregisterCatalog(...)`
+- `UiLocalizationRuntime::setLocale(...)`
+- `UiLocalizationRuntime::setDefaultLocale(...)`
+- `UiLocalizationRuntime::resolve(...)`
+- `UiLocalizationRuntime::resolveKey(...)`
+- `UiLocalizationRuntime::validateCatalog(...)`
+- `parseUiLocalizationAsset(...)`
+- `serializeUiLocalizationAsset(...)`
+- `UiSystem::localization()`
+- `UiSystem::setLocale(...)`
+- `UiSystem::locale()`
+- `UiSystem::localize(...)`
+
+### Validation
+
+Added `ui_localization_runtime`, covering:
+
+- locale id normalization and parent fallback.
+- catalog parse, validation, and round-trip serialization.
+- catalog registration and unregister.
+- package-relative key lookup.
+- absolute namespace key lookup.
+- active locale switching.
+- parent locale fallback.
+- default locale fallback.
+- inline fallback text.
+- missing-key diagnostics.
+- package-owned catalog registration and unload.
+
+### Remaining Phase 21 Work
+
+Compatibility remains broad:
+
+- serialized widgets still store direct `text`.
+- widget assets still substitute string parameters directly.
+- semantic names/descriptions/hints remain direct strings.
+- bindings may still format final display strings.
+- mounted UI does not refresh automatically when the active locale changes.
+- editor preview does not yet expose locale switching or missing-translation
+  validation.
+
+The next localization subphase should be **Phase 21B: Serialized widget textKey
+and semantic localization refs**. The core runtime can now resolve package-aware
+keys, so the next useful step is to let durable authored UI refer to those keys
+while preserving embedded string fallbacks.
+
+## 28. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -4888,10 +5078,12 @@ using runtime surfaces, mounts, widgets, serialization, and widget assets
 without editor-only runtime shortcuts. The twentieth committed direction is
 dependency-aware live reload through `UiAssetRuntime`. The twenty-first
 committed direction is package-level authored asset ownership and override
-policy through `UiPackageRuntime`.
+policy through `UiPackageRuntime`. The twenty-second committed direction is
+the Phase 21A localization spine through `UiLocalizationRuntime`: package-aware
+catalog assets, active/default locale state, fallback chains, key lookup,
+diagnostics, validation, and package-owned catalog registration.
 
-The next milestone should implement a Localization Runtime. It should precede
-asset browser, automation, collaborative editing, and runtime plugin loading
-because the package system now needs a package-owned, data-driven way to supply
-localized text to serialized UI, widget assets, bindings, accessibility
-semantics, and editor-authored content.
+The next milestone should continue Localization with **Phase 21B: Serialized
+widget textKey and semantic localization refs**. The runtime can now resolve
+package-aware keys; durable authored UI should next be able to reference those
+keys while preserving direct embedded strings as fallbacks.

@@ -1739,6 +1739,36 @@ const UiPackageRuntime& UiSystem::packages() const
     return packageRuntime;
 }
 
+UiLocalizationRuntime& UiSystem::localization()
+{
+    return localizationRuntime;
+}
+
+const UiLocalizationRuntime& UiSystem::localization() const
+{
+    return localizationRuntime;
+}
+
+bool UiSystem::setLocale(std::string_view locale)
+{
+    const UiLocaleId parsed = parseUiLocaleId(locale);
+    if (parsed.tag.empty())
+        return false;
+    localizationRuntime.setLocale(parsed);
+    return true;
+}
+
+UiLocaleId UiSystem::locale() const
+{
+    return localizationRuntime.locale();
+}
+
+UiLocalizedString UiSystem::localize(const UiLocalizedTextRef& ref,
+                                     const UiLocalizationScope& scope) const
+{
+    return localizationRuntime.resolve(ref, scope);
+}
+
 UiSerializedLoadResult UiSystem::instantiateWidgetAsset(const UiWidgetAssetInstanceDesc& desc,
                                                         UiMountId mountId,
                                                         const IUiSerializedBindingResolver* bindingResolver)

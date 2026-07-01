@@ -1076,6 +1076,19 @@ The Visual UI Editor sample now loads its reusable prompt assets from
 root scanning, signatures, repository identity, and package browsers are future
 layers above this ownership model.
 
+UI localization core is engine-owned by `UiLocalizationRuntime`, which is a
+global UI platform runtime owned by `UiSystem` rather than a surface-local
+manager. Phase 21A supports package-aware localization catalogs, active and
+default locale state, parent-locale fallback such as `de-AT -> de`,
+catalog-declared fallback/source locale participation, package-relative and
+absolute namespace key lookup, missing-key diagnostics, catalog validation, and
+JSON parse/serialize helpers. `UiPackageRuntime` can register
+`UiLocalizationAsset` data from package assets; package unload unregisters the
+catalog. Serialized widget `textKey` fields, localized semantic refs, mounted UI
+refresh on language switch, editor locale preview, language-pack live reload,
+plural/select rules, RTL rendering, and font fallback remain future
+localization subphases.
+
 UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
 visible/render-enabled surfaces in surface order, resolves each surface's
 document into a surface-local command buffer, then transforms the vertices into

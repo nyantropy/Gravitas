@@ -658,6 +658,27 @@ UiSerializedValidationResult UiPackageRuntime::validatePackageAssets(const UiPac
             validation.error(path, "widget package asset is missing widget asset data");
         if (asset.reference.type == UiAssetType::Theme && !asset.theme)
             validation.error(path, "theme package asset is missing theme data");
+        if (asset.reference.type == UiAssetType::Localization)
+        {
+            if (!asset.localizationAsset)
+            {
+                validation.error(path, "localization package asset is missing localization data");
+            }
+            else
+            {
+                UiSerializedValidationResult catalogValidation =
+                    UiLocalizationRuntime{}.validateCatalog(*asset.localizationAsset);
+                validation.issues.insert(validation.issues.end(),
+                                         catalogValidation.issues.begin(),
+                                         catalogValidation.issues.end());
+                if (asset.localizationAsset->asset != asset.reference)
+                    validation.error(path, "localization package asset reference does not match catalog id");
+                if (asset.localizationAsset->packageId != package.manifest.id)
+                    validation.error(path, "localization catalog package does not match package manifest id");
+                if (asset.localizationAsset->namespaceId != package.manifest.namespaceId)
+                    validation.error(path, "localization catalog namespace does not match package manifest namespace");
+            }
+        }
         if (asset.reference.type == UiAssetType::Unknown)
             validation.error(path, "package asset type is unknown");
     }
@@ -710,7 +731,12 @@ void UiPackageRuntime::applyEffectiveAssetChanges(
     for (const auto& [key, current] : effectiveAssets)
     {
         if (nextEffective.find(key) == nextEffective.end())
-            ui.uiAssets().unregisterAsset(ui, current.origin.reference, &result.assetReload);
+        {
+            if (current.origin.reference.type == UiAssetType::Localization)
+                ui.localization().unregisterCatalog(current.origin.reference);
+            else
+                ui.uiAssets().unregisterAsset(ui, current.origin.reference, &result.assetReload);
+        }
     }
 
     for (const auto& [key, next] : nextEffective)
@@ -721,7 +747,31 @@ void UiPackageRuntime::applyEffectiveAssetChanges(
             currentIt->second.origin.packageId != next.origin.packageId ||
             next.origin.packageId == changedPackageId;
         if (changedProvider)
-            queuePackageAssetReload(ui, next.asset);
+        {
+            if (next.asset.reference.type == UiAssetType::Localization && next.asset.localizationAsset)
+            {
+                UiSerializedValidationResult validation;
+                const bool registered = ui.localization().registerCatalog(*next.asset.localizationAsset,
+                                                                          &validation);
+                if (!registered || !validation.valid())
+                {
+                    result.success = false;
+                    result.validation.issues.insert(result.validation.issues.end(),
+                                                    validation.issues.begin(),
+                                                    validation.issues.end());
+                    result.events.push_back(makePackageEvent(UiPackageEventKind::PackageValidationFailed,
+                                                             next.origin.packageId,
+                                                             {},
+                                                             next.asset.reference,
+                                                             "localization catalog failed validation",
+                                                             validation));
+                }
+            }
+            else
+            {
+                queuePackageAssetReload(ui, next.asset);
+            }
+        }
     }
 
     UiAssetReloadResult reload = ui.processUiAssetReloads();
@@ -744,5 +794,10 @@ bool UiPackageRuntime::queuePackageAssetReload(UiSystem& ui, const UiPackageAsse
         return ui.uiAssets().queueWidgetAssetReload(*asset.widgetAsset, asset.sourcePath);
     if (asset.reference.type == UiAssetType::Theme && asset.theme)
         return ui.uiAssets().queueThemeReload(asset.reference.id, *asset.theme, asset.dependencies, asset.sourcePath);
+    if (asset.reference.type == UiAssetType::Localization && asset.localizationAsset)
+    {
+        UiSerializedValidationResult validation;
+        return ui.localization().registerCatalog(*asset.localizationAsset, &validation);
+    }
     return false;
 }

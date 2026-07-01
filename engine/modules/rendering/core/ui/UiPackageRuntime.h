@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "UiAssetRuntime.h"
+#include "UiLocalizationRuntime.h"
 
 class UiSystem;
 
@@ -75,6 +76,7 @@ struct UiPackageAssetDesc
     std::optional<UiSerializedAsset> serializedAsset;
     std::optional<UiWidgetAssetDefinition> widgetAsset;
     std::optional<UiTheme> theme;
+    std::optional<UiLocalizationAsset> localizationAsset;
 };
 
 struct UiPackageDesc

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -17,6 +18,7 @@
 #include "UiFocusManager.h"
 #include "UiInputDispatcher.h"
 #include "UiInteraction.h"
+#include "UiLocalizationRuntime.h"
 #include "UiModalManager.h"
 #include "UiMount.h"
 #include "UiPackageRuntime.h"
@@ -267,6 +269,12 @@ public:
     UiAssetReloadResult processUiAssetReloads();
     UiPackageRuntime&       packages();
     const UiPackageRuntime& packages() const;
+    UiLocalizationRuntime&       localization();
+    const UiLocalizationRuntime& localization() const;
+    bool setLocale(std::string_view locale);
+    UiLocaleId locale() const;
+    UiLocalizedString localize(const UiLocalizedTextRef& ref,
+                               const UiLocalizationScope& scope = {}) const;
     UiSerializedLoadResult instantiateWidgetAsset(const UiWidgetAssetInstanceDesc& desc,
                                                    UiMountId mountId,
                                                    const IUiSerializedBindingResolver* bindingResolver = nullptr);
@@ -343,6 +351,7 @@ private:
     UiWidgetAssetRegistry                      widgetAssetRegistry;
     UiAssetRuntime                             uiAssetRuntime;
     UiPackageRuntime                           packageRuntime;
+    UiLocalizationRuntime                      localizationRuntime;
     UiCommandBuffer                            commandCache;
     UiCommandBuffer                            emptyCommandBuffer;
     Metrics                                    lastMetrics;

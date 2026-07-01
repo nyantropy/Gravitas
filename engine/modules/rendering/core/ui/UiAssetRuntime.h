@@ -18,7 +18,8 @@ enum class UiAssetType
     Unknown,
     SerializedUi,
     WidgetAsset,
-    Theme
+    Theme,
+    Localization
 };
 
 struct UiAssetReference

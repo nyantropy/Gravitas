@@ -109,6 +109,8 @@ std::string uiAssetTypeName(UiAssetType type)
         return "WidgetAsset";
     case UiAssetType::Theme:
         return "Theme";
+    case UiAssetType::Localization:
+        return "Localization";
     default:
         return "Unknown";
     }
@@ -127,6 +129,10 @@ UiAssetReference uiAssetReferenceFromDependencyString(const std::string& depende
         return UiAssetReference{UiAssetType::WidgetAsset, dependency.substr(7)};
     if (startsWith(dependency, "ui:"))
         return UiAssetReference{UiAssetType::SerializedUi, dependency.substr(3)};
+    if (startsWith(dependency, "locale:"))
+        return UiAssetReference{UiAssetType::Localization, dependency.substr(7)};
+    if (startsWith(dependency, "localization:"))
+        return UiAssetReference{UiAssetType::Localization, dependency.substr(13)};
     return UiAssetReference{UiAssetType::WidgetAsset, dependency};
 }
 

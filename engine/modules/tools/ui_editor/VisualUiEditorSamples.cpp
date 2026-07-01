@@ -16,6 +16,37 @@ namespace gts::tools
                 throw std::runtime_error("Visual UI editor sample asset failed to parse");
             return asset;
         }
+
+        UiLocalizationAsset engineLocalizationCatalog()
+        {
+            UiLocalizationAsset asset;
+            asset.asset = UiAssetReference{UiAssetType::Localization, "engine.ui.locale.en-US"};
+            asset.packageId = "engine.ui";
+            asset.namespaceId = "engine";
+            asset.locale = parseUiLocaleId("en-US");
+            asset.sourceLocale = parseUiLocaleId("en-US");
+            asset.entries["status_prompt.ready"] = UiLocalizationEntry{
+                .text = "Ready",
+                .context = "default status prompt message",
+                .translatorNote = "Used by the Visual UI Editor sample prompt"};
+            return asset;
+        }
+
+        UiLocalizationAsset gameLocalizationCatalog()
+        {
+            UiLocalizationAsset asset;
+            asset.asset = UiAssetReference{UiAssetType::Localization, "game.ui.locale.en-US"};
+            asset.packageId = "game.ui";
+            asset.namespaceId = "dungeon";
+            asset.locale = parseUiLocaleId("en-US");
+            asset.sourceLocale = parseUiLocaleId("en-US");
+            asset.fallbackLocale = parseUiLocaleId("en");
+            asset.entries["interaction_prompt.label"] = UiLocalizationEntry{
+                .text = "Press {input} to interact",
+                .context = "interaction prompt label",
+                .translatorNote = "Shown near the bottom of the screen"};
+            return asset;
+        }
     }
 
     void registerVisualUiEditorSampleThemeClasses(UiTheme& theme)
@@ -154,6 +185,11 @@ namespace gts::tools
         asset.reference = UiAssetReference{UiAssetType::WidgetAsset, statusPrompt.id};
         asset.widgetAsset = std::move(statusPrompt);
         package.assets.push_back(std::move(asset));
+
+        UiPackageAssetDesc localization;
+        localization.reference = UiAssetReference{UiAssetType::Localization, "engine.ui.locale.en-US"};
+        localization.localizationAsset = engineLocalizationCatalog();
+        package.assets.push_back(std::move(localization));
         return package;
     }
 
@@ -175,6 +211,11 @@ namespace gts::tools
         asset.reference = UiAssetReference{UiAssetType::WidgetAsset, interactionPrompt.id};
         asset.widgetAsset = std::move(interactionPrompt);
         package.assets.push_back(std::move(asset));
+
+        UiPackageAssetDesc localization;
+        localization.reference = UiAssetReference{UiAssetType::Localization, "game.ui.locale.en-US"};
+        localization.localizationAsset = gameLocalizationCatalog();
+        package.assets.push_back(std::move(localization));
         return package;
     }
 }
