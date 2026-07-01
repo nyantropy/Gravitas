@@ -10,7 +10,7 @@ The investigation found that the current UI runtime is useful as a retained
 primitive renderer, but it is not a complete UI runtime architecture for a
 general-purpose engine. The engine needs first-class concepts for surfaces,
 layers, composition, centralized input dispatch, focus, modal ownership, richer
-layout, styling, and animation.
+layout, styling, animation, and data binding.
 
 The first foundational primitive has been implemented during this investigation:
 `UiDocument` now owns explicit ordered layers. Existing builders still attach to
@@ -81,6 +81,13 @@ interrupts/cancels animations by node/property, prunes destroyed subtrees, and
 applies animated style, payload, and layout values before rendering extracts the
 current frame.
 
+The fifteenth foundational primitive is now implemented: `UiBindingManager`
+owns surface-local one-way synchronization relationships between
+application-owned state and retained UI properties. Bindings observe explicit
+sources, support formatting and computed values, update retained node
+presentation/layout/state targets before animation and rendering, and are
+cleaned up by source, node, mount, layer, and surface lifetime.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
@@ -91,8 +98,9 @@ default screen `UiSurface` for compatibility and can create additional surfaces.
 Each `UiSurface` owns one `UiDocument`, one layer stack, one
 `UiInputDispatcher`, one `UiFocusManager`, one `UiModalManager`, one
 `UiMountManager`, one `UiNavigationGraph`, one `UiDragDropManager`, and one
-`UiAnimationManager`, and one active `UiTheme`. Renderer-side text bindings and
-command caches are tracked per surface because `UiHandle` values remain
+`UiAnimationManager`, one `UiBindingManager`, and one active `UiTheme`.
+Renderer-side font bindings and command caches are tracked per surface because
+`UiHandle` values remain
 document-local.
 
 The default screen surface preserves the old normalized `0..1` coordinate space.
@@ -163,6 +171,15 @@ automatically when nodes, mounts, layers, or surfaces disappear.
 `RenderingRuntime::renderFrame(...)` advances UI animations once per frame
 before command extraction, so rendering consumes already-computed presentation.
 
+The retained synchronization path is now centralized. Applications can expose
+state through `UiObservable<T>` or custom `UiBindingSource` callbacks, while
+compositions and widgets bind those sources to retained properties such as text,
+visibility, enabled state, opacity, progress, primitive colors/tints, style
+classes, and layout values. `RenderingRuntime::renderFrame(...)` updates UI
+bindings once per frame before animation, layout, and command extraction, so
+bindings establish desired state and the animation runtime interpolates
+animatable changes.
+
 ### UiSystem
 
 `UiSystem` is the render-facing facade over `UiSurface`. It exposes legacy
@@ -211,6 +228,8 @@ Missing from `UiSystem` today:
   constrained text wrapping, and virtualized scroll content.
 - First-class animation graph authoring, reduced-motion policy, and delayed
   modal/mount teardown after exit transitions.
+- Two-way data editing, reflected ECS/property binding, and serialized widget
+  definitions. Current data binding is intentionally one-way and runtime-owned.
 
 ### UiDocument
 
@@ -530,10 +549,56 @@ the retained UI animation owner, but they share the same underlying tween
 primitive.
 
 Current retained UI animation covers opacity, colors/tints, layout offsets,
-fixed size, content offset, theme-driven style-state transitions, widget state
-hooks, and modal owner open/close hooks. It does not yet provide animation graph
-authoring, reduced-motion policy, delayed modal/mount teardown, or serialized
-animation assets.
+anchors, fixed size, content offset, theme-driven style-state transitions,
+widget state hooks, and modal owner open/close hooks. It does not yet provide
+animation graph authoring, reduced-motion policy, delayed modal/mount teardown,
+or serialized animation assets.
+
+### Data Binding
+
+`UiBindingManager` is now the generic retained UI synchronization runtime. It is
+surface-local and owns one-way relationships from application-owned state to
+retained UI targets. Bindings are not widgets, not gameplay state, and not an
+MVVM framework. They describe relationships such as:
+
+- observable text -> label text.
+- integer value + formatter -> label text.
+- computed current/max value -> progress fill layout.
+- boolean value -> retained visibility or enabled state.
+- status value -> style class or presentation color.
+- boolean value -> opacity transition.
+
+The observable model is intentionally small. `UiObservable<T>` provides a
+versioned value wrapper for simple runtime state, while `UiBindingSource` lets
+applications provide custom read, revision, and lifetime callbacks for ECS,
+editor, or game-owned data. Computed and multi-source bindings are represented
+by custom source callbacks plus a combined revision function. Formatting and
+transforms live on the binding descriptor rather than in widgets.
+
+Binding update order is:
+
+1. Application systems change their own state.
+2. `UiBindingManager` evaluates changed sources.
+3. The manager applies retained target properties.
+4. `UiAnimationManager` interpolates animatable changes.
+5. Layout and rendering consume retained state.
+
+Bindings are cleaned by ownership boundaries. Destroying a node, mount, layer,
+surface, or document removes bindings under that subtree. Shared observable
+sources can also expire and be pruned automatically. Widgets expose convenience
+methods such as label text binding and progress value binding, but the binding
+target remains the retained node so bindings survive ordinary widget authoring
+patterns without giving widgets ownership of runtime state.
+
+Current binding limitations:
+
+- One-way only. Text editing, sliders, property editors, and IME input will need
+  explicit future two-way policies.
+- No reflected ECS/property schema yet.
+- No binding graph optimizer beyond source revision checks and value equality.
+- No serialized binding declarations or widget asset definitions.
+- No accessibility announcement queue yet; binding changes provide the future
+  signal source for that runtime.
 
 ### Visual Novel, Dialogue, and Choices
 
@@ -3751,23 +3816,182 @@ Regression status now includes:
 - There is no reduced-motion/accessibility policy, animation graph authoring,
   or serialized animation asset format yet.
 
-### Next Primitive
+### Phase 13 Conclusion
 
 With Layers, Dispatch, Focus, Modals, Mounts, Compositions, Event Propagation,
 UiSurface, Layout, Styling, Widgets, Navigation, Drag & Drop, and Animation
-implemented, the single highest-value remaining primitive is **Data Binding**.
+implemented, the next required primitive was **Data Binding** because the
+remaining duplication was synchronization code that manually copied model state
+into retained UI every frame.
 
-Data binding should precede accessibility, virtualized lists, widget asset
-definitions, and UI serialization because the runtime now has durable targets
-for owned state changes: widgets, style, layout, animation, navigation, events,
-and drag/drop. The remaining duplication is synchronization code that manually
-copies gameplay/editor model state into retained widgets every frame. A binding
-runtime would make UI reflect model changes declaratively, reduce rebuild/sync
-boilerplate, and provide the change-notification substrate needed later for
-accessibility announcements, virtualization invalidation, serialized widget
-definitions, and editor tooling.
+## 20. Phase 14 Implementation: Data Binding Runtime
 
-## 20. Final Recommendation
+### Investigation
+
+Current retained UI synchronization still appears in many feature systems:
+
+- `InteractionPromptSyncSystem` reads `InteractionPromptUiState`, writes prompt
+  composition state, and previously caused retained label/opacity updates.
+- `DungeonHudSyncSystem` caches floor/debug/minimap revisions and manually
+  writes text payloads, grid payloads, visibility, and layout.
+- `CombatUiSyncSystem` writes action menu labels, selected row colors, HP text,
+  HP fill widths, log lines, banner alpha, and enemy nameplate state every
+  frame.
+- `InventoryUiSyncSystem` computes panel geometry, visibility, item icon
+  payloads, stack labels, tooltip text, and hover/drag colors manually.
+- `MenuUiSyncSystem` writes menu button labels, settings labels, dropdown rows,
+  action bindings, visibility, and enabled state manually.
+- `VNDialogueComposition` delegates to `VNDialogueUi::sync(...)`, which mirrors
+  dialogue runtime state into retained dialogue text, speaker text, choices,
+  and choice button state.
+- Engine tool panels such as `SceneGizmoPanel` manually update button text,
+  toggle colors, status labels, and visibility.
+
+The repeated generic patterns are text formatting, boolean visibility/enabled
+state, progress/fill geometry, style/color state, payload replacement, and
+conditional layout invalidation. The application-specific parts are inventory
+item meaning, merchant pricing rules, dialogue graph semantics, combat state
+rules, and editor command behavior. Those remain application logic. The runtime
+now owns the synchronization relationship between state and retained targets.
+
+### Architecture
+
+`UiBindingManager` is surface-local and owns one-way binding records. A binding
+record contains:
+
+- target retained node.
+- target property.
+- source read callback.
+- optional source revision callback.
+- optional source lifetime callback.
+- optional transform.
+- optional text formatter.
+- owner mount metadata.
+- optional animation timing for animatable targets.
+
+The binding source model is deliberately small:
+
+- `UiObservable<T>` is a lightweight versioned value wrapper for common
+  composition/widget state.
+- `bindObservable(...)` produces binding sources from observable references or
+  `shared_ptr` observables.
+- `UiBindingSource` supports arbitrary application/ECS/editor data through
+  type-erased read/revision/lifetime callbacks.
+- Computed and multi-source bindings are just custom source callbacks with a
+  combined revision value.
+
+Implemented target properties include text, visibility, enabled state,
+interactable state, opacity, progress, rect color, text color, image asset,
+image tint, style class, full layout, layout offsets, layout anchors, fixed
+size, and content offset. Text bindings can format any binding value into
+display text. Progress bindings write layout anchor state and can animate via
+the animation runtime.
+
+Bindings update before animation. That ordering means bindings write desired
+retained state, then `UiAnimationManager` interpolates animatable changes for
+the current frame. Text and visibility changes invalidate layout or visual state
+through the existing `UiDocument` dirty path. Bindings do not bypass events,
+focus, modal policy, widgets, or rendering.
+
+### Implementation
+
+Implemented:
+
+- `UiBindingTypes.h`
+- `UiBindingManager.h`
+- `UiBindingManager.cpp`
+- surface-local `UiSurface::bindingManager()`
+- `UiSystem::bindingManager(...)`
+- `UiSystem::bind(...)`
+- `UiSystem::unbind(...)`
+- `UiSystem::unbindTarget(...)`
+- `UiSystem::updateBindings()`
+- automatic binding cleanup during node, mount, layer, and surface teardown.
+- render-frame binding evaluation in `RenderingRuntime::renderFrame(...)`
+  before UI animation and command extraction.
+- widget convenience bindings for label text/visibility, panel visibility,
+  button text/enabled/visibility, image asset/tint, and progress values.
+- layout anchor animation support in `UiAnimationManager` so progress bindings
+  can animate retained geometry.
+
+### Feature Demonstration
+
+`InteractionPromptComposition` now uses runtime data bindings for prompt text
+and opacity state:
+
+- `UiObservable<std::string>` drives the label text.
+- `UiObservable<bool>` drives panel and label opacity through animated
+  `UiBindableProperty::Opacity` bindings.
+- the composition update only keeps nodes visible long enough for a fade-out to
+  finish; it no longer copies text or starts opacity tweens manually.
+
+The runtime tests also demonstrate computed progress binding through
+`UiProgressBarWidget::bindValue(...)`, including animation from the previous
+fill width to the new computed value.
+
+### Validation
+
+Added `ui_binding_runtime`, covering:
+
+- one-way text binding.
+- formatting.
+- computed multi-source progress binding.
+- progress animation integration.
+- visibility and enabled state binding.
+- layout invalidation from text changes.
+- expired source cleanup.
+- mount cleanup.
+- surface-local binding ownership and surface cleanup.
+
+Regression status now includes:
+
+- `ui_layer_runtime`
+- `ui_input_dispatcher_runtime`
+- `ui_focus_manager_runtime`
+- `ui_modal_manager_runtime`
+- `ui_mount_runtime`
+- `ui_composition_runtime`
+- `ui_event_propagation_runtime`
+- `ui_surface_runtime`
+- `ui_layout_runtime`
+- `ui_theme_runtime`
+- `ui_widget_runtime`
+- `ui_navigation_runtime`
+- `ui_drag_drop_runtime`
+- `ui_animation_runtime`
+- `ui_binding_runtime`
+
+### Remaining Binding Debt
+
+- Combat, dungeon HUD, inventory, merchant, menus, VN dialogue, and engine tool
+  panels still contain substantial manual retained UI sync.
+- The runtime is intentionally one-way. Text fields, sliders, property editors,
+  and IME-aware controls still need explicit future two-way binding policy.
+- There is no reflected ECS/property binding bridge yet.
+- There is no serialized binding/widget asset format yet.
+- Binding changes do not yet feed an accessibility announcement tree.
+- Binding evaluation is source-revision/value based, not a dependency-graph
+  scheduler.
+
+### Next Primitive
+
+With Layers, Dispatch, Focus, Modals, Mounts, Compositions, Event Propagation,
+UiSurface, Layout, Styling, Widgets, Navigation, Drag & Drop, Animation, and
+Data Binding implemented, the single highest-value remaining primitive is the
+**Accessibility Runtime**.
+
+Accessibility should precede virtualized lists, widget asset definitions, UI
+serialization, and editor UI authoring because the runtime now has enough
+semantic substrate to expose UI meaning consistently: widgets, navigation
+roles, focus ownership, events, state, themes, layout, and binding change
+signals. An accessibility runtime would formalize the semantic UI tree,
+announce state changes, define roles and names independent of visual styling,
+and provide the same structure needed later for automation, editor tooling,
+screen readers, high-contrast/reduced-motion policy, and robust serialized UI
+authoring. Virtualization and asset definitions are important, but they should
+build on a stable semantic model rather than inventing one after the fact.
+
+## 21. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -3777,7 +4001,8 @@ Keep the current retained node primitives as the low-level drawing and layout
 substrate, but stop treating `UiSystem` plus one document as the whole UI
 runtime. The engine should own explicit surfaces, layers, mountable
 compositions, centralized input dispatch, focus, modal policy, layout, styling,
-widgets, navigation, drag/drop, and future presentation systems.
+widgets, navigation, drag/drop, animation, data binding, and future presentation
+systems.
 
 This architecture is the smallest durable set of primitives that naturally
 supports visual novels, RPG HUDs, strategy panels, action-game overlays, editor
@@ -3798,9 +4023,12 @@ direction is reusable composition-owned widgets. The twelfth committed
 direction is surface-local non-pointer traversal and activation through
 `UiNavigationGraph`. The thirteenth committed direction is surface-local direct
 manipulation through `UiDragDropManager`. The fourteenth committed direction is
-surface-local temporal presentation through `UiAnimationManager`.
+surface-local temporal presentation through `UiAnimationManager`. The fifteenth
+committed direction is surface-local one-way synchronization through
+`UiBindingManager`.
 
-The next milestone should implement Data Binding. It should precede
-accessibility, virtualized lists, widget asset definitions, and UI serialization
-because the runtime now needs a generic way to synchronize model state into
-widgets, layout, style, and animation without feature-owned per-frame sync code.
+The next milestone should implement Accessibility Runtime. It should precede
+virtualized lists, widget asset definitions, UI serialization, and editor UI
+authoring because the runtime now needs a durable semantic tree and state-change
+announcement model before higher-level authored or large-scale UI systems encode
+their own incompatible semantics.

@@ -175,6 +175,7 @@ bool UiSystem::removeLayer(UiSurfaceId surfaceId, UiLayerId layerId)
     const std::vector<UiMountId> layerMounts = mountState.mountsInLayer(layerId);
     for (UiMountId mount : layerMounts)
         destroyMount(surfaceId, mount);
+    record->surface.bindingManager().unbindSubtree(document, root);
     record->surface.animationManager().cancelSubtree(document, root);
     record->surface.dragDropManager().unregisterSubtree(document, root);
     record->surface.navigationGraph().unregisterSubtree(document, root);
@@ -301,6 +302,7 @@ bool UiSystem::removeNode(UiSurfaceId surfaceId, UiHandle handle)
     record->surface.dragDropManager().unregisterSubtree(document, handle);
     record->surface.navigationGraph().unregisterSubtree(document, handle);
     record->surface.animationManager().cancelSubtree(document, handle);
+    record->surface.bindingManager().unbindSubtree(document, handle);
     removeTextBindingsRecursive(*record, handle);
     const bool removed = document.removeNode(handle);
     if (!removed)
@@ -877,6 +879,107 @@ UiAnimationFrameResult UiSystem::updateAnimations(float dt)
     return aggregate;
 }
 
+UiBindingManager& UiSystem::bindingManager()
+{
+    return defaultSurfaceRecord().surface.bindingManager();
+}
+
+const UiBindingManager& UiSystem::bindingManager() const
+{
+    return defaultSurfaceRecord().surface.bindingManager();
+}
+
+UiBindingManager* UiSystem::bindingManager(UiSurfaceId surfaceId)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record == nullptr ? nullptr : &record->surface.bindingManager();
+}
+
+const UiBindingManager* UiSystem::bindingManager(UiSurfaceId surfaceId) const
+{
+    const SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record == nullptr ? nullptr : &record->surface.bindingManager();
+}
+
+UiBindingId UiSystem::bind(const UiBindingDesc& desc)
+{
+    return bind(defaultSurfaceId, desc);
+}
+
+UiBindingId UiSystem::bind(UiSurfaceId surfaceId, const UiBindingDesc& desc)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    if (record == nullptr)
+        return UI_INVALID_BINDING;
+
+    UiBindingDesc resolved = desc;
+    if (resolved.ownerMount == UI_INVALID_MOUNT && resolved.target != UI_INVALID_HANDLE)
+        resolved.ownerMount =
+            record->surface.mountManager().mountFromNode(record->surface.document(), resolved.target);
+
+    const UiBindingId id =
+        record->surface.bindingManager().bind(record->surface.document(),
+                                             record->surface.animationManager(),
+                                             std::move(resolved));
+    if (id != UI_INVALID_BINDING)
+    {
+        record->commandCacheValid = false;
+        commandCache.clear();
+    }
+    return id;
+}
+
+bool UiSystem::unbind(UiBindingId bindingId)
+{
+    return unbind(defaultSurfaceId, bindingId);
+}
+
+bool UiSystem::unbind(UiSurfaceId surfaceId, UiBindingId bindingId)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record != nullptr && record->surface.bindingManager().unbind(bindingId);
+}
+
+uint32_t UiSystem::unbindTarget(UiHandle target)
+{
+    return unbindTarget(defaultSurfaceId, target);
+}
+
+uint32_t UiSystem::unbindTarget(UiSurfaceId surfaceId, UiHandle target)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record == nullptr ? 0 : record->surface.bindingManager().unbindTarget(target);
+}
+
+UiBindingFrameResult UiSystem::updateBindings()
+{
+    UiBindingFrameResult aggregate;
+    if (!enabled)
+        return aggregate;
+
+    for (auto& [_, record] : surfaces)
+    {
+        UiDocument& document = record.surface.document();
+        record.surface.bindingManager().pruneInvalidNodes(document);
+        UiBindingFrameResult result =
+            record.surface.bindingManager().update(document, record.surface.animationManager());
+        aggregate.active += result.active;
+        aggregate.evaluated += result.evaluated;
+        aggregate.applied += result.applied;
+        aggregate.removed += result.removed;
+        if (result.changed())
+        {
+            record.surface.dragDropManager().pruneInvalidNodes(document, record.surface.focusManager());
+            record.surface.navigationGraph().pruneInvalidNodes(document);
+            record.surface.modalManager().pruneInvalidModals(document, record.surface.focusManager());
+            record.surface.focusManager().pruneInvalidHandles(document);
+            record.commandCacheValid = false;
+            commandCache.clear();
+        }
+    }
+    return aggregate;
+}
+
 UiMountManager& UiSystem::mountManager()
 {
     return defaultSurfaceRecord().surface.mountManager();
@@ -1144,6 +1247,7 @@ bool UiSystem::destroyMount(UiSurfaceId surfaceId, UiMountId mountId)
         return false;
 
     destroyCompositionRecordsForMount(surfaceId, mountId);
+    record->surface.bindingManager().unbindSubtree(document, root);
     record->surface.animationManager().cancelSubtree(document, root);
     record->surface.dragDropManager().unregisterSubtree(document, root);
     record->surface.navigationGraph().unregisterSubtree(document, root);

@@ -273,6 +273,7 @@ namespace gts::rendering
         if (uiEnabled && frameBuildMode != FrameBuildMode::None)
         {
             uiSystem->setEnabled(true);
+            uiSystem->updateBindings();
             uiSystem->updateAnimations(dt);
             uiBuffer = &uiSystem->extractCommandsRef(windowPixelWidth, windowPixelHeight);
         }

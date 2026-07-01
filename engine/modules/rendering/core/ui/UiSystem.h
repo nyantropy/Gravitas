@@ -9,6 +9,7 @@
 #include "BitmapFont.h"
 #include "IResourceProvider.hpp"
 #include "UiAnimationManager.h"
+#include "UiBindingManager.h"
 #include "UiCommand.h"
 #include "UiComposition.h"
 #include "UiDocument.h"
@@ -152,6 +153,17 @@ public:
     bool isAnimating(UiHandle handle, UiAnimationProperty property) const;
     bool isAnimating(UiSurfaceId surfaceId, UiHandle handle, UiAnimationProperty property) const;
     UiAnimationFrameResult updateAnimations(float dt);
+    UiBindingManager&       bindingManager();
+    const UiBindingManager& bindingManager() const;
+    UiBindingManager*       bindingManager(UiSurfaceId surfaceId);
+    const UiBindingManager* bindingManager(UiSurfaceId surfaceId) const;
+    UiBindingId bind(const UiBindingDesc& desc);
+    UiBindingId bind(UiSurfaceId surfaceId, const UiBindingDesc& desc);
+    bool        unbind(UiBindingId bindingId);
+    bool        unbind(UiSurfaceId surfaceId, UiBindingId bindingId);
+    uint32_t    unbindTarget(UiHandle target);
+    uint32_t    unbindTarget(UiSurfaceId surfaceId, UiHandle target);
+    UiBindingFrameResult updateBindings();
     UiMountManager&       mountManager();
     const UiMountManager& mountManager() const;
     Metrics           getLastMetrics() const;

@@ -25,6 +25,8 @@ enum class UiAnimationProperty : uint8_t
     NineSliceTint,
     LayoutOffsetMin,
     LayoutOffsetMax,
+    LayoutAnchorMin,
+    LayoutAnchorMax,
     LayoutFixedSize,
     LayoutContentOffset
 };

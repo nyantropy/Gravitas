@@ -417,6 +417,12 @@ UiAnimationValue UiAnimationManager::currentValue(const UiDocument& document,
         case UiAnimationProperty::LayoutOffsetMax:
             return node->layout.offsetMax;
 
+        case UiAnimationProperty::LayoutAnchorMin:
+            return node->layout.anchorMin;
+
+        case UiAnimationProperty::LayoutAnchorMax:
+            return node->layout.anchorMax;
+
         case UiAnimationProperty::LayoutFixedSize:
             return UiVec2{node->layout.fixedWidth, node->layout.fixedHeight};
 
@@ -532,6 +538,32 @@ bool UiAnimationManager::applyValue(UiDocument& document,
                 return false;
             UiLayoutSpec layout = node->layout;
             layout.offsetMax = *vec;
+            return document.setLayout(target, layout);
+        }
+
+        case UiAnimationProperty::LayoutAnchorMin:
+        {
+            const auto* vec = std::get_if<UiVec2>(&value);
+            if (vec == nullptr)
+                return false;
+            UiLayoutSpec layout = node->layout;
+            layout.positionMode = UiPositionMode::Anchored;
+            layout.widthMode = UiSizeMode::FromAnchors;
+            layout.heightMode = UiSizeMode::FromAnchors;
+            layout.anchorMin = *vec;
+            return document.setLayout(target, layout);
+        }
+
+        case UiAnimationProperty::LayoutAnchorMax:
+        {
+            const auto* vec = std::get_if<UiVec2>(&value);
+            if (vec == nullptr)
+                return false;
+            UiLayoutSpec layout = node->layout;
+            layout.positionMode = UiPositionMode::Anchored;
+            layout.widthMode = UiSizeMode::FromAnchors;
+            layout.heightMode = UiSizeMode::FromAnchors;
+            layout.anchorMax = *vec;
             return document.setLayout(target, layout);
         }
 

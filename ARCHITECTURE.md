@@ -852,11 +852,12 @@ profile buckets after printing.
 The retained UI model is an engine core service. `UiSurface` is the runtime
 boundary for a retained UI universe: it owns a `UiDocument`, explicit layers,
 focus state, modal state, mount lifetime, input dispatch, active theme, and
-coordinate conversion. `UiSystem` is the render-facing facade and compatibility
-surface router; existing APIs still target the default screen surface, while
-surface-aware APIs can create and address additional surfaces. `UiWidget`
-provides reusable composition-owned controls on top of retained nodes, layout,
-themes, propagated events, and surface-local navigation.
+coordinate conversion, animation, and data binding. `UiSystem` is the
+render-facing facade and compatibility surface router; existing APIs still
+target the default screen surface, while surface-aware APIs can create and
+address additional surfaces. `UiWidget` provides reusable composition-owned
+controls on top of retained nodes, layout, themes, propagated events,
+surface-local navigation, and binding convenience APIs.
 
 Each surface owns a `UiDocument` with a hidden document root plus one or more
 ordered layer roots. Existing callers that create nodes without specifying a
@@ -983,14 +984,27 @@ policy above the same source/target model.
 Animation is engine-owned and surface-local for retained UI. A surface's
 `UiAnimationManager` owns active property timelines for style, payload, and
 layout values such as opacity, semantic colors, primitive tint/color, layout
-offsets, fixed size, and scroll/content offset. The manager consumes the shared
-`gts::tween` easing/progress primitives rather than duplicating interpolation
-math, interrupts existing timelines by `(node, property)`, prunes destroyed
-subtrees, and writes current animated values back to retained nodes before UI
-command extraction. Widgets and compositions request desired transitions
-through `UiSystem::animate(...)`, `animateOpacity(...)`, and
+offsets, anchors, fixed size, and scroll/content offset. The manager consumes
+the shared `gts::tween` easing/progress primitives rather than duplicating
+interpolation math, interrupts existing timelines by `(node, property)`, prunes
+destroyed subtrees, and writes current animated values back to retained nodes
+before UI command extraction. Widgets and compositions request desired
+transitions through `UiSystem::animate(...)`, `animateOpacity(...)`, and
 `transitionStyleState(...)`; themes remain presentation data, layout remains
 geometry solving, and rendering only draws the current computed frame.
+
+Data binding is engine-owned and surface-local for retained UI synchronization.
+A surface's `UiBindingManager` owns one-way relationships from
+application-owned state to retained node properties. Applications expose values
+through `UiObservable<T>` or custom `UiBindingSource` callbacks; bindings can
+format, transform, or compute values and apply them to text, visibility,
+enabled state, opacity, progress, primitive colors/tints, style classes, and
+layout properties. `RenderingRuntime::renderFrame(...)` updates bindings before
+UI animations and command extraction, so bindings establish desired state and
+the animation/runtime/layout path presents it. Bindings are cleaned up with
+node, mount, layer, surface, and source lifetime. The current model is
+one-way only; two-way editing and reflected ECS/property binding are future
+runtime layers.
 
 UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
 visible/render-enabled surfaces in surface order, resolves each surface's

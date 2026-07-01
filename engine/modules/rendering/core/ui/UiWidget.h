@@ -4,6 +4,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 
 #include "BitmapFont.h"
@@ -150,6 +151,29 @@ namespace gts::ui
             context.ui.setPayload(context.surface, rootHandle, payload);
         }
 
+        UiBindingId bindText(UiWidgetContext& context,
+                             UiBindingSource source,
+                             UiBindingFormatter formatter = {})
+        {
+            UiBindingDesc desc;
+            desc.target = rootHandle;
+            desc.property = UiBindableProperty::Text;
+            desc.source = std::move(source);
+            desc.formatter = std::move(formatter);
+            desc.ownerMount = context.mount;
+            return context.ui.bind(context.surface, desc);
+        }
+
+        UiBindingId bindVisible(UiWidgetContext& context, UiBindingSource source)
+        {
+            UiBindingDesc desc;
+            desc.target = rootHandle;
+            desc.property = UiBindableProperty::Visible;
+            desc.source = std::move(source);
+            desc.ownerMount = context.mount;
+            return context.ui.bind(context.surface, desc);
+        }
+
         void setVisible(UiWidgetContext& context, bool visible)
         {
             setWidgetState(context, rootHandle, visible, false, false);
@@ -234,6 +258,16 @@ namespace gts::ui
         {
             setWidgetState(context, rootHandle, visible, visible && enabled, interactable && visible && enabled);
             setWidgetState(context, contentHandle, visible, visible && enabled, false);
+        }
+
+        UiBindingId bindVisible(UiWidgetContext& context, UiBindingSource source)
+        {
+            UiBindingDesc desc;
+            desc.target = rootHandle;
+            desc.property = UiBindableProperty::Visible;
+            desc.source = std::move(source);
+            desc.ownerMount = context.mount;
+            return context.ui.bind(context.surface, desc);
         }
 
         void destroy(UiWidgetContext& context) override
@@ -321,6 +355,19 @@ namespace gts::ui
             applyText(context);
         }
 
+        UiBindingId bindText(UiWidgetContext& context,
+                             UiBindingSource source,
+                             UiBindingFormatter formatter = {})
+        {
+            UiBindingDesc desc;
+            desc.target = labelHandle;
+            desc.property = UiBindableProperty::Text;
+            desc.source = std::move(source);
+            desc.formatter = std::move(formatter);
+            desc.ownerMount = context.mount;
+            return context.ui.bind(context.surface, desc);
+        }
+
         void setEnabled(UiWidgetContext& context, bool enabled)
         {
             buttonDesc.enabled = enabled;
@@ -330,6 +377,16 @@ namespace gts::ui
             applyStateAnimation(context);
         }
 
+        UiBindingId bindEnabled(UiWidgetContext& context, UiBindingSource source)
+        {
+            UiBindingDesc desc;
+            desc.target = rootHandle;
+            desc.property = UiBindableProperty::Enabled;
+            desc.source = std::move(source);
+            desc.ownerMount = context.mount;
+            return context.ui.bind(context.surface, desc);
+        }
+
         void setVisible(UiWidgetContext& context, bool visible)
         {
             buttonDesc.visible = visible;
@@ -337,6 +394,16 @@ namespace gts::ui
             setWidgetState(context, labelHandle, visible, false, false);
             applyPanelStateSkin(context);
             applyStateAnimation(context);
+        }
+
+        UiBindingId bindVisible(UiWidgetContext& context, UiBindingSource source)
+        {
+            UiBindingDesc desc;
+            desc.target = rootHandle;
+            desc.property = UiBindableProperty::Visible;
+            desc.source = std::move(source);
+            desc.ownerMount = context.mount;
+            return context.ui.bind(context.surface, desc);
         }
 
         bool consumePressed()
@@ -496,6 +563,29 @@ namespace gts::ui
             image.rotation = desc.rotation;
             context.ui.setPayload(context.surface, rootHandle, image);
         }
+
+        UiBindingId bindImageAsset(UiWidgetContext& context, UiBindingSource source)
+        {
+            UiBindingDesc desc;
+            desc.target = rootHandle;
+            desc.property = UiBindableProperty::ImageAsset;
+            desc.source = std::move(source);
+            desc.ownerMount = context.mount;
+            return context.ui.bind(context.surface, desc);
+        }
+
+        UiBindingId bindTint(UiWidgetContext& context,
+                             UiBindingSource source,
+                             std::optional<UiAnimationTiming> animation = {})
+        {
+            UiBindingDesc desc;
+            desc.target = rootHandle;
+            desc.property = UiBindableProperty::ImageTint;
+            desc.source = std::move(source);
+            desc.ownerMount = context.mount;
+            desc.animation = animation;
+            return context.ui.bind(context.surface, desc);
+        }
     };
 
     struct UiStackDesc
@@ -645,6 +735,19 @@ namespace gts::ui
             UiLayoutSpec fill = fillLayout();
             fill.anchorMax = {progressDesc.value, 1.0f};
             context.ui.setLayout(context.surface, fillHandle, fill);
+        }
+
+        UiBindingId bindValue(UiWidgetContext& context,
+                              UiBindingSource source,
+                              std::optional<UiAnimationTiming> animation = {})
+        {
+            UiBindingDesc desc;
+            desc.target = fillHandle;
+            desc.property = UiBindableProperty::Progress;
+            desc.source = std::move(source);
+            desc.ownerMount = context.mount;
+            desc.animation = animation;
+            return context.ui.bind(context.surface, desc);
         }
 
         void destroy(UiWidgetContext& context) override
