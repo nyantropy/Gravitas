@@ -118,6 +118,12 @@ namespace gts::ui
         std::string text;
         BitmapFont* font = nullptr;
         std::string styleClass = "Text.Body";
+        UiSemanticRole semanticRole = UiSemanticRole::Label;
+        std::string accessibilityName;
+        std::string accessibilityDescription;
+        std::string accessibilityHint;
+        UiAccessibilityLiveRegion liveRegion = UiAccessibilityLiveRegion::Off;
+        bool accessibilityHidden = false;
         std::optional<UiColor> color;
         std::optional<float> scale;
         UiTextWrapMode wrapMode = UiTextWrapMode::None;
@@ -139,6 +145,7 @@ namespace gts::ui
             setText(context, desc.text);
             if (desc.font != nullptr)
                 context.ui.setTextFont(context.surface, rootHandle, desc.font);
+            applySemantics(context, desc);
         }
 
         void setText(UiWidgetContext& context, const std::string& text)
@@ -149,6 +156,13 @@ namespace gts::ui
             UiTextData payload = currentTextPayload(context);
             payload.text = text;
             context.ui.setPayload(context.surface, rootHandle, payload);
+            if (UiAccessibilityManager* accessibility = context.ui.accessibilityManager(context.surface))
+            {
+                accessibility->applyBindingValue(context.document,
+                                                 rootHandle,
+                                                 UiBindableProperty::Text,
+                                                 UiBindingValue{text});
+            }
         }
 
         UiBindingId bindText(UiWidgetContext& context,
@@ -161,6 +175,7 @@ namespace gts::ui
             desc.source = std::move(source);
             desc.formatter = std::move(formatter);
             desc.ownerMount = context.mount;
+            desc.accessibilityTarget = rootHandle;
             return context.ui.bind(context.surface, desc);
         }
 
@@ -205,6 +220,22 @@ namespace gts::ui
             if (!desc.styleClass.empty())
                 context.ui.setStyleClass(context.surface, rootHandle, desc.styleClass);
         }
+
+        void applySemantics(UiWidgetContext& context, const UiLabelDesc& desc)
+        {
+            if (rootHandle == UI_INVALID_HANDLE || desc.accessibilityHidden)
+                return;
+
+            UiSemanticDesc semantic;
+            semantic.role = desc.semanticRole;
+            semantic.name = desc.accessibilityName;
+            semantic.description = desc.accessibilityDescription;
+            semantic.hint = desc.accessibilityHint;
+            semantic.value = desc.text;
+            semantic.liveRegion = desc.liveRegion;
+            semantic.ownerMount = context.mount;
+            context.ui.setSemantics(context.surface, rootHandle, semantic);
+        }
     };
 
     struct UiPanelDesc
@@ -216,6 +247,12 @@ namespace gts::ui
         bool visible = true;
         bool enabled = true;
         bool interactable = false;
+        bool exposeSemantics = false;
+        UiSemanticRole semanticRole = UiSemanticRole::Panel;
+        std::string accessibilityName;
+        std::string accessibilityDescription;
+        std::string accessibilityHint;
+        UiAccessibilityLiveRegion liveRegion = UiAccessibilityLiveRegion::Off;
         std::optional<UiDragSourceDesc> dragSource;
         std::optional<UiDropTargetDesc> dropTarget;
     };
@@ -233,6 +270,17 @@ namespace gts::ui
             if (!desc.styleClass.empty())
                 context.ui.setStyleClass(context.surface, rootHandle, desc.styleClass);
             context.ui.setPayload(context.surface, rootHandle, UiRectData{});
+            if (desc.exposeSemantics)
+            {
+                UiSemanticDesc semantic;
+                semantic.role = desc.semanticRole;
+                semantic.name = desc.accessibilityName;
+                semantic.description = desc.accessibilityDescription;
+                semantic.hint = desc.accessibilityHint;
+                semantic.liveRegion = desc.liveRegion;
+                semantic.ownerMount = context.mount;
+                context.ui.setSemantics(context.surface, rootHandle, semantic);
+            }
             if (desc.dragSource)
                 context.ui.registerDragSource(context.surface, rootHandle, *desc.dragSource);
             if (desc.dropTarget)
@@ -305,6 +353,11 @@ namespace gts::ui
         bool preventDefault = true;
         bool focusable = true;
         UiNavigationRole navigationRole = UiNavigationRole::Button;
+        UiSemanticRole semanticRole = UiSemanticRole::Button;
+        std::string accessibilityName;
+        std::string accessibilityDescription;
+        std::string accessibilityHint;
+        UiAccessibilityLiveRegion liveRegion = UiAccessibilityLiveRegion::Off;
         std::string navigationGroup;
         int tabIndex = UI_NAVIGATION_AUTO_TAB_INDEX;
         bool wrapNavigation = false;
@@ -344,6 +397,7 @@ namespace gts::ui
                 context.ui.setTextFont(context.surface, labelHandle, desc.font);
 
             applyText(context);
+            applySemantics(context);
             applyPanelStateSkin(context);
         }
 
@@ -353,6 +407,13 @@ namespace gts::ui
         {
             buttonDesc.text = text;
             applyText(context);
+            if (UiAccessibilityManager* accessibility = context.ui.accessibilityManager(context.surface))
+            {
+                accessibility->applyBindingValue(context.document,
+                                                 rootHandle,
+                                                 UiBindableProperty::Text,
+                                                 UiBindingValue{text});
+            }
         }
 
         UiBindingId bindText(UiWidgetContext& context,
@@ -365,6 +426,7 @@ namespace gts::ui
             desc.source = std::move(source);
             desc.formatter = std::move(formatter);
             desc.ownerMount = context.mount;
+            desc.accessibilityTarget = rootHandle;
             return context.ui.bind(context.surface, desc);
         }
 
@@ -444,6 +506,12 @@ namespace gts::ui
             pressed = true;
             if (buttonDesc.onPressed)
                 buttonDesc.onPressed();
+            context.ui.announceAccessibility(context.surface,
+                                             rootHandle,
+                                             UiAccessibilityAnnouncementKind::Action,
+                                             buttonDesc.accessibilityName.empty()
+                                                 ? buttonDesc.text
+                                                 : buttonDesc.accessibilityName);
             applyPanelStateSkin(context);
             applyStateAnimation(context);
 
@@ -529,6 +597,24 @@ namespace gts::ui
             context.ui.registerNavigationNode(context.surface, rootHandle, desc);
         }
 
+        void applySemantics(UiWidgetContext& context)
+        {
+            if (rootHandle == UI_INVALID_HANDLE)
+                return;
+
+            UiSemanticDesc semantic;
+            semantic.role = buttonDesc.semanticRole;
+            semantic.name = buttonDesc.accessibilityName;
+            semantic.description = buttonDesc.accessibilityDescription;
+            semantic.hint = buttonDesc.accessibilityHint;
+            semantic.value = buttonDesc.text;
+            semantic.liveRegion = buttonDesc.liveRegion;
+            semantic.ownerMount = context.mount;
+            if (labelHandle != UI_INVALID_HANDLE)
+                semantic.relationships.labelledBy.push_back(labelHandle);
+            context.ui.setSemantics(context.surface, rootHandle, semantic);
+        }
+
         UiButtonDesc buttonDesc;
         UiHandle labelHandle = UI_INVALID_HANDLE;
         bool pressed = false;
@@ -544,6 +630,9 @@ namespace gts::ui
         float imageAspect = 1.0f;
         float rotation = 0.0f;
         bool visible = true;
+        bool decorative = true;
+        std::string accessibilityName;
+        std::string accessibilityDescription;
     };
 
     class UiImageWidget : public UiWidget
@@ -562,6 +651,17 @@ namespace gts::ui
             image.imageAspect = desc.imageAspect;
             image.rotation = desc.rotation;
             context.ui.setPayload(context.surface, rootHandle, image);
+            if (!desc.decorative || !desc.accessibilityName.empty())
+            {
+                UiSemanticDesc semantic;
+                semantic.role = UiSemanticRole::Image;
+                semantic.name = desc.accessibilityName;
+                semantic.description = desc.accessibilityDescription;
+                semantic.value = desc.imageAsset;
+                semantic.decorative = desc.decorative && desc.accessibilityName.empty();
+                semantic.ownerMount = context.mount;
+                context.ui.setSemantics(context.surface, rootHandle, semantic);
+            }
         }
 
         UiBindingId bindImageAsset(UiWidgetContext& context, UiBindingSource source)
@@ -703,6 +803,10 @@ namespace gts::ui
         std::string fillStyleClass = "ProgressBar.Fill";
         float value = 0.0f;
         bool visible = true;
+        std::string accessibilityName;
+        std::string accessibilityDescription;
+        std::string accessibilityHint;
+        UiAccessibilityLiveRegion liveRegion = UiAccessibilityLiveRegion::Off;
     };
 
     class UiProgressBarWidget : public UiWidget
@@ -724,6 +828,7 @@ namespace gts::ui
                 context.ui.setStyleClass(context.surface, fillHandle, desc.fillStyleClass);
             context.ui.setPayload(context.surface, fillHandle, UiRectData{});
             setValue(context, desc.value);
+            applySemantics(context);
         }
 
         UiHandle fill() const { return fillHandle; }
@@ -735,6 +840,7 @@ namespace gts::ui
             UiLayoutSpec fill = fillLayout();
             fill.anchorMax = {progressDesc.value, 1.0f};
             context.ui.setLayout(context.surface, fillHandle, fill);
+            applySemantics(context);
         }
 
         UiBindingId bindValue(UiWidgetContext& context,
@@ -747,6 +853,7 @@ namespace gts::ui
             desc.source = std::move(source);
             desc.ownerMount = context.mount;
             desc.animation = animation;
+            desc.accessibilityTarget = rootHandle;
             return context.ui.bind(context.surface, desc);
         }
 
@@ -757,6 +864,26 @@ namespace gts::ui
         }
 
     private:
+        void applySemantics(UiWidgetContext& context)
+        {
+            if (rootHandle == UI_INVALID_HANDLE)
+                return;
+
+            UiSemanticDesc semantic;
+            semantic.role = UiSemanticRole::ProgressBar;
+            semantic.name = progressDesc.accessibilityName;
+            semantic.description = progressDesc.accessibilityDescription;
+            semantic.hint = progressDesc.accessibilityHint;
+            semantic.value = std::to_string(progressDesc.value);
+            semantic.liveRegion = progressDesc.liveRegion;
+            semantic.ownerMount = context.mount;
+            semantic.hasRange = true;
+            semantic.rangeMin = 0.0f;
+            semantic.rangeMax = 1.0f;
+            semantic.rangeValue = progressDesc.value;
+            context.ui.setSemantics(context.surface, rootHandle, semantic);
+        }
+
         UiProgressBarDesc progressDesc;
         UiHandle fillHandle = UI_INVALID_HANDLE;
     };

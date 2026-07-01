@@ -1006,6 +1006,15 @@ node, mount, layer, surface, and source lifetime. The current model is
 one-way only; two-way editing and reflected ECS/property binding are future
 runtime layers.
 
+Accessibility semantics are engine-owned and surface-local. A surface's
+`UiAccessibilityManager` owns semantic descriptors, builds a semantic tree
+separate from the retained render tree, and publishes announcements for focus,
+actions, live regions, values, and state changes. Widgets describe roles,
+names, relationships, values, ranges, and live-region policy; focus and binding
+updates feed the semantic state; node, mount, layer, and surface cleanup prune
+stale semantics. Platform screen reader bridges, speech, voice, and automation
+tools are future adapters over this engine semantic model.
+
 UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
 visible/render-enabled surfaces in surface order, resolves each surface's
 document into a surface-local command buffer, then transforms the vertices into

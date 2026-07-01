@@ -70,6 +70,7 @@ struct UiBindingDesc
     UiBindingTransform transform;
     UiBindingFormatter formatter;
     UiMountId ownerMount = UI_INVALID_MOUNT;
+    UiHandle accessibilityTarget = UI_INVALID_HANDLE;
     std::string debugName;
     std::optional<UiAnimationTiming> animation;
     bool animateInitial = false;

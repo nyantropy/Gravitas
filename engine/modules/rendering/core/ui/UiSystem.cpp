@@ -177,6 +177,7 @@ bool UiSystem::removeLayer(UiSurfaceId surfaceId, UiLayerId layerId)
         destroyMount(surfaceId, mount);
     record->surface.bindingManager().unbindSubtree(document, root);
     record->surface.animationManager().cancelSubtree(document, root);
+    record->surface.accessibilityManager().clearSubtree(document, root);
     record->surface.dragDropManager().unregisterSubtree(document, root);
     record->surface.navigationGraph().unregisterSubtree(document, root);
     removeTextBindingsRecursive(*record, root);
@@ -233,6 +234,7 @@ bool UiSystem::setLayerState(UiSurfaceId surfaceId, UiLayerId layerId, const UiL
     if (changed)
     {
         record->surface.dragDropManager().pruneInvalidNodes(document, focusState);
+        record->surface.accessibilityManager().pruneInvalidNodes(document);
         modalState.pruneInvalidModals(document, focusState);
         focusState.pruneInvalidHandles(document);
         record->commandCacheValid = false;
@@ -303,6 +305,7 @@ bool UiSystem::removeNode(UiSurfaceId surfaceId, UiHandle handle)
     record->surface.navigationGraph().unregisterSubtree(document, handle);
     record->surface.animationManager().cancelSubtree(document, handle);
     record->surface.bindingManager().unbindSubtree(document, handle);
+    record->surface.accessibilityManager().clearSubtree(document, handle);
     removeTextBindingsRecursive(*record, handle);
     const bool removed = document.removeNode(handle);
     if (!removed)
@@ -312,6 +315,7 @@ bool UiSystem::removeNode(UiSurfaceId surfaceId, UiHandle handle)
     UiModalManager& modalState = record->surface.modalManager();
     mountState.pruneInvalidMounts(document);
     record->surface.dragDropManager().pruneInvalidNodes(document, focusState);
+    record->surface.accessibilityManager().pruneInvalidNodes(document);
     record->surface.inputDispatcher().pruneMissingHandles(document);
     modalState.pruneInvalidModals(document, focusState);
     focusState.pruneInvalidHandles(document);
@@ -879,6 +883,115 @@ UiAnimationFrameResult UiSystem::updateAnimations(float dt)
     return aggregate;
 }
 
+UiAccessibilityManager& UiSystem::accessibilityManager()
+{
+    return defaultSurfaceRecord().surface.accessibilityManager();
+}
+
+const UiAccessibilityManager& UiSystem::accessibilityManager() const
+{
+    return defaultSurfaceRecord().surface.accessibilityManager();
+}
+
+UiAccessibilityManager* UiSystem::accessibilityManager(UiSurfaceId surfaceId)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record == nullptr ? nullptr : &record->surface.accessibilityManager();
+}
+
+const UiAccessibilityManager* UiSystem::accessibilityManager(UiSurfaceId surfaceId) const
+{
+    const SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record == nullptr ? nullptr : &record->surface.accessibilityManager();
+}
+
+bool UiSystem::setSemantics(UiHandle handle, const UiSemanticDesc& desc)
+{
+    return setSemantics(defaultSurfaceId, handle, desc);
+}
+
+bool UiSystem::setSemantics(UiSurfaceId surfaceId, UiHandle handle, const UiSemanticDesc& desc)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    if (record == nullptr || record->surface.document().findNode(handle) == nullptr)
+        return false;
+
+    UiSemanticDesc resolved = desc;
+    if (resolved.ownerMount == UI_INVALID_MOUNT)
+        resolved.ownerMount = record->surface.mountManager().mountFromNode(record->surface.document(), handle);
+    return record->surface.accessibilityManager().setSemantic(handle, std::move(resolved));
+}
+
+bool UiSystem::clearSemantics(UiHandle handle)
+{
+    return clearSemantics(defaultSurfaceId, handle);
+}
+
+bool UiSystem::clearSemantics(UiSurfaceId surfaceId, UiHandle handle)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record != nullptr && record->surface.accessibilityManager().clearSemantic(handle);
+}
+
+UiSemanticTree UiSystem::accessibilityTree() const
+{
+    return accessibilityTree(defaultSurfaceId);
+}
+
+UiSemanticTree UiSystem::accessibilityTree(UiSurfaceId surfaceId) const
+{
+    const SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record == nullptr
+        ? UiSemanticTree{}
+        : record->surface.accessibilityManager().snapshotTree(record->surface.document());
+}
+
+UiAccessibilityFrameResult UiSystem::updateAccessibility()
+{
+    UiAccessibilityFrameResult aggregate;
+    for (auto& [_, record] : surfaces)
+    {
+        UiAccessibilityFrameResult result =
+            record.surface.accessibilityManager().update(record.surface.document());
+        aggregate.semanticNodes += result.semanticNodes;
+        aggregate.announcements += result.announcements;
+        aggregate.pruned += result.pruned;
+    }
+    return aggregate;
+}
+
+void UiSystem::announceAccessibility(UiHandle source,
+                                     UiAccessibilityAnnouncementKind kind,
+                                     const std::string& text,
+                                     UiAccessibilityLiveRegion liveRegion)
+{
+    announceAccessibility(defaultSurfaceId, source, kind, text, liveRegion);
+}
+
+void UiSystem::announceAccessibility(UiSurfaceId surfaceId,
+                                     UiHandle source,
+                                     UiAccessibilityAnnouncementKind kind,
+                                     const std::string& text,
+                                     UiAccessibilityLiveRegion liveRegion)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    if (record != nullptr)
+        record->surface.accessibilityManager().announce(source, kind, text, liveRegion);
+}
+
+std::vector<UiAccessibilityAnnouncement> UiSystem::drainAccessibilityAnnouncements()
+{
+    return drainAccessibilityAnnouncements(defaultSurfaceId);
+}
+
+std::vector<UiAccessibilityAnnouncement> UiSystem::drainAccessibilityAnnouncements(UiSurfaceId surfaceId)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record == nullptr
+        ? std::vector<UiAccessibilityAnnouncement>{}
+        : record->surface.accessibilityManager().drainAnnouncements();
+}
+
 UiBindingManager& UiSystem::bindingManager()
 {
     return defaultSurfaceRecord().surface.bindingManager();
@@ -920,7 +1033,8 @@ UiBindingId UiSystem::bind(UiSurfaceId surfaceId, const UiBindingDesc& desc)
     const UiBindingId id =
         record->surface.bindingManager().bind(record->surface.document(),
                                              record->surface.animationManager(),
-                                             std::move(resolved));
+                                             std::move(resolved),
+                                             &record->surface.accessibilityManager());
     if (id != UI_INVALID_BINDING)
     {
         record->commandCacheValid = false;
@@ -962,7 +1076,9 @@ UiBindingFrameResult UiSystem::updateBindings()
         UiDocument& document = record.surface.document();
         record.surface.bindingManager().pruneInvalidNodes(document);
         UiBindingFrameResult result =
-            record.surface.bindingManager().update(document, record.surface.animationManager());
+            record.surface.bindingManager().update(document,
+                                                   record.surface.animationManager(),
+                                                   &record.surface.accessibilityManager());
         aggregate.active += result.active;
         aggregate.evaluated += result.evaluated;
         aggregate.applied += result.applied;
@@ -971,6 +1087,7 @@ UiBindingFrameResult UiSystem::updateBindings()
         {
             record.surface.dragDropManager().pruneInvalidNodes(document, record.surface.focusManager());
             record.surface.navigationGraph().pruneInvalidNodes(document);
+            record.surface.accessibilityManager().update(document);
             record.surface.modalManager().pruneInvalidModals(document, record.surface.focusManager());
             record.surface.focusManager().pruneInvalidHandles(document);
             record.commandCacheValid = false;
@@ -1101,6 +1218,7 @@ const UiDispatchResult& UiSystem::dispatchInput(const UiInputFrame& input, uint6
                                            frameId);
     lastDispatchResult = result;
     propagateDispatchEvents(*record, result.dispatchSequence);
+    surface.accessibilityManager().update(surface.document());
     return lastDispatchResult;
 }
 
@@ -1249,6 +1367,7 @@ bool UiSystem::destroyMount(UiSurfaceId surfaceId, UiMountId mountId)
     destroyCompositionRecordsForMount(surfaceId, mountId);
     record->surface.bindingManager().unbindSubtree(document, root);
     record->surface.animationManager().cancelSubtree(document, root);
+    record->surface.accessibilityManager().clearSubtree(document, root);
     record->surface.dragDropManager().unregisterSubtree(document, root);
     record->surface.navigationGraph().unregisterSubtree(document, root);
     removeTextBindingsRecursive(*record, root);
@@ -1263,6 +1382,7 @@ bool UiSystem::destroyMount(UiSurfaceId surfaceId, UiMountId mountId)
     commandCache.clear();
     record->surface.inputDispatcher().pruneMissingHandles(document);
     record->surface.dragDropManager().pruneInvalidNodes(document, record->surface.focusManager());
+    record->surface.accessibilityManager().pruneInvalidNodes(document);
     record->surface.modalManager().pruneInvalidModals(document, record->surface.focusManager());
     record->surface.focusManager().pruneInvalidHandles(document);
     lastEvents.clear();

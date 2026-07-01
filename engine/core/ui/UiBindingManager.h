@@ -7,6 +7,8 @@
 #include "UiBindingTypes.h"
 #include "UiDocument.h"
 
+class UiAccessibilityManager;
+
 struct UiBinding
 {
     UiBindingId id = UI_INVALID_BINDING;
@@ -23,7 +25,8 @@ public:
 
     UiBindingId bind(UiDocument& document,
                      UiAnimationManager& animationManager,
-                     UiBindingDesc desc);
+                     UiBindingDesc desc,
+                     UiAccessibilityManager* accessibilityManager = nullptr);
     bool unbind(UiBindingId bindingId);
     uint32_t unbindTarget(UiHandle target);
     uint32_t unbindSubtree(const UiDocument& document, UiHandle root);
@@ -31,7 +34,8 @@ public:
     void pruneInvalidNodes(const UiDocument& document);
 
     UiBindingFrameResult update(UiDocument& document,
-                                UiAnimationManager& animationManager);
+                                UiAnimationManager& animationManager,
+                                UiAccessibilityManager* accessibilityManager = nullptr);
 
     const UiBinding* find(UiBindingId bindingId) const;
     size_t activeCount() const { return bindings.size(); }
@@ -44,6 +48,7 @@ private:
     bool evaluateAndApply(UiBinding& binding,
                           UiDocument& document,
                           UiAnimationManager& animationManager,
+                          UiAccessibilityManager* accessibilityManager,
                           bool initial);
     bool applyValue(UiBinding& binding,
                     UiDocument& document,

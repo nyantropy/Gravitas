@@ -4,6 +4,7 @@
 #include <string>
 
 #include "UiAnimationManager.h"
+#include "UiAccessibilityManager.h"
 #include "UiBindingManager.h"
 #include "UiDocument.h"
 #include "UiDragDropManager.h"
@@ -83,6 +84,8 @@ public:
     const UiNavigationGraph& navigationGraph() const { return navigationState; }
     UiAnimationManager& animationManager() { return animationState; }
     const UiAnimationManager& animationManager() const { return animationState; }
+    UiAccessibilityManager& accessibilityManager() { return accessibilityState; }
+    const UiAccessibilityManager& accessibilityManager() const { return accessibilityState; }
     UiBindingManager& bindingManager() { return bindingState; }
     const UiBindingManager& bindingManager() const { return bindingState; }
     UiTheme& theme() { return themeState; }
@@ -100,6 +103,7 @@ private:
     UiDragDropManager dragDropState;
     UiNavigationGraph navigationState;
     UiAnimationManager animationState;
+    UiAccessibilityManager accessibilityState;
     UiBindingManager bindingState;
     UiTheme themeState;
 };

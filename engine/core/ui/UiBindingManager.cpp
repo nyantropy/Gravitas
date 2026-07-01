@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <utility>
 
+#include "UiAccessibilityManager.h"
+
 namespace
 {
     float clamp01(float value)
@@ -145,7 +147,8 @@ void UiBindingManager::clear()
 
 UiBindingId UiBindingManager::bind(UiDocument& document,
                                    UiAnimationManager& animationManager,
-                                   UiBindingDesc desc)
+                                   UiBindingDesc desc,
+                                   UiAccessibilityManager* accessibilityManager)
 {
     if (desc.target == UI_INVALID_HANDLE || desc.source.read == nullptr ||
         document.findNode(desc.target) == nullptr || !sourceAlive(desc.source))
@@ -162,7 +165,11 @@ UiBindingId UiBindingManager::bind(UiDocument& document,
 
     if (bindings.at(bindingId).desc.applyImmediately)
     {
-        if (!evaluateAndApply(bindings.at(bindingId), document, animationManager, true))
+        if (!evaluateAndApply(bindings.at(bindingId),
+                              document,
+                              animationManager,
+                              accessibilityManager,
+                              true))
         {
             bindings.erase(bindingId);
             return UI_INVALID_BINDING;
@@ -250,7 +257,8 @@ void UiBindingManager::pruneInvalidNodes(const UiDocument& document)
 }
 
 UiBindingFrameResult UiBindingManager::update(UiDocument& document,
-                                              UiAnimationManager& animationManager)
+                                              UiAnimationManager& animationManager,
+                                              UiAccessibilityManager* accessibilityManager)
 {
     UiBindingFrameResult result;
     std::vector<UiBindingId> ids;
@@ -274,7 +282,7 @@ UiBindingFrameResult UiBindingManager::update(UiDocument& document,
         }
 
         ++result.evaluated;
-        if (evaluateAndApply(binding, document, animationManager, false))
+        if (evaluateAndApply(binding, document, animationManager, accessibilityManager, false))
             ++result.applied;
     }
 
@@ -320,6 +328,7 @@ bool UiBindingManager::shouldEvaluate(const UiBinding& binding, uint64_t revisio
 bool UiBindingManager::evaluateAndApply(UiBinding& binding,
                                         UiDocument& document,
                                         UiAnimationManager& animationManager,
+                                        UiAccessibilityManager* accessibilityManager,
                                         bool initial)
 {
     if (binding.desc.source.read == nullptr || !sourceAlive(binding.desc.source))
@@ -346,6 +355,17 @@ bool UiBindingManager::evaluateAndApply(UiBinding& binding,
         binding.lastValue = value;
         binding.lastRevision = revision;
         binding.initialized = true;
+        if (accessibilityManager != nullptr)
+        {
+            const UiHandle accessibilityTarget =
+                binding.desc.accessibilityTarget == UI_INVALID_HANDLE
+                    ? binding.desc.target
+                    : binding.desc.accessibilityTarget;
+            accessibilityManager->applyBindingValue(document,
+                                                    accessibilityTarget,
+                                                    binding.desc.property,
+                                                    value);
+        }
     }
     return applied;
 }

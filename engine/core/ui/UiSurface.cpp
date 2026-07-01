@@ -32,6 +32,7 @@ void UiSurface::clear()
     dragDropState.clear();
     navigationState.clear();
     animationState.clear();
+    accessibilityState.clear();
     bindingState.clear();
     dispatcher.clear();
 }

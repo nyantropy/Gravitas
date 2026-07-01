@@ -153,6 +153,28 @@ public:
     bool isAnimating(UiHandle handle, UiAnimationProperty property) const;
     bool isAnimating(UiSurfaceId surfaceId, UiHandle handle, UiAnimationProperty property) const;
     UiAnimationFrameResult updateAnimations(float dt);
+    UiAccessibilityManager&       accessibilityManager();
+    const UiAccessibilityManager& accessibilityManager() const;
+    UiAccessibilityManager*       accessibilityManager(UiSurfaceId surfaceId);
+    const UiAccessibilityManager* accessibilityManager(UiSurfaceId surfaceId) const;
+    bool setSemantics(UiHandle handle, const UiSemanticDesc& desc);
+    bool setSemantics(UiSurfaceId surfaceId, UiHandle handle, const UiSemanticDesc& desc);
+    bool clearSemantics(UiHandle handle);
+    bool clearSemantics(UiSurfaceId surfaceId, UiHandle handle);
+    UiSemanticTree accessibilityTree() const;
+    UiSemanticTree accessibilityTree(UiSurfaceId surfaceId) const;
+    UiAccessibilityFrameResult updateAccessibility();
+    void announceAccessibility(UiHandle source,
+                               UiAccessibilityAnnouncementKind kind,
+                               const std::string& text,
+                               UiAccessibilityLiveRegion liveRegion = UiAccessibilityLiveRegion::Polite);
+    void announceAccessibility(UiSurfaceId surfaceId,
+                               UiHandle source,
+                               UiAccessibilityAnnouncementKind kind,
+                               const std::string& text,
+                               UiAccessibilityLiveRegion liveRegion = UiAccessibilityLiveRegion::Polite);
+    std::vector<UiAccessibilityAnnouncement> drainAccessibilityAnnouncements();
+    std::vector<UiAccessibilityAnnouncement> drainAccessibilityAnnouncements(UiSurfaceId surfaceId);
     UiBindingManager&       bindingManager();
     const UiBindingManager& bindingManager() const;
     UiBindingManager*       bindingManager(UiSurfaceId surfaceId);

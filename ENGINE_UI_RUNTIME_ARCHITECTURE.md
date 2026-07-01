@@ -10,7 +10,7 @@ The investigation found that the current UI runtime is useful as a retained
 primitive renderer, but it is not a complete UI runtime architecture for a
 general-purpose engine. The engine needs first-class concepts for surfaces,
 layers, composition, centralized input dispatch, focus, modal ownership, richer
-layout, styling, animation, and data binding.
+layout, styling, animation, data binding, and semantic accessibility.
 
 The first foundational primitive has been implemented during this investigation:
 `UiDocument` now owns explicit ordered layers. Existing builders still attach to
@@ -88,6 +88,13 @@ sources, support formatting and computed values, update retained node
 presentation/layout/state targets before animation and rendering, and are
 cleaned up by source, node, mount, layer, and surface lifetime.
 
+The sixteenth foundational primitive is now implemented:
+`UiAccessibilityManager` owns the surface-local semantic tree and announcement
+stream. Widgets describe roles, names, relationships, values, ranges, and live
+regions; focus, binding, mount, layer, and surface lifetime update or prune
+semantic state automatically. Platform screen reader bridges remain future
+adapters over this engine-owned semantic model.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
@@ -98,7 +105,8 @@ default screen `UiSurface` for compatibility and can create additional surfaces.
 Each `UiSurface` owns one `UiDocument`, one layer stack, one
 `UiInputDispatcher`, one `UiFocusManager`, one `UiModalManager`, one
 `UiMountManager`, one `UiNavigationGraph`, one `UiDragDropManager`, and one
-`UiAnimationManager`, one `UiBindingManager`, and one active `UiTheme`.
+`UiAnimationManager`, one `UiBindingManager`, one `UiAccessibilityManager`, and
+one active `UiTheme`.
 Renderer-side font bindings and command caches are tracked per surface because
 `UiHandle` values remain
 document-local.
@@ -180,6 +188,18 @@ bindings once per frame before animation, layout, and command extraction, so
 bindings establish desired state and the animation runtime interpolates
 animatable changes.
 
+The retained semantic path is now centralized. Widgets and compatibility code
+register `UiSemanticDesc` data with the selected surface's
+`UiAccessibilityManager`. The accessibility manager builds a semantic tree that
+references retained nodes but is independent from render primitives, resolving
+roles, names, descriptions, hints, values, ranges, relationships, live-region
+policy, enabled/hidden/focused state, and bounds. Focus changes and binding
+updates feed the announcement queue, while node, mount, layer, surface, and
+document cleanup prune stale semantic state automatically. No OS accessibility
+API is implemented yet; future Windows UIA, macOS Accessibility, Linux ATK,
+web, VR, testing, and automation adapters should consume this engine semantic
+model.
+
 ### UiSystem
 
 `UiSystem` is the render-facing facade over `UiSurface`. It exposes legacy
@@ -192,9 +212,11 @@ Current responsibilities:
 - Owns the surface registry and stable ordered surface list.
 - Owns renderer-side text bindings by `(surface, UiHandle)`.
 - Owns per-surface command buffer caches plus the combined extraction buffer.
-- Delegates document, dispatcher, focus, modal, and mount ownership to each
-  `UiSurface`.
+- Delegates document, dispatcher, focus, modal, mount, navigation, drag/drop,
+  animation, binding, and accessibility ownership to each `UiSurface`.
 - Exposes the latest dispatch result.
+- Exposes semantic tree and accessibility announcement APIs for runtime,
+  tooling, and future platform adapters.
 - Converts retained visual lists into renderer command data per surface.
 
 `UiSystem::dispatchInput(...)` is the retained input entry point. It:
@@ -226,10 +248,12 @@ Missing from `UiSystem` today:
   `UiInputFrame` still carries only the primary pointer.
 - Mature layout services such as per-node invalidation boundaries, two-pass
   constrained text wrapping, and virtualized scroll content.
-- First-class animation graph authoring, reduced-motion policy, and delayed
-  modal/mount teardown after exit transitions.
+- First-class animation graph authoring and delayed modal/mount teardown after
+  exit transitions.
 - Two-way data editing, reflected ECS/property binding, and serialized widget
   definitions. Current data binding is intentionally one-way and runtime-owned.
+- Platform accessibility bridges, voice/speech integration, automation tooling,
+  and persisted semantic/widget asset authoring.
 
 ### UiDocument
 
@@ -3960,6 +3984,120 @@ Regression status now includes:
 - `ui_drag_drop_runtime`
 - `ui_animation_runtime`
 - `ui_binding_runtime`
+- `ui_accessibility_runtime`
+
+## 21. Phase 15 Implementation: Accessibility Runtime
+
+### Investigation
+
+Before this phase, semantic meaning was implicit and scattered:
+
+- `UiButtonWidget` knew when it was pressed, but the runtime had no persistent
+  role/name/state model for that control.
+- `UiLabelWidget` rendered text, but no runtime tree could identify it as a
+  label, status message, heading, or live update.
+- `UiProgressBarWidget` owned value geometry through layout, but the current
+  value and range were not available outside visual state.
+- `UiNavigationGraph` stored navigation roles for traversal, but those roles
+  were not an accessibility tree or platform-facing semantic model.
+- `UiFocusManager` reflected focused flags into nodes, but no announcement
+  stream observed focus transitions.
+- `UiBindingManager` synchronized visual properties, but bound value changes
+  could not produce semantic notifications.
+- Feature UIs such as the interaction prompt and VN/dialogue paths expressed
+  user-facing meaning only through visible text and feature state.
+
+Runtime-owned semantics are now separated from domain meaning. Applications
+still own what an item, quest, dialogue line, or editor asset means; widgets and
+compositions describe how that meaning appears as generic UI roles, names,
+values, ranges, and relationships.
+
+### Architecture
+
+`UiAccessibilityManager` is surface-local. It owns semantic descriptors keyed by
+retained `UiHandle`, builds a semantic tree from the retained hierarchy, and
+publishes an announcement queue. The semantic tree references nodes for bounds,
+visibility, enabled state, focus state, and parent/child ordering, but it is not
+the render tree. Decorative images and hidden nodes are omitted, and semantic
+relationships such as `labelledBy`, `describedBy`, `controls`, `owns`,
+`activeDescendant`, `popup`, and `tooltip` are stored independently from render
+order.
+
+Semantic roles are engine vocabulary, not gameplay vocabulary. The first role
+set includes windows, dialogs, panels, buttons, toggles, checkboxes, radios,
+sliders, text boxes, images, labels, headings, groups, lists, trees, tables,
+progress bars, status regions, toolbars, menus, tabs, viewports, canvases,
+graphs, inspectors, and `Unknown`.
+
+Semantic properties include:
+
+- name, description, hint, and value.
+- enabled, hidden, focused, selected, checked, expanded, read-only, and busy.
+- live region policy (`Off`, `Polite`, `Assertive`).
+- range metadata for sliders/progress.
+- structural metadata such as level, index, count, parent, and children.
+
+Announcements are engine events for semantic consumers, not speech synthesis.
+The first announcement kinds are focus changed, value changed, live region,
+action, state changed, and custom. Future platform adapters can translate them
+to OS APIs; testing and automation can consume them directly.
+
+### Integration
+
+`UiSurface` owns one `UiAccessibilityManager`. `UiSystem` exposes semantic
+registration, tree snapshot, update, announcement, and drain APIs. Node, layer,
+mount, composition, surface, and document cleanup prune semantic descriptors.
+`dispatchInput(...)` updates accessibility after retained event propagation so
+focus announcements observe the final frame state.
+
+Widgets now describe semantics:
+
+- labels register `Label` by default and can be promoted to `Status` or another
+  role.
+- buttons register `Button`, preserve a `labelledBy` relationship to their text
+  node, and publish action announcements when activated.
+- progress bars register `ProgressBar` with `0..1` range metadata.
+- images are decorative by default and only enter the semantic tree when named
+  or explicitly non-decorative.
+- panels can opt into `Panel` semantics when they represent a meaningful group.
+
+Bindings can name an `accessibilityTarget`. Text and progress bindings update
+semantic value/range state, and live-region nodes announce value changes during
+the same surface-local binding update.
+
+The interaction prompt demonstrates the migration path: its label is now a
+`Status` live region named "Interaction prompt", and its existing
+`UiObservable<std::string>` text binding drives both the visible text and
+semantic announcement value.
+
+### Validation
+
+Added `ui_accessibility_runtime`, covering:
+
+- semantic tree construction.
+- role assignment and name resolution.
+- `labelledBy` relationships.
+- focus announcements.
+- button action announcements.
+- live-region binding updates.
+- progress range binding updates.
+- mount cleanup.
+- surface-local semantic isolation and surface cleanup.
+
+### Remaining Accessibility Debt
+
+- Platform accessibility adapters are not implemented.
+- There is no speech synthesis, voice control, screen reader bridge, or
+  accessibility settings UI.
+- Widget coverage is initial; complex widgets such as lists, trees, tabs,
+  text fields, sliders, and graph canvases still need semantic descriptors.
+- Navigation consumes visibility/enabled state but does not yet use the
+  semantic tree as an automation/accessibility query source.
+- High contrast, large text, and reduced-motion policy are exposed as
+  accessibility policy data but are not yet wired into theme or animation
+  resolution.
+- Domain announcements such as combat log updates, quest updates, inventory
+  errors, and dialogue advancement still need feature migration.
 
 ### Remaining Binding Debt
 
@@ -3969,7 +4107,6 @@ Regression status now includes:
   and IME-aware controls still need explicit future two-way binding policy.
 - There is no reflected ECS/property binding bridge yet.
 - There is no serialized binding/widget asset format yet.
-- Binding changes do not yet feed an accessibility announcement tree.
 - Binding evaluation is source-revision/value based, not a dependency-graph
   scheduler.
 
@@ -3977,21 +4114,20 @@ Regression status now includes:
 
 With Layers, Dispatch, Focus, Modals, Mounts, Compositions, Event Propagation,
 UiSurface, Layout, Styling, Widgets, Navigation, Drag & Drop, Animation, and
-Data Binding implemented, the single highest-value remaining primitive is the
-**Accessibility Runtime**.
+Data Binding, and Accessibility implemented, the single highest-value remaining
+primitive is **UI Serialization**.
 
-Accessibility should precede virtualized lists, widget asset definitions, UI
-serialization, and editor UI authoring because the runtime now has enough
-semantic substrate to expose UI meaning consistently: widgets, navigation
-roles, focus ownership, events, state, themes, layout, and binding change
-signals. An accessibility runtime would formalize the semantic UI tree,
-announce state changes, define roles and names independent of visual styling,
-and provide the same structure needed later for automation, editor tooling,
-screen readers, high-contrast/reduced-motion policy, and robust serialized UI
-authoring. Virtualization and asset definitions are important, but they should
-build on a stable semantic model rather than inventing one after the fact.
+UI Serialization should precede virtualized lists, widget asset definitions,
+editor UI authoring, and automation runtime because the engine now has the
+runtime primitives that need a durable data representation: surfaces, layers,
+mounts, compositions, widgets, layout, themes, bindings, navigation metadata,
+drag/drop metadata, animation intent, and accessibility semantics. A serialized
+UI model would let tools, mods, tests, and future editors author the same
+runtime graph without hardcoding C++ composition builders. Widget asset
+definitions and editor authoring then become consumers of the serialization
+format instead of inventing parallel descriptions.
 
-## 21. Final Recommendation
+## 22. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -4025,10 +4161,12 @@ direction is surface-local non-pointer traversal and activation through
 manipulation through `UiDragDropManager`. The fourteenth committed direction is
 surface-local temporal presentation through `UiAnimationManager`. The fifteenth
 committed direction is surface-local one-way synchronization through
-`UiBindingManager`.
+`UiBindingManager`. The sixteenth committed direction is surface-local semantic
+UI meaning and announcements through `UiAccessibilityManager`.
 
-The next milestone should implement Accessibility Runtime. It should precede
-virtualized lists, widget asset definitions, UI serialization, and editor UI
-authoring because the runtime now needs a durable semantic tree and state-change
-announcement model before higher-level authored or large-scale UI systems encode
-their own incompatible semantics.
+The next milestone should implement UI Serialization. It should precede
+virtualized lists, widget asset definitions, editor UI authoring, and automation
+runtime because the runtime now has complete ownership, interaction, geometry,
+presentation, synchronization, animation, and semantic primitives that need one
+durable data representation before higher-level authored UI systems encode their
+own incompatible formats.
