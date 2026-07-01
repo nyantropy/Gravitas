@@ -86,12 +86,13 @@ namespace gts::tools
         "preferredHeight": {"unit": "Normalized", "value": 0.11}
       }
     },
-    "semantics": {"role": "Status", "name": "{{message}}"},
+    "semantics": {"role": "Status", "name": "{{message}}", "nameKey": "status_prompt.ready"},
     "children": [
       {
         "id": "label",
         "type": "Label",
         "text": "{{message}}",
+        "textKey": "status_prompt.ready",
         "styleClass": "{{textStyle}}",
         "horizontalAlign": "Center",
         "verticalAlign": "Middle",
@@ -100,7 +101,7 @@ namespace gts::tools
             "preferredHeight": {"unit": "Normalized", "value": 0.060}
           }
         },
-        "semantics": {"role": "Label", "name": "{{message}}"}
+        "semantics": {"role": "Label", "name": "{{message}}", "nameKey": "status_prompt.ready"}
       }
     ]
   }
@@ -147,12 +148,13 @@ namespace gts::tools
         "preferredHeight": {"unit": "Normalized", "value": 0.11}
       }
     },
-    "semantics": {"role": "Status", "name": "{{message}}"},
+    "semantics": {"role": "Status", "name": "{{message}}", "nameKey": "interaction_prompt.label"},
     "children": [
       {
         "id": "label",
         "type": "Label",
         "text": "{{message}}",
+        "textKey": "interaction_prompt.label",
         "styleClass": "{{textStyle}}",
         "horizontalAlign": "Center",
         "verticalAlign": "Middle",
@@ -161,7 +163,7 @@ namespace gts::tools
             "preferredHeight": {"unit": "Normalized", "value": 0.060}
           }
         },
-        "semantics": {"role": "Label", "name": "{{message}}"}
+        "semantics": {"role": "Label", "name": "{{message}}", "nameKey": "interaction_prompt.label"}
       }
     ]
   }

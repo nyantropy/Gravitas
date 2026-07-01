@@ -151,6 +151,22 @@ namespace
         return theme;
     }
 
+    UiLocalizationAsset catalog(const std::string& id,
+                                const std::string& packageId,
+                                const std::string& namespaceId,
+                                const std::string& locale,
+                                std::initializer_list<std::pair<const std::string, UiLocalizationEntry>> entries)
+    {
+        UiLocalizationAsset asset;
+        asset.asset = UiAssetReference{UiAssetType::Localization, id};
+        asset.packageId = packageId;
+        asset.namespaceId = namespaceId;
+        asset.locale = parseUiLocaleId(locale);
+        asset.sourceLocale = parseUiLocaleId(locale);
+        asset.entries = entries;
+        return asset;
+    }
+
     const UiTextData& textPayload(UiSystem& ui, UiHandle handle)
     {
         const UiNode* node = ui.findNode(handle);
@@ -233,6 +249,100 @@ namespace
                 "durable semantic relationship ids did not round-trip");
     }
 
+    void testLocalizedSerializedWidgets()
+    {
+        UiSerializedAsset asset;
+        require(parseUiSerializedAsset(R"json({
+  "schema": 1,
+  "id": "game.ui.localized_panel",
+  "root": {
+    "id": "root",
+    "type": "Stack",
+    "children": [
+      {
+        "id": "relative",
+        "type": "Label",
+        "text": "Fallback prompt",
+        "textKey": "interaction_prompt.label",
+        "semantics": {
+          "role": "Status",
+          "name": "Fallback name",
+          "nameKey": "interaction_prompt.name",
+          "description": "Fallback description",
+          "descriptionKey": "interaction_prompt.description",
+          "hint": "Fallback hint",
+          "hintKey": "interaction_prompt.hint",
+          "value": "Fallback live text",
+          "valueKey": "interaction_prompt.live",
+          "liveRegion": "Polite"
+        }
+      },
+      {
+        "id": "qualified",
+        "type": "Label",
+        "text": "Start fallback",
+        "textKey": "game.ui.menu.start"
+      },
+      {
+        "id": "missing",
+        "type": "Label",
+        "text": "Embedded fallback",
+        "textKey": "missing.key"
+      }
+    ]
+  }
+})json",
+                                      asset),
+                "localized serialized asset did not parse");
+
+        const std::string serialized = serializeUiSerializedAsset(asset);
+        UiSerializedAsset reparsed;
+        require(parseUiSerializedAsset(serialized, reparsed),
+                "localized serialized asset did not round-trip");
+        require(reparsed.root.children[0].textKey == "interaction_prompt.label",
+                "widget textKey did not round-trip");
+        require(reparsed.root.children[0].semanticLocalization.nameKey == "interaction_prompt.name",
+                "semantic nameKey did not round-trip");
+
+        UiSystem ui(nullptr);
+        ui.setTheme(testTheme());
+        require(ui.localization().registerCatalog(catalog(
+                    "game.ui.locale.en-US",
+                    "game.ui",
+                    "game.ui",
+                    "en-US",
+                    {{"interaction_prompt.label", UiLocalizationEntry{.text = "Press {input} to interact"}},
+                     {"interaction_prompt.name", UiLocalizationEntry{.text = "Interaction prompt"}},
+                     {"interaction_prompt.description", UiLocalizationEntry{.text = "Interaction prompt description"}},
+                     {"interaction_prompt.hint", UiLocalizationEntry{.text = "Use the shown input"}},
+                     {"interaction_prompt.live", UiLocalizationEntry{.text = "Ready to interact"}},
+                     {"menu.start", UiLocalizationEntry{.text = "Start"}}})),
+                "localization catalog did not register");
+        ui.localization().drainDiagnostics();
+
+        const UiMountId mount = ui.createMount();
+        UiSerializedLoadResult result = ui.instantiateUiAsset(asset, mount);
+        require(result.success, "localized serialized asset did not instantiate");
+        require(textPayload(ui, result.instance.handles.at("relative")).text == "Press {input} to interact",
+                "package-relative widget textKey did not resolve");
+        require(textPayload(ui, result.instance.handles.at("qualified")).text == "Start",
+                "namespace-qualified widget textKey did not resolve");
+        require(textPayload(ui, result.instance.handles.at("missing")).text == "Embedded fallback",
+                "missing widget textKey did not fall back to embedded text");
+
+        ui.updateAccessibility();
+        UiSemanticTree tree = ui.accessibilityTree();
+        const UiSemanticNode* prompt = findSemantic(tree, UiSemanticRole::Status, "Interaction prompt");
+        require(prompt != nullptr, "semantic nameKey did not resolve");
+        require(prompt->description == "Interaction prompt description",
+                "semantic descriptionKey did not resolve");
+        require(prompt->hint == "Use the shown input", "semantic hintKey did not resolve");
+        require(prompt->value == "Ready to interact", "semantic valueKey did not resolve");
+
+        const std::vector<UiLocalizationDiagnostic> diagnostics = ui.localization().drainDiagnostics();
+        require(!diagnostics.empty(), "missing localization key did not publish diagnostics");
+    }
+
     void testVersionMigrationAndValidation()
     {
         const std::string migratedJson =
@@ -270,6 +380,12 @@ namespace
                     R"json({"schema":1,"id":"bad.relationship","root":{"id":"label","type":"Label","semantics":{"role":"Label","name":"Label","relationships":{"describedBy":["missing"]}}}})json",
                     invalidRelationship) == false,
                 "unknown semantic relationship id was accepted");
+
+        UiSerializedAsset invalidLocalization;
+        require(parseUiSerializedAsset(
+                    R"json({"schema":1,"id":"bad.localization","root":{"id":"label","type":"Label","text":"Fallback","textKey":"bad key"}})json",
+                    invalidLocalization) == false,
+                "malformed localization key reference was accepted");
     }
 
     void testInstantiateRuntimeGraph()
@@ -351,6 +467,7 @@ namespace
 int main()
 {
     testParseValidateAndRoundTrip();
+    testLocalizedSerializedWidgets();
     testVersionMigrationAndValidation();
     testInstantiateRuntimeGraph();
     testFileSaveAndLoad();

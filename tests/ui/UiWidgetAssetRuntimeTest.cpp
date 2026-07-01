@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -29,6 +30,7 @@ namespace
   "tags": ["button", "control"],
   "parameters": [
     {"name": "label", "type": "String", "default": "Button"},
+    {"name": "labelKey", "type": "String", "default": "button.label"},
     {"name": "style", "type": "String", "default": "Button"},
     {"name": "labelStyle", "type": "String", "default": "Text.Body"},
     {"name": "navGroup", "type": "String", "default": "main"}
@@ -57,6 +59,7 @@ namespace
     "id": "button",
     "type": "Button",
     "text": "{{label}}",
+    "textKey": "{{labelKey}}",
     "styleClass": "{{style}}",
     "labelStyleClass": "{{labelStyle}}",
     "horizontalAlign": "Center",
@@ -75,7 +78,8 @@ namespace
     },
     "semantics": {
       "role": "Button",
-      "name": "{{label}}"
+      "name": "{{label}}",
+      "nameKey": "{{labelKey}}"
     }
   }
 })json";
@@ -144,6 +148,22 @@ namespace
         return theme;
     }
 
+    UiLocalizationAsset catalog(const std::string& id,
+                                const std::string& packageId,
+                                const std::string& namespaceId,
+                                const std::string& locale,
+                                std::initializer_list<std::pair<const std::string, UiLocalizationEntry>> entries)
+    {
+        UiLocalizationAsset asset;
+        asset.asset = UiAssetReference{UiAssetType::Localization, id};
+        asset.packageId = packageId;
+        asset.namespaceId = namespaceId;
+        asset.locale = parseUiLocaleId(locale);
+        asset.sourceLocale = parseUiLocaleId(locale);
+        asset.entries = entries;
+        return asset;
+    }
+
     const UiTextData& textPayload(UiSystem& ui, UiHandle handle)
     {
         const UiNode* node = ui.findNode(handle);
@@ -202,6 +222,8 @@ namespace
         require(expandedPrimary.widget.id == "apply", "asset id prefix did not replace root id");
         require(expandedPrimary.widget.styleClass == "Button.Primary", "variant parameter default did not apply");
         require(expandedPrimary.widget.text == "Apply", "parameter substitution did not apply");
+        require(expandedPrimary.widget.textKey == "button.label",
+                "default localization key parameter substitution did not apply");
 
         UiWidgetAssetInstanceDesc danger;
         danger.assetId = "ui.button.danger";
@@ -287,6 +309,43 @@ namespace
                 "asset navigation metadata did not instantiate");
     }
 
+    void testWidgetAssetLocalization()
+    {
+        UiSystem ui(nullptr);
+        ui.setTheme(testTheme());
+        registerAssets(ui.widgetAssets());
+        require(ui.localization().registerCatalog(catalog(
+                    "ui.button.locale.en-US",
+                    "ui",
+                    "ui.button",
+                    "en-US",
+                    {{"button.apply", UiLocalizationEntry{.text = "Localized Apply"}}})),
+                "widget asset localization catalog did not register");
+
+        UiWidgetAssetInstanceDesc desc;
+        desc.assetId = "ui.button.base";
+        desc.idPrefix = "localized";
+        desc.parameterOverrides["label"] = "Apply";
+        desc.parameterOverrides["labelKey"] = "button.apply";
+
+        const UiMountId mount = ui.createMount();
+        UiSerializedLoadResult result = ui.instantiateWidgetAsset(desc, mount);
+        require(result.success, "localized widget asset did not instantiate");
+        require(textPayload(ui, result.instance.handles.at("localized.label")).text == "Localized Apply",
+                "widget asset textKey did not resolve");
+
+        ui.updateAccessibility();
+        const UiSemanticTree tree = ui.accessibilityTree();
+        const auto found = std::find_if(tree.nodes.begin(),
+                                        tree.nodes.end(),
+                                        [](const UiSemanticNode& node)
+                                        {
+                                            return node.role == UiSemanticRole::Button &&
+                                                   node.name == "Localized Apply";
+                                        });
+        require(found != tree.nodes.end(), "widget asset semantic nameKey did not resolve");
+    }
+
     void testFileSaveAndLoad()
     {
         UiWidgetAssetDefinition asset = parseAsset(baseButtonAssetJson());
@@ -311,6 +370,7 @@ int main()
     testInheritanceVariantsAndExpansion();
     testSlotsAndNestedAssetReferences();
     testRuntimeInstantiationFromSerializedAssetReferences();
+    testWidgetAssetLocalization();
     testFileSaveAndLoad();
     return 0;
 }

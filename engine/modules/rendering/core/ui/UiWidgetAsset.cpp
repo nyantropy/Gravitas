@@ -373,6 +373,11 @@ namespace
         if (!overlay.styleClass.empty()) base.styleClass = overlay.styleClass;
         if (!overlay.labelStyleClass.empty()) base.labelStyleClass = overlay.labelStyleClass;
         if (!overlay.text.empty()) base.text = overlay.text;
+        if (overlay.hasTextKey || !overlay.textKey.empty())
+        {
+            base.textKey = overlay.textKey;
+            base.hasTextKey = true;
+        }
         if (!overlay.imageAsset.empty()) base.imageAsset = overlay.imageAsset;
         base.horizontalAlign = overlay.horizontalAlign;
         base.verticalAlign = overlay.verticalAlign;
@@ -407,6 +412,12 @@ namespace
         if (overlay.hasSemantics)
         {
             base.semantics = overlay.semantics;
+            base.semanticLocalization = overlay.semanticLocalization;
+            base.hasSemantics = true;
+        }
+        else if (overlay.semanticLocalization.any())
+        {
+            base.semanticLocalization = overlay.semanticLocalization;
             base.hasSemantics = true;
         }
         if (overlay.hasSemanticRelationships)
@@ -548,16 +559,28 @@ namespace
         widget.styleClass = substituteString(widget.styleClass, parameters, validation, path + ".styleClass");
         widget.labelStyleClass = substituteString(widget.labelStyleClass, parameters, validation, path + ".labelStyleClass");
         widget.text = substituteString(widget.text, parameters, validation, path + ".text");
+        widget.textKey = substituteString(widget.textKey, parameters, validation, path + ".textKey");
         widget.imageAsset = substituteString(widget.imageAsset, parameters, validation, path + ".imageAsset");
         widget.navigation.group = substituteString(widget.navigation.group, parameters, validation, path + ".navigation.group");
         for (auto& [_, target] : widget.navigation.neighbors)
             target = substituteString(target, parameters, validation, path + ".navigation.neighbors");
-        if (widget.hasSemantics)
+        if (widget.hasSemantics || widget.semanticLocalization.any())
         {
             widget.semantics.name = substituteString(widget.semantics.name, parameters, validation, path + ".semantics.name");
             widget.semantics.description = substituteString(widget.semantics.description, parameters, validation, path + ".semantics.description");
             widget.semantics.hint = substituteString(widget.semantics.hint, parameters, validation, path + ".semantics.hint");
             widget.semantics.value = substituteString(widget.semantics.value, parameters, validation, path + ".semantics.value");
+            widget.semanticLocalization.nameKey =
+                substituteString(widget.semanticLocalization.nameKey, parameters, validation, path + ".semantics.nameKey");
+            widget.semanticLocalization.descriptionKey =
+                substituteString(widget.semanticLocalization.descriptionKey,
+                                 parameters,
+                                 validation,
+                                 path + ".semantics.descriptionKey");
+            widget.semanticLocalization.hintKey =
+                substituteString(widget.semanticLocalization.hintKey, parameters, validation, path + ".semantics.hintKey");
+            widget.semanticLocalization.valueKey =
+                substituteString(widget.semanticLocalization.valueKey, parameters, validation, path + ".semantics.valueKey");
         }
         if (widget.hasSemanticRelationships)
         {
@@ -667,6 +690,11 @@ namespace
         if (!reference.styleClass.empty()) target.styleClass = reference.styleClass;
         if (!reference.labelStyleClass.empty()) target.labelStyleClass = reference.labelStyleClass;
         if (!reference.text.empty()) target.text = reference.text;
+        if (reference.hasTextKey || !reference.textKey.empty())
+        {
+            target.textKey = reference.textKey;
+            target.hasTextKey = true;
+        }
         if (!reference.imageAsset.empty()) target.imageAsset = reference.imageAsset;
         if (reference.hasVisible)
         {
@@ -691,6 +719,12 @@ namespace
         if (reference.hasSemantics)
         {
             target.semantics = reference.semantics;
+            target.semanticLocalization = reference.semanticLocalization;
+            target.hasSemantics = true;
+        }
+        else if (reference.semanticLocalization.any())
+        {
+            target.semanticLocalization = reference.semanticLocalization;
             target.hasSemantics = true;
         }
         if (reference.hasSemanticRelationships)

@@ -5027,12 +5027,199 @@ Compatibility remains broad:
 - editor preview does not yet expose locale switching or missing-translation
   validation.
 
-The next localization subphase should be **Phase 21B: Serialized widget textKey
-and semantic localization refs**. The core runtime can now resolve package-aware
-keys, so the next useful step is to let durable authored UI refer to those keys
-while preserving embedded string fallbacks.
+## 28. Phase 21B Implementation: Serialized Widget Localization References
 
-## 28. Final Recommendation
+### Investigation
+
+Phase 21A made localization an engine-owned runtime, but authored UI still
+stored final display strings only. That left a gap between package-owned
+catalogs and durable UI structure:
+
+- `UiSerializedWidget` had direct `text` but no stable localization reference.
+- Widget assets could only reuse embedded parameter-substituted strings.
+- Accessibility descriptors stored semantic `name`, `description`, `hint`, and
+  `value` strings directly.
+- The Visual UI Editor sample packages owned catalogs, but the sample widget
+  assets did not consume those catalogs.
+- Missing-key diagnostics existed in `UiLocalizationRuntime`, but serialized
+  authored assets could not trigger them during normal runtime loading.
+
+The compatibility requirement was strict: existing embedded strings must remain
+valid authored data, editor preview text, and runtime fallback. Localization
+references therefore extend serialization; they do not replace direct string
+fields and they do not change binding ownership.
+
+### Architecture
+
+Phase 21B adds authored localization references to the serialized widget model
+and resolves them when `UiSerializationRuntime` instantiates retained nodes.
+The ownership boundary remains:
+
+`Package -> Localization Catalog -> UiLocalizationRuntime -> Serialization Instantiation -> Retained UI`
+
+`UiLocalizationRuntime` still owns locale state, fallback chains, lookup, and
+diagnostics. `UiSerializationRuntime` owns the authored references and the
+moment when those references become retained node payloads or semantic
+descriptors. `UiWidgetAssetRegistry` preserves and expands the same fields as
+part of reusable widget definitions. Accessibility still receives normal
+`UiSemanticDesc` data after lookup; it does not know about authored
+localization keys.
+
+This phase intentionally performs one-shot resolution during instantiation.
+Changing the active locale does not rebuild or patch mounted UI yet. Runtime
+target tracking and mounted UI synchronization remain the next localization
+subphase.
+
+### Authored Model
+
+`UiSerializedWidget` now supports:
+
+- `text`
+- `textKey`
+- `semantics.name`
+- `semantics.nameKey`
+- `semantics.description`
+- `semantics.descriptionKey`
+- `semantics.hint`
+- `semantics.hintKey`
+- `semantics.value`
+- `semantics.valueKey`
+
+The direct string fields remain the compatibility and fallback path. When a key
+resolves, the localized value is used. When a key is missing, the runtime uses
+the direct string fallback and records the normal localization diagnostic. If a
+key field is absent, behavior is unchanged.
+
+`semantic.valueKey` is the Phase 21B representation for authored live-region
+text. The accessibility runtime already announces live-region value changes
+from semantic `value`; Phase 21B only localizes the authored semantic value
+during instantiation. It does not add localized binding updates or automatic
+live-region refresh on language changes.
+
+For authoring compatibility, nested semantic key fields are canonical, and the
+parser also accepts top-level aliases such as `semanticNameKey`,
+`semanticDescriptionKey`, `semanticHintKey`, and `semanticValueKey`.
+Serialization writes the canonical nested semantic form.
+
+### Runtime Integration
+
+During `UiSerializationRuntime::instantiate(...)`, the resolved asset id
+provides a default localization scope. The current Phase 21B scope derives a
+namespace from the asset id prefix, so an asset such as `game.ui.panel` can use
+relative keys in the `game.ui` namespace and an asset such as
+`dungeon.interaction_prompt` can use relative keys in the `dungeon` namespace.
+Namespace-qualified keys such as `game.ui.menu.start` continue to resolve
+through the Phase 21A namespace lookup path.
+
+Lookup happens before widget construction:
+
+- labels and buttons receive localized `text` payloads.
+- semantic descriptors receive localized `name`, `description`, `hint`, and
+  `value`.
+- panels, images, progress bars, and other widgets still register ordinary
+  runtime semantics after localization has produced the final strings.
+- bindings still run afterward and may overwrite text/value targets exactly as
+  before.
+
+This preserves the existing synchronization boundary: localization is not a
+binding source yet, and bindings are not responsible for localization lookup in
+this phase.
+
+### Widget Asset Integration
+
+Widget assets serialize localization references exactly like serialized UI
+documents because their root is still a `UiSerializedWidget` tree. The registry
+now preserves `textKey` and semantic key fields through:
+
+- base asset inheritance.
+- variant/root overrides.
+- asset reference overrides.
+- nested asset expansion.
+- `{{parameter}}` substitution.
+
+Parameterized keys are allowed during widget asset validation so reusable
+assets can expose a `labelKey` parameter the same way they expose a `label`
+fallback parameter. After expansion, the shared serialized validation runs on
+the concrete key value.
+
+### Visual UI Editor Sample
+
+The sample packages now demonstrate catalog-backed authored UI:
+
+- `engine.ui` owns `engine.ui.locale.en-US` and the reusable
+  `engine.status_prompt` widget asset.
+- `game.ui` owns `game.ui.locale.en-US` and the derived
+  `dungeon.interaction_prompt` widget asset.
+- the prompt label keeps its embedded `text` fallback but also carries
+  `textKey: "interaction_prompt.label"`.
+- semantic `nameKey` mirrors the same catalog entry for the prompt label and
+  status descriptor.
+
+The editor still edits authored fallback strings. Runtime preview uses the same
+runtime as the game, so when a key resolves the preview displays the localized
+catalog text rather than the fallback. This is intended and proves the editor
+is consuming the runtime path instead of a private preview shortcut.
+
+### Validation
+
+Serialized validation now detects malformed localization references:
+
+- empty key fields are rejected when explicitly authored.
+- keys with whitespace, leading/trailing dots, consecutive dots, or unsupported
+  characters are rejected.
+- `{{parameter}}` tokens are allowed before widget asset expansion so reusable
+  widget assets can parameterize key references.
+
+Catalog completeness remains runtime/editor diagnostic work. A valid serialized
+asset may reference a key that is missing in the currently loaded locale; lookup
+then falls back to the embedded string and records a missing-key diagnostic in
+`UiLocalizationRuntime`.
+
+### Tests
+
+Extended runtime coverage includes:
+
+- localized serialized widget text.
+- fallback to embedded text when a key is missing.
+- package-relative key lookup from serialized asset scope.
+- namespace-qualified key lookup.
+- localized semantic name, description, hint, and value.
+- serialization round trip for `textKey` and semantic keys.
+- widget asset key parameter substitution.
+- widget asset localized text and semantic name.
+- missing-key diagnostics from instantiated UI.
+- malformed localization reference validation.
+- Visual UI Editor preview behavior with localized sample assets.
+
+Regression status now includes:
+
+- `ui_serialization_runtime`
+- `ui_widget_asset_runtime`
+- `ui_localization_runtime`
+- `visual_ui_editor_runtime`
+
+### Remaining Phase 21 Work
+
+Compatibility remains broad:
+
+- direct embedded strings remain valid and are not deprecated.
+- widget parameters still substitute strings directly.
+- bindings may still format final display strings.
+- mounted UI does not refresh automatically when the active locale changes.
+- localized targets are not registered for later synchronization.
+- parameter substitution inside localized catalog entries is not implemented.
+- plural/select/gender/context variants remain catalog-schema-only future work.
+- editor preview does not yet expose locale switching or missing-translation
+  validation panels.
+- package language packs and live localization reload are still future work.
+
+The next localization subphase should be **Phase 21C: Runtime localized target
+synchronization**. Phase 21B can resolve authored keys at load time; the next
+gap is tracking which retained targets came from localization refs so active
+locale changes and future catalog reloads can update mounted UI without
+requiring each feature to rebuild manually.
+
+## 29. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -5081,9 +5268,14 @@ committed direction is package-level authored asset ownership and override
 policy through `UiPackageRuntime`. The twenty-second committed direction is
 the Phase 21A localization spine through `UiLocalizationRuntime`: package-aware
 catalog assets, active/default locale state, fallback chains, key lookup,
-diagnostics, validation, and package-owned catalog registration.
+diagnostics, validation, and package-owned catalog registration. The
+twenty-third committed direction is Phase 21B serialized widget localization
+references: durable authored `textKey` and semantic key fields resolved through
+`UiLocalizationRuntime` during serialization instantiation while preserving
+embedded strings as fallbacks.
 
-The next milestone should continue Localization with **Phase 21B: Serialized
-widget textKey and semantic localization refs**. The runtime can now resolve
-package-aware keys; durable authored UI should next be able to reference those
-keys while preserving direct embedded strings as fallbacks.
+The next milestone should continue Localization with **Phase 21C: Runtime
+localized target synchronization**. Authored UI can now reference localization
+keys; mounted retained UI should next track those resolved targets so language
+changes and future catalog reloads can refresh live UI without broad feature
+rewrites.

@@ -219,8 +219,8 @@ namespace
         require(preview.loadResult.instance.handles.count("label") == 1,
                 "live reload preview label handle missing");
         require(textPayload(ui, preview.surface, preview.loadResult.instance.handles.at("label")).text ==
-                    "Saved through hot reload",
-                "live reload preview did not reflect saved authored text");
+                    "Press {input} to interact",
+                "live reload preview did not resolve saved authored textKey");
         require(document.selectedWidgetId() == "label",
                 "live reload did not preserve editor stable-id selection");
     }

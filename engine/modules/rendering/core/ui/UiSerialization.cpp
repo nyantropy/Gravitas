@@ -961,6 +961,41 @@ namespace
         return relationships == nullptr ? UiSerializedSemanticRelationships{} : parseRelationshipIds(*relationships);
     }
 
+    void readLocalizationKeyField(const UiJsonValue& json,
+                                  const std::string& field,
+                                  std::string& outKey,
+                                  bool& outPresent)
+    {
+        if (json.find(field) == nullptr)
+            return;
+        outKey = stringOr(json, field, outKey);
+        outPresent = true;
+    }
+
+    UiSerializedSemanticLocalizationRefs parseSemanticLocalizationRefs(const UiJsonValue& json)
+    {
+        UiSerializedSemanticLocalizationRefs refs;
+        if (!json.isObject())
+            return refs;
+
+        readLocalizationKeyField(json, "nameKey", refs.nameKey, refs.hasNameKey);
+        readLocalizationKeyField(json, "descriptionKey", refs.descriptionKey, refs.hasDescriptionKey);
+        readLocalizationKeyField(json, "hintKey", refs.hintKey, refs.hasHintKey);
+        readLocalizationKeyField(json, "valueKey", refs.valueKey, refs.hasValueKey);
+        readLocalizationKeyField(json, "liveRegionTextKey", refs.valueKey, refs.hasValueKey);
+        return refs;
+    }
+
+    void parseTopLevelSemanticLocalizationAliases(const UiJsonValue& json,
+                                                  UiSerializedSemanticLocalizationRefs& refs)
+    {
+        readLocalizationKeyField(json, "semanticNameKey", refs.nameKey, refs.hasNameKey);
+        readLocalizationKeyField(json, "semanticDescriptionKey", refs.descriptionKey, refs.hasDescriptionKey);
+        readLocalizationKeyField(json, "semanticHintKey", refs.hintKey, refs.hasHintKey);
+        readLocalizationKeyField(json, "semanticValueKey", refs.valueKey, refs.hasValueKey);
+        readLocalizationKeyField(json, "semanticLiveRegionTextKey", refs.valueKey, refs.hasValueKey);
+    }
+
     UiJsonValue serializeHandleArray(const std::vector<UiHandle>& values,
                                      const std::vector<std::string>& ids = {})
     {
@@ -1025,9 +1060,10 @@ namespace
     }
 
     UiJsonValue serializeSemantic(const UiSemanticDesc& semantic,
-                                  const UiSerializedSemanticRelationships* relationships = nullptr)
+                                  const UiSerializedSemanticRelationships* relationships = nullptr,
+                                  const UiSerializedSemanticLocalizationRefs* localization = nullptr)
     {
-        return jsonObject({
+        Object object = {
             {"role", jsonString(enumToString(semantic.role, semanticRoleEntries(), "Unknown"))},
             {"name", jsonString(semantic.name)},
             {"description", jsonString(semantic.description)},
@@ -1049,7 +1085,19 @@ namespace
             {"level", jsonNumber(semantic.level)},
             {"index", jsonNumber(semantic.index)},
             {"count", jsonNumber(semantic.count)}
-        });
+        };
+        if (localization != nullptr)
+        {
+            if (localization->hasNameKey || !localization->nameKey.empty())
+                object.emplace_back("nameKey", jsonString(localization->nameKey));
+            if (localization->hasDescriptionKey || !localization->descriptionKey.empty())
+                object.emplace_back("descriptionKey", jsonString(localization->descriptionKey));
+            if (localization->hasHintKey || !localization->hintKey.empty())
+                object.emplace_back("hintKey", jsonString(localization->hintKey));
+            if (localization->hasValueKey || !localization->valueKey.empty())
+                object.emplace_back("valueKey", jsonString(localization->valueKey));
+        }
+        return jsonObject(std::move(object));
     }
 
     UiSerializedBinding parseBinding(const UiJsonValue& json)
@@ -1229,6 +1277,11 @@ namespace
         widget.asset = stringOr(json, "asset", widget.asset);
         widget.variant = stringOr(json, "variant", widget.variant);
         widget.text = stringOr(json, "text", widget.text);
+        if (json.find("textKey") != nullptr)
+        {
+            widget.textKey = stringOr(json, "textKey", widget.textKey);
+            widget.hasTextKey = true;
+        }
         widget.styleClass = stringOr(json, "styleClass", widget.styleClass);
         widget.labelStyleClass = stringOr(json, "labelStyleClass", widget.labelStyleClass);
         widget.imageAsset = stringOr(json, "imageAsset", widget.imageAsset);
@@ -1291,10 +1344,14 @@ namespace
         if (const UiJsonValue* value = json.find("semantics"))
         {
             widget.semantics = parseSemantic(*value);
+            widget.semanticLocalization = parseSemanticLocalizationRefs(*value);
             widget.semanticRelationships = parseSemanticRelationshipIds(*value);
             widget.hasSemanticRelationships = hasRelationshipIds(widget.semanticRelationships);
             widget.hasSemantics = true;
         }
+        parseTopLevelSemanticLocalizationAliases(json, widget.semanticLocalization);
+        if (widget.semanticLocalization.any())
+            widget.hasSemantics = true;
         if (const UiJsonValue* value = json.find("navigation"))
         {
             widget.navigation = parseNavigation(*value);
@@ -1386,12 +1443,16 @@ namespace
             {"children", jsonArray(std::move(children))},
             {"slots", jsonObject(std::move(slots))}
         };
+        if (widget.hasTextKey || !widget.textKey.empty())
+            object.emplace_back("textKey", jsonString(widget.textKey));
         if (widget.hasSemantics)
         {
             object.emplace_back("semantics",
                                 serializeSemantic(widget.semantics,
                                                   widget.hasSemanticRelationships ? &widget.semanticRelationships
-                                                                                  : nullptr));
+                                                                                  : nullptr,
+                                                  widget.semanticLocalization.any() ? &widget.semanticLocalization
+                                                                                   : nullptr));
         }
         if (widget.dragSource)
             object.emplace_back("dragSource", serializeDragSource(*widget.dragSource));
@@ -1483,6 +1544,46 @@ namespace
         return std::find(known.begin(), known.end(), type) != known.end();
     }
 
+    bool hasTemplateToken(const std::string& value)
+    {
+        return value.find("{{") != std::string::npos || value.find("}}") != std::string::npos;
+    }
+
+    bool isValidLocalizationKeyCharacter(char ch)
+    {
+        const unsigned char value = static_cast<unsigned char>(ch);
+        return std::isalnum(value) != 0 || ch == '_' || ch == '-' || ch == '.';
+    }
+
+    bool isValidLocalizationKeyRef(const std::string& key)
+    {
+        if (key.empty())
+            return false;
+        if (key.front() == '.' || key.back() == '.')
+            return false;
+        if (key.find("..") != std::string::npos)
+            return false;
+        return std::all_of(key.begin(), key.end(), isValidLocalizationKeyCharacter);
+    }
+
+    void validateLocalizationKeyRef(const std::string& key,
+                                    bool present,
+                                    const std::string& path,
+                                    UiSerializedValidationResult& result)
+    {
+        if (!present && key.empty())
+            return;
+        if (key.empty())
+        {
+            result.error(path, "localization key reference must not be empty");
+            return;
+        }
+        if (hasTemplateToken(key))
+            return;
+        if (!isValidLocalizationKeyRef(key))
+            result.error(path, "malformed localization key reference '" + key + "'");
+    }
+
     void validateWidget(const UiSerializedWidget& widget,
                         const UiTheme* theme,
                         const UiWidgetAssetRegistry* widgetAssets,
@@ -1497,6 +1598,27 @@ namespace
             result.error(path, "unknown widget type '" + widget.type + "'");
         if (!widget.asset.empty() && widgetAssets != nullptr && widgetAssets->findAsset(widget.asset) == nullptr)
             result.error(path, "unknown widget asset '" + widget.asset + "'");
+
+        validateLocalizationKeyRef(widget.textKey, widget.hasTextKey, path + ".textKey", result);
+        if (widget.hasSemantics || widget.semanticLocalization.any())
+        {
+            validateLocalizationKeyRef(widget.semanticLocalization.nameKey,
+                                      widget.semanticLocalization.hasNameKey,
+                                      path + ".semantics.nameKey",
+                                      result);
+            validateLocalizationKeyRef(widget.semanticLocalization.descriptionKey,
+                                      widget.semanticLocalization.hasDescriptionKey,
+                                      path + ".semantics.descriptionKey",
+                                      result);
+            validateLocalizationKeyRef(widget.semanticLocalization.hintKey,
+                                      widget.semanticLocalization.hasHintKey,
+                                      path + ".semantics.hintKey",
+                                      result);
+            validateLocalizationKeyRef(widget.semanticLocalization.valueKey,
+                                      widget.semanticLocalization.hasValueKey,
+                                      path + ".semantics.valueKey",
+                                      result);
+        }
 
         if (!widget.id.empty())
             ++ids[widget.id];
@@ -1630,6 +1752,21 @@ namespace
         return desc;
     }
 
+    std::string localizationNamespaceFromAssetId(const std::string& assetId)
+    {
+        const size_t separator = assetId.rfind('.');
+        if (separator == std::string::npos)
+            return {};
+        return assetId.substr(0, separator);
+    }
+
+    UiLocalizationScope localizationScopeForAsset(const UiSerializedAsset& asset)
+    {
+        UiLocalizationScope scope;
+        scope.namespaceId = localizationNamespaceFromAssetId(asset.id);
+        return scope;
+    }
+
     struct InstantiationContext
     {
         UiSystem& ui;
@@ -1637,7 +1774,37 @@ namespace
         UiMountId mount = UI_INVALID_MOUNT;
         const IUiSerializedBindingResolver* bindingResolver = nullptr;
         UiSerializedLoadResult& result;
+        UiLocalizationScope localizationScope;
     };
+
+    std::string resolveLocalizedString(InstantiationContext& context,
+                                       const std::string& key,
+                                       const std::string& fallbackText)
+    {
+        if (key.empty())
+            return fallbackText;
+
+        UiLocalizedTextRef ref;
+        ref.key.key = key;
+        ref.fallbackText = fallbackText;
+        return context.ui.localize(ref, context.localizationScope).text;
+    }
+
+    UiSemanticDesc resolveLocalizedSemantics(InstantiationContext& context,
+                                             const UiSerializedWidget& widget)
+    {
+        UiSemanticDesc desc = widget.semantics;
+        const UiSerializedSemanticLocalizationRefs& refs = widget.semanticLocalization;
+        if (refs.hasNameKey || !refs.nameKey.empty())
+            desc.name = resolveLocalizedString(context, refs.nameKey, desc.name);
+        if (refs.hasDescriptionKey || !refs.descriptionKey.empty())
+            desc.description = resolveLocalizedString(context, refs.descriptionKey, desc.description);
+        if (refs.hasHintKey || !refs.hintKey.empty())
+            desc.hint = resolveLocalizedString(context, refs.hintKey, desc.hint);
+        if (refs.hasValueKey || !refs.valueKey.empty())
+            desc.value = resolveLocalizedString(context, refs.valueKey, desc.value);
+        return desc;
+    }
 
     UiBindingId bindSerialized(InstantiationContext& context,
                                UiHandle target,
@@ -1735,13 +1902,17 @@ namespace
         UiHandle root = UI_INVALID_HANDLE;
         UiHandle childParent = UI_INVALID_HANDLE;
         UiHandle progressFill = UI_INVALID_HANDLE;
+        const std::string resolvedText =
+            resolveLocalizedString(context, widget.textKey, widget.text);
+        const UiSemanticDesc resolvedSemantics =
+            widget.hasSemantics ? resolveLocalizedSemantics(context, widget) : UiSemanticDesc{};
 
         if (widget.type == "Label")
         {
             gts::ui::UiLabelWidget label;
             gts::ui::UiLabelDesc desc;
             desc.layout = widget.layout;
-            desc.text = widget.text;
+            desc.text = resolvedText;
             desc.styleClass = widget.styleClass.empty() ? desc.styleClass : widget.styleClass;
             desc.visible = widget.visible;
             desc.horizontalAlign = widget.horizontalAlign;
@@ -1750,12 +1921,12 @@ namespace
             desc.maxLines = widget.maxLines;
             if (widget.hasSemantics)
             {
-                desc.semanticRole = widget.semantics.role;
-                desc.accessibilityName = widget.semantics.name;
-                desc.accessibilityDescription = widget.semantics.description;
-                desc.accessibilityHint = widget.semantics.hint;
-                desc.liveRegion = widget.semantics.liveRegion;
-                desc.accessibilityHidden = widget.semantics.hidden;
+                desc.semanticRole = resolvedSemantics.role;
+                desc.accessibilityName = resolvedSemantics.name;
+                desc.accessibilityDescription = resolvedSemantics.description;
+                desc.accessibilityHint = resolvedSemantics.hint;
+                desc.liveRegion = resolvedSemantics.liveRegion;
+                desc.accessibilityHidden = resolvedSemantics.hidden;
             }
             label.build(widgetContext, parent, desc);
             root = label.root();
@@ -1783,7 +1954,7 @@ namespace
             gts::ui::UiButtonWidget button;
             gts::ui::UiButtonDesc desc;
             desc.layout = widget.layout;
-            desc.text = widget.text;
+            desc.text = resolvedText;
             desc.styleClass = widget.styleClass.empty() ? desc.styleClass : widget.styleClass;
             desc.labelStyleClass = widget.labelStyleClass.empty() ? desc.labelStyleClass : widget.labelStyleClass;
             desc.visible = widget.visible;
@@ -1799,11 +1970,11 @@ namespace
             desc.wrapNavigation = widget.navigation.wrapNavigation;
             if (widget.hasSemantics)
             {
-                desc.semanticRole = widget.semantics.role;
-                desc.accessibilityName = widget.semantics.name;
-                desc.accessibilityDescription = widget.semantics.description;
-                desc.accessibilityHint = widget.semantics.hint;
-                desc.liveRegion = widget.semantics.liveRegion;
+                desc.semanticRole = resolvedSemantics.role;
+                desc.accessibilityName = resolvedSemantics.name;
+                desc.accessibilityDescription = resolvedSemantics.description;
+                desc.accessibilityHint = resolvedSemantics.hint;
+                desc.liveRegion = resolvedSemantics.liveRegion;
             }
             if (widget.dragSource) desc.dragSource = makeDragSourceDesc(*widget.dragSource);
             if (widget.dropTarget) desc.dropTarget = makeDropTargetDesc(*widget.dropTarget);
@@ -1827,8 +1998,8 @@ namespace
             desc.decorative = widget.decorative;
             if (widget.hasSemantics)
             {
-                desc.accessibilityName = widget.semantics.name;
-                desc.accessibilityDescription = widget.semantics.description;
+                desc.accessibilityName = resolvedSemantics.name;
+                desc.accessibilityDescription = resolvedSemantics.description;
             }
             image.build(widgetContext, parent, desc);
             root = image.root();
@@ -1844,10 +2015,10 @@ namespace
             desc.visible = widget.visible;
             if (widget.hasSemantics)
             {
-                desc.accessibilityName = widget.semantics.name;
-                desc.accessibilityDescription = widget.semantics.description;
-                desc.accessibilityHint = widget.semantics.hint;
-                desc.liveRegion = widget.semantics.liveRegion;
+                desc.accessibilityName = resolvedSemantics.name;
+                desc.accessibilityDescription = resolvedSemantics.description;
+                desc.accessibilityHint = resolvedSemantics.hint;
+                desc.liveRegion = resolvedSemantics.liveRegion;
             }
             progress.build(widgetContext, parent, desc);
             root = progress.root();
@@ -1915,7 +2086,7 @@ namespace
             context.result.instance.root = root;
 
         if (widget.hasSemantics)
-            context.ui.setSemantics(context.surface, root, widget.semantics);
+            context.ui.setSemantics(context.surface, root, resolvedSemantics);
         applyNavigation(context, root, widget);
         if (widget.type != "Panel" && widget.type != "Button")
             applyDragDrop(context, root, widget);
@@ -2223,7 +2394,12 @@ UiSerializedLoadResult UiSerializationRuntime::instantiate(UiSystem& ui,
         return result;
     }
 
-    InstantiationContext context{ui, surface, mount, bindingResolver, result};
+    InstantiationContext context{ui,
+                                 surface,
+                                 mount,
+                                 bindingResolver,
+                                 result,
+                                 localizationScopeForAsset(resolvedAsset)};
     instantiateWidget(context, parent, resolvedAsset.root);
     resolveSemanticRelationships(context, resolvedAsset.root);
     result.success = result.validation.valid() && result.instance.root != UI_INVALID_HANDLE;

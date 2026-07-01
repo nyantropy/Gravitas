@@ -93,6 +93,24 @@ struct UiSerializedSemanticRelationships
     std::string tooltip;
 };
 
+struct UiSerializedSemanticLocalizationRefs
+{
+    std::string nameKey;
+    std::string descriptionKey;
+    std::string hintKey;
+    std::string valueKey;
+    bool hasNameKey = false;
+    bool hasDescriptionKey = false;
+    bool hasHintKey = false;
+    bool hasValueKey = false;
+
+    bool any() const
+    {
+        return hasNameKey || hasDescriptionKey || hasHintKey || hasValueKey ||
+               !nameKey.empty() || !descriptionKey.empty() || !hintKey.empty() || !valueKey.empty();
+    }
+};
+
 struct UiSerializedWidget
 {
     std::string id;
@@ -106,6 +124,8 @@ struct UiSerializedWidget
     std::string styleClass;
     std::string labelStyleClass;
     std::string text;
+    std::string textKey;
+    bool hasTextKey = false;
     std::string imageAsset;
     UiHorizontalAlign horizontalAlign = UiHorizontalAlign::Left;
     UiVerticalAlign verticalAlign = UiVerticalAlign::Top;
@@ -126,6 +146,7 @@ struct UiSerializedWidget
     bool hasDecorative = false;
     UiSemanticDesc semantics;
     bool hasSemantics = false;
+    UiSerializedSemanticLocalizationRefs semanticLocalization;
     UiSerializedSemanticRelationships semanticRelationships;
     bool hasSemanticRelationships = false;
     UiSerializedNavigation navigation;

@@ -1084,10 +1084,17 @@ catalog-declared fallback/source locale participation, package-relative and
 absolute namespace key lookup, missing-key diagnostics, catalog validation, and
 JSON parse/serialize helpers. `UiPackageRuntime` can register
 `UiLocalizationAsset` data from package assets; package unload unregisters the
-catalog. Serialized widget `textKey` fields, localized semantic refs, mounted UI
-refresh on language switch, editor locale preview, language-pack live reload,
-plural/select rules, RTL rendering, and font fallback remain future
-localization subphases.
+catalog. Phase 21B extends authored UI with optional serialized localization
+references: `UiSerializedWidget::textKey` and semantic `nameKey`,
+`descriptionKey`, `hintKey`, and `valueKey`. `UiSerializationRuntime` resolves
+those refs through `UiLocalizationRuntime` during instantiation, attaches the
+localized text/semantic values to retained nodes, and falls back to the existing
+embedded strings when a key is absent or missing. `UiWidgetAssetRegistry`
+preserves the same fields through reusable widget assets, inheritance,
+variants, overrides, nested expansion, and parameter substitution. Mounted UI
+refresh on language switch, localized target tracking, editor locale preview,
+language-pack live reload, catalog parameter substitution, plural/select rules,
+RTL rendering, and font fallback remain future localization subphases.
 
 UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
 visible/render-enabled surfaces in surface order, resolves each surface's
