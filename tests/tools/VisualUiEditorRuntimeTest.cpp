@@ -29,10 +29,12 @@ namespace
 
     void registerSampleDependencies(UiSystem& ui)
     {
-        UiSerializedValidationResult validation;
-        require(ui.widgetAssets().registerAsset(gts::tools::createVisualUiEditorStatusPromptAsset(), &validation),
-                "status prompt dependency did not register");
-        require(validation.valid(), "status prompt dependency validation failed");
+        UiPackageLoadResult enginePackage =
+            ui.packages().registerPackage(ui, gts::tools::createVisualUiEditorEngineUiPackage());
+        require(enginePackage.success, "engine UI sample package did not register");
+        UiPackageLoadResult gamePackage =
+            ui.packages().registerPackage(ui, gts::tools::createVisualUiEditorGameUiPackage());
+        require(gamePackage.success, "game UI sample package did not register");
     }
 
     std::string validationSummary(const UiSerializedValidationResult& validation)

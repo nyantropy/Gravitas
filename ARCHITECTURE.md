@@ -1061,6 +1061,21 @@ of owning a private reload path. OS file watching, package/plugin ownership,
 theme file serialization, and deeper state transfer are future clients of this
 asset runtime.
 
+UI package ownership is engine-owned by `UiPackageRuntime`. Packages own
+authored data and plugin metadata; assets still execute through
+`UiAssetRuntime`, `UiWidgetAssetRegistry`, and `UiSerializationRuntime`.
+Package manifests define stable package id, version, namespace, dependencies,
+optional dependencies, asset roots, tags, and future plugin metadata. Package
+loading validates required dependencies, version constraints, cycles, duplicate
+assets, and override policy before applying effective assets to the asset
+runtime. Later packages can replace earlier effective assets only when their
+asset descriptor declares `Replace`; unloading an override restores the previous
+provider and rebuilds affected consumers through the existing live-reload path.
+The Visual UI Editor sample now loads its reusable prompt assets from
+`engine.ui` and `game.ui` packages. Runtime code plugin loading, package asset
+root scanning, signatures, repository identity, and package browsers are future
+layers above this ownership model.
+
 UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
 visible/render-enabled surfaces in surface order, resolves each surface's
 document into a surface-local command buffer, then transforms the vertices into

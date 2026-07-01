@@ -4668,7 +4668,181 @@ are discovered. This should precede localization, asset browser polish,
 automation, or collaborative editing because those systems need package-level
 identity, dependency, and override rules to scale beyond built-in sample assets.
 
-## 26. Final Recommendation
+## 26. Phase 20 Implementation: Package & Plugin Runtime
+
+### Investigation
+
+The UI platform now has authored assets, but the previous ownership model was
+still global:
+
+- `UiSerializedAsset`, `UiWidgetAssetDefinition`, and runtime theme assets had
+  stable ids but no package owner.
+- `UiWidgetAssetRegistry` assumed globally unique widget asset ids.
+- `UiAssetRuntime` tracked dependencies and live consumers but deliberately did
+  not own package policy.
+- The Visual UI Editor sample registered its base widget asset directly into
+  the widget registry.
+
+That left no engine answer for asset origin, mod/package overrides, package
+dependency validation, namespace lookup, or future editor/plugin discovery.
+
+### Architecture
+
+`UiPackageRuntime` is the ownership layer above authored UI assets. Packages
+own data; plugins describe behavior extensions. The package runtime does not
+replace `UiAssetRuntime`, `UiWidgetAssetRegistry`, or
+`UiSerializationRuntime`.
+
+The ownership boundary is:
+
+`Package -> Assets -> UiAssetRuntime -> Serialization / Widget Assets / Theme -> Runtime UI`
+
+Packages answer:
+
+- which package owns an authored asset.
+- which package currently provides the effective version of an asset.
+- which package dependencies must be loaded first.
+- whether a package is allowed to override an existing asset.
+- which plugin metadata a package declares for future runtime/editor behavior.
+
+`UiAssetRuntime` continues to own asset dependency invalidation and consumer
+rebuild. `UiWidgetAssetRegistry` continues to own widget definition expansion.
+`UiSerializationRuntime` continues to instantiate retained runtime graphs.
+
+### Package Model
+
+`UiPackageManifest` includes:
+
+- stable package id.
+- display name, author, version, namespace, description, tags.
+- engine compatibility string.
+- asset roots.
+- required and optional package dependencies.
+- plugin metadata for future behavior providers.
+
+`UiPackageAssetDesc` binds a package to concrete authored data:
+
+- `UiSerializedAsset`
+- `UiWidgetAssetDefinition`
+- `UiTheme`
+
+Each asset has a `UiAssetReference`, optional source path, optional dependency
+list, and an override policy. Asset ids are expected to be namespaced; current
+nonconforming ids remain compatibility warnings rather than hard failures.
+
+### Dependency Resolution
+
+Package loading validates:
+
+- required dependencies are already loaded.
+- optional dependencies satisfy version constraints when present.
+- package version constraints are satisfied.
+- dependency cycles are rejected.
+- duplicate assets inside one package are rejected.
+- overriding an existing effective asset requires `Replace`.
+
+Loaded packages keep deterministic load order. Dependencies must load before
+dependents, and later packages may override earlier effective assets only when
+their asset descriptor declares the replacement policy.
+
+### Override Policy
+
+The package runtime builds an effective asset map from loaded packages in load
+order. A package asset without override policy cannot replace an existing
+effective asset. A package asset with `Replace` can replace it, emits an
+`OverrideApplied` package event, and queues the effective asset into
+`UiAssetRuntime`.
+
+Unloading an overriding package recomputes the effective asset map and restores
+the previous provider. Affected mounted consumers rebuild through the existing
+asset runtime reload path.
+
+### Plugin Boundary
+
+Packages own authored data. Plugins own behavior extensions. This phase stores
+plugin metadata only:
+
+- plugin id.
+- display name.
+- version.
+- description.
+- capability strings.
+- native-code flag.
+
+No dynamic library loading, scripting, or runtime code plugin execution is
+implemented. Future plugin loaders should consume package plugin metadata
+rather than turning packages themselves into executable behavior.
+
+### Implementation
+
+Added `UiPackageRuntime`:
+
+- `UiPackageManifest` and JSON manifest parse/serialize helpers.
+- semantic version parse/compare for package dependency constraints.
+- `UiPackageDesc`, `UiPackageAssetDesc`, and effective asset origin tracking.
+- `registerPackage(...)`, `unregisterPackage(...)`, and `validatePackage(...)`.
+- package events: loaded, unloaded, reloaded, validation failed, dependency
+  resolved, override applied.
+- namespace-aware `resolveAsset(...)`.
+- integration with `UiAssetRuntime` for effective asset application, hot
+  reload, consumer rebuild, and unload fallback.
+- `UiSystem::packages()` facade accessors.
+
+The Visual UI Editor sample assets now demonstrate package ownership:
+
+- `engine.ui` owns the reusable status prompt widget asset.
+- `game.ui` depends on `engine.ui` and owns the derived interaction prompt
+  widget asset.
+
+Direct widget asset registration remains compatible for existing game code and
+tests.
+
+### Tests
+
+Added `ui_package_runtime`, covering:
+
+- package manifest parse/round-trip.
+- plugin metadata.
+- semantic version comparison.
+- missing dependency rejection.
+- version mismatch rejection.
+- load order.
+- cycle detection.
+- duplicate asset override validation.
+- namespace lookup from a requesting package.
+- override resolution and origin tracking.
+- hot reload integration through mounted consumer rebuild.
+- package unload restoring the previous effective asset provider.
+
+Extended the Visual UI Editor sample path so editor tests now use
+package-owned sample dependencies.
+
+### Remaining Package Debt
+
+- Package manifests are parsed, but package asset loading from manifest asset
+  roots is not implemented yet.
+- There is no package browser, marketplace, repository identity, signature
+  validation, or license enforcement.
+- Theme file serialization is still future work.
+- Runtime code plugin loading is intentionally not implemented.
+- Existing game-authored C++ UI asset registration remains a compatibility
+  path until those features migrate to packages.
+
+### Next Capability
+
+With packages complete, the single highest-value capability to build next is
+**Localization Runtime**.
+
+Localization should come next because packages now provide the missing
+ownership boundary for language packs, modded strings, DLC text, accessibility
+names, widget labels, serialized UI text, and editor-visible authored content.
+An asset browser, automation runtime, collaborative editing, and runtime plugin
+loading all benefit from packages too, but localization is the first capability
+that immediately exercises package ownership across runtime assets, authoring
+data, accessibility semantics, bindings, and editor workflows without requiring
+new executable plugin infrastructure.
+
+## 27. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -4711,10 +4885,13 @@ Serialization Runtime. The eighteenth committed direction is reusable authored
 UI definitions through `UiWidgetAssetRegistry`. The nineteenth committed
 direction is a Visual UI Editor application built on top of the UI platform,
 using runtime surfaces, mounts, widgets, serialization, and widget assets
-without editor-only runtime shortcuts.
+without editor-only runtime shortcuts. The twentieth committed direction is
+dependency-aware live reload through `UiAssetRuntime`. The twenty-first
+committed direction is package-level authored asset ownership and override
+policy through `UiPackageRuntime`.
 
-The next milestone should implement Live Hot Reload. It should precede
-localization runtime, automation runtime, virtualized lists, and plugin SDK work
-because the runtime and editor now need a fast, dependency-aware authoring loop
-that can reload serialized/widget assets into existing surfaces and previews
-while preserving editor state where possible.
+The next milestone should implement a Localization Runtime. It should precede
+asset browser, automation, collaborative editing, and runtime plugin loading
+because the package system now needs a package-owned, data-driven way to supply
+localized text to serialized UI, widget assets, bindings, accessibility
+semantics, and editor-authored content.

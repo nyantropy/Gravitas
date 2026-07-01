@@ -19,6 +19,7 @@
 #include "UiInteraction.h"
 #include "UiModalManager.h"
 #include "UiMount.h"
+#include "UiPackageRuntime.h"
 #include "UiRenderResolver.h"
 #include "UiSerialization.h"
 #include "UiSurface.h"
@@ -264,6 +265,8 @@ public:
     UiAssetRuntime&       uiAssets();
     const UiAssetRuntime& uiAssets() const;
     UiAssetReloadResult processUiAssetReloads();
+    UiPackageRuntime&       packages();
+    const UiPackageRuntime& packages() const;
     UiSerializedLoadResult instantiateWidgetAsset(const UiWidgetAssetInstanceDesc& desc,
                                                    UiMountId mountId,
                                                    const IUiSerializedBindingResolver* bindingResolver = nullptr);
@@ -339,6 +342,7 @@ private:
     UiDispatchResult                           lastDispatchResult;
     UiWidgetAssetRegistry                      widgetAssetRegistry;
     UiAssetRuntime                             uiAssetRuntime;
+    UiPackageRuntime                           packageRuntime;
     UiCommandBuffer                            commandCache;
     UiCommandBuffer                            emptyCommandBuffer;
     Metrics                                    lastMetrics;

@@ -166,8 +166,10 @@ namespace gts::tools
             UiTheme theme = ui.theme();
             registerVisualUiEditorSampleThemeClasses(theme);
             ui.setTheme(theme);
-            ui.widgetAssets().registerAsset(createVisualUiEditorStatusPromptAsset());
-            UiWidgetAssetDefinition prompt = createVisualUiEditorInteractionPromptAsset();
+            ui.packages().registerPackage(ui, createVisualUiEditorEngineUiPackage());
+            UiPackageDesc gamePackage = createVisualUiEditorGameUiPackage();
+            ui.packages().registerPackage(ui, gamePackage);
+            UiWidgetAssetDefinition prompt = *gamePackage.assets.front().widgetAsset;
             document.openAsset(prompt);
             document.selectWidget("label");
             document.rebuildPreview(ui);

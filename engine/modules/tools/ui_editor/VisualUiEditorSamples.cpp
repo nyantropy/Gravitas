@@ -136,4 +136,45 @@ namespace gts::tools
   }
 })json");
     }
+
+    UiPackageDesc createVisualUiEditorEngineUiPackage()
+    {
+        UiWidgetAssetDefinition statusPrompt = createVisualUiEditorStatusPromptAsset();
+
+        UiPackageDesc package;
+        package.manifest.id = "engine.ui";
+        package.manifest.displayName = "Engine UI";
+        package.manifest.author = "Gravitas";
+        package.manifest.version = "1.0.0";
+        package.manifest.namespaceId = "engine";
+        package.manifest.description = "Built-in engine UI widgets used by tool and game samples.";
+        package.manifest.tags = {"engine", "ui", "widgets"};
+
+        UiPackageAssetDesc asset;
+        asset.reference = UiAssetReference{UiAssetType::WidgetAsset, statusPrompt.id};
+        asset.widgetAsset = std::move(statusPrompt);
+        package.assets.push_back(std::move(asset));
+        return package;
+    }
+
+    UiPackageDesc createVisualUiEditorGameUiPackage()
+    {
+        UiWidgetAssetDefinition interactionPrompt = createVisualUiEditorInteractionPromptAsset();
+
+        UiPackageDesc package;
+        package.manifest.id = "game.ui";
+        package.manifest.displayName = "Game UI";
+        package.manifest.author = "DungeonCrawler";
+        package.manifest.version = "1.0.0";
+        package.manifest.namespaceId = "dungeon";
+        package.manifest.description = "Game-authored UI widgets used by the Visual UI Editor sample.";
+        package.manifest.tags = {"game", "ui", "widgets"};
+        package.manifest.dependencies.push_back(UiPackageDependency{.packageId = "engine.ui", .minVersion = "1.0.0"});
+
+        UiPackageAssetDesc asset;
+        asset.reference = UiAssetReference{UiAssetType::WidgetAsset, interactionPrompt.id};
+        asset.widgetAsset = std::move(interactionPrompt);
+        package.assets.push_back(std::move(asset));
+        return package;
+    }
 }

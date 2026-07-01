@@ -1729,6 +1729,16 @@ UiAssetReloadResult UiSystem::processUiAssetReloads()
     return uiAssetRuntime.processReloads(*this);
 }
 
+UiPackageRuntime& UiSystem::packages()
+{
+    return packageRuntime;
+}
+
+const UiPackageRuntime& UiSystem::packages() const
+{
+    return packageRuntime;
+}
+
 UiSerializedLoadResult UiSystem::instantiateWidgetAsset(const UiWidgetAssetInstanceDesc& desc,
                                                         UiMountId mountId,
                                                         const IUiSerializedBindingResolver* bindingResolver)

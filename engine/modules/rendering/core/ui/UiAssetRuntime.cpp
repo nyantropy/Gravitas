@@ -175,6 +175,30 @@ bool UiAssetRuntime::registerThemeAsset(UiSystem& ui,
     return applyThemeAsset(ui, id, theme, dependencies, sourcePath, nullptr, &changed);
 }
 
+bool UiAssetRuntime::unregisterAsset(UiSystem& ui,
+                                     const UiAssetReference& reference,
+                                     UiAssetReloadResult* outResult)
+{
+    UiAssetReloadResult localResult;
+    UiAssetReloadResult& result = outResult == nullptr ? localResult : *outResult;
+    const std::string key = uiAssetKey(reference);
+    const auto it = records.find(key);
+    if (it == records.end())
+        return false;
+
+    if (reference.type == UiAssetType::WidgetAsset)
+        ui.widgetAssets().unregisterAsset(reference.id);
+
+    records.erase(it);
+    rebuildReverseDependencies();
+    std::vector<UiAssetReference> changed;
+    changed.push_back(reference);
+    rebuildAffectedConsumers(ui, changed, result);
+    result.events.push_back(makeReloadEvent(UiAssetReloadEventKind::AssetInvalidated, reference));
+    lastEvents = result.events;
+    return true;
+}
+
 bool UiAssetRuntime::queueSerializedAssetReload(const UiSerializedAsset& asset, std::filesystem::path sourcePath)
 {
     if (asset.id.empty())

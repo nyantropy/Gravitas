@@ -140,6 +140,9 @@ public:
                             const UiTheme& theme,
                             std::vector<UiAssetReference> dependencies = {},
                             std::filesystem::path sourcePath = {});
+    bool unregisterAsset(UiSystem& ui,
+                         const UiAssetReference& reference,
+                         UiAssetReloadResult* outResult = nullptr);
 
     bool queueSerializedAssetReload(const UiSerializedAsset& asset,
                                     std::filesystem::path sourcePath = {});
