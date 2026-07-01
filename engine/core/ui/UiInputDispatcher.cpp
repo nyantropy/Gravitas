@@ -8,6 +8,7 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
     UiFocusManager& focusManager,
     UiModalManager& modalManager,
     UiNavigationGraph& navigationGraph,
+    UiDragDropManager& dragDropManager,
     const UiInputFrame& input,
     bool enabled,
     UiSurfaceId surfaceId,
@@ -18,6 +19,7 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
 
     if (!enabled)
     {
+        dragDropManager.clear();
         clearInteractionState(document, focusManager, modalManager);
         lastDispatch = makeDisabledResult(input, surfaceId, frameId);
         return lastDispatch;
@@ -26,6 +28,7 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
     modalManager.pruneInvalidModals(document, focusManager);
     focusManager.pruneInvalidHandles(document);
     navigationGraph.pruneInvalidNodes(document);
+    dragDropManager.pruneInvalidNodes(document, focusManager);
     const UiDispatchResult previousDispatch = lastDispatch;
 
     document.setViewportSize(1.0f, 1.0f);
@@ -76,12 +79,27 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
             focusManager.requestFocus(document, pointerTarget, UiFocusReason::Pointer);
     }
 
+    const UiDragFrameResult dragResult =
+        dragDropManager.update(document,
+                               focusManager,
+                               modalManager,
+                               input,
+                               hovered,
+                               pointerTarget,
+                               UI_PRIMARY_POINTER);
+    const bool suppressClick = dragResult.dragging ||
+                               dragResult.started ||
+                               dragResult.dropped ||
+                               dragResult.rejected ||
+                               dragResult.cancelled ||
+                               dragResult.ended;
+
     UiHandle released = UI_INVALID_HANDLE;
     UiHandle clicked  = UI_INVALID_HANDLE;
     if (input.primaryReleased)
     {
         released = focusManager.activePointerNode(UI_PRIMARY_POINTER);
-        if (released != UI_INVALID_HANDLE && released == pointerTarget)
+        if (!suppressClick && released != UI_INVALID_HANDLE && released == pointerTarget)
             clicked = released;
         focusManager.clearActivePointer(document, UI_PRIMARY_POINTER);
     }
@@ -92,7 +110,8 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
 
     const UiNavigationDirection navigationDirection = input.navigationDirection();
     UiNavigationMoveResult navigationMove;
-    if (navigationDirection != UiNavigationDirection::None)
+    const bool navigationSuspended = dragDropManager.active() || dragResult.active || dragResult.ended;
+    if (!navigationSuspended && navigationDirection != UiNavigationDirection::None)
     {
         navigationMove = navigationGraph.move(document,
                                              focusManager,
@@ -102,7 +121,7 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
     }
 
     UiNavigationSubmitResult navigationSubmit;
-    if (input.navigationSubmitPressed)
+    if (!navigationSuspended && input.navigationSubmitPressed)
     {
         navigationSubmit = navigationGraph.submit(document,
                                                  focusManager,
@@ -143,6 +162,29 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
     result.navigationFrom = navigationMove.from;
     result.navigationTo = navigationMove.to;
     result.navigationSubmitTarget = navigationSubmit.target;
+    if (navigationSuspended && (navigationDirection != UiNavigationDirection::None || input.navigationSubmitPressed))
+        result.navigationRequestBlocked = true;
+    result.dragActive = dragResult.active || dragDropManager.active();
+    result.dragArmed = dragResult.armed;
+    result.dragging = dragResult.dragging || dragDropManager.dragging();
+    result.dragStarted = dragResult.started;
+    result.dragMoved = dragResult.moved;
+    result.dragTargetChanged = dragResult.targetChanged;
+    result.dragEnteredTarget = dragResult.enteredTarget;
+    result.dragLeftTarget = dragResult.leftTarget;
+    result.dragDropped = dragResult.dropped;
+    result.dragAccepted = dragResult.accepted;
+    result.dragRejected = dragResult.rejected;
+    result.dragCancelled = dragResult.cancelled;
+    result.dragEnded = dragResult.ended;
+    result.dragSource = dragResult.source;
+    result.dragTarget = dragResult.target;
+    result.dragPreviousTarget = dragResult.previousTarget;
+    result.dragPayload = dragResult.payload;
+    result.dragStartX = dragResult.startX;
+    result.dragStartY = dragResult.startY;
+    result.dragDeltaX = dragResult.deltaX;
+    result.dragDeltaY = dragResult.deltaY;
     result.cancelTargetModal = cancelTarget;
     result.cancelTargetOwner = cancelTargetOwner;
     result.dismissedModal = dismissedByCancel ? cancelTarget : UI_INVALID_MODAL;
@@ -152,6 +194,8 @@ const UiDispatchResult& UiInputDispatcher::dispatch(
     result.pointerConsumed = result.hovered != UI_INVALID_HANDLE || result.pressed != UI_INVALID_HANDLE ||
                              result.released != UI_INVALID_HANDLE || result.clicked != UI_INVALID_HANDLE ||
                              result.active != UI_INVALID_HANDLE || result.captured != UI_INVALID_HANDLE ||
+                             result.dragActive || result.dragStarted || result.dragMoved ||
+                             result.dragDropped || result.dragRejected || result.dragCancelled ||
                              result.pointerBlocked;
     if ((result.scrollX != 0.0f || result.scrollY != 0.0f) && result.hovered != UI_INVALID_HANDLE)
         result.pointerConsumed = true;
@@ -204,6 +248,15 @@ void UiInputDispatcher::pruneMissingHandles(const UiDocument& document)
         document.findNode(lastDispatch.navigationSubmitTarget) == nullptr)
     {
         lastDispatch.navigationSubmitTarget = UI_INVALID_HANDLE;
+    }
+    if (lastDispatch.dragSource != UI_INVALID_HANDLE && document.findNode(lastDispatch.dragSource) == nullptr)
+        lastDispatch.dragSource = UI_INVALID_HANDLE;
+    if (lastDispatch.dragTarget != UI_INVALID_HANDLE && document.findNode(lastDispatch.dragTarget) == nullptr)
+        lastDispatch.dragTarget = UI_INVALID_HANDLE;
+    if (lastDispatch.dragPreviousTarget != UI_INVALID_HANDLE &&
+        document.findNode(lastDispatch.dragPreviousTarget) == nullptr)
+    {
+        lastDispatch.dragPreviousTarget = UI_INVALID_HANDLE;
     }
 
     assignLayers(document, lastDispatch);
@@ -298,6 +351,38 @@ void UiInputDispatcher::buildEvents(const UiDocument& document,
 
     if ((result.scrollX != 0.0f || result.scrollY != 0.0f) && result.hovered != UI_INVALID_HANDLE)
         generatedEvents.push_back(makePointerEvent(document, UiEventType::PointerWheel, result.hovered, result));
+
+    if (result.dragStarted && result.dragSource != UI_INVALID_HANDLE)
+        generatedEvents.push_back(makeDragEvent(document, UiEventType::DragStart, result.dragSource, result));
+
+    if (result.dragLeftTarget && result.dragPreviousTarget != UI_INVALID_HANDLE)
+        generatedEvents.push_back(makeDragEvent(document, UiEventType::DragLeave, result.dragPreviousTarget, result));
+
+    if (result.dragEnteredTarget && result.dragTarget != UI_INVALID_HANDLE)
+        generatedEvents.push_back(makeDragEvent(document, UiEventType::DragEnter, result.dragTarget, result));
+
+    if (result.dragMoved && result.dragSource != UI_INVALID_HANDLE)
+        generatedEvents.push_back(makeDragEvent(document, UiEventType::DragMove, result.dragSource, result));
+
+    if (result.dragging && result.dragTarget != UI_INVALID_HANDLE)
+        generatedEvents.push_back(makeDragEvent(document, UiEventType::DragOver, result.dragTarget, result));
+
+    if (result.dragDropped && result.dragTarget != UI_INVALID_HANDLE)
+    {
+        generatedEvents.push_back(makeDragEvent(document, UiEventType::DragDrop, result.dragTarget, result));
+        if (result.dragAccepted)
+            generatedEvents.push_back(makeDragEvent(document, UiEventType::DragAccept, result.dragTarget, result));
+    }
+    else if (result.dragRejected && result.dragSource != UI_INVALID_HANDLE)
+    {
+        generatedEvents.push_back(makeDragEvent(document, UiEventType::DragReject, result.dragSource, result));
+    }
+
+    if (result.dragCancelled && result.dragSource != UI_INVALID_HANDLE)
+        generatedEvents.push_back(makeDragEvent(document, UiEventType::DragCancel, result.dragSource, result));
+
+    if (result.dragEnded && result.dragSource != UI_INVALID_HANDLE)
+        generatedEvents.push_back(makeDragEvent(document, UiEventType::DragEnd, result.dragSource, result));
 
     if (result.navigationMoved && result.navigationTo != UI_INVALID_HANDLE)
     {
@@ -400,5 +485,27 @@ UiEvent UiInputDispatcher::makeNavigationEvent(const UiDocument& document,
     event.pointerX = result.pointerX;
     event.pointerY = result.pointerY;
     event.navigationDirection = result.navigationDirection;
+    return event;
+}
+
+UiEvent UiInputDispatcher::makeDragEvent(const UiDocument& document,
+                                         UiEventType type,
+                                         UiHandle target,
+                                         const UiDispatchResult& result) const
+{
+    UiEvent event;
+    event.type = type;
+    event.surface = result.surface;
+    event.layer = document.getNodeLayer(target);
+    event.target = target;
+    event.timestamp = result.dispatchSequence;
+    event.deviceId = UI_PRIMARY_INPUT_DEVICE;
+    event.pointerId = UI_PRIMARY_POINTER;
+    event.pointerX = result.pointerX;
+    event.pointerY = result.pointerY;
+    event.dragSource = result.dragSource;
+    event.dragTarget = result.dragTarget;
+    event.dragPayload = result.dragPayload;
+    event.dragAccepted = result.dragAccepted;
     return event;
 }

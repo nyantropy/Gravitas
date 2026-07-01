@@ -969,6 +969,17 @@ navigation events through the dispatcher, but it does not own focus itself.
 Navigation respects surface boundaries, modal blocking, focus scopes, groups,
 visibility, and enabled state. Pointer interaction remains compatible.
 
+Drag/drop is engine-owned and surface-local. Widgets or compatibility builders
+register drag sources and drop targets with a surface's `UiDragDropManager`.
+Sources carry an opaque `UiDragPayload` with semantic type/id/label/object data;
+targets declare accepted payload types. The dispatcher asks the drag manager to
+advance the state machine after hit testing and before navigation, so dragging
+can capture the pointer through `UiFocusManager`, suppress click/navigation
+competition, resolve compatible targets from the retained parent path, and emit
+retained drag events through the normal propagation route. The first
+implementation is surface-local; cross-surface/editor-window drag is future
+policy above the same source/target model.
+
 UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
 visible/render-enabled surfaces in surface order, resolves each surface's
 document into a surface-local command buffer, then transforms the vertices into

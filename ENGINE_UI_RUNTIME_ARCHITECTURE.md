@@ -68,6 +68,12 @@ declare navigation metadata, the graph resolves move/submit requests, the focus
 manager owns the resulting focus, and retained events deliver navigation
 activation to compositions and widgets.
 
+The thirteenth foundational primitive is now implemented: `UiDragDropManager`
+owns surface-local direct manipulation. Widgets and compatibility builders
+register drag sources and drop targets with typed opaque payloads; the drag
+runtime owns armed/dragging/drop/cancel lifecycle, pointer capture, target
+resolution, and retained drag event delivery.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
@@ -77,9 +83,9 @@ the rendering runtime. `UiSystem` is now a surface-owning facade. It owns one
 default screen `UiSurface` for compatibility and can create additional surfaces.
 Each `UiSurface` owns one `UiDocument`, one layer stack, one
 `UiInputDispatcher`, one `UiFocusManager`, one `UiModalManager`, one
-`UiMountManager`, and one active `UiTheme`. Renderer-side text bindings and
-command caches are tracked per surface because `UiHandle` values remain
-document-local.
+`UiMountManager`, one `UiNavigationGraph`, one `UiDragDropManager`, and one
+active `UiTheme`. Renderer-side text bindings and command caches are tracked
+per surface because `UiHandle` values remain document-local.
 
 The default screen surface preserves the old normalized `0..1` coordinate space.
 Additional surfaces declare a normalized output rect; screen input is converted
@@ -129,6 +135,15 @@ visibility/enabled state. It asks `UiFocusManager` to apply focus; it does not
 own focus itself. The dispatcher then emits retained `NavigationMove`,
 `NavigationSubmit`, `NavigationWrap`, and `NavigationBlocked` events through
 the normal capture/target/bubble pipeline.
+
+The retained direct-manipulation path is now drag/drop driven. Widgets or
+compatibility builders register drag sources with `UiDragPayload` values and
+drop targets with accepted payload types. The selected surface's
+`UiDragDropManager` arms a drag on pointer press, starts it after the source's
+threshold, captures the pointer through `UiFocusManager`, resolves compatible
+drop targets from the hit-tested path, suppresses click/navigation competition,
+and emits `DragStart`, `DragMove`, `DragEnter`, `DragLeave`, `DragOver`,
+`DragDrop`, `DragAccept`, `DragReject`, `DragCancel`, and `DragEnd` events.
 
 ### UiSystem
 
@@ -425,9 +440,9 @@ Interaction is currently centralized pointer dispatch plus a result struct:
 - cancel target and dismissed modal for cancel/back input
 
 Explicit retained events now exist for pointer enter/leave/down/up/click/move,
-wheel, navigation cancel, and focus gained/lost. Keyboard key events, text
-input, navigation move/submit, drag/drop, and lifecycle event delivery are still
-future extensions of the same `UiEvent` route.
+wheel, navigation move/submit/cancel, focus gained/lost, and drag/drop
+lifecycle. Keyboard key events, text input, and broader lifecycle event delivery
+are still future extensions of the same `UiEvent` route.
 
 Retained interaction ownership is no longer initiated by feature systems.
 VN choices now receive composition events. Menus, merchant buttons, skill-tree
@@ -593,13 +608,15 @@ Specific weaknesses:
 - Layering was historically implicit; the new layer primitive starts to fix only
   the root-level ordering problem.
 - Most existing feature UI still uses the default layer.
-- Some UI ownership still bypasses retained dispatch, especially inventory
-  grids, merchant grids, tool viewport picking, and drag/drop behavior.
+- Some UI ownership still bypasses retained primitives, especially inventory
+  grids, merchant grids, skill-tree panning, tool viewport picking, and gizmo
+  transforms.
 - Hit testing and render order are coupled to the same retained traversal.
-- Pointer capture exists, but routed pointer events and drag/drop are not yet
-  built on it.
+- Pointer capture now backs the drag/drop runtime, but multi-pointer/touch drag
+  input is not implemented yet.
 - Keyboard focus exists, but keyboard events are not yet routed to it.
-- Controller navigation does not exist in the UI runtime.
+- Abstract navigation exists in the UI runtime, but physical controller mapping
+  and held-repeat policy remain future work.
 - Event propagation exists at the composition level, but node/widget-level
   handler registration is not implemented yet.
 - Modal ownership exists in the engine, but existing game UI has not yet
@@ -2004,12 +2021,9 @@ The existing layer and input-dispatcher runtime tests still pass.
   gamepad mapping, held-repeat policy, and richer role-specific behavior remain
   future work.
 - There are no text widgets or IME/text event routing yet.
-- Focus gained/lost events are defined in `UiEvent.h` but not emitted.
-- Event propagation, capture/target/bubble delivery, and handler registration
-  are still future work.
 - Feature-owned inventory grid drag/drop, skill-tree pan, key-rebind capture,
   tool viewport capture, world picking, and gizmo drag remain outside generic UI
-  focus.
+  focus/drag ownership.
 
 ### Phase 3A Handoff to Modal Ownership
 
@@ -2615,8 +2629,8 @@ The event system exists, but these compatibility paths remain:
   capture.
 - Shared widget helpers still expose handles rather than registering handlers.
 
-These should migrate after node/widget event registration and drag/drop are
-designed on top of the propagation path.
+These should migrate onto widgets, retained events, and the drag/drop runtime
+as their controls are revisited.
 
 ## 13. Phase 7 Implementation Report
 
@@ -3426,7 +3440,163 @@ does capture behave, and how does cancellation restore state? The runtime now
 has the necessary foundations: surfaces, focus, modal policy, event
 propagation, layout bounds, widgets, and navigation roles.
 
-## 18. Final Recommendation
+## 18. Phase 12 Implementation: Drag & Drop Runtime
+
+### Investigation
+
+Existing direct-manipulation behavior fell into three groups:
+
+- Inventory and merchant UI compute raw pointer positions, grid cells, hovered
+  items, selected instances, and click/drag-like ownership in feature handlers.
+- Skill-tree panning owns canvas drag state directly in the feature UI state.
+- Engine tools own editor direct manipulation: shared tool sliders read
+  pressed handles and pointer positions, world picking/gizmos own viewport
+  capture and axis drag state, and future docking/asset/graph tools would
+  otherwise repeat that ownership pattern.
+
+The runtime responsibility is the interaction policy: source ownership,
+payload identity, pointer capture, compatible target resolution, cancellation,
+drop acceptance/rejection, cleanup, and event delivery. The feature
+responsibility remains meaning: what an inventory item, asset, graph node,
+skill node, gizmo axis, or editor object actually does when dropped.
+
+### Architecture
+
+`UiDragDropManager` is surface-local. It owns:
+
+- registered drag sources.
+- registered drop targets.
+- an opaque typed payload (`UiDragPayload` type/id/label/object).
+- armed and active drag state.
+- pointer id, source, current target, previous target, start position, and
+  pointer deltas.
+- pointer capture through `UiFocusManager`.
+- compatible drop-target lookup through the retained node parent path.
+- cancellation and cleanup when nodes, mounts, layers, or surfaces disappear.
+
+Dragging is a state machine:
+
+`Idle -> Armed -> Dragging -> Dropped | Rejected | Cancelled -> Idle`
+
+Arming happens on pointer press over a registered source. A source-controlled
+threshold starts the drag. Starting captures the pointer. Movement resolves the
+nearest compatible registered target by walking from the hit-tested node toward
+the root. Release over a compatible target emits an accepted drop; release
+without a compatible target emits rejection. Cancel input emits cancellation.
+Dragging suspends navigation so focus traversal and direct manipulation do not
+compete for the same frame.
+
+Payloads are deliberately generic. The engine stores semantic identity and an
+optional shared opaque object but never interprets gameplay/editor data. This
+keeps inventory items, assets, graph nodes, editor selections, and future
+modded payloads outside engine vocabulary.
+
+### Implementation
+
+Implemented:
+
+- `UiDragTypes.h`
+- `UiDragDropManager.h`
+- `UiDragDropManager.cpp`
+- surface-local `UiSurface::dragDropManager()`
+- `UiSystem::dragDropManager(...)`
+- `UiSystem::registerDragSource(...)`
+- `UiSystem::registerDropTarget(...)`
+- source/target cleanup during node, mount, layer, and surface teardown.
+- drag fields in `UiDispatchResult`.
+- drag fields in `UiEvent`.
+- retained drag event generation in `UiInputDispatcher`.
+- optional drag source/drop target descriptors on `UiPanelWidget` and
+  `UiButtonWidget`.
+
+Drag events now use the existing capture/target/bubble propagation pipeline:
+
+- `DragStart`
+- `DragMove`
+- `DragEnter`
+- `DragLeave`
+- `DragOver`
+- `DragDrop`
+- `DragAccept`
+- `DragReject`
+- `DragCancel`
+- `DragEnd`
+
+### Feature Demonstration
+
+The shared engine tool slider builder now registers slider tracks as drag
+sources with an `engine.tool.slider` payload. Existing panels still compute
+their slider value from pointer position, but pointer capture and drag lifecycle
+now belong to the runtime instead of being an implicit pressed-handle behavior.
+This migrates a representative editor/tool direct-manipulation path without
+rewriting the tools module.
+
+The widget runtime test also demonstrates widget-authored drag sources and drop
+targets through `UiPanelWidget` descriptors, proving the intended composition
+authoring model.
+
+### Validation
+
+Added `ui_drag_drop_runtime`, covering:
+
+- drag begin.
+- drag move.
+- pointer capture.
+- compatible target enter/over/drop.
+- accepted drop.
+- rejected drop.
+- click suppression after drag.
+- cancelled drag.
+- destroyed target cleanup.
+- modal pointer blocking.
+- surface-local drag capture and cross-surface rejection.
+
+Regression status now includes:
+
+- `ui_layer_runtime`
+- `ui_input_dispatcher_runtime`
+- `ui_focus_manager_runtime`
+- `ui_modal_manager_runtime`
+- `ui_mount_runtime`
+- `ui_composition_runtime`
+- `ui_event_propagation_runtime`
+- `ui_surface_runtime`
+- `ui_layout_runtime`
+- `ui_theme_runtime`
+- `ui_widget_runtime`
+- `ui_navigation_runtime`
+- `ui_drag_drop_runtime`
+
+### Remaining Drag/Drop Debt
+
+- Inventory and merchant grids still own gameplay-specific drag/selection
+  logic and should migrate to retained slots registered as drag sources/drop
+  targets.
+- Skill-tree panning still owns canvas drag state directly.
+- Viewport world picking and gizmos still own world-space capture and domain
+  transforms; they can later consume the same drag ownership model once
+  viewport/world-space drag targets exist.
+- Drag previews are represented architecturally by payload/source state but do
+  not yet have a first-class rendered preview helper.
+- Cross-surface drag is intentionally rejected by the first implementation.
+  Future editor windows/render targets can add explicit cross-surface policy
+  without changing source/target registration.
+
+### Next Primitive
+
+With Layers, Dispatch, Focus, Modals, Mounts, Compositions, Event Propagation,
+UiSurface, Layout, Styling, Widgets, Navigation, and Drag & Drop implemented,
+the single highest-value remaining primitive is the **Animation Runtime**.
+
+Animation should precede data binding, accessibility, virtualized lists, and
+widget asset definitions because the runtime now owns the state transitions
+that need temporal presentation: hover, press, focus, navigation highlight,
+modal open/close, drag previews, drop feedback, layout changes, and theme state
+changes. A generic animation runtime can build directly on computed layout,
+computed style, widgets, events, focus, modal, navigation, and drag/drop without
+inventing new ownership rules.
+
+## 19. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -3436,7 +3606,7 @@ Keep the current retained node primitives as the low-level drawing and layout
 substrate, but stop treating `UiSystem` plus one document as the whole UI
 runtime. The engine should own explicit surfaces, layers, mountable
 compositions, centralized input dispatch, focus, modal policy, layout, styling,
-widgets, navigation, and future direct-manipulation/presentation systems.
+widgets, navigation, drag/drop, and future presentation systems.
 
 This architecture is the smallest durable set of primitives that naturally
 supports visual novels, RPG HUDs, strategy panels, action-game overlays, editor
@@ -3455,12 +3625,10 @@ committed direction is engine-owned retained layout. The tenth committed
 direction is surface-local styling and theme resolution. The eleventh committed
 direction is reusable composition-owned widgets. The twelfth committed
 direction is surface-local non-pointer traversal and activation through
-`UiNavigationGraph`.
+`UiNavigationGraph`. The thirteenth committed direction is surface-local direct
+manipulation through `UiDragDropManager`.
 
-The next milestone should implement a Drag & Drop Runtime. It should precede
-animation, data binding, accessibility, and virtualization because direct
-manipulation is now the largest remaining feature-owned interaction policy:
-capture ownership, payload identity, drop targeting, cancellation, and
-restoration should become engine concepts before higher-level editor, inventory,
-docking, graph, asset-browser, and world-terminal UI systems build more
-special cases.
+The next milestone should implement an Animation Runtime. It should precede
+data binding, accessibility, virtualized lists, and widget asset definitions
+because the runtime now owns the interaction, geometry, styling, widget, and
+direct-manipulation state changes that need coherent temporal presentation.

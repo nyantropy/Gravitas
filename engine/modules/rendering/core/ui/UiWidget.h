@@ -192,6 +192,8 @@ namespace gts::ui
         bool visible = true;
         bool enabled = true;
         bool interactable = false;
+        std::optional<UiDragSourceDesc> dragSource;
+        std::optional<UiDropTargetDesc> dropTarget;
     };
 
     class UiPanelWidget : public UiWidget
@@ -207,6 +209,10 @@ namespace gts::ui
             if (!desc.styleClass.empty())
                 context.ui.setStyleClass(context.surface, rootHandle, desc.styleClass);
             context.ui.setPayload(context.surface, rootHandle, UiRectData{});
+            if (desc.dragSource)
+                context.ui.registerDragSource(context.surface, rootHandle, *desc.dragSource);
+            if (desc.dropTarget)
+                context.ui.registerDropTarget(context.surface, rootHandle, *desc.dropTarget);
 
             contentHandle = context.ui.createNode(context.surface, UiNodeType::Container, rootHandle);
             UiLayoutSpec contentLayout = fillLayout();
@@ -232,6 +238,8 @@ namespace gts::ui
 
         void destroy(UiWidgetContext& context) override
         {
+            context.ui.unregisterDragSource(context.surface, rootHandle);
+            context.ui.unregisterDropTarget(context.surface, rootHandle);
             UiWidget::destroy(context);
             contentHandle = UI_INVALID_HANDLE;
         }
@@ -266,6 +274,8 @@ namespace gts::ui
         std::string navigationGroup;
         int tabIndex = UI_NAVIGATION_AUTO_TAB_INDEX;
         bool wrapNavigation = false;
+        std::optional<UiDragSourceDesc> dragSource;
+        std::optional<UiDropTargetDesc> dropTarget;
         std::function<void()> onPressed;
     };
 
@@ -284,6 +294,10 @@ namespace gts::ui
                 context.ui.setStyleClass(context.surface, rootHandle, desc.styleClass);
             context.ui.setPayload(context.surface, rootHandle, UiRectData{});
             registerNavigation(context);
+            if (desc.dragSource)
+                context.ui.registerDragSource(context.surface, rootHandle, *desc.dragSource);
+            if (desc.dropTarget)
+                context.ui.registerDropTarget(context.surface, rootHandle, *desc.dropTarget);
 
             labelHandle = context.ui.createNode(context.surface, UiNodeType::Text, rootHandle);
             context.ui.setLayout(context.surface, labelHandle, desc.labelLayout);
@@ -365,6 +379,8 @@ namespace gts::ui
         void destroy(UiWidgetContext& context) override
         {
             context.ui.unregisterNavigationNode(context.surface, rootHandle);
+            context.ui.unregisterDragSource(context.surface, rootHandle);
+            context.ui.unregisterDropTarget(context.surface, rootHandle);
             UiWidget::destroy(context);
             labelHandle = UI_INVALID_HANDLE;
             pressed = false;

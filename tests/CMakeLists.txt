@@ -251,6 +251,24 @@ set_tests_properties(ui_navigation_runtime
         LABELS "gravitas;ui;runtime"
 )
 
+add_executable(UiDragDropRuntimeTest
+    ui/UiDragDropRuntimeTest.cpp
+)
+
+target_compile_features(UiDragDropRuntimeTest PRIVATE cxx_std_20)
+
+target_link_libraries(UiDragDropRuntimeTest PRIVATE gravitas_rendering)
+
+add_test(
+    NAME ui_drag_drop_runtime
+    COMMAND UiDragDropRuntimeTest
+)
+
+set_tests_properties(ui_drag_drop_runtime
+    PROPERTIES
+        LABELS "gravitas;ui;runtime"
+)
+
 if(TARGET gravitas_tools)
     add_executable(EditorFrameworkSmokeTest
         tools/EditorFrameworkSmokeTest.cpp

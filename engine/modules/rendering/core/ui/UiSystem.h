@@ -110,6 +110,18 @@ public:
     bool registerNavigationNode(UiSurfaceId surfaceId, UiHandle handle, const UiNavigationNodeDesc& desc = {});
     bool unregisterNavigationNode(UiHandle handle);
     bool unregisterNavigationNode(UiSurfaceId surfaceId, UiHandle handle);
+    UiDragDropManager&       dragDropManager();
+    const UiDragDropManager& dragDropManager() const;
+    UiDragDropManager*       dragDropManager(UiSurfaceId surfaceId);
+    const UiDragDropManager* dragDropManager(UiSurfaceId surfaceId) const;
+    bool registerDragSource(UiHandle handle, const UiDragSourceDesc& desc);
+    bool registerDragSource(UiSurfaceId surfaceId, UiHandle handle, const UiDragSourceDesc& desc);
+    bool unregisterDragSource(UiHandle handle);
+    bool unregisterDragSource(UiSurfaceId surfaceId, UiHandle handle);
+    bool registerDropTarget(UiHandle handle, const UiDropTargetDesc& desc);
+    bool registerDropTarget(UiSurfaceId surfaceId, UiHandle handle, const UiDropTargetDesc& desc);
+    bool unregisterDropTarget(UiHandle handle);
+    bool unregisterDropTarget(UiSurfaceId surfaceId, UiHandle handle);
     UiMountManager&       mountManager();
     const UiMountManager& mountManager() const;
     Metrics           getLastMetrics() const;

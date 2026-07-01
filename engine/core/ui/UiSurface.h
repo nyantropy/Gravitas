@@ -4,6 +4,7 @@
 #include <string>
 
 #include "UiDocument.h"
+#include "UiDragDropManager.h"
 #include "UiFocusManager.h"
 #include "UiInputDispatcher.h"
 #include "UiInteraction.h"
@@ -74,6 +75,8 @@ public:
     const UiMountManager& mountManager() const { return mountState; }
     UiInputDispatcher& inputDispatcher() { return dispatcher; }
     const UiInputDispatcher& inputDispatcher() const { return dispatcher; }
+    UiDragDropManager& dragDropManager() { return dragDropState; }
+    const UiDragDropManager& dragDropManager() const { return dragDropState; }
     UiNavigationGraph& navigationGraph() { return navigationState; }
     const UiNavigationGraph& navigationGraph() const { return navigationState; }
     UiTheme& theme() { return themeState; }
@@ -88,6 +91,7 @@ private:
     UiModalManager modalState;
     UiMountManager mountState;
     UiInputDispatcher dispatcher;
+    UiDragDropManager dragDropState;
     UiNavigationGraph navigationState;
     UiTheme themeState;
 };

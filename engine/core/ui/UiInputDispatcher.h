@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "UiDragDropManager.h"
 #include "UiEvent.h"
 #include "UiFocusManager.h"
 #include "UiInteraction.h"
@@ -16,6 +17,7 @@ public:
                                      UiFocusManager& focusManager,
                                      UiModalManager& modalManager,
                                      UiNavigationGraph& navigationGraph,
+                                     UiDragDropManager& dragDropManager,
                                      const UiInputFrame& input,
                                      bool enabled,
                                      UiSurfaceId surfaceId = UI_DEFAULT_SURFACE,
@@ -51,6 +53,10 @@ private:
                                 UiEventType type,
                                 UiHandle target,
                                 const UiDispatchResult& result) const;
+    UiEvent makeDragEvent(const UiDocument& document,
+                          UiEventType type,
+                          UiHandle target,
+                          const UiDispatchResult& result) const;
 
     UiDispatchResult lastDispatch;
     std::vector<UiEvent> generatedEvents;

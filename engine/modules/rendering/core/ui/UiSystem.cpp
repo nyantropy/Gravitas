@@ -172,6 +172,7 @@ bool UiSystem::removeLayer(UiSurfaceId surfaceId, UiLayerId layerId)
     const std::vector<UiMountId> layerMounts = mountState.mountsInLayer(layerId);
     for (UiMountId mount : layerMounts)
         destroyMount(surfaceId, mount);
+    record->surface.dragDropManager().unregisterSubtree(document, root);
     record->surface.navigationGraph().unregisterSubtree(document, root);
     removeTextBindingsRecursive(*record, root);
     const bool removed = document.removeLayer(layerId);
@@ -181,6 +182,7 @@ bool UiSystem::removeLayer(UiSurfaceId surfaceId, UiLayerId layerId)
     record->commandCacheValid = false;
     commandCache.clear();
     mountState.pruneInvalidMounts(document);
+    record->surface.dragDropManager().pruneInvalidNodes(document, focusState);
     modalState.pruneInvalidModals(document, focusState);
     focusState.pruneInvalidHandles(document);
     record->surface.inputDispatcher().pruneMissingHandles(document);
@@ -225,6 +227,7 @@ bool UiSystem::setLayerState(UiSurfaceId surfaceId, UiLayerId layerId, const UiL
     const bool changed = document.setLayerState(layerId, state);
     if (changed)
     {
+        record->surface.dragDropManager().pruneInvalidNodes(document, focusState);
         modalState.pruneInvalidModals(document, focusState);
         focusState.pruneInvalidHandles(document);
         record->commandCacheValid = false;
@@ -291,6 +294,7 @@ bool UiSystem::removeNode(UiSurfaceId surfaceId, UiHandle handle)
     if (exactMount != UI_INVALID_MOUNT && exactMount != UI_ROOT_MOUNT)
         return destroyMount(surfaceId, exactMount);
 
+    record->surface.dragDropManager().unregisterSubtree(document, handle);
     record->surface.navigationGraph().unregisterSubtree(document, handle);
     removeTextBindingsRecursive(*record, handle);
     const bool removed = document.removeNode(handle);
@@ -300,6 +304,7 @@ bool UiSystem::removeNode(UiSurfaceId surfaceId, UiHandle handle)
     UiFocusManager& focusState = record->surface.focusManager();
     UiModalManager& modalState = record->surface.modalManager();
     mountState.pruneInvalidMounts(document);
+    record->surface.dragDropManager().pruneInvalidNodes(document, focusState);
     record->surface.inputDispatcher().pruneMissingHandles(document);
     modalState.pruneInvalidModals(document, focusState);
     focusState.pruneInvalidHandles(document);
@@ -609,6 +614,78 @@ bool UiSystem::unregisterNavigationNode(UiSurfaceId surfaceId, UiHandle handle)
     return record != nullptr && record->surface.navigationGraph().unregisterNode(handle);
 }
 
+UiDragDropManager& UiSystem::dragDropManager()
+{
+    return defaultSurfaceRecord().surface.dragDropManager();
+}
+
+const UiDragDropManager& UiSystem::dragDropManager() const
+{
+    return defaultSurfaceRecord().surface.dragDropManager();
+}
+
+UiDragDropManager* UiSystem::dragDropManager(UiSurfaceId surfaceId)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record == nullptr ? nullptr : &record->surface.dragDropManager();
+}
+
+const UiDragDropManager* UiSystem::dragDropManager(UiSurfaceId surfaceId) const
+{
+    const SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record == nullptr ? nullptr : &record->surface.dragDropManager();
+}
+
+bool UiSystem::registerDragSource(UiHandle handle, const UiDragSourceDesc& desc)
+{
+    return registerDragSource(defaultSurfaceId, handle, desc);
+}
+
+bool UiSystem::registerDragSource(UiSurfaceId surfaceId, UiHandle handle, const UiDragSourceDesc& desc)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    if (record == nullptr || record->surface.document().findNode(handle) == nullptr)
+        return false;
+
+    return record->surface.dragDropManager().registerSource(handle, desc);
+}
+
+bool UiSystem::unregisterDragSource(UiHandle handle)
+{
+    return unregisterDragSource(defaultSurfaceId, handle);
+}
+
+bool UiSystem::unregisterDragSource(UiSurfaceId surfaceId, UiHandle handle)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record != nullptr && record->surface.dragDropManager().unregisterSource(handle);
+}
+
+bool UiSystem::registerDropTarget(UiHandle handle, const UiDropTargetDesc& desc)
+{
+    return registerDropTarget(defaultSurfaceId, handle, desc);
+}
+
+bool UiSystem::registerDropTarget(UiSurfaceId surfaceId, UiHandle handle, const UiDropTargetDesc& desc)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    if (record == nullptr || record->surface.document().findNode(handle) == nullptr)
+        return false;
+
+    return record->surface.dragDropManager().registerTarget(handle, desc);
+}
+
+bool UiSystem::unregisterDropTarget(UiHandle handle)
+{
+    return unregisterDropTarget(defaultSurfaceId, handle);
+}
+
+bool UiSystem::unregisterDropTarget(UiSurfaceId surfaceId, UiHandle handle)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record != nullptr && record->surface.dragDropManager().unregisterTarget(handle);
+}
+
 UiMountManager& UiSystem::mountManager()
 {
     return defaultSurfaceRecord().surface.mountManager();
@@ -723,6 +800,7 @@ const UiDispatchResult& UiSystem::dispatchInput(const UiInputFrame& input, uint6
                                            surface.focusManager(),
                                            surface.modalManager(),
                                            surface.navigationGraph(),
+                                           surface.dragDropManager(),
                                            localInput,
                                            surface.isEnabled(),
                                            surface.id(),
@@ -847,6 +925,7 @@ bool UiSystem::destroyMount(UiSurfaceId surfaceId, UiMountId mountId)
         return false;
 
     destroyCompositionRecordsForMount(surfaceId, mountId);
+    record->surface.dragDropManager().unregisterSubtree(document, root);
     record->surface.navigationGraph().unregisterSubtree(document, root);
     removeTextBindingsRecursive(*record, root);
     const bool destroyed = mountState.destroyMount(document,
@@ -859,6 +938,7 @@ bool UiSystem::destroyMount(UiSurfaceId surfaceId, UiMountId mountId)
     record->commandCacheValid = false;
     commandCache.clear();
     record->surface.inputDispatcher().pruneMissingHandles(document);
+    record->surface.dragDropManager().pruneInvalidNodes(document, record->surface.focusManager());
     record->surface.modalManager().pruneInvalidModals(document, record->surface.focusManager());
     record->surface.focusManager().pruneInvalidHandles(document);
     lastEvents.clear();
@@ -1306,7 +1386,7 @@ UiSurfaceId UiSystem::selectInputSurface(const UiInputFrame& input) const
         const SurfaceRecord* record = findSurfaceRecord(*it);
         if (record == nullptr || !record->surface.participatesInInput())
             continue;
-        if (record->surface.containsScreenPoint(input.pointerX, input.pointerY))
+        if (record->surface.hasPointerOwnership())
             return *it;
     }
 
@@ -1315,7 +1395,7 @@ UiSurfaceId UiSystem::selectInputSurface(const UiInputFrame& input) const
         const SurfaceRecord* record = findSurfaceRecord(*it);
         if (record == nullptr || !record->surface.participatesInInput())
             continue;
-        if (record->surface.hasPointerOwnership())
+        if (record->surface.containsScreenPoint(input.pointerX, input.pointerY))
             return *it;
     }
 

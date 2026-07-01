@@ -29,6 +29,7 @@ void UiSurface::clear()
     focusState.clear();
     modalState.clear();
     mountState.reset(documentState);
+    dragDropState.clear();
     navigationState.clear();
     dispatcher.clear();
 }
@@ -37,6 +38,7 @@ void UiSurface::clearInteractionState()
 {
     modalState.clear(documentState, focusState);
     focusState.clear(documentState);
+    dragDropState.clear();
     dispatcher.clear();
 }
 
@@ -95,8 +97,7 @@ bool UiSurface::containsScreenPoint(float x, float y) const
 
 bool UiSurface::hasPointerOwnership(UiPointerId pointerId) const
 {
-    return focusState.hoveredNode(pointerId) != UI_INVALID_HANDLE ||
-           focusState.capturedNode(pointerId) != UI_INVALID_HANDLE ||
+    return focusState.capturedNode(pointerId) != UI_INVALID_HANDLE ||
            focusState.activePointerNode(pointerId) != UI_INVALID_HANDLE;
 }
 

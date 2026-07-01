@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <iomanip>
 #include <sstream>
 #include <variant>
@@ -218,6 +219,12 @@ namespace gts::tools
                                {SliderTrackX, y + SliderTrackY * SliderH, SliderTrackW, SliderTrackH * SliderH},
                                ToolTheme::sliderTrack,
                                true);
+        UiDragSourceDesc dragSource;
+        dragSource.payload.type = "engine.tool.slider";
+        dragSource.payload.id = static_cast<uint64_t>(slider.track);
+        dragSource.payload.label = name;
+        dragSource.startThreshold = 0.0f;
+        ui.registerDragSource(slider.track, dragSource);
         slider.fill = createRectRelative(ui, slider.track, {0.0f, 0.0f, 0.001f, 1.0f}, ToolTheme::accent);
         return slider;
     }

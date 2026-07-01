@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "UiDragTypes.h"
 #include "UiHandle.h"
 #include "UiLayer.h"
 #include "UiMountTypes.h"
@@ -136,6 +137,28 @@ struct UiDispatchResult
     UiHandle navigationFrom = UI_INVALID_HANDLE;
     UiHandle navigationTo = UI_INVALID_HANDLE;
     UiHandle navigationSubmitTarget = UI_INVALID_HANDLE;
+
+    bool dragActive = false;
+    bool dragArmed = false;
+    bool dragging = false;
+    bool dragStarted = false;
+    bool dragMoved = false;
+    bool dragTargetChanged = false;
+    bool dragEnteredTarget = false;
+    bool dragLeftTarget = false;
+    bool dragDropped = false;
+    bool dragAccepted = false;
+    bool dragRejected = false;
+    bool dragCancelled = false;
+    bool dragEnded = false;
+    UiHandle dragSource = UI_INVALID_HANDLE;
+    UiHandle dragTarget = UI_INVALID_HANDLE;
+    UiHandle dragPreviousTarget = UI_INVALID_HANDLE;
+    UiDragPayload dragPayload;
+    float dragStartX = 0.0f;
+    float dragStartY = 0.0f;
+    float dragDeltaX = 0.0f;
+    float dragDeltaY = 0.0f;
 
     bool pointerConsumed = false;
     bool keyboardConsumed = false;

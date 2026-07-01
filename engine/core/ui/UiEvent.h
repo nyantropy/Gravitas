@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "UiCompositionTypes.h"
+#include "UiDragTypes.h"
 #include "UiInteraction.h"
 
 enum class UiEventType : uint8_t
@@ -35,8 +36,14 @@ enum class UiEventType : uint8_t
     CompositionDestroyed,
     DragStart,
     DragMove,
+    DragEnter,
+    DragLeave,
+    DragOver,
     DragDrop,
-    DragCancel
+    DragAccept,
+    DragReject,
+    DragCancel,
+    DragEnd
 };
 
 enum class UiEventPhase : uint8_t
@@ -70,6 +77,10 @@ struct UiEvent
     float scrollX = 0.0f;
     float scrollY = 0.0f;
     UiNavigationDirection navigationDirection = UiNavigationDirection::None;
+    UiHandle dragSource = UI_INVALID_HANDLE;
+    UiHandle dragTarget = UI_INVALID_HANDLE;
+    UiDragPayload dragPayload;
+    bool dragAccepted = false;
     int keyCode = 0;
     uint32_t modifiers = 0;
     char32_t textCodepoint = 0;
