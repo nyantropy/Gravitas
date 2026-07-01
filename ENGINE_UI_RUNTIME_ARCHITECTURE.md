@@ -4193,6 +4193,9 @@ Each `UiSerializedWidget` stores authored intent:
 - default text, image, progress, visibility, enabled, and interactable values.
 - one-way binding declarations by path.
 - semantic role/name/value/range/live-region metadata.
+- semantic relationships by stable serialized widget id. The loader resolves
+  those ids to retained handles after instantiation, so authored assets do not
+  store transient `UiHandle` values.
 - navigation role, group, tab order, wrap policy, and future neighbor ids.
 - drag source and drop target metadata.
 - style transition timing hints.
@@ -4221,6 +4224,7 @@ warning. Future schema versions are rejected. Validation detects:
 - duplicate widget ids.
 - invalid grid dimensions/spans.
 - missing binding paths.
+- unknown semantic relationship widget ids.
 - missing style classes when a validation theme is supplied.
 - invalid mount/surface during instantiation.
 - unresolved binding paths during instantiation.
@@ -4259,6 +4263,7 @@ Added `ui_serialization_runtime`, covering:
 - layout serialization.
 - binding serialization.
 - accessibility serialization.
+- stable-id accessibility relationship serialization and runtime resolution.
 - navigation metadata registration.
 - drag/drop metadata registration.
 - runtime instantiation under a mount.

@@ -119,6 +119,10 @@ namespace
           "role": "ProgressBar",
           "name": "Health",
           "liveRegion": "Polite",
+          "relationships": {
+            "describedBy": ["title"],
+            "controls": ["apply"]
+          },
           "hasRange": true,
           "rangeMin": 0.0,
           "rangeMax": 1.0,
@@ -166,6 +170,11 @@ namespace
         return nullptr;
     }
 
+    bool containsHandle(const std::vector<UiHandle>& handles, UiHandle target)
+    {
+        return std::find(handles.begin(), handles.end(), target) != handles.end();
+    }
+
     class TestBindingResolver final : public IUiSerializedBindingResolver
     {
     public:
@@ -203,6 +212,10 @@ namespace
                 "semantic role did not parse");
         require(asset.root.children[2].bindings[0].animation.has_value(),
                 "binding animation hint did not parse");
+        require(asset.root.children[2].hasSemanticRelationships &&
+                    asset.root.children[2].semanticRelationships.describedBy.size() == 1 &&
+                    asset.root.children[2].semanticRelationships.describedBy[0] == "title",
+                "durable semantic relationship ids did not parse");
 
         UiTheme theme = testTheme();
         UiSerializedValidationResult validation = validateUiSerializedAsset(asset, &theme);
@@ -214,6 +227,10 @@ namespace
         require(reparsed.root.children[1].navigation.enabled, "navigation metadata did not round-trip");
         require(reparsed.root.children[1].dragSource.has_value(), "drag source did not round-trip");
         require(reparsed.root.children[2].semantics.name == "Health", "accessibility metadata did not round-trip");
+        require(reparsed.root.children[2].hasSemanticRelationships &&
+                    reparsed.root.children[2].semanticRelationships.controls.size() == 1 &&
+                    reparsed.root.children[2].semanticRelationships.controls[0] == "apply",
+                "durable semantic relationship ids did not round-trip");
     }
 
     void testVersionMigrationAndValidation()
@@ -247,6 +264,12 @@ namespace
         invalid.root.styleClass = "MissingStyle";
         UiSerializedValidationResult validation = validateUiSerializedAsset(invalid, &theme);
         require(!validation.valid(), "missing style class was accepted");
+
+        UiSerializedAsset invalidRelationship;
+        require(parseUiSerializedAsset(
+                    R"json({"schema":1,"id":"bad.relationship","root":{"id":"label","type":"Label","semantics":{"role":"Label","name":"Label","relationships":{"describedBy":["missing"]}}}})json",
+                    invalidRelationship) == false,
+                "unknown semantic relationship id was accepted");
     }
 
     void testInstantiateRuntimeGraph()
@@ -299,6 +322,9 @@ namespace
         progress = findSemantic(tree, UiSemanticRole::ProgressBar, "Health");
         require(progress != nullptr && std::abs(progress->rangeValue - 0.75f) < 0.001f,
                 "progress semantic range did not update");
+        require(containsHandle(progress->relationships.describedBy, result.instance.handles.at("title")) &&
+                    containsHandle(progress->relationships.controls, result.instance.handles.at("apply")),
+                "semantic relationship ids did not resolve to runtime handles");
         const std::vector<UiAccessibilityAnnouncement> announcements =
             ui.drainAccessibilityAnnouncements();
         require(!announcements.empty(), "live region binding did not announce");

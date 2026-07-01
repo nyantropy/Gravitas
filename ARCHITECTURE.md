@@ -1023,8 +1023,10 @@ and layer descriptors. `UiSerializationRuntime` validates and instantiates an
 asset into an existing mount, and `UiSystem::instantiateUiAsset(...)` exposes
 that through the runtime facade. The serializer stores authored intent, not
 runtime handles, focus, hover, capture, computed geometry, active animations, or
-C++ callbacks. Applications provide binding source resolution and attach
-behavior through stable serialized widget ids.
+C++ callbacks. Accessibility relationships are authored by stable serialized
+widget id and resolved to retained handles only after loading. Applications
+provide binding source resolution and attach behavior through stable serialized
+widget ids.
 
 Widget asset definitions are engine-owned for reusable authored UI structure.
 `UiWidgetAssetRegistry` stores versioned `UiWidgetAssetDefinition` data with

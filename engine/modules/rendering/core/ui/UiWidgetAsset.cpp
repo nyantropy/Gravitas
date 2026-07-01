@@ -409,6 +409,11 @@ namespace
             base.semantics = overlay.semantics;
             base.hasSemantics = true;
         }
+        if (overlay.hasSemanticRelationships)
+        {
+            base.semanticRelationships = overlay.semanticRelationships;
+            base.hasSemanticRelationships = true;
+        }
         if (overlay.hasNavigation)
         {
             base.navigation = overlay.navigation;
@@ -554,6 +559,31 @@ namespace
             widget.semantics.hint = substituteString(widget.semantics.hint, parameters, validation, path + ".semantics.hint");
             widget.semantics.value = substituteString(widget.semantics.value, parameters, validation, path + ".semantics.value");
         }
+        if (widget.hasSemanticRelationships)
+        {
+            const auto substituteRefs = [&](std::vector<std::string>& refs, const std::string& refPath)
+            {
+                for (size_t i = 0; i < refs.size(); ++i)
+                    refs[i] = substituteString(refs[i], parameters, validation, refPath + "[" + std::to_string(i) + "]");
+            };
+            substituteRefs(widget.semanticRelationships.labelledBy, path + ".semantics.relationships.labelledBy");
+            substituteRefs(widget.semanticRelationships.describedBy, path + ".semantics.relationships.describedBy");
+            substituteRefs(widget.semanticRelationships.controls, path + ".semantics.relationships.controls");
+            substituteRefs(widget.semanticRelationships.owns, path + ".semantics.relationships.owns");
+            widget.semanticRelationships.activeDescendant =
+                substituteString(widget.semanticRelationships.activeDescendant,
+                                 parameters,
+                                 validation,
+                                 path + ".semantics.relationships.activeDescendant");
+            widget.semanticRelationships.popup = substituteString(widget.semanticRelationships.popup,
+                                                                  parameters,
+                                                                  validation,
+                                                                  path + ".semantics.relationships.popup");
+            widget.semanticRelationships.tooltip = substituteString(widget.semanticRelationships.tooltip,
+                                                                    parameters,
+                                                                    validation,
+                                                                    path + ".semantics.relationships.tooltip");
+        }
         if (widget.dragSource)
         {
             widget.dragSource->payloadType = substituteString(widget.dragSource->payloadType, parameters, validation, path + ".dragSource.payloadType");
@@ -662,6 +692,11 @@ namespace
         {
             target.semantics = reference.semantics;
             target.hasSemantics = true;
+        }
+        if (reference.hasSemanticRelationships)
+        {
+            target.semanticRelationships = reference.semanticRelationships;
+            target.hasSemanticRelationships = true;
         }
         if (reference.hasNavigation)
         {

@@ -911,24 +911,83 @@ namespace
         return relationship;
     }
 
-    UiJsonValue serializeHandleArray(const std::vector<UiHandle>& values)
+    UiSerializedSemanticRelationships parseRelationshipIds(const UiJsonValue& json)
+    {
+        UiSerializedSemanticRelationships relationships;
+        if (!json.isObject())
+            return relationships;
+
+        const auto parseIds = [&](const char* key, std::vector<std::string>& target)
+        {
+            const UiJsonValue* value = json.find(key);
+            const Array* array = value == nullptr ? nullptr : asArray(*value);
+            if (array == nullptr)
+                return;
+
+            for (const UiJsonValue& item : *array)
+            {
+                if (const auto* string = std::get_if<std::string>(&item.value))
+                    target.push_back(*string);
+            }
+        };
+
+        parseIds("labelledBy", relationships.labelledBy);
+        parseIds("describedBy", relationships.describedBy);
+        parseIds("controls", relationships.controls);
+        parseIds("owns", relationships.owns);
+        relationships.activeDescendant = stringOr(json, "activeDescendant", relationships.activeDescendant);
+        relationships.popup = stringOr(json, "popup", relationships.popup);
+        relationships.tooltip = stringOr(json, "tooltip", relationships.tooltip);
+        return relationships;
+    }
+
+    bool hasRelationshipIds(const UiSerializedSemanticRelationships& relationships)
+    {
+        return !relationships.labelledBy.empty()
+            || !relationships.describedBy.empty()
+            || !relationships.controls.empty()
+            || !relationships.owns.empty()
+            || !relationships.activeDescendant.empty()
+            || !relationships.popup.empty()
+            || !relationships.tooltip.empty();
+    }
+
+    UiSerializedSemanticRelationships parseSemanticRelationshipIds(const UiJsonValue& json)
+    {
+        if (!json.isObject())
+            return {};
+
+        const UiJsonValue* relationships = json.find("relationships");
+        return relationships == nullptr ? UiSerializedSemanticRelationships{} : parseRelationshipIds(*relationships);
+    }
+
+    UiJsonValue serializeHandleArray(const std::vector<UiHandle>& values,
+                                     const std::vector<std::string>& ids = {})
     {
         Array array;
+        for (const std::string& id : ids)
+            array.push_back(jsonString(id));
         for (UiHandle handle : values)
-            array.push_back(jsonNumber(handle));
+        {
+            if (handle != UI_INVALID_HANDLE)
+                array.push_back(jsonNumber(handle));
+        }
         return jsonArray(std::move(array));
     }
 
-    UiJsonValue serializeRelationship(const UiSemanticRelationship& relationship)
+    UiJsonValue serializeRelationship(const UiSemanticRelationship& relationship,
+                                      const UiSerializedSemanticRelationships* ids = nullptr)
     {
         return jsonObject({
-            {"labelledBy", serializeHandleArray(relationship.labelledBy)},
-            {"describedBy", serializeHandleArray(relationship.describedBy)},
-            {"controls", serializeHandleArray(relationship.controls)},
-            {"owns", serializeHandleArray(relationship.owns)},
-            {"activeDescendant", jsonNumber(relationship.activeDescendant)},
-            {"popup", jsonNumber(relationship.popup)},
-            {"tooltip", jsonNumber(relationship.tooltip)}
+            {"labelledBy", serializeHandleArray(relationship.labelledBy, ids == nullptr ? std::vector<std::string>{} : ids->labelledBy)},
+            {"describedBy", serializeHandleArray(relationship.describedBy, ids == nullptr ? std::vector<std::string>{} : ids->describedBy)},
+            {"controls", serializeHandleArray(relationship.controls, ids == nullptr ? std::vector<std::string>{} : ids->controls)},
+            {"owns", serializeHandleArray(relationship.owns, ids == nullptr ? std::vector<std::string>{} : ids->owns)},
+            {"activeDescendant", ids != nullptr && !ids->activeDescendant.empty()
+                ? jsonString(ids->activeDescendant)
+                : jsonNumber(relationship.activeDescendant)},
+            {"popup", ids != nullptr && !ids->popup.empty() ? jsonString(ids->popup) : jsonNumber(relationship.popup)},
+            {"tooltip", ids != nullptr && !ids->tooltip.empty() ? jsonString(ids->tooltip) : jsonNumber(relationship.tooltip)}
         });
     }
 
@@ -965,7 +1024,8 @@ namespace
         return semantic;
     }
 
-    UiJsonValue serializeSemantic(const UiSemanticDesc& semantic)
+    UiJsonValue serializeSemantic(const UiSemanticDesc& semantic,
+                                  const UiSerializedSemanticRelationships* relationships = nullptr)
     {
         return jsonObject({
             {"role", jsonString(enumToString(semantic.role, semanticRoleEntries(), "Unknown"))},
@@ -974,7 +1034,7 @@ namespace
             {"hint", jsonString(semantic.hint)},
             {"value", jsonString(semantic.value)},
             {"liveRegion", jsonString(enumToString(semantic.liveRegion, liveRegionEntries(), "Off"))},
-            {"relationships", serializeRelationship(semantic.relationships)},
+            {"relationships", serializeRelationship(semantic.relationships, relationships)},
             {"hidden", jsonBool(semantic.hidden)},
             {"decorative", jsonBool(semantic.decorative)},
             {"selected", jsonBool(semantic.selected)},
@@ -1231,6 +1291,8 @@ namespace
         if (const UiJsonValue* value = json.find("semantics"))
         {
             widget.semantics = parseSemantic(*value);
+            widget.semanticRelationships = parseSemanticRelationshipIds(*value);
+            widget.hasSemanticRelationships = hasRelationshipIds(widget.semanticRelationships);
             widget.hasSemantics = true;
         }
         if (const UiJsonValue* value = json.find("navigation"))
@@ -1325,7 +1387,12 @@ namespace
             {"slots", jsonObject(std::move(slots))}
         };
         if (widget.hasSemantics)
-            object.emplace_back("semantics", serializeSemantic(widget.semantics));
+        {
+            object.emplace_back("semantics",
+                                serializeSemantic(widget.semantics,
+                                                  widget.hasSemanticRelationships ? &widget.semanticRelationships
+                                                                                  : nullptr));
+        }
         if (widget.dragSource)
             object.emplace_back("dragSource", serializeDragSource(*widget.dragSource));
         if (widget.dropTarget)
@@ -1421,7 +1488,8 @@ namespace
                         const UiWidgetAssetRegistry* widgetAssets,
                         UiSerializedValidationResult& result,
                         const std::string& path,
-                        std::unordered_map<std::string, int>& ids)
+                        std::unordered_map<std::string, int>& ids,
+                        std::vector<std::pair<std::string, std::string>>& relationshipRefs)
     {
         if (widget.type.empty() && widget.asset.empty())
             result.error(path, "widget type or widget asset is required");
@@ -1432,6 +1500,27 @@ namespace
 
         if (!widget.id.empty())
             ++ids[widget.id];
+        if (widget.hasSemanticRelationships)
+        {
+            const auto collectRefs = [&](const std::vector<std::string>& refs, const std::string& refPath)
+            {
+                for (const std::string& ref : refs)
+                    relationshipRefs.emplace_back(refPath, ref);
+            };
+            collectRefs(widget.semanticRelationships.labelledBy, path + ".semantics.relationships.labelledBy");
+            collectRefs(widget.semanticRelationships.describedBy, path + ".semantics.relationships.describedBy");
+            collectRefs(widget.semanticRelationships.controls, path + ".semantics.relationships.controls");
+            collectRefs(widget.semanticRelationships.owns, path + ".semantics.relationships.owns");
+            if (!widget.semanticRelationships.activeDescendant.empty())
+                relationshipRefs.emplace_back(path + ".semantics.relationships.activeDescendant",
+                                              widget.semanticRelationships.activeDescendant);
+            if (!widget.semanticRelationships.popup.empty())
+                relationshipRefs.emplace_back(path + ".semantics.relationships.popup",
+                                              widget.semanticRelationships.popup);
+            if (!widget.semanticRelationships.tooltip.empty())
+                relationshipRefs.emplace_back(path + ".semantics.relationships.tooltip",
+                                              widget.semanticRelationships.tooltip);
+        }
 
         if (theme != nullptr && !widget.styleClass.empty() && theme->findStyleClass(widget.styleClass) == nullptr)
             result.error(path, "missing style class '" + widget.styleClass + "'");
@@ -1452,7 +1541,13 @@ namespace
         }
 
         for (size_t i = 0; i < widget.children.size(); ++i)
-            validateWidget(widget.children[i], theme, widgetAssets, result, path + ".children[" + std::to_string(i) + "]", ids);
+            validateWidget(widget.children[i],
+                           theme,
+                           widgetAssets,
+                           result,
+                           path + ".children[" + std::to_string(i) + "]",
+                           ids,
+                           relationshipRefs);
         for (const auto& [slotName, slotChildren] : widget.slots)
         {
             for (size_t i = 0; i < slotChildren.size(); ++i)
@@ -1462,9 +1557,56 @@ namespace
                                widgetAssets,
                                result,
                                path + ".slots." + slotName + "[" + std::to_string(i) + "]",
-                               ids);
+                               ids,
+                               relationshipRefs);
             }
         }
+    }
+
+    bool resolveRelationshipRef(const std::unordered_map<std::string, UiHandle>& handles,
+                                const std::string& id,
+                                UiHandle& outHandle)
+    {
+        if (id.empty())
+            return true;
+        const auto it = handles.find(id);
+        if (it == handles.end())
+            return false;
+        outHandle = it->second;
+        return true;
+    }
+
+    bool appendRelationshipRefs(const std::unordered_map<std::string, UiHandle>& handles,
+                                const std::vector<std::string>& ids,
+                                std::vector<UiHandle>& outHandles)
+    {
+        bool ok = true;
+        for (const std::string& id : ids)
+        {
+            UiHandle handle = UI_INVALID_HANDLE;
+            if (!resolveRelationshipRef(handles, id, handle))
+            {
+                ok = false;
+                continue;
+            }
+            outHandles.push_back(handle);
+        }
+        return ok;
+    }
+
+    bool resolveSemanticRelationshipIds(const std::unordered_map<std::string, UiHandle>& handles,
+                                        const UiSerializedSemanticRelationships& ids,
+                                        UiSemanticRelationship& outRelationship)
+    {
+        bool ok = true;
+        ok = appendRelationshipRefs(handles, ids.labelledBy, outRelationship.labelledBy) && ok;
+        ok = appendRelationshipRefs(handles, ids.describedBy, outRelationship.describedBy) && ok;
+        ok = appendRelationshipRefs(handles, ids.controls, outRelationship.controls) && ok;
+        ok = appendRelationshipRefs(handles, ids.owns, outRelationship.owns) && ok;
+        ok = resolveRelationshipRef(handles, ids.activeDescendant, outRelationship.activeDescendant) && ok;
+        ok = resolveRelationshipRef(handles, ids.popup, outRelationship.popup) && ok;
+        ok = resolveRelationshipRef(handles, ids.tooltip, outRelationship.tooltip) && ok;
+        return ok;
     }
 
     UiDragSourceDesc makeDragSourceDesc(const UiSerializedDragSource& source)
@@ -1784,6 +1926,39 @@ namespace
 
         return root;
     }
+
+    void resolveSemanticRelationships(InstantiationContext& context, const UiSerializedWidget& widget)
+    {
+        if (widget.hasSemantics && widget.hasSemanticRelationships && !widget.id.empty())
+        {
+            const auto handleIt = context.result.instance.handles.find(widget.id);
+            if (handleIt != context.result.instance.handles.end())
+            {
+                UiSemanticDesc desc = widget.semantics;
+                if (const UiAccessibilityManager* accessibility = context.ui.accessibilityManager(context.surface))
+                {
+                    if (const UiSemanticDesc* current = accessibility->semanticDesc(handleIt->second))
+                        desc = *current;
+                }
+                if (!resolveSemanticRelationshipIds(context.result.instance.handles,
+                                                    widget.semanticRelationships,
+                                                    desc.relationships))
+                {
+                    context.result.validation.error(widget.id,
+                                                    "semantic relationship references an unknown widget id");
+                }
+                context.ui.setSemantics(context.surface, handleIt->second, desc);
+            }
+        }
+
+        for (const UiSerializedWidget& child : widget.children)
+            resolveSemanticRelationships(context, child);
+        for (const auto& [_, children] : widget.slots)
+        {
+            for (const UiSerializedWidget& child : children)
+                resolveSemanticRelationships(context, child);
+        }
+    }
 }
 
 const UiJsonValue* UiJsonValue::find(const std::string& key) const
@@ -2002,11 +2177,17 @@ UiSerializedValidationResult validateUiSerializedAsset(const UiSerializedAsset& 
         result.error("$.schema", "UI asset schema version is not supported");
 
     std::unordered_map<std::string, int> ids;
-    validateWidget(asset.root, theme, widgetAssets, result, "$.root", ids);
+    std::vector<std::pair<std::string, std::string>> relationshipRefs;
+    validateWidget(asset.root, theme, widgetAssets, result, "$.root", ids, relationshipRefs);
     for (const auto& [id, count] : ids)
     {
         if (count > 1)
             result.error("$.root", "duplicate widget id '" + id + "'");
+    }
+    for (const auto& [path, id] : relationshipRefs)
+    {
+        if (ids.find(id) == ids.end())
+            result.error(path, "unknown semantic relationship widget id '" + id + "'");
     }
     return result;
 }
@@ -2044,6 +2225,7 @@ UiSerializedLoadResult UiSerializationRuntime::instantiate(UiSystem& ui,
 
     InstantiationContext context{ui, surface, mount, bindingResolver, result};
     instantiateWidget(context, parent, resolvedAsset.root);
+    resolveSemanticRelationships(context, resolvedAsset.root);
     result.success = result.validation.valid() && result.instance.root != UI_INVALID_HANDLE;
     return result;
 }

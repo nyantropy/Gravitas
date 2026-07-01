@@ -82,6 +82,17 @@ struct UiSerializedDropTarget
     std::vector<std::string> acceptedPayloadTypes;
 };
 
+struct UiSerializedSemanticRelationships
+{
+    std::vector<std::string> labelledBy;
+    std::vector<std::string> describedBy;
+    std::vector<std::string> controls;
+    std::vector<std::string> owns;
+    std::string activeDescendant;
+    std::string popup;
+    std::string tooltip;
+};
+
 struct UiSerializedWidget
 {
     std::string id;
@@ -115,6 +126,8 @@ struct UiSerializedWidget
     bool hasDecorative = false;
     UiSemanticDesc semantics;
     bool hasSemantics = false;
+    UiSerializedSemanticRelationships semanticRelationships;
+    bool hasSemanticRelationships = false;
     UiSerializedNavigation navigation;
     bool hasNavigation = false;
     std::optional<UiSerializedDragSource> dragSource;
