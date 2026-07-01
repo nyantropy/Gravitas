@@ -1034,6 +1034,18 @@ the registry expands those references into ordinary `UiSerializedWidget` trees
 before `UiSerializationRuntime` instantiates retained nodes. This keeps asset
 reuse, serialization, runtime widgets, and C++ composition behavior separate.
 
+The Visual UI Editor is the first major application built on the UI platform.
+It lives in the tools module, implements `EngineToolPanel`, and uses existing
+editor shell, theme, widget, property, and workspace infrastructure. It edits
+authored `UiWidgetAssetDefinition` data, selects widgets by stable authored ids,
+validates through `UiWidgetAssetRegistry`, saves through widget asset
+serialization, and previews by instantiating the real asset into a dedicated
+preview `UiSurface`. Runtime retained handles are preview implementation
+details and must not become editor document state. The editor currently
+demonstrates the interaction-prompt widget asset workflow and establishes the
+pattern future visual layout/theme/binding/accessibility editors should follow:
+fix runtime gaps instead of adding editor-only UI systems.
+
 UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
 visible/render-enabled surfaces in surface order, resolves each surface's
 document into a surface-local command buffer, then transforms the vertices into

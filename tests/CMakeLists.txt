@@ -377,4 +377,22 @@ if(TARGET gravitas_tools)
         PROPERTIES
             LABELS "gravitas;tools;editor"
     )
+
+    add_executable(VisualUiEditorRuntimeTest
+        tools/VisualUiEditorRuntimeTest.cpp
+    )
+
+    target_compile_features(VisualUiEditorRuntimeTest PRIVATE cxx_std_20)
+
+    target_link_libraries(VisualUiEditorRuntimeTest PRIVATE gravitas_tools)
+
+    add_test(
+        NAME visual_ui_editor_runtime
+        COMMAND VisualUiEditorRuntimeTest
+    )
+
+    set_tests_properties(visual_ui_editor_runtime
+        PROPERTIES
+            LABELS "gravitas;tools;ui-editor"
+    )
 endif()

@@ -28,6 +28,7 @@
 #include "ToolTheme.h"
 #include "ToolWidgets.h"
 #include "UiSystem.h"
+#include "VisualUiEditorPanel.hpp"
 
 namespace gts::tools
 {
@@ -44,6 +45,7 @@ namespace gts::tools
             registry.addPanel<DebugDrawPanel>();
             registry.addPanel<AssetStatusPanel>();
             registry.addPanel<SceneCatalogPanel>();
+            registry.addPanel<VisualUiEditorPanel>();
         }
 
         void update(const EcsControllerContext& ctx) override
@@ -69,7 +71,7 @@ namespace gts::tools
                     if (panel != nullptr)
                         panel->onDeactivate(toolCtx);
                 }
-                publishEditorMode(ctx.world, state, false);
+                publishEditorMode(ctx.world, state, EditorMode::Runtime);
                 publishWorkspace(ctx, false);
                 return;
             }
@@ -109,7 +111,7 @@ namespace gts::tools
 
             setText(toolCtx.ui, footer, state.status);
             setText(toolCtx.ui, panelTitle, activePanelTitle(state));
-            publishEditorMode(ctx.world, state, activePanelWantsWorkspace(ctx.world));
+            publishEditorMode(ctx.world, state, activePanelEditorMode(ctx.world));
         }
 
         void prepareVisibility(const EcsControllerContext& ctx)
@@ -196,7 +198,7 @@ namespace gts::tools
             {
                 clearInputCapture(ctx.world);
                 destroyUi(*ctx.ui);
-                publishEditorMode(ctx.world, state, false);
+                publishEditorMode(ctx.world, state, EditorMode::Runtime);
                 publishWorkspace(ctx, false);
             }
             return true;
@@ -394,7 +396,7 @@ namespace gts::tools
         void buildLeftTools(EngineToolContext& ctx)
         {
             leftTools.clear();
-            const char* labels[] = {"E", "G", "C", "P", "X", "D", "A", "S"};
+            const char* labels[] = {"E", "G", "C", "P", "X", "D", "A", "S", "U"};
             float       y        = 0.012f;
             for (const char* label : labels)
             {
@@ -604,6 +606,8 @@ namespace gts::tools
                 return "FX";
             if (panel->id() == "particle_effects")
                 return "PFX";
+            if (panel->id() == "visual_ui_editor")
+                return "UI";
             return std::string(panel->title());
         }
 
@@ -620,12 +624,23 @@ namespace gts::tools
 
         bool activePanelWantsWorkspace(ECSWorld& world) const
         {
+            return activePanelEditorMode(world) != EditorMode::Runtime;
+        }
+
+        EditorMode activePanelEditorMode(ECSWorld& world) const
+        {
             if (!world.hasAny<EngineToolStateComponent>() || registry.empty())
-                return false;
+                return EditorMode::Runtime;
 
             const EngineToolStateComponent& state = world.getSingleton<EngineToolStateComponent>();
             const EngineToolPanel*          panel = registry.at(std::min(state.activePanelIndex, registry.size() - 1));
-            return panel != nullptr && panel->id() == "particle_effects";
+            if (panel == nullptr)
+                return EditorMode::Runtime;
+            if (panel->id() == "particle_effects")
+                return EditorMode::ParticleEditor;
+            if (panel->id() == "visual_ui_editor")
+                return EditorMode::UiEditor;
+            return EditorMode::Runtime;
         }
 
         void syncPreviewCameraRequest(ECSWorld& world) const
@@ -644,10 +659,10 @@ namespace gts::tools
             world.getSingleton<EngineToolPreviewCameraComponent>().active = false;
         }
 
-        void publishEditorMode(ECSWorld& world, EngineToolStateComponent& state, bool particleEditorActive)
+        void publishEditorMode(ECSWorld& world, EngineToolStateComponent& state, EditorMode editorMode)
         {
-            state.editorMode = particleEditorActive ? EditorMode::ParticleEditor : EditorMode::Runtime;
-            if (particleEditorActive)
+            state.editorMode = editorMode;
+            if (editorMode != EditorMode::Runtime)
             {
                 applyRuntimePassOverride(world);
                 return;

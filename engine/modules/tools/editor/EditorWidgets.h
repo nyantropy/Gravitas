@@ -151,6 +151,14 @@ namespace gts::tools
         return createCircleRelative(ui, parent, rect, color, 24, interactable);
     }
 
+#ifndef GTS_TOOLS_TO_TOOL_RECT_DEFINED
+#define GTS_TOOLS_TO_TOOL_RECT_DEFINED
+    inline ToolRect toToolRect(const UiRect& rect)
+    {
+        return {rect.x, rect.y, rect.width, rect.height};
+    }
+#endif
+
     inline UiHandle createEditorLineRelative(
         UiSystem& ui, UiHandle parent, UiVec2 start, UiVec2 end, UiColor color, float thickness = 0.002f)
     {

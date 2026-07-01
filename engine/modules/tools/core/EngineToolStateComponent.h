@@ -18,7 +18,8 @@ namespace gts::tools
     enum class EditorMode
     {
         Runtime,
-        ParticleEditor
+        ParticleEditor,
+        UiEditor
     };
 
     struct EngineToolStateComponent

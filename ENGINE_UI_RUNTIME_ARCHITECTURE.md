@@ -111,6 +111,13 @@ serialized widget trees, and then lets the serialization runtime instantiate
 the resolved graph. Assets remain authored data; runtime widgets and
 compositions still own behavior.
 
+The first major UI platform application is now implemented: the Visual UI
+Editor. It is a tools-module client of the runtime, not a runtime subsystem.
+It opens authored `UiWidgetAssetDefinition` data, selects by stable widget ids,
+edits authored properties, validates through the widget asset registry,
+previews by instantiating real widget assets into a dedicated `UiSurface`, and
+saves through the serialization runtime.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
@@ -4416,7 +4423,130 @@ it turns the completed architecture into an authoring workflow and will expose
 schema, validation, reusable asset, and inspection gaps before UI content
 scales further.
 
-## 24. Final Recommendation
+## 24. Phase 18 Implementation: Visual UI Editor
+
+### Investigation
+
+The existing editor/tool infrastructure already provides reusable shell pieces:
+
+- `EngineToolRuntime` installs the tool shell, selection, scene browser, camera,
+  gizmo, debug-draw, asset-status, and particle authoring panels.
+- `EngineToolShellSystem` owns the visible tool workspace, panel registry,
+  tab/rail chrome, input capture, workspace visibility, and panel activation.
+- `EngineToolPanel` is the reusable panel interface used by current tool
+  applications.
+- `EditorTheme`, `ToolWidgets`, `EditorWidgets`, `EditorLayout`,
+  `EditorPropertySystem`, `EditorCommands`, and `EditorWorkspace` are generic
+  editor infrastructure.
+
+The Visual UI Editor-specific responsibility is authored widget asset editing:
+open, inspect hierarchy, select by stable widget id, edit authored properties,
+validate, preview, and save. It edits `UiWidgetAssetDefinition` data, not
+retained runtime nodes or handles.
+
+The investigation also exposed a generic editor header issue:
+`EditorWidgets.h` used `toToolRect(...)` without owning that helper. The helper
+now sits behind a shared include guard so `EditorWidgets.h` and
+`EditorLayout.h` can be included independently by future editor modules.
+
+### Architecture
+
+The editor is split into three layers:
+
+1. Generic editor framework: shell, panel lifecycle, editor mode, property
+   descriptors, tool widgets, theme tokens, and workspace plumbing.
+2. Visual UI Editor application: document model, stable-id selection,
+   hierarchy/inspector/validation panel, preview orchestration, and sample
+   workflow.
+3. UI runtime: widget asset registry, serialization loader, surfaces, mounts,
+   widgets, layout, themes, accessibility, navigation, drag/drop, binding, and
+   animation.
+
+Runtime preview is disposable output. Selection stores authored widget ids such
+as `prompt` or `label`; retained `UiHandle` values never become editor document
+state.
+
+The preview path is intentionally real runtime execution:
+
+`Widget Asset -> UiWidgetAssetRegistry -> UiSerializationRuntime -> UiSurface -> UiMount -> Widgets -> UiNode`
+
+`VisualUiEditorDocument::rebuildPreview(...)` registers the current authored
+asset, destroys the previous preview mount, creates a new mount on the preview
+surface, and instantiates the asset through `UiSystem::instantiateWidgetAsset`.
+
+### Implementation
+
+Added `modules/tools/ui_editor`:
+
+- `VisualUiEditorDocument` owns the open asset, source path, dirty flag,
+  stable widget-id selection, hierarchy extraction, property descriptors,
+  registry validation, save/save-as, preview surface creation, preview rebuild,
+  preview visibility, and preview cleanup.
+- `VisualUiEditorSamples` provides representative reusable widget assets for
+  the interaction prompt workflow: a base status prompt and a derived dungeon
+  interaction prompt with keyboard/controller variants.
+- `VisualUiEditorPanel` is an `EngineToolPanel` client. It opens the prompt
+  sample, shows hierarchy, inspector properties, validation, and preview status,
+  supports a simple authored text edit, rebuilds preview, and saves the edited
+  asset to a JSON widget asset file.
+- `EngineToolShellSystem` registers the UI editor panel and exposes it as a
+  wide workspace tool tab.
+- `EditorMode::UiEditor` lets world picking, gizmos, runtime pass visibility,
+  and the tool camera consistently step aside for full-workspace editor
+  applications without treating every workspace editor as the particle editor.
+
+The feature demonstration uses the interaction prompt widget asset workflow:
+open the authored prompt, select the `label` widget by stable id, edit text,
+validate, rebuild the preview surface, and save the authored asset. Existing
+game-side interaction prompt composition remains compatible.
+
+### Tests
+
+Added `visual_ui_editor_runtime`, covering:
+
+- opening a widget asset document.
+- authored hierarchy extraction.
+- stable-id selection.
+- authored text/style edits.
+- duplicate id rejection.
+- inspector property descriptors.
+- registry validation.
+- dedicated preview surface creation.
+- preview mount rebuild and old subtree cleanup.
+- selection preservation across preview rebuild.
+- preview surface visibility and input isolation.
+- preview surface cleanup.
+- save/load round trip.
+- invalid base asset validation.
+
+### Remaining Visual UI Editor Debt
+
+- The panel is intentionally a first editor slice, not a complete visual editor.
+- Property editing is currently focused on stable authored string properties;
+  full property widgets, undo/redo, and typed layout editors are next layers.
+- Asset browser integration is sample-backed; package/directory discovery is
+  future asset infrastructure.
+- Preview rebuild is explicit; file watching and live hot reload are future
+  capabilities.
+- No drag hierarchy editing, copy/paste, multi-select, or visual canvas handles
+  are implemented yet.
+- Behavior attachment remains C++ by stable id, as intended.
+
+### Next Capability
+
+With the Visual UI Editor complete, the single highest-value capability to
+build next is **Live Hot Reload**.
+
+The runtime now has durable assets and an editor that can save them, but the
+authoring loop still requires explicit preview rebuilds and runtime consumers
+do not yet receive asset changes automatically. Live hot reload should come
+before localization, automation, virtualized lists, or plugins because it turns
+serialization, widget asset definitions, validation, preview surfaces, and the
+editor document model into a production authoring loop: edit, validate, reload,
+preserve selection/state where possible, and update every instantiated preview
+or runtime use of the asset.
+
+## 25. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -4456,9 +4586,13 @@ committed direction is surface-local one-way synchronization through
 UI meaning and announcements through `UiAccessibilityManager`. The seventeenth
 committed direction is durable retained UI structure through the UI
 Serialization Runtime. The eighteenth committed direction is reusable authored
-UI definitions through `UiWidgetAssetRegistry`.
+UI definitions through `UiWidgetAssetRegistry`. The nineteenth committed
+direction is a Visual UI Editor application built on top of the UI platform,
+using runtime surfaces, mounts, widgets, serialization, and widget assets
+without editor-only runtime shortcuts.
 
-The next milestone should implement a Visual UI Editor. It should precede
-localization runtime, automation runtime, hot reload, and virtualized lists
-because the runtime now has the persistent and reusable authored model that an
-editor can create, validate, inspect, and save.
+The next milestone should implement Live Hot Reload. It should precede
+localization runtime, automation runtime, virtualized lists, and plugin SDK work
+because the runtime and editor now need a fast, dependency-aware authoring loop
+that can reload serialized/widget assets into existing surfaces and previews
+while preserving editor state where possible.

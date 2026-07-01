@@ -85,11 +85,11 @@ namespace gts::tools
             const bool  toolsVisible = ctx.world.hasAny<EngineToolStateComponent>() &&
                                        ctx.world.getSingleton<EngineToolStateComponent>().visible;
 
-            const bool particleEditorActive = ctx.world.hasAny<EngineToolStateComponent>() &&
-                                              ctx.world.getSingleton<EngineToolStateComponent>().editorMode ==
-                                                  EditorMode::ParticleEditor;
+            const bool workspaceEditorActive = ctx.world.hasAny<EngineToolStateComponent>() &&
+                                               ctx.world.getSingleton<EngineToolStateComponent>().editorMode !=
+                                                   EditorMode::Runtime;
 
-            if (!toolsVisible || particleEditorActive)
+            if (!toolsVisible || workspaceEditorActive)
             {
                 if (ctx.world.hasAny<EngineToolCameraStateComponent>())
                 {

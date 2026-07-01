@@ -163,10 +163,13 @@ namespace gts::tools
             expandPanel(panel);
     }
 
+#ifndef GTS_TOOLS_TO_TOOL_RECT_DEFINED
+#define GTS_TOOLS_TO_TOOL_RECT_DEFINED
     inline ToolRect toToolRect(const UiRect& rect)
     {
         return {rect.x, rect.y, rect.width, rect.height};
     }
+#endif
 
     inline UiRect insetRect(const UiRect& rect, float inset)
     {
