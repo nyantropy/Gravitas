@@ -9,7 +9,7 @@ endif()
 # ECS rendering layer + windowing (GLFW window management).
 # core/ and ecssetup/ are entirely owned by this target — GLOB_RECURSE is safe.
 # Currently only GLFWOutputWindow.cpp exists; all other files are header-only.
-file(GLOB_RECURSE RENDERING_SOURCES
+file(GLOB_RECURSE RENDERING_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/runtime/*.cpp"

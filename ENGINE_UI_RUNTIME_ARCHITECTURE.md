@@ -95,6 +95,14 @@ regions; focus, binding, mount, layer, and surface lifetime update or prune
 semantic state automatically. Platform screen reader bridges remain future
 adapters over this engine-owned semantic model.
 
+The seventeenth foundational primitive is now implemented: UI Serialization
+owns the durable data representation for retained UI structure. Versioned JSON
+assets can describe widget trees, layout intent, style/theme references,
+bindings by application path, navigation metadata, drag/drop metadata,
+animation timing hints, accessibility semantics, optional surface descriptors,
+and layer descriptors. The loader instantiates that data into an existing
+mount while C++ remains responsible for behavior and binding source resolution.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
@@ -200,6 +208,17 @@ API is implemented yet; future Windows UIA, macOS Accessibility, Linux ATK,
 web, VR, testing, and automation adapters should consume this engine semantic
 model.
 
+The retained persistence path is now centralized. `UiSerializedAsset` is a
+versioned JSON asset model for authored retained UI intent. It can represent
+widget type/id hierarchy, layout, style and theme references, default text/image
+and progress values, binding paths, navigation metadata, drag/drop metadata,
+animation timing hints, accessibility semantics, optional surface descriptors,
+and layer descriptors. It deliberately does not serialize handles, focus,
+hover, capture, computed geometry, active animations, announcements, callbacks,
+or application objects. `UiSystem::instantiateUiAsset(...)` validates an asset,
+instantiates it into a mount, and returns stable id-to-handle mappings for C++
+behavior attachment.
+
 ### UiSystem
 
 `UiSystem` is the render-facing facade over `UiSurface`. It exposes legacy
@@ -217,6 +236,7 @@ Current responsibilities:
 - Exposes the latest dispatch result.
 - Exposes semantic tree and accessibility announcement APIs for runtime,
   tooling, and future platform adapters.
+- Exposes serialized UI asset instantiation into existing mounts.
 - Converts retained visual lists into renderer command data per surface.
 
 `UiSystem::dispatchInput(...)` is the retained input entry point. It:
@@ -250,8 +270,9 @@ Missing from `UiSystem` today:
   constrained text wrapping, and virtualized scroll content.
 - First-class animation graph authoring and delayed modal/mount teardown after
   exit transitions.
-- Two-way data editing, reflected ECS/property binding, and serialized widget
-  definitions. Current data binding is intentionally one-way and runtime-owned.
+- Two-way data editing, reflected ECS/property binding, and reusable widget
+  asset definitions. Current data binding is intentionally one-way and
+  runtime-owned.
 - Platform accessibility bridges, voice/speech integration, automation tooling,
   and persisted semantic/widget asset authoring.
 
@@ -4106,28 +4127,160 @@ Added `ui_accessibility_runtime`, covering:
 - The runtime is intentionally one-way. Text fields, sliders, property editors,
   and IME-aware controls still need explicit future two-way binding policy.
 - There is no reflected ECS/property binding bridge yet.
-- There is no serialized binding/widget asset format yet.
 - Binding evaluation is source-revision/value based, not a dependency-graph
   scheduler.
 
-### Next Primitive
+## 22. Phase 16 Implementation: UI Serialization Runtime
 
-With Layers, Dispatch, Focus, Modals, Mounts, Compositions, Event Propagation,
-UiSurface, Layout, Styling, Widgets, Navigation, Drag & Drop, Animation, and
-Data Binding, and Accessibility implemented, the single highest-value remaining
-primitive is **UI Serialization**.
+### Investigation
 
-UI Serialization should precede virtualized lists, widget asset definitions,
-editor UI authoring, and automation runtime because the engine now has the
-runtime primitives that need a durable data representation: surfaces, layers,
-mounts, compositions, widgets, layout, themes, bindings, navigation metadata,
-drag/drop metadata, animation intent, and accessibility semantics. A serialized
-UI model would let tools, mods, tests, and future editors author the same
-runtime graph without hardcoding C++ composition builders. Widget asset
-definitions and editor authoring then become consumers of the serialization
-format instead of inventing parallel descriptions.
+Before this phase, the runtime graph was complete but not durable. Every
+surface, layer, mount, composition, widget, layout, style, binding,
+accessibility descriptor, navigation node, drag source, and transition hint was
+authored through C++ builder code. That meant the engine could own UI behavior
+at runtime, but tools and mods still could not save, load, diff, inspect,
+version, generate, or hot-reload authored UI structure.
 
-## 22. Final Recommendation
+The investigation split state into three categories:
+
+- Serializable intent: widget hierarchy, widget ids, layout specs, style/theme
+  references, default text/image/progress values, binding paths, semantic
+  descriptors, navigation metadata, drag/drop metadata, animation timing hints,
+  optional surface descriptors, and layer descriptors.
+- Runtime-only state: retained handles, computed layout, visual lists, command
+  buffers, focus/hover/capture, pointer ownership, active animations, current
+  announcements, modal stack, dispatch results, widget-local pressed/hovered
+  transients, and resource pointers.
+- Application-owned behavior: callbacks, gameplay data, ECS objects, domain
+  object references, binding source resolution, formatter/transform functions,
+  localization lookup, and feature-specific meaning.
+
+### Architecture
+
+The first UI serialization format is versioned JSON. JSON was chosen because it
+is human-readable, diffable, convenient for tests and mods, and already used by
+engine/game assets. The implementation is intentionally UI-owned: it adds a
+small `UiJsonValue` parser/writer in the rendering UI module instead of pulling
+in a new dependency or reusing domain-private parsers.
+
+The asset model is:
+
+`UiSerializedAsset -> optional Surface -> Layers -> Widget Tree`
+
+Each `UiSerializedWidget` stores authored intent:
+
+- stable `id` used for behavior attachment.
+- widget `type` such as `Panel`, `Label`, `Button`, `Image`, `ProgressBar`,
+  `Spacer`, `Stack`, `Separator`, or `ScrollView`.
+- layout specification and text alignment.
+- style class / label style class.
+- default text, image, progress, visibility, enabled, and interactable values.
+- one-way binding declarations by path.
+- semantic role/name/value/range/live-region metadata.
+- navigation role, group, tab order, wrap policy, and future neighbor ids.
+- drag source and drop target metadata.
+- style transition timing hints.
+- child widgets.
+
+Bindings serialize relationships, not objects. A binding stores property, path,
+optional formatter/transform names, and optional animation timing. During
+instantiation an application-provided `IUiSerializedBindingResolver` turns paths
+such as `prompt.text` or `health.percent` into live `UiBindingSource`
+callbacks. If no resolver can satisfy a path, instantiation reports a validation
+error instead of inventing application data.
+
+`UiSerializationRuntime::instantiate(...)` builds the retained graph under an
+existing mount. `UiSystem::instantiateUiAsset(...)` is the public facade. The
+loader returns `UiSerializedInstance`, which maps serialized ids to retained
+handles so C++ can attach behavior without owning structure.
+
+### Versioning And Validation
+
+Assets carry a numeric `schema`. Schema `0` migrates to version `1` with a
+warning. Future schema versions are rejected. Validation detects:
+
+- missing root widget.
+- unsupported schema.
+- unknown widget types.
+- duplicate widget ids.
+- invalid grid dimensions/spans.
+- missing binding paths.
+- missing style classes when a validation theme is supplied.
+- invalid mount/surface during instantiation.
+- unresolved binding paths during instantiation.
+
+The current schema is deliberately small but extensible. It avoids serializing
+runtime handles or implementation details so future schema migrations can
+rename widget fields, add prefab/template references, add localization keys, or
+replace direct fields with asset references.
+
+### Feature Demonstration
+
+`InteractionPromptComposition` now loads its structure from a serialized UI
+asset string. The asset defines the prompt panel, label, layout, style classes,
+fade binding hints, text binding path, accessibility `Status` role, and polite
+live region. The C++ composition still owns behavior: it provides a binding
+resolver for `prompt.text` and `prompt.opacity`, attaches the runtime font
+pointer to the loaded label handle, and keeps the retained nodes visible while
+fade-out animations complete.
+
+This demonstrates the intended boundary:
+
+- asset owns structure and presentation intent.
+- C++ owns observable state and behavior.
+- runtime owns mount lifetime, bindings, animation, semantics, and rendering.
+
+### Validation
+
+Added `ui_serialization_runtime`, covering:
+
+- JSON parse.
+- schema migration.
+- validation errors.
+- missing style detection.
+- widget tree round-trip serialization.
+- surface and layer descriptor serialization.
+- layout serialization.
+- binding serialization.
+- accessibility serialization.
+- navigation metadata registration.
+- drag/drop metadata registration.
+- runtime instantiation under a mount.
+- binding source resolution.
+- semantic updates from bindings.
+- save/load file round-trip.
+
+### Remaining Serialization Debt
+
+- The first implementation supports the initial widget set only.
+- There is no prefab/template inheritance yet.
+- There is no localization key model yet.
+- There is no hot-reload file watcher; runtime support exists through
+  re-instantiation/rebuild, but watching and diff application are future tool
+  work.
+- Serialized explicit navigation neighbors are parsed as ids, but final handle
+  patch-up is future work.
+- The loader builds structure but does not preserve widget objects for
+  built-in event callbacks; C++ behavior attachment is intentionally the next
+  layer.
+- There is no visual editor or widget asset registry yet.
+
+### Next Capability
+
+With Serialization complete, the single highest-value capability to build next
+is **Widget Asset Definitions**.
+
+Widget Asset Definitions should precede a visual UI editor, automation runtime,
+virtualized lists, and localization runtime because serialization provides the
+data format, but not yet the reusable asset vocabulary. Prefabs/templates,
+named widget assets, default property sets, reusable behavior attachment ids,
+and asset-level validation rules are the natural layer above the serializer.
+A visual editor should author widget assets; automation should query loaded
+semantic UI; localization should bind text keys; virtualized lists should be
+specialized widgets. All of those become cleaner once reusable widget assets
+exist.
+
+## 23. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -4137,8 +4290,8 @@ Keep the current retained node primitives as the low-level drawing and layout
 substrate, but stop treating `UiSystem` plus one document as the whole UI
 runtime. The engine should own explicit surfaces, layers, mountable
 compositions, centralized input dispatch, focus, modal policy, layout, styling,
-widgets, navigation, drag/drop, animation, data binding, and future presentation
-systems.
+widgets, navigation, drag/drop, animation, data binding, accessibility
+semantics, serialization, and future presentation systems.
 
 This architecture is the smallest durable set of primitives that naturally
 supports visual novels, RPG HUDs, strategy panels, action-game overlays, editor
@@ -4162,11 +4315,12 @@ manipulation through `UiDragDropManager`. The fourteenth committed direction is
 surface-local temporal presentation through `UiAnimationManager`. The fifteenth
 committed direction is surface-local one-way synchronization through
 `UiBindingManager`. The sixteenth committed direction is surface-local semantic
-UI meaning and announcements through `UiAccessibilityManager`.
+UI meaning and announcements through `UiAccessibilityManager`. The seventeenth
+committed direction is durable retained UI structure through the UI
+Serialization Runtime.
 
-The next milestone should implement UI Serialization. It should precede
-virtualized lists, widget asset definitions, editor UI authoring, and automation
-runtime because the runtime now has complete ownership, interaction, geometry,
-presentation, synchronization, animation, and semantic primitives that need one
-durable data representation before higher-level authored UI systems encode their
-own incompatible formats.
+The next milestone should implement Widget Asset Definitions. It should precede
+the visual editor, automation runtime, virtualized lists, and localization
+runtime because serialized UI now needs reusable asset-level composition,
+defaults, validation, and behavior attachment contracts before higher-level
+tools or specialized widgets build on the data format.

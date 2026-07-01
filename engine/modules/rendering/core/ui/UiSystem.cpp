@@ -1649,6 +1649,27 @@ UiSurfaceId UiSystem::compositionSurface(UiCompositionId compositionId) const
     return it == compositions.end() ? UI_INVALID_SURFACE : it->second.surface;
 }
 
+UiSerializedLoadResult UiSystem::instantiateUiAsset(const UiSerializedAsset& asset,
+                                                    UiMountId mountId,
+                                                    const IUiSerializedBindingResolver* bindingResolver)
+{
+    return instantiateUiAsset(defaultSurfaceId, asset, mountId, bindingResolver);
+}
+
+UiSerializedLoadResult UiSystem::instantiateUiAsset(UiSurfaceId surfaceId,
+                                                    const UiSerializedAsset& asset,
+                                                    UiMountId mountId,
+                                                    const IUiSerializedBindingResolver* bindingResolver)
+{
+    const UiTheme* activeTheme = theme(surfaceId);
+    return UiSerializationRuntime::instantiate(*this,
+                                               surfaceId,
+                                               mountId,
+                                               asset,
+                                               bindingResolver,
+                                               activeTheme);
+}
+
 UiCommandBuffer UiSystem::extractCommands(int viewportWidth, int viewportHeight)
 {
     return extractCommandsRef(viewportWidth, viewportHeight);

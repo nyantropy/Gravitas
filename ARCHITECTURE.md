@@ -1015,6 +1015,17 @@ updates feed the semantic state; node, mount, layer, and surface cleanup prune
 stale semantics. Platform screen reader bridges, speech, voice, and automation
 tools are future adapters over this engine semantic model.
 
+UI serialization is engine-owned for authored retained UI structure.
+`UiSerializedAsset` is a versioned JSON asset model for widget trees, layout,
+style/theme references, binding paths, navigation metadata, drag/drop metadata,
+animation timing hints, accessibility semantics, optional surface descriptors,
+and layer descriptors. `UiSerializationRuntime` validates and instantiates an
+asset into an existing mount, and `UiSystem::instantiateUiAsset(...)` exposes
+that through the runtime facade. The serializer stores authored intent, not
+runtime handles, focus, hover, capture, computed geometry, active animations, or
+C++ callbacks. Applications provide binding source resolution and attach
+behavior through stable serialized widget ids.
+
 UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
 visible/render-enabled surfaces in surface order, resolves each surface's
 document into a surface-local command buffer, then transforms the vertices into

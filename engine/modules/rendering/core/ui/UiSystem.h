@@ -19,6 +19,7 @@
 #include "UiModalManager.h"
 #include "UiMount.h"
 #include "UiRenderResolver.h"
+#include "UiSerialization.h"
 #include "UiSurface.h"
 
 // Engine-owned retained UI model plus render-side text/resource bindings.
@@ -248,6 +249,14 @@ public:
     UiCompositionId      compositionFromMount(UiSurfaceId surfaceId, UiMountId mountId) const;
     UiMountId            compositionMount(UiCompositionId compositionId) const;
     UiSurfaceId          compositionSurface(UiCompositionId compositionId) const;
+
+    UiSerializedLoadResult instantiateUiAsset(const UiSerializedAsset& asset,
+                                               UiMountId mountId,
+                                               const IUiSerializedBindingResolver* bindingResolver = nullptr);
+    UiSerializedLoadResult instantiateUiAsset(UiSurfaceId surfaceId,
+                                               const UiSerializedAsset& asset,
+                                               UiMountId mountId,
+                                               const IUiSerializedBindingResolver* bindingResolver = nullptr);
 
     UiCommandBuffer extractCommands(int viewportWidth, int viewportHeight);
     const UiCommandBuffer& extractCommandsRef(int viewportWidth, int viewportHeight);
