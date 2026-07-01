@@ -34,7 +34,10 @@ void UiSystem::setEnabled(bool inEnabled)
     if (!enabled)
     {
         for (auto& [_, record] : surfaces)
+        {
             record.surface.clearInteractionState();
+            record.surface.animationManager().clear();
+        }
         lastEvents.clear();
         lastDispatchResult = {};
     }
@@ -172,6 +175,7 @@ bool UiSystem::removeLayer(UiSurfaceId surfaceId, UiLayerId layerId)
     const std::vector<UiMountId> layerMounts = mountState.mountsInLayer(layerId);
     for (UiMountId mount : layerMounts)
         destroyMount(surfaceId, mount);
+    record->surface.animationManager().cancelSubtree(document, root);
     record->surface.dragDropManager().unregisterSubtree(document, root);
     record->surface.navigationGraph().unregisterSubtree(document, root);
     removeTextBindingsRecursive(*record, root);
@@ -296,6 +300,7 @@ bool UiSystem::removeNode(UiSurfaceId surfaceId, UiHandle handle)
 
     record->surface.dragDropManager().unregisterSubtree(document, handle);
     record->surface.navigationGraph().unregisterSubtree(document, handle);
+    record->surface.animationManager().cancelSubtree(document, handle);
     removeTextBindingsRecursive(*record, handle);
     const bool removed = document.removeNode(handle);
     if (!removed)
@@ -686,6 +691,192 @@ bool UiSystem::unregisterDropTarget(UiSurfaceId surfaceId, UiHandle handle)
     return record != nullptr && record->surface.dragDropManager().unregisterTarget(handle);
 }
 
+UiAnimationManager& UiSystem::animationManager()
+{
+    return defaultSurfaceRecord().surface.animationManager();
+}
+
+const UiAnimationManager& UiSystem::animationManager() const
+{
+    return defaultSurfaceRecord().surface.animationManager();
+}
+
+UiAnimationManager* UiSystem::animationManager(UiSurfaceId surfaceId)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record == nullptr ? nullptr : &record->surface.animationManager();
+}
+
+const UiAnimationManager* UiSystem::animationManager(UiSurfaceId surfaceId) const
+{
+    const SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record == nullptr ? nullptr : &record->surface.animationManager();
+}
+
+UiAnimationId UiSystem::animate(const UiAnimationDesc& desc)
+{
+    return animate(defaultSurfaceId, desc);
+}
+
+UiAnimationId UiSystem::animate(UiSurfaceId surfaceId, const UiAnimationDesc& desc)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    if (record == nullptr)
+        return UI_INVALID_ANIMATION;
+
+    const UiAnimationId id = record->surface.animationManager().animate(record->surface.document(), desc);
+    if (id != UI_INVALID_ANIMATION)
+    {
+        record->commandCacheValid = false;
+        commandCache.clear();
+    }
+    return id;
+}
+
+UiAnimationId UiSystem::animateOpacity(UiHandle handle,
+                                       float opacity,
+                                       const UiAnimationTiming& timing)
+{
+    return animateOpacity(defaultSurfaceId, handle, opacity, timing);
+}
+
+UiAnimationId UiSystem::animateOpacity(UiSurfaceId surfaceId,
+                                       UiHandle handle,
+                                       float opacity,
+                                       const UiAnimationTiming& timing)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    if (record == nullptr)
+        return UI_INVALID_ANIMATION;
+
+    const UiAnimationId id =
+        record->surface.animationManager().animateOpacity(record->surface.document(), handle, opacity, timing);
+    if (id != UI_INVALID_ANIMATION)
+    {
+        record->commandCacheValid = false;
+        commandCache.clear();
+    }
+    return id;
+}
+
+std::vector<UiAnimationId> UiSystem::transitionStyleState(UiHandle handle,
+                                                          UiStyleState state,
+                                                          const UiStyleTransitionDesc& desc)
+{
+    return transitionStyleState(defaultSurfaceId, handle, state, desc);
+}
+
+std::vector<UiAnimationId> UiSystem::transitionStyleState(UiSurfaceId surfaceId,
+                                                          UiHandle handle,
+                                                          UiStyleState state,
+                                                          const UiStyleTransitionDesc& desc)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    if (record == nullptr)
+        return {};
+
+    std::vector<UiAnimationId> ids =
+        record->surface.animationManager().transitionStyleState(record->surface.document(),
+                                                               record->surface.theme(),
+                                                               handle,
+                                                               state,
+                                                               desc);
+    if (!ids.empty())
+    {
+        record->commandCacheValid = false;
+        commandCache.clear();
+    }
+    return ids;
+}
+
+bool UiSystem::cancelAnimation(UiAnimationId animationId, bool complete)
+{
+    return cancelAnimation(defaultSurfaceId, animationId, complete);
+}
+
+bool UiSystem::cancelAnimation(UiSurfaceId surfaceId, UiAnimationId animationId, bool complete)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    if (record == nullptr)
+        return false;
+
+    const bool cancelled =
+        record->surface.animationManager().cancel(record->surface.document(), animationId, complete);
+    if (cancelled)
+    {
+        record->commandCacheValid = false;
+        commandCache.clear();
+    }
+    return cancelled;
+}
+
+uint32_t UiSystem::cancelAnimations(UiHandle handle, bool complete)
+{
+    return cancelAnimations(defaultSurfaceId, handle, complete);
+}
+
+uint32_t UiSystem::cancelAnimations(UiSurfaceId surfaceId, UiHandle handle, bool complete)
+{
+    SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    if (record == nullptr)
+        return 0;
+
+    const uint32_t cancelled =
+        record->surface.animationManager().cancel(record->surface.document(), handle, complete);
+    if (cancelled > 0)
+    {
+        record->commandCacheValid = false;
+        commandCache.clear();
+    }
+    return cancelled;
+}
+
+bool UiSystem::isAnimating(UiHandle handle) const
+{
+    return isAnimating(defaultSurfaceId, handle);
+}
+
+bool UiSystem::isAnimating(UiSurfaceId surfaceId, UiHandle handle) const
+{
+    const SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record != nullptr && record->surface.animationManager().isAnimating(handle);
+}
+
+bool UiSystem::isAnimating(UiHandle handle, UiAnimationProperty property) const
+{
+    return isAnimating(defaultSurfaceId, handle, property);
+}
+
+bool UiSystem::isAnimating(UiSurfaceId surfaceId, UiHandle handle, UiAnimationProperty property) const
+{
+    const SurfaceRecord* record = findSurfaceRecord(surfaceId);
+    return record != nullptr && record->surface.animationManager().isAnimating(handle, property);
+}
+
+UiAnimationFrameResult UiSystem::updateAnimations(float dt)
+{
+    UiAnimationFrameResult aggregate;
+    if (!enabled)
+        return aggregate;
+
+    for (auto& [_, record] : surfaces)
+    {
+        UiDocument& document = record.surface.document();
+        record.surface.animationManager().pruneInvalidNodes(document);
+        UiAnimationFrameResult result = record.surface.animationManager().update(document, dt);
+        aggregate.active += result.active;
+        aggregate.updated += result.updated;
+        aggregate.completed += result.completed;
+        aggregate.cancelled += result.cancelled;
+        if (result.changed())
+        {
+            record.commandCacheValid = false;
+            commandCache.clear();
+        }
+    }
+    return aggregate;
+}
+
 UiMountManager& UiSystem::mountManager()
 {
     return defaultSurfaceRecord().surface.mountManager();
@@ -855,7 +1046,21 @@ UiModalId UiSystem::pushModal(UiSurfaceId surfaceId, const UiModalDesc& desc)
         resolved.layer = document.getNodeLayer(mountState.rootForMount(resolved.ownerMount));
     if (resolved.layer == UI_INVALID_LAYER)
         resolved.layer = document.getDefaultLayer();
-    return record->surface.modalManager().pushModal(document, record->surface.focusManager(), resolved);
+    const UiModalId modalId =
+        record->surface.modalManager().pushModal(document, record->surface.focusManager(), resolved);
+    if (modalId != UI_INVALID_MODAL && resolved.openAnimation && resolved.owner != UI_INVALID_HANDLE)
+    {
+        UiAnimationDesc animation;
+        animation.target = resolved.owner;
+        animation.property = UiAnimationProperty::Opacity;
+        animation.from = resolved.openOpacityFrom;
+        animation.to = resolved.openOpacityTo;
+        animation.timing = *resolved.openAnimation;
+        record->surface.animationManager().animate(document, std::move(animation));
+        record->commandCacheValid = false;
+        commandCache.clear();
+    }
+    return modalId;
 }
 
 bool UiSystem::popModal(UiModalId modalId, UiModalDismissReason reason)
@@ -868,6 +1073,20 @@ bool UiSystem::popModal(UiSurfaceId surfaceId, UiModalId modalId, UiModalDismiss
     SurfaceRecord* record = findSurfaceRecord(surfaceId);
     if (record == nullptr)
         return false;
+
+    if (const UiModal* modal = record->surface.modalManager().topModal();
+        modal != nullptr && modal->id == modalId && modal->desc.closeAnimation &&
+        modal->desc.owner != UI_INVALID_HANDLE)
+    {
+        UiAnimationDesc animation;
+        animation.target = modal->desc.owner;
+        animation.property = UiAnimationProperty::Opacity;
+        animation.to = modal->desc.closeOpacityTo;
+        animation.timing = *modal->desc.closeAnimation;
+        record->surface.animationManager().animate(record->surface.document(), std::move(animation));
+        record->commandCacheValid = false;
+        commandCache.clear();
+    }
 
     return record->surface.modalManager().popModal(record->surface.document(),
                                                    record->surface.focusManager(),
@@ -925,6 +1144,7 @@ bool UiSystem::destroyMount(UiSurfaceId surfaceId, UiMountId mountId)
         return false;
 
     destroyCompositionRecordsForMount(surfaceId, mountId);
+    record->surface.animationManager().cancelSubtree(document, root);
     record->surface.dragDropManager().unregisterSubtree(document, root);
     record->surface.navigationGraph().unregisterSubtree(document, root);
     removeTextBindingsRecursive(*record, root);

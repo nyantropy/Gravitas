@@ -980,6 +980,18 @@ retained drag events through the normal propagation route. The first
 implementation is surface-local; cross-surface/editor-window drag is future
 policy above the same source/target model.
 
+Animation is engine-owned and surface-local for retained UI. A surface's
+`UiAnimationManager` owns active property timelines for style, payload, and
+layout values such as opacity, semantic colors, primitive tint/color, layout
+offsets, fixed size, and scroll/content offset. The manager consumes the shared
+`gts::tween` easing/progress primitives rather than duplicating interpolation
+math, interrupts existing timelines by `(node, property)`, prunes destroyed
+subtrees, and writes current animated values back to retained nodes before UI
+command extraction. Widgets and compositions request desired transitions
+through `UiSystem::animate(...)`, `animateOpacity(...)`, and
+`transitionStyleState(...)`; themes remain presentation data, layout remains
+geometry solving, and rendering only draws the current computed frame.
+
 UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
 visible/render-enabled surfaces in surface order, resolves each surface's
 document into a surface-local command buffer, then transforms the vertices into

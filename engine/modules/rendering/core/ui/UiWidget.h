@@ -276,6 +276,7 @@ namespace gts::ui
         bool wrapNavigation = false;
         std::optional<UiDragSourceDesc> dragSource;
         std::optional<UiDropTargetDesc> dropTarget;
+        std::optional<UiStyleTransitionDesc> stateAnimation;
         std::function<void()> onPressed;
     };
 
@@ -286,6 +287,7 @@ namespace gts::ui
         {
             buttonDesc = desc;
             pressed = false;
+            lastStyleState = desc.enabled ? UiStyleState::Normal : UiStyleState::Disabled;
 
             rootHandle = context.ui.createNode(context.surface, UiNodeType::Rect, parent);
             context.ui.setLayout(context.surface, rootHandle, desc.layout);
@@ -325,6 +327,7 @@ namespace gts::ui
             setWidgetState(context, rootHandle, buttonDesc.visible, enabled, enabled);
             setWidgetState(context, labelHandle, buttonDesc.visible, false, false);
             applyPanelStateSkin(context);
+            applyStateAnimation(context);
         }
 
         void setVisible(UiWidgetContext& context, bool visible)
@@ -333,6 +336,7 @@ namespace gts::ui
             setWidgetState(context, rootHandle, visible, visible && buttonDesc.enabled, visible && buttonDesc.enabled);
             setWidgetState(context, labelHandle, visible, false, false);
             applyPanelStateSkin(context);
+            applyStateAnimation(context);
         }
 
         bool consumePressed()
@@ -350,9 +354,14 @@ namespace gts::ui
             if (event.type == UiEventType::PointerEnter ||
                 event.type == UiEventType::PointerLeave ||
                 event.type == UiEventType::PointerDown ||
-                event.type == UiEventType::PointerUp)
+                event.type == UiEventType::PointerUp ||
+                event.type == UiEventType::FocusGained ||
+                event.type == UiEventType::FocusLost ||
+                event.type == UiEventType::NavigationFocus ||
+                event.type == UiEventType::NavigationBlur)
             {
                 applyPanelStateSkin(context);
+                applyStateAnimation(context);
             }
 
             if (event.phase != UiEventPhase::Target ||
@@ -369,6 +378,7 @@ namespace gts::ui
             if (buttonDesc.onPressed)
                 buttonDesc.onPressed();
             applyPanelStateSkin(context);
+            applyStateAnimation(context);
 
             if (buttonDesc.preventDefault)
                 event.preventDefault();
@@ -419,6 +429,25 @@ namespace gts::ui
                 context.ui.setPayload(context.surface, rootHandle, UiRectData{skin.color});
         }
 
+        void applyStateAnimation(UiWidgetContext& context)
+        {
+            if (!buttonDesc.stateAnimation || rootHandle == UI_INVALID_HANDLE)
+                return;
+
+            const UiNode* node = context.ui.findNode(context.surface, rootHandle);
+            if (node == nullptr)
+                return;
+
+            UiStyleTransitionDesc transitionDesc = *buttonDesc.stateAnimation;
+            transitionDesc.fromState = lastStyleState;
+            const UiStyleState targetState = uiStyleStateFromFlags(node->state);
+            context.ui.transitionStyleState(context.surface,
+                                            rootHandle,
+                                            targetState,
+                                            transitionDesc);
+            lastStyleState = targetState;
+        }
+
         void registerNavigation(UiWidgetContext& context)
         {
             if (!buttonDesc.focusable || rootHandle == UI_INVALID_HANDLE)
@@ -436,6 +465,7 @@ namespace gts::ui
         UiButtonDesc buttonDesc;
         UiHandle labelHandle = UI_INVALID_HANDLE;
         bool pressed = false;
+        UiStyleState lastStyleState = UiStyleState::Normal;
     };
 
     struct UiImageDesc

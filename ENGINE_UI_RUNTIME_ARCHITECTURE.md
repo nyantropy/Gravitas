@@ -74,6 +74,13 @@ register drag sources and drop targets with typed opaque payloads; the drag
 runtime owns armed/dragging/drop/cancel lifecycle, pointer capture, target
 resolution, and retained drag event delivery.
 
+The fourteenth foundational primitive is now implemented: `UiAnimationManager`
+owns surface-local temporal presentation. The UI runtime consumes the existing
+engine tween easing primitives, owns retained node property timelines,
+interrupts/cancels animations by node/property, prunes destroyed subtrees, and
+applies animated style, payload, and layout values before rendering extracts the
+current frame.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
@@ -84,8 +91,9 @@ default screen `UiSurface` for compatibility and can create additional surfaces.
 Each `UiSurface` owns one `UiDocument`, one layer stack, one
 `UiInputDispatcher`, one `UiFocusManager`, one `UiModalManager`, one
 `UiMountManager`, one `UiNavigationGraph`, one `UiDragDropManager`, and one
-active `UiTheme`. Renderer-side text bindings and command caches are tracked
-per surface because `UiHandle` values remain document-local.
+`UiAnimationManager`, and one active `UiTheme`. Renderer-side text bindings and
+command caches are tracked per surface because `UiHandle` values remain
+document-local.
 
 The default screen surface preserves the old normalized `0..1` coordinate space.
 Additional surfaces declare a normalized output rect; screen input is converted
@@ -145,6 +153,16 @@ drop targets from the hit-tested path, suppresses click/navigation competition,
 and emits `DragStart`, `DragMove`, `DragEnter`, `DragLeave`, `DragOver`,
 `DragDrop`, `DragAccept`, `DragReject`, `DragCancel`, and `DragEnd` events.
 
+The retained animation path is now centralized. Widgets, compositions, modal
+descriptors, and compatibility code request target presentation state through
+`UiSystem::animate(...)`, `animateOpacity(...)`, or `transitionStyleState(...)`.
+Each surface's `UiAnimationManager` owns active property timelines, uses the
+existing `gts::tween` easing/progress primitives, applies computed values to
+retained node style/payload/layout properties, and cancels timelines
+automatically when nodes, mounts, layers, or surfaces disappear.
+`RenderingRuntime::renderFrame(...)` advances UI animations once per frame
+before command extraction, so rendering consumes already-computed presentation.
+
 ### UiSystem
 
 `UiSystem` is the render-facing facade over `UiSurface`. It exposes legacy
@@ -189,11 +207,10 @@ Missing from `UiSystem` today:
 - Held-navigation repeat policy.
 - Full multi-pointer dispatch. Focus state is already keyed by pointer id, but
   `UiInputFrame` still carries only the primary pointer.
-- Drag/drop as a runtime primitive.
-- Modal enter/exit transitions.
 - Mature layout services such as per-node invalidation boundaries, two-pass
   constrained text wrapping, and virtualized scroll content.
-- Animation runtime for widget state transitions.
+- First-class animation graph authoring, reduced-motion policy, and delayed
+  modal/mount teardown after exit transitions.
 
 ### UiDocument
 
@@ -502,10 +519,21 @@ Those are now migration targets, not separate engine styling models.
 
 ### Animation
 
-There is no generic UI animation runtime. The engine has a tween module and the
-VN stage uses tweens for sprite/background presentation, but retained UI nodes do
-not have built-in transitions, state animations, timelines, or modal enter/exit
-animations.
+`UiAnimationManager` is now the generic retained UI animation runtime. It is
+surface-local and owns active property timelines for retained node style,
+payload, and layout values. It consumes the shared `gts::tween` primitives for
+easing/progress and applies interpolated presentation back to retained nodes
+before rendering extracts the current frame.
+
+VN stage tweens remain a domain-specific stage presentation system. They are not
+the retained UI animation owner, but they share the same underlying tween
+primitive.
+
+Current retained UI animation covers opacity, colors/tints, layout offsets,
+fixed size, content offset, theme-driven style-state transitions, widget state
+hooks, and modal owner open/close hooks. It does not yet provide animation graph
+authoring, reduced-motion policy, delayed modal/mount teardown, or serialized
+animation assets.
 
 ### Visual Novel, Dialogue, and Choices
 
@@ -3582,21 +3610,164 @@ Regression status now includes:
   Future editor windows/render targets can add explicit cross-surface policy
   without changing source/target registration.
 
+## 19. Phase 13 Implementation: Animation Runtime
+
+### Investigation
+
+Existing time-based UI presentation was split across unrelated systems:
+
+- `VNStage` owns sprite position, scale, rotation, alpha, shake, and dimming
+  tweens directly for visual-novel stage presentation.
+- Widget hover/pressed/focused visuals were immediate style or payload changes.
+- Modal open/close and prompt visibility changed immediately.
+- Layout changes, scroll offsets, and theme state changes snapped instantly.
+- Scene texture/particle/object animation systems exist, but they are world
+  presentation systems rather than retained UI property ownership.
+
+The reusable interpolation primitive already existed in `modules/tween/Tween.h`.
+The UI runtime should consume that easing/progress math, while owning retained
+UI lifecycle, property targeting, interruption, cleanup, and integration with
+surfaces, mounts, widgets, modals, layout, and themes.
+
+### Architecture
+
+`UiAnimationManager` is surface-local. It owns active retained UI property
+timelines and never owns rendering, widgets, focus, modal policy, or gameplay
+meaning.
+
+Implemented animatable properties:
+
+- `Opacity`
+- `BackgroundColor`
+- `ForegroundColor`
+- `RectColor`
+- `TextColor`
+- `ImageTint`
+- `NineSliceTint`
+- `LayoutOffsetMin`
+- `LayoutOffsetMax`
+- `LayoutFixedSize`
+- `LayoutContentOffset`
+
+The runtime model is:
+
+`Widget/Composition/Modal -> desired presentation -> UiAnimationManager -> retained node properties -> renderer`
+
+Animation descriptors carry a target node, property, optional start value,
+target value, duration, delay, easing, repeat/ping-pong/loop flags, snap policy,
+and optional completion callback. Starting a new animation for the same
+`(node, property)` interrupts the old one and uses the current retained value as
+the new start unless a caller supplies an explicit start value.
+
+Style-state transitions are theme-driven. A widget can request transition to a
+target `UiStyleState`; the manager resolves the previous and target presentation
+through `UiTheme`, then animates explicit node style overrides. Themes remain
+presentation data. Widgets do not interpolate values.
+
+Layout animation remains separate from layout solving. The layout engine
+continues to compute geometry; animation writes authored layout properties such
+as offsets, fixed size, and scroll/content offset over time. Rendering consumes
+the resulting computed layout after extraction updates dirty documents.
+
+Modal integration is policy-level. `UiModalDesc` can request open/close opacity
+timing for its owner. The modal manager still owns modal stack policy and focus
+restoration; the animation runtime only owns temporal presentation.
+
+### Implementation
+
+Implemented:
+
+- `UiAnimationTypes.h`
+- `UiAnimationManager.h`
+- `UiAnimationManager.cpp`
+- surface-local `UiSurface::animationManager()`
+- `UiSystem::animationManager(...)`
+- `UiSystem::animate(...)`
+- `UiSystem::animateOpacity(...)`
+- `UiSystem::transitionStyleState(...)`
+- `UiSystem::cancelAnimation(...)`
+- `UiSystem::cancelAnimations(...)`
+- `UiSystem::updateAnimations(dt)`
+- automatic animation cleanup during node, mount, layer, and surface teardown.
+- render-frame ticking in `RenderingRuntime::renderFrame(...)` before UI
+  command extraction.
+- optional state animation descriptors on `UiButtonWidget`.
+- optional modal owner open/close opacity transitions on `UiModalDesc`.
+
+The core target now includes the shared tween header directory so UI animation
+uses `gts::tween::Tween<float>`, `TweenEase`, and easing functions instead of
+duplicating interpolation policy.
+
+### Feature Demonstration
+
+Two representative transitions now use runtime-owned animation:
+
+- `UiButtonWidget` can animate theme-resolved state transitions such as
+  normal-to-hover background changes through `UiStyleTransitionDesc`.
+- `InteractionPromptComposition` fades its panel and label in/out through
+  `UiSystem::animate(...)` and `animateOpacity(...)` rather than feature-owned
+  interpolation.
+
+### Validation
+
+Added `ui_animation_runtime`, covering:
+
+- opacity interpolation and completion.
+- interruption from the current animated value.
+- cancellation with completion.
+- layout offset animation.
+- theme-driven button hover transition.
+- mount destruction cleanup.
+- modal open/close transition hooks.
+- surface-local animation isolation.
+
+Regression status now includes:
+
+- `ui_layer_runtime`
+- `ui_input_dispatcher_runtime`
+- `ui_focus_manager_runtime`
+- `ui_modal_manager_runtime`
+- `ui_mount_runtime`
+- `ui_composition_runtime`
+- `ui_event_propagation_runtime`
+- `ui_surface_runtime`
+- `ui_layout_runtime`
+- `ui_theme_runtime`
+- `ui_widget_runtime`
+- `ui_navigation_runtime`
+- `ui_drag_drop_runtime`
+- `ui_animation_runtime`
+
+### Remaining Animation Debt
+
+- VN stage animation still owns sprite/stage tweens directly because it is a
+  domain-specific presentation runtime, not retained UI node animation.
+- Inventory, merchant, menus, and many editor tools still snap most retained
+  visual changes immediately.
+- Drag previews and drop feedback have hooks through drag events and animatable
+  properties but no first-class preview animation helper yet.
+- Modal close animation does not delay modal pop or mount destruction; future
+  transition policy should coordinate deferred teardown.
+- There is no reduced-motion/accessibility policy, animation graph authoring,
+  or serialized animation asset format yet.
+
 ### Next Primitive
 
 With Layers, Dispatch, Focus, Modals, Mounts, Compositions, Event Propagation,
-UiSurface, Layout, Styling, Widgets, Navigation, and Drag & Drop implemented,
-the single highest-value remaining primitive is the **Animation Runtime**.
+UiSurface, Layout, Styling, Widgets, Navigation, Drag & Drop, and Animation
+implemented, the single highest-value remaining primitive is **Data Binding**.
 
-Animation should precede data binding, accessibility, virtualized lists, and
-widget asset definitions because the runtime now owns the state transitions
-that need temporal presentation: hover, press, focus, navigation highlight,
-modal open/close, drag previews, drop feedback, layout changes, and theme state
-changes. A generic animation runtime can build directly on computed layout,
-computed style, widgets, events, focus, modal, navigation, and drag/drop without
-inventing new ownership rules.
+Data binding should precede accessibility, virtualized lists, widget asset
+definitions, and UI serialization because the runtime now has durable targets
+for owned state changes: widgets, style, layout, animation, navigation, events,
+and drag/drop. The remaining duplication is synchronization code that manually
+copies gameplay/editor model state into retained widgets every frame. A binding
+runtime would make UI reflect model changes declaratively, reduce rebuild/sync
+boilerplate, and provide the change-notification substrate needed later for
+accessibility announcements, virtualization invalidation, serialized widget
+definitions, and editor tooling.
 
-## 19. Final Recommendation
+## 20. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -3626,9 +3797,10 @@ direction is surface-local styling and theme resolution. The eleventh committed
 direction is reusable composition-owned widgets. The twelfth committed
 direction is surface-local non-pointer traversal and activation through
 `UiNavigationGraph`. The thirteenth committed direction is surface-local direct
-manipulation through `UiDragDropManager`.
+manipulation through `UiDragDropManager`. The fourteenth committed direction is
+surface-local temporal presentation through `UiAnimationManager`.
 
-The next milestone should implement an Animation Runtime. It should precede
-data binding, accessibility, virtualized lists, and widget asset definitions
-because the runtime now owns the interaction, geometry, styling, widget, and
-direct-manipulation state changes that need coherent temporal presentation.
+The next milestone should implement Data Binding. It should precede
+accessibility, virtualized lists, widget asset definitions, and UI serialization
+because the runtime now needs a generic way to synchronize model state into
+widgets, layout, style, and animation without feature-owned per-frame sync code.

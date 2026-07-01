@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 
+#include "UiAnimationManager.h"
 #include "UiDocument.h"
 #include "UiDragDropManager.h"
 #include "UiFocusManager.h"
@@ -79,6 +80,8 @@ public:
     const UiDragDropManager& dragDropManager() const { return dragDropState; }
     UiNavigationGraph& navigationGraph() { return navigationState; }
     const UiNavigationGraph& navigationGraph() const { return navigationState; }
+    UiAnimationManager& animationManager() { return animationState; }
+    const UiAnimationManager& animationManager() const { return animationState; }
     UiTheme& theme() { return themeState; }
     const UiTheme& theme() const { return themeState; }
     void setTheme(const UiTheme& theme);
@@ -93,5 +96,6 @@ private:
     UiInputDispatcher dispatcher;
     UiDragDropManager dragDropState;
     UiNavigationGraph navigationState;
+    UiAnimationManager animationState;
     UiTheme themeState;
 };

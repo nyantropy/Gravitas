@@ -31,6 +31,7 @@ void UiSurface::clear()
     mountState.reset(documentState);
     dragDropState.clear();
     navigationState.clear();
+    animationState.clear();
     dispatcher.clear();
 }
 

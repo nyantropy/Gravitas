@@ -8,6 +8,7 @@
 
 #include "BitmapFont.h"
 #include "IResourceProvider.hpp"
+#include "UiAnimationManager.h"
 #include "UiCommand.h"
 #include "UiComposition.h"
 #include "UiDocument.h"
@@ -122,6 +123,35 @@ public:
     bool registerDropTarget(UiSurfaceId surfaceId, UiHandle handle, const UiDropTargetDesc& desc);
     bool unregisterDropTarget(UiHandle handle);
     bool unregisterDropTarget(UiSurfaceId surfaceId, UiHandle handle);
+    UiAnimationManager&       animationManager();
+    const UiAnimationManager& animationManager() const;
+    UiAnimationManager*       animationManager(UiSurfaceId surfaceId);
+    const UiAnimationManager* animationManager(UiSurfaceId surfaceId) const;
+    UiAnimationId animate(const UiAnimationDesc& desc);
+    UiAnimationId animate(UiSurfaceId surfaceId, const UiAnimationDesc& desc);
+    UiAnimationId animateOpacity(UiHandle handle,
+                                 float opacity,
+                                 const UiAnimationTiming& timing = {});
+    UiAnimationId animateOpacity(UiSurfaceId surfaceId,
+                                 UiHandle handle,
+                                 float opacity,
+                                 const UiAnimationTiming& timing = {});
+    std::vector<UiAnimationId> transitionStyleState(UiHandle handle,
+                                                    UiStyleState state,
+                                                    const UiStyleTransitionDesc& desc = {});
+    std::vector<UiAnimationId> transitionStyleState(UiSurfaceId surfaceId,
+                                                    UiHandle handle,
+                                                    UiStyleState state,
+                                                    const UiStyleTransitionDesc& desc = {});
+    bool cancelAnimation(UiAnimationId animationId, bool complete = false);
+    bool cancelAnimation(UiSurfaceId surfaceId, UiAnimationId animationId, bool complete = false);
+    uint32_t cancelAnimations(UiHandle handle, bool complete = false);
+    uint32_t cancelAnimations(UiSurfaceId surfaceId, UiHandle handle, bool complete = false);
+    bool isAnimating(UiHandle handle) const;
+    bool isAnimating(UiSurfaceId surfaceId, UiHandle handle) const;
+    bool isAnimating(UiHandle handle, UiAnimationProperty property) const;
+    bool isAnimating(UiSurfaceId surfaceId, UiHandle handle, UiAnimationProperty property) const;
+    UiAnimationFrameResult updateAnimations(float dt);
     UiMountManager&       mountManager();
     const UiMountManager& mountManager() const;
     Metrics           getLastMetrics() const;

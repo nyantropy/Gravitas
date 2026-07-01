@@ -1,8 +1,10 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
+#include "UiAnimationTypes.h"
 #include "UiDocument.h"
 #include "UiFocusManager.h"
 #include "UiInteraction.h"
@@ -37,6 +39,11 @@ struct UiModalDesc
     bool consumeKeyboard = true;
     bool consumeNavigation = true;
     bool consumeTextInput = true;
+    std::optional<UiAnimationTiming> openAnimation;
+    std::optional<UiAnimationTiming> closeAnimation;
+    float openOpacityFrom = 0.0f;
+    float openOpacityTo = 1.0f;
+    float closeOpacityTo = 0.0f;
 };
 
 struct UiModal
