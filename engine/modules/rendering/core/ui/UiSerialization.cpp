@@ -9,6 +9,7 @@
 
 #include "UiSystem.h"
 #include "UiWidget.h"
+#include "UiWidgetAsset.h"
 
 namespace
 {
@@ -1165,10 +1166,31 @@ namespace
             return widget;
         widget.id = stringOr(json, "id", widget.id);
         widget.type = stringOr(json, "type", widget.type);
+        widget.asset = stringOr(json, "asset", widget.asset);
+        widget.variant = stringOr(json, "variant", widget.variant);
         widget.text = stringOr(json, "text", widget.text);
         widget.styleClass = stringOr(json, "styleClass", widget.styleClass);
         widget.labelStyleClass = stringOr(json, "labelStyleClass", widget.labelStyleClass);
         widget.imageAsset = stringOr(json, "imageAsset", widget.imageAsset);
+        if (const UiJsonValue* parameters = json.find("parameters"))
+        {
+            if (const Object* object = asObject(*parameters))
+            {
+                for (const auto& [key, value] : *object)
+                {
+                    if (const auto* string = std::get_if<std::string>(&value.value))
+                        widget.parameters[key] = *string;
+                    else if (const auto* number = std::get_if<double>(&value.value))
+                    {
+                        std::ostringstream out;
+                        out << *number;
+                        widget.parameters[key] = out.str();
+                    }
+                    else if (const auto* boolean = std::get_if<bool>(&value.value))
+                        widget.parameters[key] = *boolean ? "true" : "false";
+                }
+            }
+        }
         if (const auto value = getString(json, "horizontalAlign"))
             widget.horizontalAlign = parseEnumString(*value, horizontalAlignEntries(), widget.horizontalAlign);
         if (const auto value = getString(json, "verticalAlign"))
@@ -1181,17 +1203,41 @@ namespace
         widget.rotation = numberOr(json, "rotation", widget.rotation);
         widget.progressValue = numberOr(json, "value", widget.progressValue);
         if (const UiJsonValue* value = json.find("contentOffset")) widget.contentOffset = parseVec2(*value, widget.contentOffset);
-        widget.visible = boolOr(json, "visible", widget.visible);
-        widget.enabled = boolOr(json, "enabled", widget.enabled);
-        widget.interactable = boolOr(json, "interactable", widget.interactable);
-        widget.decorative = boolOr(json, "decorative", widget.decorative);
-        if (const UiJsonValue* value = json.find("layout")) widget.layout = parseLayout(*value, widget.layout);
+        if (json.find("visible") != nullptr)
+        {
+            widget.visible = boolOr(json, "visible", widget.visible);
+            widget.hasVisible = true;
+        }
+        if (json.find("enabled") != nullptr)
+        {
+            widget.enabled = boolOr(json, "enabled", widget.enabled);
+            widget.hasEnabled = true;
+        }
+        if (json.find("interactable") != nullptr)
+        {
+            widget.interactable = boolOr(json, "interactable", widget.interactable);
+            widget.hasInteractable = true;
+        }
+        if (json.find("decorative") != nullptr)
+        {
+            widget.decorative = boolOr(json, "decorative", widget.decorative);
+            widget.hasDecorative = true;
+        }
+        if (const UiJsonValue* value = json.find("layout"))
+        {
+            widget.layout = parseLayout(*value, widget.layout);
+            widget.hasLayout = true;
+        }
         if (const UiJsonValue* value = json.find("semantics"))
         {
             widget.semantics = parseSemantic(*value);
             widget.hasSemantics = true;
         }
-        if (const UiJsonValue* value = json.find("navigation")) widget.navigation = parseNavigation(*value);
+        if (const UiJsonValue* value = json.find("navigation"))
+        {
+            widget.navigation = parseNavigation(*value);
+            widget.hasNavigation = true;
+        }
         if (const UiJsonValue* value = json.find("dragSource")) widget.dragSource = parseDragSource(*value);
         if (const UiJsonValue* value = json.find("dropTarget")) widget.dropTarget = parseDropTarget(*value);
         if (const UiJsonValue* value = json.find("stateTransition")) widget.stateTransition = parseStyleTransition(*value);
@@ -1211,6 +1257,21 @@ namespace
                     widget.children.push_back(parseWidget(item));
             }
         }
+        if (const UiJsonValue* value = json.find("slots"))
+        {
+            if (const Object* object = asObject(*value))
+            {
+                for (const auto& [slotName, slotValue] : *object)
+                {
+                    if (const Array* array = asArray(slotValue))
+                    {
+                        std::vector<UiSerializedWidget>& children = widget.slots[slotName];
+                        for (const UiJsonValue& item : *array)
+                            children.push_back(parseWidget(item));
+                    }
+                }
+            }
+        }
         return widget;
     }
 
@@ -1222,10 +1283,24 @@ namespace
         Array children;
         for (const UiSerializedWidget& child : widget.children)
             children.push_back(serializeWidget(child));
+        Object parameters;
+        for (const auto& [key, value] : widget.parameters)
+            parameters.emplace_back(key, jsonString(value));
+        Object slots;
+        for (const auto& [slotName, slotChildren] : widget.slots)
+        {
+            Array slotArray;
+            for (const UiSerializedWidget& child : slotChildren)
+                slotArray.push_back(serializeWidget(child));
+            slots.emplace_back(slotName, jsonArray(std::move(slotArray)));
+        }
 
         Object object = {
             {"id", jsonString(widget.id)},
             {"type", jsonString(widget.type)},
+            {"asset", jsonString(widget.asset)},
+            {"variant", jsonString(widget.variant)},
+            {"parameters", jsonObject(std::move(parameters))},
             {"layout", serializeLayout(widget.layout)},
             {"styleClass", jsonString(widget.styleClass)},
             {"labelStyleClass", jsonString(widget.labelStyleClass)},
@@ -1246,7 +1321,8 @@ namespace
             {"decorative", jsonBool(widget.decorative)},
             {"navigation", serializeNavigation(widget.navigation)},
             {"bindings", jsonArray(std::move(bindings))},
-            {"children", jsonArray(std::move(children))}
+            {"children", jsonArray(std::move(children))},
+            {"slots", jsonObject(std::move(slots))}
         };
         if (widget.hasSemantics)
             object.emplace_back("semantics", serializeSemantic(widget.semantics));
@@ -1342,14 +1418,17 @@ namespace
 
     void validateWidget(const UiSerializedWidget& widget,
                         const UiTheme* theme,
+                        const UiWidgetAssetRegistry* widgetAssets,
                         UiSerializedValidationResult& result,
                         const std::string& path,
                         std::unordered_map<std::string, int>& ids)
     {
-        if (widget.type.empty())
-            result.error(path, "widget type is required");
-        else if (!isKnownWidgetType(widget.type))
+        if (widget.type.empty() && widget.asset.empty())
+            result.error(path, "widget type or widget asset is required");
+        else if (!widget.type.empty() && !isKnownWidgetType(widget.type))
             result.error(path, "unknown widget type '" + widget.type + "'");
+        if (!widget.asset.empty() && widgetAssets != nullptr && widgetAssets->findAsset(widget.asset) == nullptr)
+            result.error(path, "unknown widget asset '" + widget.asset + "'");
 
         if (!widget.id.empty())
             ++ids[widget.id];
@@ -1373,7 +1452,19 @@ namespace
         }
 
         for (size_t i = 0; i < widget.children.size(); ++i)
-            validateWidget(widget.children[i], theme, result, path + ".children[" + std::to_string(i) + "]", ids);
+            validateWidget(widget.children[i], theme, widgetAssets, result, path + ".children[" + std::to_string(i) + "]", ids);
+        for (const auto& [slotName, slotChildren] : widget.slots)
+        {
+            for (size_t i = 0; i < slotChildren.size(); ++i)
+            {
+                validateWidget(slotChildren[i],
+                               theme,
+                               widgetAssets,
+                               result,
+                               path + ".slots." + slotName + "[" + std::to_string(i) + "]",
+                               ids);
+            }
+        }
     }
 
     UiDragSourceDesc makeDragSourceDesc(const UiSerializedDragSource& source)
@@ -1851,6 +1942,17 @@ std::string serializeUiSerializedAsset(const UiSerializedAsset& asset)
     return serializeUiJson(serializeAssetJson(asset), 0);
 }
 
+bool parseUiSerializedWidget(const UiJsonValue& json, UiSerializedWidget& outWidget)
+{
+    outWidget = parseWidget(json);
+    return !outWidget.type.empty() || !outWidget.asset.empty();
+}
+
+UiJsonValue serializeUiSerializedWidget(const UiSerializedWidget& widget)
+{
+    return serializeWidget(widget);
+}
+
 bool loadUiSerializedAssetFromFile(const std::string& path,
                                    UiSerializedAsset& outAsset,
                                    UiSerializedValidationResult* outValidation)
@@ -1886,6 +1988,13 @@ bool saveUiSerializedAssetToFile(const std::string& path,
 UiSerializedValidationResult validateUiSerializedAsset(const UiSerializedAsset& asset,
                                                        const UiTheme* theme)
 {
+    return validateUiSerializedAsset(asset, theme, nullptr);
+}
+
+UiSerializedValidationResult validateUiSerializedAsset(const UiSerializedAsset& asset,
+                                                       const UiTheme* theme,
+                                                       const UiWidgetAssetRegistry* widgetAssets)
+{
     UiSerializedValidationResult result;
     if (asset.id.empty())
         result.warning("$.id", "asset id is empty");
@@ -1893,7 +2002,7 @@ UiSerializedValidationResult validateUiSerializedAsset(const UiSerializedAsset& 
         result.error("$.schema", "UI asset schema version is not supported");
 
     std::unordered_map<std::string, int> ids;
-    validateWidget(asset.root, theme, result, "$.root", ids);
+    validateWidget(asset.root, theme, widgetAssets, result, "$.root", ids);
     for (const auto& [id, count] : ids)
     {
         if (count > 1)
@@ -1907,10 +2016,22 @@ UiSerializedLoadResult UiSerializationRuntime::instantiate(UiSystem& ui,
                                                            UiMountId mount,
                                                            const UiSerializedAsset& asset,
                                                            const IUiSerializedBindingResolver* bindingResolver,
-                                                           const UiTheme* validationTheme)
+                                                           const UiTheme* validationTheme,
+                                                           const UiWidgetAssetRegistry* widgetAssets)
 {
     UiSerializedLoadResult result;
-    result.validation = validateUiSerializedAsset(asset, validationTheme);
+    UiSerializedAsset resolvedAsset = asset;
+    if (widgetAssets != nullptr)
+    {
+        if (!widgetAssets->expandSerializedAsset(asset, resolvedAsset, &result.validation))
+            return result;
+    }
+
+    UiSerializedValidationResult validation =
+        validateUiSerializedAsset(resolvedAsset, validationTheme, widgetAssets);
+    result.validation.issues.insert(result.validation.issues.end(),
+                                    validation.issues.begin(),
+                                    validation.issues.end());
     if (!result.validation.valid())
         return result;
 
@@ -1922,7 +2043,7 @@ UiSerializedLoadResult UiSerializationRuntime::instantiate(UiSystem& ui,
     }
 
     InstantiationContext context{ui, surface, mount, bindingResolver, result};
-    instantiateWidget(context, parent, asset.root);
+    instantiateWidget(context, parent, resolvedAsset.root);
     result.success = result.validation.valid() && result.instance.root != UI_INVALID_HANDLE;
     return result;
 }

@@ -1026,6 +1026,14 @@ runtime handles, focus, hover, capture, computed geometry, active animations, or
 C++ callbacks. Applications provide binding source resolution and attach
 behavior through stable serialized widget ids.
 
+Widget asset definitions are engine-owned for reusable authored UI structure.
+`UiWidgetAssetRegistry` stores versioned `UiWidgetAssetDefinition` data with
+stable asset ids, parameters, slots, variants, inheritance, dependencies, and a
+serialized root widget tree. Serialized widgets may reference an asset by id;
+the registry expands those references into ordinary `UiSerializedWidget` trees
+before `UiSerializationRuntime` instantiates retained nodes. This keeps asset
+reuse, serialization, runtime widgets, and C++ composition behavior separate.
+
 UI extraction is surface-aware. `UiSystem::extractCommandsRef(...)` extracts
 visible/render-enabled surfaces in surface order, resolves each surface's
 document into a surface-local command buffer, then transforms the vertices into

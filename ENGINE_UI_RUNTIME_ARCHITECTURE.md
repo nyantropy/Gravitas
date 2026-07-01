@@ -103,6 +103,14 @@ animation timing hints, accessibility semantics, optional surface descriptors,
 and layer descriptors. The loader instantiates that data into an existing
 mount while C++ remains responsible for behavior and binding source resolution.
 
+The eighteenth foundational primitive is now implemented: Widget Asset
+Definitions own reusable authored UI building blocks. `UiWidgetAssetRegistry`
+stores versioned widget assets, resolves base assets and variants, substitutes
+parameters, fills named slots, expands nested asset references into ordinary
+serialized widget trees, and then lets the serialization runtime instantiate
+the resolved graph. Assets remain authored data; runtime widgets and
+compositions still own behavior.
+
 ## 1. Current Architecture
 
 ### Runtime Summary
@@ -114,7 +122,8 @@ Each `UiSurface` owns one `UiDocument`, one layer stack, one
 `UiInputDispatcher`, one `UiFocusManager`, one `UiModalManager`, one
 `UiMountManager`, one `UiNavigationGraph`, one `UiDragDropManager`, and one
 `UiAnimationManager`, one `UiBindingManager`, one `UiAccessibilityManager`, and
-one active `UiTheme`.
+one active `UiTheme`. `UiSystem` also owns one `UiWidgetAssetRegistry` for
+authored reusable widget assets.
 Renderer-side font bindings and command caches are tracked per surface because
 `UiHandle` values remain
 document-local.
@@ -4261,26 +4270,153 @@ Added `ui_serialization_runtime`, covering:
 - Serialized explicit navigation neighbors are parsed as ids, but final handle
   patch-up is future work.
 - The loader builds structure but does not preserve widget objects for
-  built-in event callbacks; C++ behavior attachment is intentionally the next
-  layer.
-- There is no visual editor or widget asset registry yet.
+  built-in event callbacks; C++ behavior attachment still happens through
+  stable ids, compositions, and widgets.
+- There is no visual editor, localization runtime, or live file watcher yet.
+
+## 23. Phase 17 Implementation: Widget Asset Definitions
+
+### Investigation
+
+Serialization made retained UI durable, but every serialized tree was still a
+one-off document. Repeated authored structures remained visible across the
+engine and game:
+
+- prompt panels are panel/label trees with the same fade, live-region, and
+  bottom-aligned layout policy.
+- menu buttons repeat a rect plus centered label plus navigation metadata.
+- merchant and inventory slots repeat panel/image/label/overlay patterns.
+- progress bars repeat track/fill/semantic range metadata.
+- editor/tool rows repeat label/value/button structures.
+
+Those repeated structures are not runtime systems and should not become
+gameplay classes. They are authored assets: reusable definitions that expand
+into serialized widget trees.
+
+### Architecture
+
+`UiWidgetAssetDefinition` is the authored asset layer above
+`UiSerializedAsset`.
+
+A widget asset stores:
+
+- stable asset `id`, schema version, asset version, display name,
+  description, tags, and dependencies.
+- optional `baseAsset` for inheritance.
+- parameters with type, default value, required flag, and description.
+- named slots with target widget ids and optional default children.
+- variants that override parameter defaults, slot defaults, or root widget
+  fields.
+- one root `UiSerializedWidget` tree.
+
+The registry resolves assets in this order:
+
+1. Load the base asset, if any.
+2. Merge the derived asset over the base asset.
+3. Apply the requested variant.
+4. Collect parameter defaults and caller overrides.
+5. Fill named slots.
+6. Substitute `{{parameter}}` tokens in authored string fields.
+7. Prefix stable widget ids for reusable instances.
+8. Expand nested asset references into ordinary serialized widgets.
+
+The result is not a special runtime object. It is a resolved
+`UiSerializedWidget` tree. `UiSerializationRuntime` remains the only loader
+that creates retained nodes.
+
+### Runtime Integration
+
+`UiSystem` now owns a `UiWidgetAssetRegistry` and exposes:
+
+- `widgetAssets()`
+- `instantiateWidgetAsset(...)`
+
+`UiSerializedWidget` can also reference an asset directly through `asset`,
+`variant`, `parameters`, and `slots`. During `UiSystem::instantiateUiAsset(...)`,
+the serialization runtime asks the registry to expand asset references before
+validation and instantiation.
+
+This keeps the boundaries clean:
+
+- Widget assets own reusable authored structure.
+- Serialization owns storage and runtime graph loading.
+- Widgets own behavior and retained primitives.
+- Compositions own feature logic and callback attachment.
+
+### Inheritance, Variants, Slots, And Parameters
+
+Inheritance merges asset metadata, parameters, slots, variants, and root widget
+trees. Children with the same stable id are merged; new children are appended.
+This supports `Button -> DangerButton` style reuse without copying the full
+button tree.
+
+Variants avoid asset duplication for common presentation or sizing choices,
+such as `primary`, `compact`, or `danger`. Variants can override parameter
+defaults, slot defaults, or specific root fields.
+
+Slots let assets compose other authored trees. A dialogue window can define
+`Header`, `Body`, `Choices`, and `Footer`; an inventory slot can define
+`Icon`, `Quantity`, `Overlay`, and `Selection`. Slot content can itself be an
+asset reference, so reusable authored assets compose recursively.
+
+Parameters are string-substituted with `{{name}}` in asset-authored fields.
+They are intentionally generic; the engine does not know whether `label`,
+`icon`, or `valuePath` is gameplay, editor, or tool data.
+
+### Feature Demonstration
+
+`InteractionPromptComposition` now registers two widget assets:
+
+- `engine.status_prompt`: reusable panel plus live status label structure.
+- `dungeon.interaction_prompt`: derived dungeon-specific presentation defaults.
+
+The composition instantiates `dungeon.interaction_prompt` through
+`UiSystem::instantiateWidgetAsset(...)`. C++ still owns the prompt observable
+state, binding resolver, runtime font pointer, and visibility behavior while
+the reusable authored asset owns panel/label structure, layout, style classes,
+binding paths, animation hints, and accessibility metadata.
+
+### Validation
+
+Added `ui_widget_asset_runtime`, covering:
+
+- asset parsing and round-trip serialization.
+- registry lookup.
+- base asset inheritance.
+- variants.
+- parameter substitution.
+- slots and nested asset references.
+- serialized UI documents that instantiate widget assets.
+- runtime handle mappings, style classes, text payloads, and navigation
+  metadata.
+- widget asset file save/load.
+
+### Remaining Widget Asset Debt
+
+- Asset files are supported, but there is no directory/package loader yet.
+- No live file watching or hot reload is implemented.
+- No asset inheritance diff UI or visual editing metadata is implemented.
+- No localization key model is attached to parameters yet.
+- Serialized navigation neighbor ids are still not patched to final handles.
+- Behavior attachment remains C++ by stable id; callback serialization remains
+  intentionally out of scope.
 
 ### Next Capability
 
-With Serialization complete, the single highest-value capability to build next
-is **Widget Asset Definitions**.
+With Widget Asset Definitions complete, the single highest-value capability to
+build next is **Visual UI Editor**.
 
-Widget Asset Definitions should precede a visual UI editor, automation runtime,
-virtualized lists, and localization runtime because serialization provides the
-data format, but not yet the reusable asset vocabulary. Prefabs/templates,
-named widget assets, default property sets, reusable behavior attachment ids,
-and asset-level validation rules are the natural layer above the serializer.
-A visual editor should author widget assets; automation should query loaded
-semantic UI; localization should bind text keys; virtualized lists should be
-specialized widgets. All of those become cleaner once reusable widget assets
-exist.
+The runtime now has durable serialized UI and reusable authored widget assets.
+A visual editor is the first capability that exercises the full platform:
+surfaces, mounts, widgets, layout, themes, bindings, accessibility semantics,
+serialization, and widget asset definitions. Localization, automation, hot
+reload, and virtualized lists are valuable, but they either consume authored
+assets or specialize runtime behavior. A visual editor should come next because
+it turns the completed architecture into an authoring workflow and will expose
+schema, validation, reusable asset, and inspection gaps before UI content
+scales further.
 
-## 23. Final Recommendation
+## 24. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
@@ -4292,6 +4428,8 @@ runtime. The engine should own explicit surfaces, layers, mountable
 compositions, centralized input dispatch, focus, modal policy, layout, styling,
 widgets, navigation, drag/drop, animation, data binding, accessibility
 semantics, serialization, and future presentation systems.
+`UiWidgetAssetRegistry` should own reusable authored widget definitions above
+serialization while leaving runtime behavior in widgets and compositions.
 
 This architecture is the smallest durable set of primitives that naturally
 supports visual novels, RPG HUDs, strategy panels, action-game overlays, editor
@@ -4317,10 +4455,10 @@ committed direction is surface-local one-way synchronization through
 `UiBindingManager`. The sixteenth committed direction is surface-local semantic
 UI meaning and announcements through `UiAccessibilityManager`. The seventeenth
 committed direction is durable retained UI structure through the UI
-Serialization Runtime.
+Serialization Runtime. The eighteenth committed direction is reusable authored
+UI definitions through `UiWidgetAssetRegistry`.
 
-The next milestone should implement Widget Asset Definitions. It should precede
-the visual editor, automation runtime, virtualized lists, and localization
-runtime because serialized UI now needs reusable asset-level composition,
-defaults, validation, and behavior attachment contracts before higher-level
-tools or specialized widgets build on the data format.
+The next milestone should implement a Visual UI Editor. It should precede
+localization runtime, automation runtime, hot reload, and virtualized lists
+because the runtime now has the persistent and reusable authored model that an
+editor can create, validate, inspect, and save.

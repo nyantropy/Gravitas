@@ -1667,7 +1667,38 @@ UiSerializedLoadResult UiSystem::instantiateUiAsset(UiSurfaceId surfaceId,
                                                mountId,
                                                asset,
                                                bindingResolver,
-                                               activeTheme);
+                                               activeTheme,
+                                               &widgetAssetRegistry);
+}
+
+UiWidgetAssetRegistry& UiSystem::widgetAssets()
+{
+    return widgetAssetRegistry;
+}
+
+const UiWidgetAssetRegistry& UiSystem::widgetAssets() const
+{
+    return widgetAssetRegistry;
+}
+
+UiSerializedLoadResult UiSystem::instantiateWidgetAsset(const UiWidgetAssetInstanceDesc& desc,
+                                                        UiMountId mountId,
+                                                        const IUiSerializedBindingResolver* bindingResolver)
+{
+    return instantiateWidgetAsset(defaultSurfaceId, desc, mountId, bindingResolver);
+}
+
+UiSerializedLoadResult UiSystem::instantiateWidgetAsset(UiSurfaceId surfaceId,
+                                                        const UiWidgetAssetInstanceDesc& desc,
+                                                        UiMountId mountId,
+                                                        const IUiSerializedBindingResolver* bindingResolver)
+{
+    return widgetAssetRegistry.instantiate(*this,
+                                           surfaceId,
+                                           mountId,
+                                           desc,
+                                           bindingResolver,
+                                           theme(surfaceId));
 }
 
 UiCommandBuffer UiSystem::extractCommands(int viewportWidth, int viewportHeight)

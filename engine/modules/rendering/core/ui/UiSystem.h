@@ -21,6 +21,7 @@
 #include "UiRenderResolver.h"
 #include "UiSerialization.h"
 #include "UiSurface.h"
+#include "UiWidgetAsset.h"
 
 // Engine-owned retained UI model plus render-side text/resource bindings.
 class UiSystem
@@ -257,6 +258,15 @@ public:
                                                const UiSerializedAsset& asset,
                                                UiMountId mountId,
                                                const IUiSerializedBindingResolver* bindingResolver = nullptr);
+    UiWidgetAssetRegistry&       widgetAssets();
+    const UiWidgetAssetRegistry& widgetAssets() const;
+    UiSerializedLoadResult instantiateWidgetAsset(const UiWidgetAssetInstanceDesc& desc,
+                                                   UiMountId mountId,
+                                                   const IUiSerializedBindingResolver* bindingResolver = nullptr);
+    UiSerializedLoadResult instantiateWidgetAsset(UiSurfaceId surfaceId,
+                                                   const UiWidgetAssetInstanceDesc& desc,
+                                                   UiMountId mountId,
+                                                   const IUiSerializedBindingResolver* bindingResolver = nullptr);
 
     UiCommandBuffer extractCommands(int viewportWidth, int viewportHeight);
     const UiCommandBuffer& extractCommandsRef(int viewportWidth, int viewportHeight);
@@ -323,6 +333,7 @@ private:
     UiSurfaceId                                nextSurfaceId = UI_DEFAULT_SURFACE + 1;
     UiCompositionId                            nextCompositionId = UI_INVALID_COMPOSITION + 1;
     UiDispatchResult                           lastDispatchResult;
+    UiWidgetAssetRegistry                      widgetAssetRegistry;
     UiCommandBuffer                            commandCache;
     UiCommandBuffer                            emptyCommandBuffer;
     Metrics                                    lastMetrics;

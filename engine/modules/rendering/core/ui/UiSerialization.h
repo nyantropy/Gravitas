@@ -17,6 +17,7 @@
 #include "UiTheme.h"
 
 class UiSystem;
+class UiWidgetAssetRegistry;
 
 inline constexpr int UI_SERIALIZATION_SCHEMA_VERSION = 1;
 
@@ -85,7 +86,12 @@ struct UiSerializedWidget
 {
     std::string id;
     std::string type;
+    std::string asset;
+    std::string variant;
+    std::unordered_map<std::string, std::string> parameters;
+    std::unordered_map<std::string, std::vector<UiSerializedWidget>> slots;
     UiLayoutSpec layout;
+    bool hasLayout = false;
     std::string styleClass;
     std::string labelStyleClass;
     std::string text;
@@ -103,9 +109,14 @@ struct UiSerializedWidget
     bool enabled = true;
     bool interactable = false;
     bool decorative = true;
+    bool hasVisible = false;
+    bool hasEnabled = false;
+    bool hasInteractable = false;
+    bool hasDecorative = false;
     UiSemanticDesc semantics;
     bool hasSemantics = false;
     UiSerializedNavigation navigation;
+    bool hasNavigation = false;
     std::optional<UiSerializedDragSource> dragSource;
     std::optional<UiSerializedDropTarget> dropTarget;
     std::optional<UiStyleTransitionDesc> stateTransition;
@@ -198,6 +209,8 @@ bool parseUiSerializedAsset(const std::string& json,
                             UiSerializedAsset& outAsset,
                             UiSerializedValidationResult* outValidation = nullptr);
 std::string serializeUiSerializedAsset(const UiSerializedAsset& asset);
+bool parseUiSerializedWidget(const UiJsonValue& json, UiSerializedWidget& outWidget);
+UiJsonValue serializeUiSerializedWidget(const UiSerializedWidget& widget);
 bool loadUiSerializedAssetFromFile(const std::string& path,
                                    UiSerializedAsset& outAsset,
                                    UiSerializedValidationResult* outValidation = nullptr);
@@ -207,6 +220,9 @@ bool saveUiSerializedAssetToFile(const std::string& path,
 
 UiSerializedValidationResult validateUiSerializedAsset(const UiSerializedAsset& asset,
                                                        const UiTheme* theme = nullptr);
+UiSerializedValidationResult validateUiSerializedAsset(const UiSerializedAsset& asset,
+                                                       const UiTheme* theme,
+                                                       const UiWidgetAssetRegistry* widgetAssets);
 
 class UiSerializationRuntime
 {
@@ -216,5 +232,6 @@ public:
                                               UiMountId mount,
                                               const UiSerializedAsset& asset,
                                               const IUiSerializedBindingResolver* bindingResolver = nullptr,
-                                              const UiTheme* validationTheme = nullptr);
+                                              const UiTheme* validationTheme = nullptr,
+                                              const UiWidgetAssetRegistry* widgetAssets = nullptr);
 };
