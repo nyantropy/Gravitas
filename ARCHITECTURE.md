@@ -1224,11 +1224,13 @@ The module is split into:
 - `ui/`: retained UI construction/sync for dialogue boxes, choices, fullscreen
   backgrounds, dimming, and character sprite images
 - `systems/`: `VNSystem`, a controller system that owns one runtime instance,
-  routes continue/pointer input, syncs UI, and writes playback state
+  routes continue/input events, syncs UI, and writes playback/frontend state
 - `components/`: `VNPlaybackStateComponent`, a lightweight singleton view of
   whether VN playback is active, waiting, or blocking gameplay input, and
   `VNExternalPresentationComponent`, an optional presentation override for
-  dialogue-driven VN backgrounds, dimming, and sprites
+  dialogue-driven VN backgrounds, dimming, and sprites, plus
+  `VNFrontendStateComponent`, which publishes the VN surface, composition,
+  modal layer, and modal-slot mount for game-side modal integrations
 
 The VN stage supports multiple background modes: current scene, fullscreen image,
 solid color, and none. Current-scene mode leaves the 3D scene visible and renders
@@ -1246,13 +1248,24 @@ background/dimming/wait/choice/jump. `VNCommandRegistry` lets applications regis
 gameplay-specific commands such as starting combat or setting relationship state
 without hardcoding any game vocabulary into the engine module.
 
-VN presentation is skinned through `VNPresentationProfile`, not through scripts.
-The profile owns dialogue panel, shadow, nameplate, choice-button state skins,
-text colors/scales, layout rectangles, and sprite motion presets. Scripts should
+VN presentation is authored through `VNPresentationProfile`, not through
+scripts. The profile owns dialogue panel, shadow, nameplate, choice-button state
+skins, text colors/scales, layout seeds, and sprite motion presets. The runtime
+frontend converts that profile into surface-local `UiTheme` style classes,
+metrics, skins, typography, and widget layout constraints. Scripts should
 continue to describe content and presentation intent such as speaker, text,
 choices, sprite identity, background mode, and named animation preset; concrete
 panel textures, nine-slice values, padding, and hover/pressed visuals belong in
-the active profile.
+the active profile/theme seed.
+
+The VN frontend is authored as `VNDialogueComposition` over the retained UI
+runtime. It builds a stage layer, dialogue panel widgets, speaker/body/continue
+labels, a vertical choice stack of button widgets, retained event handling,
+navigation metadata, and a VN modal slot. Choice activation routes through
+`UiComposition::onEvent(...)` and `UiNavigationGraph` submit events instead of
+polling `UiDispatchResult` handles. Stage sprite placement remains VN stage
+presentation data because sprites are authored in normalized stage coordinates,
+not as conventional controls.
 
 Dialogue-driven VN presentation can opt into a traditional full-VN scene without
 changing dialogue graph data. A game may populate `VNExternalPresentationComponent`

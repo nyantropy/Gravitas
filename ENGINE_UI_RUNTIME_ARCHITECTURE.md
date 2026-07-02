@@ -605,9 +605,11 @@ emitted from computed style. Legacy payload-local colors, text scales, image
 tints, and panel skins still work when no style class or explicit style override
 is present.
 
-Higher-level systems such as VN presentation profiles, engine tool themes,
-menus, inventory, merchant UI, and HUDs still contain feature-local styling.
-Those are now migration targets, not separate engine styling models.
+Higher-level systems such as engine tool themes, menus, inventory, merchant UI,
+and HUDs still contain feature-local styling. VN presentation profiles now seed
+surface-local `UiTheme` style classes, metrics, skins, and typography for the
+VN frontend; the profile remains a content-compatible theme seed rather than a
+separate styling runtime.
 
 ### Animation
 
@@ -679,15 +681,34 @@ The dialogue module is a generic graph runtime. It owns graph state, node
 advance, visible choices, condition/action registries, and dialogue events. It
 does not render UI.
 
-The visual novel module is a presentation module above retained UI. It lazily
-builds `VNDialogueUi`, mirrors active dialogue runtime state into VN presentation
-state, and routes choice clicks or continue input back to the dialogue runtime.
-VN stage data includes background mode, dimming, sprites, sprite z-order, and
-tweened stage motion.
+The visual novel module is now the first full feature migrated onto the retained
+UI runtime. `VNDialogueComposition` owns the frontend mount and describes the
+structure in terms of runtime widgets and layout containers:
 
-VN UI currently reads the centralized dispatch result for choice clicks. Because
-it is built lazily and still uses the default screen document, it should move to
-an explicit VN/dialogue layer during a later migration.
+- stage layer: background color/image, dimming, sprite layer, and stage effects.
+- dialogue layer: themed panel widget, nameplate panel widget, speaker label,
+  body label, and continue label.
+- choice layer: vertical `UiStackWidget` containing `UiButtonWidget` choices.
+- modal slot: a VN-owned layer and mount published through
+  `VNFrontendStateComponent` for game-side merchant, inventory, settings, and
+  confirmation modal compositions.
+
+VN presentation state still includes background mode, dimming, sprites, sprite
+z-order, and tweened stage motion. Sprite transforms remain authored in VN stage
+coordinates and are intentionally synchronized as presentation geometry rather
+than control layout.
+
+The VN frontend no longer reads `UiDispatchResult` for choice activation.
+Choice buttons receive retained pointer and navigation-submit events through
+`VNDialogueComposition::onEvent(...)`, and the composition exposes a semantic
+choice index to `VNRuntimeInput` / `DialogueRuntime`.
+
+VN layout now uses overlay constraints, panel content padding, and a choice
+stack instead of per-frame row calculations. `VNPresentationProfile` still
+exists for content compatibility, but it now feeds `UiTheme` classes such as
+`VN.Dialogue.Panel`, `VN.Text.Body`, and `VN.Choice.Button`; colors, text scales,
+panel skins, choice state skins, spacing, and choice heights are resolved as
+theme data. The compatibility profile is not an independent presentation model.
 
 ### Merchant UI
 
@@ -696,10 +717,16 @@ a retained full-screen scrim/window and many retained handles for cells, item
 icons, labels, buttons, and text.
 
 Merchant UI reads centralized dispatch results for retained buttons and scrim
-clicks, but still computes grid cell hover/selection behavior manually from its
-own pixel layout. Merchant open/closed state is stored in a game singleton
-component. Merchant input blocking is handled by `DungeonInputGate`, not by a
-generic modal system.
+clicks, but when the VN frontend is mounted, `MerchantUiCoordinator` reparents
+the merchant root into a merchant child `UiMount` under the VN modal slot and
+pushes an engine `UiModalDesc` on the VN modal layer. The VN remains visible
+underneath, and `UiModalManager` owns pointer/navigation blocking, cancel
+dismissal, and focus restoration for that modal.
+
+Merchant grid cell hover/selection still computes from the feature's pixel
+layout and raw pointer position. That grid behavior is an intentional
+compatibility path until the inventory/merchant grid controls migrate to runtime
+drag/drop and grid widgets.
 
 ### Inventory UI
 
@@ -708,8 +735,11 @@ panel layout and writes normalized retained nodes for display. Drag/drop,
 hovered cell, item footprint, rotation, and placement behavior are computed
 manually from input and inventory layout data.
 
-Inventory UI does not participate fully in engine retained hit testing. It uses
-feature-specific ownership and feature-specific input routing.
+Inventory UI does not yet participate fully in engine retained hit testing. Its
+event and drag/drop behavior remain feature-specific, but its next ownership
+step is clear: mount it as a composition under the VN modal slot or another
+feature modal mount while preserving grid semantics until runtime drag/drop and
+grid widgets are adopted.
 
 ### Menus
 

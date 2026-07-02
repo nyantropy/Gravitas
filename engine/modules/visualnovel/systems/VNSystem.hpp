@@ -19,6 +19,7 @@
 #include "VNDialogueComposition.h"
 #include "VNDialogueUi.h"
 #include "VNExternalPresentationComponent.h"
+#include "VNFrontendStateComponent.h"
 #include "VNPlaybackStateComponent.h"
 
 namespace gts::vn
@@ -60,7 +61,8 @@ namespace gts::vn
 
         void update(const EcsControllerContext& ctx) override
         {
-            buildUiIfNeeded(ctx.ui);
+            buildUiIfNeeded(ctx.world, ctx.ui);
+            writeFrontendState(ctx.world, ctx.ui);
 
             if (dialogueActive(ctx.world))
             {
@@ -97,6 +99,8 @@ namespace gts::vn
         VNSystemConfig config;
         VNRuntime runtime;
         UiCompositionId dialogueCompositionId = UI_INVALID_COMPOSITION;
+        UiLayerId modalLayerId = UI_INVALID_LAYER;
+        UiMountId modalSlotMountId = UI_INVALID_MOUNT;
         bool uiBuilt = false;
         bool renderPassVisibilityOverridden = false;
         bool executionProfilePushed = false;
@@ -109,7 +113,7 @@ namespace gts::vn
                 && world.getSingleton<gts::dialogue::DialogueRuntimeComponent>().runtime.isActive();
         }
 
-        void buildUiIfNeeded(UiSystem* ui)
+        void buildUiIfNeeded(ECSWorld& world, UiSystem* ui)
         {
             if (uiBuilt || ui == nullptr)
                 return;
@@ -119,7 +123,20 @@ namespace gts::vn
             dialogueCompositionId = ui->mountComposition(
                 std::make_unique<VNDialogueComposition>(config.ui, runtime),
                 desc);
-            uiBuilt = dialogueCompositionId != UI_INVALID_COMPOSITION;
+            if (dialogueCompositionId == UI_INVALID_COMPOSITION)
+                return;
+
+            modalLayerId = ui->createLayer("vn-modal-slot", 400);
+            if (modalLayerId != UI_INVALID_LAYER)
+            {
+                UiMountDesc modalSlotDesc;
+                modalSlotDesc.name = "vn-modal-slot";
+                modalSlotDesc.attachment.layer = modalLayerId;
+                modalSlotMountId = ui->createMount(modalSlotDesc);
+            }
+
+            uiBuilt = true;
+            writeFrontendState(world, ui);
         }
 
         VNDialogueComposition* dialogueComposition(UiSystem* ui) const
@@ -134,6 +151,22 @@ namespace gts::vn
         {
             if (ui != nullptr && uiBuilt)
                 ui->updateComposition(dialogueCompositionId);
+        }
+
+        void writeFrontendState(ECSWorld& world, UiSystem* ui) const
+        {
+            if (!world.hasAny<VNFrontendStateComponent>())
+                world.createSingleton<VNFrontendStateComponent>();
+
+            VNFrontendStateComponent& state = world.getSingleton<VNFrontendStateComponent>();
+            state.mounted = uiBuilt && ui != nullptr;
+            state.surface = ui == nullptr ? UI_DEFAULT_SURFACE : ui->compositionSurface(dialogueCompositionId);
+            state.composition = dialogueCompositionId;
+            state.modalLayer = modalLayerId;
+            state.modalSlotMount = modalSlotMountId;
+            state.modalSlotRoot = ui == nullptr || modalSlotMountId == UI_INVALID_MOUNT
+                ? UI_INVALID_HANDLE
+                : ui->mountRoot(state.surface, modalSlotMountId);
         }
 
         bool continuePressed(const EcsControllerContext& ctx) const

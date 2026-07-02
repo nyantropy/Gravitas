@@ -19,12 +19,12 @@ namespace gts::vn
 
         void build(UiCompositionContext& context) override
         {
-            handles = VNDialogueUi::build(context.ui, context.root, config);
+            handles = VNDialogueUi::build(context, config);
         }
 
         void update(UiCompositionContext& context) override
         {
-            VNDialogueUi::sync(context.ui, handles, config, runtime);
+            VNDialogueUi::sync(context, handles, config, runtime);
         }
 
         void onEvent(UiCompositionContext& context, UiEvent& event) override
@@ -32,7 +32,7 @@ namespace gts::vn
             if (event.phase != UiEventPhase::Target)
                 return;
 
-            const int choiceIndex = VNDialogueUi::handleChoiceEvent(context.ui, handles, event);
+            const int choiceIndex = VNDialogueUi::handleChoiceEvent(context, handles, event);
             if (choiceIndex < 0)
                 return;
 
@@ -43,7 +43,7 @@ namespace gts::vn
 
         void destroy(UiCompositionContext& context) override
         {
-            VNDialogueUi::destroy(context.ui, handles);
+            VNDialogueUi::destroy(context, handles);
         }
 
         int consumeClickedChoiceIndex()

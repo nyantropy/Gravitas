@@ -9,7 +9,6 @@
 #include "UiEvent.h"
 #include "UiInteraction.h"
 #include "UiNode.h"
-#include "UiPanelSkinNode.h"
 #include "UiSystem.h"
 #include "UiWidget.h"
 #include "VNPresentationProfile.h"
@@ -27,25 +26,35 @@ namespace gts::vn
     struct VNDialogueUiHandles
     {
         UiHandle root = UI_INVALID_HANDLE;
-        UiHandle backgroundColor = UI_INVALID_HANDLE;
-        UiHandle backgroundImage = UI_INVALID_HANDLE;
-        UiHandle dimming = UI_INVALID_HANDLE;
+        UiHandle stageLayer = UI_INVALID_HANDLE;
+        gts::ui::UiPanelWidget backgroundColor;
+        gts::ui::UiImageWidget backgroundImage;
+        gts::ui::UiPanelWidget dimming;
         UiHandle spriteLayer = UI_INVALID_HANDLE;
-        std::vector<UiHandle> spriteImages;
+        std::vector<gts::ui::UiImageWidget> spriteImages;
+
         UiHandle dialogueLayer = UI_INVALID_HANDLE;
-        gts::ui::UiPanelSkinNodeHandles panelShadow;
-        gts::ui::UiPanelSkinNodeHandles panel;
-        gts::ui::UiPanelSkinNodeHandles nameplate;
-        UiHandle speakerText = UI_INVALID_HANDLE;
-        UiHandle bodyText = UI_INVALID_HANDLE;
-        UiHandle continueIndicator = UI_INVALID_HANDLE;
-        UiHandle choiceLayer = UI_INVALID_HANDLE;
+        gts::ui::UiPanelWidget panelShadow;
+        gts::ui::UiPanelWidget panel;
+        gts::ui::UiPanelWidget nameplate;
+        gts::ui::UiLabelWidget speakerText;
+        gts::ui::UiLabelWidget bodyText;
+        gts::ui::UiLabelWidget continueIndicator;
+
+        gts::ui::UiStackWidget choiceLayer;
         std::vector<gts::ui::UiButtonWidget> choiceButtons;
     };
 
     class VNDialogueUi
     {
     public:
+        static VNDialogueUiHandles build(UiCompositionContext& context, const VNDialogueUiConfig& config)
+        {
+            installTheme(context.ui, context.surface, config.profile);
+            gts::ui::UiWidgetContext widgetContext(context);
+            return build(widgetContext, context.root, config);
+        }
+
         static VNDialogueUiHandles build(UiSystem& ui, const VNDialogueUiConfig& config)
         {
             return build(ui, UI_INVALID_HANDLE, config);
@@ -53,136 +62,29 @@ namespace gts::vn
 
         static VNDialogueUiHandles build(UiSystem& ui, UiHandle parent, const VNDialogueUiConfig& config)
         {
-            VNDialogueUiHandles handles;
-            const VNPresentationProfile& profile = config.profile;
-
-            handles.root = ui.createNode(UiNodeType::Container, parent);
-            ui.setLayout(handles.root, anchored(0.0f, 0.0f, 1.0f, 1.0f));
-            setState(ui, handles.root, false, false);
-
-            handles.backgroundColor = ui.createNode(UiNodeType::Rect, handles.root);
-            ui.setLayout(handles.backgroundColor, anchored(0.0f, 0.0f, 1.0f, 1.0f));
-            setState(ui, handles.backgroundColor, false, false);
-
-            handles.backgroundImage = ui.createNode(UiNodeType::Image, handles.root);
-            ui.setLayout(handles.backgroundImage, anchored(0.0f, 0.0f, 1.0f, 1.0f));
-            setState(ui, handles.backgroundImage, false, false);
-
-            handles.dimming = ui.createNode(UiNodeType::Rect, handles.root);
-            ui.setLayout(handles.dimming, anchored(0.0f, 0.0f, 1.0f, 1.0f));
-            setState(ui, handles.dimming, false, false);
-
-            handles.spriteLayer = ui.createNode(UiNodeType::Container, handles.root);
-            ui.setLayout(handles.spriteLayer, anchored(0.0f, 0.0f, 1.0f, 1.0f));
-            setState(ui, handles.spriteLayer, true, false);
-
-            handles.spriteImages.reserve(profile.layout.maxSprites);
-            for (size_t i = 0; i < profile.layout.maxSprites; ++i)
-            {
-                UiHandle image = ui.createNode(UiNodeType::Image, handles.spriteLayer);
-                ui.setLayout(image, absolute(0.0f, 0.0f, 0.0f, 0.0f));
-                setState(ui, image, false, false);
-                handles.spriteImages.push_back(image);
-            }
-
-            handles.dialogueLayer = ui.createNode(UiNodeType::Container, handles.root);
-            ui.setLayout(handles.dialogueLayer, rectToAnchored(profile.layout.dialogue));
-            setState(ui, handles.dialogueLayer, false, false);
-
-            UiRect shadowRect = {0.010f, 0.030f, 1.0f, 1.0f};
-            handles.panelShadow = gts::ui::UiPanelSkinNode::build(
-                ui, handles.dialogueLayer, rectToAnchored(shadowRect));
-            gts::ui::UiPanelSkinNode::applySkin(ui, handles.panelShadow, profile.dialogueSkin.panelShadow);
-
-            handles.panel = gts::ui::UiPanelSkinNode::build(
-                ui, handles.dialogueLayer, anchored(0.0f, 0.0f, 1.0f, 1.0f));
-            gts::ui::UiPanelSkinNode::applySkin(ui, handles.panel, profile.dialogueSkin.panel);
-
-            handles.nameplate = gts::ui::UiPanelSkinNode::build(
-                ui, handles.dialogueLayer, rectToAnchored(profile.layout.nameplate));
-            gts::ui::UiPanelSkinNode::applySkin(ui, handles.nameplate, profile.dialogueSkin.nameplate);
-
-            handles.speakerText = ui.createNode(UiNodeType::Text, handles.nameplate.content);
-            ui.setLayout(handles.speakerText, rectToAnchored(profile.layout.speakerText));
-            setTextNode(ui,
-                        handles.speakerText,
-                        config.font,
-                        "",
-                        profile.dialogueSkin.speakerText,
-                        profile.dialogueSkin.speakerTextScale);
-            setTextAlignment(ui, handles.speakerText, UiHorizontalAlign::Left, UiVerticalAlign::Middle);
-
-            handles.bodyText = ui.createNode(UiNodeType::Text, handles.dialogueLayer);
-            UiLayoutSpec bodyLayout = rectToAnchored(profile.layout.bodyText);
-            bodyLayout.margin = profile.dialogueSkin.textPadding;
-            ui.setLayout(handles.bodyText, bodyLayout);
-            setTextNode(ui,
-                        handles.bodyText,
-                        config.font,
-                        "",
-                        profile.dialogueSkin.bodyText,
-                        profile.dialogueSkin.bodyTextScale);
-            setTextWrap(ui, handles.bodyText, 4);
-
-            handles.continueIndicator = ui.createNode(UiNodeType::Text, handles.dialogueLayer);
-            ui.setLayout(handles.continueIndicator, rectToAnchored(profile.layout.continueIndicator));
-            setTextNode(ui,
-                        handles.continueIndicator,
-                        config.font,
-                        ">",
-                        profile.dialogueSkin.continueIndicator,
-                        profile.dialogueSkin.bodyTextScale);
-            setTextAlignment(ui, handles.continueIndicator, UiHorizontalAlign::Right, UiVerticalAlign::Middle);
-
-            handles.choiceLayer = ui.createNode(UiNodeType::Container, handles.root);
-            UiLayoutSpec choiceLayerLayout = rectToAnchored(profile.layout.choices);
-            choiceLayerLayout.layoutMode = UiLayoutMode::Stack;
-            choiceLayerLayout.stackAxis = UiLayoutAxis::Vertical;
-            choiceLayerLayout.crossAxisAlignment = UiLayoutAlignment::Stretch;
-            const float choiceRowHeight = profile.layout.choices.height /
-                static_cast<float>(std::max<size_t>(1, profile.layout.maxChoices));
-            const float choiceGap = std::min(profile.layout.choiceRowGap * profile.layout.choices.height,
-                                             choiceRowHeight * 0.40f);
-            choiceLayerLayout.gap = choiceGap;
-            ui.setLayout(handles.choiceLayer, choiceLayerLayout);
-            setState(ui, handles.choiceLayer, false, false);
-
+            installTheme(ui, ui.getDefaultSurface(), config.profile);
             gts::ui::UiWidgetContext widgetContext(ui);
-            handles.choiceButtons.reserve(profile.layout.maxChoices);
-            for (size_t i = 0; i < profile.layout.maxChoices; ++i)
-            {
-                UiLayoutSpec choiceLayout;
-                choiceLayout.constraints.preferredHeight =
-                    {UiLayoutUnit::Normalized, std::max(0.0f, choiceRowHeight - choiceGap)};
+            return build(widgetContext,
+                         parent == UI_INVALID_HANDLE ? ui.getRoot() : parent,
+                         config);
+        }
 
-                gts::ui::UiButtonDesc choiceDesc;
-                choiceDesc.layout = choiceLayout;
-                choiceDesc.labelLayout = anchored(0.045f, 0.0f, 0.910f, 1.0f);
-                choiceDesc.font = config.font;
-                choiceDesc.styleClass.clear();
-                choiceDesc.labelStyleClass.clear();
-                choiceDesc.panelStateSkin = profile.dialogueSkin.choice;
-                choiceDesc.textColor = profile.dialogueSkin.choiceText;
-                choiceDesc.textScale = profile.dialogueSkin.choiceTextScale;
-                choiceDesc.horizontalAlign = UiHorizontalAlign::Left;
-                choiceDesc.verticalAlign = UiVerticalAlign::Middle;
-                choiceDesc.wrapMode = UiTextWrapMode::Word;
-                choiceDesc.maxLines = 2;
-                choiceDesc.visible = false;
-
-                handles.choiceButtons.emplace_back();
-                handles.choiceButtons.back().build(widgetContext, handles.choiceLayer, choiceDesc);
-            }
-
-            return handles;
+        static void destroy(UiCompositionContext& context, VNDialogueUiHandles& handles)
+        {
+            destroy(context.ui, context.surface, handles);
         }
 
         static void destroy(UiSystem& ui, VNDialogueUiHandles& handles)
         {
-            if (handles.root != UI_INVALID_HANDLE)
-                ui.removeNode(handles.root);
+            destroy(ui, ui.getDefaultSurface(), handles);
+        }
 
-            handles = VNDialogueUiHandles{};
+        static void sync(UiCompositionContext& context,
+                         VNDialogueUiHandles& handles,
+                         const VNDialogueUiConfig& config,
+                         const VNRuntime& runtime)
+        {
+            sync(context.ui, context.surface, handles, config, runtime);
         }
 
         static void sync(UiSystem& ui,
@@ -190,18 +92,7 @@ namespace gts::vn
                          const VNDialogueUiConfig& config,
                          const VNRuntime& runtime)
         {
-            if (handles.root == UI_INVALID_HANDLE)
-                return;
-
-            const bool active = runtime.isActive();
-            setState(ui, handles.root, active, false);
-            if (!active)
-                return;
-
-            syncBackground(ui, handles, runtime.getStage());
-            syncDimming(ui, handles, config, runtime.getStage());
-            syncSprites(ui, handles, runtime.getStage());
-            syncDialogue(ui, handles, config, runtime.getDialogue());
+            sync(ui, ui.getDefaultSurface(), handles, config, runtime);
         }
 
         static int choiceIndexFromInteraction(const VNDialogueUiHandles& handles,
@@ -224,7 +115,7 @@ namespace gts::vn
 
         static int choiceIndexFromEvent(const VNDialogueUiHandles& handles, const UiEvent& event)
         {
-            if (event.type != UiEventType::PointerClick)
+            if (event.type != UiEventType::PointerClick && event.type != UiEventType::NavigationSubmit)
                 return -1;
 
             for (size_t i = 0; i < handles.choiceButtons.size(); ++i)
@@ -239,12 +130,212 @@ namespace gts::vn
             return -1;
         }
 
+        static int handleChoiceEvent(UiCompositionContext& context,
+                                     VNDialogueUiHandles& handles,
+                                     UiEvent& event)
+        {
+            gts::ui::UiWidgetContext widgetContext(context);
+            return handleChoiceEvent(widgetContext, handles, event);
+        }
+
         static int handleChoiceEvent(UiSystem& ui, VNDialogueUiHandles& handles, UiEvent& event)
         {
-            if (event.type != UiEventType::PointerClick)
+            gts::ui::UiWidgetContext widgetContext(ui);
+            return handleChoiceEvent(widgetContext, handles, event);
+        }
+
+    private:
+        static void installTheme(UiSystem& ui,
+                                 UiSurfaceId surface,
+                                 const VNPresentationProfile& profile)
+        {
+            const UiTheme* parentTheme = ui.theme(surface);
+            ui.setTheme(surface, vnThemeFromPresentationProfile(profile, parentTheme));
+        }
+
+        static VNDialogueUiHandles build(gts::ui::UiWidgetContext& widgetContext,
+                                         UiHandle parent,
+                                         const VNDialogueUiConfig& config)
+        {
+            VNDialogueUiHandles handles;
+            const VNPresentationProfile& profile = config.profile;
+
+            handles.root = widgetContext.ui.createNode(widgetContext.surface, UiNodeType::Container, parent);
+            UiLayoutSpec rootLayout = gts::ui::fillLayout();
+            rootLayout.layoutMode = UiLayoutMode::Overlay;
+            widgetContext.ui.setLayout(widgetContext.surface, handles.root, rootLayout);
+            setState(widgetContext, handles.root, false, false);
+
+            handles.stageLayer = widgetContext.ui.createNode(widgetContext.surface, UiNodeType::Container, handles.root);
+            UiLayoutSpec stageLayout = gts::ui::fillLayout();
+            stageLayout.layoutMode = UiLayoutMode::Overlay;
+            widgetContext.ui.setLayout(widgetContext.surface, handles.stageLayer, stageLayout);
+            setState(widgetContext, handles.stageLayer, true, false);
+
+            gts::ui::UiPanelDesc backgroundDesc;
+            backgroundDesc.layout = gts::ui::fillLayout();
+            backgroundDesc.styleClass = VNThemeClass::StageBackground;
+            backgroundDesc.visible = false;
+            handles.backgroundColor.build(widgetContext, handles.stageLayer, backgroundDesc);
+
+            gts::ui::UiImageDesc backgroundImageDesc;
+            backgroundImageDesc.layout = gts::ui::fillLayout();
+            backgroundImageDesc.visible = false;
+            handles.backgroundImage.build(widgetContext, handles.stageLayer, backgroundImageDesc);
+
+            gts::ui::UiPanelDesc dimmingDesc;
+            dimmingDesc.layout = gts::ui::fillLayout();
+            dimmingDesc.styleClass = VNThemeClass::StageDimming;
+            dimmingDesc.visible = false;
+            handles.dimming.build(widgetContext, handles.stageLayer, dimmingDesc);
+
+            handles.spriteLayer = widgetContext.ui.createNode(widgetContext.surface, UiNodeType::Container, handles.stageLayer);
+            widgetContext.ui.setLayout(widgetContext.surface, handles.spriteLayer, gts::ui::fillLayout());
+            setState(widgetContext, handles.spriteLayer, true, false);
+
+            handles.spriteImages.resize(profile.layout.maxSprites);
+            for (gts::ui::UiImageWidget& sprite : handles.spriteImages)
+            {
+                gts::ui::UiImageDesc spriteDesc;
+                spriteDesc.layout = absolute(0.0f, 0.0f, 0.0f, 0.0f);
+                spriteDesc.visible = false;
+                sprite.build(widgetContext, handles.spriteLayer, spriteDesc);
+            }
+
+            handles.dialogueLayer = widgetContext.ui.createNode(widgetContext.surface, UiNodeType::Container, handles.root);
+            UiLayoutSpec dialogueLayout = semanticOverlayRegion(profile.layout.dialogue);
+            dialogueLayout.layoutMode = UiLayoutMode::Overlay;
+            widgetContext.ui.setLayout(widgetContext.surface, handles.dialogueLayer, dialogueLayout);
+            setState(widgetContext, handles.dialogueLayer, false, false);
+
+            gts::ui::UiPanelDesc shadowDesc;
+            shadowDesc.layout = shadowLayout(widgetContext);
+            shadowDesc.styleClass = VNThemeClass::DialoguePanelShadow;
+            shadowDesc.visible = false;
+            handles.panelShadow.build(widgetContext, handles.dialogueLayer, shadowDesc);
+
+            gts::ui::UiPanelDesc panelDesc;
+            panelDesc.layout = gts::ui::fillLayout();
+            panelDesc.styleClass = VNThemeClass::DialoguePanel;
+            panelDesc.visible = false;
+            handles.panel.build(widgetContext, handles.dialogueLayer, panelDesc);
+            makeOverlayContent(widgetContext, handles.panel.content());
+
+            gts::ui::UiPanelDesc nameplateDesc;
+            nameplateDesc.layout = relativeOverlayRegion(profile.layout.nameplate);
+            nameplateDesc.styleClass = VNThemeClass::DialogueNameplate;
+            nameplateDesc.visible = false;
+            handles.nameplate.build(widgetContext, handles.dialogueLayer, nameplateDesc);
+
+            gts::ui::UiLabelDesc speakerDesc;
+            speakerDesc.layout = gts::ui::fillLayout();
+            speakerDesc.font = config.font;
+            speakerDesc.styleClass = VNThemeClass::SpeakerText;
+            speakerDesc.horizontalAlign = UiHorizontalAlign::Left;
+            speakerDesc.verticalAlign = UiVerticalAlign::Middle;
+            speakerDesc.visible = false;
+            handles.speakerText.build(widgetContext, handles.nameplate.content(), speakerDesc);
+
+            gts::ui::UiLabelDesc bodyDesc;
+            bodyDesc.layout = gts::ui::fillLayout();
+            bodyDesc.font = config.font;
+            bodyDesc.styleClass = VNThemeClass::BodyText;
+            bodyDesc.wrapMode = UiTextWrapMode::Word;
+            bodyDesc.maxLines = 4;
+            bodyDesc.visible = false;
+            handles.bodyText.build(widgetContext, handles.panel.content(), bodyDesc);
+
+            gts::ui::UiLabelDesc continueDesc;
+            continueDesc.layout = relativeOverlayRegion(profile.layout.continueIndicator);
+            continueDesc.text = ">";
+            continueDesc.font = config.font;
+            continueDesc.styleClass = VNThemeClass::ContinueText;
+            continueDesc.horizontalAlign = UiHorizontalAlign::Right;
+            continueDesc.verticalAlign = UiVerticalAlign::Middle;
+            continueDesc.visible = false;
+            handles.continueIndicator.build(widgetContext, handles.panel.content(), continueDesc);
+
+            gts::ui::UiStackDesc choiceStackDesc;
+            choiceStackDesc.layout = choiceLayerLayout(profile.layout.choices);
+            choiceStackDesc.axis = UiLayoutAxis::Vertical;
+            choiceStackDesc.crossAxisAlignment = UiLayoutAlignment::Stretch;
+            choiceStackDesc.gapMetric = VNThemeMetric::ChoiceGap;
+            choiceStackDesc.visible = false;
+            handles.choiceLayer.build(widgetContext, handles.root, choiceStackDesc);
+
+            handles.choiceButtons.resize(profile.layout.maxChoices);
+            for (size_t i = 0; i < handles.choiceButtons.size(); ++i)
+            {
+                gts::ui::UiButtonDesc choiceDesc;
+                choiceDesc.layout = choiceButtonLayout(widgetContext);
+                choiceDesc.labelLayout = choiceLabelLayout(widgetContext);
+                choiceDesc.font = config.font;
+                choiceDesc.styleClass = VNThemeClass::ChoiceButton;
+                choiceDesc.labelStyleClass = VNThemeClass::ChoiceLabel;
+                choiceDesc.horizontalAlign = UiHorizontalAlign::Left;
+                choiceDesc.verticalAlign = UiVerticalAlign::Middle;
+                choiceDesc.wrapMode = UiTextWrapMode::Word;
+                choiceDesc.maxLines = 2;
+                choiceDesc.visible = false;
+                choiceDesc.navigationGroup = "vn.choices";
+                choiceDesc.tabIndex = static_cast<int>(i);
+                choiceDesc.wrapNavigation = true;
+                choiceDesc.accessibilityHint = "Select dialogue choice";
+                handles.choiceButtons[i].build(widgetContext, handles.choiceLayer.root(), choiceDesc);
+            }
+
+            return handles;
+        }
+
+        static void destroy(UiSystem& ui, UiSurfaceId surface, VNDialogueUiHandles& handles)
+        {
+            if (handles.root != UI_INVALID_HANDLE)
+                ui.removeNode(surface, handles.root);
+
+            handles = VNDialogueUiHandles{};
+        }
+
+        static void sync(UiSystem& ui,
+                         UiSurfaceId surface,
+                         VNDialogueUiHandles& handles,
+                         const VNDialogueUiConfig& config,
+                         const VNRuntime& runtime)
+        {
+            if (handles.root == UI_INVALID_HANDLE)
+                return;
+
+            UiDocument* document = ui.findDocument(surface);
+            if (document == nullptr)
+                return;
+
+            UiCompositionContext compositionContext{
+                ui,
+                *document,
+                nullptr,
+                surface,
+                UI_INVALID_MOUNT,
+                handles.root
+            };
+            gts::ui::UiWidgetContext widgetContext(compositionContext);
+
+            const bool active = runtime.isActive();
+            setState(widgetContext, handles.root, active, false);
+            if (!active)
+                return;
+
+            syncBackground(widgetContext, handles, runtime.getStage());
+            syncDimming(widgetContext, handles, config, runtime.getStage());
+            syncSprites(widgetContext, handles, runtime.getStage());
+            syncDialogue(widgetContext, handles, runtime.getDialogue());
+        }
+
+        static int handleChoiceEvent(gts::ui::UiWidgetContext& widgetContext,
+                                     VNDialogueUiHandles& handles,
+                                     UiEvent& event)
+        {
+            if (event.type != UiEventType::PointerClick && event.type != UiEventType::NavigationSubmit)
                 return -1;
 
-            gts::ui::UiWidgetContext widgetContext(ui);
             for (size_t i = 0; i < handles.choiceButtons.size(); ++i)
             {
                 handles.choiceButtons[i].onEvent(widgetContext, event);
@@ -255,7 +346,6 @@ namespace gts::vn
             return -1;
         }
 
-    private:
         static bool eventTargetsHandle(const UiEvent& event, UiHandle handle)
         {
             if (handle == UI_INVALID_HANDLE)
@@ -264,6 +354,85 @@ namespace gts::vn
                 return true;
 
             return std::find(event.targetPath.begin(), event.targetPath.end(), handle) != event.targetPath.end();
+        }
+
+        static UiLayoutSpec semanticOverlayRegion(const UiRect& rect)
+        {
+            UiLayoutSpec layout;
+            layout.constraints.preferredWidth = {UiLayoutUnit::Normalized, std::max(0.0f, rect.width)};
+            layout.constraints.preferredHeight = {UiLayoutUnit::Normalized, std::max(0.0f, rect.height)};
+            layout.constraints.horizontalAlignment = UiLayoutAlignment::Center;
+            layout.constraints.verticalAlignment = UiLayoutAlignment::End;
+            layout.margin.bottom = std::max(0.0f, 1.0f - rect.y - rect.height);
+            return layout;
+        }
+
+        static UiLayoutSpec choiceLayerLayout(const UiRect& rect)
+        {
+            UiLayoutSpec layout;
+            layout.constraints.preferredWidth = {UiLayoutUnit::Normalized, std::max(0.0f, rect.width)};
+            layout.constraints.preferredHeight = {UiLayoutUnit::Content, 0.0f};
+            layout.constraints.horizontalAlignment = UiLayoutAlignment::End;
+            layout.constraints.verticalAlignment = UiLayoutAlignment::Center;
+            layout.margin.right = std::max(0.0f, 1.0f - rect.x - rect.width);
+            return layout;
+        }
+
+        static UiLayoutSpec relativeOverlayRegion(const UiRect& rect)
+        {
+            UiLayoutSpec layout;
+            layout.constraints.preferredWidth = {UiLayoutUnit::Percent, std::max(0.0f, rect.width)};
+            layout.constraints.preferredHeight = {UiLayoutUnit::Percent, std::max(0.0f, rect.height)};
+            layout.constraints.horizontalAlignment =
+                rect.x + rect.width * 0.5f >= 0.5f ? UiLayoutAlignment::End : UiLayoutAlignment::Start;
+            layout.constraints.verticalAlignment =
+                rect.y + rect.height * 0.5f >= 0.5f ? UiLayoutAlignment::End : UiLayoutAlignment::Start;
+
+            if (layout.constraints.horizontalAlignment == UiLayoutAlignment::End)
+                layout.margin.right = 1.0f - rect.x - rect.width;
+            else
+                layout.margin.left = rect.x;
+
+            if (layout.constraints.verticalAlignment == UiLayoutAlignment::End)
+                layout.margin.bottom = 1.0f - rect.y - rect.height;
+            else
+                layout.margin.top = rect.y;
+            return layout;
+        }
+
+        static UiLayoutSpec shadowLayout(gts::ui::UiWidgetContext& context)
+        {
+            const UiTheme* theme = context.ui.theme(context.surface);
+            const float offsetX = theme == nullptr
+                ? 0.010f
+                : theme->metricOr(VNThemeMetric::PanelShadowOffsetX, 0.010f);
+            const float offsetY = theme == nullptr
+                ? 0.030f
+                : theme->metricOr(VNThemeMetric::PanelShadowOffsetY, 0.030f);
+            UiLayoutSpec layout = gts::ui::fillLayout();
+            layout.margin = {offsetX, offsetY, -offsetX, -offsetY};
+            return layout;
+        }
+
+        static UiLayoutSpec choiceButtonLayout(gts::ui::UiWidgetContext& context)
+        {
+            const UiTheme* theme = context.ui.theme(context.surface);
+            const float height = theme == nullptr
+                ? 0.044f
+                : theme->metricOr(VNThemeMetric::ChoiceButtonHeight, 0.044f);
+
+            UiLayoutSpec layout;
+            layout.constraints.preferredHeight = {UiLayoutUnit::Normalized, height};
+            return layout;
+        }
+
+        static UiLayoutSpec choiceLabelLayout(gts::ui::UiWidgetContext& context)
+        {
+            const UiTheme* theme = context.ui.theme(context.surface);
+            const float inset = theme == nullptr
+                ? 0.045f
+                : theme->metricOr(VNThemeMetric::ChoiceLabelInset, 0.045f);
+            return anchored(inset, 0.0f, std::max(0.0f, 1.0f - inset * 2.0f), 1.0f);
         }
 
         static UiLayoutSpec anchored(float x, float y, float width, float height)
@@ -275,11 +444,6 @@ namespace gts::vn
             layout.anchorMin = {x, y};
             layout.anchorMax = {x + width, y + height};
             return layout;
-        }
-
-        static UiLayoutSpec rectToAnchored(const UiRect& rect)
-        {
-            return anchored(rect.x, rect.y, rect.width, rect.height);
         }
 
         static UiLayoutSpec absolute(float x, float y, float width, float height)
@@ -294,65 +458,41 @@ namespace gts::vn
             return layout;
         }
 
-        static void setState(UiSystem& ui, UiHandle handle, bool visible, bool interactable)
+        static void makeOverlayContent(gts::ui::UiWidgetContext& context, UiHandle handle)
         {
+            const UiNode* node = context.ui.findNode(context.surface, handle);
+            UiLayoutSpec layout = gts::ui::fillLayout();
+            layout.layoutMode = UiLayoutMode::Overlay;
+            if (node != nullptr)
+                layout.padding = node->layout.padding;
+            context.ui.setLayout(context.surface, handle, layout);
+        }
+
+        static void setState(gts::ui::UiWidgetContext& context,
+                             UiHandle handle,
+                             bool visible,
+                             bool interactable)
+        {
+            if (handle == UI_INVALID_HANDLE)
+                return;
+
             UiStateFlags state;
-            if (const UiNode* node = ui.findNode(handle))
+            if (const UiNode* node = context.ui.findNode(context.surface, handle))
                 state = node->state;
 
             state.visible = visible;
             state.enabled = visible;
-            state.interactable = interactable;
+            state.interactable = visible && interactable;
             if (!visible)
             {
                 state.hovered = false;
                 state.focused = false;
                 state.pressed = false;
             }
-            ui.setState(handle, state);
+            context.ui.setState(context.surface, handle, state);
         }
 
-        static void setTextNode(UiSystem& ui,
-                                UiHandle handle,
-                                BitmapFont* font,
-                                const std::string& text,
-                                UiColor color,
-                                float scale)
-        {
-            setState(ui, handle, true, false);
-            ui.setPayload(handle, UiTextData{text, {}, color, scale});
-            if (font != nullptr)
-                ui.setTextFont(handle, font);
-        }
-
-        static void setTextWrap(UiSystem& ui, UiHandle handle, int maxLines)
-        {
-            const UiNode* node = ui.findNode(handle);
-            if (node == nullptr || node->type != UiNodeType::Text)
-                return;
-
-            UiTextData text = std::get<UiTextData>(node->payload);
-            text.wrapMode = UiTextWrapMode::Word;
-            text.maxLines = maxLines;
-            ui.setPayload(handle, text);
-        }
-
-        static void setTextAlignment(UiSystem& ui,
-                                     UiHandle handle,
-                                     UiHorizontalAlign horizontalAlign,
-                                     UiVerticalAlign verticalAlign)
-        {
-            const UiNode* node = ui.findNode(handle);
-            if (node == nullptr || node->type != UiNodeType::Text)
-                return;
-
-            UiTextData text = std::get<UiTextData>(node->payload);
-            text.horizontalAlign = horizontalAlign;
-            text.verticalAlign = verticalAlign;
-            ui.setPayload(handle, text);
-        }
-
-        static void syncBackground(UiSystem& ui,
+        static void syncBackground(gts::ui::UiWidgetContext& context,
                                    const VNDialogueUiHandles& handles,
                                    const VNStage& stage)
         {
@@ -362,15 +502,15 @@ namespace gts::vn
             const bool showColor = background.mode == VNBackgroundMode::SolidColor
                 || background.mode == VNBackgroundMode::None;
 
-            setState(ui, handles.backgroundImage, showImage, false);
-            setState(ui, handles.backgroundColor, showColor, false);
+            setState(context, handles.backgroundImage.root(), showImage, false);
+            setState(context, handles.backgroundColor.root(), showColor, false);
 
             if (showImage)
             {
                 UiImageData image;
                 image.imageAsset = background.imageAsset;
                 image.tint = {1.0f, 1.0f, 1.0f, 1.0f};
-                ui.setPayload(handles.backgroundImage, image);
+                context.ui.setPayload(context.surface, handles.backgroundImage.root(), image);
             }
 
             if (showColor)
@@ -378,32 +518,33 @@ namespace gts::vn
                 const UiColor color = background.mode == VNBackgroundMode::None
                     ? UiColor{0.0f, 0.0f, 0.0f, 0.0f}
                     : UiColor{background.color.r, background.color.g, background.color.b, background.color.a};
-                ui.setPayload(handles.backgroundColor, UiRectData{color});
+                context.ui.setPayload(context.surface, handles.backgroundColor.root(), UiRectData{color});
             }
         }
 
-        static void syncDimming(UiSystem& ui,
+        static void syncDimming(gts::ui::UiWidgetContext& context,
                                 const VNDialogueUiHandles& handles,
                                 const VNDialogueUiConfig& config,
                                 const VNStage& stage)
         {
             const float alpha = std::clamp(stage.getDimming(), 0.0f, 1.0f);
-            setState(ui, handles.dimming, alpha > 0.0f, false);
-            ui.setPayload(handles.dimming, UiRectData{
+            setState(context, handles.dimming.root(), alpha > 0.0f, false);
+            context.ui.setPayload(context.surface, handles.dimming.root(), UiRectData{
                 UiColor{config.dimColor.r, config.dimColor.g, config.dimColor.b, config.dimColor.a * alpha}
             });
         }
 
-        static void syncSprites(UiSystem& ui,
+        static void syncSprites(gts::ui::UiWidgetContext& context,
                                 const VNDialogueUiHandles& handles,
                                 const VNStage& stage)
         {
             const std::vector<VNSpriteView> sprites = stage.spritesForRender();
             for (size_t i = 0; i < handles.spriteImages.size(); ++i)
             {
+                const UiHandle spriteHandle = handles.spriteImages[i].root();
                 if (i >= sprites.size())
                 {
-                    setState(ui, handles.spriteImages[i], false, false);
+                    setState(context, spriteHandle, false, false);
                     continue;
                 }
 
@@ -413,61 +554,49 @@ namespace gts::vn
                 const float x = sprite.position.x - width * 0.5f;
                 const float y = sprite.position.y - height * 0.5f;
 
-                ui.setLayout(handles.spriteImages[i], absolute(x, y, width, height));
-                setState(ui, handles.spriteImages[i], true, false);
+                context.ui.setLayout(context.surface, spriteHandle, absolute(x, y, width, height));
+                setState(context, spriteHandle, true, false);
 
                 UiImageData image;
                 image.imageAsset = sprite.imageAsset;
                 image.tint = {1.0f, 1.0f, 1.0f, std::clamp(sprite.alpha, 0.0f, 1.0f)};
                 image.rotation = sprite.rotation;
-                ui.setPayload(handles.spriteImages[i], image);
+                context.ui.setPayload(context.surface, spriteHandle, image);
             }
         }
 
-        static void syncDialogue(UiSystem& ui,
+        static void syncDialogue(gts::ui::UiWidgetContext& context,
                                  VNDialogueUiHandles& handles,
-                                 const VNDialogueUiConfig& config,
                                  const VNDialogueState& dialogue)
         {
-            const VNPresentationProfile& profile = config.profile;
-            gts::ui::UiWidgetContext widgetContext(ui);
             const bool showDialogue = dialogue.visible || !dialogue.choices.empty();
-            setState(ui, handles.dialogueLayer, showDialogue, false);
-            setState(ui, handles.choiceLayer, !dialogue.choices.empty(), false);
-            gts::ui::UiPanelSkinNode::setState(ui, handles.panelShadow, showDialogue, false);
-            gts::ui::UiPanelSkinNode::setState(ui, handles.panel, showDialogue, false);
-            gts::ui::UiPanelSkinNode::setState(ui, handles.nameplate, showDialogue && !dialogue.speaker.empty(), false);
+            const bool showChoices = !dialogue.choices.empty();
+            setState(context, handles.dialogueLayer, showDialogue, false);
+            setState(context, handles.choiceLayer.root(), showChoices, false);
+            handles.panelShadow.setVisible(context, showDialogue);
+            handles.panel.setVisible(context, showDialogue);
+            handles.nameplate.setVisible(context, showDialogue && !dialogue.speaker.empty());
 
             if (!showDialogue)
                 return;
 
-            setState(ui, handles.speakerText, !dialogue.speaker.empty(), false);
-            ui.setPayload(handles.speakerText, UiTextData{
-                dialogue.speaker,
-                {},
-                profile.dialogueSkin.speakerText,
-                profile.dialogueSkin.speakerTextScale
-            });
+            handles.speakerText.setVisible(context, !dialogue.speaker.empty());
+            handles.speakerText.setText(context, dialogue.speaker);
 
-            UiTextData bodyText;
-            bodyText.text = dialogue.visibleText;
-            bodyText.color = profile.dialogueSkin.bodyText;
-            bodyText.scale = profile.dialogueSkin.bodyTextScale;
-            bodyText.wrapMode = UiTextWrapMode::Word;
-            bodyText.maxLines = 4;
-            ui.setPayload(handles.bodyText, bodyText);
+            handles.bodyText.setVisible(context, dialogue.visible);
+            handles.bodyText.setText(context, dialogue.visibleText);
 
-            setState(ui, handles.continueIndicator, dialogue.continueIndicatorVisible, false);
+            handles.continueIndicator.setVisible(context, dialogue.continueIndicatorVisible);
 
             for (size_t i = 0; i < handles.choiceButtons.size(); ++i)
             {
                 const bool visible = i < dialogue.choices.size();
-                handles.choiceButtons[i].setVisible(widgetContext, visible);
+                handles.choiceButtons[i].setVisible(context, visible);
 
                 if (!visible)
                     continue;
 
-                handles.choiceButtons[i].setText(widgetContext, dialogue.choices[i].label);
+                handles.choiceButtons[i].setText(context, dialogue.choices[i].label);
             }
         }
     };

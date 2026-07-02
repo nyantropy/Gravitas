@@ -288,14 +288,7 @@ namespace gts::ui
 
             contentHandle = context.ui.createNode(context.surface, UiNodeType::Container, rootHandle);
             UiLayoutSpec contentLayout = fillLayout();
-            contentLayout.padding = desc.padding;
-            if (!desc.uniformPaddingMetric.empty())
-            {
-                const float padding = context.ui.theme(context.surface) == nullptr
-                    ? 0.0f
-                    : context.ui.theme(context.surface)->metricOr(desc.uniformPaddingMetric, 0.0f);
-                contentLayout.padding = {padding, padding, padding, padding};
-            }
+            contentLayout.padding = resolveContentPadding(context, desc);
             context.ui.setLayout(context.surface, contentHandle, contentLayout);
             setWidgetState(context, contentHandle, desc.visible, desc.enabled, false);
         }
@@ -327,6 +320,34 @@ namespace gts::ui
         }
 
     private:
+        UiThickness resolveContentPadding(UiWidgetContext& context, const UiPanelDesc& desc) const
+        {
+            UiThickness padding = desc.padding;
+            const UiTheme* theme = context.ui.theme(context.surface);
+
+            if (theme != nullptr && !desc.styleClass.empty())
+            {
+                UiComputedStyle style;
+                if (theme->resolveStyle(desc.styleClass, UiStyleState::Normal, style))
+                {
+                    if (style.hasPadding)
+                        padding = style.padding;
+                    else if (style.hasSkin)
+                        padding = style.skin.contentPadding;
+                }
+            }
+
+            if (!desc.uniformPaddingMetric.empty())
+            {
+                const float value = theme == nullptr
+                    ? 0.0f
+                    : theme->metricOr(desc.uniformPaddingMetric, 0.0f);
+                padding = {value, value, value, value};
+            }
+
+            return padding;
+        }
+
         UiHandle contentHandle = UI_INVALID_HANDLE;
         bool enabled = true;
         bool interactable = false;

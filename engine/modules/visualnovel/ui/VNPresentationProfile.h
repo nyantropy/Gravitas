@@ -1,13 +1,38 @@
 #pragma once
 
+#include <algorithm>
 #include <string>
 
 #include "UiPanelSkin.h"
+#include "UiTheme.h"
 #include "UiTypes.h"
 #include "VNTypes.h"
 
 namespace gts::vn
 {
+    namespace VNThemeClass
+    {
+        inline constexpr const char* StageBackground = "VN.Stage.Background";
+        inline constexpr const char* StageDimming = "VN.Stage.Dimming";
+        inline constexpr const char* DialoguePanelShadow = "VN.Dialogue.PanelShadow";
+        inline constexpr const char* DialoguePanel = "VN.Dialogue.Panel";
+        inline constexpr const char* DialogueNameplate = "VN.Dialogue.Nameplate";
+        inline constexpr const char* SpeakerText = "VN.Text.Speaker";
+        inline constexpr const char* BodyText = "VN.Text.Body";
+        inline constexpr const char* ContinueText = "VN.Text.Continue";
+        inline constexpr const char* ChoiceButton = "VN.Choice.Button";
+        inline constexpr const char* ChoiceLabel = "VN.Choice.Label";
+    }
+
+    namespace VNThemeMetric
+    {
+        inline constexpr const char* ChoiceGap = "VN.Choice.Gap";
+        inline constexpr const char* ChoiceButtonHeight = "VN.Choice.ButtonHeight";
+        inline constexpr const char* ChoiceLabelInset = "VN.Choice.LabelInset";
+        inline constexpr const char* PanelShadowOffsetX = "VN.Dialogue.ShadowOffsetX";
+        inline constexpr const char* PanelShadowOffsetY = "VN.Dialogue.ShadowOffsetY";
+    }
+
     struct VNDialogueBoxSkin
     {
         UiPanelSkin panelShadow;
@@ -126,5 +151,89 @@ namespace gts::vn
         profile.motionProfile.presets["hurt_flash"] = hurtFlash;
 
         return profile;
+    }
+
+    inline UiTheme vnThemeFromPresentationProfile(const VNPresentationProfile& profile,
+                                                  const UiTheme* parentTheme = nullptr)
+    {
+        UiTheme theme;
+        if (parentTheme != nullptr)
+            theme.setParent(*parentTheme);
+
+        theme.setSkin("VN.Dialogue.PanelShadow", profile.dialogueSkin.panelShadow);
+        theme.setSkin("VN.Dialogue.Panel", profile.dialogueSkin.panel);
+        theme.setSkin("VN.Dialogue.Nameplate", profile.dialogueSkin.nameplate);
+
+        theme.setTypography("VN.Speaker", UiTypography{.scale = profile.dialogueSkin.speakerTextScale});
+        theme.setTypography("VN.Body", UiTypography{.scale = profile.dialogueSkin.bodyTextScale});
+        theme.setTypography("VN.Choice", UiTypography{.scale = profile.dialogueSkin.choiceTextScale});
+        theme.setTypography("VN.Continue", UiTypography{.scale = profile.dialogueSkin.bodyTextScale});
+
+        const float choiceGap = profile.layout.choiceRowGap * profile.layout.choices.height;
+        const float choiceButtonHeight = profile.layout.maxChoices == 0
+            ? 0.044f
+            : std::max(0.0f,
+                       (profile.layout.choices.height
+                        - choiceGap * static_cast<float>(std::max<size_t>(1, profile.layout.maxChoices) - 1))
+                           / static_cast<float>(std::max<size_t>(1, profile.layout.maxChoices)));
+        theme.setMetric(VNThemeMetric::ChoiceGap, choiceGap);
+        theme.setMetric(VNThemeMetric::ChoiceButtonHeight, choiceButtonHeight);
+        theme.setMetric(VNThemeMetric::ChoiceLabelInset,
+                        std::max(0.0f, profile.dialogueSkin.choice.normal.contentPadding.left));
+        theme.setMetric(VNThemeMetric::PanelShadowOffsetX, 0.010f);
+        theme.setMetric(VNThemeMetric::PanelShadowOffsetY, 0.030f);
+
+        UiStyleClass stageBackground;
+        stageBackground.base.backgroundColor = {0.0f, 0.0f, 0.0f, 0.0f};
+        theme.setStyleClass(VNThemeClass::StageBackground, stageBackground);
+
+        UiStyleClass stageDimming;
+        stageDimming.base.backgroundColor = {0.0f, 0.0f, 0.0f, 0.0f};
+        theme.setStyleClass(VNThemeClass::StageDimming, stageDimming);
+
+        UiStyleClass panelShadow;
+        panelShadow.base.skinName = "VN.Dialogue.PanelShadow";
+        theme.setStyleClass(VNThemeClass::DialoguePanelShadow, panelShadow);
+
+        UiStyleClass panel;
+        panel.base.skinName = "VN.Dialogue.Panel";
+        panel.base.padding = profile.dialogueSkin.textPadding;
+        theme.setStyleClass(VNThemeClass::DialoguePanel, panel);
+
+        UiStyleClass nameplate;
+        nameplate.base.skinName = "VN.Dialogue.Nameplate";
+        theme.setStyleClass(VNThemeClass::DialogueNameplate, nameplate);
+
+        UiStyleClass speakerText;
+        speakerText.base.foregroundColor = profile.dialogueSkin.speakerText;
+        speakerText.base.typographyName = "VN.Speaker";
+        theme.setStyleClass(VNThemeClass::SpeakerText, speakerText);
+
+        UiStyleClass bodyText;
+        bodyText.base.foregroundColor = profile.dialogueSkin.bodyText;
+        bodyText.base.typographyName = "VN.Body";
+        theme.setStyleClass(VNThemeClass::BodyText, bodyText);
+
+        UiStyleClass continueText;
+        continueText.base.foregroundColor = profile.dialogueSkin.continueIndicator;
+        continueText.base.typographyName = "VN.Continue";
+        theme.setStyleClass(VNThemeClass::ContinueText, continueText);
+
+        UiStyleClass choiceButton;
+        choiceButton.base.skin = profile.dialogueSkin.choice.normal;
+        if (profile.dialogueSkin.choice.hover)
+            choiceButton.states[UiStyleState::Hover].skin = *profile.dialogueSkin.choice.hover;
+        if (profile.dialogueSkin.choice.pressed)
+            choiceButton.states[UiStyleState::Pressed].skin = *profile.dialogueSkin.choice.pressed;
+        if (profile.dialogueSkin.choice.disabled)
+            choiceButton.states[UiStyleState::Disabled].skin = *profile.dialogueSkin.choice.disabled;
+        theme.setStyleClass(VNThemeClass::ChoiceButton, choiceButton);
+
+        UiStyleClass choiceLabel;
+        choiceLabel.base.foregroundColor = profile.dialogueSkin.choiceText;
+        choiceLabel.base.typographyName = "VN.Choice";
+        theme.setStyleClass(VNThemeClass::ChoiceLabel, choiceLabel);
+
+        return theme;
     }
 } // namespace gts::vn

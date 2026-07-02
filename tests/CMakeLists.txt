@@ -251,6 +251,24 @@ set_tests_properties(ui_navigation_runtime
         LABELS "gravitas;ui;runtime"
 )
 
+add_executable(VNFrontendRuntimeTest
+    ui/VNFrontendRuntimeTest.cpp
+)
+
+target_compile_features(VNFrontendRuntimeTest PRIVATE cxx_std_20)
+
+target_link_libraries(VNFrontendRuntimeTest PRIVATE gravitas_engine)
+
+add_test(
+    NAME vn_frontend_runtime
+    COMMAND VNFrontendRuntimeTest
+)
+
+set_tests_properties(vn_frontend_runtime
+    PROPERTIES
+        LABELS "gravitas;ui;runtime;vn"
+)
+
 add_executable(UiDragDropRuntimeTest
     ui/UiDragDropRuntimeTest.cpp
 )
