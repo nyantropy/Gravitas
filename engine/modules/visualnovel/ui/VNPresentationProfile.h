@@ -14,6 +14,7 @@ namespace gts::vn
     {
         inline constexpr const char* StageBackground = "VN.Stage.Background";
         inline constexpr const char* StageDimming = "VN.Stage.Dimming";
+        inline constexpr const char* InteractionSlot = "Interaction.Slot";
         inline constexpr const char* DialoguePanelShadow = "VN.Dialogue.PanelShadow";
         inline constexpr const char* DialoguePanel = "VN.Dialogue.Panel";
         inline constexpr const char* DialogueNameplate = "VN.Dialogue.Nameplate";
@@ -22,10 +23,21 @@ namespace gts::vn
         inline constexpr const char* ContinueText = "VN.Text.Continue";
         inline constexpr const char* ChoiceButton = "VN.Choice.Button";
         inline constexpr const char* ChoiceLabel = "VN.Choice.Label";
+        inline constexpr const char* MerchantWindow = "Merchant.Window";
+        inline constexpr const char* MerchantHeader = "Merchant.Header";
+        inline constexpr const char* MerchantItemRow = "Merchant.ItemRow";
+        inline constexpr const char* MerchantPrice = "Merchant.Price";
+        inline constexpr const char* MerchantPlayerInventory = "Merchant.PlayerInventory";
+        inline constexpr const char* MerchantVendorInventory = "Merchant.VendorInventory";
+        inline constexpr const char* MerchantActionButton = "Merchant.ActionButton";
+        inline constexpr const char* MerchantDisabledItem = "Merchant.DisabledItem";
+        inline constexpr const char* MerchantHighlightedItem = "Merchant.HighlightedItem";
     }
 
     namespace VNThemeMetric
     {
+        inline constexpr const char* InteractionGap = "Interaction.Gap";
+        inline constexpr const char* InteractionPadding = "Interaction.Padding";
         inline constexpr const char* ChoiceGap = "VN.Choice.Gap";
         inline constexpr const char* ChoiceButtonHeight = "VN.Choice.ButtonHeight";
         inline constexpr const char* ChoiceLabelInset = "VN.Choice.LabelInset";
@@ -56,6 +68,7 @@ namespace gts::vn
         UiRect speakerText = {0.060f, 0.0f, 0.880f, 1.0f};
         UiRect bodyText = {0.045f, 0.260f, 0.880f, 0.560f};
         UiRect continueIndicator = {0.920f, 0.800f, 0.050f, 0.140f};
+        UiRect interaction = {0.060f, 0.110f, 0.880f, 0.560f};
         UiRect choices = {0.560f, 0.390f, 0.380f, 0.300f};
         float choiceRowGap = 0.014f;
         size_t maxChoices = 6;
@@ -180,6 +193,8 @@ namespace gts::vn
         theme.setMetric(VNThemeMetric::ChoiceButtonHeight, choiceButtonHeight);
         theme.setMetric(VNThemeMetric::ChoiceLabelInset,
                         std::max(0.0f, profile.dialogueSkin.choice.normal.contentPadding.left));
+        theme.setMetric(VNThemeMetric::InteractionGap, 0.018f);
+        theme.setMetric(VNThemeMetric::InteractionPadding, 0.020f);
         theme.setMetric(VNThemeMetric::PanelShadowOffsetX, 0.010f);
         theme.setMetric(VNThemeMetric::PanelShadowOffsetY, 0.030f);
 
@@ -190,6 +205,10 @@ namespace gts::vn
         UiStyleClass stageDimming;
         stageDimming.base.backgroundColor = {0.0f, 0.0f, 0.0f, 0.0f};
         theme.setStyleClass(VNThemeClass::StageDimming, stageDimming);
+
+        UiStyleClass interactionSlot;
+        interactionSlot.base.backgroundColor = {0.0f, 0.0f, 0.0f, 0.0f};
+        theme.setStyleClass(VNThemeClass::InteractionSlot, interactionSlot);
 
         UiStyleClass panelShadow;
         panelShadow.base.skinName = "VN.Dialogue.PanelShadow";
@@ -233,6 +252,47 @@ namespace gts::vn
         choiceLabel.base.foregroundColor = profile.dialogueSkin.choiceText;
         choiceLabel.base.typographyName = "VN.Choice";
         theme.setStyleClass(VNThemeClass::ChoiceLabel, choiceLabel);
+
+        UiStyleClass merchantWindow;
+        merchantWindow.base.skin = profile.dialogueSkin.panel;
+        theme.setStyleClass(VNThemeClass::MerchantWindow, merchantWindow);
+
+        UiStyleClass merchantHeader;
+        merchantHeader.base.foregroundColor = {0.86f, 0.92f, 0.84f, 1.0f};
+        theme.setStyleClass(VNThemeClass::MerchantHeader, merchantHeader);
+
+        UiStyleClass merchantItemRow;
+        merchantItemRow.base.backgroundColor = {0.045f, 0.058f, 0.052f, 0.94f};
+        theme.setStyleClass(VNThemeClass::MerchantItemRow, merchantItemRow);
+
+        UiStyleClass merchantPrice;
+        merchantPrice.base.foregroundColor = {1.0f, 0.88f, 0.34f, 1.0f};
+        theme.setStyleClass(VNThemeClass::MerchantPrice, merchantPrice);
+
+        UiStyleClass merchantPane;
+        merchantPane.base.backgroundColor = {0.045f, 0.058f, 0.052f, 0.94f};
+        theme.setStyleClass(VNThemeClass::MerchantPlayerInventory, merchantPane);
+        theme.setStyleClass(VNThemeClass::MerchantVendorInventory, merchantPane);
+
+        UiStyleClass merchantActionButton;
+        merchantActionButton.base.skin = profile.dialogueSkin.choice.normal;
+        merchantActionButton.base.foregroundColor = {0.94f, 0.98f, 0.90f, 1.0f};
+        if (profile.dialogueSkin.choice.hover)
+            merchantActionButton.states[UiStyleState::Hover].skin = *profile.dialogueSkin.choice.hover;
+        if (profile.dialogueSkin.choice.pressed)
+            merchantActionButton.states[UiStyleState::Pressed].skin = *profile.dialogueSkin.choice.pressed;
+        if (profile.dialogueSkin.choice.disabled)
+            merchantActionButton.states[UiStyleState::Disabled].skin = *profile.dialogueSkin.choice.disabled;
+        theme.setStyleClass(VNThemeClass::MerchantActionButton, merchantActionButton);
+
+        UiStyleClass merchantDisabledItem;
+        merchantDisabledItem.base.backgroundColor = {0.045f, 0.050f, 0.046f, 0.90f};
+        merchantDisabledItem.base.foregroundColor = {0.46f, 0.50f, 0.45f, 1.0f};
+        theme.setStyleClass(VNThemeClass::MerchantDisabledItem, merchantDisabledItem);
+
+        UiStyleClass merchantHighlightedItem;
+        merchantHighlightedItem.base.backgroundColor = {0.095f, 0.125f, 0.145f, 0.96f};
+        theme.setStyleClass(VNThemeClass::MerchantHighlightedItem, merchantHighlightedItem);
 
         return theme;
     }

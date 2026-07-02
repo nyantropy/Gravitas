@@ -88,6 +88,19 @@ namespace
         return nullptr;
     }
 
+    const UiNineSlicePrimitive* findNineSlicePrimitive(const UiDocument& document, UiHandle handle)
+    {
+        for (const UiVisualPrimitive& primitive : document.getVisualList().primitives)
+        {
+            if (const auto* nineSlice = std::get_if<UiNineSlicePrimitive>(&primitive))
+            {
+                if (nineSlice->source == handle)
+                    return nineSlice;
+            }
+        }
+        return nullptr;
+    }
+
     const UiTextPrimitive* findTextPrimitive(const UiDocument& document, UiHandle handle)
     {
         for (const UiVisualPrimitive& primitive : document.getVisualList().primitives)
@@ -272,6 +285,33 @@ namespace
         require(nearColor(separatorRect->color, {0.8f, 0.1f, 0.2f, 1.0f}), "separator theme style not applied");
     }
 
+    void testWidgetRectStyleCanRenderNineSliceSkin()
+    {
+        UiSystem ui(nullptr);
+
+        UiTheme theme = defaultUiTheme();
+        UiPanelSkin skin;
+        skin.type = UiPanelSkinType::NineSlice;
+        skin.imageAsset = "resources/textures/ui/yune_choice_panel.png";
+        skin.tint = {0.8f, 0.9f, 1.0f, 1.0f};
+        skin.slice = {0.15f, 0.15f, 0.15f, 0.15f};
+
+        UiStyleClass buttonStyle;
+        buttonStyle.base.skin = skin;
+        theme.setStyleClass("Button", buttonStyle);
+        ui.setTheme(theme);
+
+        WidgetProbeState state;
+        ui.mountComposition(std::make_unique<WidgetProbeComposition>(state));
+        extract(ui);
+
+        const UiNineSlicePrimitive* buttonSkin = findNineSlicePrimitive(ui.getDocument(), state.buttonRoot);
+        require(buttonSkin != nullptr, "button widget did not render nine-slice skin");
+        require(buttonSkin->imageAsset == skin.imageAsset, "button nine-slice asset was not resolved from style");
+        require(findRectPrimitive(ui.getDocument(), state.buttonRoot) == nullptr,
+                "button rendered fallback rect instead of nine-slice skin");
+    }
+
     void testButtonClickThroughEventPropagation()
     {
         UiSystem ui(nullptr);
@@ -341,6 +381,7 @@ namespace
 int main()
 {
     testWidgetCreationThemeAndLayout();
+    testWidgetRectStyleCanRenderNineSliceSkin();
     testButtonClickThroughEventPropagation();
     testDisabledButtonDoesNotPress();
     testCompositionCleanupDestroysWidgetSubtrees();

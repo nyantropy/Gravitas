@@ -117,6 +117,13 @@ namespace gts::vn
                 : VNRuntimeStatus::WaitingForChoice;
         }
 
+        void presentExternalStage()
+        {
+            externalDialogueActive = true;
+            dialogue.clear();
+            status = VNRuntimeStatus::WaitingForExternalCommand;
+        }
+
         void stopExternalDialogue()
         {
             if (externalDialogueActive)

@@ -74,7 +74,21 @@ class GLFWOutputWindow : public OutputWindow
             auto app = reinterpret_cast<GLFWOutputWindow*>(glfwGetWindowUserPointer(window));
             if (!app) return;
 
-            app->eventBus.emit(GtsCursorPositionEvent{xpos, ypos});
+            int windowWidth = 1;
+            int windowHeight = 1;
+            int framebufferWidth = 1;
+            int framebufferHeight = 1;
+            glfwGetWindowSize(window, &windowWidth, &windowHeight);
+            glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
+
+            const double scaleX = windowWidth > 0
+                ? static_cast<double>(framebufferWidth) / static_cast<double>(windowWidth)
+                : 1.0;
+            const double scaleY = windowHeight > 0
+                ? static_cast<double>(framebufferHeight) / static_cast<double>(windowHeight)
+                : 1.0;
+
+            app->eventBus.emit(GtsCursorPositionEvent{xpos * scaleX, ypos * scaleY});
         }
 
         static void onScrollCallbackStatic(GLFWwindow* window, double xoffset, double yoffset)

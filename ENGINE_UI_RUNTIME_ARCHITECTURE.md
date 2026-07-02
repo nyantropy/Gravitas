@@ -688,10 +688,12 @@ structure in terms of runtime widgets and layout containers:
 - stage layer: background color/image, dimming, sprite layer, and stage effects.
 - dialogue layer: themed panel widget, nameplate panel widget, speaker label,
   body label, and continue label.
+- interaction slot: a frontend-owned layer and mount for non-modal NPC
+  interaction views such as merchant trade, inventory handoff, quest handoff,
+  crafting, training, banking, gifting, and future feature views.
 - choice layer: vertical `UiStackWidget` containing `UiButtonWidget` choices.
-- modal slot: a VN-owned layer and mount published through
-  `VNFrontendStateComponent` for game-side merchant, inventory, settings, and
-  confirmation modal compositions.
+- modal slot: a frontend-owned layer and mount for true modal overlays such as
+  confirmations, item details, settings, and save prompts.
 
 VN presentation state still includes background mode, dimming, sprites, sprite
 z-order, and tweened stage motion. Sprite transforms remain authored in VN stage
@@ -710,23 +712,47 @@ exists for content compatibility, but it now feeds `UiTheme` classes such as
 panel skins, choice state skins, spacing, and choice heights are resolved as
 theme data. The compatibility profile is not an independent presentation model.
 
+The VN frontend is now also the first Interaction Frontend. Dialogue is one
+mode inside that shell, not the shell itself. `VNFrontendStateComponent`
+publishes the active surface, composition, interaction layer/slot, and modal
+layer/slot so game systems can mount child views without creating competing
+fullscreen roots. `InteractionFrontendSessionComponent` is the feature-neutral
+session signal: dialogue runtime, merchant trade, inventory handoff, quest
+handoff, crafting, training, banking, gifting, and relationship screens can
+identify the active NPC/mode while keeping feature logic outside the VN module.
+When an interaction view is active after a dialogue choice ends, `VNSystem`
+keeps the stage presentation alive and can show dialogue-style feedback text
+without knowing the merchant, quest, or inventory rules.
+
 ### Merchant UI
 
 Merchant UI is game-owned and feature-local under `src/inventory/ui/`. It builds
-a retained full-screen scrim/window and many retained handles for cells, item
-icons, labels, buttons, and text.
+a retained compatibility view with a scrim/window and many retained handles for
+cells, item icons, labels, buttons, and text.
 
 Merchant UI reads centralized dispatch results for retained buttons and scrim
-clicks, but when the VN frontend is mounted, `MerchantUiCoordinator` reparents
-the merchant root into a merchant child `UiMount` under the VN modal slot and
-pushes an engine `UiModalDesc` on the VN modal layer. The VN remains visible
-underneath, and `UiModalManager` owns pointer/navigation blocking, cancel
-dismissal, and focus restoration for that modal.
+clicks, but when the Interaction Frontend is mounted, `MerchantUiCoordinator`
+reparents the merchant root into a merchant child `UiMount` under the frontend
+interaction slot. Merchant trade is therefore a child NPC interaction view, not
+the modal itself and not a separate fullscreen HUD overlay. Render order follows
+the frontend's layer and mount ownership, while the merchant feature continues
+to own buying, selling, payment, prices, inventory rules, and status feedback.
+The coordinator publishes `InteractionFrontendSessionComponent` while merchant
+trade is active so the VN stage and merchant character presentation remain
+visible even after the dialogue choice that opened the shop has ended.
+
+Merchant action buttons are registered with `UiNavigationGraph` as a first-pass
+compatibility bridge. Cancel/back still closes the merchant state and can return
+to a dialogue graph supplied by game content. Future confirmation prompts,
+item-detail popups, and exit confirmations should use the frontend modal slot
+and `UiModalManager`; the main merchant trade view should remain a child
+interaction view.
 
 Merchant grid cell hover/selection still computes from the feature's pixel
-layout and raw pointer position. That grid behavior is an intentional
-compatibility path until the inventory/merchant grid controls migrate to runtime
-drag/drop and grid widgets.
+layout and raw pointer position, but the math is now viewport-relative to the
+published interaction slot instead of assuming the full window. That grid
+behavior is an intentional compatibility path until the inventory/merchant grid
+controls migrate to runtime drag/drop and grid/list widgets.
 
 ### Inventory UI
 
@@ -737,9 +763,19 @@ manually from input and inventory layout data.
 
 Inventory UI does not yet participate fully in engine retained hit testing. Its
 event and drag/drop behavior remain feature-specific, but its next ownership
-step is clear: mount it as a composition under the VN modal slot or another
-feature modal mount while preserving grid semantics until runtime drag/drop and
-grid widgets are adopted.
+step is clear: mount `InventoryComposition` into the Interaction Frontend's
+interaction slot for NPC inventory handoffs, or into the modal slot for true
+blocking inventory prompts, while preserving grid semantics until runtime
+drag/drop and grid/list widgets are adopted.
+
+The merchant migration validated that the runtime already has the needed
+foundational ownership primitives, but it also clarified two evolutionary
+needs. First, long-lived interaction views need a published non-modal slot
+separate from the modal slot; using `UiModalManager` for the whole merchant view
+overstates the policy and hides the NPC interaction model. Second, inventory
+and merchant grids need reusable grid/list widgets before their item hover,
+selection, navigation, and drag/drop behavior can stop being feature-owned
+compatibility code.
 
 ### Menus
 

@@ -5,10 +5,17 @@
 #include <string>
 #include <vector>
 
+#include "ECSWorld.hpp"
+#include "EcsControllerContext.hpp"
+#include "InteractionFrontendSessionComponent.h"
 #include "UiSystem.h"
+#include "VNExternalPresentationComponent.h"
 #include "VNDialogueComposition.h"
+#include "VNFrontendStateComponent.h"
+#include "VNPlaybackStateComponent.h"
 #include "VNPresentationProfile.h"
 #include "VNRuntime.h"
+#include "VNSystem.hpp"
 
 namespace
 {
@@ -78,6 +85,17 @@ namespace
         layout.heightMode = UiSizeMode::FromAnchors;
         layout.anchorMin = {0.0f, 0.0f};
         layout.anchorMax = {1.0f, 1.0f};
+        return layout;
+    }
+
+    UiLayoutSpec anchoredRect(float x, float y, float width, float height)
+    {
+        UiLayoutSpec layout;
+        layout.positionMode = UiPositionMode::Anchored;
+        layout.widthMode = UiSizeMode::FromAnchors;
+        layout.heightMode = UiSizeMode::FromAnchors;
+        layout.anchorMin = {x, y};
+        layout.anchorMax = {x + width, y + height};
         return layout;
     }
 
@@ -212,11 +230,146 @@ namespace
         require(result.pointerBlocked, "merchant modal did not block lower VN/base interaction");
         require(result.hovered != base, "base UI received hover under merchant modal");
     }
+
+    void testInteractionSlotPublishedByVNSystem()
+    {
+        ECSWorld world;
+        UiSystem ui(nullptr);
+
+        gts::vn::VNSystemConfig config;
+        config.ui.profile.layout.interaction = {0.125f, 0.150f, 0.750f, 0.450f};
+        gts::vn::VNSystem system(config);
+
+        EcsControllerContext ctx{world};
+        ctx.ui = &ui;
+        ctx.windowPixelWidth = 1280.0f;
+        ctx.windowPixelHeight = 720.0f;
+
+        system.update(ctx);
+        extract(ui);
+
+        require(world.hasAny<gts::vn::VNFrontendStateComponent>(), "VN frontend state was not published");
+        const auto& frontend = world.getSingleton<gts::vn::VNFrontendStateComponent>();
+        require(frontend.mounted, "VN frontend state did not mark the frontend mounted");
+        require(frontend.interactionLayer != UI_INVALID_LAYER, "interaction layer was not created");
+        require(frontend.interactionSlotMount != UI_INVALID_MOUNT, "interaction slot mount was not created");
+        require(frontend.interactionSlotRoot != UI_INVALID_HANDLE, "interaction slot root was not published");
+        require(frontend.modalSlotMount != UI_INVALID_MOUNT, "modal slot remained unavailable");
+
+        const UiRect& slotBounds = bounds(ui, frontend.interactionSlotRoot);
+        require(near(slotBounds.x, config.ui.profile.layout.interaction.x), "interaction slot x did not use profile");
+        require(near(slotBounds.y, config.ui.profile.layout.interaction.y), "interaction slot y did not use profile");
+        require(near(slotBounds.width, config.ui.profile.layout.interaction.width),
+                "interaction slot width did not use profile");
+        require(near(slotBounds.height, config.ui.profile.layout.interaction.height),
+                "interaction slot height did not use profile");
+
+        const UiHandle base = ui.createNode(UiNodeType::Rect, ui.getRoot());
+        ui.setLayout(base, fillLayout());
+        ui.setState(base, UiStateFlags{.visible = true, .enabled = true, .interactable = true});
+        ui.setPayload(base, UiRectData{{1.0f, 1.0f, 1.0f, 1.0f}});
+
+        UiMountDesc merchantDesc;
+        merchantDesc.name = "merchant-trade-view";
+        merchantDesc.attachment.parentMount = frontend.interactionSlotMount;
+        const UiMountId merchantMount = ui.createMount(frontend.surface, merchantDesc);
+        require(merchantMount != UI_INVALID_MOUNT, "merchant child mount failed under interaction slot");
+
+        const UiHandle merchantRoot = ui.mountRoot(frontend.surface, merchantMount);
+        require(merchantRoot != UI_INVALID_HANDLE, "merchant child mount root missing");
+        ui.setLayout(frontend.surface, merchantRoot, fillLayout());
+
+        const UiHandle merchantPanel = ui.createNode(frontend.surface, UiNodeType::Rect, merchantRoot);
+        ui.setLayout(frontend.surface, merchantPanel, fillLayout());
+        ui.setState(frontend.surface,
+                    merchantPanel,
+                    UiStateFlags{.visible = true, .enabled = true, .interactable = true});
+        ui.setPayload(frontend.surface, merchantPanel, UiRectData{{0.0f, 0.0f, 0.0f, 1.0f}});
+        extract(ui);
+
+        const UiDispatchResult& result = ui.dispatchInput(
+            pointerFrame(frontend.interactionSlot.x + frontend.interactionSlot.width * 0.5f,
+                         frontend.interactionSlot.y + frontend.interactionSlot.height * 0.5f),
+            1);
+        require(result.hovered == merchantPanel, "interaction slot child did not own input above default root");
+
+        const UiHandle merchantButton = ui.createNode(frontend.surface, UiNodeType::Rect, merchantRoot);
+        ui.setLayout(frontend.surface, merchantButton, anchoredRect(0.62f, 0.70f, 0.18f, 0.12f));
+        ui.setState(frontend.surface,
+                    merchantButton,
+                    UiStateFlags{.visible = true, .enabled = true, .interactable = true});
+        ui.setPayload(frontend.surface, merchantButton, UiRectData{{0.2f, 0.4f, 0.8f, 1.0f}});
+        extract(ui);
+
+        const UiRect& buttonBounds = bounds(ui, merchantButton);
+        require(near(buttonBounds.x, slotBounds.x + slotBounds.width * 0.62f),
+                "interaction slot child x was not parent-relative");
+        require(near(buttonBounds.y, slotBounds.y + slotBounds.height * 0.70f),
+                "interaction slot child y was not parent-relative");
+        require(near(buttonBounds.width, slotBounds.width * 0.18f),
+                "interaction slot child width was not parent-relative");
+        require(near(buttonBounds.height, slotBounds.height * 0.12f),
+                "interaction slot child height was not parent-relative");
+
+        const UiDispatchResult& buttonResult = ui.dispatchInput(
+            pointerFrame(buttonBounds.x + buttonBounds.width * 0.5f,
+                         buttonBounds.y + buttonBounds.height * 0.5f),
+            2);
+        require(buttonResult.hovered == merchantButton,
+                "interaction slot child hitbox did not match parent-relative visual bounds");
+    }
+
+    void testInteractionSessionKeepsStageActive()
+    {
+        ECSWorld world;
+        UiSystem ui(nullptr);
+
+        gts::vn::VNExternalPresentationComponent presentation;
+        presentation.active = true;
+        presentation.background.mode = gts::vn::VNBackgroundMode::SolidColor;
+        presentation.background.color = {0.12f, 0.10f, 0.08f, 1.0f};
+        world.createSingleton<gts::vn::VNExternalPresentationComponent>(presentation);
+
+        gts::vn::InteractionFrontendSessionComponent session;
+        session.active = true;
+        session.mode = gts::vn::InteractionFrontendMode::MerchantTrade;
+        session.npcId = "merchant";
+        session.npcName = "Merchant";
+        session.merchantId = "merchant";
+        session.speakerName = "Merchant";
+        session.feedbackText = "Pleasure doing business.";
+        world.createSingleton<gts::vn::InteractionFrontendSessionComponent>(session);
+
+        gts::vn::VNSystem system;
+        EcsControllerContext ctx{world};
+        ctx.ui = &ui;
+        ctx.windowPixelWidth = 1280.0f;
+        ctx.windowPixelHeight = 720.0f;
+
+        system.update(ctx);
+        extract(ui);
+
+        require(world.hasAny<gts::vn::VNPlaybackStateComponent>(), "playback state was not written");
+        const auto& playback = world.getSingleton<gts::vn::VNPlaybackStateComponent>();
+        require(playback.active, "interaction session did not keep VN runtime active");
+        require(system.getRuntime().isExternalDialogueActive(), "interaction session did not own external VN mode");
+        require(system.getRuntime().getDialogue().visible, "merchant feedback did not use dialogue panel");
+        require(system.getRuntime().getDialogue().speaker == "Merchant", "merchant speaker did not reach VN dialogue");
+
+        auto& activeSession = world.getSingleton<gts::vn::InteractionFrontendSessionComponent>();
+        activeSession.feedbackText.clear();
+        ++activeSession.revision;
+        system.update(ctx);
+        require(system.getRuntime().isActive(), "stage-only interaction session stopped VN runtime");
+        require(!system.getRuntime().getDialogue().visible, "stage-only interaction session left dialogue visible");
+    }
 } // namespace
 
 int main()
 {
     testChoiceStackThemeAndNavigation();
     testModalSlotOwnership();
+    testInteractionSlotPublishedByVNSystem();
+    testInteractionSessionKeepsStageActive();
     return 0;
 }

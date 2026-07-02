@@ -16,6 +16,7 @@
 #include "InputBindingRegistry.h"
 #include "RenderPassVisibilityComponent.h"
 #include "UiSystem.h"
+#include "InteractionFrontendSessionComponent.h"
 #include "VNDialogueComposition.h"
 #include "VNDialogueUi.h"
 #include "VNExternalPresentationComponent.h"
@@ -70,6 +71,12 @@ namespace gts::vn
                 return;
             }
 
+            if (interactionSessionActive(ctx.world))
+            {
+                updateInteractionPresentation(ctx);
+                return;
+            }
+
             if (runtime.isExternalDialogueActive())
                 runtime.stopExternalDialogue();
             resetRenderPassVisibilityIfNeeded(ctx.world);
@@ -99,6 +106,8 @@ namespace gts::vn
         VNSystemConfig config;
         VNRuntime runtime;
         UiCompositionId dialogueCompositionId = UI_INVALID_COMPOSITION;
+        UiLayerId interactionLayerId = UI_INVALID_LAYER;
+        UiMountId interactionSlotMountId = UI_INVALID_MOUNT;
         UiLayerId modalLayerId = UI_INVALID_LAYER;
         UiMountId modalSlotMountId = UI_INVALID_MOUNT;
         bool uiBuilt = false;
@@ -126,13 +135,34 @@ namespace gts::vn
             if (dialogueCompositionId == UI_INVALID_COMPOSITION)
                 return;
 
-            modalLayerId = ui->createLayer("vn-modal-slot", 400);
+            const UiSurfaceId surface = ui->compositionSurface(dialogueCompositionId);
+
+            interactionLayerId = ui->createLayer(surface, "interaction-frontend-view", 300);
+            if (interactionLayerId != UI_INVALID_LAYER)
+            {
+                UiMountDesc interactionSlotDesc;
+                interactionSlotDesc.name = "interaction-slot";
+                interactionSlotDesc.attachment.layer = interactionLayerId;
+                interactionSlotMountId = ui->createMount(surface, interactionSlotDesc);
+
+                const UiHandle interactionRoot = ui->mountRoot(surface, interactionSlotMountId);
+                if (interactionRoot != UI_INVALID_HANDLE)
+                {
+                    ui->setLayout(surface, interactionRoot, slotLayout(config.ui.profile.layout.interaction));
+                    ui->setStyleClass(surface, interactionRoot, VNThemeClass::InteractionSlot);
+                    ui->setState(surface,
+                                 interactionRoot,
+                                 UiStateFlags{.visible = true, .enabled = true, .interactable = false});
+                }
+            }
+
+            modalLayerId = ui->createLayer(surface, "interaction-modal-slot", 400);
             if (modalLayerId != UI_INVALID_LAYER)
             {
                 UiMountDesc modalSlotDesc;
-                modalSlotDesc.name = "vn-modal-slot";
+                modalSlotDesc.name = "interaction-modal-slot";
                 modalSlotDesc.attachment.layer = modalLayerId;
-                modalSlotMountId = ui->createMount(modalSlotDesc);
+                modalSlotMountId = ui->createMount(surface, modalSlotDesc);
             }
 
             uiBuilt = true;
@@ -145,6 +175,20 @@ namespace gts::vn
                 return nullptr;
 
             return dynamic_cast<VNDialogueComposition*>(ui->findComposition(dialogueCompositionId));
+        }
+
+        static UiLayoutSpec slotLayout(const UiRect& rect)
+        {
+            UiLayoutSpec layout;
+            layout.positionMode = UiPositionMode::Anchored;
+            layout.widthMode = UiSizeMode::FromAnchors;
+            layout.heightMode = UiSizeMode::FromAnchors;
+            layout.anchorMin = {std::clamp(rect.x, 0.0f, 1.0f), std::clamp(rect.y, 0.0f, 1.0f)};
+            layout.anchorMax = {
+                std::clamp(rect.x + rect.width, 0.0f, 1.0f),
+                std::clamp(rect.y + rect.height, 0.0f, 1.0f)
+            };
+            return layout;
         }
 
         void syncUi(UiSystem* ui)
@@ -162,6 +206,12 @@ namespace gts::vn
             state.mounted = uiBuilt && ui != nullptr;
             state.surface = ui == nullptr ? UI_DEFAULT_SURFACE : ui->compositionSurface(dialogueCompositionId);
             state.composition = dialogueCompositionId;
+            state.interactionLayer = interactionLayerId;
+            state.interactionSlotMount = interactionSlotMountId;
+            state.interactionSlotRoot = ui == nullptr || interactionSlotMountId == UI_INVALID_MOUNT
+                ? UI_INVALID_HANDLE
+                : ui->mountRoot(state.surface, interactionSlotMountId);
+            state.interactionSlot = config.ui.profile.layout.interaction;
             state.modalLayer = modalLayerId;
             state.modalSlotMount = modalSlotMountId;
             state.modalSlotRoot = ui == nullptr || modalSlotMountId == UI_INVALID_MOUNT
@@ -225,11 +275,46 @@ namespace gts::vn
             }
             else
             {
+                if (interactionSessionActive(ctx.world))
+                {
+                    updateInteractionPresentation(ctx);
+                    return;
+                }
+
                 runtime.stopExternalDialogue();
                 resetRenderPassVisibilityIfNeeded(ctx.world);
                 resetDialogueExecutionProfileIfNeeded(ctx.world);
                 lastExternalPresentationRevision = 0;
             }
+
+            writePlaybackState(ctx.world);
+            syncUi(ctx.ui);
+        }
+
+        static bool interactionSessionActive(ECSWorld& world)
+        {
+            return world.hasAny<InteractionFrontendSessionComponent>()
+                && world.getSingleton<InteractionFrontendSessionComponent>().isInteractionViewActive();
+        }
+
+        void updateInteractionPresentation(const EcsControllerContext& ctx)
+        {
+            const InteractionFrontendSessionComponent& session =
+                ctx.world.getSingleton<InteractionFrontendSessionComponent>();
+
+            const bool fullscreenPresentation = applyExternalPresentation(ctx.world);
+            applyDialogueExecutionProfile(ctx.world, fullscreenPresentation);
+
+            if (session.feedbackText.empty())
+                runtime.presentExternalStage();
+            else
+                runtime.presentExternalDialogue(session.speakerName, session.feedbackText, {});
+
+            VNRuntimeInput input;
+            input.dt = ctx.time == nullptr ? 0.0f : ctx.time->unscaledDeltaTime;
+            input.continuePressed = false;
+            input.clickedChoiceIndex = -1;
+            runtime.update(ctx, input);
 
             writePlaybackState(ctx.world);
             syncUi(ctx.ui);

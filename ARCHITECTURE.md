@@ -1230,7 +1230,10 @@ The module is split into:
   `VNExternalPresentationComponent`, an optional presentation override for
   dialogue-driven VN backgrounds, dimming, and sprites, plus
   `VNFrontendStateComponent`, which publishes the VN surface, composition,
-  modal layer, and modal-slot mount for game-side modal integrations
+  interaction layer/slot, modal layer, and modal-slot mount for game-side
+  interaction frontend integrations, and `InteractionFrontendSessionComponent`,
+  which identifies the active NPC interaction mode without putting merchant,
+  quest, inventory, or other game rules into VN
 
 The VN stage supports multiple background modes: current scene, fullscreen image,
 solid color, and none. Current-scene mode leaves the 3D scene visible and renders
@@ -1261,19 +1264,30 @@ the active profile/theme seed.
 The VN frontend is authored as `VNDialogueComposition` over the retained UI
 runtime. It builds a stage layer, dialogue panel widgets, speaker/body/continue
 labels, a vertical choice stack of button widgets, retained event handling,
-navigation metadata, and a VN modal slot. Choice activation routes through
+navigation metadata, an interaction slot, and a modal slot. Choice activation routes through
 `UiComposition::onEvent(...)` and `UiNavigationGraph` submit events instead of
 polling `UiDispatchResult` handles. Stage sprite placement remains VN stage
 presentation data because sprites are authored in normalized stage coordinates,
 not as conventional controls.
 
+The same mounted frontend now acts as the engine's Interaction Frontend shell.
+Dialogue is one mode inside that shell. Non-modal NPC feature views such as
+merchant trade, inventory handoff, quest handoff, crafting, training, banking,
+gifting, and future relationship screens should mount into the published
+interaction slot. True blocking overlays should mount into the published modal
+slot and use `UiModalManager`. `InteractionFrontendSessionComponent` lets a
+game-side feature keep the VN stage active after a dialogue graph hands off to
+another interaction mode, while the feature continues to own its own business
+logic.
+
 Dialogue-driven VN presentation can opt into a traditional full-VN scene without
 changing dialogue graph data. A game may populate `VNExternalPresentationComponent`
 with a fullscreen image background, dimming value, VN sprites, and optional
 scene/particle render suppression while a `DialogueRuntimeComponent` is active.
-`VNSystem` applies that override only to external dialogue presentation; if the
-component is absent or inactive, dialogue continues to overlay the current 3D
-scene and render pass visibility is restored to defaults.
+`VNSystem` applies that override to active external dialogue and active
+interaction sessions. If the component is absent or inactive, dialogue continues
+to overlay the current 3D scene and render pass visibility is restored to
+defaults when no interaction session is active.
 
 `VNSystem` also consumes the generic execution-profile stack. While external
 dialogue is active, current-scene presentation pushes the `dialogue_overlay`

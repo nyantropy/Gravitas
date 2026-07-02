@@ -1318,13 +1318,43 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle,
         case UiNodeType::Rect:
         {
             const auto& data = std::get<UiRectData>(node.payload);
-            const UiColor color = resolveFillColor(node, theme, data.color);
-            visualList.primitives.push_back(UiRectPrimitive{
-                node.handle,
-                node.computedLayout.bounds,
-                effectiveClip,
-                color
-            });
+            UiPanelSkin fallback;
+            fallback.type = UiPanelSkinType::SolidColor;
+            fallback.color = data.color;
+            const UiPanelSkin skin = resolvePanelSkinForNode(node, theme, fallback);
+            if (skin.type == UiPanelSkinType::Image && !skin.imageAsset.empty())
+            {
+                visualList.primitives.push_back(UiImagePrimitive{
+                    node.handle,
+                    node.computedLayout.bounds,
+                    effectiveClip,
+                    skin.imageAsset,
+                    0,
+                    skin.tint,
+                    1.0f,
+                    0.0f
+                });
+            }
+            else if (skin.type == UiPanelSkinType::NineSlice && !skin.imageAsset.empty())
+            {
+                visualList.primitives.push_back(UiNineSlicePrimitive{
+                    node.handle,
+                    node.computedLayout.bounds,
+                    effectiveClip,
+                    skin.imageAsset,
+                    skin.tint,
+                    skin.slice
+                });
+            }
+            else
+            {
+                visualList.primitives.push_back(UiRectPrimitive{
+                    node.handle,
+                    node.computedLayout.bounds,
+                    effectiveClip,
+                    resolveFillColor(node, theme, data.color)
+                });
+            }
             break;
         }
 
