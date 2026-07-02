@@ -171,8 +171,9 @@ Current system groups are intentionally coarse:
 Do not introduce feature-specific groups such as enemy AI, shop logic, or a
 particular effect unless a broad engine-level category stops being expressive
 enough. Most application logic belongs in `Gameplay`; engine renderer binding
-and GPU sync systems belong in `RenderPrep`; retained UI sync/input systems
-belong in `Ui`; global or scene debug tooling belongs in `Tools`.
+and GPU sync systems belong in `RenderPrep`; retained UI state adapters,
+presenters, coordinators, and composition updates belong in `Ui`; global or
+scene debug tooling belongs in `Tools`.
 
 `SceneExecutionProfile` combines three independent policy areas:
 
@@ -1221,8 +1222,8 @@ The module is split into:
 
 - `runtime/`: `VNStage`, `VNRuntime`, `VNScript`, typed `VNCommand` data, and
   `VNCommandRegistry`
-- `ui/`: retained UI construction/sync for dialogue boxes, choices, fullscreen
-  backgrounds, dimming, and character sprite images
+- `ui/`: retained UI compositions and presentation adapters for dialogue boxes,
+  choices, fullscreen backgrounds, dimming, and character sprite images
 - `systems/`: `VNSystem`, a controller system that owns one runtime instance,
   routes continue/input events, syncs UI, and writes playback/frontend state
 - `components/`: `VNPlaybackStateComponent`, a lightweight singleton view of
@@ -1279,6 +1280,15 @@ slot and use `UiModalManager`. `InteractionFrontendSessionComponent` lets a
 game-side feature keep the VN stage active after a dialogue graph hands off to
 another interaction mode, while the feature continues to own its own business
 logic.
+
+DungeonCrawler's migrated game UI now validates this contract in production
+feature code: merchant trade mounts into the Interaction Frontend slot, loot
+containers mount as dungeon/storage UI outside VN, standalone inventory and
+menus mount through feature coordinators, skill tree and dungeon HUD are
+compositions, and combat UI is composition-owned. The remaining game-side
+compatibility edge is world-space billboard projection for combat nameplates,
+which is intentionally outside the screen-space UI migration and should become
+first-class runtime projection support later.
 
 Dialogue-driven VN presentation can opt into a traditional full-VN scene without
 changing dialogue graph data. A game may populate `VNExternalPresentationComponent`

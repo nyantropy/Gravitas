@@ -6,6 +6,12 @@ This document records the UI runtime investigation performed against the current
 engine and game code. It also records the recommended long-term architecture and
 the staged migration plan.
 
+Sections 1-28 preserve the chronological investigation and implementation
+history. Any "current" or "still" statements inside those phase records describe
+the codebase at the time of that phase unless superseded later. The authoritative
+game-side UI migration status is recorded in **29. Game UI Migration
+Validation**.
+
 The investigation found that the current UI runtime is useful as a retained
 primitive renderer, but it is not a complete UI runtime architecture for a
 general-purpose engine. The engine needs first-class concepts for surfaces,
@@ -173,8 +179,9 @@ that already owns pointer/cancel interaction, converts the frame to surface-loca
 coordinates, and dispatches through that surface's dispatcher. The dispatcher
 consults that surface's `UiModalManager` before hit testing so the top modal can
 block lower layers and route cancel/back input. Inventory and merchant grid
-interactions still compute cell ownership manually because they are not yet
-modeled as retained UI widgets.
+interactions now route through game-owned item-grid widgets and retained
+events, while inventory transfer, pricing, theft, and drag/drop meaning remain
+feature logic above the runtime.
 
 The retained authoring path now has one more layer above primitive nodes:
 `UiComposition` can build reusable widgets such as labels, panels, buttons,
@@ -373,10 +380,10 @@ ownership primitive above raw handles. `UiMount` owns a retained subtree root,
 its attachment location, parent/child mount relationships, and automatic cleanup
 when the mount is destroyed.
 
-Feature UI builders still store handle structs for compatibility. Feature
-sync/event systems later mutate those handles. Those handle structs should
-migrate behind mounts incrementally; the mount becomes the lifetime owner while
-feature state remains free to cache interior handles for sync.
+Game UI compositions now keep retained handles as private implementation
+details behind mounts. Compatibility builders may still exist in engine tools
+or historical examples, but normal game UI lifetime should be expressed through
+`UiMount` and `UiComposition` rather than scene-owned handle bundles.
 
 `UiSystem::clear()` clears the whole document, text bindings, focus, modal
 state, dispatch state, and recreates the root mount. Individual nodes can still
@@ -462,8 +469,10 @@ Current layout limitations:
 - Scroll layout clips and offsets content but does not yet own scrollbars,
   scroll ranges, virtualization, or input gestures.
 - Pixel units are preliminary and not yet DPI-aware.
-- Existing game UI is still mostly manually positioned and must migrate
-  incrementally.
+- Game UI has migrated to layout/composition ownership. Some specialized
+  composition internals still use primitive layouts directly where reusable
+  widgets do not exist yet, such as minimap grids, skill-tree lines, and
+  debug overlays.
 
 ### Rendering
 
@@ -836,13 +845,15 @@ Specific weaknesses:
 - The renderer currently composites all render-enabled surfaces into one
   screen-space command buffer; render-target, world-space, split-screen, and
   multi-window backends are not implemented yet.
-- Most existing feature UI still uses the default screen surface.
+- Most current game UI still uses the default screen surface unless a feature
+  explicitly mounts into the VN/Interaction Frontend surface or a dedicated
+  tool surface. Additional render-target, world-space, split-screen, and
+  multi-window backends remain future work.
 - Layering was historically implicit; the new layer primitive starts to fix only
   the root-level ordering problem.
-- Most existing feature UI still uses the default layer.
-- Some UI ownership still bypasses retained primitives, especially inventory
-  grids, merchant grids, skill-tree panning, tool viewport picking, and gizmo
-  transforms.
+- Current game UI uses mounted compositions and explicit runtime layers/slots.
+  Tool viewport picking, gizmo transforms, and world-space projection remain
+  compatibility paths outside normal screen-space game UI.
 - Hit testing and render order are coupled to the same retained traversal.
 - Pointer capture now backs the drag/drop runtime, but multi-pointer/touch drag
   input is not implemented yet.
@@ -851,13 +862,13 @@ Specific weaknesses:
   and held-repeat policy remain future work.
 - Event propagation exists at the composition level, but node/widget-level
   handler registration is not implemented yet.
-- Modal ownership exists in the engine, but existing game UI has not yet
-  migrated its open/closed state and gameplay gates onto modal descriptors.
-- Gameplay input blocking is still game-specific and manually checks feature
-  singleton state.
-- Inventory, merchant grids, and tools implement their own input routing.
-- Feature UIs are still built mostly as raw handle structs, not as reusable
-  mounted compositions.
+- Modal ownership exists in the engine. Game UI uses modal policy for true
+  modal overlays, while gameplay input gating still checks feature singleton
+  state for non-modal game modes such as inventory, loot, merchant, VN,
+  transitions, and debug camera.
+- Inventory, loot, merchant, menus, skill tree, dungeon HUD, combat, and prompts
+  are now mounted compositions/widgets. Tool UI and world/viewport interaction
+  still carry compatibility routing.
 - Raw handles are not generation checked.
 - Layout now has measure/arrange containers, but most existing feature UI still
   computes geometry manually and the layout engine is not yet a mature
@@ -1997,31 +2008,24 @@ Platform input
     -> feature UI event system
 ```
 
-The direct retained dispatch initiators were:
-
-- `src/menus/ui/MenuUiEventHandler.cpp`
-- `src/inventory/ui/MerchantUiEventHandler.cpp`
-- `src/classes/ui/SkillTreeUiEventHandler.h`
-- `engine/modules/visualnovel/systems/VNSystem.hpp`
-- `engine/modules/tools/ui/EngineToolShellSystem.hpp`
+The direct retained dispatch initiators were legacy feature UI handlers for
+menus, merchant trade, skill tree, VN presentation, and engine tool chrome.
 
 Each duplicated the same normalized pointer conversion, primary-button mapping,
 scroll capture, call into `UiSystem::updateInteraction(...)`, and result
 interpretation.
 
-Several paths bypass retained UI dispatch and still compute ownership from raw
+Several paths bypassed retained UI dispatch and computed ownership from raw
 input:
 
-- `src/inventory/ui/InventoryUiEventHandler.cpp` maps raw mouse position to
-  inventory cells and performs drag/drop with raw primary-button edges.
-- `src/inventory/ui/MerchantUiEventHandler.cpp` maps raw mouse position to
-  merchant/player grid cells and selects grid items with raw primary-button
-  edges.
-- `src/classes/ui/SkillTreeUiEventHandler.h` still uses raw scroll and
-  primary-button state for canvas pan/drag, while node/button hover and click now
-  come from central dispatch.
-- `engine/modules/tools/ui/EngineToolShellSystem.hpp` still computes viewport
-  pointer capture from raw mouse position for tool world picking.
+- legacy inventory UI mapped raw mouse position to inventory cells and
+  performed drag/drop with raw primary-button edges.
+- legacy merchant UI mapped raw mouse position to merchant/player grid cells
+  and selected grid items with raw primary-button edges.
+- legacy skill-tree UI used raw scroll and primary-button state for canvas
+  pan/drag while node/button hover and click came from central dispatch.
+- engine tool shell code computed viewport pointer capture from raw mouse
+  position for tool world picking.
 - Tool world picking and gizmo systems consume `EngineToolInputCaptureComponent`
   rather than retained UI hit testing.
 - Camera/debug systems may read raw mouse deltas for non-UI control, which is
@@ -2287,13 +2291,13 @@ game feature state:
   VN playback were active.
 - `DungeonInputSystem` preserved only menu commands while that gate reported
   gameplay locked.
-- `MenuUiEventHandler` opened and closed the game menu, controls/video panels,
-  skill tree, and keybinding capture state through feature singletons and
-  feature actions.
-- `InventoryUiEventHandler` blocked inventory interaction behind merchant, menu,
-  and VN state, then performed raw pointer and drag/drop ownership for the
-  inventory grid.
-- `MerchantUiEventHandler` closed on Back and used centralized dispatch for
+- legacy menu UI handlers opened and closed the game menu, controls/video
+  panels, skill tree, and keybinding capture state through feature singletons
+  and feature actions.
+- legacy inventory UI handlers blocked inventory interaction behind merchant,
+  menu, and VN state, then performed raw pointer and drag/drop ownership for
+  the inventory grid.
+- legacy merchant UI handlers closed on Back and used centralized dispatch for
   retained buttons, while merchant/player grids still computed hover/selection
   manually from raw pointer position.
 - The VN runtime used playback state, presentation state, and execution
@@ -2669,9 +2673,8 @@ The dungeon interaction prompt now demonstrates the migration model:
   parameters.
 - `DungeonUiController` mounts the composition through
   `UiSystem::mountComposition(...)`.
-- `InteractionPromptSyncSystem` stores a `UiCompositionId`, feeds prompt text and
-  viewport parameters into the concrete composition, and calls
-  `UiSystem::updateComposition(...)`.
+- the prompt presenter stores a `UiCompositionId`, feeds prompt text into the
+  concrete composition, and calls `UiSystem::updateComposition(...)`.
 - The old handle-based constructor remains as a compatibility path for scenes
   that still build the prompt directly.
 
@@ -3303,10 +3306,10 @@ resolved primitives and does not know theme policy.
 
 The dungeon interaction prompt now has a feature-owned
 `src/dungeon/ui/DungeonUiTheme.h`. `DungeonUiController` assigns that theme to
-the default screen surface. `InteractionPromptBuilder` consumes theme metrics
-for prompt size, bottom margin, and text inset, and assigns style classes for
-the prompt panel and label. `InteractionPromptComposition` updates text content
-without reauthoring text color or font scale.
+the default screen surface. `InteractionPromptComposition` consumes theme
+metrics and widget asset style defaults for prompt size, bottom margin, text
+inset, panel skin, and label presentation, then updates prompt state without
+reauthoring text color or font scale.
 
 The old non-composition interaction-prompt sync path remains as a compatibility
 fallback and still contains hardcoded presentation constants. Inventory,
@@ -3967,23 +3970,20 @@ into retained UI every frame.
 
 ### Investigation
 
-Current retained UI synchronization still appears in many feature systems:
+Before the data-binding runtime and later game UI migration, retained UI
+synchronization appeared in many feature systems:
 
-- `InteractionPromptSyncSystem` reads `InteractionPromptUiState`, writes prompt
-  composition state, and previously caused retained label/opacity updates.
-- `DungeonHudSyncSystem` caches floor/debug/minimap revisions and manually
-  writes text payloads, grid payloads, visibility, and layout.
-- `CombatUiSyncSystem` writes action menu labels, selected row colors, HP text,
-  HP fill widths, log lines, banner alpha, and enemy nameplate state every
-  frame.
-- `InventoryUiSyncSystem` computes panel geometry, visibility, item icon
-  payloads, stack labels, tooltip text, and hover/drag colors manually.
-- `MenuUiSyncSystem` writes menu button labels, settings labels, dropdown rows,
-  action bindings, visibility, and enabled state manually.
-- `VNDialogueComposition` delegates to `VNDialogueUi::sync(...)`, which mirrors
-  dialogue runtime state into retained dialogue text, speaker text, choices,
-  and choice button state.
-- Engine tool panels such as `SceneGizmoPanel` manually update button text,
+- interaction prompts copied prompt text and opacity into retained labels.
+- dungeon HUD code cached floor/debug/minimap revisions and wrote text,
+  visibility, grid payloads, and layout.
+- combat UI wrote action labels, selected-row color, HP text/fill, log lines,
+  banner alpha, and enemy nameplate state every frame.
+- inventory and merchant UI computed panel geometry, item icon payloads, stack
+  labels, tooltip text, and hover/drag colors manually.
+- menus wrote button labels, settings labels, dropdown rows, action bindings,
+  visibility, and enabled state manually.
+- VN dialogue mirrored runtime state into retained speaker/body/choice nodes.
+- engine tool panels such as `SceneGizmoPanel` manually update button text,
   toggle colors, status labels, and visibility.
 
 The repeated generic patterns are text formatting, boolean visibility/enabled
@@ -4216,8 +4216,11 @@ Added `ui_accessibility_runtime`, covering:
 
 ### Remaining Binding Debt
 
-- Combat, dungeon HUD, inventory, merchant, menus, VN dialogue, and engine tool
-  panels still contain substantial manual retained UI sync.
+- Game UI has migrated away from feature-owned retained handle sync. Most game
+  features still push whole view snapshots into compositions instead of using
+  fine-grained `UiBindingManager` sources for every label, progress value, or
+  visibility flag. This is now composition-level presentation debt rather than
+  a missing ownership foundation.
 - The runtime is intentionally one-way. Text fields, sliders, property editors,
   and IME-aware controls still need explicit future two-way binding policy.
 - There is no reflected ECS/property binding bridge yet.
@@ -5285,7 +5288,56 @@ gap is tracking which retained targets came from localization refs so active
 locale changes and future catalog reloads can update mounted UI without
 requiring each feature to rebuild manually.
 
-## 29. Final Recommendation
+## 29. Game UI Migration Validation
+
+DungeonCrawler has completed its first full game-side migration onto the
+surface/layer/composition runtime. The migration moved the Visual Novel
+frontend into `VNDialogueComposition`, then widened it into an Interaction
+Frontend that can host merchant trade as an NPC interaction view instead of a
+separate fullscreen overlay. The same pass migrated the remaining game UI
+families onto compositions and widgets:
+
+- `CombatComposition` owns combat panels, action buttons, log, banner, HP bars,
+  and the enemy nameplate root.
+- `DungeonHudComposition`, `InteractionPromptComposition`, and
+  `YuneSpatialDebugComposition` own dungeon HUD, prompt, minimap/debug, and
+  Yune prototype UI presentation.
+- `ItemGridWidget`, `LootContainerComposition`, `InventoryComposition`, and
+  `MerchantTradeComposition` own reusable item-grid, storage/loot, standalone
+  inventory, and Interaction Frontend merchant trade presentation.
+- `MenuComposition` owns pause/settings/keybinding UI.
+- `SkillTreeComposition` owns the class progression prototype UI.
+
+This migration removed the game-side builder/handle-bundle/sync-system pattern
+as the standard UI architecture. Feature coordinators now mount compositions,
+push feature-owned state snapshots into those compositions, and react to
+semantic retained events. Runtime primitives own subtree lifetime, layout,
+theme resolution, rendering, input dispatch, focus, navigation, modal policy,
+and drag/drop lifecycle. Feature logic still owns gameplay meaning such as
+merchant prices, inventory transfer legality, Yune theft punishment, settings
+persistence, combat turn rules, and skill unlock validation.
+
+The migration validated that the current UI runtime foundation is
+architecturally complete enough for future game UI to primarily consist of
+composing widgets and writing feature logic. Remaining work is evolutionary:
+
+- world-space UI projection should become first-class runtime support; combat
+  nameplates still use `BillboardUiSystem` to project a retained root into the
+  active camera view.
+- richer list/grid/tree/dropdown widgets would reduce custom composition code
+  for inventories, menus, and skill trees.
+- more game UI properties can migrate from whole-view snapshot updates to
+  `UiBindingManager` sources.
+- localization target refresh, two-way editing controls, and authored widget
+  packages remain future platform work.
+
+No additional foundational primitive was discovered as a blocker during the
+game UI migration. The runtime now answers where UI lives, how it is laid out,
+how it is styled, how it receives interaction, how focus moves, and how modals
+behave. Game code should not invent new UI ownership systems for normal
+screen-space interfaces.
+
+## 30. Final Recommendation
 
 Adopt the surface/layer/composition runtime:
 
