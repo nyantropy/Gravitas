@@ -695,6 +695,11 @@ namespace gts::ui
             return context.ui.bind(context.surface, desc);
         }
 
+        void setVisible(UiWidgetContext& context, bool visible)
+        {
+            setWidgetState(context, rootHandle, visible, false, false);
+        }
+
         UiBindingId bindTint(UiWidgetContext& context,
                              UiBindingSource source,
                              std::optional<UiAnimationTiming> animation = {})
@@ -741,6 +746,11 @@ namespace gts::ui
             context.ui.setLayout(context.surface, rootHandle, layout);
             setWidgetState(context, rootHandle, desc.visible, true, false);
         }
+
+        void setVisible(UiWidgetContext& context, bool visible)
+        {
+            setWidgetState(context, rootHandle, visible, visible, false);
+        }
     };
 
     struct UiSpacerDesc
@@ -757,6 +767,11 @@ namespace gts::ui
             rootHandle = context.ui.createNode(context.surface, UiNodeType::Container, parent);
             context.ui.setLayout(context.surface, rootHandle, desc.layout);
             setWidgetState(context, rootHandle, desc.visible, true, false);
+        }
+
+        void setVisible(UiWidgetContext& context, bool visible)
+        {
+            setWidgetState(context, rootHandle, visible, visible, false);
         }
     };
 
@@ -779,6 +794,11 @@ namespace gts::ui
                 context.ui.setStyleClass(context.surface, rootHandle, desc.styleClass);
             context.ui.setPayload(context.surface, rootHandle, UiRectData{});
         }
+
+        void setVisible(UiWidgetContext& context, bool visible)
+        {
+            setWidgetState(context, rootHandle, visible, false, false);
+        }
     };
 
     struct UiScrollViewDesc
@@ -800,6 +820,11 @@ namespace gts::ui
             layout.contentOffset = desc.contentOffset;
             context.ui.setLayout(context.surface, rootHandle, layout);
             setWidgetState(context, rootHandle, desc.visible, true, false);
+        }
+
+        void setVisible(UiWidgetContext& context, bool visible)
+        {
+            setWidgetState(context, rootHandle, visible, visible, false);
         }
 
         void setContentOffset(UiWidgetContext& context, UiVec2 offset)
@@ -853,6 +878,12 @@ namespace gts::ui
         }
 
         UiHandle fill() const { return fillHandle; }
+
+        void setVisible(UiWidgetContext& context, bool visible)
+        {
+            setWidgetState(context, rootHandle, visible, false, false);
+            setWidgetState(context, fillHandle, visible, false, false);
+        }
 
         void setValue(UiWidgetContext& context, float value)
         {

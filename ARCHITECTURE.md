@@ -944,7 +944,9 @@ aspect ratio, alignment, padding, margin, and gaps, with typed layout lengths
 for normalized values, parent/surface percentages, content, em, and preliminary
 pixel units. Rendering and hit testing consume computed layout; feature
 compositions should declare layout intent instead of recomputing pixel offsets
-when a container can express the geometry.
+when a container can express the geometry. Visibility changes invalidate layout,
+and sequential flow containers such as `Stack` and `Dock` exclude hidden
+children from allocated gaps and slots.
 
 Retained styling is now engine-owned. `UiTheme` stores semantic colors,
 metrics, typography, skins, panel state skins, and style classes with
@@ -965,9 +967,10 @@ root. Widgets own their retained subtree and local interaction state, consume
 retained events forwarded by their composition, request layout and style intent,
 and expose semantic behavior such as button pressed callbacks. The first engine
 widget set includes labels, panels, buttons, images, stacks, spacers,
-separators, scroll views, and progress bars. Widgets remain clients of the UI
-runtime; they do not own surfaces, mounts, focus, modal policy, rendering, or
-composition lifetime.
+separators, scroll views, and progress bars. Stock widgets expose a consistent
+`setVisible(...)` API for their root state, including compound child nodes where
+the widget owns them. Widgets remain clients of the UI runtime; they do not own
+surfaces, mounts, focus, modal policy, rendering, or composition lifetime.
 
 Navigation is engine-owned and surface-local. Widgets or compatibility builders
 register focusable retained handles with a surface's `UiNavigationGraph`,

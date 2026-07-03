@@ -153,6 +153,40 @@ namespace
         require(near(bounds(ui, fillNode).y, 0.21f), "dock fill y");
     }
 
+    void testDockSkipsHiddenChildren()
+    {
+        UiSystem ui(nullptr);
+        UiLayoutSpec dock = fillLayout();
+        dock.layoutMode = UiLayoutMode::Dock;
+        dock.gap = 0.01f;
+        const UiHandle root = createRect(ui, ui.getRoot(), dock);
+
+        UiLayoutSpec top = fixedLayout(0.0f, 0.20f);
+        top.dock = UiDockEdge::Top;
+        const UiHandle hiddenTop = createRect(ui, root, top);
+
+        UiLayoutSpec left = fixedLayout(0.25f, 0.0f);
+        left.dock = UiDockEdge::Left;
+        const UiHandle hiddenLeft = createRect(ui, root, left);
+
+        UiStateFlags hidden;
+        hidden.visible = false;
+        hidden.enabled = true;
+        ui.setState(hiddenTop, hidden);
+        ui.setState(hiddenLeft, hidden);
+
+        UiLayoutSpec fill;
+        fill.dock = UiDockEdge::Fill;
+        const UiHandle fillNode = createRect(ui, root, fill);
+
+        extract(ui);
+
+        require(near(bounds(ui, fillNode).x, 0.0f), "hidden dock children consumed x gap");
+        require(near(bounds(ui, fillNode).y, 0.0f), "hidden dock children consumed y gap");
+        require(near(bounds(ui, fillNode).width, 1.0f), "hidden dock children consumed width");
+        require(near(bounds(ui, fillNode).height, 1.0f), "hidden dock children consumed height");
+    }
+
     void testOverlayConstraintAndAspect()
     {
         UiSystem ui(nullptr);
@@ -314,6 +348,7 @@ int main()
     testStackLayout();
     testGridLayout();
     testDockLayout();
+    testDockSkipsHiddenChildren();
     testOverlayConstraintAndAspect();
     testScrollContainer();
     testTextMeasurementAndInvalidation();

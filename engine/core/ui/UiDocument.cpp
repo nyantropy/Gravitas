@@ -1068,6 +1068,9 @@ void UiDocument::arrangeDockChildren(UiHandle handle,
     for (UiHandle child : node.children)
     {
         UiNode& childNode = nodes[child];
+        if (!childNode.state.visible)
+            continue;
+
         UiRect slot = remaining;
         switch (childNode.layout.dock)
         {

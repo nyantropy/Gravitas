@@ -456,6 +456,10 @@ The document update path is now:
    `UiNode`.
 4. Rebuild the visual list from computed geometry.
 
+Visibility state is part of layout invalidation. Sequential flow containers
+that allocate ordered space (`Stack` and `Dock`) exclude invisible children from
+flow, so hidden entries do not consume gaps or slots.
+
 Implemented layout modes:
 
 - `Canvas`: compatibility absolute/anchored placement.
