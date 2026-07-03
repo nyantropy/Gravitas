@@ -1268,19 +1268,22 @@ without hardcoding any game vocabulary into the engine module.
 
 VN presentation is authored through `VNPresentationProfile`, not through
 scripts. The profile owns dialogue panel, shadow, nameplate, choice-button state
-skins, text colors/scales, layout seeds, and sprite motion presets. The runtime
-frontend converts that profile into surface-local `UiTheme` style classes,
-metrics, skins, typography, and widget layout constraints. Scripts should
-continue to describe content and presentation intent such as speaker, text,
-choices, sprite identity, background mode, and named animation preset; concrete
-panel textures, nine-slice values, padding, and hover/pressed visuals belong in
-the active profile/theme seed.
+skins, text colors/scales, semantic interaction layout, compatibility layout
+seeds, and sprite motion presets. The runtime frontend converts that profile
+into surface-local `UiTheme` style classes, metrics, skins, typography, and
+widget layout constraints. Scripts should continue to describe content and
+presentation intent such as speaker, text, choices, sprite identity, background
+mode, and named animation preset; concrete panel textures, nine-slice values,
+padding, and hover/pressed visuals belong in the active profile/theme seed.
 
-`VNLayoutProfile` coordinate rectangles are compatibility seeds. New VN layout
-work should prefer semantic theme/profile metrics such as panel alignment,
-content padding, choice width, choice gap, name height, and continue alignment.
-Do not add more raw coordinate rectangles unless preserving old content requires
-it.
+`VNInteractionLayout` is the preferred layout authoring model for interaction
+frontend UI. It describes named overlay slots, content insets, and choice-stack
+intent: dialogue panel slot, nameplate slot, speaker/body text slots, continue
+prompt slot, choice stack width/gap/capacity, interaction slot, and sprite
+capacity. `VNLayoutProfile` coordinate rectangles remain supported as
+compatibility seeds; the runtime derives the same semantic descriptors from
+them before building UI. Do not add new VN rectangles for future interaction
+features.
 
 The VN frontend is authored as `VNDialogueComposition` over the retained UI
 runtime. It builds a stage layer, dialogue panel widgets, speaker/body/continue

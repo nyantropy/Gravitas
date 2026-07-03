@@ -136,6 +136,7 @@ namespace gts::vn
                 return;
 
             const UiSurfaceId surface = ui->compositionSurface(dialogueCompositionId);
+            const VNInteractionLayout layout = resolveVNInteractionLayout(config.ui.profile);
 
             interactionLayerId = ui->createLayer(surface, "interaction-frontend-view", 300);
             if (interactionLayerId != UI_INVALID_LAYER)
@@ -148,7 +149,7 @@ namespace gts::vn
                 const UiHandle interactionRoot = ui->mountRoot(surface, interactionSlotMountId);
                 if (interactionRoot != UI_INVALID_HANDLE)
                 {
-                    ui->setLayout(surface, interactionRoot, slotLayout(config.ui.profile.layout.interaction));
+                    ui->setLayout(surface, interactionRoot, slotLayout(layout.interactionSlot));
                     ui->setStyleClass(surface, interactionRoot, VNThemeClass::InteractionSlot);
                     ui->setState(surface,
                                  interactionRoot,
@@ -177,8 +178,9 @@ namespace gts::vn
             return dynamic_cast<VNDialogueComposition*>(ui->findComposition(dialogueCompositionId));
         }
 
-        static UiLayoutSpec slotLayout(const UiRect& rect)
+        static UiLayoutSpec slotLayout(const VNOverlaySlotLayout& slot)
         {
+            const UiRect rect = vnCompatibilityRectFromOverlaySlot(slot);
             UiLayoutSpec layout;
             layout.positionMode = UiPositionMode::Anchored;
             layout.widthMode = UiSizeMode::FromAnchors;
@@ -211,7 +213,8 @@ namespace gts::vn
             state.interactionSlotRoot = ui == nullptr || interactionSlotMountId == UI_INVALID_MOUNT
                 ? UI_INVALID_HANDLE
                 : ui->mountRoot(state.surface, interactionSlotMountId);
-            state.interactionSlot = config.ui.profile.layout.interaction;
+            state.interactionSlot =
+                vnCompatibilityRectFromOverlaySlot(resolveVNInteractionLayout(config.ui.profile).interactionSlot);
             state.modalLayer = modalLayerId;
             state.modalSlotMount = modalSlotMountId;
             state.modalSlotRoot = ui == nullptr || modalSlotMountId == UI_INVALID_MOUNT

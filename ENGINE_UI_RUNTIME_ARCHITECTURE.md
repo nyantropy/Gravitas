@@ -725,6 +725,15 @@ structure in terms of runtime widgets and layout containers:
 - modal slot: a frontend-owned layer and mount for true modal overlays such as
   confirmations, item details, settings, and save prompts.
 
+VN layout now resolves through semantic descriptors before widget construction.
+`VNInteractionLayout` names the concepts the frontend owns: overlay slots for
+the dialogue panel, nameplate, continue prompt, and interaction slot; content
+insets for speaker/body text; and choice-stack width, capacity, gap, alignment,
+and maximum visible choice count. `VNLayoutProfile` raw rectangles remain a
+compatibility input only. When a profile is authored in compatibility mode, the
+runtime derives `VNInteractionLayout` from those rectangles and then follows the
+same semantic build path as a native semantic profile.
+
 VN presentation state still includes background mode, dimming, sprites, sprite
 z-order, and tweened stage motion. Sprite transforms remain authored in VN stage
 coordinates and are intentionally synchronized as presentation geometry rather

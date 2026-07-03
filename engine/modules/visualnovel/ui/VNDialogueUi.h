@@ -159,6 +159,7 @@ namespace gts::vn
         {
             VNDialogueUiHandles handles;
             const VNPresentationProfile& profile = config.profile;
+            const VNInteractionLayout layout = resolveVNInteractionLayout(profile);
 
             handles.root = widgetContext.ui.createNode(widgetContext.surface, UiNodeType::Container, parent);
             UiLayoutSpec rootLayout = gts::ui::fillLayout();
@@ -193,7 +194,7 @@ namespace gts::vn
             widgetContext.ui.setLayout(widgetContext.surface, handles.spriteLayer, gts::ui::fillLayout());
             setState(widgetContext, handles.spriteLayer, true, false);
 
-            handles.spriteImages.resize(profile.layout.maxSprites);
+            handles.spriteImages.resize(layout.maxSprites);
             for (gts::ui::UiImageWidget& sprite : handles.spriteImages)
             {
                 gts::ui::UiImageDesc spriteDesc;
@@ -203,7 +204,7 @@ namespace gts::vn
             }
 
             handles.dialogueLayer = widgetContext.ui.createNode(widgetContext.surface, UiNodeType::Container, handles.root);
-            UiLayoutSpec dialogueLayout = semanticOverlayRegion(profile.layout.dialogue);
+            UiLayoutSpec dialogueLayout = overlaySlotLayout(layout.dialoguePanel);
             dialogueLayout.layoutMode = UiLayoutMode::Overlay;
             widgetContext.ui.setLayout(widgetContext.surface, handles.dialogueLayer, dialogueLayout);
             setState(widgetContext, handles.dialogueLayer, false, false);
@@ -222,16 +223,13 @@ namespace gts::vn
             makeOverlayContent(widgetContext, handles.panel.content());
 
             gts::ui::UiPanelDesc nameplateDesc;
-            nameplateDesc.layout = relativeOverlayRegion(profile.layout.nameplate);
+            nameplateDesc.layout = overlaySlotLayout(layout.nameplateSlot);
             nameplateDesc.styleClass = VNThemeClass::DialogueNameplate;
             nameplateDesc.visible = false;
             handles.nameplate.build(widgetContext, handles.dialogueLayer, nameplateDesc);
 
             gts::ui::UiLabelDesc speakerDesc;
-            speakerDesc.layout = anchored(profile.layout.speakerText.x,
-                                          profile.layout.speakerText.y,
-                                          profile.layout.speakerText.width,
-                                          profile.layout.speakerText.height);
+            speakerDesc.layout = contentSlotLayout(layout.speakerTextSlot);
             speakerDesc.font = config.font;
             speakerDesc.styleClass = VNThemeClass::SpeakerText;
             speakerDesc.horizontalAlign = UiHorizontalAlign::Left;
@@ -240,10 +238,7 @@ namespace gts::vn
             handles.speakerText.build(widgetContext, handles.nameplate.content(), speakerDesc);
 
             gts::ui::UiLabelDesc bodyDesc;
-            bodyDesc.layout = anchored(profile.layout.bodyText.x,
-                                       profile.layout.bodyText.y,
-                                       profile.layout.bodyText.width,
-                                       profile.layout.bodyText.height);
+            bodyDesc.layout = contentSlotLayout(layout.bodyTextSlot);
             bodyDesc.font = config.font;
             bodyDesc.styleClass = VNThemeClass::BodyText;
             bodyDesc.wrapMode = UiTextWrapMode::Word;
@@ -252,7 +247,7 @@ namespace gts::vn
             handles.bodyText.build(widgetContext, handles.panel.content(), bodyDesc);
 
             gts::ui::UiLabelDesc continueDesc;
-            continueDesc.layout = relativeOverlayRegion(profile.layout.continueIndicator);
+            continueDesc.layout = overlaySlotLayout(layout.continuePromptSlot);
             continueDesc.text = ">";
             continueDesc.font = config.font;
             continueDesc.styleClass = VNThemeClass::ContinueText;
@@ -262,14 +257,14 @@ namespace gts::vn
             handles.continueIndicator.build(widgetContext, handles.panel.content(), continueDesc);
 
             gts::ui::UiStackDesc choiceStackDesc;
-            choiceStackDesc.layout = choiceLayerLayout(profile.layout.choices);
+            choiceStackDesc.layout = choiceLayerLayout(layout.choiceStack);
             choiceStackDesc.axis = UiLayoutAxis::Vertical;
             choiceStackDesc.crossAxisAlignment = UiLayoutAlignment::Stretch;
             choiceStackDesc.gapMetric = VNThemeMetric::ChoiceGap;
             choiceStackDesc.visible = false;
             handles.choiceLayer.build(widgetContext, handles.root, choiceStackDesc);
 
-            handles.choiceButtons.resize(profile.layout.maxChoices);
+            handles.choiceButtons.resize(layout.choiceStack.maxChoices);
             for (size_t i = 0; i < handles.choiceButtons.size(); ++i)
             {
                 gts::ui::UiButtonDesc choiceDesc;
@@ -362,48 +357,34 @@ namespace gts::vn
             return std::find(event.targetPath.begin(), event.targetPath.end(), handle) != event.targetPath.end();
         }
 
-        static UiLayoutSpec semanticOverlayRegion(const UiRect& rect)
+        static UiLayoutSpec overlaySlotLayout(const VNOverlaySlotLayout& slot)
         {
             UiLayoutSpec layout;
-            layout.constraints.preferredWidth = {UiLayoutUnit::Normalized, std::max(0.0f, rect.width)};
-            layout.constraints.preferredHeight = {UiLayoutUnit::Normalized, std::max(0.0f, rect.height)};
-            layout.constraints.horizontalAlignment = UiLayoutAlignment::Center;
-            layout.constraints.verticalAlignment = UiLayoutAlignment::End;
-            layout.margin.bottom = std::max(0.0f, 1.0f - rect.y - rect.height);
+            layout.constraints.preferredWidth = slot.width;
+            layout.constraints.preferredHeight = slot.height;
+            layout.constraints.horizontalAlignment = slot.horizontalAlignment;
+            layout.constraints.verticalAlignment = slot.verticalAlignment;
+            layout.margin = slot.margin;
             return layout;
         }
 
-        static UiLayoutSpec choiceLayerLayout(const UiRect& rect)
+        static UiLayoutSpec choiceLayerLayout(const VNChoiceStackLayout& stack)
         {
             UiLayoutSpec layout;
-            layout.constraints.preferredWidth = {UiLayoutUnit::Normalized, std::max(0.0f, rect.width)};
+            layout.constraints.preferredWidth = stack.width;
             layout.constraints.preferredHeight = {UiLayoutUnit::Content, 0.0f};
-            layout.constraints.horizontalAlignment = UiLayoutAlignment::End;
-            layout.constraints.verticalAlignment = UiLayoutAlignment::Center;
-            layout.margin.right = std::max(0.0f, 1.0f - rect.x - rect.width);
+            layout.constraints.horizontalAlignment = stack.horizontalAlignment;
+            layout.constraints.verticalAlignment = stack.verticalAlignment;
+            layout.margin = stack.margin;
             return layout;
         }
 
-        static UiLayoutSpec relativeOverlayRegion(const UiRect& rect)
+        static UiLayoutSpec contentSlotLayout(const VNContentSlotLayout& slot)
         {
-            UiLayoutSpec layout;
-            layout.constraints.preferredWidth = {UiLayoutUnit::Percent, std::max(0.0f, rect.width)};
-            layout.constraints.preferredHeight = {UiLayoutUnit::Percent, std::max(0.0f, rect.height)};
-            layout.constraints.horizontalAlignment =
-                rect.x + rect.width * 0.5f >= 0.5f ? UiLayoutAlignment::End : UiLayoutAlignment::Start;
-            layout.constraints.verticalAlignment =
-                rect.y + rect.height * 0.5f >= 0.5f ? UiLayoutAlignment::End : UiLayoutAlignment::Start;
-
-            if (layout.constraints.horizontalAlignment == UiLayoutAlignment::End)
-                layout.margin.right = 1.0f - rect.x - rect.width;
-            else
-                layout.margin.left = rect.x;
-
-            if (layout.constraints.verticalAlignment == UiLayoutAlignment::End)
-                layout.margin.bottom = 1.0f - rect.y - rect.height;
-            else
-                layout.margin.top = rect.y;
-            return layout;
+            return anchored(slot.inset.left,
+                            slot.inset.top,
+                            std::max(0.0f, 1.0f - slot.inset.left - slot.inset.right),
+                            std::max(0.0f, 1.0f - slot.inset.top - slot.inset.bottom));
         }
 
         static UiLayoutSpec shadowLayout(gts::ui::UiWidgetContext& context)

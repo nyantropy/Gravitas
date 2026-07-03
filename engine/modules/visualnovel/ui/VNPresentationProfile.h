@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <string>
 
+#include "UiLayout.h"
 #include "UiPanelSkin.h"
 #include "UiTheme.h"
 #include "UiTypes.h"
@@ -63,12 +64,9 @@ namespace gts::vn
 
     struct VNLayoutProfile
     {
-        // Compatibility layout seeds for existing VN content. These rectangles
-        // do not all share identical semantics in the frontend: some describe
-        // panel regions, some describe child slots, and some seed overlay
-        // alignment. New VN layout work should prefer semantic theme/profile
-        // metrics such as panel insets, content padding, choice width/gap, name
-        // height, and continue alignment instead of adding more raw rects.
+        // Compatibility layout seeds for existing VN content. New authoring
+        // should set VNPresentationProfile::layoutAuthoring to Semantic and
+        // fill interactionLayout instead of adding more raw rectangles here.
         UiRect dialogue = {0.060f, 0.720f, 0.880f, 0.220f};
         UiRect nameplate = {0.040f, -0.090f, 0.320f, 0.180f};
         UiRect speakerText = {0.060f, 0.0f, 0.880f, 1.0f};
@@ -81,12 +79,177 @@ namespace gts::vn
         size_t maxSprites = 8;
     };
 
+    enum class VNLayoutAuthoringMode : uint8_t
+    {
+        CompatibilityRects = 0,
+        Semantic
+    };
+
+    struct VNOverlaySlotLayout
+    {
+        UiLayoutLength width = {UiLayoutUnit::Percent, 1.0f};
+        UiLayoutLength height = {UiLayoutUnit::Percent, 1.0f};
+        UiLayoutAlignment horizontalAlignment = UiLayoutAlignment::Stretch;
+        UiLayoutAlignment verticalAlignment = UiLayoutAlignment::Stretch;
+        UiThickness margin;
+    };
+
+    struct VNContentSlotLayout
+    {
+        UiThickness inset;
+    };
+
+    struct VNChoiceStackLayout
+    {
+        UiLayoutLength width = {UiLayoutUnit::Percent, 1.0f};
+        UiLayoutLength heightBudget = {UiLayoutUnit::Normalized, 0.0f};
+        UiLayoutAlignment horizontalAlignment = UiLayoutAlignment::End;
+        UiLayoutAlignment verticalAlignment = UiLayoutAlignment::Center;
+        UiThickness margin;
+        float gap = 0.0f;
+        size_t maxChoices = 6;
+    };
+
+    struct VNInteractionLayout
+    {
+        VNOverlaySlotLayout dialoguePanel;
+        VNOverlaySlotLayout nameplateSlot;
+        VNContentSlotLayout speakerTextSlot;
+        VNContentSlotLayout bodyTextSlot;
+        VNOverlaySlotLayout continuePromptSlot;
+        VNChoiceStackLayout choiceStack;
+        VNOverlaySlotLayout interactionSlot;
+        size_t maxSprites = 8;
+    };
+
     struct VNPresentationProfile
     {
         VNDialogueBoxSkin dialogueSkin;
         VNLayoutProfile layout;
+        VNLayoutAuthoringMode layoutAuthoring = VNLayoutAuthoringMode::CompatibilityRects;
+        VNInteractionLayout interactionLayout;
         VNSpriteMotionProfile motionProfile;
     };
+
+    inline UiLayoutLength vnPercent(float value)
+    {
+        return {UiLayoutUnit::Percent, value};
+    }
+
+    inline UiLayoutLength vnNormalized(float value)
+    {
+        return {UiLayoutUnit::Normalized, value};
+    }
+
+    inline VNOverlaySlotLayout vnOverlaySlot(UiLayoutLength width,
+                                             UiLayoutLength height,
+                                             UiLayoutAlignment horizontalAlignment,
+                                             UiLayoutAlignment verticalAlignment,
+                                             UiThickness margin = {})
+    {
+        VNOverlaySlotLayout slot;
+        slot.width = width;
+        slot.height = height;
+        slot.horizontalAlignment = horizontalAlignment;
+        slot.verticalAlignment = verticalAlignment;
+        slot.margin = margin;
+        return slot;
+    }
+
+    inline VNContentSlotLayout vnContentSlot(UiThickness inset)
+    {
+        VNContentSlotLayout slot;
+        slot.inset = inset;
+        return slot;
+    }
+
+    inline UiThickness vnInsetsFromCompatibilityRect(const UiRect& rect)
+    {
+        return UiThickness{
+            std::max(0.0f, rect.x),
+            std::max(0.0f, rect.y),
+            std::max(0.0f, 1.0f - rect.x - rect.width),
+            std::max(0.0f, 1.0f - rect.y - rect.height)
+        };
+    }
+
+    inline VNOverlaySlotLayout vnOverlaySlotFromCompatibilityRect(const UiRect& rect,
+                                                                  UiLayoutUnit sizeUnit = UiLayoutUnit::Percent)
+    {
+        VNOverlaySlotLayout slot;
+        slot.width = {sizeUnit, std::max(0.0f, rect.width)};
+        slot.height = {sizeUnit, std::max(0.0f, rect.height)};
+        slot.horizontalAlignment =
+            rect.x + rect.width * 0.5f >= 0.5f ? UiLayoutAlignment::End : UiLayoutAlignment::Start;
+        slot.verticalAlignment =
+            rect.y + rect.height * 0.5f >= 0.5f ? UiLayoutAlignment::End : UiLayoutAlignment::Start;
+
+        if (slot.horizontalAlignment == UiLayoutAlignment::End)
+            slot.margin.right = 1.0f - rect.x - rect.width;
+        else
+            slot.margin.left = rect.x;
+
+        if (slot.verticalAlignment == UiLayoutAlignment::End)
+            slot.margin.bottom = 1.0f - rect.y - rect.height;
+        else
+            slot.margin.top = rect.y;
+        return slot;
+    }
+
+    inline VNInteractionLayout vnInteractionLayoutFromCompatibility(const VNLayoutProfile& legacy)
+    {
+        VNInteractionLayout layout;
+        layout.dialoguePanel = vnOverlaySlot(vnNormalized(std::max(0.0f, legacy.dialogue.width)),
+                                             vnNormalized(std::max(0.0f, legacy.dialogue.height)),
+                                             UiLayoutAlignment::Center,
+                                             UiLayoutAlignment::End,
+                                             UiThickness{0.0f,
+                                                         0.0f,
+                                                         0.0f,
+                                                         std::max(0.0f,
+                                                                  1.0f - legacy.dialogue.y - legacy.dialogue.height)});
+        layout.nameplateSlot = vnOverlaySlotFromCompatibilityRect(legacy.nameplate);
+        layout.speakerTextSlot = vnContentSlot(vnInsetsFromCompatibilityRect(legacy.speakerText));
+        layout.bodyTextSlot = vnContentSlot(vnInsetsFromCompatibilityRect(legacy.bodyText));
+        layout.continuePromptSlot = vnOverlaySlotFromCompatibilityRect(legacy.continueIndicator);
+        layout.choiceStack.width = vnNormalized(std::max(0.0f, legacy.choices.width));
+        layout.choiceStack.heightBudget = vnNormalized(std::max(0.0f, legacy.choices.height));
+        layout.choiceStack.horizontalAlignment = UiLayoutAlignment::End;
+        layout.choiceStack.verticalAlignment = UiLayoutAlignment::Center;
+        layout.choiceStack.margin.right = std::max(0.0f, 1.0f - legacy.choices.x - legacy.choices.width);
+        layout.choiceStack.gap = std::max(0.0f, legacy.choiceRowGap * legacy.choices.height);
+        layout.choiceStack.maxChoices = legacy.maxChoices;
+        layout.interactionSlot = vnOverlaySlotFromCompatibilityRect(legacy.interaction);
+        layout.maxSprites = legacy.maxSprites;
+        return layout;
+    }
+
+    inline UiRect vnCompatibilityRectFromOverlaySlot(const VNOverlaySlotLayout& slot)
+    {
+        const float width = std::max(0.0f, slot.width.value);
+        const float height = std::max(0.0f, slot.height.value);
+
+        float x = slot.margin.left;
+        if (slot.horizontalAlignment == UiLayoutAlignment::End)
+            x = 1.0f - slot.margin.right - width;
+        else if (slot.horizontalAlignment == UiLayoutAlignment::Center)
+            x = 0.5f - width * 0.5f + (slot.margin.left - slot.margin.right) * 0.5f;
+
+        float y = slot.margin.top;
+        if (slot.verticalAlignment == UiLayoutAlignment::End)
+            y = 1.0f - slot.margin.bottom - height;
+        else if (slot.verticalAlignment == UiLayoutAlignment::Center)
+            y = 0.5f - height * 0.5f + (slot.margin.top - slot.margin.bottom) * 0.5f;
+
+        return UiRect{x, y, width, height};
+    }
+
+    inline VNInteractionLayout resolveVNInteractionLayout(const VNPresentationProfile& profile)
+    {
+        return profile.layoutAuthoring == VNLayoutAuthoringMode::Semantic
+            ? profile.interactionLayout
+            : vnInteractionLayoutFromCompatibility(profile.layout);
+    }
 
     inline UiPanelSkin solidPanelSkin(UiColor color, UiThickness padding = {})
     {
@@ -126,6 +289,7 @@ namespace gts::vn
     inline VNPresentationProfile defaultVNPresentationProfile()
     {
         VNPresentationProfile profile;
+        profile.interactionLayout = vnInteractionLayoutFromCompatibility(profile.layout);
 
         profile.dialogueSkin.panelShadow = solidPanelSkin({0.0f, 0.0f, 0.0f, 0.34f});
         profile.dialogueSkin.panel = solidPanelSkin({0.030f, 0.036f, 0.048f, 0.88f});
@@ -176,6 +340,7 @@ namespace gts::vn
                                                   const UiTheme* parentTheme = nullptr)
     {
         UiTheme theme;
+        const VNInteractionLayout layout = resolveVNInteractionLayout(profile);
         if (parentTheme != nullptr)
             theme.setParent(*parentTheme);
 
@@ -188,13 +353,13 @@ namespace gts::vn
         theme.setTypography("VN.Choice", UiTypography{.scale = profile.dialogueSkin.choiceTextScale});
         theme.setTypography("VN.Continue", UiTypography{.scale = profile.dialogueSkin.bodyTextScale});
 
-        const float choiceGap = profile.layout.choiceRowGap * profile.layout.choices.height;
-        const float choiceButtonHeight = profile.layout.maxChoices == 0
+        const float choiceGap = layout.choiceStack.gap;
+        const float choiceButtonHeight = layout.choiceStack.maxChoices == 0
             ? 0.044f
             : std::max(0.0f,
-                       (profile.layout.choices.height
-                        - choiceGap * static_cast<float>(std::max<size_t>(1, profile.layout.maxChoices) - 1))
-                           / static_cast<float>(std::max<size_t>(1, profile.layout.maxChoices)));
+                       (layout.choiceStack.heightBudget.value
+                        - choiceGap * static_cast<float>(std::max<size_t>(1, layout.choiceStack.maxChoices) - 1))
+                           / static_cast<float>(std::max<size_t>(1, layout.choiceStack.maxChoices)));
         theme.setMetric(VNThemeMetric::ChoiceGap, choiceGap);
         theme.setMetric(VNThemeMetric::ChoiceButtonHeight, choiceButtonHeight);
         theme.setMetric(VNThemeMetric::ChoiceLabelInset,

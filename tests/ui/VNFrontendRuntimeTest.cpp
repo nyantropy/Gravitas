@@ -106,6 +106,14 @@ namespace
         return node->computedLayout.bounds;
     }
 
+    void requireNearRect(const UiRect& lhs, const UiRect& rhs, const std::string& message)
+    {
+        require(near(lhs.x, rhs.x), message + " x");
+        require(near(lhs.y, rhs.y), message + " y");
+        require(near(lhs.width, rhs.width), message + " width");
+        require(near(lhs.height, rhs.height), message + " height");
+    }
+
     void extract(UiSystem& ui)
     {
         ui.extractCommandsRef(1280, 720);
@@ -136,12 +144,92 @@ namespace
         return composition;
     }
 
+    struct VNLayoutSnapshot
+    {
+        UiRect dialoguePanel;
+        UiRect nameplate;
+        UiRect speakerText;
+        UiRect bodyText;
+        UiRect continuePrompt;
+        UiRect choiceLayer;
+        UiRect firstChoice;
+        UiRect secondChoice;
+        float choiceGap = 0.0f;
+        float choiceButtonHeight = 0.0f;
+    };
+
+    VNLayoutSnapshot captureVNLayout(const gts::vn::VNDialogueUiConfig& config)
+    {
+        UiSystem ui(nullptr);
+        gts::vn::VNRuntime runtime;
+        runtime.presentExternalDialogue(
+            "Guide",
+            "Choose a path.",
+            {
+                {"Take the stairs", "stairs"},
+                {"Open inventory", "inventory"}
+            });
+        runtime.getDialogue().visibleText = runtime.getDialogue().text;
+        runtime.getDialogue().visibleCharacters = runtime.getDialogue().text.size();
+        runtime.getDialogue().continueIndicatorVisible = true;
+
+        gts::vn::VNDialogueUiHandles handles = gts::vn::VNDialogueUi::build(ui, config);
+        gts::vn::VNDialogueUi::sync(ui, handles, config, runtime);
+        extract(ui);
+
+        VNLayoutSnapshot snapshot;
+        snapshot.dialoguePanel = bounds(ui, handles.dialogueLayer);
+        snapshot.nameplate = bounds(ui, handles.nameplate.root());
+        snapshot.speakerText = bounds(ui, handles.speakerText.root());
+        snapshot.bodyText = bounds(ui, handles.bodyText.root());
+        snapshot.continuePrompt = bounds(ui, handles.continueIndicator.root());
+        snapshot.choiceLayer = bounds(ui, handles.choiceLayer.root());
+        snapshot.firstChoice = bounds(ui, handles.choiceButtons[0].root());
+        snapshot.secondChoice = bounds(ui, handles.choiceButtons[1].root());
+        snapshot.choiceGap = ui.theme().metricOr(gts::vn::VNThemeMetric::ChoiceGap, -1.0f);
+        snapshot.choiceButtonHeight = ui.theme().metricOr(gts::vn::VNThemeMetric::ChoiceButtonHeight, -1.0f);
+        return snapshot;
+    }
+
     std::vector<UiHandle> choiceOrder(UiSystem& ui)
     {
         return ui.navigationGraph().navigationOrder(
             ui.getDocument(),
             ui.focusManager(),
             ui.modalManager());
+    }
+
+    void testSemanticLayoutMatchesCompatibilityRects()
+    {
+        gts::vn::VNDialogueUiConfig legacyConfig;
+        legacyConfig.profile.layout.dialogue = {0.045f, 0.695f, 0.910f, 0.255f};
+        legacyConfig.profile.layout.nameplate = {0.055f, -0.075f, 0.240f, 0.165f};
+        legacyConfig.profile.layout.speakerText = {0.0f, 0.0f, 1.0f, 1.0f};
+        legacyConfig.profile.layout.bodyText = {0.050f, 0.175f, 0.890f, 0.660f};
+        legacyConfig.profile.layout.continueIndicator = {0.905f, 0.765f, 0.055f, 0.145f};
+        legacyConfig.profile.layout.choices = {0.535f, 0.360f, 0.420f, 0.330f};
+        legacyConfig.profile.layout.choiceRowGap = 0.016f;
+        legacyConfig.profile.layout.maxChoices = 2;
+
+        gts::vn::VNDialogueUiConfig semanticConfig = legacyConfig;
+        semanticConfig.profile.layoutAuthoring = gts::vn::VNLayoutAuthoringMode::Semantic;
+        semanticConfig.profile.interactionLayout =
+            gts::vn::vnInteractionLayoutFromCompatibility(legacyConfig.profile.layout);
+
+        const VNLayoutSnapshot legacy = captureVNLayout(legacyConfig);
+        const VNLayoutSnapshot semantic = captureVNLayout(semanticConfig);
+
+        requireNearRect(semantic.dialoguePanel, legacy.dialoguePanel, "semantic dialogue panel");
+        requireNearRect(semantic.nameplate, legacy.nameplate, "semantic nameplate");
+        requireNearRect(semantic.speakerText, legacy.speakerText, "semantic speaker text");
+        requireNearRect(semantic.bodyText, legacy.bodyText, "semantic body text");
+        requireNearRect(semantic.continuePrompt, legacy.continuePrompt, "semantic continue prompt");
+        requireNearRect(semantic.choiceLayer, legacy.choiceLayer, "semantic choice layer");
+        requireNearRect(semantic.firstChoice, legacy.firstChoice, "semantic first choice");
+        requireNearRect(semantic.secondChoice, legacy.secondChoice, "semantic second choice");
+        require(near(semantic.choiceGap, legacy.choiceGap), "semantic choice gap metric");
+        require(near(semantic.choiceButtonHeight, legacy.choiceButtonHeight),
+                "semantic choice button height metric");
     }
 
     void testChoiceStackThemeAndNavigation()
@@ -319,6 +407,39 @@ namespace
                 "interaction slot child hitbox did not match parent-relative visual bounds");
     }
 
+    void testSemanticInteractionSlotPublishedByVNSystem()
+    {
+        ECSWorld world;
+        UiSystem ui(nullptr);
+
+        gts::vn::VNSystemConfig config;
+        config.ui.profile.layoutAuthoring = gts::vn::VNLayoutAuthoringMode::Semantic;
+        config.ui.profile.interactionLayout =
+            gts::vn::vnInteractionLayoutFromCompatibility(config.ui.profile.layout);
+        config.ui.profile.interactionLayout.interactionSlot =
+            gts::vn::vnOverlaySlot(gts::vn::vnPercent(0.750f),
+                                   gts::vn::vnPercent(0.450f),
+                                   UiLayoutAlignment::Center,
+                                   UiLayoutAlignment::Start,
+                                   UiThickness{0.0f, 0.150f, 0.0f, 0.0f});
+
+        gts::vn::VNSystem system(config);
+
+        EcsControllerContext ctx{world};
+        ctx.ui = &ui;
+        ctx.windowPixelWidth = 1280.0f;
+        ctx.windowPixelHeight = 720.0f;
+
+        system.update(ctx);
+        extract(ui);
+
+        const auto& frontend = world.getSingleton<gts::vn::VNFrontendStateComponent>();
+        const UiRect expectedSlot =
+            gts::vn::vnCompatibilityRectFromOverlaySlot(config.ui.profile.interactionLayout.interactionSlot);
+        requireNearRect(frontend.interactionSlot, expectedSlot, "semantic interaction frontend state slot");
+        requireNearRect(bounds(ui, frontend.interactionSlotRoot), expectedSlot, "semantic interaction root slot");
+    }
+
     void testInteractionSessionKeepsStageActive()
     {
         ECSWorld world;
@@ -367,9 +488,11 @@ namespace
 
 int main()
 {
+    testSemanticLayoutMatchesCompatibilityRects();
     testChoiceStackThemeAndNavigation();
     testModalSlotOwnership();
     testInteractionSlotPublishedByVNSystem();
+    testSemanticInteractionSlotPublishedByVNSystem();
     testInteractionSessionKeepsStageActive();
     return 0;
 }
