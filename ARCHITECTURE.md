@@ -867,6 +867,9 @@ authoring hierarchy is:
 
 `UiSurface -> UiLayer -> UiMount -> UiComposition -> UiWidget / UiWidgetAsset -> retained UiNode -> renderer`
 
+The v1.0 validation and compatibility classification are recorded in
+[ENGINE_UI_RUNTIME_V1_AUDIT.md](ENGINE_UI_RUNTIME_V1_AUDIT.md).
+
 Raw retained nodes, canvas/anchor rectangles, direct payload styling, and
 `UiSystem::dispatchResult()` remain compatibility and low-level tooling paths,
 not the default way to build feature UI.

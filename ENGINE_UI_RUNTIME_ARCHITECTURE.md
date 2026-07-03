@@ -13,17 +13,25 @@ interaction, modal, and Interaction Frontend usage. This document explains the
 runtime architecture and preserves investigation history; it should not be used
 as a menu of equally valid authoring styles.
 
+The final v1.0 validation is recorded in
+[ENGINE_UI_RUNTIME_V1_AUDIT.md](ENGINE_UI_RUNTIME_V1_AUDIT.md). That audit found
+no remaining missing foundational primitive. Remaining work is evolutionary:
+new widgets, richer tooling, more authored assets, platform bridges, localization
+refresh, world-space projection, and performance polish.
+
 Sections 1-28 preserve the chronological investigation and implementation
 history. Any "current" or "still" statements inside those phase records describe
 the codebase at the time of that phase unless superseded later. The authoritative
 game-side UI migration status is recorded in **29. Game UI Migration
 Validation**.
 
-The investigation found that the current UI runtime is useful as a retained
-primitive renderer, but it is not a complete UI runtime architecture for a
-general-purpose engine. The engine needs first-class concepts for surfaces,
-layers, composition, centralized input dispatch, focus, modal ownership, richer
-layout, styling, animation, data binding, and semantic accessibility.
+At the start of this investigation, the UI system was a useful retained
+primitive renderer but not yet a complete general-purpose UI runtime. The
+sections below preserve the staged implementation record for the primitives that
+now make up the stable runtime: surfaces, layers, composition, centralized input
+dispatch, focus, modal ownership, layout, styling, widgets, navigation, drag and
+drop, animation, data binding, semantic accessibility, serialization, assets,
+packages, localization, and the Interaction Frontend.
 
 The first foundational primitive has been implemented during this investigation:
 `UiDocument` now owns explicit ordered layers. Existing builders still attach to

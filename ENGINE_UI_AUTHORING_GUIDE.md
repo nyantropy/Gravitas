@@ -7,6 +7,9 @@ not choose freely between them. Use the preferred authoring model below unless
 you are maintaining compatibility code, writing a primitive visualization, or
 building engine tooling that explicitly needs a lower layer.
 
+The final v1.0 audit and compatibility classification are recorded in
+[ENGINE_UI_RUNTIME_V1_AUDIT.md](ENGINE_UI_RUNTIME_V1_AUDIT.md).
+
 ## The Standard Model
 
 New UI is authored in this order:
@@ -49,7 +52,8 @@ incrementally. These styles are not equally preferred.
 | Direct payload colors/text scales | HUD, compatibility builders | Legacy | Use theme style classes and widget setters/bindings instead. |
 | Reading `dispatchResult()` and comparing handles | Compatibility tools/older UI paths | Legacy compatibility | New UI handles events in `UiComposition::onEvent(...)` and widgets. |
 | Manual spacing, row positions, per-frame layout mutation | Menus/dropdowns, HUD minimap, historical VN | Legacy / exception | Use stack/grid/dock/scroll, theme metrics, and stable layout slots. |
-| VN `VNLayoutProfile` coordinate rectangles | Yune profile and default VN profile | Compatibility | Do not add more coordinate rects; prefer semantic layout metrics and slots. |
+| VN `VNInteractionLayout` semantic descriptors | Yune profile and default VN resolver | Preferred | Use named overlay/content slots, choice stack intent, and interaction/modal slots for dialogue and NPC views. |
+| VN `VNLayoutProfile` coordinate rectangles | Default compatibility profile and legacy content | Compatibility | The runtime adapts these into `VNInteractionLayout`; do not add more coordinate rects. |
 
 ## Ownership Rules
 
@@ -363,8 +367,8 @@ Layout:
 
 - semantic descriptors: panel alignment, panel width, panel insets, name height,
   text padding, choice width, choice alignment, choice gap, continue alignment.
-- compatibility `VNLayoutProfile` rectangles may seed these values but should
-  not be extended.
+- `VNInteractionLayout` owns these descriptors. Legacy `VNLayoutProfile`
+  rectangles are compatibility seeds only and should not be extended.
 
 ### Merchant
 
@@ -722,41 +726,39 @@ UI owns interaction:
 - command emission.
 - accessible names and hints.
 
-## VN Layout Profile Rule
+## VN Interaction Layout Rule
 
-`VNPresentationProfile` and `VNLayoutProfile` are compatibility authoring seeds.
-They exist so current game content can keep working.
+`VNInteractionLayout` is the preferred authoring model for dialogue and
+interaction-oriented frontend layout. It describes intent through named slots
+and metrics: dialogue panel alignment and insets, panel content padding,
+speaker/body/continue slots, choice stack width/alignment/gap/capacity,
+interaction slot padding, modal slot padding, and sprite capacity.
 
-Do not add new coordinate rectangles to `VNLayoutProfile` for future needs.
-The current rectangles already mix several meanings: panel anchoring, relative
-overlay placement, child content slots, and choice-region placement. Future VN
-layout authoring should become semantic and theme-driven.
+New VN or interaction profiles should set `layoutAuthoring` to semantic and
+fill the `interactionLayout` fields. Yune's game profile follows this model.
 
-Preferred future descriptors:
+`VNLayoutProfile` remains supported only as a compatibility seed. The runtime
+normalizes legacy coordinate rectangles through `resolveVNInteractionLayout(...)`
+before building UI, so old content continues to render through the same semantic
+path as new content.
 
-- dialogue panel alignment.
-- panel width and max width.
-- panel bottom inset.
-- panel content padding.
-- nameplate height and alignment.
-- speaker/body stack gap.
-- body max lines.
-- continue indicator alignment.
-- choice stack alignment.
-- choice width.
-- choice row height.
-- choice gap.
-- interaction slot padding.
-- modal slot padding.
+Rules:
+
+- Do not add new coordinate rectangles to `VNLayoutProfile`.
+- Do not encode alignment, padding, content regions, and overlay slots in one
+  rectangle.
+- Use theme metrics for reusable spacing and typography decisions.
+- Use the Interaction Frontend interaction slot for merchant, quest, crafting,
+  training, banking, gifting, and similar NPC views.
+- Use the modal slot only for blocking confirmations or nested modal work.
 
 Migration guidance:
 
-1. Keep reading existing `VNLayoutProfile` fields.
-2. Derive semantic layout metrics from them in the VN theme/profile bridge.
-3. Add semantic fields only when a caller needs new behavior.
-4. Prefer semantic fields over additional raw rectangles.
-5. Leave raw rectangles as compatibility overrides until all shipped content has
-   migrated.
+1. Leave legacy profiles in place until touched for feature work.
+2. When editing a profile, move layout intent into `VNInteractionLayout`.
+3. Keep `VNLayoutProfile` values only when preserving old shipped content.
+4. Convert ordinary interaction views to the Interaction Frontend slots instead
+   of creating separate fullscreen overlays.
 
 ## Preferred Examples
 
@@ -948,4 +950,3 @@ Before merging new UI, verify:
 - Are modals actual modals?
 - Are raw nodes limited to widget internals, tests, tools, or primitive
   visualization?
-
