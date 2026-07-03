@@ -6,7 +6,11 @@
 
 enum class UiLayoutMode : uint8_t
 {
+    // Compatibility and low-level staging path. New feature UI should prefer
+    // the structured containers below unless it is preserving old authored
+    // geometry or drawing primitive visualizations.
     Canvas = 0,
+    // Preferred authoring containers for ordinary UI structure.
     Stack,
     Grid,
     Dock,

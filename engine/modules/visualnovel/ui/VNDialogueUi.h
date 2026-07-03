@@ -228,7 +228,10 @@ namespace gts::vn
             handles.nameplate.build(widgetContext, handles.dialogueLayer, nameplateDesc);
 
             gts::ui::UiLabelDesc speakerDesc;
-            speakerDesc.layout = gts::ui::fillLayout();
+            speakerDesc.layout = anchored(profile.layout.speakerText.x,
+                                          profile.layout.speakerText.y,
+                                          profile.layout.speakerText.width,
+                                          profile.layout.speakerText.height);
             speakerDesc.font = config.font;
             speakerDesc.styleClass = VNThemeClass::SpeakerText;
             speakerDesc.horizontalAlign = UiHorizontalAlign::Left;
@@ -237,7 +240,10 @@ namespace gts::vn
             handles.speakerText.build(widgetContext, handles.nameplate.content(), speakerDesc);
 
             gts::ui::UiLabelDesc bodyDesc;
-            bodyDesc.layout = gts::ui::fillLayout();
+            bodyDesc.layout = anchored(profile.layout.bodyText.x,
+                                       profile.layout.bodyText.y,
+                                       profile.layout.bodyText.width,
+                                       profile.layout.bodyText.height);
             bodyDesc.font = config.font;
             bodyDesc.styleClass = VNThemeClass::BodyText;
             bodyDesc.wrapMode = UiTextWrapMode::Word;

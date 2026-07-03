@@ -6,6 +6,13 @@ This document records the UI runtime investigation performed against the current
 engine and game code. It also records the recommended long-term architecture and
 the staged migration plan.
 
+For day-to-day UI authoring rules, use
+[ENGINE_UI_AUTHORING_GUIDE.md](ENGINE_UI_AUTHORING_GUIDE.md). That guide is the
+authoritative standard for preferred layout, theme, widget, composition,
+interaction, modal, and Interaction Frontend usage. This document explains the
+runtime architecture and preserves investigation history; it should not be used
+as a menu of equally valid authoring styles.
+
 Sections 1-28 preserve the chronological investigation and implementation
 history. Any "current" or "still" statements inside those phase records describe
 the codebase at the time of that phase unless superseded later. The authoritative
@@ -192,6 +199,16 @@ composition and mount. They receive retained `UiEvent` values through
 composition forwarding and expose semantic behavior such as button pressed
 callbacks so feature code no longer needs to compare raw handles for every
 control.
+
+The preferred authoring hierarchy is:
+
+`UiSurface -> UiLayer -> UiMount -> UiComposition -> UiWidget / UiWidgetAsset -> retained UiNode -> renderer`
+
+Raw retained node creation, canvas/anchor rectangles, direct payload styling,
+and `dispatchResult()` polling remain supported for compatibility, tests,
+tools, primitive visualizations, and incremental migration. New product UI
+should follow the authoring guide instead of extending those compatibility
+paths.
 
 The retained non-pointer path is now graph-driven. `UiInputFrame` carries
 abstract navigation requests (`Up`, `Down`, `Left`, `Right`, `Next`,

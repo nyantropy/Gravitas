@@ -860,6 +860,17 @@ address additional surfaces. `UiWidget` provides reusable composition-owned
 controls on top of retained nodes, layout, themes, propagated events,
 surface-local navigation, and binding convenience APIs.
 
+Runtime ownership and authoring conventions are intentionally separate. This
+section describes the runtime architecture. New UI should follow
+[ENGINE_UI_AUTHORING_GUIDE.md](ENGINE_UI_AUTHORING_GUIDE.md), whose standard
+authoring hierarchy is:
+
+`UiSurface -> UiLayer -> UiMount -> UiComposition -> UiWidget / UiWidgetAsset -> retained UiNode -> renderer`
+
+Raw retained nodes, canvas/anchor rectangles, direct payload styling, and
+`UiSystem::dispatchResult()` remain compatibility and low-level tooling paths,
+not the default way to build feature UI.
+
 Each surface owns a `UiDocument` with a hidden document root plus one or more
 ordered layer roots. Existing callers that create nodes without specifying a
 surface or parent still attach to the default layer root returned by
@@ -1261,6 +1272,12 @@ continue to describe content and presentation intent such as speaker, text,
 choices, sprite identity, background mode, and named animation preset; concrete
 panel textures, nine-slice values, padding, and hover/pressed visuals belong in
 the active profile/theme seed.
+
+`VNLayoutProfile` coordinate rectangles are compatibility seeds. New VN layout
+work should prefer semantic theme/profile metrics such as panel alignment,
+content padding, choice width, choice gap, name height, and continue alignment.
+Do not add more raw coordinate rectangles unless preserving old content requires
+it.
 
 The VN frontend is authored as `VNDialogueComposition` over the retained UI
 runtime. It builds a stage layer, dialogue panel widgets, speaker/body/continue

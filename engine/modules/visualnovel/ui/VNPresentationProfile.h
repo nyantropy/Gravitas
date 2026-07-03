@@ -63,6 +63,12 @@ namespace gts::vn
 
     struct VNLayoutProfile
     {
+        // Compatibility layout seeds for existing VN content. These rectangles
+        // do not all share identical semantics in the frontend: some describe
+        // panel regions, some describe child slots, and some seed overlay
+        // alignment. New VN layout work should prefer semantic theme/profile
+        // metrics such as panel insets, content padding, choice width/gap, name
+        // height, and continue alignment instead of adding more raw rects.
         UiRect dialogue = {0.060f, 0.720f, 0.880f, 0.220f};
         UiRect nameplate = {0.040f, -0.090f, 0.320f, 0.180f};
         UiRect speakerText = {0.060f, 0.0f, 0.880f, 1.0f};
