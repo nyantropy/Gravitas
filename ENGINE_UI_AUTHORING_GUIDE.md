@@ -1,16 +1,14 @@
 # Engine UI Authoring Guide
 
-This is the practical handbook for building retained UI in Gravitas.
+This is the practical handbook for building retained UI on the Gravitas engine
+runtime. It describes engine-level authoring rules only. Application-specific
+feature names, business rules, content, and migration notes belong in the
+application repository documentation.
 
-The runtime supports many historical and low-level paths. New feature UI should
-not choose freely between them. Use the preferred authoring model below unless
-you are maintaining compatibility code, writing a primitive visualization, or
-building engine tooling that explicitly needs a lower layer.
-
-The final v1.0 audit and compatibility classification are recorded in
+The final engine-level v1.0 audit is recorded in
 [ENGINE_UI_RUNTIME_V1_AUDIT.md](ENGINE_UI_RUNTIME_V1_AUDIT.md).
 
-## The Standard Model
+## Standard Model
 
 New UI is authored in this order:
 
@@ -27,43 +25,40 @@ UiSurface
 The recommended unit of feature UI is a `UiComposition`.
 
 Inside a composition, prefer reusable widgets and layout containers. Use
-`UiTheme` style classes, metrics, typography, skins, and tokens for all
-presentation decisions. Receive user input through retained `UiEvent` values.
-Use bindings for one-way data synchronization when the value has an observable
-source. Treat retained handles and primitive nodes as implementation details.
+`UiTheme` style classes, metrics, typography, skins, and tokens for presentation
+decisions. Receive user input through retained `UiEvent` values. Use bindings
+for one-way data synchronization when the value has an observable source. Treat
+retained handles and primitive nodes as implementation details.
 
-## Investigation Summary
+## Authoring Path Classification
 
-The current codebase has multiple authoring styles because the runtime matured
-incrementally. These styles are not equally preferred.
-
-| Authoring style | Current examples | Classification | Future rule |
-| --- | --- | --- | --- |
-| `UiComposition` mounted through `UiSystem` | Combat, dungeon HUD, inventory, merchant, menus, VN | Preferred | Every feature screen, panel, overlay, and child view starts here. |
-| Reusable C++ widgets | Labels, panels, buttons, stacks, item grid, progress bars | Preferred | Widgets own reusable controls and interaction behavior. |
-| Serialized widget assets | Interaction prompt asset | Preferred for reusable static structure | Use for reusable authored structure, tool-authored UI, and localized UI assets. |
-| `UiTheme` style classes, skins, metrics, typography | Dungeon theme, VN profile theme bridge | Preferred | All colors, spacing, text scale, padding, and state visuals come from the theme. |
-| Stack, Grid, Dock, Scroll, Constraint, Aspect layout | Runtime widgets and newer VN choice layout | Preferred | Use these to express structure and flow. |
-| Overlay layout | VN root/stage, prompt host, modal-like layering | Preferred only for stacking peers | Use for layered regions, not for manual placement of every child. |
-| Canvas with normalized `rect(...)` helpers | Menus, inventory, merchant, combat, skill tree | Compatibility | Leave working code alone; do not expand this style for new ordinary UI. |
-| Anchored `anchorMin/anchorMax` rectangles | Most migrated game compositions | Compatibility | Use only for full-fill, edge pinning, or bridging old layouts. |
-| Absolute/fixed normalized positions | HUD/minimap/debug overlays, VN sprite presentation | Low-level exception | Allowed for primitive visualization and stage/world-space projection only. |
-| Raw `createNode`, `setPayload`, handle bundles | HUD minimap, specialized grids, tests, engine primitives | Low-level / legacy | Prefer widgets; use raw nodes only for primitive visualizations or new widgets. |
-| Direct payload colors/text scales | HUD, compatibility builders | Legacy | Use theme style classes and widget setters/bindings instead. |
-| Reading `dispatchResult()` and comparing handles | Compatibility tools/older UI paths | Legacy compatibility | New UI handles events in `UiComposition::onEvent(...)` and widgets. |
-| Manual spacing, row positions, per-frame layout mutation | Menus/dropdowns, HUD minimap, historical VN | Legacy / exception | Use stack/grid/dock/scroll, theme metrics, and stable layout slots. |
-| VN `VNInteractionLayout` semantic descriptors | Yune profile and default VN resolver | Preferred | Use named overlay/content slots, choice stack intent, and interaction/modal slots for dialogue and NPC views. |
-| VN `VNLayoutProfile` coordinate rectangles | Default compatibility profile and legacy content | Compatibility | The runtime adapts these into `VNInteractionLayout`; do not add more coordinate rects. |
+| Authoring style | Classification | Rule |
+| --- | --- | --- |
+| `UiComposition` mounted through `UiSystem` | Preferred | Every feature screen, panel, overlay, and child view starts here. |
+| Reusable C++ widgets | Preferred | Widgets own reusable controls and interaction behavior. |
+| Serialized widget assets | Preferred for reusable static structure | Use for reusable authored structure, tool-authored UI, and localized UI assets. |
+| `UiTheme` style classes, skins, metrics, typography | Preferred | Colors, spacing, text scale, padding, and state visuals come from the theme. |
+| Stack, Grid, Dock, Scroll, Constraint, Aspect layout | Preferred | Use these to express structure and flow. |
+| Overlay layout | Preferred only for stacking peers | Use for layered regions, not for manual placement of every child. |
+| Canvas and anchors | Compatibility | Use only for low-level bridging, full-fill, edge pinning, and legacy layouts. |
+| Absolute/fixed normalized positions | Low-level exception | Allowed for primitive visualization, stage presentation, and projection adapters. |
+| Raw `createNode`, `setPayload`, handle bundles | Low-level / legacy | Prefer widgets; use raw nodes only inside widgets, tools, tests, adapters, or primitive visualizations. |
+| Direct payload colors/text scales | Legacy | Use theme style classes and widget setters/bindings instead. |
+| Reading `dispatchResult()` and comparing handles | Compatibility | New UI handles events in `UiComposition::onEvent(...)` and widgets. |
+| Manual spacing, row positions, per-frame layout mutation | Legacy / exception | Use layout containers, theme metrics, and stable layout slots. |
+| `VNInteractionLayout` semantic descriptors | Preferred | Use named overlay/content slots, choice stack intent, and interaction/modal slots for VN and interaction frontend UI. |
+| `VNLayoutProfile` coordinate rectangles | Compatibility | The runtime adapts these into `VNInteractionLayout`; do not add more coordinate rectangles. |
 
 ## Ownership Rules
 
 ### UiSurface
 
 Owns a complete UI universe: document, layers, focus, modals, navigation,
-drag/drop, animation, binding, accessibility, and input/render participation.
+drag/drop, animation, binding, accessibility, localization scope, active theme,
+and input/render participation.
 
 Use a new surface only for a separate output domain: editor preview, split
-screen, tool surface, render target, or a future world-space surface.
+screen, tool surface, render target, or world-space projection surface.
 
 Do not create a surface just to organize a feature panel.
 
@@ -73,7 +68,8 @@ Owns coarse ordering and input blocking at the surface level.
 
 Use layers for broad strata:
 
-- scene HUD
+- base application chrome
+- status overlays
 - interaction frontend
 - modal overlays
 - tool chrome
@@ -100,8 +96,8 @@ A composition should:
 
 - build its widget tree in `build(...)`.
 - synchronize retained state in `update(...)`.
-- forward retained events to its widgets in `onEvent(...)`.
-- emit feature commands rather than mutate gameplay rules directly.
+- forward retained events to widgets in `onEvent(...)`.
+- emit feature commands rather than mutate domain rules directly.
 - own child widget instances and implementation handles.
 - attach child compositions through mounts when a child is a feature-owned view.
 
@@ -111,8 +107,7 @@ A composition should not:
 - hardcode colors, font sizes, padding, or spacing.
 - compare raw handles for ordinary button behavior.
 - bypass widgets for controls that already exist.
-- own gameplay rules such as pricing, combat damage, inventory legality, or
-  quest conditions.
+- own domain rules such as pricing, eligibility, validation, or persistence.
 - build competing fullscreen roots when a shell or slot exists.
 
 ### Widget
@@ -126,7 +121,7 @@ Widgets:
 - consume events that belong to the control.
 - expose semantic callbacks or command-oriented results.
 
-Widgets do not own mounts, surfaces, feature state, gameplay rules, or renderer
+Widgets do not own mounts, surfaces, feature state, domain rules, or renderer
 resources.
 
 ### Retained Node
@@ -137,9 +132,9 @@ primitive visualizations, and compatibility code.
 
 ## Layout Rules
 
-The preferred layout model is container-first. A parent declares how its
-children flow; children declare sizing, alignment, and growth. Do not manually
-calculate coordinates for ordinary UI.
+The preferred layout model is container-first. A parent declares how children
+flow; children declare sizing, alignment, and growth. Do not manually calculate
+coordinates for ordinary UI.
 
 ### Stack
 
@@ -147,27 +142,15 @@ Purpose: one-dimensional flow.
 
 Use for:
 
-- vertical menus
-- choice lists
+- vertical action lists
+- option lists
 - form rows
 - setting rows
-- inventory details
+- detail panes
 - property inspector fields
 - notification lists
 
 Do not use manual y offsets for rows that can be a stack.
-
-Example:
-
-```cpp
-gts::ui::UiStackDesc actions;
-actions.layout.constraints.preferredWidth = {UiLayoutUnit::Percent, 1.0f};
-actions.layout.constraints.preferredHeight = {UiLayoutUnit::Content, 0.0f};
-actions.axis = UiLayoutAxis::Vertical;
-actions.crossAxisAlignment = UiLayoutAlignment::Stretch;
-actions.gapMetric = "menu.action.gap";
-actionStack.build(widgetContext, panel.content(), actions);
-```
 
 ### Grid
 
@@ -175,166 +158,129 @@ Purpose: regular two-dimensional placement.
 
 Use for:
 
-- inventory cells
-- icon palettes
-- editor asset thumbnails
-- settings option matrices
-- skill-tree prototypes when graph placement is not needed
+- uniform item cells
+- icon tables
+- fixed card collections
+- tool palettes
+- shortcut selectors
 
-Use grid layout for equal cells. Use a custom widget if cells map to domain
-objects and need drag/drop, navigation, or selection.
-
-Do not calculate each cell's normalized rectangle in the composition.
+Do not use Grid for irregular masonry, arbitrary graph links, or projected
+world-space labels.
 
 ### Dock
 
-Purpose: classic window chrome and panel regions.
+Purpose: reserve edges and fill remaining space.
 
 Use for:
 
-- window header/body/footer
-- editor sidebars
-- settings pages with title, content, action bar
-- HUD bands with left/right/fill regions
+- window header/body/footer shells
+- toolbar/content/status layouts
+- split left/right/fill panes
+- action footer rows
 
-Do not build window internals with a list of absolute rectangles.
+Do not use Dock for arbitrary absolute coordinates.
 
 ### Scroll
 
-Purpose: clipped scrollable content.
+Purpose: clipped content larger than its viewport.
 
 Use for:
 
-- quest logs
-- long settings pages
-- asset browser lists
-- combat logs
-- inventory descriptions
+- long text
+- long lists
+- inspectors
+- logs
+- asset lists
 
-Scroll owns clipping and content offset. The child content should still use
-stack/grid/dock.
+Scroll views own clipping and scroll offset. Child content should still use
+Stack, Grid, Dock, or another layout container.
 
 ### Constraint
 
-Purpose: size and align a child inside a parent slot.
+Purpose: size limits and responsive boundaries.
 
 Use for:
 
-- centered modal boxes
-- right-aligned action groups
-- bounded tooltips
-- fixed-ratio panels that should not fill their parent
+- max-width panels
+- min-size forms
+- centered dialogs
+- bounded tool panes
 
-Prefer constraints over normalized root rectangles when the intent is
-"center this panel at this size" or "align this panel to the bottom end."
+Do not use constraints to replace the parent layout model.
 
 ### Aspect
 
-Purpose: preserve aspect ratio inside an available slot.
+Purpose: preserve a fixed aspect ratio.
 
 Use for:
 
-- portraits
+- previews
 - thumbnails
-- minimap panels when they can be treated as a component
-- preview images
+- minimaps or maps
+- media frames
 
-Do not hand-scale image width/height if the aspect layout can express it.
+Do not manually recompute height from width when Aspect can express it.
 
 ### Overlay
 
-Purpose: layer peers over the same content rect.
+Purpose: stack peers that share a region.
 
 Use for:
 
-- background image + dimming + foreground content
-- panel + floating badge
-- modal scrim + modal box
-- tooltip over a control
-- VN stage layers
+- stage layers
+- badges
+- modal scrims
+- prompt hosts
+- floating overlays
 
-Overlay is not a general replacement for layout. If a parent has many ordinary
-children, use stack/grid/dock inside the overlay region.
+Do not use Overlay as a replacement for Stack/Grid/Dock when children are
+ordinary flow content.
 
-### Canvas
+### Canvas / Anchors
 
-Purpose: compatibility placement and low-level primitive staging.
+Purpose: compatibility and low-level placement.
 
 Use for:
 
-- preserving existing normalized-rect UI until migrated.
-- primitive visualization such as minimap tiles, graphs, debug overlays.
-- VN sprite/stage presentation where coordinates are content coordinates, not
-  control layout.
-- tests that need exact geometry.
+- full-surface roots.
+- edge-pinned compatibility panels.
+- projection adapters.
+- primitive visualizations.
+- legacy assets that cannot yet be migrated.
 
-Do not use Canvas for new menus, forms, windows, lists, or panels.
+Do not use Canvas for new ordinary windows, forms, lists, or panels.
 
-### Anchors
+## Canonical Patterns
 
-Purpose: fill, pin, or bridge compatibility rectangles.
-
-Preferred uses:
-
-- full-fill root: anchor min `(0,0)`, anchor max `(1,1)`.
-- simple edge pinning.
-- old code that still uses normalized `rect(x, y, w, h)`.
-
-Do not use anchors to manually place every child in a new panel.
-
-### Absolute / Fixed
-
-Purpose: low-level exact placement in normalized surface units.
-
-Use only for:
-
-- primitive visualizations that are computed from domain geometry.
-- renderer/world-space adapters.
-- stage sprites or tool canvas content.
-- compatibility code.
-
-Do not use absolute fixed placement for normal controls.
-
-## Canonical Layout Patterns
-
-### Window
+### Dialogue / Text Interaction
 
 Composition:
 
-- panel widget as window root.
-- dock layout inside panel content.
-- header label docked top.
-- content area as stack/grid/scroll.
-- footer action stack docked bottom or end.
+- frontend shell owns stage, text panel, interaction slot, and modal slot.
+- text panel content is dock/stack based: header, body, footer.
+- choices are a vertical stack of buttons.
 
-Theme:
+Layout:
 
-- `Feature.Window`
-- `Feature.WindowTitle`
-- `Feature.WindowBody`
-- `Feature.ActionButton`
-- spacing metrics such as `feature.window.padding`, `feature.action.gap`.
-
-Navigation:
-
-- buttons use one navigation group.
-- rows use tab indexes only when natural order is ambiguous.
+- use `VNInteractionLayout` for semantic panel slots, content insets, choice
+  stack intent, interaction slot, and modal slot.
+- legacy `VNLayoutProfile` rectangles are compatibility seeds only.
 
 ### Menu
 
 Composition:
 
-- modal or menu composition mounted into menu layer.
-- optional scrim button/panel.
+- menu composition mounted into an appropriate layer.
+- optional scrim panel.
 - centered window.
-- vertical stack of buttons.
+- vertical action stack.
 - secondary pages use the same shell with a scrollable body.
 
 Layout:
 
-- no manual row y offsets.
 - action lists are stacks.
 - setting rows are dock or grid rows inside a scroll view.
+- no manual row offsets.
 
 ### Settings
 
@@ -350,82 +296,62 @@ Theme:
 - row gap and section gap are metrics.
 - labels and values use typography tokens.
 
-Navigation:
-
-- rows are focusable controls when editable.
-- cancel closes dropdowns first, then returns to parent page.
-
-### Dialogue
+### Collection / Grid View
 
 Composition:
 
-- frontend shell owns stage, dialogue panel, interaction slot, and modal slot.
-- dialogue panel content is dock/stack based: name row, text body, footer.
-- choices are a vertical stack of buttons.
-
-Layout:
-
-- semantic descriptors: panel alignment, panel width, panel insets, name height,
-  text padding, choice width, choice alignment, choice gap, continue alignment.
-- `VNInteractionLayout` owns these descriptors. Legacy `VNLayoutProfile`
-  rectangles are compatibility seeds only and should not be extended.
-
-### Merchant
-
-Composition:
-
-- mounted into the Interaction Frontend interaction slot.
-- window or child view, not a separate fullscreen overlay.
-- item grid widget for inventory cells/items.
-- action stack for buy/sell/pay/cancel.
-- status label bound or updated from merchant UI state.
-
-Ownership:
-
-- merchant gameplay owns inventory legality, prices, theft, ownership, and
-  transaction commands.
-- UI owns selection, focus, visible feedback, drag/drop event translation, and
-  command emission.
-
-### Inventory
-
-Composition:
-
-- standalone inventory is a feature composition.
-- embedded inventory uses the same item grid widget inside a parent shell.
+- standalone collection UI is a feature composition.
+- embedded collection UI uses the same grid/list widget inside a parent shell.
 - detail panel is dock/stack/scroll content.
 
 Interaction:
 
-- drag/drop registration belongs to the item grid widget.
-- move legality belongs to inventory gameplay logic.
+- drag/drop registration belongs to the grid/list widget.
+- move legality belongs to domain logic.
 - status messages return through feature UI state.
 
-### Quest Log
+### Transaction / Service View
+
+Composition:
+
+- mounted into an interaction frontend slot when it belongs to an ongoing
+  interaction shell.
+- window or child view, not a separate fullscreen overlay when a shell exists.
+- list/grid widget for selectable entities.
+- action stack for commands.
+- status label bound or updated from feature UI state.
+
+Ownership:
+
+- domain systems own legality, pricing, persistence, and command execution.
+- UI owns selection, focus, visible feedback, drag/drop event translation, and
+  command emission.
+
+### Record Log
 
 Composition:
 
 - window shell.
-- quest list stack or virtualized list widget.
+- record list stack or virtualized list widget.
 - details scroll view.
-- optional objective checklist widget.
+- optional checklist/status widget.
 
 Theme:
 
-- status colors are semantic tokens such as success/warning/disabled.
+- status colors are semantic tokens.
 - row spacing and selected-row styling are style classes.
 
 ### Tooltip
 
 Composition:
 
-- lightweight composition or widget asset mounted into tooltip/modal layer.
+- lightweight composition or widget asset mounted into an overlay layer.
 - constraint layout aligned near target bounds.
 - panel with text stack.
 
 Rules:
 
-- tooltips are not gameplay state.
+- tooltips are not domain state.
 - tooltip bounds are computed by the tooltip service or widget, not every
   feature composition.
 
@@ -433,309 +359,189 @@ Rules:
 
 Composition:
 
-- push a modal owner through `UiModalManager`.
-- mount content into the modal slot or modal layer.
-- scrim belongs to modal shell.
-- content is a window pattern.
+- modal composition mounted into a modal layer or slot.
+- optional scrim.
+- focused content window.
+- action buttons in a footer stack/dock.
 
 Rules:
 
-- true confirmations, blocking item details, save prompts, and destructive
-  actions are modal.
-- merchant trade, inventory, quest views, and crafting screens are not modal
-  just because they are prominent; they are child interaction views.
+- use `UiModalManager` for blocking ownership.
+- cancel/back routes through modal policy.
+- focus restoration is runtime-owned.
+- non-blocking interaction views are not modal.
 
-### HUD
+### Status Overlay
 
 Composition:
 
-- HUD root mounted on HUD layer.
-- use dock/constraint for stable regions.
-- use widgets for meters, prompts, and status text.
-- use raw nodes only for primitive visualization such as minimap cell grids or
-  debug render data.
+- overlay root mounted on a status layer.
+- dock layout for edge regions.
+- widgets for counters, bars, prompts, and notifications.
+- primitive nodes only for visualizations that do not map to existing widgets.
 
-Rules:
+Ownership:
 
-- HUD does not own gameplay state.
-- HUD observes gameplay state through state systems and events.
+- overlay observes feature state through adapters, events, or bindings.
+- overlay does not own domain state.
 
-### Editor Panel
+### Tool Panel
 
 Composition:
 
-- editor surface or tool layer.
-- dock layout for main areas.
-- panel widgets for docked panes.
-- property inspector rows as stack of property widgets.
-- asset browser as grid/list widget over a scroll view.
+- editor/tool shell owns dockable panels.
+- each panel is a composition.
+- inspectors are scroll views of property rows.
+- asset browsers are searchable collection views.
 
 Rules:
 
-- editor-only helpers may exist in tools modules, but they should still consume
-  the same surfaces, mounts, layout, themes, events, navigation, and bindings.
+- tools may use lower-level retained nodes for specialized editors.
+- common chrome, commands, undo/redo, focus, and modal policy remain runtime
+  responsibilities.
 
 ## Theme Rules
 
-All presentation choices come from `UiTheme`.
+No feature should invent local color, spacing, typography, padding, or state
+visual rules when a theme token can express the same intent.
 
-| Presentation decision | Source |
+| Concern | Source |
 | --- | --- |
 | Color | semantic color token or style class |
-| Text color | foreground token or style class |
-| Typography scale/weight/line height | named typography |
-| Padding | panel skin content padding, style padding, or theme metric |
-| Spacing/gaps | theme metrics |
-| Border radius/width | style class |
-| Shadows | style class |
-| Panel image/nine-slice | named skin |
-| Button hover/pressed/disabled visuals | style states or panel state skin |
+| Text scale/font/weight | typography token or style class |
+| Spacing/gap | metric token |
+| Padding/insets | metric token or panel skin content padding |
+| Border radius / nine-slice | skin |
+| Hover/pressed/disabled visuals | state style or state skin |
 | Progress/selection/error visuals | style states and semantic tokens |
 
-Feature UI may define feature-local theme tokens, but it must define them in a
-theme builder or package theme asset. It should not assign literal colors,
-font scales, or padding inside composition code.
-
-Allowed exceptions:
-
-- debug overlays.
-- primitive domain visualizations, such as minimap tile colors.
-- temporary compatibility code during migration.
-- tests that intentionally verify raw payload behavior.
-
-Theme naming convention:
+Recommended naming:
 
 ```text
-Feature.Component.Part
-Feature.metric.name
-FeatureTypographyName
-FeatureSkinName
+Feature.Window
+Feature.ActionButton
+Feature.BodyText
+feature.window.padding
+feature.action.gap
 ```
 
-Examples:
-
-```text
-Inventory.Window
-Inventory.ItemLabel
-inventory.grid.gap
-Inventory.BodyText
-Inventory.WindowSkin
-```
+Use compatibility payload values only when maintaining legacy retained nodes or
+building a primitive visualization.
 
 ## Widget Rules
 
 Use widgets for any reusable control or semantic UI unit.
 
-Create or reuse a widget when:
+Create a widget when:
 
-- the element owns interaction behavior.
-- more than one feature needs the same control.
-- accessibility semantics are non-trivial.
-- it registers navigation, drag/drop, bindings, or state transitions.
-- it owns repeated child nodes.
+- the same control appears in more than one composition.
+- it owns interaction behavior.
+- it owns navigation metadata.
+- it owns drag/drop registration.
+- it owns accessibility semantics.
+- it hides retained-node implementation detail.
 
-Do not create a widget only to avoid writing three lines of composition code.
-Widgets should reduce conceptual duplication, not just hide local structure.
+Do not create a widget when:
 
-Existing core widgets:
+- the code is one composition-specific layout wrapper.
+- no behavior or reuse exists.
+- a stock widget already covers the behavior.
 
-- `UiLabelWidget`
-- `UiPanelWidget`
-- `UiButtonWidget`
-- `UiImageWidget`
-- `UiStackWidget`
-- `UiSpacerWidget`
-- `UiSeparatorWidget`
-- `UiScrollViewWidget`
-- `UiProgressBarWidget`
+Every widget should expose:
 
-Feature widgets should follow the same pattern:
-
-- descriptor struct for authoring inputs.
-- `build(...)`, `sync(...)` when needed, `onEvent(...)`, `destroy(...)`.
-- root handle hidden behind `root()`.
-- no gameplay mutation.
-- callbacks/commands for semantic output.
+- `build(...)`.
+- `sync(...)` or explicit setters for mutable state.
+- `onEvent(...)` when it consumes retained events.
+- `root()` when the parent needs placement or navigation metadata.
+- `content()` only when the widget intentionally exposes a child slot.
+- callbacks or commands for semantic output.
 
 ## Composition Rules
 
-Preferred composition lifecycle:
+Compositions may:
 
-```cpp
-void FeatureComposition::build(UiCompositionContext& context)
-{
-    gts::ui::UiWidgetContext widgets(context);
-    context.ui.setLayout(context.surface, context.root, gts::ui::fillLayout());
+- declare structure.
+- own feature UI state.
+- bind data.
+- respond to retained events.
+- mount child compositions.
+- emit commands to domain logic.
+- request focus, navigation, modal, drag/drop, animation, binding, and
+  accessibility services.
 
-    // Build stable structure once.
-    shell.build(widgets, context.root, shellDesc());
-    bodyStack.build(widgets, shell.content(), bodyStackDesc());
-    primaryAction.build(widgets, footerRoot(), primaryActionDesc());
+Compositions may not:
 
-    // Bind stable data relationships when sources exist.
-    title.bindText(widgets, bindObservable(viewTitle));
-}
-
-void FeatureComposition::update(UiCompositionContext& context)
-{
-    gts::ui::UiWidgetContext widgets(context);
-
-    shell.setVisible(widgets, view.open);
-    status.setText(widgets, view.status);
-    itemGrid.sync(widgets, gridDescFromView());
-}
-
-void FeatureComposition::onEvent(UiCompositionContext& context, UiEvent& event)
-{
-    gts::ui::UiWidgetContext widgets(context);
-
-    itemGrid.onEvent(widgets, event);
-    primaryAction.onEvent(widgets, event);
-
-    if (primaryAction.consumePressed())
-        commands.push_back(FeatureCommand{FeatureCommandType::Confirm});
-}
-```
-
-Rules:
-
-- `build(...)` declares structure.
-- `update(...)` synchronizes state.
-- `onEvent(...)` translates retained events to feature commands.
-- `destroy(...)` destroys widgets or lets mount destruction clean the subtree.
-- Layout is stable after `build(...)` unless the view truly changes structure.
-- Repeated dynamic data should use widgets, stacks, grids, scroll views, or
-  widget assets, not per-frame absolute coordinates.
+- implement hit testing.
+- own pointer capture.
+- route modal blocking manually.
+- calculate ordinary layout geometry.
+- hardcode presentation values.
+- mutate domain state directly.
+- compare raw handles for ordinary controls.
+- interpret drag/drop payloads outside feature ownership.
 
 ## Interaction Rules
 
-| Responsibility | Owner |
+| Concern | Owner |
 | --- | --- |
-| Pointer hit testing and event creation | `UiInputDispatcher` |
-| Pointer capture, hover, keyboard/text/navigation focus | `UiFocusManager` |
-| Pointer click behavior for a button | `UiButtonWidget` |
+| Pointer hit testing | `UiInputDispatcher` |
+| Event propagation | `UiSystem` / `UiComposition` |
+| Keyboard/text focus | `UiFocusManager` |
 | Navigation traversal | `UiNavigationGraph` |
-| Modal stack, blocking, cancel routing | `UiModalManager` |
-| Drag lifecycle and compatible target resolution | `UiDragDropManager` |
-| Drag source/drop target declaration | Widget descriptors |
-| One-way state synchronization | `UiBindingManager` |
-| Time-based retained presentation | `UiAnimationManager` |
-| Accessibility roles and announcements | Widgets and `UiAccessibilityManager` |
-| Gameplay result of a UI command | Feature gameplay system |
+| Modal blocking/cancel | `UiModalManager` |
+| Drag lifecycle | `UiDragDropManager` |
+| Domain command result | Application domain system |
+| Widget activation behavior | Widget |
+| Composition command translation | Composition |
 
-New UI should not poll `dispatchResult()` for ordinary controls. Use
-`UiComposition::onEvent(...)` and widget event forwarding. `dispatchResult()`
-remains available for compatibility, tests, and specialized tools.
+New UI should not poll raw dispatch results for buttons. Widgets consume events,
+and compositions translate widget callbacks into commands.
 
-Navigation rules:
+## Interaction Frontend Rules
 
-- focusable widgets register with `UiNavigationGraph`.
-- use navigation groups per panel or list.
-- use tab indexes only where child order does not express the desired order.
-- cancel/back is a retained navigation event; the composition converts it to a
-  feature command.
+The Interaction Frontend is the canonical shell for interaction-oriented
+presentation. It owns:
 
-Drag/drop rules:
+- stage/background presentation.
+- primary text panel.
+- choice stack.
+- interaction slot for non-modal child views.
+- modal slot for blocking overlays.
+- focus and navigation integration.
 
-- widgets declare sources and targets.
-- drag payload identifies domain objects but does not execute domain rules.
-- feature gameplay validates and applies the drop command.
+Future interaction features should integrate by:
 
-Modal rules:
+1. Starting from the frontend session.
+2. Reading the published interaction slot or modal slot.
+3. Mounting a feature composition into the appropriate slot.
+4. Emitting domain commands from UI events.
+5. Returning visible status through feature UI state.
+6. Leaving domain rules in the owning feature.
 
-- use modals only for blocking decisions or transient blocking surfaces.
-- do not fake modals with fullscreen roots and manual input gates.
-- child interaction views stay in the Interaction Frontend interaction slot.
-- confirmations and item details use the modal slot.
+Examples of views that belong in the interaction slot:
 
-## Interaction Frontend
+- transaction views
+- collection handoffs
+- service screens
+- relationship or profile screens
+- application-specific notifications
 
-The Interaction Frontend is the canonical application of the runtime. It is the
-shell for NPC interaction presentation, not just dialogue.
+Examples of views that belong in the modal slot:
 
-The frontend owns:
-
-- VN stage background, dimming, sprites, and dialogue panel.
-- choice buttons.
-- an interaction slot for non-modal feature child views.
-- a modal slot for true blocking overlays.
-- the surface, layers, mounts, and published frontend state.
-
-Feature systems integrate by:
-
-1. Starting or continuing an interaction session through
-   `InteractionFrontendSessionComponent`.
-2. Reading `VNFrontendStateComponent` for the interaction slot or modal slot.
-3. Mounting their feature composition into the appropriate slot.
-4. Publishing feature-local UI state snapshots.
-5. Consuming feature commands from the composition/coordinator.
-6. Leaving gameplay rules in the owning feature.
-
-Interaction child views:
-
-- merchant trade
-- inventory handoff
-- quest handoff
-- crafting
-- training
-- banking
-- gifting
-- relationship screens
-- NPC-specific notifications
-
-Modal slot views:
-
-- buy/sell confirmation
-- discard confirmation
-- item detail popup when it blocks interaction
-- save/load prompt
-- settings prompt
-- destructive action confirmation
-
-## Inventory and Merchant Guidance
-
-Merchant belongs to the Interaction Frontend because a merchant is an NPC
-interaction mode. It shares stage presentation, dialogue feedback, choices,
-and the same focus/modal ownership as other NPC views.
-
-Inventory is a composition because it is feature UI over inventory state. It
-may be standalone, mounted into a merchant view, or embedded in another
-interaction view, but the inventory feature owns the data and rules.
-
-Drag/drop belongs to the runtime because pointer capture, drag threshold,
-target resolution, hover transitions, cancel, and drop events are generic UI
-behavior. The drag payload should identify inventory objects; it should not
-decide whether a move is legal.
-
-Gameplay owns inventory rules:
-
-- item dimensions.
-- stack rules.
-- ownership and payment state.
-- merchant prices.
-- theft consequences.
-- container restrictions.
-- mutation of inventory grids.
-
-UI owns interaction:
-
-- selected item/cell.
-- focused item/cell.
-- visible drag state.
-- status messages.
-- command emission.
-- accessible names and hints.
+- blocking confirmation
+- blocking quantity/value input
+- blocking error acknowledgement
 
 ## VN Interaction Layout Rule
 
-`VNInteractionLayout` is the preferred authoring model for dialogue and
+`VNInteractionLayout` is the preferred authoring model for VN and
 interaction-oriented frontend layout. It describes intent through named slots
 and metrics: dialogue panel alignment and insets, panel content padding,
 speaker/body/continue slots, choice stack width/alignment/gap/capacity,
 interaction slot padding, modal slot padding, and sprite capacity.
 
-New VN or interaction profiles should set `layoutAuthoring` to semantic and
-fill the `interactionLayout` fields. Yune's game profile follows this model.
+New profiles should set `layoutAuthoring` to semantic and fill the
+`interactionLayout` fields.
 
 `VNLayoutProfile` remains supported only as a compatibility seed. The runtime
 normalizes legacy coordinate rectangles through `resolveVNInteractionLayout(...)`
@@ -748,205 +554,79 @@ Rules:
 - Do not encode alignment, padding, content regions, and overlay slots in one
   rectangle.
 - Use theme metrics for reusable spacing and typography decisions.
-- Use the Interaction Frontend interaction slot for merchant, quest, crafting,
-  training, banking, gifting, and similar NPC views.
+- Use the Interaction Frontend interaction slot for non-modal child views.
 - Use the modal slot only for blocking confirmations or nested modal work.
-
-Migration guidance:
-
-1. Leave legacy profiles in place until touched for feature work.
-2. When editing a profile, move layout intent into `VNInteractionLayout`.
-3. Keep `VNLayoutProfile` values only when preserving old shipped content.
-4. Convert ordinary interaction views to the Interaction Frontend slots instead
-   of creating separate fullscreen overlays.
-
-## Preferred Examples
-
-### Dialogue Composition
-
-```cpp
-// Build once.
-stageOverlay.build(widgets, context.root, stageOverlayDesc());
-dialoguePanel.build(widgets, context.root, dialoguePanelDesc());
-dialogueStack.build(widgets, dialoguePanel.content(), dialogueStackDesc());
-speakerLabel.build(widgets, dialogueStack.root(), speakerDesc());
-bodyLabel.build(widgets, dialogueStack.root(), bodyDesc());
-choiceStack.build(widgets, context.root, choiceStackDesc());
-
-// Sync.
-speakerLabel.setText(widgets, runtime.getDialogue().speaker);
-bodyLabel.setText(widgets, runtime.getDialogue().visibleText);
-syncChoiceButtons(widgets, runtime.getDialogue().choices);
-```
-
-No row y offsets. No direct text colors. No handle click comparison.
-
-### Merchant Composition
-
-```cpp
-window.build(widgets, context.root, merchantWindowDesc());
-contentDock.build(widgets, window.content(), contentDockDesc());
-playerGrid.build(widgets, contentRoot, playerGridDesc());
-actionStack.build(widgets, footerRoot, actionStackDesc());
-sellButton.build(widgets, actionStack.root(), sellButtonDesc());
-cancelButton.build(widgets, actionStack.root(), cancelButtonDesc());
-```
-
-The grid widget emits selection/drop commands. Merchant gameplay applies the
-transaction.
-
-### Inventory Composition
-
-```cpp
-window.build(widgets, context.root, inventoryWindowDesc());
-mainDock.build(widgets, window.content(), mainDockDesc());
-grid.build(widgets, inventoryPane, gridDescFromView());
-detailStack.build(widgets, detailPane, detailStackDesc());
-closeButton.build(widgets, footerPane, closeButtonDesc());
-```
-
-The detail pane is a stack or scroll view, not several hardcoded rectangles.
-
-### Menu Composition
-
-```cpp
-scrim.build(widgets, context.root, scrimDesc());
-window.build(widgets, context.root, menuWindowDesc());
-buttonStack.build(widgets, window.content(), menuStackDesc());
-resume.build(widgets, buttonStack.root(), buttonDesc("Resume"));
-settings.build(widgets, buttonStack.root(), buttonDesc("Settings"));
-quit.build(widgets, buttonStack.root(), buttonDesc("Quit"));
-```
-
-Menu rows are stack children. Dropdowns are popup widgets or modal child views,
-not per-frame y-coordinate rewrites.
-
-### HUD Composition
-
-```cpp
-hudDock.build(widgets, context.root, hudDockDesc());
-healthBar.build(widgets, hudDock.root(), healthDesc());
-promptSlot.build(widgets, hudDock.root(), promptSlotDesc());
-```
-
-Primitive minimap/debug visualization may use raw nodes inside a dedicated
-widget or composition section, but status meters and prompts should be widgets.
-
-### Tooltip Composition
-
-```cpp
-tooltipPanel.build(widgets, context.root, tooltipPanelDesc());
-tooltipStack.build(widgets, tooltipPanel.content(), tooltipStackDesc());
-title.build(widgets, tooltipStack.root(), titleDesc());
-body.build(widgets, tooltipStack.root(), bodyDesc());
-```
-
-The tooltip service or widget decides placement; individual feature panels do
-not compute tooltip coordinates.
 
 ## Anti-Patterns
 
 Do not manually compute widget spacing.
 
-Use stack/grid/dock gaps and theme metrics. Manual spacing makes every feature
-responsible for responsive behavior.
+Use Stack/Grid/Dock/Scroll and theme metrics. Manual offsets hide layout intent
+and become inconsistent across surfaces.
 
-Do not create fullscreen retained roots for child feature views.
+Do not create fullscreen retained roots when a shell or slot exists.
 
-Use existing surfaces, layers, mounts, and frontend slots. Competing fullscreen
-roots fight render order, focus, modal policy, and input blocking.
+Mount into the existing layer, shell, interaction slot, or modal slot.
 
-Do not compare raw handles for ordinary controls.
+Do not compare raw handles for ordinary button behavior.
 
-Buttons and widgets own their activation behavior. Compositions consume semantic
-widget results.
+Widgets and retained events already own activation.
 
-Do not hardcode colors, font sizes, padding, or border radii.
+Do not hardcode colors, font sizes, padding, or spacing.
 
-Use `UiTheme`. Direct payload styling prevents skinning, state styling,
-accessibility contrast passes, and editor-driven reuse.
+Use theme style classes, typography, skins, and metrics.
 
 Do not manually calculate button positions.
 
-Use stacks, grids, docks, and constraints.
+Use Stack or Dock for action groups.
 
-Do not bypass widgets for known controls.
+Do not bypass widgets for controls that already exist.
 
-Raw nodes are for widget internals, primitive visualization, and compatibility.
+Raw retained nodes make behavior, accessibility, navigation, and theme state
+easy to omit.
 
-Do not bypass layout containers.
+Do not bypass layout.
 
-Canvas and anchors are compatibility paths, not the default model.
+Anchors and Canvas exist for compatibility and low-level escape hatches, not as
+the normal authoring path.
 
-Do not bypass themes with feature-local presentation constants.
+Do not bypass themes.
 
-Feature-local theme builders are fine; presentation literals in composition code
-are not.
+Presentation consistency depends on semantic style requests.
 
-Do not put gameplay rules in compositions.
+Do not put domain rules in compositions.
 
-Compositions translate UI intent into commands. Feature systems decide whether
-the command is legal and apply state changes.
-
-Do not use modals for ordinary child views.
-
-Merchant, crafting, quest, and inventory handoff views are interaction views.
-Confirmations and blocking prompts are modals.
-
-## Runtime API Classification
-
-| API / concept | Preferred status |
-| --- | --- |
-| `UiSystem::mountComposition(...)` | Preferred feature entry point |
-| `UiSystem::createMount(...)` | Preferred for attaching child composition slots |
-| Surface-aware `UiSystem` overloads | Preferred for runtime-owned UI |
-| Default-surface overloads | Compatibility |
-| `UiComposition::onEvent(...)` | Preferred interaction path |
-| `UiSystem::dispatchResult()` | Compatibility / specialized tools |
-| Core widgets in `UiWidget.h` | Preferred controls |
-| `UiWidgetAssetDefinition` | Preferred reusable authored structure |
-| `UiSystem::createNode(...)` in feature compositions | Low-level exception |
-| `UiSystem::setPayload(...)` in feature compositions | Widget internals / compatibility |
-| `UiLayoutMode::Canvas` | Compatibility / low-level primitive staging |
-| `anchorMin/anchorMax` normalized rects | Compatibility |
-| Direct `UiStyle` overrides | Compatibility |
-| `UiTheme` style classes/tokens/metrics | Preferred |
-| `UiBindingManager` / widget bind helpers | Preferred one-way sync |
-| `UiModalManager` | Preferred modal owner |
-| Manual input gates for UI blocking | Compatibility; use modal/frontend ownership for UI |
+Compositions emit commands; application systems validate and apply them.
 
 ## Migration Guidance
 
-Do not rewrite every feature immediately. Migrate when touching a feature for
-real behavior or when a layout bug comes from the old model.
+When touching old UI:
 
-Migration order:
+1. Keep behavior stable first.
+2. Move ownership into a composition if it is still handle-bundle driven.
+3. Replace raw controls with widgets.
+4. Replace manual row math with layout containers.
+5. Replace hardcoded presentation with theme tokens.
+6. Replace handle comparisons with widget events and semantic commands.
+7. Add navigation, modal, drag/drop, binding, and accessibility metadata only
+   where the feature needs those behaviors.
 
-1. Move feature UI into a `UiComposition` if it is not already composition-owned.
-2. Replace raw buttons/labels/panels with widgets.
-3. Replace row coordinate loops with `UiStackWidget`.
-4. Replace cell coordinate loops with `UiGrid` or a feature widget.
-5. Move colors, text scale, padding, and gaps into `UiTheme`.
-6. Replace handle comparisons with widget `onEvent(...)` and semantic commands.
-7. Replace manual modal/fullscreen overlays with `UiModalManager` and frontend
-   modal slots.
-8. Convert reusable static structures into widget assets when they are stable.
-
-Keep compatibility paths working until their owning features are migrated.
+Do not perform broad visual rewrites just to satisfy the ideal model. Migrate at
+natural feature boundaries.
 
 ## Review Checklist
 
 Before merging new UI, verify:
 
-- Is the UI mounted through a composition?
-- Does the feature use an existing surface/layer/mount slot?
-- Are ordinary controls widgets?
-- Are lists/stacks/grids expressed by layout containers?
-- Are colors, type, padding, skins, and gaps theme-owned?
-- Is interaction handled through retained events and widgets?
-- Are commands emitted to feature logic instead of applying gameplay inside UI?
+- Is it mounted through `UiSystem`?
+- Is the root a composition?
+- Are controls widgets or widget assets?
+- Is ordinary layout container-driven?
+- Are theme tokens used for presentation?
+- Are retained events used instead of dispatch polling?
 - Is navigation metadata present for focusable controls?
-- Are semantics/accessibility names present where needed?
 - Are modals actual modals?
-- Are raw nodes limited to widget internals, tests, tools, or primitive
-  visualization?
+- Are commands emitted to feature logic instead of applying domain behavior
+  inside UI?
+- Are raw nodes limited to widget internals, tests, tools, adapters, or
+  primitive visualization?

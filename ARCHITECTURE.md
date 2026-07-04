@@ -2,14 +2,14 @@
 
 ## 1. Overview
 
-Gravitas is a C++20 modular game engine built around a two-tier ECS
+Gravitas is a C++20 modular application engine built around a two-tier ECS
 (Entity-Component-System) architecture. The engine separates simulation logic
 from optional feature modules such as rendering, physics, tooling, and future
 audio, and provides a fixed-timestep simulation loop decoupled from the render
 frame rate.
 
 **Core philosophy:**
-- ECS-first: all game state lives in components, all behavior lives in systems
+- ECS-first: all application state lives in components, all behavior lives in systems
 - Strict separation between CPU logic and GPU state
 - Modular subsystems assembled through explicit engine and scene feature hooks
 - Registered scenes are factories; only the active scene owns runtime ECS/GPU state
@@ -132,7 +132,7 @@ update(const EcsSimulationContext& ctx)
 ```
 - Runs at **fixed timestep**
 - Context provides: `world`, fixed `dt`, read-only `InputBindingRegistry`
-- Deterministic; suitable for physics, animation, game logic
+- Deterministic; suitable for physics, animation, and domain logic
 - Systems run in registration order — document and maintain that order
 - Examples: `PhysicsSystem`, `TransformAnimationSystem`
 
@@ -168,8 +168,8 @@ Current system groups are intentionally coarse:
 - `VN`
 - `Tools`
 
-Do not introduce feature-specific groups such as enemy AI, shop logic, or a
-particular effect unless a broad engine-level category stops being expressive
+Do not introduce feature-specific groups such as domain AI, transaction logic,
+or a particular effect unless a broad engine-level category stops being expressive
 enough. Most application logic belongs in `Gameplay`; engine renderer binding
 and GPU sync systems belong in `RenderPrep`; retained UI state adapters,
 presenters, coordinators, and composition updates belong in `Ui`; global or
@@ -204,9 +204,9 @@ visible command list without rebuilding the ECS render snapshot. `None` skips
 world build and UI extraction.
 
 `TimePolicy` is part of the profile contract but is not yet a full multi-clock
-implementation. Today, gameplay/physics time effectively stops because those
+implementation. Today, simulation/physics time effectively stops because those
 system groups are masked out. Future work should map these policies onto
-separate gameplay, physics, UI, dialogue, and real-time domains without changing
+separate simulation, physics, UI, dialogue, and real-time domains without changing
 the profile stack API.
 
 ---
@@ -230,7 +230,7 @@ the profile stack API.
 │    └─ RenderGpuSystem (sync world matrices)            │
 │    └─ Camera control / CameraGpuSystem / view IDs      │
 │    └─ ParticleEmitterSystem (particle frame data)       │
-│    └─ [user systems] (input handling, gameplay logic)  │
+│    └─ [user systems] (input handling, domain logic)    │
 ├────────────────────────────────────────────────────────┤
 │  Data Extraction                                       │
 │  RenderPipeline build stages if FrameBuildMode allows  │
@@ -397,7 +397,7 @@ components and systems.
 | `BoundsComponent` | Local AABB used for frustum culling |
 | `CameraDescriptionComponent` | FOV, near/far clip planes |
 | `PhysicsBodyComponent` | Dynamic vs static body flag |
-| `ParticleEmitterComponent` | Game-facing particle emitter descriptor paired with `TransformComponent` |
+| `ParticleEmitterComponent` | Application-facing particle emitter descriptor paired with `TransformComponent` |
 
 Renderable scene geometry should use one geometry descriptor at a time:
 `StaticMeshComponent`, `QuadMeshComponent`, `DynamicMeshComponent`, or
@@ -409,7 +409,7 @@ GPU handles, cached paths, dirty flags, temporary upload state, generated
 runtime data, and backend bookkeeping belong in engine-owned companion
 components or feature runtime components. When a descriptor starts needing that
 kind of state, split the state out instead of growing the descriptor into a
-mixed gameplay/rendering object.
+mixed domain/rendering object.
 
 ### GPU Components (engine-managed)
 
@@ -508,7 +508,8 @@ the current-frame fence wait.
 
 `vertexColorOnly` is a material/render-command flag for tool and debug meshes
 that should render from authored vertex colors without sampling a color texture.
-The regular material texture path remains the default for game geometry.
+The regular material texture path remains the default for application-authored
+geometry.
 
 ### Scene Texture Animation
 
@@ -522,9 +523,9 @@ animation behaves. It supports two first-pass modes:
   suitable for discrete animated tile frames.
 
 Texture animation can run on unscaled frame time or scaled frame time. Unscaled
-is the default so existing visual effects keep moving while gameplay timing is
+is the default so existing visual effects keep moving while simulation timing is
 paused. Scaled mode uses frame time multiplied by `TimeContext::timeScale` and
-stops while the fixed-step game loop is paused.
+stops while the fixed-step loop is paused.
 
 This feature deliberately does not swap `MaterialComponent::texturePath` and
 does not rewrite mesh vertices every frame. Both approaches would dirty
@@ -538,7 +539,7 @@ selected atlas frame instead of drifting the final atlas UV across neighboring
 frames.
 
 Texture animation is a visual controller-space feature. It must not own
-gameplay timing, collision, movement, cooldowns, or simulation-authored state.
+simulation timing, collision, movement, cooldowns, or simulation-authored state.
 
 ### Particle Rendering
 
@@ -547,7 +548,7 @@ ECS-facing playback descriptors, and a separate Vulkan render stage.
 
 Feature layout:
 
-- `modules/rendering/ecssetup/particles/components/ParticleEmitterComponent.h`: game-facing particle emitter descriptor
+- `modules/rendering/ecssetup/particles/components/ParticleEmitterComponent.h`: application-facing particle emitter descriptor
 - `modules/rendering/ecssetup/particles/components/ParticleTypes.h`: authoring types for curves, shapes, bursts,
   flipbooks, and force module data
 - `modules/rendering/ecssetup/particles/components/`: runtime particle state
@@ -589,7 +590,7 @@ evaluation, and module fusion, then emits a CPU-descriptor backend by baking the
 program into `ParticleEmitterComponent`. Hot reload, legacy `loadParticleEffect`,
 and editor live preview prefer this compiled runtime descriptor and fall back to
 the compatibility descriptor only if compilation is invalid. This preserves
-existing game behavior while keeping ECS playback separate from editor graph
+existing application behavior while keeping ECS playback separate from editor graph
 structures and leaving a clean insertion point for a future CPU/GPU particle
 program backend.
 
@@ -756,11 +757,13 @@ Owned by `VulkanGraphics`, passed by reference to `ForwardRenderer`, `WindowMana
 - **Dispatch** on the main thread: `eventBus.dispatch()` — delivers all queued events
 - **Subscribe** via `SubscriptionToken`: `token = eventBus.subscribe<MyEvent>([](const MyEvent& e) { ... })`
 
-Dispatch is deferred because GLFW callbacks fire during `glfwPollEvents()`. Queueing ensures delivery always happens on the game thread at a predictable point.
+Dispatch is deferred because GLFW callbacks fire during `glfwPollEvents()`.
+Queueing ensures delivery always happens on the main thread at a predictable
+point.
 
 Current platform events: `GtsWindowResizeEvent`, `GtsKeyEvent`, `GtsFrameEndedEvent`.
 
-### ECSWorld — ECS gameplay events
+### ECSWorld — ECS Domain Events
 
 Integrated into `ECSWorld`, accessed via `ctx.world.publish/subscribe` from any system.
 
@@ -769,7 +772,7 @@ Integrated into `ECSWorld`, accessed via `ctx.world.publish/subscribe` from any 
 
 Dispatch is immediate because ECS updates are single-threaded and sequential. Events published during a system's update are received by later systems in the same pass.
 
-**Rule of thumb:** if the event originates from hardware, a driver, or a GPU callback → `GtsPlatformEventBus`. If it originates from game logic during the ECS update loop → `ECSWorld`.
+**Rule of thumb:** if the event originates from hardware, a driver, or a GPU callback → `GtsPlatformEventBus`. If it originates from domain logic during the ECS update loop → `ECSWorld`.
 
 ---
 
@@ -789,7 +792,7 @@ Input contexts are stack-like named scopes. Engine tools use their own
 `engine.tools` context so UI clicking, world-picking, gizmo dragging, and tool
 camera input are mediated through the same input abstraction as keyboard
 actions instead of reaching into GLFW. Applications may add their own contexts
-for game-owned debug controls.
+for application-owned debug controls.
 
 Mouse position, buttons, scroll deltas, and cursor capture flow through
 `IInputSource` and `InputBindingRegistry`; engine systems should consume those
@@ -803,7 +806,7 @@ Pressed/released input has two timing domains:
   systems, UI, tools, and engine commands that run once per rendered frame.
 - `isSimulationPressed()` / `isSimulationReleased()` expose action edges latched
   until the next fixed simulation tick consumes them. Simulation systems should
-  use these methods for edge-triggered gameplay commands so input cannot be
+  use these methods for edge-triggered simulation commands so input cannot be
   missed when render FPS is much higher or lower than the simulation tick rate.
 
 `InputManager` records raw key/button edges generated while polling OS events,
@@ -812,14 +815,14 @@ including press-and-release pairs that happen inside one rendered frame.
 into semantic action edges and decrements simulation edge queues after each
 fixed tick via `finishSimulationTick()`. Context stack changes, binding
 replacement, and pause transitions clear queued simulation edges so stale
-gameplay commands cannot leak across scene/menu boundaries.
+simulation commands cannot leak across scene/menu boundaries.
 
-The rule is strict: fixed-step gameplay systems must never depend on
+The rule is strict: fixed-step simulation systems must never depend on
 frame-local input edges. They may read held state for continuous commands, but
 edge-triggered simulation commands must use the simulation-latched input API.
 Controller systems may use frame-local edges because they run once for every
 input update and are responsible for presentation, UI, tools, and engine-level
-commands rather than deterministic gameplay progression.
+commands rather than deterministic simulation progression.
 
 ### Fixed Simulation And Presentation
 
@@ -829,12 +832,12 @@ current rendered frame. `GravitasEngine` copies `GtsGameLoop::alpha()` into
 `TimeContext::simulationAlpha` after fixed ticks and before controller systems,
 so frame-facing presentation code can interpolate between fixed-step snapshots.
 
-Gameplay correctness therefore comes from fixed simulation plus
+Simulation correctness therefore comes from fixed simulation plus
 simulation-latched input. Visual smoothness at render rates above or below the
 simulation tick rate requires presentation systems to interpolate from previous
 and current fixed-step snapshots using the accumulator alpha. Presentation
 systems may use `ctx.time->unscaledDeltaTime` for visual-only effects, UI, and
-tools, but authoritative gameplay movement, timers, cooldowns, combat state,
+tools, but authoritative simulation movement, timers, cooldowns, domain state,
 physics, and scene progression must stay in fixed simulation space.
 
 ### Runtime Profiling
@@ -878,7 +881,7 @@ Each surface owns a `UiDocument` with a hidden document root plus one or more
 ordered layer roots. Existing callers that create nodes without specifying a
 surface or parent still attach to the default layer root returned by
 `UiSystem::getRoot()`, so current retained UI builders continue to work. New
-engine or game systems may create named layers through the default-surface APIs
+engine or application systems may create named layers through the default-surface APIs
 or through surface-aware overloads such as `UiSystem::createLayer(surface, ...)`,
 add nodes under `getLayerRoot(surface, layerId)`, and change layer ordering or
 input participation without relying on scene construction order. Render
@@ -1089,8 +1092,8 @@ assets, and override policy before applying effective assets to the asset
 runtime. Later packages can replace earlier effective assets only when their
 asset descriptor declares `Replace`; unloading an override restores the previous
 provider and rebuilds affected consumers through the existing live-reload path.
-The Visual UI Editor sample now loads its reusable prompt assets from
-`engine.ui` and `game.ui` packages. Runtime code plugin loading, package asset
+The Visual UI Editor sample now loads reusable prompt assets from package
+manifests. Runtime code plugin loading, package asset
 root scanning, signatures, repository identity, and package browsers are future
 layers above this ownership model.
 
@@ -1132,7 +1135,7 @@ layout bounds. Image nodes support tint and rotation around their bounds center;
 unrotated images use rectangular clipping, while rotated images are emitted as
 rotated textured quads after a bounds-vs-clip visibility test. Legacy text nodes
 with zero bounds still render from their top-left position to preserve existing
-tool and game overlays. The UI primitive set also includes retained line nodes,
+tool and application overlays. The UI primitive set also includes retained line nodes,
 which render thick colored screen-space segments for graph-like widgets such as
 skill-tree links, retained circle nodes for icon buttons or graph nodes that need
 circular hit targets, and retained nine-slice image nodes for scalable panels.
@@ -1208,9 +1211,9 @@ panel, plus tint, source slice fractions, and content padding. `UiPanelStateSkin
 layers normal, hover, pressed, and disabled panel skins with fallback to normal
 when a state skin is not supplied. `UiPanelSkinNode` in rendering UI builds a
 small retained-node subtree with solid/image/nine-slice visual children and a
-padded content container. Menus, inventory screens, windows, VN dialogue boxes,
-choice buttons, and future UI surfaces should use this shared skin path instead
-of growing feature-local panel rendering helpers.
+padded content container. Menus, windows, VN dialogue boxes, choice buttons,
+tool panels, and future UI surfaces should use this shared skin path instead of
+growing feature-local panel rendering helpers.
 
 Nine-slice UI rendering is implemented as a normal retained UI primitive. The
 visual resolver splits a node into nine textured quads, preserves corner UVs,
@@ -1223,17 +1226,17 @@ authoring without changing the retained node contract.
 
 `modules/tween/Tween.h` provides the reusable `gts::tween::Tween<T>` helper and
 standard easing modes. It is a small value-interpolation utility rather than an
-ECS system: engine or game systems own tweens in their own runtime state, tick
-them with the appropriate fixed or controller delta time, and apply the resulting
-value to their own descriptors/state. This keeps tweening reusable for UI,
-presentation, tools, or gameplay-owned systems without tying it to one renderer
-or component type.
+ECS system: engine or application systems own tweens in their own runtime state,
+tick them with the appropriate fixed or controller delta time, and apply the
+resulting value to their own descriptors/state. This keeps tweening reusable for
+UI, presentation, tools, or domain-owned systems without tying it to one
+renderer or component type.
 
 ### Visual Novel Module
 
 `modules/visualnovel/` is an engine-level VN presentation/runtime module. It is
 content-neutral: applications provide scripts, character IDs, image asset paths,
-story state, branching labels, and gameplay-specific commands.
+story state, branching labels, and domain-specific commands.
 
 The module is split into:
 
@@ -1244,14 +1247,14 @@ The module is split into:
 - `systems/`: `VNSystem`, a controller system that owns one runtime instance,
   routes continue/input events, syncs UI, and writes playback/frontend state
 - `components/`: `VNPlaybackStateComponent`, a lightweight singleton view of
-  whether VN playback is active, waiting, or blocking gameplay input, and
+  whether VN playback is active, waiting, or blocking application input, and
   `VNExternalPresentationComponent`, an optional presentation override for
   dialogue-driven VN backgrounds, dimming, and sprites, plus
   `VNFrontendStateComponent`, which publishes the VN surface, composition,
-  interaction layer/slot, modal layer, and modal-slot mount for game-side
+  interaction layer/slot, modal layer, and modal-slot mount for application-side
   interaction frontend integrations, and `InteractionFrontendSessionComponent`,
-  which identifies the active NPC interaction mode without putting merchant,
-  quest, inventory, or other game rules into VN
+  which identifies the active application interaction mode without putting
+  domain rules into VN
 
 The VN stage supports multiple background modes: current scene, fullscreen image,
 solid color, and none. Current-scene mode leaves the 3D scene visible and renders
@@ -1265,9 +1268,9 @@ alpha, dimming, and effect envelopes such as shake.
 `VNRuntime` executes command streams sequentially and can wait for player input,
 animation completion, timers, choices, or an external custom command. Built-in
 commands cover say/show/hide/move/fade/scale/rotate/shake/animate/expression/
-background/dimming/wait/choice/jump. `VNCommandRegistry` lets applications register
-gameplay-specific commands such as starting combat or setting relationship state
-without hardcoding any game vocabulary into the engine module.
+background/dimming/wait/choice/jump. `VNCommandRegistry` lets applications
+register domain-specific commands without hardcoding application vocabulary into
+the engine module.
 
 VN presentation is authored through `VNPresentationProfile`, not through
 scripts. The profile owns dialogue panel, shadow, nameplate, choice-button state
@@ -1298,26 +1301,15 @@ presentation data because sprites are authored in normalized stage coordinates,
 not as conventional controls.
 
 The same mounted frontend now acts as the engine's Interaction Frontend shell.
-Dialogue is one mode inside that shell. Non-modal NPC feature views such as
-merchant trade, inventory handoff, quest handoff, crafting, training, banking,
-gifting, and future relationship screens should mount into the published
-interaction slot. True blocking overlays should mount into the published modal
-slot and use `UiModalManager`. `InteractionFrontendSessionComponent` lets a
-game-side feature keep the VN stage active after a dialogue graph hands off to
-another interaction mode, while the feature continues to own its own business
-logic.
-
-DungeonCrawler's migrated game UI now validates this contract in production
-feature code: merchant trade mounts into the Interaction Frontend slot, loot
-containers mount as dungeon/storage UI outside VN, standalone inventory and
-menus mount through feature coordinators, skill tree and dungeon HUD are
-compositions, and combat UI is composition-owned. The remaining game-side
-compatibility edge is world-space billboard projection for combat nameplates,
-which is intentionally outside the screen-space UI migration and should become
-first-class runtime projection support later.
+Dialogue is one mode inside that shell. Non-modal application feature views
+should mount into the published interaction slot. True blocking overlays should
+mount into the published modal slot and use `UiModalManager`.
+`InteractionFrontendSessionComponent` lets an application feature keep the VN
+stage active after a dialogue graph hands off to another interaction mode, while
+the feature continues to own its own business logic.
 
 Dialogue-driven VN presentation can opt into a traditional full-VN scene without
-changing dialogue graph data. A game may populate `VNExternalPresentationComponent`
+changing dialogue graph data. An application may populate `VNExternalPresentationComponent`
 with a fullscreen image background, dimming value, VN sprites, and optional
 scene/particle render suppression while a `DialogueRuntimeComponent` is active.
 `VNSystem` applies that override to active external dialogue and active
@@ -1327,7 +1319,7 @@ defaults when no interaction session is active.
 
 `VNSystem` also consumes the generic execution-profile stack. While external
 dialogue is active, current-scene presentation pushes the `dialogue_overlay`
-profile so gameplay and physics can sleep while camera/render prep continue to
+profile so simulation and physics can sleep while camera/render prep continue to
 show the live scene. Fullscreen image, solid-color, or scene-suppressed
 presentation pushes `fullscreen_dialogue`, which keeps `Ui`, `Dialogue`, `VN`,
 `Audio`, `Tools`, and `Always` systems awake while skipping world render build.
@@ -1339,8 +1331,7 @@ fullscreen VN an engine execution mode rather than a VN-specific pause branch.
 `modules/dialogue/` is a generic graph-based narrative runtime. It owns dialogue
 graph execution, current node tracking, visible-choice evaluation, branching,
 generic conditions, generic actions, and start/end state. It deliberately knows
-nothing about game concepts such as quests, shops, items, factions, reputation,
-or party members.
+nothing about application domain concepts.
 
 The data model is:
 
@@ -1365,8 +1356,8 @@ The ECS-facing layer provides:
 - `DialogueGraphRegistryComponent`: optional singleton graph catalog keyed by id
 - `DialogueStartRequestComponent`: optional singleton request surface for
   starting either a registered graph id or an inline graph
-- `NPCInteractionComponent`: generic character/dialogue graph reference for
-  game-owned NPC entities
+- `NPCInteractionComponent`: generic speaker/dialogue graph reference for
+  application-owned interactable entities
 - `DialogueSystem`: controller system that processes start requests and
   publishes `DialogueStartedEvent`, `DialogueNodeChangedEvent`,
   `DialogueChoicesChangedEvent`, `DialogueActionRequestedEvent`, and
@@ -1376,13 +1367,14 @@ The VN module consumes dialogue state only as presentation. When a
 `DialogueRuntimeComponent` is active, `VNSystem` mirrors the current dialogue
 node into its retained VN UI state and routes choice clicks or continue input
 back into `DialogueRuntime`. This bridge does not add rendering code to the
-dialogue runtime and does not put quest/shop/item logic into VN presentation.
+dialogue runtime and does not put application domain rules into VN presentation.
 
 Engine tooling is a global development runtime owned by `GravitasEngine`.
 `EngineToolRuntime` updates once per rendered frame after the active scene's
 normal controller systems, but it targets the active scene `ECSWorld` for
-inspection and edits. Game scenes no longer install editor systems directly.
-Renderer, physics, gameplay, and game UI systems remain scene-owned.
+inspection and edits. Application scenes no longer install editor systems
+directly. Renderer, physics, application simulation, and application UI systems
+remain scene-owned.
 
 Current tool feature layout:
 
@@ -1433,7 +1425,7 @@ instance, and active scene id. Tooling receives catalog metadata through
 `EcsControllerContext`, and the generic `Scenes` panel lists whatever scenes the
 application registered. Selecting a row issues
 `GtsCommandBuffer::requestChangeScene(sceneId)`. Engine tooling must not
-hardcode game scene names or keep scene-entity references across scene changes.
+hardcode application scene names or keep scene-entity references across scene changes.
 
 Selection can come from either inspector panels or world picking. The world
 picker uses `ActiveCameraViewStateComponent` plus `BoundsComponent` to raycast
@@ -1447,8 +1439,8 @@ marking the transform dirty.
 
 The engine tool camera is active only while the engine tools are visible. It
 uses `engine.tool_camera_*` actions inside the `engine.tools` input context.
-Game debug cameras are application-owned systems and should not be installed by
-the shared renderer feature.
+Debug cameras are application-owned systems and should not be installed by the
+shared renderer feature.
 
 ### Engine Font
 
@@ -1474,7 +1466,7 @@ GPU resource handles (mesh IDs, texture IDs, font IDs, SSBO slots, camera view I
 - lifecycle systems do near-zero work when no descriptor lifecycle work is pending
 - structural GPU companion-component changes are deferred through `world.commands()`
 - cleanup of backend resources still happens via removal callbacks on GPU components
-- application/game code does not create, remove, or read GPU companion components directly
+- application code does not create, remove, or read GPU companion components directly
 - camera view IDs are allocated by the camera binding lifecycle, but camera
   matrix UBO writes are renderer-owned and occur after the current frame's fence
   wait
@@ -1488,7 +1480,7 @@ types only:
 
 - `RuntimeGraphicsSettings` carries requested render resolution, window mode,
   monitor index, vsync, present-mode preference, and optional max frame rate.
-- Game/UI code requests changes through `gts::rendering::requestApplyGraphicsSettings(...)`.
+- Application/UI code requests changes through `gts::rendering::requestApplyGraphicsSettings(...)`.
 - `IGtsGraphicsModule::applyRuntimeGraphicsSettings` applies the graphics
   portion; the main engine loop applies frame pacing from `maxFrameRate`.
 
@@ -1515,8 +1507,8 @@ framebuffers, and frame manager. Long-lived resource managers for meshes,
 textures, camera buffers, and SSBO slots are preserved across the rebuild.
 
 Monitor enumeration/selection is exposed through the generic window/graphics
-abstraction so game menus can choose which display owns windowed, borderless,
-or exclusive fullscreen output without depending on GLFW directly.
+abstraction so application settings UI can choose which display owns windowed,
+borderless, or exclusive fullscreen output without depending on GLFW directly.
 
 ---
 
@@ -1537,11 +1529,11 @@ or exclusive fullscreen output without depending on GLFW directly.
    another broad group from `onLoad()`
 
 Choose the broadest accurate execution group. Use `Always` sparingly for systems
-that must run in every runtime mode. Most scene gameplay should use
+that must run in every runtime mode. Most scene simulation should use
 `Gameplay`; renderer companion/lifecycle work should use `RenderPrep`; camera
 presentation should use `Camera`; retained UI sync/interaction should use `Ui`;
 dialogue graph bridges should use `Dialogue`; VN presentation should use `VN`;
-engine or game debug tooling should use `Tools`.
+engine or application debug tooling should use `Tools`.
 
 ### Adding a New Component
 
@@ -1584,10 +1576,10 @@ time after node/widget event registration and drag/drop are designed.
 
 - **ECS-first**: all state is components, all behavior is systems — no monolithic managers
 - **Deterministic simulation**: simulation systems run at fixed timestep, isolated from frame timing
-- **Simulation-safe input**: fixed-step gameplay reads latched simulation input
+- **Simulation-safe input**: fixed-step simulation reads latched simulation input
   edges, not frame-local controller input edges
-- **CPU/GPU separation**: descriptor components are game-logic; GPU components are backend state; binding systems bridge them explicitly
-- **Descriptor-only app boundary**: applications and gameplay/UI code operate on descriptors or engine-exported frame state, not GPU companion components
+- **CPU/GPU separation**: descriptor components are domain logic; GPU components are backend state; binding systems bridge them explicitly
+- **Descriptor-only app boundary**: applications and UI code operate on descriptors or engine-exported frame state, not GPU companion components
 - **Lazy updates**: render commands and GPU state are cached and only rebuilt on change
 - **Fence-safe frame data**: per-frame camera data is uploaded by the renderer after the matching frame fence has been waited
 - **Data extraction over direct coupling**: the renderer never reads ECS directly; the extractor produces an immutable command list
