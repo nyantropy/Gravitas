@@ -181,6 +181,115 @@ Feature/session state
 No pane should bypass this flow by directly mutating assets, ECS components, or
 renderer data.
 
+## Tooling Launch Presets
+
+Tooling launch presets configure the engine into a deterministic startup state.
+They are intended for development, screenshot capture, visual verification, and
+future regression tests.
+
+A preset is not:
+
+- an editor workspace save file
+- user preferences
+- docking/layout persistence
+- arbitrary widget state serialization
+- runtime persistence
+
+The startup flow is:
+
+```text
+Application launch
+  -> parse --tooling-preset=<json>
+  -> initialize engine runtime
+  -> seed EngineToolRuntime
+  -> seed ParticleEditorSession through EngineToolShellSystem
+  -> load requested scene as the initial active scene
+  -> open requested workspace
+  -> open requested particle effect
+  -> restore requested emitter/module selection
+  -> wait for screenshot timing
+  -> request screenshots through the existing renderer screenshot path
+  -> optionally exit after the final capture
+```
+
+No simulated UI clicks are used. The preset configures runtime state directly.
+
+### Command Line
+
+Primary usage:
+
+```text
+DungeonCrawler --tooling-preset=engine/docs/tooling_presets/particles.json
+```
+
+Supported overrides:
+
+```text
+--screenshot-directory=screenshots/tooling/run_001
+--no-auto-exit
+```
+
+Avoid adding many individual launch flags. The JSON preset is the primary
+configuration mechanism.
+
+### JSON Schema
+
+Current schema:
+
+```json
+{
+  "tools": {
+    "visible": true,
+    "workspace": "particles",
+    "scene": "dungeon_test",
+    "particleEffect": "resources/particles/ambient_brazier.json",
+    "selectedEmitter": 0,
+    "selectedModule": 0
+  },
+  "screenshots": {
+    "enabled": true,
+    "afterSeconds": 2.0,
+    "intervalSeconds": 1.0,
+    "count": 3,
+    "directory": "screenshots/tooling/particles",
+    "exitAfterCapture": true
+  }
+}
+```
+
+Fields:
+
+- `tools.visible`: seeds `EngineToolStateComponent::visible`.
+- `tools.workspace`: `world` or `particles`.
+- `tools.scene`: scene id registered by the application.
+- `tools.particleEffect`: particle asset path opened by `ParticleEditorSession`.
+- `tools.selectedEmitter`: selected emitter index, clamped by the session.
+- `tools.selectedModule`: selected module index, clamped by the session.
+- `screenshots.enabled`: enables automated screenshot scheduling.
+- `screenshots.afterSeconds`: delay before first capture.
+- `screenshots.intervalSeconds`: delay between captures.
+- `screenshots.count`: number of captures to request.
+- `screenshots.directory`: output directory. Relative paths resolve from the
+  project root.
+- `screenshots.exitAfterCapture`: exits after the final requested capture.
+
+Example presets live in `engine/docs/tooling_presets/`:
+
+- `empty_editor.json`
+- `world_viewer.json`
+- `particles.json`
+- `particles_inspector.json`
+
+### Screenshot Automation
+
+Preset screenshots reuse the existing renderer screenshot infrastructure. The
+engine schedules screenshot requests; the renderer captures the frame and writes
+PNG files using the same path as manual screenshots.
+
+The preset only controls timing, count, destination directory, and optional
+exit. It does not implement image comparison or golden-file validation. Those
+belong to future visual regression tooling.
+
 ## Viewport Model
 
 The editor has two different viewport concepts.

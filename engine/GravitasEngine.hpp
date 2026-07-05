@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <memory>
 #include <iostream>
 #include <chrono>
@@ -25,6 +26,7 @@
 #include "ProfileAccumulator.h"
 #include "RenderingRuntime.h"
 #include "EngineToolRuntime.hpp"
+#include "ToolLaunchPreset.h"
 
 #include "EcsSimulationContext.hpp"
 #include "EcsControllerContext.hpp"
@@ -69,6 +71,14 @@ class GravitasEngine
     int              maxFrameRate      = 0;
 
     bool engineRunning = true;
+
+    gts::tools::ToolScreenshotPreset toolScreenshotPreset;
+    bool     toolScreenshotAutomationEnabled = false;
+    bool     toolScreenshotExitAfterRender = false;
+    float    toolScreenshotElapsed = 0.0f;
+    float    toolScreenshotNextAt = 0.0f;
+    float    toolScreenshotInterval = 1.0f;
+    uint32_t toolScreenshotsRequested = 0;
 
     // Per-frame CPU timing buckets accumulated in start(), consumed in render()
     float              lastSimCpuMs   = 0.0f;
@@ -243,9 +253,9 @@ class GravitasEngine
                 gameLoop.paused = !gameLoop.paused;
                 std::cout << (gameLoop.paused ? "Paused" : "Resumed") << std::endl;
             }
-            else if (std::holds_alternative<GtsScreenshotCommand>(cmd))
+            else if (auto* screenshot = std::get_if<GtsScreenshotCommand>(&cmd))
             {
-                platform.getGraphics()->requestScreenshot();
+                platform.getGraphics()->requestScreenshot(screenshot->directory);
             }
             else if (auto* changeScene = std::get_if<GtsChangeSceneCommand>(&cmd))
             {
@@ -295,6 +305,55 @@ class GravitasEngine
         loadScene(std::move(name), data.get());
     }
 
+    void applyToolLaunchPreset(const gts::tools::ToolLaunchPreset& preset)
+    {
+        if (toolRuntime != nullptr)
+            toolRuntime->setStartupOptions(preset.tools);
+
+        toolScreenshotPreset = preset.screenshots;
+        toolScreenshotAutomationEnabled = toolScreenshotPreset.enabled && toolScreenshotPreset.count > 0;
+        toolScreenshotExitAfterRender = false;
+        toolScreenshotElapsed = 0.0f;
+        toolScreenshotsRequested = 0;
+        toolScreenshotNextAt = std::max(0.0f, toolScreenshotPreset.afterSeconds);
+        toolScreenshotInterval = std::max(toolScreenshotPreset.intervalSeconds,
+                                          engineConfig.graphics.minSecondsBetweenScreenshots);
+    }
+
+    private:
+    void processToolScreenshotAutomation(float dt)
+    {
+        if (!toolScreenshotAutomationEnabled)
+            return;
+
+        toolScreenshotElapsed += std::max(0.0f, dt);
+        if (toolScreenshotsRequested >= toolScreenshotPreset.count)
+            return;
+        if (toolScreenshotElapsed + 0.0001f < toolScreenshotNextAt)
+            return;
+
+        platform.getGraphics()->requestScreenshot(toolScreenshotPreset.directory);
+        ++toolScreenshotsRequested;
+
+        if (toolScreenshotsRequested >= toolScreenshotPreset.count)
+        {
+            toolScreenshotAutomationEnabled = false;
+            if (toolScreenshotPreset.exitAfterCapture)
+                toolScreenshotExitAfterRender = true;
+            return;
+        }
+
+        toolScreenshotNextAt = toolScreenshotElapsed + toolScreenshotInterval;
+    }
+
+    bool consumeToolScreenshotExitAfterRender()
+    {
+        const bool shouldExit = toolScreenshotExitAfterRender;
+        toolScreenshotExitAfterRender = false;
+        return shouldExit;
+    }
+
+    public:
     void start()
     {
         timer         = std::make_unique<Timer>();
@@ -370,8 +429,11 @@ class GravitasEngine
 
             world.flushEvents();
             applyPendingRenderCommands();
+            processToolScreenshotAutomation(realDt);
             render(realDt);
             applyCommands();
+            if (consumeToolScreenshotExitAfterRender())
+                engineRunning = false;
 
             const auto preSleepLoopEnd = std::chrono::steady_clock::now();
             if (maxFrameRate > 0)

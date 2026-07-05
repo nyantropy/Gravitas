@@ -1,0 +1,15 @@
+{
+  "tools": {
+    "visible": true,
+    "workspace": "world",
+    "scene": "room_visual_test"
+  },
+  "screenshots": {
+    "enabled": true,
+    "afterSeconds": 2.0,
+    "intervalSeconds": 1.0,
+    "count": 1,
+    "directory": "screenshots/tooling/world_viewer",
+    "exitAfterCapture": true
+  }
+}

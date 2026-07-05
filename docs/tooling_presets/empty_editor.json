@@ -1,0 +1,15 @@
+{
+  "tools": {
+    "visible": true,
+    "workspace": "world",
+    "scene": "dungeon_test"
+  },
+  "screenshots": {
+    "enabled": false,
+    "afterSeconds": 2.0,
+    "intervalSeconds": 1.0,
+    "count": 1,
+    "directory": "screenshots/tooling/empty_editor",
+    "exitAfterCapture": false
+  }
+}

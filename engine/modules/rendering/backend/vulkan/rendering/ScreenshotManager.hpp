@@ -17,11 +17,12 @@ class ScreenshotManager
         void saveImage(VkImage image,
                        VkFormat format,
                        VkExtent2D extent,
-                       VkImageLayout currentLayout) const;
+                       VkImageLayout currentLayout,
+                       const std::string& outputDirectory = {}) const;
 
     private:
         VulkanBackendContext& backendContext;
         static uint32_t bytesPerPixelForFormat(VkFormat format);
         static bool formatIsBgr(VkFormat format);
-        static std::string allocateScreenshotPath();
+        static std::string allocateScreenshotPath(const std::string& outputDirectory);
 };

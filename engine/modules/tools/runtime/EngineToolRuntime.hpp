@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cmath>
 #include <string>
+#include <utility>
 
 #include "DebugDrawPrimitives.h"
 #include "DebugDrawSettingsComponent.h"
@@ -21,6 +22,7 @@
 #include "EngineToolStateComponent.h"
 #include "EngineToolWorldPickerSystem.hpp"
 #include "EngineToolWorkspaceComponent.h"
+#include "ToolLaunchPreset.h"
 
 namespace gts::tools
 {
@@ -41,6 +43,7 @@ namespace gts::tools
             if (sceneName != activeSceneName)
                 handleSceneChanged(sceneName);
 
+            applyPendingStartupOptions();
             seedPersistentState(ctx.world);
             shellSystem.prepareVisibility(ctx);
             capturePersistentState(ctx.world);
@@ -72,6 +75,12 @@ namespace gts::tools
             shellSystem.shutdown();
         }
 
+        void setStartupOptions(ToolStartupOptions options)
+        {
+            startupOptions = std::move(options);
+            startupOptionsPending = startupOptions.hasAnyToolState();
+        }
+
         private:
         EngineToolShellSystem              shellSystem;
         EngineToolCameraSystem             cameraSystem;
@@ -88,6 +97,8 @@ namespace gts::tools
         bool                                       persistentToolStateReady  = false;
         bool                                       persistentGizmoStateReady = false;
         bool                                       persistentDebugDrawReady  = false;
+        ToolStartupOptions                         startupOptions;
+        bool                                       startupOptionsPending = false;
 
         template <typename System> static void runSystem(System& system, const EcsControllerContext& ctx)
         {
@@ -143,6 +154,24 @@ namespace gts::tools
             persistentGizmoState.activeEntity = invalidToolEntity();
 
             resetSceneSystems();
+        }
+
+        void applyPendingStartupOptions()
+        {
+            if (!startupOptionsPending)
+                return;
+
+            if (startupOptions.hasVisible)
+            {
+                persistentToolState.visible = startupOptions.visible;
+                persistentToolState.status = startupOptions.visible ? "TOOLS VISIBLE" : "TOOLS HIDDEN";
+            }
+
+            const std::string shellStatus = shellSystem.applyStartupOptions(startupOptions);
+            if (!shellStatus.empty())
+                persistentToolState.status = shellStatus;
+
+            startupOptionsPending = false;
         }
 
         void seedPersistentState(ECSWorld& world)

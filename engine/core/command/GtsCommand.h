@@ -14,6 +14,7 @@ struct GtsTogglePauseCommand
 
 struct GtsScreenshotCommand
 {
+    std::string directory;
 };
 
 struct GtsQuitCommand

@@ -219,9 +219,9 @@ public:
         renderer->cycleDebugOverlayPage();
     }
 
-    void requestScreenshot() override
+    void requestScreenshot(const std::string& outputDirectory = {}) override
     {
-        renderer->requestScreenshot();
+        renderer->requestScreenshot(outputDirectory);
     }
 
     void waitIdle() override

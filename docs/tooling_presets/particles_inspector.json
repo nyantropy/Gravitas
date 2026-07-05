@@ -1,0 +1,18 @@
+{
+  "tools": {
+    "visible": true,
+    "workspace": "particles",
+    "scene": "dungeon_test",
+    "particleEffect": "resources/particles/yune/spatial_cubes.json",
+    "selectedEmitter": 0,
+    "selectedModule": 1
+  },
+  "screenshots": {
+    "enabled": true,
+    "afterSeconds": 2.0,
+    "intervalSeconds": 1.0,
+    "count": 3,
+    "directory": "screenshots/tooling/particles_inspector",
+    "exitAfterCapture": true
+  }
+}

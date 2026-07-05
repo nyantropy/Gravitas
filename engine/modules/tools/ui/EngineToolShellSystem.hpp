@@ -28,6 +28,7 @@
 #include "RegisteredSceneInfo.h"
 #include "RenderViewportComponent.h"
 #include "TimeContext.h"
+#include "ToolLaunchPreset.h"
 #include "UiNode.h"
 #include "UiSystem.h"
 
@@ -97,6 +98,41 @@ namespace gts::tools
         {
             if (previewWorld)
                 previewWorld->destroy();
+        }
+
+        std::string applyStartupOptions(const ToolStartupOptions& options)
+        {
+            std::string status;
+            bool previewNeedsReset = false;
+
+            if (options.hasWorkspace)
+            {
+                activeWorkspace = options.workspace;
+                status = activeWorkspace == ToolWorkspace::Particles ? "PARTICLE EDITOR" : "WORLD VIEWER";
+            }
+
+            if (!options.particleEffect.empty())
+            {
+                if (particleSession.open(options.particleEffect, status, true, false))
+                    previewNeedsReset = true;
+            }
+
+            if (options.hasSelectedEmitter)
+            {
+                particleSession.selectEmitter(options.selectedEmitter);
+                previewNeedsReset = true;
+            }
+
+            if (options.hasSelectedModule)
+            {
+                particleSession.selectModule(options.selectedModule);
+                previewNeedsReset = true;
+            }
+
+            if (previewNeedsReset)
+                resetParticlePreview();
+
+            return status;
         }
 
     private:

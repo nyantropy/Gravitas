@@ -24,9 +24,9 @@ struct GtsCommandBuffer
     }
 
     // take a screenshot
-    void requestScreenshot()
+    void requestScreenshot(std::string directory = {})
     {
-        commands.emplace_back(GtsScreenshotCommand{});
+        commands.emplace_back(GtsScreenshotCommand{std::move(directory)});
     }
 
     template<typename Payload>

@@ -81,6 +81,7 @@ class ForwardRenderer : Renderer
         bool frameOutputRecreateRequested = false;
         bool debugOverlayEnabled = false;
         bool screenshotRequested = false;
+        std::string screenshotOutputDirectory;
         uint32_t screenshotsTaken = 0;
         uint32_t renderedFrameCount = 0;
         uint32_t diagnosticFramesLogged = 0;
@@ -403,6 +404,7 @@ class ForwardRenderer : Renderer
                 }
                 minIntervalWarningLogged = false;
                 screenshotRequested = false;
+                screenshotOutputDirectory.clear();
                 return false;
             }
 
@@ -414,6 +416,7 @@ class ForwardRenderer : Renderer
                     minIntervalWarningLogged = true;
                 }
                 screenshotRequested = false;
+                screenshotOutputDirectory.clear();
                 return false;
             }
 
@@ -516,9 +519,10 @@ class ForwardRenderer : Renderer
                 uiStage->getDebugOverlay().nextPage();
         }
 
-        void requestScreenshot() override
+        void requestScreenshot(const std::string& outputDirectory = {}) override
         {
             screenshotRequested = true;
+            screenshotOutputDirectory = outputDirectory;
         }
 
         void recreateFrameResources()
@@ -792,8 +796,10 @@ class ForwardRenderer : Renderer
                     frameOutputTarget->getImages()[imageIndex],
                     frameOutputTarget->getFormat(),
                     frameOutputTarget->getExtent(),
-                    frameOutputTarget->getUiFinalLayout());
+                    frameOutputTarget->getUiFinalLayout(),
+                    screenshotOutputDirectory);
                 screenshotRequested = false;
+                screenshotOutputDirectory.clear();
                 ++screenshotsTaken;
                 secondsSinceLastScreenshot = 0.0f;
             }

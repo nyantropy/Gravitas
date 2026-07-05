@@ -1,6 +1,7 @@
 #pragma once
 // idea: have an abstract renderer class, so we can implement additional Renderers in the future
 // for now we will focus on the simplest rendering technique: forward rendering
+#include <string>
 #include <vector>
 #include "RendererConfig.h"
 #include "RenderCommand.h"
@@ -29,5 +30,5 @@ class Renderer
         virtual texture_id_type ensureEditorPreviewTarget(uint32_t width, uint32_t height) = 0;
         virtual void releaseEditorPreviewTarget() = 0;
         virtual void toggleDebugOverlay() = 0;
-        virtual void requestScreenshot() = 0;
+        virtual void requestScreenshot(const std::string& outputDirectory = {}) = 0;
 };

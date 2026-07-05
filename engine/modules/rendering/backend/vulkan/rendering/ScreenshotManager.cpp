@@ -49,11 +49,15 @@ bool ScreenshotManager::formatIsBgr(VkFormat format)
     }
 }
 
-std::string ScreenshotManager::allocateScreenshotPath()
+std::string ScreenshotManager::allocateScreenshotPath(const std::string& outputDirectory)
 {
     namespace fs = std::filesystem;
 
-    const fs::path directory = GtsPaths::GetProjectRoot() / "screenshots";
+    fs::path directory = outputDirectory.empty()
+        ? GtsPaths::GetProjectRoot() / "screenshots"
+        : fs::path(outputDirectory);
+    if (directory.is_relative())
+        directory = GtsPaths::GetProjectRoot() / directory;
     fs::create_directories(directory);
 
     for (uint32_t index = 0; index < 10000; ++index)
@@ -71,7 +75,8 @@ std::string ScreenshotManager::allocateScreenshotPath()
 void ScreenshotManager::saveImage(VkImage image,
                                   VkFormat format,
                                   VkExtent2D extent,
-                                  VkImageLayout currentLayout) const
+                                  VkImageLayout currentLayout,
+                                  const std::string& outputDirectory) const
 {
     VkDevice device = backendContext.device();
     vkDeviceWaitIdle(device);
@@ -206,7 +211,7 @@ void ScreenshotManager::saveImage(VkImage image,
 
         vkUnmapMemory(device, stagingBufferMemory);
 
-        const std::string outputPath = allocateScreenshotPath();
+        const std::string outputPath = allocateScreenshotPath(outputDirectory);
         // we dont need to flip it, its already upside down before stb ever sees it
         stbi_flip_vertically_on_write(false);
         const int writeOk = stbi_write_png(
