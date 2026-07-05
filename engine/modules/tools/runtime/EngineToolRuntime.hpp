@@ -167,6 +167,50 @@ namespace gts::tools
                 persistentToolState.status = startupOptions.visible ? "TOOLS VISIBLE" : "TOOLS HIDDEN";
             }
 
+            if (startupOptions.hasVisualEvaluation && startupOptions.visualEvaluation)
+            {
+                persistentToolState.selectedEntity = invalidToolEntity();
+                persistentToolState.hoveredEntity = invalidToolEntity();
+                persistentToolState.selectionSource = EngineToolSelectionSource::None;
+
+                persistentGizmoState = EngineGizmoStateComponent{};
+                persistentGizmoState.enabled = false;
+                persistentGizmoStateReady = true;
+
+                persistentDebugDrawSettings = gts::debugdraw::DebugDrawSettingsComponent{};
+                persistentDebugDrawSettings.enabled = false;
+                persistentDebugDrawSettings.selectedBounds = false;
+                persistentDebugDrawSettings.allBounds = false;
+                persistentDebugDrawSettings.transformAxes = false;
+                persistentDebugDrawSettings.cameraFrustum = false;
+                persistentDebugDrawSettings.pickRay = false;
+                persistentDebugDrawReady = true;
+            }
+
+            if (startupOptions.hasGizmos)
+            {
+                if (!persistentGizmoStateReady)
+                    persistentGizmoState = EngineGizmoStateComponent{};
+                persistentGizmoState.enabled = startupOptions.gizmosEnabled;
+                persistentGizmoStateReady = true;
+            }
+
+            if (startupOptions.hasDebugDraw)
+            {
+                if (!persistentDebugDrawReady)
+                    persistentDebugDrawSettings = gts::debugdraw::DebugDrawSettingsComponent{};
+                persistentDebugDrawSettings.enabled = startupOptions.debugDrawEnabled;
+                if (!startupOptions.debugDrawEnabled)
+                {
+                    persistentDebugDrawSettings.selectedBounds = false;
+                    persistentDebugDrawSettings.allBounds = false;
+                    persistentDebugDrawSettings.transformAxes = false;
+                    persistentDebugDrawSettings.cameraFrustum = false;
+                    persistentDebugDrawSettings.pickRay = false;
+                }
+                persistentDebugDrawReady = true;
+            }
+
             const std::string shellStatus = shellSystem.applyStartupOptions(startupOptions);
             if (!shellStatus.empty())
                 persistentToolState.status = shellStatus;

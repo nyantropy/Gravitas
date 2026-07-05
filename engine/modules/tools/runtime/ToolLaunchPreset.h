@@ -25,6 +25,15 @@ namespace gts::tools
         bool hasWorkspace = false;
         ToolWorkspace workspace = ToolWorkspace::Particles;
 
+        bool hasVisualEvaluation = false;
+        bool visualEvaluation = false;
+
+        bool hasDebugDraw = false;
+        bool debugDrawEnabled = true;
+
+        bool hasGizmos = false;
+        bool gizmosEnabled = true;
+
         std::string scene;
         std::string particleEffect;
 
@@ -37,6 +46,7 @@ namespace gts::tools
         bool hasAnyToolState() const
         {
             return hasVisible || hasWorkspace || !particleEffect.empty() ||
+                hasVisualEvaluation || hasDebugDraw || hasGizmos ||
                 hasSelectedEmitter || hasSelectedModule;
         }
     };
@@ -182,6 +192,21 @@ namespace gts::tools
                         *outError = "Unknown tooling workspace: " + *workspace;
                     return false;
                 }
+            }
+            if (const auto visualEvaluation = detail::boolMember(*tools, "visualEvaluation"))
+            {
+                preset.tools.hasVisualEvaluation = true;
+                preset.tools.visualEvaluation = *visualEvaluation;
+            }
+            if (const auto debugDraw = detail::boolMember(*tools, "debugDraw"))
+            {
+                preset.tools.hasDebugDraw = true;
+                preset.tools.debugDrawEnabled = *debugDraw;
+            }
+            if (const auto gizmos = detail::boolMember(*tools, "gizmos"))
+            {
+                preset.tools.hasGizmos = true;
+                preset.tools.gizmosEnabled = *gizmos;
             }
             if (const auto scene = detail::stringMember(*tools, "scene"))
                 preset.tools.scene = *scene;

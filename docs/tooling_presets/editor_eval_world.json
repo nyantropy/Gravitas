@@ -1,0 +1,18 @@
+{
+  "tools": {
+    "visible": true,
+    "workspace": "world",
+    "visualEvaluation": true,
+    "debugDraw": false,
+    "gizmos": false,
+    "scene": "editor_visual_eval"
+  },
+  "screenshots": {
+    "enabled": true,
+    "afterSeconds": 2.0,
+    "intervalSeconds": 1.0,
+    "count": 1,
+    "directory": "screenshots/tooling/editor_eval_world",
+    "exitAfterCapture": true
+  }
+}

@@ -69,8 +69,8 @@ namespace gts::tools
         if (node == nullptr)
             return;
 
-        UiColor fill = active ? ToolTheme::buttonActive : ToolTheme::button;
-        UiColor text = active ? ToolTheme::accent : ToolTheme::text;
+        UiColor fill = active ? ToolTheme::selection : ToolTheme::button;
+        UiColor text = ToolTheme::text;
         if (!node->state.enabled)
         {
             fill = ToolTheme::disabled;
@@ -144,6 +144,8 @@ namespace gts::tools
                            data.visible ? rowText(data) : "--",
                            data.enabled,
                            data.selected);
+            if (data.visible && !data.selected && !data.warning)
+                toolui::setTextColor(context.ui, context.surface, row.label(), ToolTheme::mutedText);
             if (data.visible && data.warning)
                 toolui::setTextColor(context.ui, context.surface, row.label(), ToolTheme::warning);
         }
@@ -169,7 +171,7 @@ namespace gts::tools
     private:
         static std::string rowText(const ToolSelectableRowData& data)
         {
-            std::string text;
+            std::string text = "  ";
             if (!data.icon.empty())
                 text = data.icon + " ";
             text += data.primary.empty() ? "--" : data.primary;
@@ -193,16 +195,16 @@ namespace gts::tools
         {
             previous.build(context,
                            parent,
-                           toolButton(font, "PREV", previousLayout, textScale));
+                           toolButton(font, "Prev", previousLayout, textScale));
             next.build(context,
                        parent,
-                       toolButton(font, "NEXT", nextLayout, textScale));
+                       toolButton(font, "Next", nextLayout, textScale));
         }
 
         void sync(gts::ui::UiWidgetContext& context, bool visible, bool hasPrevious, bool hasNext)
         {
-            syncToolButton(context, previous, visible, "PREV", hasPrevious, false);
-            syncToolButton(context, next, visible, "NEXT", hasNext, false);
+            syncToolButton(context, previous, visible, "Prev", hasPrevious, false);
+            syncToolButton(context, next, visible, "Next", hasNext, false);
         }
 
         void onEvent(gts::ui::UiWidgetContext& context, UiEvent& event)
@@ -260,6 +262,14 @@ namespace gts::tools
             showCount = desc.showCount;
             showPager = desc.showPager;
 
+            gts::ui::UiPanelDesc headerDesc;
+            headerDesc.layout = desc.headerLayout;
+            headerDesc.styleClass.clear();
+            headerDesc.enabled = true;
+            headerDesc.interactable = false;
+            headerPanel.build(context, parent, headerDesc);
+            toolui::setRectPayload(context.ui, context.surface, headerPanel.root(), ToolTheme::sectionHeader);
+
             header.build(context,
                          parent,
                          toolLabel(font,
@@ -300,6 +310,7 @@ namespace gts::tools
                   bool hasNext = false)
         {
             header.setVisible(context, visible);
+            headerPanel.setVisible(context, visible);
             rowStack.setVisible(context, visible);
             if (showCount)
             {
@@ -355,6 +366,7 @@ namespace gts::tools
         void destroy(gts::ui::UiWidgetContext& context)
         {
             header.destroy(context);
+            headerPanel.destroy(context);
             if (showCount)
                 count.destroy(context);
             for (ToolSelectableRow& row : rows)
@@ -367,6 +379,7 @@ namespace gts::tools
     private:
         bool showCount = false;
         bool showPager = false;
+        gts::ui::UiPanelWidget headerPanel;
         gts::ui::UiLabelWidget header;
         gts::ui::UiLabelWidget count;
         gts::ui::UiStackWidget rowStack;
@@ -396,6 +409,14 @@ namespace gts::tools
                    BitmapFont* font,
                    const ToolInspectorSectionDesc& desc)
         {
+            gts::ui::UiPanelDesc headerDesc;
+            headerDesc.layout = desc.headerLayout;
+            headerDesc.styleClass.clear();
+            headerDesc.enabled = true;
+            headerDesc.interactable = false;
+            headerPanel.build(context, parent, headerDesc);
+            toolui::setRectPayload(context.ui, context.surface, headerPanel.root(), ToolTheme::sectionHeader);
+
             header.build(context,
                          parent,
                          toolLabel(font,
@@ -429,6 +450,7 @@ namespace gts::tools
                   const std::vector<std::string>& textLines)
         {
             header.setVisible(context, visible);
+            headerPanel.setVisible(context, visible);
             lineStack.setVisible(context, visible);
             if (visible)
                 header.setText(context, title);
@@ -445,12 +467,14 @@ namespace gts::tools
         void destroy(gts::ui::UiWidgetContext& context)
         {
             header.destroy(context);
+            headerPanel.destroy(context);
             for (gts::ui::UiLabelWidget& line : lines)
                 line.destroy(context);
             lineStack.destroy(context);
         }
 
     private:
+        gts::ui::UiPanelWidget headerPanel;
         gts::ui::UiLabelWidget header;
         gts::ui::UiStackWidget lineStack;
         std::array<gts::ui::UiLabelWidget, LineCount> lines;

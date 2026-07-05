@@ -1,0 +1,11 @@
+{
+  "atlas": "editor_sans.png",
+  "atlasWidth": 512,
+  "atlasHeight": 192,
+  "cellWidth": 32,
+  "cellHeight": 32,
+  "columns": 16,
+  "charOrder": " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~",
+  "lineHeight": 1.0,
+  "pixelSampling": false
+}

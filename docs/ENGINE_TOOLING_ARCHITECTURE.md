@@ -241,6 +241,9 @@ Current schema:
   "tools": {
     "visible": true,
     "workspace": "particles",
+    "visualEvaluation": true,
+    "debugDraw": false,
+    "gizmos": false,
     "scene": "dungeon_test",
     "particleEffect": "resources/particles/ambient_brazier.json",
     "selectedEmitter": 0,
@@ -261,6 +264,13 @@ Fields:
 
 - `tools.visible`: seeds `EngineToolStateComponent::visible`.
 - `tools.workspace`: `world` or `particles`.
+- `tools.visualEvaluation`: enables a clean screenshot-oriented startup state.
+  It clears tool selection and disables debug draw/gizmos unless explicit
+  overrides are also supplied.
+- `tools.debugDraw`: enables or disables tool debug draw primitives at startup.
+  Visual evaluation presets should set this to `false`.
+- `tools.gizmos`: enables or disables transform gizmos at startup. Visual
+  evaluation presets should set this to `false`.
 - `tools.scene`: scene id registered by the application.
 - `tools.particleEffect`: particle asset path opened by `ParticleEditorSession`.
 - `tools.selectedEmitter`: selected emitter index, clamped by the session.
@@ -279,6 +289,31 @@ Example presets live in `engine/docs/tooling_presets/`:
 - `world_viewer.json`
 - `particles.json`
 - `particles_inspector.json`
+- `editor_eval_world.json`
+- `editor_eval_particles.json`
+
+### Visual Evaluation Presets
+
+Editor art-direction and UI-polish work should use the `editor_eval_*` presets.
+These presets intentionally separate editor UI evaluation from gameplay scene
+evaluation.
+
+The evaluation environment should provide:
+
+- no gameplay HUD
+- no visual-novel overlays
+- no debug primitives
+- no gizmos unless explicitly enabled
+- no particle debug overlays
+- no blue camera/frustum tint
+- stable camera and scene content
+- neutral lighting and materials
+- deterministic screenshot timing
+
+The registered `editor_visual_eval` scene exists only as a neutral backdrop for
+tool screenshots. It should stay boring: if a future UI pass needs richer
+content, add representative but stable editor-evaluation props rather than
+pointing visual tests back at gameplay scenes such as `dungeon_test`.
 
 ### Screenshot Automation
 

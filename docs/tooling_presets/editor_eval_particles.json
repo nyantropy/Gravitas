@@ -1,0 +1,21 @@
+{
+  "tools": {
+    "visible": true,
+    "workspace": "particles",
+    "visualEvaluation": true,
+    "debugDraw": false,
+    "gizmos": false,
+    "scene": "editor_visual_eval",
+    "particleEffect": "resources/particles/yune/spatial_cubes.json",
+    "selectedEmitter": 0,
+    "selectedModule": 1
+  },
+  "screenshots": {
+    "enabled": true,
+    "afterSeconds": 2.0,
+    "intervalSeconds": 1.0,
+    "count": 1,
+    "directory": "screenshots/tooling/editor_eval_particles",
+    "exitAfterCapture": true
+  }
+}

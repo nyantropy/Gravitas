@@ -45,12 +45,12 @@ namespace gts::tools
             return workspace;
         }
 
-        const int topBarPixels          = std::clamp(30, 24, std::max(24, safeHeight / 12));
-        const int viewportToolbarPixels = std::clamp(28, 22, std::max(22, safeHeight / 14));
-        const int leftRailPixels        = std::clamp(280, 180, std::max(180, safeWidth / 3));
-        const int rightPanePixels       = std::clamp(360, 240, std::max(240, safeWidth / 3));
-        const int bottomDockPixels      = std::clamp(140, 96, std::max(96, safeHeight / 4));
-        const int bottomBarPixels       = std::clamp(26, 20, std::max(20, safeHeight / 16));
+        const int topBarPixels          = std::clamp(34, 28, std::max(28, safeHeight / 12));
+        const int viewportToolbarPixels = std::clamp(44, 34, std::max(34, safeHeight / 13));
+        const int leftRailPixels        = std::clamp(320, 220, std::max(220, safeWidth / 3));
+        const int rightPanePixels       = std::clamp(380, 280, std::max(280, safeWidth / 3));
+        const int bottomDockPixels      = std::clamp(220, 150, std::max(150, safeHeight / 3));
+        const int bottomBarPixels       = std::clamp(28, 22, std::max(22, safeHeight / 16));
 
         workspace.topBarHeight          = static_cast<float>(topBarPixels) / static_cast<float>(safeHeight);
         workspace.viewportToolbarHeight = static_cast<float>(viewportToolbarPixels) / static_cast<float>(safeHeight);

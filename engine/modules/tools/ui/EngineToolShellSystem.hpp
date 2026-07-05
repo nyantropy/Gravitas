@@ -250,7 +250,7 @@ namespace gts::tools
                 return false;
 
             const font_id_type fontID =
-                ctx.resources->requestFont(GraphicsConstants::ENGINE_RESOURCES + "/fonts/gravitasfont.font.json");
+                ctx.resources->requestFont(GraphicsConstants::ENGINE_RESOURCES + "/fonts/editor_sans.font.json");
             const BitmapFont* loadedFont = ctx.resources->getFont(fontID);
             if (loadedFont == nullptr)
                 return false;
@@ -267,20 +267,20 @@ namespace gts::tools
             for (auto& glyphEntry : inFont.glyphs)
             {
                 GlyphInfo& glyph = glyphEntry.second;
-                glyph.advance = 0.62f;
-                glyph.size.x = 0.82f;
-                glyph.size.y = 0.92f;
+                glyph.advance = 0.42f;
+                glyph.size.x = 0.88f;
+                glyph.size.y = 0.88f;
 
                 const char ch = glyphEntry.first;
                 if (ch == ' ')
-                    glyph.advance = 0.34f;
+                    glyph.advance = 0.30f;
                 else if (ch == 'i' || ch == 'l' || ch == 'I' || ch == '!' || ch == '.' || ch == ',' || ch == ':' ||
                          ch == ';' || ch == '\'' || ch == '`')
-                    glyph.advance = 0.38f;
+                    glyph.advance = 0.24f;
                 else if (ch == 'm' || ch == 'w' || ch == 'M' || ch == 'W')
-                    glyph.advance = 0.76f;
+                    glyph.advance = 0.56f;
                 else if (ch >= 'A' && ch <= 'Z')
-                    glyph.advance = 0.66f;
+                    glyph.advance = 0.46f;
             }
         }
 
@@ -474,7 +474,7 @@ namespace gts::tools
                 ToolSceneRow row;
                 row.id = scene.id;
                 row.active = scene.id == activeScene;
-                row.label = (row.active ? "ACTIVE  " : "LOAD    ") + toolui::compact(display, 30);
+                row.label = toolui::compact(display, 30);
                 view.scenes.push_back(std::move(row));
             }
         }
@@ -488,8 +488,7 @@ namespace gts::tools
                 ToolEffectRow row;
                 row.path = effectPaths[i];
                 row.active = row.path == particleSession.path();
-                row.label = (row.active ? "OPEN    " : "LOAD    ") +
-                    toolui::compact(toolui::stemName(row.path), 30);
+                row.label = toolui::compact(toolui::stemName(row.path), 30);
                 view.effects.push_back(std::move(row));
             }
         }

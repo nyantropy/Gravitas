@@ -30,7 +30,7 @@ namespace gts::tools
             desc.enabled = true;
             desc.interactable = false;
             rowPanel.build(context, parent, desc);
-            toolui::setRectPayload(context.ui, context.surface, rowPanel.root(), ToolTheme::panelInset);
+            toolui::setRectPayload(context.ui, context.surface, rowPanel.root(), ToolTheme::cardBackground);
 
             name.build(context,
                        rowPanel.content(),
@@ -272,11 +272,11 @@ namespace gts::tools
                                                    stack.root(),
                                                    toolLabel(font,
                                                              "",
-                                                             toolStackItem(0.044f),
+                                                             toolStackItem(ToolTheme::panelHeaderHeight),
                                                              ToolTheme::text,
                                                              ToolTheme::headerTextScale));
                 for (ToolPropertyRow& row : rows[sectionIndex])
-                    row.build(context, stack.root(), font, toolStackItem(0.052f));
+                    row.build(context, stack.root(), font, toolStackItem(ToolTheme::propertyRowHeight));
             }
         }
 

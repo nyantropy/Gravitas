@@ -52,6 +52,11 @@ namespace gts::tools
         static constexpr UiColor success            = DefaultEditorTheme.colors.success;
         static constexpr UiColor warning            = DefaultEditorTheme.colors.warning;
         static constexpr UiColor error              = DefaultEditorTheme.colors.error;
+        static constexpr UiColor curveBlue          = DefaultEditorTheme.colors.curveBlue;
+        static constexpr UiColor curveRed           = DefaultEditorTheme.colors.curveRed;
+        static constexpr UiColor curveGreen         = DefaultEditorTheme.colors.curveGreen;
+        static constexpr UiColor curveYellow        = DefaultEditorTheme.colors.curveYellow;
+        static constexpr UiColor curveViolet        = DefaultEditorTheme.colors.curveViolet;
         static constexpr UiColor axisX              = DefaultEditorTheme.colors.axisX;
         static constexpr UiColor axisY              = DefaultEditorTheme.colors.axisY;
         static constexpr UiColor axisZ              = DefaultEditorTheme.colors.axisZ;
@@ -72,6 +77,8 @@ namespace gts::tools
         static constexpr float titleTextScale    = DefaultEditorTheme.typography.applicationTitleScale;
         static constexpr float rowHeight         = DefaultEditorTheme.dimensions.rowHeight;
         static constexpr float compactRowHeight  = DefaultEditorTheme.dimensions.compactRowHeight;
+        static constexpr float propertyRowHeight = DefaultEditorTheme.dimensions.propertyRowHeight;
+        static constexpr float panelHeaderHeight = DefaultEditorTheme.dimensions.panelHeaderHeight;
         static constexpr float sliderHeight      = DefaultEditorTheme.dimensions.sliderHeight;
     };
 } // namespace gts::tools
