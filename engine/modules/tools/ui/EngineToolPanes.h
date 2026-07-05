@@ -7,6 +7,7 @@
 
 #include "EngineToolUiHelpers.h"
 #include "ToolPane.h"
+#include "ToolPaneWidgets.h"
 #include "ToolTheme.h"
 
 namespace gts::tools
@@ -64,18 +65,7 @@ namespace gts::tools
                                    UiHorizontalAlign align = UiHorizontalAlign::Left,
                                    int maxLines = 2) const
         {
-            gts::ui::UiLabelDesc desc;
-            desc.layout = layout;
-            desc.text = text;
-            desc.font = font;
-            desc.styleClass.clear();
-            desc.color = color;
-            desc.scale = scale;
-            desc.horizontalAlign = align;
-            desc.verticalAlign = UiVerticalAlign::Middle;
-            desc.wrapMode = UiTextWrapMode::Word;
-            desc.maxLines = maxLines;
-            return desc;
+            return toolLabel(font, text, layout, color, scale, align, maxLines);
         }
 
         gts::ui::UiButtonDesc button(const std::string& text,
@@ -83,19 +73,7 @@ namespace gts::tools
                                      float scale,
                                      UiHorizontalAlign align = UiHorizontalAlign::Center) const
         {
-            gts::ui::UiButtonDesc desc;
-            desc.layout = layout;
-            desc.text = text;
-            desc.font = font;
-            desc.styleClass.clear();
-            desc.labelStyleClass.clear();
-            desc.textColor = ToolTheme::text;
-            desc.textScale = scale;
-            desc.horizontalAlign = align;
-            desc.verticalAlign = UiVerticalAlign::Middle;
-            desc.wrapMode = UiTextWrapMode::Word;
-            desc.maxLines = 2;
-            return desc;
+            return toolButton(font, text, layout, scale, align);
         }
 
         static gts::ui::UiImageDesc image(const UiLayoutSpec& layout)
@@ -107,13 +85,6 @@ namespace gts::tools
             return desc;
         }
 
-        static UiLayoutSpec stackItem(float height)
-        {
-            UiLayoutSpec layout;
-            layout.constraints.preferredHeight = {UiLayoutUnit::Normalized, height};
-            return layout;
-        }
-
         void syncButton(gts::ui::UiWidgetContext& context,
                         gts::ui::UiButtonWidget& widget,
                         bool visible,
@@ -121,47 +92,12 @@ namespace gts::tools
                         bool enabled,
                         bool active)
         {
-            widget.setVisible(context, visible);
-            widget.setEnabled(context, visible && enabled);
-            if (visible)
-                widget.setText(context, text);
-            paintButton(context, widget, active);
-        }
-
-        void paintButton(gts::ui::UiWidgetContext& context,
-                         gts::ui::UiButtonWidget& widget,
-                         bool active)
-        {
-            const UiNode* node = context.ui.findNode(context.surface, widget.root());
-            if (node == nullptr)
-                return;
-
-            UiColor fill = active ? ToolTheme::buttonActive : ToolTheme::button;
-            UiColor text = active ? ToolTheme::accent : ToolTheme::text;
-            if (!node->state.enabled)
-            {
-                fill = ToolTheme::disabled;
-                text = ToolTheme::disabledText;
-            }
-            else if (node->state.pressed)
-            {
-                fill = ToolTheme::buttonPressed;
-            }
-            else if (node->state.hovered)
-            {
-                fill = active ? ToolTheme::toggleHover : ToolTheme::buttonHover;
-            }
-
-            toolui::setRectPayload(context.ui, context.surface, widget.root(), fill);
-            toolui::setTextColor(context.ui, context.surface, widget.label(), text);
+            syncToolButton(context, widget, visible, text, enabled, active);
         }
 
         static std::string pageText(size_t offset, size_t visible, size_t total)
         {
-            if (total == 0)
-                return "0";
-            return std::to_string(offset + 1) + "-" + std::to_string(offset + visible) + " / " +
-                std::to_string(total);
+            return toolPageText(offset, visible, total);
         }
 
         static UiColor transparent()
@@ -248,14 +184,11 @@ namespace gts::tools
                    const UiLayoutSpec& layout) override
         {
             buildRoot(context, parent, font, layout, transparent(), false);
-            worldTab.build(context,
-                           content(),
-                           button("WORLD", toolui::rect(0.000f, 0.140f, 0.300f, 0.720f), ToolTheme::buttonTextScale));
-            particlesTab.build(context,
-                               content(),
-                               button("PARTICLES",
-                                      toolui::rect(0.320f, 0.140f, 0.400f, 0.720f),
-                                      ToolTheme::buttonTextScale));
+
+            std::array<ToolToolbarButtonSlot, 2> slots;
+            slots[0] = {"WORLD", toolui::rect(0.000f, 0.140f, 0.300f, 0.720f)};
+            slots[1] = {"PARTICLES", toolui::rect(0.320f, 0.140f, 0.400f, 0.720f)};
+            tabs.build(context, content(), font, slots, ToolTheme::buttonTextScale);
         }
 
         void update(gts::ui::UiWidgetContext& context,
@@ -264,13 +197,8 @@ namespace gts::tools
                     bool visible) override
         {
             updateRoot(context, layout, visible);
-            syncButton(context, worldTab, visible, "WORLD", true, view.activeWorkspace == ToolWorkspace::World);
-            syncButton(context,
-                       particlesTab,
-                       visible,
-                       "PARTICLES",
-                       true,
-                       view.activeWorkspace == ToolWorkspace::Particles);
+            tabs.sync(context, 0, visible, "WORLD", true, view.activeWorkspace == ToolWorkspace::World);
+            tabs.sync(context, 1, visible, "PARTICLES", true, view.activeWorkspace == ToolWorkspace::Particles);
         }
 
         void onEvent(gts::ui::UiWidgetContext& context,
@@ -278,25 +206,22 @@ namespace gts::tools
                      ToolCommandQueue& commands,
                      const ToolShellView&) override
         {
-            worldTab.onEvent(context, event);
-            particlesTab.onEvent(context, event);
+            tabs.onEvent(context, event);
 
-            if (worldTab.consumePressed())
+            if (tabs.consumePressed(0))
                 commands.push({ToolCommandType::SetWorkspace, ToolWorkspace::World});
-            if (particlesTab.consumePressed())
+            if (tabs.consumePressed(1))
                 commands.push({ToolCommandType::SetWorkspace, ToolWorkspace::Particles});
         }
 
         void destroy(gts::ui::UiWidgetContext& context) override
         {
-            worldTab.destroy(context);
-            particlesTab.destroy(context);
+            tabs.destroy(context);
             destroyRoot(context);
         }
 
     private:
-        gts::ui::UiButtonWidget worldTab;
-        gts::ui::UiButtonWidget particlesTab;
+        ToolToolbarRow<2> tabs;
     };
 
     class ToolToolbarPane final : public ToolPaneBase
@@ -408,38 +333,20 @@ namespace gts::tools
                    const UiLayoutSpec& layout) override
         {
             buildRoot(context, parent, font, layout, ToolTheme::paneBackground, true);
-            header.build(context,
-                         content(),
-                         label("Scenes",
-                               toolui::rect(0.050f, 0.030f, 0.430f, 0.040f),
-                               ToolTheme::text,
-                               ToolTheme::headerTextScale));
-            count.build(context,
-                        content(),
-                        label("0",
-                              toolui::rect(0.500f, 0.032f, 0.450f, 0.034f),
-                              ToolTheme::mutedText,
-                              ToolTheme::smallTextScale,
-                              UiHorizontalAlign::Right));
 
-            gts::ui::UiStackDesc rowStackDesc;
-            rowStackDesc.layout = toolui::rect(0.050f, 0.092f, 0.900f, 0.780f);
-            rowStackDesc.axis = UiLayoutAxis::Vertical;
-            rowStackDesc.gap = 0.008f;
-            rowStack.build(context, content(), rowStackDesc);
-            for (auto& row : rows)
-            {
-                row.build(context,
-                          rowStack.root(),
-                          button("--", stackItem(0.056f), ToolTheme::smallTextScale, UiHorizontalAlign::Left));
-            }
-
-            previous.build(context,
-                           content(),
-                           button("PREV", toolui::rect(0.050f, 0.910f, 0.430f, 0.050f), ToolTheme::buttonTextScale));
-            next.build(context,
-                       content(),
-                       button("NEXT", toolui::rect(0.520f, 0.910f, 0.430f, 0.050f), ToolTheme::buttonTextScale));
+            ToolListSectionDesc desc;
+            desc.title = "Scenes";
+            desc.headerLayout = toolui::rect(0.050f, 0.030f, 0.430f, 0.040f);
+            desc.countLayout = toolui::rect(0.500f, 0.032f, 0.450f, 0.034f);
+            desc.stackLayout = toolui::rect(0.050f, 0.092f, 0.900f, 0.780f);
+            desc.previousLayout = toolui::rect(0.050f, 0.910f, 0.430f, 0.050f);
+            desc.nextLayout = toolui::rect(0.520f, 0.910f, 0.430f, 0.050f);
+            desc.rowHeight = 0.056f;
+            desc.rowGap = 0.008f;
+            desc.headerScale = ToolTheme::headerTextScale;
+            desc.showCount = true;
+            desc.showPager = true;
+            scenes.build(context, content(), font, desc);
         }
 
         void update(gts::ui::UiWidgetContext& context,
@@ -448,21 +355,24 @@ namespace gts::tools
                     bool visible) override
         {
             updateRoot(context, layout, visible);
-            count.setText(context, pageText(view.sceneOffset, view.scenes.size(), view.sceneTotal));
-            for (size_t i = 0; i < rows.size(); ++i)
+            std::vector<ToolSelectableRowData> rows;
+            rows.reserve(view.scenes.size());
+            for (const ToolSceneRow& scene : view.scenes)
             {
-                const bool rowVisible = visible && i < view.scenes.size();
-                syncButton(context,
-                           rows[i],
-                           rowVisible,
-                           rowVisible ? view.scenes[i].label : "--",
-                           rowVisible && !view.scenes[i].active,
-                           rowVisible && view.scenes[i].active);
+                ToolSelectableRowData row;
+                row.primary = scene.label;
+                row.enabled = !scene.active;
+                row.selected = scene.active;
+                rows.push_back(std::move(row));
             }
             const bool hasPrevious = visible && view.sceneOffset > 0;
             const bool hasNext = visible && view.sceneOffset + view.scenes.size() < view.sceneTotal;
-            syncButton(context, previous, visible, "PREV", hasPrevious, false);
-            syncButton(context, next, visible, "NEXT", hasNext, false);
+            scenes.sync(context,
+                        visible,
+                        rows,
+                        pageText(view.sceneOffset, view.scenes.size(), view.sceneTotal),
+                        hasPrevious,
+                        hasNext);
         }
 
         void onEvent(gts::ui::UiWidgetContext& context,
@@ -470,49 +380,33 @@ namespace gts::tools
                      ToolCommandQueue& commands,
                      const ToolShellView& view) override
         {
-            previous.onEvent(context, event);
-            next.onEvent(context, event);
-            for (auto& row : rows)
-                row.onEvent(context, event);
+            scenes.onEvent(context, event);
 
-            if (previous.consumePressed())
+            if (scenes.consumePreviousPressed())
                 commands.push({ToolCommandType::ScenePagePrevious});
-            if (next.consumePressed())
+            if (scenes.consumeNextPressed())
                 commands.push({ToolCommandType::ScenePageNext});
 
-            for (size_t i = 0; i < rows.size(); ++i)
+            size_t rowIndex = 0;
+            if (scenes.consumeRowPressed(rowIndex) && rowIndex < view.scenes.size())
             {
-                if (rows[i].consumePressed() && i < view.scenes.size())
-                {
-                    ToolCommand command;
-                    command.type = ToolCommandType::LoadScene;
-                    command.value = view.scenes[i].id;
-                    commands.push(std::move(command));
-                }
+                ToolCommand command;
+                command.type = ToolCommandType::LoadScene;
+                command.value = view.scenes[rowIndex].id;
+                commands.push(std::move(command));
             }
         }
 
         void destroy(gts::ui::UiWidgetContext& context) override
         {
-            header.destroy(context);
-            count.destroy(context);
-            for (auto& row : rows)
-                row.destroy(context);
-            rowStack.destroy(context);
-            previous.destroy(context);
-            next.destroy(context);
+            scenes.destroy(context);
             destroyRoot(context);
         }
 
     private:
         static constexpr size_t MaxRows = 10;
 
-        gts::ui::UiLabelWidget header;
-        gts::ui::UiLabelWidget count;
-        gts::ui::UiStackWidget rowStack;
-        std::array<gts::ui::UiButtonWidget, MaxRows> rows;
-        gts::ui::UiButtonWidget previous;
-        gts::ui::UiButtonWidget next;
+        ToolListSection<MaxRows> scenes;
     };
 
     class EffectHierarchyPane final : public ToolPaneBase
@@ -535,80 +429,38 @@ namespace gts::tools
                    const UiLayoutSpec& layout) override
         {
             buildRoot(context, parent, font, layout, ToolTheme::paneBackground, true);
-            effectHeader.build(context,
-                               content(),
-                               label("Particle Assets",
-                                     toolui::rect(0.050f, 0.024f, 0.560f, 0.040f),
-                                     ToolTheme::text,
-                                     ToolTheme::headerTextScale));
-            effectCount.build(context,
-                              content(),
-                              label("0",
-                                    toolui::rect(0.620f, 0.028f, 0.330f, 0.034f),
-                                    ToolTheme::mutedText,
-                                    ToolTheme::smallTextScale,
-                                    UiHorizontalAlign::Right));
 
-            gts::ui::UiStackDesc effectStackDesc;
-            effectStackDesc.layout = toolui::rect(0.050f, 0.086f, 0.900f, 0.292f);
-            effectStackDesc.axis = UiLayoutAxis::Vertical;
-            effectStackDesc.gap = 0.006f;
-            effectStack.build(context, content(), effectStackDesc);
-            for (auto& row : effectRows)
-            {
-                row.build(context,
-                          effectStack.root(),
-                          button("--", stackItem(0.044f), ToolTheme::smallTextScale, UiHorizontalAlign::Left));
-            }
+            ToolListSectionDesc effectDesc;
+            effectDesc.title = "Particle Assets";
+            effectDesc.headerLayout = toolui::rect(0.050f, 0.024f, 0.560f, 0.040f);
+            effectDesc.countLayout = toolui::rect(0.620f, 0.028f, 0.330f, 0.034f);
+            effectDesc.stackLayout = toolui::rect(0.050f, 0.086f, 0.900f, 0.292f);
+            effectDesc.previousLayout = toolui::rect(0.050f, 0.395f, 0.430f, 0.044f);
+            effectDesc.nextLayout = toolui::rect(0.520f, 0.395f, 0.430f, 0.044f);
+            effectDesc.rowHeight = 0.044f;
+            effectDesc.rowGap = 0.006f;
+            effectDesc.headerScale = ToolTheme::headerTextScale;
+            effectDesc.showCount = true;
+            effectDesc.showPager = true;
+            effects.build(context, content(), font, effectDesc);
 
-            effectPrevious.build(context,
-                                 content(),
-                                 button("PREV",
-                                        toolui::rect(0.050f, 0.395f, 0.430f, 0.044f),
-                                        ToolTheme::buttonTextScale));
-            effectNext.build(context,
-                             content(),
-                             button("NEXT",
-                                    toolui::rect(0.520f, 0.395f, 0.430f, 0.044f),
-                                    ToolTheme::buttonTextScale));
+            ToolListSectionDesc emitterDesc;
+            emitterDesc.title = "Emitters";
+            emitterDesc.headerLayout = toolui::rect(0.050f, 0.485f, 0.900f, 0.034f);
+            emitterDesc.stackLayout = toolui::rect(0.050f, 0.530f, 0.900f, 0.230f);
+            emitterDesc.rowHeight = 0.040f;
+            emitterDesc.rowGap = 0.006f;
+            emitterDesc.headerScale = ToolTheme::smallTextScale;
+            emitters.build(context, content(), font, emitterDesc);
 
-            emitterHeader.build(context,
-                                content(),
-                                label("Emitters",
-                                      toolui::rect(0.050f, 0.485f, 0.900f, 0.034f),
-                                      ToolTheme::text,
-                                      ToolTheme::smallTextScale));
-
-            gts::ui::UiStackDesc emitterStackDesc;
-            emitterStackDesc.layout = toolui::rect(0.050f, 0.530f, 0.900f, 0.230f);
-            emitterStackDesc.axis = UiLayoutAxis::Vertical;
-            emitterStackDesc.gap = 0.006f;
-            emitterStack.build(context, content(), emitterStackDesc);
-            for (auto& row : emitterRows)
-            {
-                row.build(context,
-                          emitterStack.root(),
-                          button("--", stackItem(0.040f), ToolTheme::smallTextScale, UiHorizontalAlign::Left));
-            }
-
-            moduleHeader.build(context,
-                               content(),
-                               label("Modules",
-                                     toolui::rect(0.050f, 0.780f, 0.900f, 0.034f),
-                                     ToolTheme::text,
-                                     ToolTheme::smallTextScale));
-
-            gts::ui::UiStackDesc moduleStackDesc;
-            moduleStackDesc.layout = toolui::rect(0.050f, 0.824f, 0.900f, 0.160f);
-            moduleStackDesc.axis = UiLayoutAxis::Vertical;
-            moduleStackDesc.gap = 0.005f;
-            moduleStack.build(context, content(), moduleStackDesc);
-            for (auto& row : moduleRows)
-            {
-                row.build(context,
-                          moduleStack.root(),
-                          button("--", stackItem(0.035f), ToolTheme::smallTextScale, UiHorizontalAlign::Left));
-            }
+            ToolListSectionDesc moduleDesc;
+            moduleDesc.title = "Modules";
+            moduleDesc.headerLayout = toolui::rect(0.050f, 0.780f, 0.900f, 0.034f);
+            moduleDesc.stackLayout = toolui::rect(0.050f, 0.824f, 0.900f, 0.160f);
+            moduleDesc.rowHeight = 0.035f;
+            moduleDesc.rowGap = 0.005f;
+            moduleDesc.headerScale = ToolTheme::smallTextScale;
+            modules.build(context, content(), font, moduleDesc);
         }
 
         void update(gts::ui::UiWidgetContext& context,
@@ -617,55 +469,50 @@ namespace gts::tools
                     bool visible) override
         {
             updateRoot(context, layout, visible);
-            effectCount.setText(context, pageText(view.effectOffset, view.effects.size(), view.effectTotal));
-
-            for (size_t i = 0; i < effectRows.size(); ++i)
+            std::vector<ToolSelectableRowData> effectRows;
+            effectRows.reserve(view.effects.size());
+            for (const ToolEffectRow& effect : view.effects)
             {
-                const bool rowVisible = visible && i < view.effects.size();
-                syncButton(context,
-                           effectRows[i],
-                           rowVisible,
-                           rowVisible ? view.effects[i].label : "--",
-                           rowVisible,
-                           rowVisible && view.effects[i].active);
+                ToolSelectableRowData row;
+                row.primary = effect.label;
+                row.selected = effect.active;
+                effectRows.push_back(std::move(row));
             }
 
             const bool hasPrevious = visible && view.effectOffset > 0;
             const bool hasNext = visible && view.effectOffset + view.effects.size() < view.effectTotal;
-            syncButton(context, effectPrevious, visible, "PREV", hasPrevious, false);
-            syncButton(context, effectNext, visible, "NEXT", hasNext, false);
+            effects.sync(context,
+                         visible,
+                         effectRows,
+                         pageText(view.effectOffset, view.effects.size(), view.effectTotal),
+                         hasPrevious,
+                         hasNext);
 
-            for (size_t i = 0; i < emitterRows.size(); ++i)
+            std::vector<ToolSelectableRowData> emitterRows;
+            emitterRows.reserve(view.emitters.size());
+            for (const ToolEmitterRow& emitter : view.emitters)
             {
-                const bool rowVisible = visible && i < view.emitters.size();
-                const std::string text = rowVisible
-                    ? view.emitters[i].label + "  " + view.emitters[i].summary
-                    : "--";
-                syncButton(context,
-                           emitterRows[i],
-                           rowVisible,
-                           text,
-                           rowVisible,
-                           rowVisible && view.emitters[i].active);
-                if (rowVisible && !view.emitters[i].enabled)
-                    toolui::setTextColor(context.ui, context.surface, emitterRows[i].label(), ToolTheme::warning);
+                ToolSelectableRowData row;
+                row.primary = emitter.label;
+                row.secondary = emitter.summary;
+                row.selected = emitter.active;
+                row.warning = !emitter.enabled;
+                emitterRows.push_back(std::move(row));
             }
+            emitters.sync(context, visible, emitterRows);
 
-            for (size_t i = 0; i < moduleRows.size(); ++i)
+            std::vector<ToolSelectableRowData> moduleRows;
+            moduleRows.reserve(view.modules.size());
+            for (const ToolModuleRow& module : view.modules)
             {
-                const bool rowVisible = visible && i < view.modules.size();
-                const std::string text = rowVisible
-                    ? view.modules[i].label + "  " + view.modules[i].summary
-                    : "--";
-                syncButton(context,
-                           moduleRows[i],
-                           rowVisible,
-                           text,
-                           rowVisible,
-                           rowVisible && view.modules[i].active);
-                if (rowVisible && !view.modules[i].enabled)
-                    toolui::setTextColor(context.ui, context.surface, moduleRows[i].label(), ToolTheme::warning);
+                ToolSelectableRowData row;
+                row.primary = module.label;
+                row.secondary = module.summary;
+                row.selected = module.active;
+                row.warning = !module.enabled;
+                moduleRows.push_back(std::move(row));
             }
+            modules.sync(context, visible, moduleRows);
         }
 
         void onEvent(gts::ui::UiWidgetContext& context,
@@ -673,71 +520,46 @@ namespace gts::tools
                      ToolCommandQueue& commands,
                      const ToolShellView& view) override
         {
-            effectPrevious.onEvent(context, event);
-            effectNext.onEvent(context, event);
-            for (auto& row : effectRows)
-                row.onEvent(context, event);
-            for (auto& row : emitterRows)
-                row.onEvent(context, event);
-            for (auto& row : moduleRows)
-                row.onEvent(context, event);
+            effects.onEvent(context, event);
+            emitters.onEvent(context, event);
+            modules.onEvent(context, event);
 
-            if (effectPrevious.consumePressed())
+            if (effects.consumePreviousPressed())
                 commands.push({ToolCommandType::EffectPagePrevious});
-            if (effectNext.consumePressed())
+            if (effects.consumeNextPressed())
                 commands.push({ToolCommandType::EffectPageNext});
 
-            for (size_t i = 0; i < effectRows.size(); ++i)
+            size_t rowIndex = 0;
+            if (effects.consumeRowPressed(rowIndex) && rowIndex < view.effects.size())
             {
-                if (effectRows[i].consumePressed() && i < view.effects.size())
-                {
-                    ToolCommand command;
-                    command.type = ToolCommandType::OpenParticleEffect;
-                    command.value = view.effects[i].path;
-                    commands.push(std::move(command));
-                }
+                ToolCommand command;
+                command.type = ToolCommandType::OpenParticleEffect;
+                command.value = view.effects[rowIndex].path;
+                commands.push(std::move(command));
             }
 
-            for (size_t i = 0; i < emitterRows.size(); ++i)
+            if (emitters.consumeRowPressed(rowIndex) && rowIndex < view.emitters.size())
             {
-                if (emitterRows[i].consumePressed() && i < view.emitters.size())
-                {
-                    ToolCommand command;
-                    command.type = ToolCommandType::SelectEmitter;
-                    command.index = view.emitters[i].index;
-                    commands.push(command);
-                }
+                ToolCommand command;
+                command.type = ToolCommandType::SelectEmitter;
+                command.index = view.emitters[rowIndex].index;
+                commands.push(command);
             }
 
-            for (size_t i = 0; i < moduleRows.size(); ++i)
+            if (modules.consumeRowPressed(rowIndex) && rowIndex < view.modules.size())
             {
-                if (moduleRows[i].consumePressed() && i < view.modules.size())
-                {
-                    ToolCommand command;
-                    command.type = ToolCommandType::SelectModule;
-                    command.index = view.modules[i].index;
-                    commands.push(command);
-                }
+                ToolCommand command;
+                command.type = ToolCommandType::SelectModule;
+                command.index = view.modules[rowIndex].index;
+                commands.push(command);
             }
         }
 
         void destroy(gts::ui::UiWidgetContext& context) override
         {
-            effectHeader.destroy(context);
-            effectCount.destroy(context);
-            for (auto& row : effectRows)
-                row.destroy(context);
-            effectStack.destroy(context);
-            effectPrevious.destroy(context);
-            effectNext.destroy(context);
-            emitterHeader.destroy(context);
-            for (auto& row : emitterRows)
-                row.destroy(context);
-            emitterStack.destroy(context);
-            moduleHeader.destroy(context);
-            for (auto& row : moduleRows)
-                row.destroy(context);
-            moduleStack.destroy(context);
+            effects.destroy(context);
+            emitters.destroy(context);
+            modules.destroy(context);
             destroyRoot(context);
         }
 
@@ -746,18 +568,9 @@ namespace gts::tools
         static constexpr size_t MaxEmitterRows = 5;
         static constexpr size_t MaxModuleRows = 4;
 
-        gts::ui::UiLabelWidget effectHeader;
-        gts::ui::UiLabelWidget effectCount;
-        gts::ui::UiStackWidget effectStack;
-        std::array<gts::ui::UiButtonWidget, MaxEffectRows> effectRows;
-        gts::ui::UiButtonWidget effectPrevious;
-        gts::ui::UiButtonWidget effectNext;
-        gts::ui::UiLabelWidget emitterHeader;
-        gts::ui::UiStackWidget emitterStack;
-        std::array<gts::ui::UiButtonWidget, MaxEmitterRows> emitterRows;
-        gts::ui::UiLabelWidget moduleHeader;
-        gts::ui::UiStackWidget moduleStack;
-        std::array<gts::ui::UiButtonWidget, MaxModuleRows> moduleRows;
+        ToolListSection<MaxEffectRows> effects;
+        ToolListSection<MaxEmitterRows> emitters;
+        ToolListSection<MaxModuleRows> modules;
     };
 
     class EmitterDetailsPane final : public ToolPaneBase
@@ -774,24 +587,15 @@ namespace gts::tools
                    const UiLayoutSpec& layout) override
         {
             buildRoot(context, parent, font, layout, ToolTheme::paneBackground, true);
-            header.build(context,
-                         content(),
-                         label("Emitter Details",
-                               toolui::rect(0.050f, 0.060f, 0.900f, 0.090f),
-                               ToolTheme::text,
-                               ToolTheme::headerTextScale));
-            emitterLabel.build(context,
-                               content(),
-                               label("No emitter selected",
-                                     toolui::rect(0.050f, 0.190f, 0.900f, 0.090f),
-                                     ToolTheme::mutedText,
-                                     ToolTheme::smallTextScale));
-            moduleLabel.build(context,
-                              content(),
-                              label("No module selected",
-                                    toolui::rect(0.050f, 0.300f, 0.900f, 0.090f),
-                                    ToolTheme::mutedText,
-                                    ToolTheme::smallTextScale));
+
+            ToolInspectorSectionDesc detailsDesc;
+            detailsDesc.title = "Emitter Details";
+            detailsDesc.headerLayout = toolui::rect(0.050f, 0.060f, 0.900f, 0.090f);
+            detailsDesc.stackLayout = toolui::rect(0.050f, 0.190f, 0.900f, 0.200f);
+            detailsDesc.lineHeight = 0.090f;
+            detailsDesc.lineGap = 0.020f;
+            details.build(context, content(), font, detailsDesc);
+
             emitterToggle.build(context,
                                 content(),
                                 button("ENABLE EMITTER",
@@ -811,8 +615,7 @@ namespace gts::tools
         {
             updateRoot(context, layout, visible);
 
-            emitterLabel.setText(context, selectedEmitterText(view));
-            moduleLabel.setText(context, selectedModuleText(view));
+            details.sync(context, visible, "Emitter Details", {selectedEmitterText(view), selectedModuleText(view)});
             syncButton(context,
                        emitterToggle,
                        visible,
@@ -843,9 +646,7 @@ namespace gts::tools
 
         void destroy(gts::ui::UiWidgetContext& context) override
         {
-            header.destroy(context);
-            emitterLabel.destroy(context);
-            moduleLabel.destroy(context);
+            details.destroy(context);
             emitterToggle.destroy(context);
             moduleToggle.destroy(context);
             destroyRoot(context);
@@ -874,9 +675,7 @@ namespace gts::tools
             return it == view.modules.end() ? "No module selected" : "Module: " + it->label;
         }
 
-        gts::ui::UiLabelWidget header;
-        gts::ui::UiLabelWidget emitterLabel;
-        gts::ui::UiLabelWidget moduleLabel;
+        ToolInspectorSection<2> details;
         gts::ui::UiButtonWidget emitterToggle;
         gts::ui::UiButtonWidget moduleToggle;
     };
@@ -933,18 +732,12 @@ namespace gts::tools
                                     ToolTheme::smallTextScale,
                                     UiHorizontalAlign::Center));
 
-            save.build(context,
-                       content(),
-                       button("SAVE", toolui::rect(0.050f, 0.760f, 0.205f, 0.090f), ToolTheme::buttonTextScale));
-            reload.build(context,
-                         content(),
-                         button("RELOAD", toolui::rect(0.275f, 0.760f, 0.205f, 0.090f), ToolTheme::buttonTextScale));
-            play.build(context,
-                       content(),
-                       button("PAUSE", toolui::rect(0.500f, 0.760f, 0.205f, 0.090f), ToolTheme::buttonTextScale));
-            restart.build(context,
-                          content(),
-                          button("RESTART", toolui::rect(0.725f, 0.760f, 0.225f, 0.090f), ToolTheme::buttonTextScale));
+            std::array<ToolToolbarButtonSlot, 4> slots;
+            slots[0] = {"SAVE", toolui::rect(0.050f, 0.760f, 0.205f, 0.090f)};
+            slots[1] = {"RELOAD", toolui::rect(0.275f, 0.760f, 0.205f, 0.090f)};
+            slots[2] = {"PAUSE", toolui::rect(0.500f, 0.760f, 0.205f, 0.090f)};
+            slots[3] = {"RESTART", toolui::rect(0.725f, 0.760f, 0.225f, 0.090f)};
+            actions.build(context, content(), font, slots, ToolTheme::buttonTextScale);
         }
 
         void update(gts::ui::UiWidgetContext& context,
@@ -968,10 +761,10 @@ namespace gts::tools
             imageData.imageAspect = 1.0f;
             context.ui.setPayload(context.surface, previewImage.root(), imageData);
 
-            syncButton(context, save, visible, "SAVE", view.particleLoaded, false);
-            syncButton(context, reload, visible, "RELOAD", view.particleLoaded, false);
-            syncButton(context, play, visible, view.particlePlaying ? "PAUSE" : "PLAY", view.particleLoaded, false);
-            syncButton(context, restart, visible, "RESTART", view.particleLoaded, false);
+            actions.sync(context, 0, visible, "SAVE", view.particleLoaded, false);
+            actions.sync(context, 1, visible, "RELOAD", view.particleLoaded, false);
+            actions.sync(context, 2, visible, view.particlePlaying ? "PAUSE" : "PLAY", view.particleLoaded, false);
+            actions.sync(context, 3, visible, "RESTART", view.particleLoaded, false);
         }
 
         void onEvent(gts::ui::UiWidgetContext& context,
@@ -979,18 +772,15 @@ namespace gts::tools
                      ToolCommandQueue& commands,
                      const ToolShellView&) override
         {
-            save.onEvent(context, event);
-            reload.onEvent(context, event);
-            play.onEvent(context, event);
-            restart.onEvent(context, event);
+            actions.onEvent(context, event);
 
-            if (save.consumePressed())
+            if (actions.consumePressed(0))
                 commands.push({ToolCommandType::SaveParticleEffect});
-            if (reload.consumePressed())
+            if (actions.consumePressed(1))
                 commands.push({ToolCommandType::ReloadParticleEffect});
-            if (play.consumePressed())
+            if (actions.consumePressed(2))
                 commands.push({ToolCommandType::ToggleParticlePlayback});
-            if (restart.consumePressed())
+            if (actions.consumePressed(3))
                 commands.push({ToolCommandType::RestartParticlePreview});
         }
 
@@ -1001,10 +791,7 @@ namespace gts::tools
             placeholder.destroy(context);
             previewImage.destroy(context);
             previewPanel.destroy(context);
-            save.destroy(context);
-            reload.destroy(context);
-            play.destroy(context);
-            restart.destroy(context);
+            actions.destroy(context);
             destroyRoot(context);
         }
 
@@ -1014,10 +801,7 @@ namespace gts::tools
         gts::ui::UiPanelWidget previewPanel;
         gts::ui::UiImageWidget previewImage;
         gts::ui::UiLabelWidget placeholder;
-        gts::ui::UiButtonWidget save;
-        gts::ui::UiButtonWidget reload;
-        gts::ui::UiButtonWidget play;
-        gts::ui::UiButtonWidget restart;
+        ToolToolbarRow<4> actions;
     };
 
     class PropertyInspectorPane final : public ToolPaneBase
@@ -1042,28 +826,15 @@ namespace gts::tools
                    const UiLayoutSpec& layout) override
         {
             buildRoot(context, parent, font, layout, ToolTheme::paneBackground, true);
-            header.build(context,
-                         content(),
-                         label("Inspector",
-                               toolui::rect(0.050f, 0.050f, 0.900f, 0.080f),
-                               ToolTheme::text,
-                               ToolTheme::headerTextScale));
-            gts::ui::UiStackDesc lineStackDesc;
-            lineStackDesc.layout = toolui::rect(0.050f, 0.155f, 0.900f, 0.790f);
-            lineStackDesc.axis = UiLayoutAxis::Vertical;
-            lineStackDesc.gap = 0.008f;
-            lineStack.build(context, content(), lineStackDesc);
-            for (auto& line : lines)
-            {
-                line.build(context,
-                           lineStack.root(),
-                           label("",
-                                 stackItem(0.064f),
-                                 ToolTheme::mutedText,
-                                 ToolTheme::smallTextScale,
-                                 UiHorizontalAlign::Left,
-                                 3));
-            }
+
+            ToolInspectorSectionDesc desc;
+            desc.title = "Inspector";
+            desc.headerLayout = toolui::rect(0.050f, 0.050f, 0.900f, 0.080f);
+            desc.stackLayout = toolui::rect(0.050f, 0.155f, 0.900f, 0.790f);
+            desc.lineHeight = 0.064f;
+            desc.lineGap = 0.008f;
+            desc.lineMaxLines = 3;
+            inspector.build(context, content(), font, desc);
         }
 
         void update(gts::ui::UiWidgetContext& context,
@@ -1072,33 +843,24 @@ namespace gts::tools
                     bool visible) override
         {
             updateRoot(context, layout, visible);
-            header.setText(context, view.activeWorkspace == ToolWorkspace::Particles ? "Particle Inspector" : "Scene Inspector");
-            for (size_t i = 0; i < lines.size(); ++i)
-            {
-                const bool lineVisible = visible && i < view.inspectorLines.size();
-                lines[i].setVisible(context, lineVisible);
-                if (lineVisible)
-                    lines[i].setText(context, view.inspectorLines[i]);
-            }
+            inspector.sync(context,
+                           visible,
+                           view.activeWorkspace == ToolWorkspace::Particles ? "Particle Inspector" : "Scene Inspector",
+                           view.inspectorLines);
         }
 
         void onEvent(gts::ui::UiWidgetContext&, UiEvent&, ToolCommandQueue&, const ToolShellView&) override {}
 
         void destroy(gts::ui::UiWidgetContext& context) override
         {
-            header.destroy(context);
-            for (auto& line : lines)
-                line.destroy(context);
-            lineStack.destroy(context);
+            inspector.destroy(context);
             destroyRoot(context);
         }
 
     private:
         static constexpr size_t MaxLines = 10;
 
-        gts::ui::UiLabelWidget header;
-        gts::ui::UiStackWidget lineStack;
-        std::array<gts::ui::UiLabelWidget, MaxLines> lines;
+        ToolInspectorSection<MaxLines> inspector;
     };
 
     class CurveTimelinePane final : public ToolPaneBase
@@ -1178,28 +940,15 @@ namespace gts::tools
                    const UiLayoutSpec& layout) override
         {
             buildRoot(context, parent, font, layout, ToolTheme::paneBackground, true);
-            header.build(context,
-                         content(),
-                         label("Diagnostics",
-                               toolui::rect(0.050f, 0.065f, 0.900f, 0.100f),
-                               ToolTheme::text,
-                               ToolTheme::smallTextScale));
-            gts::ui::UiStackDesc lineStackDesc;
-            lineStackDesc.layout = toolui::rect(0.050f, 0.210f, 0.900f, 0.700f);
-            lineStackDesc.axis = UiLayoutAxis::Vertical;
-            lineStackDesc.gap = 0.020f;
-            lineStack.build(context, content(), lineStackDesc);
-            for (auto& line : lines)
-            {
-                line.build(context,
-                           lineStack.root(),
-                           label("",
-                                 stackItem(0.105f),
-                                 ToolTheme::mutedText,
-                                 ToolTheme::smallTextScale,
-                                 UiHorizontalAlign::Left,
-                                 2));
-            }
+
+            ToolInspectorSectionDesc desc;
+            desc.title = "Diagnostics";
+            desc.headerLayout = toolui::rect(0.050f, 0.065f, 0.900f, 0.100f);
+            desc.stackLayout = toolui::rect(0.050f, 0.210f, 0.900f, 0.700f);
+            desc.lineHeight = 0.105f;
+            desc.lineGap = 0.020f;
+            desc.titleScale = ToolTheme::smallTextScale;
+            diagnostics.build(context, content(), font, desc);
         }
 
         void update(gts::ui::UiWidgetContext& context,
@@ -1208,32 +957,21 @@ namespace gts::tools
                     bool visible) override
         {
             updateRoot(context, layout, visible);
-            for (size_t i = 0; i < lines.size(); ++i)
-            {
-                const bool lineVisible = visible && i < view.diagnostics.size();
-                lines[i].setVisible(context, lineVisible);
-                if (lineVisible)
-                    lines[i].setText(context, view.diagnostics[i]);
-            }
+            diagnostics.sync(context, visible, "Diagnostics", view.diagnostics);
         }
 
         void onEvent(gts::ui::UiWidgetContext&, UiEvent&, ToolCommandQueue&, const ToolShellView&) override {}
 
         void destroy(gts::ui::UiWidgetContext& context) override
         {
-            header.destroy(context);
-            for (auto& line : lines)
-                line.destroy(context);
-            lineStack.destroy(context);
+            diagnostics.destroy(context);
             destroyRoot(context);
         }
 
     private:
         static constexpr size_t MaxLines = 5;
 
-        gts::ui::UiLabelWidget header;
-        gts::ui::UiStackWidget lineStack;
-        std::array<gts::ui::UiLabelWidget, MaxLines> lines;
+        ToolInspectorSection<MaxLines> diagnostics;
     };
 
     class StatusBarPane final : public ToolPaneBase
