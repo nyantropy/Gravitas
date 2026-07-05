@@ -1,17 +1,106 @@
 #include "ScreenshotManager.hpp"
 
+#include <chrono>
+#include <cstring>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
+#include <future>
 #include <iomanip>
+#include <ios>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include <stb_image_write.h>
 
 #include "BufferUtil.hpp"
 #include "GtsPaths.h"
+
+namespace
+{
+    struct ScreenshotWriteJob
+    {
+        std::string outputPath;
+        std::vector<std::uint8_t> sourcePixels;
+        uint32_t width = 0;
+        uint32_t height = 0;
+        uint32_t bytesPerPixel = 0;
+        bool bgrSource = false;
+    };
+
+    std::vector<std::uint8_t> convertToRgba(const ScreenshotWriteJob& job)
+    {
+        std::vector<std::uint8_t> rgbaPixels(
+            static_cast<size_t>(job.width) * job.height * 4u);
+
+        for (uint32_t y = 0; y < job.height; ++y)
+        {
+            const auto* srcRow =
+                job.sourcePixels.data() + static_cast<size_t>(y) * job.width * job.bytesPerPixel;
+            auto* dstRow =
+                rgbaPixels.data() + static_cast<size_t>(y) * job.width * 4u;
+
+            for (uint32_t x = 0; x < job.width; ++x)
+            {
+                const auto* srcPixel = srcRow + static_cast<size_t>(x) * job.bytesPerPixel;
+                auto* dstPixel = dstRow + static_cast<size_t>(x) * 4u;
+
+                if (job.bgrSource)
+                {
+                    dstPixel[0] = srcPixel[2];
+                    dstPixel[1] = srcPixel[1];
+                    dstPixel[2] = srcPixel[0];
+                }
+                else
+                {
+                    dstPixel[0] = srcPixel[0];
+                    dstPixel[1] = srcPixel[1];
+                    dstPixel[2] = srcPixel[2];
+                }
+
+                dstPixel[3] = 255;
+            }
+        }
+
+        return rgbaPixels;
+    }
+
+    void writeScreenshotPng(ScreenshotWriteJob job)
+    {
+        try
+        {
+            const std::vector<std::uint8_t> rgbaPixels = convertToRgba(job);
+            const int writeOk = stbi_write_png(
+                job.outputPath.c_str(),
+                static_cast<int>(job.width),
+                static_cast<int>(job.height),
+                4,
+                rgbaPixels.data(),
+                static_cast<int>(job.width * 4u));
+
+            if (writeOk == 0)
+                throw std::runtime_error("failed to write screenshot png");
+
+            std::cout << "Saved screenshot: " << job.outputPath << std::endl;
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "Screenshot write failed: " << e.what() << std::endl;
+        }
+        catch (...)
+        {
+            std::cerr << "Screenshot write failed: unknown error" << std::endl;
+        }
+    }
+} // namespace
+
+ScreenshotManager::~ScreenshotManager()
+{
+    waitForPendingWrites();
+}
 
 uint32_t ScreenshotManager::bytesPerPixelForFormat(VkFormat format)
 {
@@ -66,20 +155,51 @@ std::string ScreenshotManager::allocateScreenshotPath(const std::string& outputD
         name << "screenshot_" << std::setw(4) << std::setfill('0') << index << ".png";
         fs::path candidate = directory / name.str();
         if (!fs::exists(candidate))
+        {
+            std::ofstream reserve(candidate, std::ios::binary | std::ios::app);
+            if (!reserve)
+                throw std::runtime_error("could not reserve screenshot filename");
             return candidate.string();
+        }
     }
 
     throw std::runtime_error("could not allocate screenshot filename");
+}
+
+void ScreenshotManager::pruneCompletedWrites()
+{
+    for (auto it = pendingWrites.begin(); it != pendingWrites.end();)
+    {
+        if (it->wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+        {
+            it->get();
+            it = pendingWrites.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
+void ScreenshotManager::waitForPendingWrites()
+{
+    for (std::future<void>& pendingWrite : pendingWrites)
+    {
+        if (pendingWrite.valid())
+            pendingWrite.get();
+    }
+    pendingWrites.clear();
 }
 
 void ScreenshotManager::saveImage(VkImage image,
                                   VkFormat format,
                                   VkExtent2D extent,
                                   VkImageLayout currentLayout,
-                                  const std::string& outputDirectory) const
+                                  const std::string& outputDirectory)
 {
     VkDevice device = backendContext.device();
-    vkDeviceWaitIdle(device);
+    pruneCompletedWrites();
 
     const uint32_t bytesPerPixel = bytesPerPixelForFormat(format);
     const VkDeviceSize sourceSize =
@@ -172,60 +292,29 @@ void ScreenshotManager::saveImage(VkImage image,
             backendContext.commandPool(),
             commandBuffer);
 
+        std::string outputPath = allocateScreenshotPath(outputDirectory);
+
+        std::vector<std::uint8_t> sourcePixels(static_cast<size_t>(sourceSize));
+
         void* mappedData = nullptr;
-        vkMapMemory(device, stagingBufferMemory, 0, sourceSize, 0, &mappedData);
-
-        const auto* srcBytes = static_cast<const std::uint8_t*>(mappedData);
-        std::vector<std::uint8_t> rgbaPixels(
-            static_cast<size_t>(extent.width) * extent.height * 4u);
-
-        const bool bgrSource = formatIsBgr(format);
-        for (uint32_t y = 0; y < extent.height; ++y)
-        {
-            const auto* srcRow =
-                srcBytes + static_cast<size_t>(y) * extent.width * bytesPerPixel;
-            auto* dstRow =
-                rgbaPixels.data() + static_cast<size_t>(y) * extent.width * 4u;
-
-            for (uint32_t x = 0; x < extent.width; ++x)
-            {
-                const auto* srcPixel = srcRow + static_cast<size_t>(x) * bytesPerPixel;
-                auto* dstPixel = dstRow + static_cast<size_t>(x) * 4u;
-
-                if (bgrSource)
-                {
-                    dstPixel[0] = srcPixel[2];
-                    dstPixel[1] = srcPixel[1];
-                    dstPixel[2] = srcPixel[0];
-                }
-                else
-                {
-                    dstPixel[0] = srcPixel[0];
-                    dstPixel[1] = srcPixel[1];
-                    dstPixel[2] = srcPixel[2];
-                }
-
-                dstPixel[3] = 255;
-            }
-        }
-
+        if (vkMapMemory(device, stagingBufferMemory, 0, sourceSize, 0, &mappedData) != VK_SUCCESS)
+            throw std::runtime_error("failed to map screenshot staging buffer");
+        std::memcpy(sourcePixels.data(), mappedData, sourcePixels.size());
         vkUnmapMemory(device, stagingBufferMemory);
 
-        const std::string outputPath = allocateScreenshotPath(outputDirectory);
-        // we dont need to flip it, its already upside down before stb ever sees it
-        stbi_flip_vertically_on_write(false);
-        const int writeOk = stbi_write_png(
-            outputPath.c_str(),
-            static_cast<int>(extent.width),
-            static_cast<int>(extent.height),
-            4,
-            rgbaPixels.data(),
-            static_cast<int>(extent.width * 4));
+        ScreenshotWriteJob job;
+        job.outputPath = std::move(outputPath);
+        job.sourcePixels = std::move(sourcePixels);
+        job.width = extent.width;
+        job.height = extent.height;
+        job.bytesPerPixel = bytesPerPixel;
+        job.bgrSource = formatIsBgr(format);
 
-        if (writeOk == 0)
-            throw std::runtime_error("failed to write screenshot png");
-
-        std::cout << "Saved screenshot: " << outputPath << std::endl;
+        pendingWrites.push_back(std::async(std::launch::async,
+                                           [job = std::move(job)]() mutable
+                                           {
+                                               writeScreenshotPng(std::move(job));
+                                           }));
     }
     catch (...)
     {
