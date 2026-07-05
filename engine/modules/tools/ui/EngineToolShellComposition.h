@@ -1,10 +1,10 @@
 #pragma once
 
-#include <algorithm>
 #include <memory>
 #include <utility>
 #include <vector>
 
+#include "ToolDockLayout.h"
 #include "EngineToolPanes.h"
 #include "EngineToolUiHelpers.h"
 #include "ToolTheme.h"
@@ -47,8 +47,9 @@ namespace gts::tools
         {
             for (const auto& pane : panes)
             {
-                if (pane->descriptor().id == ToolPaneId::ParticlePreviewViewport)
-                    return pane->previewImageHandle();
+                const UiHandle previewHandle = pane->previewImageHandle();
+                if (previewHandle != UI_INVALID_HANDLE)
+                    return previewHandle;
             }
             return UI_INVALID_HANDLE;
         }
@@ -62,8 +63,15 @@ namespace gts::tools
                                 toolui::visibleState(true, true, false));
 
             buildChrome(widgetContext, context.root);
+            resolvePaneLayouts();
             for (auto& pane : panes)
-                pane->build(widgetContext, context.root, font, layoutFor(pane->descriptor()));
+            {
+                const ResolvedPaneLayout* resolved = resolvedLayoutFor(pane->descriptor().id);
+                pane->build(widgetContext,
+                            context.root,
+                            font,
+                            resolved == nullptr ? gts::ui::fillLayout() : resolved->layout);
+            }
         }
 
         void update(UiCompositionContext& context) override
@@ -74,11 +82,14 @@ namespace gts::tools
                                 toolui::visibleState(true, true, false));
 
             syncChrome(widgetContext);
+            resolvePaneLayouts();
             for (auto& pane : panes)
             {
-                const PaneDescriptor& descriptor = pane->descriptor();
-                const bool visible = paneVisibleInWorkspace(descriptor, view.activeWorkspace);
-                pane->update(widgetContext, view, layoutFor(descriptor), visible);
+                const ResolvedPaneLayout* resolved = resolvedLayoutFor(pane->descriptor().id);
+                pane->update(widgetContext,
+                             view,
+                             resolved == nullptr ? gts::ui::fillLayout() : resolved->layout,
+                             resolved != nullptr && resolved->visible);
             }
         }
 
@@ -87,8 +98,8 @@ namespace gts::tools
             gts::ui::UiWidgetContext widgetContext(context);
             for (auto& pane : panes)
             {
-                const PaneDescriptor& descriptor = pane->descriptor();
-                if (paneVisibleInWorkspace(descriptor, view.activeWorkspace))
+                const ResolvedPaneLayout* resolved = resolvedLayoutFor(pane->descriptor().id);
+                if (resolved != nullptr && resolved->visible)
                     pane->onEvent(widgetContext, event, commands, view);
             }
         }
@@ -109,10 +120,38 @@ namespace gts::tools
         ToolShellView view;
         ToolCommandQueue commands;
         std::vector<std::unique_ptr<ToolPane>> panes;
+        ToolDockLayout dockLayout;
+        std::vector<ResolvedPaneLayout> resolvedLayouts;
 
         gts::ui::UiPanelWidget topChrome;
         gts::ui::UiPanelWidget toolbarChrome;
         gts::ui::UiPanelWidget statusChrome;
+
+        std::vector<PaneDescriptor> paneDescriptors() const
+        {
+            std::vector<PaneDescriptor> descriptors;
+            descriptors.reserve(panes.size());
+            for (const auto& pane : panes)
+                descriptors.push_back(pane->descriptor());
+            return descriptors;
+        }
+
+        void resolvePaneLayouts()
+        {
+            resolvedLayouts = dockLayout.resolve(paneDescriptors(),
+                                                 view.activeWorkspace,
+                                                 toolDockLayoutBoundsFromView(view));
+        }
+
+        const ResolvedPaneLayout* resolvedLayoutFor(ToolPaneId id) const
+        {
+            for (const ResolvedPaneLayout& layout : resolvedLayouts)
+            {
+                if (layout.id == id)
+                    return &layout;
+            }
+            return nullptr;
+        }
 
         void buildChrome(gts::ui::UiWidgetContext& context, UiHandle parent)
         {
@@ -164,86 +203,5 @@ namespace gts::tools
             toolui::setRectPayload(context.ui, context.surface, panel.root(), color);
         }
 
-        UiLayoutSpec layoutFor(const PaneDescriptor& descriptor) const
-        {
-            const float leftWidth = std::clamp(view.leftPaneWidth, 0.0f, 0.45f);
-            const float rightWidth = std::clamp(view.rightPaneWidth, 0.0f, 0.45f);
-            const float rightX = std::max(0.0f, 1.0f - rightWidth);
-            const float contentY = view.viewportY;
-            const float statusTop = std::max(contentY, 1.0f - view.bottomBarHeight);
-            const float leftHeight = std::max(0.0f, statusTop - contentY);
-            const float rightHeight = leftHeight;
-            const float hierarchyHeight = leftHeight * 0.660f;
-            const float previewHeight = rightHeight * 0.340f;
-            const float inspectorHeight = view.activeWorkspace == ToolWorkspace::Particles
-                ? rightHeight * 0.420f
-                : rightHeight * 0.640f;
-
-            switch (descriptor.id)
-            {
-                case ToolPaneId::MenuBar:
-                    return toolui::rect(0.0f, 0.0f, 1.0f, view.topBarHeight);
-
-                case ToolPaneId::WorkspaceTabs:
-                    return toolui::rect(0.185f, 0.0f, 0.360f, view.topBarHeight);
-
-                case ToolPaneId::ToolToolbar:
-                    return toolui::rect(0.0f,
-                                        view.topBarHeight,
-                                        1.0f,
-                                        view.viewportToolbarHeight);
-
-                case ToolPaneId::WorldViewport:
-                    return toolui::rect(view.viewportX,
-                                        view.viewportY,
-                                        view.viewportWidth,
-                                        view.viewportHeight);
-
-                case ToolPaneId::SceneBrowser:
-                    return toolui::rect(0.0f, contentY, leftWidth, leftHeight);
-
-                case ToolPaneId::EffectHierarchy:
-                    return toolui::rect(0.0f, contentY, leftWidth, hierarchyHeight);
-
-                case ToolPaneId::EmitterDetails:
-                    return toolui::rect(0.0f,
-                                        contentY + hierarchyHeight,
-                                        leftWidth,
-                                        std::max(0.0f, leftHeight - hierarchyHeight));
-
-                case ToolPaneId::ParticlePreviewViewport:
-                    return toolui::rect(rightX, contentY, rightWidth, previewHeight);
-
-                case ToolPaneId::PropertyInspector:
-                {
-                    const float inspectorY = view.activeWorkspace == ToolWorkspace::Particles
-                        ? contentY + previewHeight
-                        : contentY;
-                    return toolui::rect(rightX, inspectorY, rightWidth, inspectorHeight);
-                }
-
-                case ToolPaneId::Diagnostics:
-                {
-                    const float diagnosticsY = view.activeWorkspace == ToolWorkspace::Particles
-                        ? contentY + previewHeight + inspectorHeight
-                        : contentY + inspectorHeight;
-                    return toolui::rect(rightX,
-                                        diagnosticsY,
-                                        rightWidth,
-                                        std::max(0.0f, statusTop - diagnosticsY));
-                }
-
-                case ToolPaneId::CurveTimeline:
-                    return toolui::rect(view.viewportX,
-                                        view.viewportY + view.viewportHeight,
-                                        view.viewportWidth,
-                                        view.bottomDockHeight);
-
-                case ToolPaneId::StatusBar:
-                    return toolui::rect(0.0f, 1.0f - view.bottomBarHeight, 1.0f, view.bottomBarHeight);
-            }
-
-            return gts::ui::fillLayout();
-        }
     };
 } // namespace gts::tools

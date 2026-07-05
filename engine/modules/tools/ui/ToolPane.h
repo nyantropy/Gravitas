@@ -34,13 +34,13 @@ namespace gts::tools
 
     enum class ToolDockArea
     {
-        Top,
+        MenuBar,
         Toolbar,
         Left,
         Center,
         Right,
         Bottom,
-        Status
+        StatusBar
     };
 
     struct PaneDescriptor
@@ -51,6 +51,13 @@ namespace gts::tools
         bool visibleInWorld = true;
         bool visibleInParticles = true;
         int order = 0;
+        float preferredSize = 0.0f;
+        float preferredSizeInWorld = 0.0f;
+        float preferredSizeInParticles = 0.0f;
+        float minimumSize = 0.0f;
+        float leadingOffset = 0.0f;
+        bool collapsible = false;
+        bool closable = false;
     };
 
     inline bool paneVisibleInWorkspace(const PaneDescriptor& descriptor, ToolWorkspace workspace)

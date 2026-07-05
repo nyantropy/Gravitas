@@ -178,7 +178,7 @@ namespace gts::tools
     {
     public:
         MenuBarPane()
-            : ToolPaneBase({ToolPaneId::MenuBar, ToolDockArea::Top, "Menu", true, true, 0})
+            : ToolPaneBase({ToolPaneId::MenuBar, ToolDockArea::MenuBar, "Menu", true, true, 0, 1.0f})
         {
         }
 
@@ -228,7 +228,17 @@ namespace gts::tools
     {
     public:
         WorkspaceTabsPane()
-            : ToolPaneBase({ToolPaneId::WorkspaceTabs, ToolDockArea::Top, "Workspaces", true, true, 1})
+            : ToolPaneBase({ToolPaneId::WorkspaceTabs,
+                            ToolDockArea::MenuBar,
+                            "Workspaces",
+                            true,
+                            true,
+                            1,
+                            0.360f,
+                            0.0f,
+                            0.0f,
+                            0.0f,
+                            0.185f})
         {
         }
 
@@ -509,7 +519,13 @@ namespace gts::tools
     {
     public:
         EffectHierarchyPane()
-            : ToolPaneBase({ToolPaneId::EffectHierarchy, ToolDockArea::Left, "Effect Hierarchy", false, true, 0})
+            : ToolPaneBase({ToolPaneId::EffectHierarchy,
+                            ToolDockArea::Left,
+                            "Effect Hierarchy",
+                            false,
+                            true,
+                            0,
+                            0.660f})
         {
         }
 
@@ -869,7 +885,13 @@ namespace gts::tools
     {
     public:
         ParticlePreviewViewportPane()
-            : ToolPaneBase({ToolPaneId::ParticlePreviewViewport, ToolDockArea::Right, "Particle Preview", false, true, 0})
+            : ToolPaneBase({ToolPaneId::ParticlePreviewViewport,
+                            ToolDockArea::Right,
+                            "Particle Preview",
+                            false,
+                            true,
+                            0,
+                            0.340f})
         {
         }
 
@@ -1002,7 +1024,15 @@ namespace gts::tools
     {
     public:
         PropertyInspectorPane()
-            : ToolPaneBase({ToolPaneId::PropertyInspector, ToolDockArea::Right, "Inspector", true, true, 1})
+            : ToolPaneBase({ToolPaneId::PropertyInspector,
+                            ToolDockArea::Right,
+                            "Inspector",
+                            true,
+                            true,
+                            1,
+                            0.420f,
+                            0.640f,
+                            0.420f})
         {
         }
 
@@ -1210,7 +1240,7 @@ namespace gts::tools
     {
     public:
         StatusBarPane()
-            : ToolPaneBase({ToolPaneId::StatusBar, ToolDockArea::Status, "Status", true, true, 0})
+            : ToolPaneBase({ToolPaneId::StatusBar, ToolDockArea::StatusBar, "Status", true, true, 0})
         {
         }
 
