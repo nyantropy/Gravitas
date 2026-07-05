@@ -1,21 +1,15 @@
 #pragma once
 
-#include <cstddef>
 #include <string>
-#include <utility>
 #include <vector>
 
+#include "ToolCommand.h"
+#include "ToolPropertyTypes.h"
 #include "Types.h"
 #include "UiWidget.h"
 
 namespace gts::tools
 {
-    enum class ToolWorkspace
-    {
-        World,
-        Particles
-    };
-
     enum class ToolPaneId
     {
         MenuBar,
@@ -64,65 +58,6 @@ namespace gts::tools
     {
         return workspace == ToolWorkspace::World ? descriptor.visibleInWorld : descriptor.visibleInParticles;
     }
-
-    enum class ToolCommandType
-    {
-        SetWorkspace,
-        LoadScene,
-        ScenePagePrevious,
-        ScenePageNext,
-        OpenParticleEffect,
-        EffectPagePrevious,
-        EffectPageNext,
-        SaveParticleEffect,
-        ReloadParticleEffect,
-        ToggleParticlePlayback,
-        RestartParticlePreview,
-        ToggleEmitterEnabled,
-        ToggleModuleEnabled,
-        SelectEmitter,
-        SelectModule
-    };
-
-    struct ToolCommand
-    {
-        ToolCommand() = default;
-
-        ToolCommand(ToolCommandType inType)
-            : type(inType)
-        {
-        }
-
-        ToolCommand(ToolCommandType inType, ToolWorkspace inWorkspace)
-            : type(inType),
-              workspace(inWorkspace)
-        {
-        }
-
-        ToolCommandType type = ToolCommandType::SetWorkspace;
-        ToolWorkspace workspace = ToolWorkspace::Particles;
-        std::string value;
-        size_t index = 0;
-    };
-
-    class ToolCommandQueue
-    {
-    public:
-        void push(ToolCommand command)
-        {
-            commands.push_back(std::move(command));
-        }
-
-        std::vector<ToolCommand> consume()
-        {
-            std::vector<ToolCommand> result = std::move(commands);
-            commands.clear();
-            return result;
-        }
-
-    private:
-        std::vector<ToolCommand> commands;
-    };
 
     struct ToolSceneRow
     {
@@ -194,7 +129,7 @@ namespace gts::tools
 
         std::vector<ToolEmitterRow> emitters;
         std::vector<ToolModuleRow> modules;
-        std::vector<std::string> inspectorLines;
+        std::vector<ToolPropertySection> propertySections;
         std::vector<std::string> diagnostics;
     };
 

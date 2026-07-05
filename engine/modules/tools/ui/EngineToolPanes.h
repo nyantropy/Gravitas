@@ -8,6 +8,7 @@
 #include "EngineToolUiHelpers.h"
 #include "ToolPane.h"
 #include "ToolPaneWidgets.h"
+#include "ToolPropertyInspector.h"
 #include "ToolTheme.h"
 
 namespace gts::tools
@@ -595,17 +596,6 @@ namespace gts::tools
             detailsDesc.lineHeight = 0.090f;
             detailsDesc.lineGap = 0.020f;
             details.build(context, content(), font, detailsDesc);
-
-            emitterToggle.build(context,
-                                content(),
-                                button("ENABLE EMITTER",
-                                       toolui::rect(0.050f, 0.470f, 0.900f, 0.120f),
-                                       ToolTheme::buttonTextScale));
-            moduleToggle.build(context,
-                               content(),
-                               button("ENABLE MODULE",
-                                      toolui::rect(0.050f, 0.630f, 0.900f, 0.120f),
-                                      ToolTheme::buttonTextScale));
         }
 
         void update(gts::ui::UiWidgetContext& context,
@@ -616,18 +606,6 @@ namespace gts::tools
             updateRoot(context, layout, visible);
 
             details.sync(context, visible, "Emitter Details", {selectedEmitterText(view), selectedModuleText(view)});
-            syncButton(context,
-                       emitterToggle,
-                       visible,
-                       view.selectedEmitterEnabled ? "DISABLE EMITTER" : "ENABLE EMITTER",
-                       view.hasSelectedEmitter,
-                       false);
-            syncButton(context,
-                       moduleToggle,
-                       visible,
-                       view.selectedModuleEnabled ? "DISABLE MODULE" : "ENABLE MODULE",
-                       view.hasSelectedModule,
-                       false);
         }
 
         void onEvent(gts::ui::UiWidgetContext& context,
@@ -635,20 +613,11 @@ namespace gts::tools
                      ToolCommandQueue& commands,
                      const ToolShellView&) override
         {
-            emitterToggle.onEvent(context, event);
-            moduleToggle.onEvent(context, event);
-
-            if (emitterToggle.consumePressed())
-                commands.push({ToolCommandType::ToggleEmitterEnabled});
-            if (moduleToggle.consumePressed())
-                commands.push({ToolCommandType::ToggleModuleEnabled});
         }
 
         void destroy(gts::ui::UiWidgetContext& context) override
         {
             details.destroy(context);
-            emitterToggle.destroy(context);
-            moduleToggle.destroy(context);
             destroyRoot(context);
         }
 
@@ -676,8 +645,6 @@ namespace gts::tools
         }
 
         ToolInspectorSection<2> details;
-        gts::ui::UiButtonWidget emitterToggle;
-        gts::ui::UiButtonWidget moduleToggle;
     };
 
     class ParticlePreviewViewportPane final : public ToolPaneBase
@@ -826,15 +793,7 @@ namespace gts::tools
                    const UiLayoutSpec& layout) override
         {
             buildRoot(context, parent, font, layout, ToolTheme::paneBackground, true);
-
-            ToolInspectorSectionDesc desc;
-            desc.title = "Inspector";
-            desc.headerLayout = toolui::rect(0.050f, 0.050f, 0.900f, 0.080f);
-            desc.stackLayout = toolui::rect(0.050f, 0.155f, 0.900f, 0.790f);
-            desc.lineHeight = 0.064f;
-            desc.lineGap = 0.008f;
-            desc.lineMaxLines = 3;
-            inspector.build(context, content(), font, desc);
+            inspector.build(context, content(), font, toolui::rect(0.050f, 0.050f, 0.900f, 0.900f));
         }
 
         void update(gts::ui::UiWidgetContext& context,
@@ -843,13 +802,16 @@ namespace gts::tools
                     bool visible) override
         {
             updateRoot(context, layout, visible);
-            inspector.sync(context,
-                           visible,
-                           view.activeWorkspace == ToolWorkspace::Particles ? "Particle Inspector" : "Scene Inspector",
-                           view.inspectorLines);
+            inspector.sync(context, visible, view.propertySections);
         }
 
-        void onEvent(gts::ui::UiWidgetContext&, UiEvent&, ToolCommandQueue&, const ToolShellView&) override {}
+        void onEvent(gts::ui::UiWidgetContext& context,
+                     UiEvent& event,
+                     ToolCommandQueue& commands,
+                     const ToolShellView&) override
+        {
+            inspector.onEvent(context, event, commands);
+        }
 
         void destroy(gts::ui::UiWidgetContext& context) override
         {
@@ -858,9 +820,7 @@ namespace gts::tools
         }
 
     private:
-        static constexpr size_t MaxLines = 10;
-
-        ToolInspectorSection<MaxLines> inspector;
+        ToolPropertyInspector<5, 18> inspector;
     };
 
     class CurveTimelinePane final : public ToolPaneBase

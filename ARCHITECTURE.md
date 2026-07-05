@@ -853,13 +853,15 @@ surface-local navigation, and binding convenience APIs.
 
 Runtime ownership and authoring conventions are intentionally separate. This
 section describes the runtime architecture. New UI should follow
-[ENGINE_UI_AUTHORING_GUIDE.md](ENGINE_UI_AUTHORING_GUIDE.md), whose standard
+[docs/ENGINE_UI_AUTHORING_GUIDE.md](docs/ENGINE_UI_AUTHORING_GUIDE.md), whose standard
 authoring hierarchy is:
 
 `UiSurface -> UiLayer -> UiMount -> UiComposition -> UiWidget / UiWidgetAsset -> retained UiNode -> renderer`
 
 The v1.0 validation and compatibility classification are recorded in
-[ENGINE_UI_RUNTIME_V1_AUDIT.md](ENGINE_UI_RUNTIME_V1_AUDIT.md).
+[docs/ENGINE_UI_RUNTIME_ARCHITECTURE.md](docs/ENGINE_UI_RUNTIME_ARCHITECTURE.md).
+Engine tooling ownership and pane/inspector conventions are documented in
+[docs/ENGINE_TOOLING_ARCHITECTURE.md](docs/ENGINE_TOOLING_ARCHITECTURE.md).
 
 Raw retained nodes, canvas/anchor rectangles, direct payload styling, and
 `UiSystem::dispatchResult()` remain compatibility and low-level tooling paths,

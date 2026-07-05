@@ -5,8 +5,8 @@ runtime. It describes engine-level authoring rules only. Application-specific
 feature names, business rules, content, and migration notes belong in the
 application repository documentation.
 
-The final engine-level v1.0 audit is recorded in
-[ENGINE_UI_RUNTIME_V1_AUDIT.md](ENGINE_UI_RUNTIME_V1_AUDIT.md).
+Runtime ownership and v1.0 validation details live in
+[ENGINE_UI_RUNTIME_ARCHITECTURE.md](ENGINE_UI_RUNTIME_ARCHITECTURE.md).
 
 ## Standard Model
 

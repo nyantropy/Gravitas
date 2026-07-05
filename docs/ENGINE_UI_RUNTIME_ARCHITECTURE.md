@@ -8,9 +8,6 @@ rules, and migration status belong in application documentation.
 For practical authoring rules, use
 [ENGINE_UI_AUTHORING_GUIDE.md](ENGINE_UI_AUTHORING_GUIDE.md).
 
-For the engine-level v1.0 validation, use
-[ENGINE_UI_RUNTIME_V1_AUDIT.md](ENGINE_UI_RUNTIME_V1_AUDIT.md).
-
 ## Runtime Hierarchy
 
 The standard runtime hierarchy is:
@@ -28,6 +25,47 @@ UiSurface
 Each layer has one clear responsibility. Higher layers express feature
 structure and behavior. Lower layers own retained primitives and rendering
 extraction.
+
+## Runtime v1.0 Validation
+
+Audit date: 2026-07-04.
+
+The UI runtime is stable enough to be treated as v1.0. No missing foundational
+engine primitive was found during the audit. Future engine UI work should build
+widgets, compositions, authored assets, editor tooling, platform bridges,
+presentation extensions, and performance improvements rather than introducing a
+new ownership or interaction architecture.
+
+Validated runtime ownership includes:
+
+- `UiSurface` for a complete surface-local UI universe.
+- `UiLayer` for coarse ordering, hit-test order, visibility, and input
+  participation.
+- `UiInputDispatcher` and retained `UiEvent` propagation for input routing.
+- `UiFocusManager`, `UiModalManager`, `UiNavigationGraph`, and
+  `UiDragDropManager` for interaction state.
+- `UiMount` and `UiComposition` for retained subtree and feature UI ownership.
+- layout containers, themes, widgets, animations, bindings, accessibility,
+  serialization, widget assets, packages, localization, and visual editor
+  integration as evolutionary extension points over the same runtime model.
+
+No architecture-level performance blocker was found. Current costs are
+acceptable for the present UI scale. Evolutionary performance work includes
+virtualized list/grid/tree widgets, finer dirty-region visual rebuilds, cached
+text measurement and wrapping, lower-allocation command extraction,
+binding-source batching, and animation profiling for large surfaces.
+
+Audit scores:
+
+| Area | Score | Reason |
+| --- | --- | --- |
+| Architecture | 9/10 | Ownership boundaries are clear and no foundational primitive is missing. Projection surfaces remain an extension area. |
+| Consistency | 8.5/10 | Engine behavior is coherent; remaining ambiguity is mostly compatibility API surface, now classified. |
+| Maintainability | 8/10 | Composition/widget ownership is auditable. Older compatibility paths still require discipline. |
+| Authoring ergonomics | 8/10 | New authors have one recommended path. Ergonomics will improve further with richer stock widgets. |
+| Performance | 7.5/10 | Current costs are acceptable and understandable. Virtualization, text caching, and finer invalidation are future optimization work. |
+| Extensibility | 9/10 | New UI can be built as widgets, compositions, assets, or packages without new engine ownership concepts. |
+| Integration model | 8.5/10 | Runtime extension points are clear; applications validate adoption in their own documentation. |
 
 ## UiSurface
 
@@ -354,11 +392,30 @@ Preferred:
 
 Compatibility:
 
-- raw retained nodes outside widget/tool/adapter internals.
-- canvas and anchors for ordinary UI.
-- direct payload styling for ordinary controls.
-- `dispatchResult()` polling for feature interaction.
-- coordinate-driven VN layout authoring.
+- raw retained nodes inside widgets, renderer/tool adapters, tests, and
+  primitive visualizations.
+- canvas and anchors for low-level bridging, fullscreen fill, edge pinning,
+  projection adapters, primitive visualizations, and legacy content.
+- `dispatchResult()` readback for tools, tests, and compatibility code.
+- legacy `VNLayoutProfile` rectangles, internally normalized into
+  `VNInteractionLayout`.
+
+Migrate opportunistically:
+
+- normalized rectangle helpers in ordinary panels.
+- feature-local manual row, dropdown, and grid positioning where layout
+  containers can express the same structure.
+- direct payload colors and text scales for ordinary controls.
+- whole-view sync code that could become binding sources.
+- custom grid/list implementations once richer runtime widgets exist.
+
+Historical debt that should not be copied:
+
+- handle-bundle UI architecture outside widgets.
+- per-frame dispatch polling for button behavior.
+- fullscreen retained roots that bypass existing shells or slots.
+- domain systems mutating retained UI directly.
+- new coordinate rectangles for VN or interaction frontend layout.
 
 ## Runtime Stability
 

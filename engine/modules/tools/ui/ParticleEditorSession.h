@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <utility>
@@ -121,7 +122,7 @@ namespace gts::tools
             clampSelection();
         }
 
-        bool toggleSelectedEmitter(std::string& status)
+        bool setSelectedEmitterEnabled(bool enabled, std::string& status)
         {
             ParticleEffectEmitter* emitter = selectedEmitter();
             if (emitter == nullptr)
@@ -130,14 +131,102 @@ namespace gts::tools
                 return false;
             }
 
-            emitter->descriptor.enabled = !emitter->descriptor.enabled;
+            if (emitter->descriptor.enabled == enabled)
+                return false;
+
+            emitter->descriptor.enabled = enabled;
+            syncSelectedEmitterModuleParameters(*emitter);
             recompileSelectedEmitter();
             dirty = true;
             status = emitter->descriptor.enabled ? "EMITTER ENABLED" : "EMITTER DISABLED";
             return true;
         }
 
-        bool toggleSelectedModule(std::string& status)
+        bool setSelectedEmitterMaxParticles(uint32_t maxParticles, std::string& status)
+        {
+            ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+            {
+                status = "NO EMITTER SELECTED";
+                return false;
+            }
+
+            const uint32_t clamped = std::max(1u, maxParticles);
+            if (emitter->descriptor.maxParticles == clamped)
+                return false;
+
+            emitter->descriptor.maxParticles = clamped;
+            syncSelectedEmitterModuleParameters(*emitter);
+            recompileSelectedEmitter();
+            dirty = true;
+            status = "MAX PARTICLES UPDATED";
+            return true;
+        }
+
+        bool setSelectedEmitterEmissionRate(float emissionRate, std::string& status)
+        {
+            ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+            {
+                status = "NO EMITTER SELECTED";
+                return false;
+            }
+
+            const float clamped = std::max(0.0f, emissionRate);
+            if (emitter->descriptor.emissionRate == clamped)
+                return false;
+
+            emitter->descriptor.emissionRate = clamped;
+            syncSelectedEmitterModuleParameters(*emitter);
+            recompileSelectedEmitter();
+            dirty = true;
+            status = "EMISSION RATE UPDATED";
+            return true;
+        }
+
+        bool setSelectedEmitterLifetimeMin(float lifetimeMin, std::string& status)
+        {
+            ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+            {
+                status = "NO EMITTER SELECTED";
+                return false;
+            }
+
+            const float clamped = std::clamp(lifetimeMin, 0.01f, std::max(0.01f, emitter->descriptor.lifetimeMax));
+            if (emitter->descriptor.lifetimeMin == clamped)
+                return false;
+
+            emitter->descriptor.lifetimeMin = clamped;
+            syncSelectedEmitterModuleParameters(*emitter);
+            recompileSelectedEmitter();
+            dirty = true;
+            status = "LIFETIME MIN UPDATED";
+            return true;
+        }
+
+        bool setSelectedEmitterLifetimeMax(float lifetimeMax, std::string& status)
+        {
+            ParticleEffectEmitter* emitter = selectedEmitter();
+            if (emitter == nullptr)
+            {
+                status = "NO EMITTER SELECTED";
+                return false;
+            }
+
+            const float clamped = std::max(emitter->descriptor.lifetimeMin, lifetimeMax);
+            if (emitter->descriptor.lifetimeMax == clamped)
+                return false;
+
+            emitter->descriptor.lifetimeMax = clamped;
+            syncSelectedEmitterModuleParameters(*emitter);
+            recompileSelectedEmitter();
+            dirty = true;
+            status = "LIFETIME MAX UPDATED";
+            return true;
+        }
+
+        bool setSelectedModuleEnabled(bool enabled, std::string& status)
         {
             ParticleEffectEmitter* emitter = selectedEmitter();
             if (emitter == nullptr || moduleIndex >= emitter->modules.size())
@@ -147,7 +236,10 @@ namespace gts::tools
             }
 
             gts::particles::ParticleModuleInstance& module = emitter->modules[moduleIndex];
-            module.enabled = !module.enabled;
+            if (module.enabled == enabled)
+                return false;
+
+            module.enabled = enabled;
             recompileSelectedEmitter();
             dirty = true;
             status = module.enabled ? "MODULE ENABLED" : "MODULE DISABLED";
@@ -238,6 +330,24 @@ namespace gts::tools
             if (emitter->compiledProgram.valid)
                 emitter->descriptor = emitter->compiledProgram.runtimeDescriptor;
             emitter->descriptor.schemaVersion = CurrentParticleEmitterSchemaVersion;
+        }
+
+        static void syncSelectedEmitterModuleParameters(ParticleEffectEmitter& emitter)
+        {
+            for (gts::particles::ParticleModuleInstance& module : emitter.modules)
+            {
+                if (module.typeId == "spawn.basic")
+                {
+                    gts::particles::setBoolParameter(module, "emitterEnabled", emitter.descriptor.enabled);
+                    gts::particles::setFloatParameter(module, "emissionRate", emitter.descriptor.emissionRate);
+                    gts::particles::setUIntParameter(module, "maxParticles", emitter.descriptor.maxParticles);
+                }
+                else if (module.typeId == "lifetime.basic")
+                {
+                    gts::particles::setFloatParameter(module, "lifetimeMin", emitter.descriptor.lifetimeMin);
+                    gts::particles::setFloatParameter(module, "lifetimeMax", emitter.descriptor.lifetimeMax);
+                }
+            }
         }
 
         bool loaded = false;

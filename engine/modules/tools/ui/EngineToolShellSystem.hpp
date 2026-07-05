@@ -108,6 +108,13 @@ namespace gts::tools
         static constexpr size_t EmitterPageSize = 5;
         static constexpr size_t ModulePageSize = 4;
 
+        static constexpr const char* PropertyEmitterEnabled = "particle.emitter.enabled";
+        static constexpr const char* PropertyEmitterMaxParticles = "particle.emitter.maxParticles";
+        static constexpr const char* PropertyEmitterEmissionRate = "particle.emitter.emissionRate";
+        static constexpr const char* PropertyEmitterLifetimeMin = "particle.emitter.lifetimeMin";
+        static constexpr const char* PropertyEmitterLifetimeMax = "particle.emitter.lifetimeMax";
+        static constexpr const char* PropertyModuleEnabled = "particle.module.enabled";
+
         BitmapFont font;
         bool fontReady = false;
         bool toolsContextRequested = false;
@@ -323,22 +330,17 @@ namespace gts::tools
                         state.status = "PARTICLE PREVIEW RESTARTED";
                         break;
 
-                    case ToolCommandType::ToggleEmitterEnabled:
-                        if (particleSession.toggleSelectedEmitter(state.status))
-                            resetParticlePreview();
-                        break;
-
-                    case ToolCommandType::ToggleModuleEnabled:
-                        if (particleSession.toggleSelectedModule(state.status))
-                            resetParticlePreview();
-                        break;
-
                     case ToolCommandType::SelectEmitter:
                         particleSession.selectEmitter(command.index);
                         break;
 
                     case ToolCommandType::SelectModule:
                         particleSession.selectModule(command.index);
+                        break;
+
+                    case ToolCommandType::EditProperty:
+                        if (applyPropertyEdit(command, state.status))
+                            resetParticlePreview();
                         break;
                 }
             }
@@ -415,7 +417,7 @@ namespace gts::tools
             fillSceneRows(ctx, view);
             fillEffectRows(view);
             fillParticleRows(view);
-            fillInspectorLines(view);
+            fillPropertySections(view);
             fillDiagnostics(view);
             return view;
         }
@@ -503,46 +505,145 @@ namespace gts::tools
             }
         }
 
-        void fillInspectorLines(ToolShellView& view) const
+        void fillPropertySections(ToolShellView& view) const
         {
             if (activeWorkspace == ToolWorkspace::World)
             {
-                view.inspectorLines.push_back("Active scene: " +
-                                              (view.activeSceneName.empty() ? std::string("none") : view.activeSceneName));
-                view.inspectorLines.push_back("Registered scenes: " + std::to_string(view.sceneTotal));
-                view.inspectorLines.push_back("Scene changes are requested through engine scene commands.");
-                view.inspectorLines.push_back("The center viewport is the published runtime scene viewport.");
+                ToolPropertySection scene;
+                scene.title = "Scene Inspector";
+                scene.properties.push_back(readOnlyProperty("world.scene.active",
+                                                            "Active scene",
+                                                            view.activeSceneName.empty() ? "none" : view.activeSceneName));
+                scene.properties.push_back(readOnlyProperty("world.scene.count",
+                                                            "Registered scenes",
+                                                            std::to_string(view.sceneTotal)));
+                scene.properties.push_back(readOnlyProperty("world.scene.commands",
+                                                            "Scene changes",
+                                                            "engine commands"));
+                scene.properties.push_back(readOnlyProperty("world.viewport",
+                                                            "Viewport",
+                                                            "runtime scene"));
+                view.propertySections.push_back(std::move(scene));
                 return;
             }
 
             if (!particleSession.hasAsset())
             {
-                view.inspectorLines.push_back("Select a particle asset from the effect hierarchy.");
-                view.inspectorLines.push_back("The particle preview renders into its own viewport pane.");
+                ToolPropertySection empty;
+                empty.title = "Particle Inspector";
+                empty.properties.push_back(readOnlyProperty("particle.empty.asset",
+                                                            "Asset",
+                                                            "Select a particle asset"));
+                empty.properties.push_back(readOnlyProperty("particle.empty.preview",
+                                                            "Preview",
+                                                            "separate viewport"));
+                view.propertySections.push_back(std::move(empty));
                 return;
             }
 
             const ParticleEffectAsset& asset = particleSession.asset();
-            view.inspectorLines.push_back("Effect: " + particleSession.title());
-            view.inspectorLines.push_back("Emitters: " + std::to_string(asset.emitters.size()));
+            ToolPropertySection effect;
+            effect.title = "Effect";
+            effect.properties.push_back(readOnlyProperty("particle.effect.name", "Name", particleSession.title()));
+            effect.properties.push_back(readOnlyProperty("particle.effect.emitters",
+                                                        "Emitters",
+                                                        std::to_string(asset.emitters.size())));
+            view.propertySections.push_back(std::move(effect));
 
             const ParticleEffectEmitter* emitter = particleSession.selectedEmitter();
             if (emitter == nullptr)
                 return;
 
-            view.inspectorLines.push_back("Emitter: " + (emitter->name.empty() ? emitter->stableId : emitter->name));
-            view.inspectorLines.push_back("Max particles: " + std::to_string(emitter->descriptor.maxParticles));
-            view.inspectorLines.push_back("Emission rate: " + toolui::fixed(emitter->descriptor.emissionRate));
-            view.inspectorLines.push_back("Lifetime: " + toolui::fixed(emitter->descriptor.lifetimeMin) + "-" +
-                                          toolui::fixed(emitter->descriptor.lifetimeMax));
+            ToolPropertySection emitterSection;
+            emitterSection.title = "Emitter";
+            emitterSection.properties.push_back(readOnlyProperty("particle.emitter.name",
+                                                                 "Name",
+                                                                 emitter->name.empty() ? emitter->stableId : emitter->name));
+            emitterSection.properties.push_back(boolProperty(PropertyEmitterEnabled,
+                                                             "Enabled",
+                                                             emitter->descriptor.enabled));
+            emitterSection.properties.push_back(uintProperty(PropertyEmitterMaxParticles,
+                                                             "Max particles",
+                                                             emitter->descriptor.maxParticles,
+                                                             1u,
+                                                             4096u,
+                                                             16u));
+            emitterSection.properties.push_back(floatProperty(PropertyEmitterEmissionRate,
+                                                              "Emission rate",
+                                                              emitter->descriptor.emissionRate,
+                                                              0.0f,
+                                                              512.0f,
+                                                              1.0f));
+            emitterSection.properties.push_back(floatProperty(PropertyEmitterLifetimeMin,
+                                                              "Lifetime min",
+                                                              emitter->descriptor.lifetimeMin,
+                                                              0.01f,
+                                                              std::max(0.01f, emitter->descriptor.lifetimeMax),
+                                                              0.10f));
+            emitterSection.properties.push_back(floatProperty(PropertyEmitterLifetimeMax,
+                                                              "Lifetime max",
+                                                              emitter->descriptor.lifetimeMax,
+                                                              emitter->descriptor.lifetimeMin,
+                                                              60.0f,
+                                                              0.10f));
+            view.propertySections.push_back(std::move(emitterSection));
 
             if (const gts::particles::ParticleModuleInstance* module = particleSession.selectedModule())
             {
-                view.inspectorLines.push_back("Module: " +
-                                              (module->displayName.empty() ? module->typeId : module->displayName));
-                for (size_t i = 0; i < std::min<size_t>(module->parameters.size(), 3); ++i)
-                    view.inspectorLines.push_back(parameterSummary(module->parameters[i]));
+                ToolPropertySection moduleSection;
+                moduleSection.title = "Module";
+                moduleSection.properties.push_back(readOnlyProperty("particle.module.name",
+                                                                    "Name",
+                                                                    module->displayName.empty()
+                                                                        ? module->typeId
+                                                                        : module->displayName));
+                moduleSection.properties.push_back(boolProperty(PropertyModuleEnabled, "Enabled", module->enabled));
+                view.propertySections.push_back(std::move(moduleSection));
+
+                ToolPropertySection parameters;
+                parameters.title = "Module Parameters";
+                constexpr size_t MaxDisplayedModuleParameterRows = 18;
+                const bool hasHiddenParameters = module->parameters.size() > MaxDisplayedModuleParameterRows;
+                const size_t parameterCount = hasHiddenParameters
+                    ? MaxDisplayedModuleParameterRows - 1
+                    : module->parameters.size();
+                for (size_t i = 0; i < parameterCount; ++i)
+                {
+                    const gts::particles::ParticleModuleParameter& parameter = module->parameters[i];
+                    parameters.properties.push_back(readOnlyProperty("particle.module.parameter." + parameter.id,
+                                                                     parameterLabel(*module, parameter),
+                                                                     parameterValueText(*module, parameter)));
+                }
+                if (hasHiddenParameters)
+                {
+                    parameters.properties.push_back(readOnlyProperty("particle.module.parameter.more",
+                                                                     "More",
+                                                                     std::to_string(module->parameters.size() -
+                                                                                    parameterCount) +
+                                                                         " hidden"));
+                }
+                if (!parameters.properties.empty())
+                    view.propertySections.push_back(std::move(parameters));
             }
+        }
+
+        bool applyPropertyEdit(const ToolCommand& command, std::string& status)
+        {
+            if (command.value == PropertyEmitterEnabled)
+                return particleSession.setSelectedEmitterEnabled(command.boolValue, status);
+            if (command.value == PropertyEmitterMaxParticles)
+                return particleSession.setSelectedEmitterMaxParticles(command.uintValue, status);
+            if (command.value == PropertyEmitterEmissionRate)
+                return particleSession.setSelectedEmitterEmissionRate(command.floatValue, status);
+            if (command.value == PropertyEmitterLifetimeMin)
+                return particleSession.setSelectedEmitterLifetimeMin(command.floatValue, status);
+            if (command.value == PropertyEmitterLifetimeMax)
+                return particleSession.setSelectedEmitterLifetimeMax(command.floatValue, status);
+            if (command.value == PropertyModuleEnabled)
+                return particleSession.setSelectedModuleEnabled(command.boolValue, status);
+
+            status = "UNKNOWN PROPERTY";
+            return false;
         }
 
         void fillDiagnostics(ToolShellView& view) const
@@ -573,36 +674,149 @@ namespace gts::tools
                                        std::to_string(emitter->compiledProgram.modules.size()));
         }
 
-        static std::string parameterSummary(const gts::particles::ParticleModuleParameter& parameter)
+        static ToolCommand propertyEditCommand(const std::string& id)
+        {
+            ToolCommand command;
+            command.type = ToolCommandType::EditProperty;
+            command.value = id;
+            return command;
+        }
+
+        static ToolPropertyDescriptor readOnlyProperty(const std::string& id,
+                                                       const std::string& displayName,
+                                                       const std::string& value)
+        {
+            ToolPropertyDescriptor descriptor;
+            descriptor.id = id;
+            descriptor.displayName = displayName;
+            descriptor.kind = ToolPropertyKind::ReadOnlyText;
+            descriptor.readOnly = true;
+            descriptor.textValue = value;
+            return descriptor;
+        }
+
+        static ToolPropertyDescriptor boolProperty(const std::string& id,
+                                                   const std::string& displayName,
+                                                   bool value)
+        {
+            ToolPropertyDescriptor descriptor;
+            descriptor.id = id;
+            descriptor.displayName = displayName;
+            descriptor.kind = ToolPropertyKind::Bool;
+            descriptor.boolValue = value;
+            descriptor.command = propertyEditCommand(id);
+            return descriptor;
+        }
+
+        static ToolPropertyDescriptor floatProperty(const std::string& id,
+                                                    const std::string& displayName,
+                                                    float value,
+                                                    float minValue,
+                                                    float maxValue,
+                                                    float step)
+        {
+            ToolPropertyDescriptor descriptor;
+            descriptor.id = id;
+            descriptor.displayName = displayName;
+            descriptor.kind = ToolPropertyKind::Float;
+            descriptor.floatValue = value;
+            descriptor.minFloat = minValue;
+            descriptor.maxFloat = maxValue;
+            descriptor.floatStep = step;
+            descriptor.command = propertyEditCommand(id);
+            return descriptor;
+        }
+
+        static ToolPropertyDescriptor uintProperty(const std::string& id,
+                                                   const std::string& displayName,
+                                                   uint32_t value,
+                                                   uint32_t minValue,
+                                                   uint32_t maxValue,
+                                                   uint32_t step)
+        {
+            ToolPropertyDescriptor descriptor;
+            descriptor.id = id;
+            descriptor.displayName = displayName;
+            descriptor.kind = ToolPropertyKind::UInt;
+            descriptor.uintValue = value;
+            descriptor.minUInt = minValue;
+            descriptor.maxUInt = maxValue;
+            descriptor.uintStep = step;
+            descriptor.command = propertyEditCommand(id);
+            return descriptor;
+        }
+
+        static std::string parameterLabel(const gts::particles::ParticleModuleInstance& module,
+                                          const gts::particles::ParticleModuleParameter& parameter)
+        {
+            const gts::particles::ParticleModuleDefinition* definition =
+                gts::particles::findParticleModuleDefinition(module.typeId);
+            if (definition != nullptr)
+            {
+                const auto it = std::find_if(definition->parameters.begin(),
+                                             definition->parameters.end(),
+                                             [&](const gts::particles::ParticleModuleParameterDefinition& candidate)
+                                             {
+                                                 return candidate.id == parameter.id;
+                                             });
+                if (it != definition->parameters.end() && !it->label.empty())
+                    return it->label;
+            }
+            return parameter.id;
+        }
+
+        static std::string parameterValueText(const gts::particles::ParticleModuleInstance& module,
+                                              const gts::particles::ParticleModuleParameter& parameter)
         {
             using Type = gts::particles::ParticleModuleParameterType;
-            std::string value;
             switch (parameter.type)
             {
                 case Type::Float:
-                    value = toolui::fixed(parameter.floatValue);
-                    break;
+                    return toolui::fixed(parameter.floatValue);
                 case Type::UInt:
-                case Type::Enum:
-                    value = std::to_string(parameter.uintValue);
-                    break;
+                    return std::to_string(parameter.uintValue);
                 case Type::Bool:
-                    value = parameter.boolValue ? "true" : "false";
-                    break;
+                    return parameter.boolValue ? "true" : "false";
+                case Type::Enum:
+                    return enumParameterValueText(module, parameter);
                 case Type::String:
-                    value = parameter.stringValue.empty() ? "<empty>" : toolui::compact(parameter.stringValue, 22);
-                    break;
+                    return parameter.stringValue.empty() ? "<empty>" : toolui::compact(parameter.stringValue, 26);
                 case Type::FloatCurve:
-                    value = std::to_string(parameter.floatCurveValue.size()) + " keys";
-                    break;
+                    return std::to_string(parameter.floatCurveValue.size()) + " keys";
                 case Type::ColorGradient:
-                    value = std::to_string(parameter.colorGradientValue.size()) + " colors";
-                    break;
+                    return std::to_string(parameter.colorGradientValue.size()) + " colors";
                 case Type::BurstTimeline:
-                    value = std::to_string(parameter.burstTimelineValue.size()) + " bursts";
-                    break;
+                    return std::to_string(parameter.burstTimelineValue.size()) + " bursts";
             }
-            return toolui::compact(parameter.id, 18) + ": " + value;
+            return {};
+        }
+
+        static std::string enumParameterValueText(const gts::particles::ParticleModuleInstance& module,
+                                                  const gts::particles::ParticleModuleParameter& parameter)
+        {
+            const gts::particles::ParticleModuleDefinition* definition =
+                gts::particles::findParticleModuleDefinition(module.typeId);
+            if (definition != nullptr)
+            {
+                const auto paramIt = std::find_if(definition->parameters.begin(),
+                                                  definition->parameters.end(),
+                                                  [&](const gts::particles::ParticleModuleParameterDefinition& candidate)
+                                                  {
+                                                      return candidate.id == parameter.id;
+                                                  });
+                if (paramIt != definition->parameters.end())
+                {
+                    const auto optionIt = std::find_if(paramIt->enumOptions.begin(),
+                                                       paramIt->enumOptions.end(),
+                                                       [&](const gts::particles::ParticleModuleEnumOption& option)
+                                                       {
+                                                           return option.value == parameter.uintValue;
+                                                       });
+                    if (optionIt != paramIt->enumOptions.end())
+                        return optionIt->label;
+                }
+            }
+            return std::to_string(parameter.uintValue);
         }
 
         void collectEffectPaths(ECSWorld& world)
