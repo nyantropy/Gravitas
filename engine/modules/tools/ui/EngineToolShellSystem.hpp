@@ -274,7 +274,6 @@ namespace gts::tools
                 {
                     case ToolCommandType::SetWorkspace:
                         activeWorkspace = command.workspace;
-                        state.activePanelIndex = activeWorkspace == ToolWorkspace::Particles ? 1u : 0u;
                         state.status = activeWorkspace == ToolWorkspace::Particles ? "PARTICLE EDITOR" : "WORLD VIEWER";
                         break;
 

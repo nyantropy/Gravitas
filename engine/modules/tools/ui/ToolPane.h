@@ -79,6 +79,19 @@ namespace gts::tools
 
     struct ToolCommand
     {
+        ToolCommand() = default;
+
+        ToolCommand(ToolCommandType inType)
+            : type(inType)
+        {
+        }
+
+        ToolCommand(ToolCommandType inType, ToolWorkspace inWorkspace)
+            : type(inType),
+              workspace(inWorkspace)
+        {
+        }
+
         ToolCommandType type = ToolCommandType::SetWorkspace;
         ToolWorkspace workspace = ToolWorkspace::Particles;
         std::string value;

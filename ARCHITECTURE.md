@@ -657,27 +657,15 @@ policy, material hook, and collision/event fields. Older scalar module data for
 alpha peaks, size endpoints, and the first burst is migrated into richer curve,
 gradient, and timeline module values.
 
-The legacy particle inspector still edits a selected live ECS emitter descriptor
-for low-level debugging. The dedicated `ParticleEffectEditorPanel` is the
-asset-authored workflow: it discovers known effect paths from the hot-reload
-registry, live emitters, and `resources/particles`, loads `ParticleEffectAsset`,
-edits effect/emitter data in memory, saves or duplicates effect files, and
-applies the selected asset emitter onto matching live ECS emitters for immediate
-preview only. The panel owns inline tool text fields for effect and emitter
-names, captures keyboard input while a field is active so the tool camera does
-not move during typing, stores preview background plus camera orbit/reset
-settings on the asset, and presents emitter modules as a dynamic stack.
-Parameter rows are built from the module registry rather than hardcoded per
-module type. Numeric min/max pairs are collapsed into range controls; curve,
-gradient, and burst timeline parameters expose compact key editing; texture and
-mesh string parameters cycle through discovered resources; and editor-local
-undo/redo, emitter copy/paste, module copy/paste, and multi-emitter batch
-selection are handled inside the panel. Module rows display graph execution
-stage tags and the panel shows graph validation status for the selected
-emitter's graph. The panel includes compact graph actions for cycling/searching
-nodes, adding registered nodes, toggling dependency links, and creating
-frames/comments, but it remains a retained-UI module/stack bridge rather than
-the final visual graph editor. New particle authoring features should extend
+Particle tooling now uses the pane-based engine tool shell instead of a legacy
+particle panel. `ParticleEditorSession` owns the selected effect path, loaded
+`ParticleEffectAsset`, selected emitter/module, dirty flag, playback state, and
+compile/save helpers. UI panes emit typed tool commands for asset open, save,
+reload, preview playback, emitter/module selection, and enable toggles; the
+tool shell system applies those commands, performs asset IO, syncs
+`ParticlePreviewWorld`, and publishes `EditorPreviewRenderComponent` data for
+the separate particle preview viewport. The central scene viewport remains the
+runtime scene viewport. New particle authoring features should extend
 `ParticleEffectAsset`, the graph data, the module registry, and the compiler;
 runtime simulation should continue consuming compiled runtime data rather than
 editor UI structures.
@@ -1057,17 +1045,14 @@ the registry expands those references into ordinary `UiSerializedWidget` trees
 before `UiSerializationRuntime` instantiates retained nodes. This keeps asset
 reuse, serialization, runtime widgets, and C++ composition behavior separate.
 
-The Visual UI Editor is the first major application built on the UI platform.
-It lives in the tools module, implements `EngineToolPanel`, and uses existing
-editor shell, theme, widget, property, and workspace infrastructure. It edits
-authored `UiWidgetAssetDefinition` data, selects widgets by stable authored ids,
-validates through `UiWidgetAssetRegistry`, saves through widget asset
-serialization, and previews by instantiating the real asset into a dedicated
-preview `UiSurface`. Runtime retained handles are preview implementation
-details and must not become editor document state. The editor currently
-demonstrates the interaction-prompt widget asset workflow and establishes the
-pattern future visual layout/theme/binding/accessibility editors should follow:
-fix runtime gaps instead of adding editor-only UI systems.
+Engine tooling is a major retained UI client, but it is no longer built as a
+legacy panel registry or generic editor framework. The active shell is a
+`UiComposition` composed of self-contained panes backed by ordinary retained UI
+widgets. Future visual layout/theme/binding/accessibility editors should follow
+the same runtime model: edit authored asset data, validate through the relevant
+asset runtime, preview by instantiating real assets into a dedicated surface or
+pane, and keep runtime retained handles as preview implementation details
+rather than editor document state.
 
 UI live reload is engine-owned by `UiAssetRuntime`. It tracks authored asset
 identity, source paths, runtime versions, validation state, dependencies, and
@@ -1076,11 +1061,11 @@ runtime consumers for serialized UI assets, widget assets, and theme assets.
 register mounted runtime consumers automatically; mount and surface destruction
 unregister them. Reload requests validate before replacement, update the
 dependency graph, recursively invalidate dependents, rebuild affected consumers,
-and preserve keyboard focus by stable widget id when possible. The Visual UI
-Editor now saves widget assets and lets this runtime refresh the preview instead
-of owning a private reload path. OS file watching, package/plugin ownership,
-theme file serialization, and deeper state transfer are future clients of this
-asset runtime.
+and preserve keyboard focus by stable widget id when possible. Authoring tools
+that save widget assets should let this runtime refresh previews instead of
+owning private reload paths. OS file watching, package/plugin ownership, theme
+file serialization, and deeper state transfer are future clients of this asset
+runtime.
 
 UI package ownership is engine-owned by `UiPackageRuntime`. Packages own
 authored data and plugin metadata; assets still execute through
@@ -1092,10 +1077,10 @@ assets, and override policy before applying effective assets to the asset
 runtime. Later packages can replace earlier effective assets only when their
 asset descriptor declares `Replace`; unloading an override restores the previous
 provider and rebuilds affected consumers through the existing live-reload path.
-The Visual UI Editor sample now loads reusable prompt assets from package
-manifests. Runtime code plugin loading, package asset
-root scanning, signatures, repository identity, and package browsers are future
-layers above this ownership model.
+Tooling and sample clients may load reusable assets from package manifests.
+Runtime code plugin loading, package asset root scanning, signatures,
+repository identity, and package browsers are future layers above this
+ownership model.
 
 UI localization core is engine-owned by `UiLocalizationRuntime`, which is a
 global UI platform runtime owned by `UiSystem` rather than a surface-local
@@ -1140,70 +1125,33 @@ which render thick colored screen-space segments for graph-like widgets such as
 skill-tree links, retained circle nodes for icon buttons or graph nodes that need
 circular hit targets, and retained nine-slice image nodes for scalable panels.
 
-Editor-specific styling lives above the retained UI layer in
-`modules/tools/editor/EditorTheme.h`. `EditorTheme` is a data-only token set for
-editor typography, spacing, borders, corner radii, shadows, animations, widget
-dimensions, semantic colors, panel/background layers, and named icon IDs.
-It should migrate toward constructing or adapting a `UiTheme`; today editor
-widgets and tool panels still resolve many editor tokens manually into retained
-node payloads. `ToolTheme` remains as a compatibility facade over the default
-editor theme for existing tool panels.
+Tool-specific styling lives above the retained UI layer in
+`modules/tools/ui/EditorTheme.h` and `modules/tools/ui/ToolTheme.h`. These
+headers provide data-only typography, spacing, dimensions, and color tokens for
+tool panes. They should keep moving toward ordinary `UiTheme` styles where the
+runtime widget set supports the required behavior.
 
-Reusable editor layout primitives live beside the theme in
-`modules/tools/editor/EditorLayout.h`. This layer models editor concepts such as
-dock areas, panel state, split views, panel headers/bodies, tab bars, toolbars,
-sidebars, footers, collapsed/hidden/restored panel state, and resize handles,
-then emits ordinary retained UI nodes. Dock dragging is not implemented yet, but
-panels already carry stable ids, areas, size limits, collapsed state, visibility,
-and restored sizes so future docking and workspace persistence can extend the
-same state model instead of rewriting panel layout.
+Engine tooling uses a pane-based retained UI shell. `ToolPane.h` defines pane
+descriptors, workspace visibility, typed tool commands, view-model row data,
+and the `ToolPane` lifecycle. `EngineToolPanes.h` implements individual panes
+for menu chrome, workspace tabs, toolbar, world viewport, scene browser,
+particle effect hierarchy, emitter details, particle preview viewport,
+property inspector, curve/timeline placeholder, diagnostics, and status.
+`EngineToolShellComposition.h` owns only global chrome, fixed dock layout,
+workspace tab visibility, pane mounting, and command collection.
 
-Reusable editor widgets live in `modules/tools/editor/EditorWidgets.h`. These
-are framework-level builders and specs for hierarchy/tree views, property grids,
-inspectors, asset pickers, search fields, breadcrumbs, foldouts, context and
-popup menus, toolbar and icon buttons, numeric and range controls, enum
-dropdowns, tag selectors, color/gradient/curve editors, timelines, graph
-canvases, search palettes, validation panels, console output, and diagnostics.
-The first pass is retained-UI backed and handle-oriented; command routing,
-metadata binding, popup stacking, and richer interaction policy are layered on
-top by later editor framework milestones.
+The tool system applies pane commands and owns engine integration.
+`EngineToolShellSystem.hpp` keeps the editor mode at runtime, requests scene
+changes through engine commands, performs particle asset IO, updates
+`ParticleEditorSession`, syncs `ParticlePreviewWorld`, publishes preview render
+data, and mirrors retained UI dispatch into `EngineToolInputCaptureComponent`
+for camera, picker, and gizmo systems. Panes must not directly mutate ECS,
+scene state, or particle assets.
 
-Metadata-driven property inspection lives in
-`modules/tools/editor/EditorPropertySystem.h`. It converts generic property
-descriptors into `EditorPropertySpec` rows consumed by the property grid.
-Metadata covers display names, descriptions/tooltips, category/group, default
-values, hard and soft numeric limits, step size, visibility rules, read-only
-state, asset type, units, and enum options. The conversion layer chooses the
-appropriate standard widget kind from the value type, detects modified values
-against defaults, applies simple dependency visibility rules, and keeps the
-inspector independent from particle, scene, or component-specific data models.
-
-Editor command routing lives in `modules/tools/editor/EditorCommands.h`.
-Commands use stable string ids, labels, descriptions, shortcut action names,
-enabled/checked state, and optional handlers. The standard command vocabulary
-includes undo, redo, copy, paste, duplicate, delete, rename, frame selection,
-reset camera, save, and reload. Input actions should resolve through the command
-registry before widget-local behavior so shortcuts invoke reusable editor
-commands rather than individual controls directly. `EditorUndoStack` provides a
-small command-history integration point for editor applications that need local
-undo/redo callbacks.
-
-Editor workspace state lives in `modules/tools/editor/EditorWorkspace.h`.
-Workspace data records stable workspace ids, display names, selected workspace
-tabs, docked panel areas, open/hidden/collapsed panel state, panel sizes,
-selected panel tabs, and toolbar command visibility/order. The first persistence
-format is a compact quoted text format with load/save helpers; it is deliberately
-separate from `EngineToolWorkspaceComponent`, which remains the per-frame scene
-viewport publication surface used by the runtime and renderer.
-
-`ParticleEffectEditorPanel` is the first editor application consuming the
-framework layer. It still owns particle-specific asset editing, preview
-application, module mutation, and live runtime synchronization, but its editor
-regions are now described through framework panel state and its module
-parameter rows can derive display metadata through the generic property system.
-Further migration should continue moving shell/layout/property/command behavior
-into `modules/tools/editor` while leaving particle asset semantics under the
-particle rendering authoring module.
+`ParticleEditorSession` owns particle authoring state: selected effect,
+selected emitter/module, dirty flag, playback state, compile/save helpers, and
+the future undo/redo boundary. It is deliberately separate from pane widgets so
+particle data edits can grow without making the shell composition monolithic.
 
 `UiPanelSkin` is the reusable panel styling contract for retained UI surfaces.
 It can describe a solid-color panel, a single image panel, or a nine-slice image
@@ -1378,29 +1326,30 @@ remain scene-owned.
 
 Current tool feature layout:
 
-- `modules/tools/core/`: panel interface, registry, context, and shared state
-- `modules/tools/ui/`: tool widget helpers built on retained UI
+- `modules/tools/core/`: shared tool state and query helpers
+- `modules/tools/ui/`: pane descriptors, pane widgets, shell composition,
+  shell system, tool theme tokens, and particle editor session state
 - `modules/tools/runtime/`: global tool runtime and scene-change state handoff
-- `modules/tools/inspectors/`: entity and particle emitter inspector panels
-- `modules/tools/assets/`: particle effect editor and particle asset/hot-reload
-  status panel
-- `modules/tools/scenes/`: generic registered-scene browser panel
+- `modules/tools/workspace/`: per-frame workspace layout and scene viewport
+  publication
+- `modules/tools/assets/`: particle preview world integration
 - `modules/tools/selection/`: input capture, world picking, selection labels,
   selection highlight, and shared raycast helpers
-- `modules/tools/gizmos/`: translation gizmo state, panel, picking, snapping,
-  and transform edits
-- `modules/tools/debugdraw/`: debug-draw settings panel and tool-driven bounds,
-  axes, frustum, and pick-ray drawing
+- `modules/tools/gizmos/`: translation gizmo state, picking, snapping, and
+  transform edits
+- `modules/tools/debugdraw/`: tool-driven bounds, axes, frustum, and pick-ray
+  drawing
 
 Tooling state is held in singleton ECS components:
 
-- `EngineToolStateComponent`: visibility, active panel, selected entity, status
+- `EngineToolStateComponent`: visibility, runtime editor mode, selected entity,
+  selection source, and status
 - `EngineToolInputCaptureComponent`: pointer/UI/world-consumption state
 - `EngineGizmoStateComponent`: gizmo mode, hovered/active axis, snap settings
 - `DebugDrawSettingsComponent`: debug primitive toggles and sizing
 
 The runtime carries editor-level state across scene changes, such as F6
-visibility, active panel, gizmo settings, and debug-draw settings. Scene-entity
+visibility, active workspace, gizmo settings, and debug-draw settings. Scene-entity
 references are reset whenever the active scene changes because entity IDs are
 owned by the active scene world. Scene-local singleton components are seeded
 from the runtime each frame so existing tool systems can operate on the active
@@ -1422,14 +1371,15 @@ systems even though those systems are no longer scene-owned.
 
 `SceneManager` owns the registered scene catalog, scene factories, active scene
 instance, and active scene id. Tooling receives catalog metadata through
-`EcsControllerContext`, and the generic `Scenes` panel lists whatever scenes the
-application registered. Selecting a row issues
+`EcsControllerContext`, and `SceneBrowserPane` lists whatever scenes the
+application registered. Selecting a row emits a tool command that the shell
+system applies through
 `GtsCommandBuffer::requestChangeScene(sceneId)`. Engine tooling must not
 hardcode application scene names or keep scene-entity references across scene changes.
 
-Selection can come from either inspector panels or world picking. The world
-picker uses `ActiveCameraViewStateComponent` plus `BoundsComponent` to raycast
-against live entities. `ToolEntityLabelComponent` gives entities human-readable
+Selection currently comes from world picking. The world picker uses
+`ActiveCameraViewStateComponent` plus `BoundsComponent` to raycast against live
+entities. `ToolEntityLabelComponent` gives entities human-readable
 names/categories and can mark internal tool entities as non-selectable.
 
 The translation gizmo is currently position-only. It draws X/Y/Z axes through
@@ -1554,21 +1504,20 @@ Most application code should still author only descriptor/control components.
 Direct writes to `CameraGpuComponent` are reserved for explicit custom camera
 override systems that own a `CameraOverrideComponent`.
 
-### Adding a Tool Panel
+### Adding a Tool Pane
 
-1. Derive from `gts::tools::EngineToolPanel`
-2. Build retained UI nodes in `build(...)`
-3. Read/write only the state or descriptors owned by that panel's feature
-4. Register the panel in `EngineToolShellSystem`
-
-Prefer extending `ToolWidgets` for reusable controls instead of building
-one-off retained UI interaction code inside a panel.
+1. Add a `ToolPaneId` and `PaneDescriptor` metadata entry.
+2. Implement a self-contained `ToolPane` that owns its widgets, local UI state,
+   retained event handling, and typed command emission.
+3. Mount the pane from `EngineToolShellComposition` and assign it a fixed dock
+   layout until freeform docking is intentionally designed.
+4. Apply commands in `EngineToolShellSystem` or a feature session/model. Panes
+   must not directly mutate ECS, scene state, renderer state, or assets.
 
 New reusable retained UI should prefer a `UiComposition` mounted through
 `UiSystem` and should handle retained input through `UiComposition::onEvent(...)`
-instead of storing top-level handles in a controller or scene. Legacy tool
-panels still use the older panel interface and should migrate one panel at a
-time after node/widget event registration and drag/drop are designed.
+and widgets. Shared controls should become widgets or theme-backed helpers
+rather than a new panel registry.
 
 ---
 

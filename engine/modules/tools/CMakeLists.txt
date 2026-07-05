@@ -15,9 +15,7 @@ endif()
 
 target_include_directories(gravitas_tools PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/core"
-    "${CMAKE_CURRENT_SOURCE_DIR}/editor"
     "${CMAKE_CURRENT_SOURCE_DIR}/ui"
-    "${CMAKE_CURRENT_SOURCE_DIR}/inspectors"
     "${CMAKE_CURRENT_SOURCE_DIR}/assets"
     "${CMAKE_CURRENT_SOURCE_DIR}/selection"
     "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw"
@@ -25,8 +23,6 @@ target_include_directories(gravitas_tools PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/cameras"
     "${CMAKE_CURRENT_SOURCE_DIR}/workspace"
     "${CMAKE_CURRENT_SOURCE_DIR}/runtime"
-    "${CMAKE_CURRENT_SOURCE_DIR}/scenes"
-    "${CMAKE_CURRENT_SOURCE_DIR}/ui_editor"
 )
 
 target_link_libraries(gravitas_tools PUBLIC

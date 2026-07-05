@@ -24,7 +24,7 @@ namespace gts::tools
                 return;
 
             EngineToolStateComponent& state = ctx.world.getSingleton<EngineToolStateComponent>();
-            if (!state.visible || state.editorMode != EditorMode::Runtime)
+            if (!state.visible)
             {
                 state.hoveredEntity = invalidToolEntity();
                 cacheValid = false;
