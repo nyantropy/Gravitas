@@ -50,7 +50,7 @@ Gravitas/
 │   │   ├── hierarchy/      # Parent-child transform hierarchy
 │   │   ├── animation/      # Keyframe animation
 │   │   ├── tween/          # Reusable value tween/easing helpers
-│   │   ├── dialogue/       # Generic dialogue graph runtime and ECS bridge
+│   │   ├── narrative/      # Headless narrative runtimes such as dialogue graphs
 │   │   ├── debugdraw/      # Debug primitives and module bridge renderers
 │   │   ├── physics/        # Physics world, PhysicsSystem, body components
 │   │   ├── tools/          # Optional in-engine inspection/editing toolchain
@@ -1276,12 +1276,12 @@ presentation pushes `fullscreen_dialogue`, which keeps `Ui`, `Dialogue`, `VN`,
 When dialogue ends, `VNSystem` pops the named profile it pushed. This makes
 fullscreen VN an engine execution mode rather than a VN-specific pause branch.
 
-### Dialogue Module
+### Narrative Dialogue Runtime
 
-`modules/dialogue/` is a generic graph-based narrative runtime. It owns dialogue
-graph execution, current node tracking, visible-choice evaluation, branching,
-generic conditions, generic actions, and start/end state. It deliberately knows
-nothing about application domain concepts.
+`modules/narrative/dialogue/` is a generic graph-based narrative runtime. It
+owns dialogue graph execution, current node tracking, visible-choice evaluation,
+branching, generic conditions, generic actions, and start/end state. It
+deliberately knows nothing about application domain concepts or presentation.
 
 The data model is:
 

@@ -39,7 +39,7 @@ struct AnimationComponent
     bool initialized = false;
 
     // ---------------------------
-    //Functions to trigger/disable animation modes if needed
+    // functions to trigger/disable animation modes if needed
 
     inline bool hasMode(AnimationMode mode) const 
     {
