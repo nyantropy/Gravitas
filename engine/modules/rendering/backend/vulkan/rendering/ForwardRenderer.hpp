@@ -647,7 +647,7 @@ class ForwardRenderer : Renderer
                     upload.viewMatrix,
                     upload.projMatrix,
                     upload.cameraWorldPosition,
-                    upload.directionalLight);
+                    upload.lighting);
             }
             if (editorPreview.enabled)
             {
@@ -659,7 +659,7 @@ class ForwardRenderer : Renderer
                         upload.viewMatrix,
                         upload.projMatrix,
                         upload.cameraWorldPosition,
-                        upload.directionalLight);
+                        upload.lighting);
                 }
             }
 

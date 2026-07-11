@@ -9,9 +9,12 @@
 #include "GtsScene.hpp"
 #include "MaterialReferenceComponent.h"
 #include "MaterialRuntime.h"
+#include "PointLightComponent.h"
 #include "RendererSceneFeature.h"
+#include "SpotLightComponent.h"
 #include "StaticMeshComponent.h"
 #include "TransformComponent.h"
+#include "TransformHierarchyHelpers.h"
 
 class PbrValidationScene final : public GtsScene
 {
@@ -22,7 +25,7 @@ public:
         gts::rendering::installRendererFeature(*this, ctx);
         spawnPbrGrid();
         spawnComparisonObjects();
-        spawnDirectionalLight();
+        spawnLights();
         spawnCamera(ctx.windowAspectRatio);
     }
 
@@ -134,7 +137,7 @@ private:
             createStandardSurface({0.9f, 0.45f, 0.15f, 0.45f}, 0.0f, 0.2f, true));
     }
 
-    void spawnDirectionalLight()
+    void spawnLights()
     {
         Entity lightEntity = ecsWorld.createEntity();
 
@@ -148,6 +151,107 @@ private:
         light.intensity = 3.5f;
         light.ambientIntensity = 0.06f;
         ecsWorld.addComponent(lightEntity, light);
+
+        const glm::vec3 pointPositions[] = {
+            {-5.5f, 2.5f, 3.0f},
+            {-0.5f, 3.8f, 2.4f},
+            {4.5f, 2.0f, 3.2f},
+            {8.5f, -1.0f, 2.2f}
+        };
+        const glm::vec3 pointColors[] = {
+            {1.0f, 0.28f, 0.18f},
+            {0.2f, 0.55f, 1.0f},
+            {0.95f, 0.75f, 0.25f},
+            {0.35f, 1.0f, 0.55f}
+        };
+        for (int i = 0; i < 4; ++i)
+        {
+            Entity point = ecsWorld.createEntity();
+            TransformComponent pointTransform;
+            pointTransform.position = pointPositions[i];
+            ecsWorld.addComponent(point, pointTransform);
+
+            PointLightComponent pointLight;
+            pointLight.color = pointColors[i];
+            pointLight.intensity = 6.0f;
+            pointLight.range = 6.5f;
+            pointLight.priority = 10;
+            ecsWorld.addComponent(point, pointLight);
+        }
+
+        Entity spot = ecsWorld.createEntity();
+        TransformComponent spotTransform;
+        spotTransform.position = glm::vec3(-2.5f, -4.5f, 5.0f);
+        spotTransform.rotation = glm::vec3(glm::radians(18.0f), glm::radians(-18.0f), 0.0f);
+        ecsWorld.addComponent(spot, spotTransform);
+
+        SpotLightComponent spotLight;
+        spotLight.color = {1.0f, 0.9f, 0.65f};
+        spotLight.intensity = 18.0f;
+        spotLight.range = 10.0f;
+        spotLight.innerConeAngle = glm::radians(15.0f);
+        spotLight.outerConeAngle = glm::radians(28.0f);
+        spotLight.priority = 20;
+        ecsWorld.addComponent(spot, spotLight);
+
+        Entity rig = ecsWorld.createEntity();
+        TransformComponent rigTransform;
+        rigTransform.position = glm::vec3(5.5f, -4.8f, 0.0f);
+        rigTransform.rotation = glm::vec3(0.0f, glm::radians(25.0f), 0.0f);
+        ecsWorld.addComponent(rig, rigTransform);
+
+        Entity parentedSpot = ecsWorld.createEntity();
+        TransformComponent parentedSpotTransform;
+        parentedSpotTransform.position = glm::vec3(0.0f, 0.0f, 4.5f);
+        parentedSpotTransform.rotation = glm::vec3(glm::radians(12.0f), glm::radians(8.0f), 0.0f);
+        ecsWorld.addComponent(parentedSpot, parentedSpotTransform);
+        SpotLightComponent parentedSpotLight = spotLight;
+        parentedSpotLight.color = {0.55f, 0.7f, 1.0f};
+        parentedSpotLight.priority = 18;
+        ecsWorld.addComponent(parentedSpot, parentedSpotLight);
+        gts::transform::attachToParent(ecsWorld, parentedSpot, rig);
+
+        Entity parentedPoint = ecsWorld.createEntity();
+        TransformComponent parentedPointTransform;
+        parentedPointTransform.position = glm::vec3(-1.0f, 1.2f, 2.2f);
+        ecsWorld.addComponent(parentedPoint, parentedPointTransform);
+        PointLightComponent parentedPointLight;
+        parentedPointLight.color = {1.0f, 0.35f, 0.8f};
+        parentedPointLight.intensity = 7.0f;
+        parentedPointLight.range = 5.0f;
+        parentedPointLight.priority = 12;
+        ecsWorld.addComponent(parentedPoint, parentedPointLight);
+        gts::transform::attachToParent(ecsWorld, parentedPoint, rig);
+
+        for (uint32_t i = 0; i < gts::rendering::MaxPointLights + 4; ++i)
+        {
+            Entity extra = ecsWorld.createEntity();
+            TransformComponent extraTransform;
+            extraTransform.position = glm::vec3(-18.0f + static_cast<float>(i), -12.0f, -8.0f);
+            ecsWorld.addComponent(extra, extraTransform);
+
+            PointLightComponent extraLight;
+            extraLight.color = {0.25f, 0.25f, 0.35f};
+            extraLight.intensity = 0.5f;
+            extraLight.range = 2.0f;
+            extraLight.priority = -100;
+            ecsWorld.addComponent(extra, extraLight);
+        }
+
+        for (uint32_t i = 0; i < gts::rendering::MaxSpotLights + 2; ++i)
+        {
+            Entity extra = ecsWorld.createEntity();
+            TransformComponent extraTransform;
+            extraTransform.position = glm::vec3(-18.0f + static_cast<float>(i), -16.0f, -10.0f);
+            ecsWorld.addComponent(extra, extraTransform);
+
+            SpotLightComponent extraLight;
+            extraLight.color = {0.2f, 0.2f, 0.25f};
+            extraLight.intensity = 0.5f;
+            extraLight.range = 2.0f;
+            extraLight.priority = -100;
+            ecsWorld.addComponent(extra, extraLight);
+        }
     }
 
     void spawnCamera(float aspectRatio)

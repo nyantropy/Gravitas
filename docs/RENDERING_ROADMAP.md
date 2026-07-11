@@ -108,13 +108,39 @@ metallic, roughness, normal, AO, and mask textures can remain linear.
 metallic/roughness grid, a non-uniformly scaled lit object, an unlit comparison
 object, a transparent object, and one directional light.
 
-Point and spot lights, generic multi-light extraction, normal maps, image-based
-lighting, shadows, and metallic/roughness texture maps remain future phases.
+Normal maps, image-based lighting, shadows, and metallic/roughness texture maps
+remain future phases.
 
-### Phase 3C --- Point and Spot Light Extraction
+### Phase 3C --- Generic Light Extraction and Multi-Light Forward Rendering (Complete)
 
 Extend the completed directional-light and PBR surface-response path with
 additional scene-authored light types and generic light extraction.
+
+Status: complete. Lighting extraction now produces a bounded generic
+`LightingFrameData` payload containing up to 2 directional lights, 32 point
+lights, and 16 spot lights. Directional, point, and spot descriptors remain
+scene-authored data; spatial meaning comes from `WorldTransformComponent`.
+Directional lights use local `-Z` as ray direction, point lights use world
+position, and spot lights use world position plus local `-Z` cone direction.
+
+Selection is deterministic: directionals are ranked by priority and stable
+entity ID, while point and spot lights are ranked by priority, distance to the
+active camera, and stable entity ID. Excess lights are dropped through the
+documented capacities and counted in diagnostics. Extraction sanitizes negative
+or non-finite authored values, clamps ranges and cone angles, and precomputes
+spot cone cosine thresholds.
+
+The Vulkan camera/frame UBO now carries the generic lighting frame arrays
+beside view/projection and camera world position. The PBR fragment shader loops
+over the selected directional, point, and spot lights, computes radiance and
+attenuation per light type, and feeds every light into the same Cook-Torrance
+metallic-roughness BRDF. Ambient remains a temporary frame-level fallback and
+is applied once, outside the light loops. Light changes remain frame-level
+state; they do not mutate materials, meshes, render commands, or object slots.
+
+`GtsPbrValidation` now includes directional, point, spot, parented, and
+over-capacity lights so attenuation, cone behavior, and deterministic dropping
+can be inspected visually.
 
 ## Guiding Principles
 

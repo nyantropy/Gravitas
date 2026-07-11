@@ -11,8 +11,15 @@ layout(set = 0, binding = 0) uniform CameraUBO {
     mat4 view;
     mat4 proj;
     vec4 cameraPosition;
-    vec4 lightDirectionIntensity;
-    vec4 lightColorAmbient;
+    vec4 lightingCountsAmbient;
+    vec4 directionalDirectionIntensity[2];
+    vec4 directionalColor[2];
+    vec4 pointPositionRange[32];
+    vec4 pointColorIntensity[32];
+    vec4 spotPositionRange[16];
+    vec4 spotDirectionIntensity[16];
+    vec4 spotColorInnerCone[16];
+    vec4 spotOuterCone[16];
 } cam;
 
 layout(set = 2, binding = 0) uniform sampler2D texSampler;
@@ -27,6 +34,9 @@ layout(push_constant) uniform PushConstants {
 const float PI = 3.14159265358979323846;
 const float EPSILON = 0.00001;
 const float MIN_ROUGHNESS = 0.04;
+const int MAX_DIRECTIONAL_LIGHTS = 2;
+const int MAX_POINT_LIGHTS = 32;
+const int MAX_SPOT_LIGHTS = 16;
 
 float saturate(float value) {
     return clamp(value, 0.0, 1.0);
@@ -62,6 +72,57 @@ float geometrySmith(float nDotV, float nDotL, float roughness) {
         geometrySchlickGGX(nDotL, roughness);
 }
 
+vec3 evaluateDirectLight(
+    vec3 baseRgb,
+    vec3 normal,
+    vec3 viewDirection,
+    vec3 directionToLight,
+    vec3 radiance,
+    float metallic,
+    float roughness)
+{
+    vec3 lightDirection = safeNormalize(directionToLight, vec3(0.0, 0.0, 1.0));
+    vec3 halfDirection = safeNormalize(lightDirection + viewDirection, lightDirection);
+
+    float nDotL = saturate(dot(normal, lightDirection));
+    float nDotV = saturate(dot(normal, viewDirection));
+    float nDotH = saturate(dot(normal, halfDirection));
+    float hDotV = saturate(dot(halfDirection, viewDirection));
+
+    vec3 f0 = mix(vec3(0.04), max(baseRgb, vec3(0.0)), metallic);
+    vec3 fresnel = fresnelSchlick(hDotV, f0);
+    float distribution = distributionGGX(nDotH, roughness);
+    float geometry = geometrySmith(nDotV, nDotL, roughness);
+    vec3 specular = (distribution * geometry * fresnel) /
+        max(4.0 * nDotV * nDotL, EPSILON);
+
+    vec3 kd = (vec3(1.0) - fresnel) * (1.0 - metallic);
+    vec3 diffuse = kd * baseRgb / PI;
+    return (nDotL > 0.0 && nDotV > 0.0)
+        ? (diffuse + specular) * max(radiance, vec3(0.0)) * nDotL
+        : vec3(0.0);
+}
+
+float pointAttenuation(float distanceToLight, float range) {
+    float clampedRange = max(range, 0.01);
+    if (distanceToLight >= clampedRange)
+        return 0.0;
+
+    float distanceSquared = max(distanceToLight * distanceToLight, 0.01);
+    float normalizedDistance = saturate(distanceToLight / clampedRange);
+    float cutoffBase = 1.0 - pow(normalizedDistance, 4.0);
+    float cutoff = saturate(cutoffBase) * saturate(cutoffBase);
+    return cutoff / distanceSquared;
+}
+
+float spotConeAttenuation(float coneCos, float innerConeCos, float outerConeCos) {
+    if (innerConeCos <= outerConeCos + 0.00001)
+        return coneCos >= innerConeCos ? 1.0 : 0.0;
+
+    float t = saturate((coneCos - outerConeCos) / (innerConeCos - outerConeCos));
+    return t * t * (3.0 - 2.0 * t);
+}
+
 void main() {
     if (pc.vertexColorOnly != 0) {
         outColor = vec4(fragColor, 1.0) * fragTint;
@@ -78,32 +139,65 @@ void main() {
 
     vec3 normal = safeNormalize(fragWorldNormal, vec3(0.0, 0.0, 1.0));
     vec3 viewDirection = safeNormalize(cam.cameraPosition.xyz - fragWorldPosition, vec3(0.0, 0.0, 1.0));
-    vec3 directionToLight = safeNormalize(cam.lightDirectionIntensity.xyz, vec3(0.0, 0.0, 1.0));
-    vec3 halfDirection = safeNormalize(directionToLight + viewDirection, directionToLight);
+    int directionalCount = min(int(cam.lightingCountsAmbient.x + 0.5), MAX_DIRECTIONAL_LIGHTS);
+    int pointCount = min(int(cam.lightingCountsAmbient.y + 0.5), MAX_POINT_LIGHTS);
+    int spotCount = min(int(cam.lightingCountsAmbient.z + 0.5), MAX_SPOT_LIGHTS);
+    float ambientIntensity = max(cam.lightingCountsAmbient.w, 0.0);
 
-    float nDotL = saturate(dot(normal, directionToLight));
-    float nDotV = saturate(dot(normal, viewDirection));
-    float nDotH = saturate(dot(normal, halfDirection));
-    float hDotV = saturate(dot(halfDirection, viewDirection));
+    vec3 direct = vec3(0.0);
+    for (int i = 0; i < directionalCount; ++i) {
+        vec3 directionToLight = cam.directionalDirectionIntensity[i].xyz;
+        vec3 radiance =
+            max(cam.directionalColor[i].rgb, vec3(0.0)) *
+            max(cam.directionalDirectionIntensity[i].w, 0.0);
+        direct += evaluateDirectLight(
+            base.rgb, normal, viewDirection, directionToLight, radiance, metallic, roughness);
+    }
 
-    vec3 lightColor = max(cam.lightColorAmbient.rgb, vec3(0.0));
-    float lightIntensity = max(cam.lightDirectionIntensity.w, 0.0);
-    float ambientIntensity = max(cam.lightColorAmbient.w, 0.0);
-    vec3 radiance = lightColor * lightIntensity;
+    for (int i = 0; i < pointCount; ++i) {
+        vec3 toLight = cam.pointPositionRange[i].xyz - fragWorldPosition;
+        float distanceToLight = length(toLight);
+        float attenuation = pointAttenuation(distanceToLight, cam.pointPositionRange[i].w);
+        if (attenuation <= 0.0)
+            continue;
 
-    vec3 f0 = mix(vec3(0.04), max(base.rgb, vec3(0.0)), metallic);
-    vec3 fresnel = fresnelSchlick(hDotV, f0);
-    float distribution = distributionGGX(nDotH, roughness);
-    float geometry = geometrySmith(nDotV, nDotL, roughness);
-    vec3 specular = (distribution * geometry * fresnel) /
-        max(4.0 * nDotV * nDotL, EPSILON);
+        vec3 directionToLight = safeNormalize(toLight, vec3(0.0, 0.0, 1.0));
+        vec3 radiance =
+            max(cam.pointColorIntensity[i].rgb, vec3(0.0)) *
+            max(cam.pointColorIntensity[i].w, 0.0) *
+            attenuation;
+        direct += evaluateDirectLight(
+            base.rgb, normal, viewDirection, directionToLight, radiance, metallic, roughness);
+    }
 
-    vec3 kd = (vec3(1.0) - fresnel) * (1.0 - metallic);
-    vec3 diffuse = kd * base.rgb / PI;
-    vec3 direct = (nDotL > 0.0 && nDotV > 0.0)
-        ? (diffuse + specular) * radiance * nDotL
-        : vec3(0.0);
+    for (int i = 0; i < spotCount; ++i) {
+        vec3 toLight = cam.spotPositionRange[i].xyz - fragWorldPosition;
+        float distanceToLight = length(toLight);
+        float distanceAttenuation = pointAttenuation(distanceToLight, cam.spotPositionRange[i].w);
+        if (distanceAttenuation <= 0.0)
+            continue;
+
+        vec3 directionToLight = safeNormalize(toLight, vec3(0.0, 0.0, 1.0));
+        vec3 directionFromLightToFragment = -directionToLight;
+        vec3 spotDirection =
+            safeNormalize(cam.spotDirectionIntensity[i].xyz, vec3(0.0, 0.0, -1.0));
+        float coneCos = dot(directionFromLightToFragment, spotDirection);
+        float coneAttenuation = spotConeAttenuation(
+            coneCos,
+            cam.spotColorInnerCone[i].w,
+            cam.spotOuterCone[i].x);
+        if (coneAttenuation <= 0.0)
+            continue;
+
+        vec3 radiance =
+            max(cam.spotColorInnerCone[i].rgb, vec3(0.0)) *
+            max(cam.spotDirectionIntensity[i].w, 0.0) *
+            distanceAttenuation *
+            coneAttenuation;
+        direct += evaluateDirectLight(
+            base.rgb, normal, viewDirection, directionToLight, radiance, metallic, roughness);
+    }
+
     vec3 ambient = base.rgb * (1.0 - metallic) * ambientIntensity;
-
     outColor = vec4(max(ambient + direct, vec3(0.0)), base.a);
 }

@@ -1,19 +1,25 @@
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
+#include <limits>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
 #include "BitmapFont.h"
+#include "CameraUBO.h"
 #include "CameraGpuComponent.h"
 #include "DirectionalLightComponent.h"
-#include "DirectionalLightExtraction.h"
 #include "ECSWorld.hpp"
 #include "EcsControllerContext.hpp"
 #include "IResourceProvider.hpp"
+#include "LightExtraction.h"
 #include "LightingFrameData.h"
 #include "MaterialRuntime.h"
+#include "PointLightComponent.h"
 #include "RenderExtractionSnapshotBuilder.hpp"
+#include "SpotLightComponent.h"
 #include "TransformComponent.h"
 #include "TransformHierarchyHelpers.h"
 #include "TransformMatrixHelpers.h"
@@ -178,7 +184,7 @@ namespace
         return instance;
     }
 
-    bool activeDirectionalLightSelectionIsExplicit()
+    bool directionalLightSelectionIsPriorityBounded()
     {
         ECSWorld world;
         gts::transform::installTransformFeature(world);
@@ -194,15 +200,30 @@ namespace
         activeLight.active = true;
         activeLight.color = {0.0f, 1.0f, 0.0f};
         activeLight.intensity = 2.0f;
+        activeLight.priority = 4;
         world.addComponent(active, activeLight);
 
-        resolveTransforms(world);
-        const gts::rendering::DirectionalLightFrameData frame =
-            gts::rendering::extractDirectionalLightFrameData(world);
+        Entity higherPriority = createTransformEntity(world);
+        DirectionalLightComponent highLight;
+        highLight.active = true;
+        highLight.color = {0.0f, 0.0f, 1.0f};
+        highLight.intensity = 3.0f;
+        highLight.priority = 9;
+        world.addComponent(higherPriority, highLight);
 
-        return require(frame.active, "active directional light is selected")
-            && require(nearVec3(frame.color, {0.0f, 1.0f, 0.0f}), "inactive lights are skipped")
-            && require(near(frame.intensity, 2.0f), "light intensity is copied to frame data");
+        resolveTransforms(world);
+        const gts::rendering::LightingFrameData frame =
+            gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
+
+        return require(frame.directionalCount == 2, "two active directional lights are selected")
+            && require(nearVec3(frame.directional[0].color, {0.0f, 0.0f, 1.0f}),
+                       "directional lights are priority-sorted")
+            && require(near(frame.directional[0].intensity, 3.0f),
+                       "directional light intensity is copied to frame data")
+            && require(frame.diagnostics.totalDirectionalLights == 3,
+                       "directional diagnostics count found lights")
+            && require(frame.diagnostics.droppedDirectionalLights == 0,
+                       "directional selection reports no drops within capacity");
     }
 
     bool noActiveLightFallsBackToAmbientOnly()
@@ -217,12 +238,11 @@ namespace
         world.addComponent(lightEntity, light);
 
         resolveTransforms(world);
-        const gts::rendering::DirectionalLightFrameData frame =
-            gts::rendering::extractDirectionalLightFrameData(world);
+        const gts::rendering::LightingFrameData frame =
+            gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
 
-        return require(!frame.active, "no active light reports inactive frame data")
-            && require(near(frame.intensity, 0.0f), "inactive fallback has zero direct intensity")
-            && require(near(frame.ambientIntensity, 0.12f), "inactive fallback keeps ambient contribution");
+        return require(frame.directionalCount == 0, "no active light reports empty directional frame data")
+            && require(near(frame.ambientIntensity, 0.12f), "no-light fallback keeps ambient contribution");
     }
 
     bool parentedLightUsesResolvedWorldTransform()
@@ -242,10 +262,11 @@ namespace
         require(gts::transform::attachToParent(world, child, parent), "attach light child to parent");
 
         resolveTransforms(world);
-        const gts::rendering::DirectionalLightFrameData frame =
-            gts::rendering::extractDirectionalLightFrameData(world);
+        const gts::rendering::LightingFrameData frame =
+            gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
 
-        return require(nearVec3(frame.directionToLight, {1.0f, 0.0f, 0.0f}),
+        return require(frame.directionalCount == 1, "parented light is selected")
+            && require(nearVec3(frame.directional[0].directionToLight, {1.0f, 0.0f, 0.0f}),
                        "light direction is resolved from parented world transform");
     }
 
@@ -261,16 +282,152 @@ namespace
         world.addComponent(lightEntity, light);
         resolveTransforms(world);
 
-        auto first = gts::rendering::extractDirectionalLightFrameData(world);
+        auto first = gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
         auto& editable = world.getComponent<DirectionalLightComponent>(lightEntity);
         editable.intensity = 3.5f;
         editable.color = {0.25f, 0.5f, 0.75f};
-        auto second = gts::rendering::extractDirectionalLightFrameData(world);
+        auto second = gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
 
-        return require(near(first.intensity, 1.0f), "first light extraction sees initial intensity")
-            && require(near(second.intensity, 3.5f), "light intensity mutation reaches extraction")
-            && require(nearVec3(second.color, {0.25f, 0.5f, 0.75f}),
+        return require(first.directionalCount == 1 && near(first.directional[0].intensity, 1.0f),
+                       "first light extraction sees initial intensity")
+            && require(second.directionalCount == 1 && near(second.directional[0].intensity, 3.5f),
+                       "light intensity mutation reaches extraction")
+            && require(nearVec3(second.directional[0].color, {0.25f, 0.5f, 0.75f}),
                        "light color mutation reaches extraction");
+    }
+
+    bool pointAndSpotLightsUseResolvedWorldTransforms()
+    {
+        ECSWorld world;
+        gts::transform::installTransformFeature(world);
+
+        Entity point = createTransformEntity(world, {2.0f, 3.0f, 4.0f});
+        PointLightComponent pointLight;
+        pointLight.color = {0.25f, 0.5f, 1.0f};
+        pointLight.range = 8.0f;
+        world.addComponent(point, pointLight);
+
+        constexpr float HalfPi = 1.57079632679f;
+        Entity parent = createTransformEntity(world, {0.0f, 0.0f, 0.0f}, {0.0f, HalfPi, 0.0f});
+        Entity spot = createTransformEntity(world);
+        SpotLightComponent spotLight;
+        spotLight.range = 6.0f;
+        spotLight.innerConeAngle = glm::radians(10.0f);
+        spotLight.outerConeAngle = glm::radians(25.0f);
+        world.addComponent(spot, spotLight);
+        require(gts::transform::attachToParent(world, spot, parent), "attach spot light to parent");
+
+        resolveTransforms(world);
+        const gts::rendering::LightingFrameData frame =
+            gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
+
+        return require(frame.pointCount == 1, "point light is extracted")
+            && require(nearVec3(frame.point[0].position, {2.0f, 3.0f, 4.0f}),
+                       "point light position comes from world transform")
+            && require(frame.spotCount == 1, "spot light is extracted")
+            && require(nearVec3(frame.spot[0].directionFromLight, {-1.0f, 0.0f, 0.0f}),
+                       "spot cone direction comes from resolved world transform")
+            && require(frame.spot[0].innerConeCos > frame.spot[0].outerConeCos,
+                       "spot cone angles are converted to cosine thresholds");
+    }
+
+    bool localLightSelectionIsPriorityDistanceAndCapacityBounded()
+    {
+        ECSWorld world;
+        gts::transform::installTransformFeature(world);
+
+        for (uint32_t i = 0; i < gts::rendering::MaxPointLights + 2; ++i)
+        {
+            Entity entity = createTransformEntity(world, {static_cast<float>(i), 0.0f, 0.0f});
+            PointLightComponent light;
+            light.priority = 0;
+            light.range = 4.0f;
+            world.addComponent(entity, light);
+        }
+
+        Entity farHighPriority = createTransformEntity(world, {100.0f, 0.0f, 0.0f});
+        PointLightComponent highPriority;
+        highPriority.priority = 100;
+        highPriority.range = 5.0f;
+        highPriority.color = {1.0f, 0.0f, 0.0f};
+        world.addComponent(farHighPriority, highPriority);
+
+        resolveTransforms(world);
+        const gts::rendering::LightingFrameData first =
+            gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
+        const gts::rendering::LightingFrameData second =
+            gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
+
+        return require(first.pointCount == gts::rendering::MaxPointLights,
+                       "point light selection is bounded by capacity")
+            && require(first.diagnostics.droppedPointLights == 3,
+                       "point light diagnostics report capacity drops")
+            && require(nearVec3(first.point[0].color, {1.0f, 0.0f, 0.0f}),
+                       "priority outranks camera distance")
+            && require(nearVec3(first.point[1].position, {0.0f, 0.0f, 0.0f}),
+                       "camera distance orders equal-priority local lights")
+            && require(second.pointCount == first.pointCount &&
+                       nearVec3(second.point[0].position, first.point[0].position) &&
+                       nearVec3(second.point[1].position, first.point[1].position),
+                       "repeated light extraction is deterministic");
+    }
+
+    bool invalidLightValuesAreSanitized()
+    {
+        ECSWorld world;
+        gts::transform::installTransformFeature(world);
+
+        Entity point = createTransformEntity(world);
+        PointLightComponent pointLight;
+        pointLight.color = {-1.0f, 0.5f, std::numeric_limits<float>::quiet_NaN()};
+        pointLight.intensity = -2.0f;
+        pointLight.range = -10.0f;
+        world.addComponent(point, pointLight);
+
+        Entity spot = createTransformEntity(world);
+        SpotLightComponent spotLight;
+        spotLight.innerConeAngle = glm::radians(35.0f);
+        spotLight.outerConeAngle = glm::radians(10.0f);
+        spotLight.range = 0.0f;
+        world.addComponent(spot, spotLight);
+
+        resolveTransforms(world);
+        const gts::rendering::LightingFrameData frame =
+            gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
+
+        return require(frame.pointCount == 1 && frame.spotCount == 1,
+                       "invalid but enabled local lights are still extracted with sanitized values")
+            && require(near(frame.point[0].intensity, 0.0f), "negative point intensity clamps to zero")
+            && require(near(frame.point[0].range, gts::rendering::MinLightRange),
+                       "invalid point range clamps to minimum")
+            && require(nearVec3(frame.point[0].color, {0.0f, 0.5f, 0.0f}),
+                       "invalid point color channels clamp deterministically")
+            && require(frame.spot[0].innerConeCos > frame.spot[0].outerConeCos,
+                       "invalid spot cones are sanitized to ordered cosine thresholds")
+            && require(frame.diagnostics.sanitizedLights >= 2,
+                       "lighting diagnostics count sanitized descriptors");
+    }
+
+    bool attenuationHelpersAreFiniteAndBounded()
+    {
+        const float nearOrigin = gts::rendering::pointLightAttenuation(0.0f, 5.0f);
+        const float inside = gts::rendering::pointLightAttenuation(2.5f, 5.0f);
+        const float nearEdge = gts::rendering::pointLightAttenuation(4.8f, 5.0f);
+        const float outside = gts::rendering::pointLightAttenuation(5.1f, 5.0f);
+        const float insideCone = gts::rendering::spotConeAttenuation(0.95f, 0.9f, 0.7f);
+        const float betweenCone = gts::rendering::spotConeAttenuation(0.8f, 0.9f, 0.7f);
+        const float outsideCone = gts::rendering::spotConeAttenuation(0.6f, 0.9f, 0.7f);
+
+        return require(std::isfinite(nearOrigin) && nearOrigin > 0.0f,
+                       "point attenuation is finite at the light origin")
+            && require(inside > 0.0f, "point attenuation is positive inside range")
+            && require(nearEdge > 0.0f && nearEdge < inside,
+                       "point attenuation smoothly falls near the range boundary")
+            && require(near(outside, 0.0f), "point attenuation is zero outside range")
+            && require(near(insideCone, 1.0f), "spot attenuation is full inside inner cone")
+            && require(betweenCone > 0.0f && betweenCone < 1.0f,
+                       "spot attenuation falls between cone thresholds")
+            && require(near(outsideCone, 0.0f), "spot attenuation is zero outside outer cone");
     }
 
     bool litMaterialVariantAndParametersAreSeparated()
@@ -405,7 +562,6 @@ namespace
         light.directionToLight = {0.0f, 0.0f, 1.0f};
         light.color = {1.0f, 1.0f, 1.0f};
         light.intensity = 1.0f;
-        light.ambientIntensity = 0.0f;
 
         const glm::vec4 dielectricLit = gts::rendering::evaluateMetallicRoughnessDirectLighting(
             {1.0f, 0.5f, 0.25f, 1.0f},
@@ -414,6 +570,7 @@ namespace
             {0.0f, 0.0f, 0.0f},
             {0.0f, 0.0f, 1.0f},
             light,
+            0.0f,
             0.0f,
             0.5f);
 
@@ -425,10 +582,10 @@ namespace
             {0.0f, 0.0f, 1.0f},
             light,
             0.0f,
+            0.0f,
             0.5f);
 
         light.intensity = 0.0f;
-        light.ambientIntensity = 0.2f;
         const glm::vec4 dielectricAmbient = gts::rendering::evaluateMetallicRoughnessDirectLighting(
             {0.5f, 0.25f, 0.0f, 0.75f},
             {1.0f, 1.0f, 1.0f, 1.0f},
@@ -436,6 +593,7 @@ namespace
             {0.0f, 0.0f, 0.0f},
             {0.0f, 0.0f, 1.0f},
             light,
+            0.2f,
             0.0f,
             0.5f);
         const glm::vec4 metallicAmbient = gts::rendering::evaluateMetallicRoughnessDirectLighting(
@@ -445,6 +603,7 @@ namespace
             {0.0f, 0.0f, 0.0f},
             {0.0f, 0.0f, 1.0f},
             light,
+            0.2f,
             1.0f,
             0.5f);
 
@@ -470,7 +629,6 @@ namespace
         light.directionToLight = glm::normalize(glm::vec3(0.25f, 0.4f, 1.0f));
         light.color = {1.0f, 0.96f, 0.9f};
         light.intensity = 2.0f;
-        light.ambientIntensity = 0.05f;
 
         const float metallicValues[] = {0.0f, 0.5f, 1.0f};
         const float roughnessValues[] = {MaterialMinimumRoughness, 0.5f, 1.0f};
@@ -485,6 +643,7 @@ namespace
                     {0.0f, 0.0f, 0.0f},
                     {0.0f, 0.0f, 2.0f},
                     light,
+                    0.05f,
                     metallic,
                     roughness);
                 if (!std::isfinite(sample.x) || !std::isfinite(sample.y) ||
@@ -555,21 +714,81 @@ namespace
                        "snapshot publishes active camera world position")
             && require(nearVec3(upload.cameraWorldPosition, {2.0f, 3.0f, 4.0f}),
                        "camera upload carries camera world position")
-            && require(upload.directionalLight.active, "camera upload carries active light frame")
-            && require(near(upload.directionalLight.intensity, 4.0f),
+            && require(upload.lighting.directionalCount == 1,
+                       "camera upload carries selected generic lighting frame")
+            && require(near(upload.lighting.directional[0].intensity, 4.0f),
                        "camera upload carries light intensity")
-            && require(near(upload.directionalLight.ambientIntensity, 0.25f),
+            && require(near(upload.lighting.ambientIntensity, 0.25f),
                        "camera upload carries ambient intensity");
+    }
+
+    bool lightingChangesRemainFrameLevelState()
+    {
+        ECSWorld world;
+        gts::transform::installTransformFeature(world);
+
+        auto& materials = gts::rendering::materialRuntime(world);
+        MaterialDefinition definition;
+        definition.shaderFamily = MaterialShaderFamily::StandardSurface;
+        const MaterialDefinitionHandle definitionHandle = materials.createDefinition(definition);
+        const MaterialInstanceHandle material = materials.createInstance(makeInstance(definitionHandle));
+        const uint64_t versionBefore = materials.getInstance(material)->version;
+        const MaterialVariantKey variantBefore =
+            makeMaterialVariantKey(MaterialShaderFamily::StandardSurface, *materials.getInstance(material));
+
+        Entity point = createTransformEntity(world);
+        PointLightComponent light;
+        light.intensity = 2.0f;
+        world.addComponent(point, light);
+        resolveTransforms(world);
+        gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
+
+        world.getComponent<PointLightComponent>(point).intensity = 8.0f;
+        gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
+
+        const MaterialInstance* instance = materials.getInstance(material);
+        return require(instance != nullptr, "material instance remains valid after light changes")
+            && require(instance->version == versionBefore,
+                       "light changes do not mutate material versions")
+            && require(makeMaterialVariantKey(MaterialShaderFamily::StandardSurface, *instance) == variantBefore,
+                       "light changes do not alter material variant identity");
+    }
+
+    bool cameraUboPackingMatchesShaderCapacities()
+    {
+        static_assert(std::is_standard_layout_v<CameraUBO>);
+        static_assert(std::is_standard_layout_v<GpuDirectionalLightData>);
+        static_assert(std::is_standard_layout_v<GpuPointLightData>);
+        static_assert(std::is_standard_layout_v<GpuSpotLightData>);
+
+        return require(sizeof(GpuDirectionalLightData) == sizeof(glm::vec4) * 2,
+                       "directional GPU light packing is two vec4s")
+            && require(sizeof(GpuPointLightData) == sizeof(glm::vec4) * 2,
+                       "point GPU light packing is two vec4s")
+            && require(sizeof(GpuSpotLightData) == sizeof(glm::vec4) * 4,
+                       "spot GPU light packing is four vec4s")
+            && require(offsetof(CameraUBO, directional) > offsetof(CameraUBO, lightingCountsAmbient),
+                       "directional light array follows lighting counts")
+            && require(offsetof(CameraUBO, point) > offsetof(CameraUBO, directional),
+                       "point light array follows directional lights")
+            && require(offsetof(CameraUBO, spot) > offsetof(CameraUBO, point),
+                       "spot light array follows point lights")
+            && require(sizeof(CameraUBO) < 16u * 1024u,
+                       "bounded lighting UBO stays comfortably below common uniform limits");
     }
 }
 
 int main()
 {
     bool ok = true;
-    ok = activeDirectionalLightSelectionIsExplicit() && ok;
+    ok = directionalLightSelectionIsPriorityBounded() && ok;
     ok = noActiveLightFallsBackToAmbientOnly() && ok;
     ok = parentedLightUsesResolvedWorldTransform() && ok;
     ok = lightMutationUpdatesExtractedFrameData() && ok;
+    ok = pointAndSpotLightsUseResolvedWorldTransforms() && ok;
+    ok = localLightSelectionIsPriorityDistanceAndCapacityBounded() && ok;
+    ok = invalidLightValuesAreSanitized() && ok;
+    ok = attenuationHelpersAreFiniteAndBounded() && ok;
     ok = litMaterialVariantAndParametersAreSeparated() && ok;
     ok = normalTransformationHandlesScaleAndReflection() && ok;
     ok = pbrHelpersProduceFinitePhysicallyBoundedTerms() && ok;
@@ -577,6 +796,8 @@ int main()
     ok = pbrValidationGridFixtureProducesFiniteSamples() && ok;
     ok = textureColorSpaceClassificationIsExplicit() && ok;
     ok = extractionPublishesCameraPositionAndLightFrameData() && ok;
+    ok = lightingChangesRemainFrameLevelState() && ok;
+    ok = cameraUboPackingMatchesShaderCapacities() && ok;
 
     if (!ok)
         return 1;

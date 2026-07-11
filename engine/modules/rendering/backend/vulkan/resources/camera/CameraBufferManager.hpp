@@ -114,7 +114,7 @@ class CameraBufferManager
                 view,
                 proj,
                 {0.0f, 0.0f, 0.0f},
-                gts::rendering::defaultDirectionalLightFrameData());
+                gts::rendering::defaultLightingFrameData());
 
             for (void* mapped : res->uniformBuffersMapped)
                 memcpy(mapped, &ubo, sizeof(CameraUBO));
@@ -127,13 +127,13 @@ class CameraBufferManager
                              const glm::mat4& view,
                              const glm::mat4& proj,
                              const glm::vec3& cameraWorldPosition,
-                             const gts::rendering::DirectionalLightFrameData& directionalLight)
+                             const gts::rendering::LightingFrameData& lighting)
         {
             CameraBufferResource* res = getView(id);
             if (!res || frameIndex >= res->uniformBuffersMapped.size())
                 return;
 
-            const CameraUBO ubo = makeCameraUbo(view, proj, cameraWorldPosition, directionalLight);
+            const CameraUBO ubo = makeCameraUbo(view, proj, cameraWorldPosition, lighting);
             memcpy(res->uniformBuffersMapped[frameIndex], &ubo, sizeof(CameraUBO));
         }
 
@@ -142,20 +142,41 @@ class CameraBufferManager
             const glm::mat4& view,
             const glm::mat4& proj,
             const glm::vec3& cameraWorldPosition,
-            const gts::rendering::DirectionalLightFrameData& directionalLight)
+            const gts::rendering::LightingFrameData& lighting)
         {
-            CameraUBO ubo;
+            CameraUBO ubo{};
             ubo.view = view;
             ubo.proj = proj;
             ubo.cameraPosition = {cameraWorldPosition, 1.0f};
-            ubo.lightDirectionIntensity = {
-                directionalLight.directionToLight,
-                directionalLight.active ? directionalLight.intensity : 0.0f
+            ubo.lightingCountsAmbient = {
+                static_cast<float>(lighting.directionalCount),
+                static_cast<float>(lighting.pointCount),
+                static_cast<float>(lighting.spotCount),
+                lighting.ambientIntensity
             };
-            ubo.lightColorAmbient = {
-                directionalLight.color,
-                directionalLight.ambientIntensity
-            };
+
+            for (uint32_t i = 0; i < lighting.directionalCount && i < gts::rendering::MaxDirectionalLights; ++i)
+            {
+                const auto& light = lighting.directional[i];
+                ubo.directional[i].directionIntensity = {light.directionToLight, light.intensity};
+                ubo.directional[i].color = {light.color, 0.0f};
+            }
+
+            for (uint32_t i = 0; i < lighting.pointCount && i < gts::rendering::MaxPointLights; ++i)
+            {
+                const auto& light = lighting.point[i];
+                ubo.point[i].positionRange = {light.position, light.range};
+                ubo.point[i].colorIntensity = {light.color, light.intensity};
+            }
+
+            for (uint32_t i = 0; i < lighting.spotCount && i < gts::rendering::MaxSpotLights; ++i)
+            {
+                const auto& light = lighting.spot[i];
+                ubo.spot[i].positionRange = {light.position, light.range};
+                ubo.spot[i].directionIntensity = {light.directionFromLight, light.intensity};
+                ubo.spot[i].colorInnerCone = {light.color, light.innerConeCos};
+                ubo.spot[i].outerCone = {light.outerConeCos, 0.0f, 0.0f, 0.0f};
+            }
             return ubo;
         }
 

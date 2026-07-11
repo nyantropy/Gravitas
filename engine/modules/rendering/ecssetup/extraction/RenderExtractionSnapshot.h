@@ -52,8 +52,8 @@ struct RenderExtractionSnapshot
     std::vector<ObjectUploadCommand> objectUploads;
     std::vector<CameraUploadCommand> cameraUploads;
     MaterialFrameData                materialFrameData;
-    gts::rendering::DirectionalLightFrameData directionalLight =
-        gts::rendering::defaultDirectionalLightFrameData();
+    gts::rendering::LightingFrameData lighting =
+        gts::rendering::defaultLightingFrameData();
     FrustumPlanes                    frustum{};
     glm::mat4                        cameraViewMatrix = glm::mat4(1.0f);
     glm::vec3                        cameraWorldPosition = {0.0f, 0.0f, 0.0f};

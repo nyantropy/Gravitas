@@ -430,36 +430,78 @@ authoritative render-command field.
 
 ### Scene Lighting
 
-Lights are scene data. Applications author `DirectionalLightComponent` on an
-entity, while direction is resolved from that entity's
-`WorldTransformComponent`. Directional lights follow this convention:
+Lights are scene data. Applications author light descriptors on entities, while
+spatial meaning is resolved from `WorldTransformComponent` during extraction.
+The renderer receives immutable frame-level light arrays and never searches ECS
+for lights during backend submission.
 
-- local `-Z` is the direction light rays travel
-- shaders receive the opposite vector, local `+Z` transformed to world space,
-  as `directionToLight`
+Supported scene light descriptors are:
 
-Phase 3A supports one active directional light. Selection is explicit:
-`DirectionalLightComponent::active` marks candidates, disabled lights are
-ignored, and the first enabled active light in deterministic entity-ID order is
-used. If no active directional light exists, lit materials receive ambient
-contribution only.
+- `DirectionalLightComponent`: direction-only light. Local `-Z` is the
+  direction light rays travel; shaders receive the opposite world-space vector
+  as `directionToLight`. The legacy `active` flag remains a compatibility gate
+  from the original single-light path, but multiple active directional lights
+  may now be selected by priority.
+- `PointLightComponent`: local radiance from the entity world position, with
+  authored `color`, `intensity`, `range`, `enabled`, and `priority`.
+- `SpotLightComponent`: local radiance from the entity world position, pointing
+  along local `-Z`, with authored `range`, `innerConeAngle`, and
+  `outerConeAngle` in radians.
 
-Light extraction happens before backend submission and publishes
-backend-independent `DirectionalLightFrameData`:
+Light extraction publishes bounded backend-independent frame data:
 
 ```
-DirectionalLightFrameData {
-    glm::vec3 directionToLight
-    float     intensity
-    glm::vec3 color
-    float     ambientIntensity
-    bool      active
+LightingFrameData {
+    DirectionalLightFrameData directional[2]
+    PointLightFrameData       point[32]
+    SpotLightFrameData        spot[16]
+    uint32_t                  directionalCount
+    uint32_t                  pointCount
+    uint32_t                  spotCount
+    float                     ambientIntensity
+    LightingDiagnostics       diagnostics
 }
 ```
 
-The Vulkan backend stores this frame light data in the existing camera/frame
-UBO alongside view/projection and camera world position. It does not search ECS
-for lights, and light state is not duplicated per material or per object.
+Selection is deterministic. Directional candidates are enabled and active, then
+ranked by `priority` descending and stable entity ID ascending. Point and spot
+lights are enabled, then ranked by `priority` descending, distance to the active
+camera ascending, and stable entity ID ascending. Excess lights are dropped
+after the fixed capacities above, with diagnostics counting total, selected,
+dropped, and sanitized descriptors. Disabled lights are excluded. If no
+directional light is selected, lit materials receive the temporary ambient
+fallback only from the frame's default ambient intensity.
+
+Authored values are sanitized during extraction: negative or non-finite
+intensity becomes zero, range is clamped to at least `0.01`, light colors clamp
+to nonnegative finite values, and spot cones are clamped to valid ordered
+angles before cosine thresholds are stored. Spot cone cosines are computed once
+on the CPU, not per fragment.
+
+Point and spot lights use finite-range inverse-square attenuation with a smooth
+cutoff:
+
+```
+distanceSquared     = max(distance * distance, 0.01)
+normalizedDistance  = saturate(distance / range)
+cutoff              = saturate(1 - normalizedDistance^4)^2
+attenuation         = cutoff / distanceSquared
+```
+
+Spot lights multiply this distance attenuation by cone attenuation:
+
+```
+coneCos = dot(directionFromLightToFragment, spotForward)
+cone    = smoothstep(outerConeCos, innerConeCos, coneCos)
+```
+
+The Vulkan backend stores the generic lighting frame in the existing
+camera/frame UBO beside view/projection and camera world position. The current
+payload comfortably fits in a UBO, so Phase 3C keeps one frame-level lighting
+binding instead of introducing an SSBO or per-light allocations. Light state is
+not duplicated per material, per object, or per render command. Future
+clustered/tiled lighting should replace selection/upload strategy without
+changing material ownership or the direct BRDF.
 
 Scene-level render pass visibility is controlled at two layers. The stronger
 layer is the active `SceneExecutionProfile`: its `FrameBuildMode` determines
@@ -482,7 +524,7 @@ creates/removes `CameraGpuComponent`, `CameraGpuSystem` computes matrices, and
 `CameraBindingSystem` allocates the stable camera view ID. The renderer owns the
 actual camera UBO upload: extraction packages the active camera matrices into
 `CameraUploadCommand` together with camera world position and extracted
-directional-light frame data, and `ForwardRenderer` writes the current frame's
+`LightingFrameData`, and `ForwardRenderer` writes the current frame's
 camera UBO only after waiting for that frame's fence. This keeps camera/light
 frame data in sync with uncapped rendering without racing frames in flight.
 Engine consumers that need final camera matrices outside the renderer should
@@ -532,6 +574,9 @@ runtime companion components and systems.
 | `WorldTextComponent` | World-space text, font asset path, scale, and tint |
 | `BoundsComponent` | Local AABB used for frustum culling |
 | `CameraDescriptionComponent` | FOV, near/far clip planes |
+| `DirectionalLightComponent` | Directional light authoring data; direction comes from resolved world rotation |
+| `PointLightComponent` | Point light authoring data; position comes from resolved world transform |
+| `SpotLightComponent` | Spot light authoring data; position and cone direction come from resolved world transform |
 | `PhysicsBodyComponent` | Dynamic vs static body flag |
 | `ParticleEmitterComponent` | Application-facing particle emitter descriptor paired with `TransformComponent` |
 
@@ -779,7 +824,7 @@ CameraUploadCommand {
     glm::mat4    viewMatrix
     glm::mat4    projMatrix
     glm::vec3    cameraWorldPosition
-    DirectionalLightFrameData directionalLight
+    LightingFrameData lighting
 }
 ```
 
@@ -789,7 +834,7 @@ model matrix and scene-material UV transform. Camera uploads are generated every
 extracted frame for the active camera and consumed by the renderer after the
 current-frame fence wait. The camera UBO is frame-level data: scene shaders use
 it for view/projection, camera world position for specular lighting, and the
-extracted directional-light frame data.
+extracted bounded directional/point/spot lighting frame data.
 
 `vertexColorOnly` is a material variant flag for tool and debug meshes that
 should render from authored vertex colors without sampling a color texture. The
@@ -803,10 +848,10 @@ Scene shading is world-space:
 - the vertex shader transforms positions to world space
 - the vertex shader derives `transpose(inverse(mat3(modelMatrix)))` for
   world-space normals
-- the fragment shader reads camera world position and `DirectionalLightFrameData`
-  from the frame/camera UBO
-- `StandardSurface` materials evaluate direct directional lighting with a
-  Cook-Torrance metallic-roughness BRDF
+- the fragment shader reads camera world position and `LightingFrameData`
+  arrays from the frame/camera UBO
+- `StandardSurface` materials evaluate directional, point, and spot radiance
+  through one shared Cook-Torrance metallic-roughness BRDF
 - `LegacyUnlit` materials ignore light data and remain explicitly unlit
 
 The direct-light BRDF is:
@@ -821,7 +866,9 @@ Where `D` is GGX/Trowbridge-Reitz, `G` is Smith masking-shadowing using a
 Schlick-GGX approximation, and `F` is Schlick Fresnel. `F0` is `vec3(0.04)` for
 dielectrics and is mixed toward `baseColor.rgb` for metals. Roughness is
 perceptual and clamped to a documented minimum of `0.04` before the shader
-derives the microfacet alpha value.
+derives the microfacet alpha value. Light types differ only in how they produce
+`directionToLight` and `lightRadiance`; they do not have separate surface
+shading models.
 
 The current ambient term is intentionally a bounded fallback, not IBL:
 

@@ -17,8 +17,15 @@ layout(set = 0, binding = 0) uniform CameraUBO {
     mat4 view;
     mat4 proj;
     vec4 cameraPosition;
-    vec4 lightDirectionIntensity;
-    vec4 lightColorAmbient;
+    vec4 lightingCountsAmbient;
+    vec4 directionalDirectionIntensity[2];
+    vec4 directionalColor[2];
+    vec4 pointPositionRange[32];
+    vec4 pointColorIntensity[32];
+    vec4 spotPositionRange[16];
+    vec4 spotDirectionIntensity[16];
+    vec4 spotColorInnerCone[16];
+    vec4 spotOuterCone[16];
 } cam;
 
 struct ObjectData {

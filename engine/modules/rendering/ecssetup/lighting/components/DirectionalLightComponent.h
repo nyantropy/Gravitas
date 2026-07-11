@@ -12,5 +12,8 @@ struct DirectionalLightComponent
     float intensity = 1.0f;
     float ambientIntensity = 0.12f;
     bool enabled = true;
+    int priority = 0;
+    // Compatibility gate retained from the original single-light path.
+    // Multiple active directional lights may now be selected by priority.
     bool active = false;
 };

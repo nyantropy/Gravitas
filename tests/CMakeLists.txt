@@ -113,7 +113,7 @@ add_executable(FirstLitRendererArchitectureTest
 
 target_compile_features(FirstLitRendererArchitectureTest PRIVATE cxx_std_20)
 
-target_link_libraries(FirstLitRendererArchitectureTest PRIVATE gravitas_rendering)
+target_link_libraries(FirstLitRendererArchitectureTest PRIVATE gravitas_vulkan_backend)
 
 add_test(
     NAME first_lit_renderer_architecture

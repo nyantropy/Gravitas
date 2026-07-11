@@ -169,7 +169,7 @@ class RenderResourceManager : public IResourceProvider
                                    const glm::mat4& view,
                                    const glm::mat4& proj,
                                    const glm::vec3& cameraWorldPosition,
-                                   const gts::rendering::DirectionalLightFrameData& directionalLight)
+                                   const gts::rendering::LightingFrameData& lighting)
         {
             cameraBufferManager->uploadViewFrame(
                 frameIndex,
@@ -177,7 +177,7 @@ class RenderResourceManager : public IResourceProvider
                 view,
                 proj,
                 cameraWorldPosition,
-                directionalLight);
+                lighting);
         }
 
         // Backend-only: returns raw GPU resource for descriptor-set binding.
