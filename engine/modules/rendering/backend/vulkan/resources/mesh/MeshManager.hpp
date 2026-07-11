@@ -246,6 +246,12 @@ class MeshManager
 
             MeshResource* mesh = it->second.get();
 
+            // Dungeon floor rebuilds can remove many procedural renderables
+            // while the previous frame is still submitted. Match the update
+            // path's lifetime guarantee before freeing buffers referenced by
+            // recorded draw commands.
+            vkQueueWaitIdle(backendContext.graphicsQueue());
+
             if (mesh->vertexBuffer != VK_NULL_HANDLE)
                 vkDestroyBuffer(backendContext.device(), mesh->vertexBuffer, nullptr);
             if (mesh->vertexMemory != VK_NULL_HANDLE)

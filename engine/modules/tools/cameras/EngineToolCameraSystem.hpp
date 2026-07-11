@@ -20,6 +20,7 @@
 #include "ToolEntityLabelComponent.h"
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
+#include "TransformHierarchyHelpers.h"
 #include "TransformMatrixHelpers.h"
 #include "WorldTransformComponent.h"
 
@@ -160,12 +161,12 @@ namespace gts::tools
 
         static glm::vec3 worldCameraPosition(ECSWorld& world, Entity entity)
         {
-            if (world.hasComponent<WorldTransformComponent>(entity))
+            if (world.hasComponent<TransformComponent>(entity) ||
+                world.hasComponent<WorldTransformComponent>(entity))
+            {
                 return gts::transform::worldPositionFromMatrix(
-                    world.getComponent<WorldTransformComponent>(entity).matrix);
-
-            if (world.hasComponent<TransformComponent>(entity))
-                return world.getComponent<TransformComponent>(entity).position;
+                    gts::transform::resolvedWorldMatrix(world, entity));
+            }
 
             return glm::vec3(0.0f);
         }
