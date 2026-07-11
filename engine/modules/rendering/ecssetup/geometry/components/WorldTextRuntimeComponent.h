@@ -3,6 +3,7 @@
 #include <string>
 
 #include "GlmConfig.h"
+#include "MaterialTypes.h"
 #include "Types.h"
 
 // engine-owned runtime companion for WorldTextComponent
@@ -16,5 +17,7 @@ struct WorldTextRuntimeComponent
     std::string lastFontPath;
     float       lastScale = 1.0f;
     glm::vec4   lastTint  = {1.0f, 1.0f, 1.0f, 1.0f};
+    MaterialInstanceHandle material;
+    bool        materialInitialized = false;
     bool        initialized = false;
 };

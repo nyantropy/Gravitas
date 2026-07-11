@@ -11,7 +11,8 @@
 #include "ECSWorld.hpp"
 #include "FrustumCuller.h"
 #include "GraphicsConstants.h"
-#include "MaterialGpuComponent.h"
+#include "MaterialReferenceComponent.h"
+#include "MaterialRuntime.h"
 #include "MeshGpuComponent.h"
 #include "RenderDirtyComponent.h"
 #include "RenderExtractionSnapshot.h"
@@ -86,7 +87,7 @@ class RenderExtractionSnapshotBuilder
         {
             Entity e{entityId};
             if (!world.hasComponent<RenderDirtyComponent>(e) || !world.hasComponent<RenderGpuComponent>(e) ||
-                !world.hasComponent<MeshGpuComponent>(e) || !world.hasComponent<MaterialGpuComponent>(e))
+                !world.hasComponent<MeshGpuComponent>(e) || !world.hasComponent<MaterialReferenceComponent>(e))
             {
                 continue;
             }
@@ -94,7 +95,10 @@ class RenderExtractionSnapshotBuilder
             RenderDirtyComponent& dirty   = world.getComponent<RenderDirtyComponent>(e);
             RenderGpuComponent&   rc      = world.getComponent<RenderGpuComponent>(e);
             MeshGpuComponent&     meshGpu = world.getComponent<MeshGpuComponent>(e);
-            MaterialGpuComponent& matGpu  = world.getComponent<MaterialGpuComponent>(e);
+            MaterialReferenceComponent& materialRef = world.getComponent<MaterialReferenceComponent>(e);
+            const MaterialGpuState* materialGpu = gts::rendering::materialRuntime(world).getGpuState(materialRef.material);
+            if (materialGpu == nullptr)
+                continue;
 
             if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
                 continue;
@@ -179,12 +183,14 @@ class RenderExtractionSnapshotBuilder
 
             if (inserted || materialDirty)
             {
-                renderable.textureID       = matGpu.textureID;
-                renderable.tint            = matGpu.tint;
-                renderable.blendMode       = matGpu.blendMode;
-                renderable.doubleSided     = matGpu.doubleSided;
-                renderable.vertexColorOnly = matGpu.vertexColorOnly;
-                renderable.depthWrite      = matGpu.depthWrite;
+                renderable.material        = materialGpu->instance;
+                renderable.materialGpu     = materialGpu->gpuHandle;
+                renderable.textureID       = materialGpu->baseColorTextureID;
+                renderable.tint            = materialGpu->baseColor;
+                renderable.blendMode       = materialGpu->renderState.legacyBlendMode;
+                renderable.doubleSided     = materialGpu->renderState.doubleSided;
+                renderable.vertexColorOnly = materialGpu->vertexColorOnly;
+                renderable.depthWrite      = materialGpu->renderState.depthWrite;
                 sortKeyNeedsUpdate         = true;
             }
 

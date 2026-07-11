@@ -6,7 +6,8 @@
 #include "DynamicMeshComponent.h"
 #include "ECSWorld.hpp"
 #include "MaterialComponent.h"
-#include "MaterialGpuComponent.h"
+#include "MaterialReferenceComponent.h"
+#include "MaterialRuntime.h"
 #include "MeshGpuComponent.h"
 #include "QuadMeshComponent.h"
 #include "RenderDirtyComponent.h"
@@ -218,11 +219,15 @@ namespace gts::rendering
     inline bool hasAnyMaterialSource(ECSWorld& world, Entity entity)
     {
         return world.hasComponent<MaterialComponent>(entity)
+            || world.hasComponent<MaterialReferenceComponent>(entity)
             || world.hasComponent<WorldTextComponent>(entity);
     }
 
     inline bool hasRenderableMaterialDescriptor(ECSWorld& world, Entity entity)
     {
+        if (world.hasComponent<MaterialReferenceComponent>(entity))
+            return true;
+
         return legacyMaterialDescriptorUsable(world, entity)
             || worldTextMaterialDescriptorUsable(world, entity);
     }
@@ -241,8 +246,12 @@ namespace gts::rendering
 
     inline bool materialGpuReady(ECSWorld& world, Entity entity)
     {
-        return world.hasComponent<MaterialGpuComponent>(entity)
-            && world.getComponent<MaterialGpuComponent>(entity).textureID != 0;
+        if (!world.hasComponent<MaterialReferenceComponent>(entity))
+            return false;
+
+        const MaterialReferenceComponent& reference = world.getComponent<MaterialReferenceComponent>(entity);
+        const MaterialGpuState* state = materialRuntime(world).getGpuState(reference.material);
+        return state != nullptr && state->baseColorTextureID != 0;
     }
 
     inline void scheduleMeshGpuCleanup(ECSWorld& world,
@@ -251,14 +260,6 @@ namespace gts::rendering
     {
         if (world.hasComponent<MeshGpuComponent>(entity))
             commands.removeComponent<MeshGpuComponent>(entity);
-    }
-
-    inline void scheduleMaterialGpuCleanup(ECSWorld& world,
-                                           ECSWorld::EntityCommandBuffer& commands,
-                                           Entity entity)
-    {
-        if (world.hasComponent<MaterialGpuComponent>(entity))
-            commands.removeComponent<MaterialGpuComponent>(entity);
     }
 
     inline void scheduleRenderObjectCleanup(ECSWorld& world,
@@ -276,7 +277,6 @@ namespace gts::rendering
                                           Entity entity)
     {
         scheduleMeshGpuCleanup(world, commands, entity);
-        scheduleMaterialGpuCleanup(world, commands, entity);
         scheduleRenderObjectCleanup(world, commands, entity);
     }
 }

@@ -7,6 +7,8 @@
 #include "IResourceProvider.hpp"
 #include "MaterialBindingSystem.hpp"
 #include "MaterialComponent.h"
+#include "MaterialReferenceComponent.h"
+#include "MaterialRuntime.h"
 #include "MeshGpuComponent.h"
 #include "QuadMeshBindingSystem.hpp"
 #include "QuadMeshComponent.h"
@@ -31,6 +33,7 @@ namespace gts::rendering
     inline void resetRendererGeometrySceneFeature(ECSWorld& world)
     {
         resetGeometryBindingLifecycleState(world);
+        resetMaterialRuntime(world);
     }
 
     inline void installRendererGeometrySceneFeature(ECSWorld& world, IResourceProvider* resources)
@@ -100,7 +103,18 @@ namespace gts::rendering
         world.registerRemoveCallback<MaterialComponent>(
             [](ECSWorld& world, Entity entity, MaterialComponent&)
             {
+                queueMaterialRefresh(world, entity);
                 queueRenderableCleanup(world, entity);
+            });
+        world.registerAddCallback<MaterialReferenceComponent>(
+            [](ECSWorld& world, Entity entity, MaterialReferenceComponent&)
+            {
+                queueRenderObjectRefresh(world, entity);
+            });
+        world.registerRemoveCallback<MaterialReferenceComponent>(
+            [](ECSWorld& world, Entity entity, MaterialReferenceComponent&)
+            {
+                queueRenderObjectRefresh(world, entity);
             });
         world.registerAddCallback<TextureAnimationComponent>(
             [](ECSWorld& world, Entity entity, TextureAnimationComponent&)
@@ -147,22 +161,27 @@ namespace gts::rendering
             [](ECSWorld& world, Entity entity, WorldTextComponent&)
             {
                 if (world.hasComponent<WorldTextRuntimeComponent>(entity))
+                {
+                    WorldTextRuntimeComponent& runtime = world.getComponent<WorldTextRuntimeComponent>(entity);
+                    if (runtime.materialInitialized)
+                    {
+                        MaterialInstanceHandle material = runtime.material;
+                        materialRuntime(world).destroyInstance(material);
+                        if (world.hasComponent<MaterialReferenceComponent>(entity) &&
+                            world.getComponent<MaterialReferenceComponent>(entity).material == material)
+                        {
+                            world.commands().removeComponent<MaterialReferenceComponent>(entity);
+                        }
+                    }
+                }
+
+                if (world.hasComponent<WorldTextRuntimeComponent>(entity))
                     world.commands().removeComponent<WorldTextRuntimeComponent>(entity);
 
                 queueRenderableCleanup(world, entity);
             });
         world.registerAddCallback<MeshGpuComponent>(
             [](ECSWorld& world, Entity entity, MeshGpuComponent&)
-            {
-                queueRenderObjectRefresh(world, entity);
-            });
-        world.registerAddCallback<MaterialGpuComponent>(
-            [](ECSWorld& world, Entity entity, MaterialGpuComponent&)
-            {
-                queueRenderObjectRefresh(world, entity);
-            });
-        world.registerRemoveCallback<MaterialGpuComponent>(
-            [](ECSWorld& world, Entity entity, MaterialGpuComponent&)
             {
                 queueRenderObjectRefresh(world, entity);
             });
@@ -204,6 +223,11 @@ namespace gts::rendering
             [&world](Entity entity, MaterialComponent&)
             {
                 queueMaterialRefresh(world, entity);
+            });
+        world.forEachSnapshot<MaterialReferenceComponent>(
+            [&world](Entity entity, MaterialReferenceComponent&)
+            {
+                queueRenderObjectRefresh(world, entity);
             });
         world.forEachSnapshot<TextureAnimationComponent>(
             [&world](Entity entity, TextureAnimationComponent&)

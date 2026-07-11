@@ -32,6 +32,8 @@ struct RenderableSnapshot
     mesh_id_type    meshID = 0;
     texture_id_type textureID = 0;
     ssbo_id_type    objectSSBOSlot = 0;
+    MaterialInstanceHandle material;
+    MaterialGpuHandle      materialGpu;
 
     MaterialBlendMode blendMode = MaterialBlendMode::Alpha;
     bool          doubleSided = false;

@@ -35,6 +35,7 @@ target_include_directories(gravitas_rendering PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/core/commands"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/geometry"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/init"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/material"
 
     # Abstract interfaces (IGtsGraphicsModule, IResourceProvider)
     "${CMAKE_CURRENT_SOURCE_DIR}/core/interface"

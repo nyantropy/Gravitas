@@ -11,7 +11,8 @@
 #include "GeometryBindingLifecycle.h"
 #include "IResourceProvider.hpp"
 #include "MaterialComponent.h"
-#include "MaterialGpuComponent.h"
+#include "MaterialReferenceComponent.h"
+#include "MaterialRuntime.h"
 #include "MeshGpuComponent.h"
 #include "QuadMeshComponent.h"
 #include "RenderGpuComponent.h"
@@ -187,6 +188,27 @@ namespace
         return material;
     }
 
+    const MaterialGpuState* materialState(ECSWorld& world, Entity entity)
+    {
+        if (!world.hasComponent<MaterialReferenceComponent>(entity))
+            return nullptr;
+
+        return gts::rendering::materialRuntime(world).getGpuState(
+            world.getComponent<MaterialReferenceComponent>(entity).material);
+    }
+
+    bool hasSyncedMaterial(ECSWorld& world, Entity entity)
+    {
+        const MaterialGpuState* state = materialState(world, entity);
+        return state != nullptr && state->baseColorTextureID != 0;
+    }
+
+    texture_id_type materialTextureID(ECSWorld& world, Entity entity)
+    {
+        const MaterialGpuState* state = materialState(world, entity);
+        return state == nullptr ? 0 : state->baseColorTextureID;
+    }
+
     DynamicMeshComponent triangleMesh(uint64_t version)
     {
         DynamicMeshComponent mesh;
@@ -223,7 +245,8 @@ namespace
         update(world, resources);
 
         return require(world.hasComponent<MeshGpuComponent>(entity), "static mesh creates MeshGpuComponent")
-            && require(world.hasComponent<MaterialGpuComponent>(entity), "material creates MaterialGpuComponent")
+            && require(world.hasComponent<MaterialReferenceComponent>(entity), "material creates MaterialReferenceComponent")
+            && require(hasSyncedMaterial(world, entity), "material reference has synchronized GPU cache state")
             && require(world.hasComponent<RenderGpuComponent>(entity), "render object lifecycle creates RenderGpuComponent")
             && require(world.getComponent<RenderGpuComponent>(entity).readyToRender, "render object becomes ready")
             && require(resources.meshRequests == 1, "static mesh requested once")
@@ -265,13 +288,13 @@ namespace
         const Entity entity = createRenderable(world, mesh, materialWithTexture("textures/a.png"));
         update(world, resources);
 
-        const texture_id_type textureId = world.getComponent<MaterialGpuComponent>(entity).textureID;
+        const texture_id_type textureId = materialTextureID(world, entity);
         StaticMeshComponent& staticMesh = world.getComponent<StaticMeshComponent>(entity);
         staticMesh.meshPath = "mesh/b.obj";
         gts::rendering::queueStaticMeshRefresh(world, entity);
         update(world, resources);
 
-        return require(world.getComponent<MaterialGpuComponent>(entity).textureID == textureId,
+        return require(materialTextureID(world, entity) == textureId,
                        "mesh change preserves material GPU state")
             && require(resources.meshRequests == 2, "mesh change requests new mesh")
             && require(resources.textureRequests == 1, "mesh change does not request texture again");
@@ -292,7 +315,7 @@ namespace
 
         const bool meshReadyWithoutRenderObject =
             world.hasComponent<MeshGpuComponent>(entity)
-            && !world.hasComponent<MaterialGpuComponent>(entity)
+            && !world.hasComponent<MaterialReferenceComponent>(entity)
             && !world.hasComponent<RenderGpuComponent>(entity);
 
         world.addComponent(entity, materialWithTexture("textures/a.png"));
@@ -318,7 +341,8 @@ namespace
         update(world, resources);
 
         return require(!world.hasComponent<MeshGpuComponent>(entity), "geometry removal tears down mesh companion")
-            && require(world.hasComponent<MaterialGpuComponent>(entity), "material companion survives while material descriptor remains")
+            && require(world.hasComponent<MaterialReferenceComponent>(entity), "material reference survives while material descriptor remains")
+            && require(hasSyncedMaterial(world, entity), "material cache survives while material descriptor remains")
             && require(!world.hasComponent<RenderGpuComponent>(entity), "render object removed when geometry is gone")
             && require(resources.objectSlotReleases == 1, "object slot released exactly once");
     }
@@ -335,13 +359,13 @@ namespace
         world.addComponent(entity, materialWithTexture("textures/a.png"));
         update(world, resources);
 
-        const texture_id_type textureId = world.getComponent<MaterialGpuComponent>(entity).textureID;
+        const texture_id_type textureId = materialTextureID(world, entity);
         DynamicMeshComponent& mesh = world.getComponent<DynamicMeshComponent>(entity);
         mesh = triangleMesh(2);
         gts::rendering::queueDynamicMeshRefresh(world, entity);
         update(world, resources);
 
-        return require(world.getComponent<MaterialGpuComponent>(entity).textureID == textureId,
+        return require(materialTextureID(world, entity) == textureId,
                        "dynamic mesh update preserves material")
             && require(resources.proceduralUploads == 2, "dynamic mesh version uploads new geometry")
             && require(resources.textureRequests == 1, "dynamic mesh update does not request material texture again");
@@ -389,15 +413,16 @@ namespace
         world.addComponent(entity, BoundsComponent{});
         update(world, resources);
 
-        const texture_id_type atlas = world.getComponent<MaterialGpuComponent>(entity).textureID;
+        const texture_id_type atlas = materialTextureID(world, entity);
         WorldTextComponent& editableText = world.getComponent<WorldTextComponent>(entity);
         editableText.text = "AB";
         update(world, resources);
 
         return require(world.hasComponent<MeshGpuComponent>(entity), "world text creates mesh companion")
-            && require(world.hasComponent<MaterialGpuComponent>(entity), "world text creates material companion")
+            && require(world.hasComponent<MaterialReferenceComponent>(entity), "world text creates material reference")
+            && require(hasSyncedMaterial(world, entity), "world text creates synchronized material cache")
             && require(world.hasComponent<RenderGpuComponent>(entity), "world text creates render object")
-            && require(world.getComponent<MaterialGpuComponent>(entity).textureID == atlas,
+            && require(materialTextureID(world, entity) == atlas,
                        "world text rebuild preserves atlas material")
             && require(resources.proceduralUploads == 2, "world text text change rebuilds procedural mesh")
             && require(resources.objectSlotRequests == 1, "world text keeps one object slot");

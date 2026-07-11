@@ -3,7 +3,6 @@
 #include "ECSWorld.hpp"
 #include "GeometryBindingLifecycle.h"
 #include "IResourceProvider.hpp"
-#include "MaterialGpuComponent.h"
 #include "MeshGpuComponent.h"
 #include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"

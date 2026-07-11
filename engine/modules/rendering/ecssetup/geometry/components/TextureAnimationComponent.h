@@ -19,7 +19,7 @@ enum class TextureAnimationTimeMode
 };
 
 // gameplay-facing material animation descriptor
-// pair with MaterialComponent and a scene renderable descriptor
+// pair with MaterialReferenceComponent or legacy MaterialComponent and a scene renderable descriptor
 // the engine owns runtime time accumulation and writes UV state into object GPU data
 struct TextureAnimationComponent
 {

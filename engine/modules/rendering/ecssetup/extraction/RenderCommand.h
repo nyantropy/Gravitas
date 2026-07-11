@@ -2,7 +2,7 @@
 
 #include "GlmConfig.h"
 
-#include "MaterialComponent.h"
+#include "MaterialTypes.h"
 #include "Types.h"
 
 // Consumed by the renderer to produce one frame.
@@ -15,6 +15,8 @@ struct RenderCommand
     texture_id_type textureID;
     ssbo_id_type    objectSSBOSlot;
     view_id_type    cameraViewID;
+    MaterialInstanceHandle material;
+    MaterialGpuHandle      materialGpu;
 
     MaterialBlendMode blendMode = MaterialBlendMode::Alpha;
     bool      doubleSided       = false; // selects the no-cull pipeline variant in SceneRenderStage

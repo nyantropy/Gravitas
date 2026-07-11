@@ -2,19 +2,14 @@
 
 #include <string>
 #include "GlmConfig.h"
+#include "MaterialTypes.h"
 
 // gameplay-facing material description
 // contains appearance properties — no GPU handles
-// binding systems read this alongside mesh components and drive MaterialGpuComponent
+// the material adapter reads this and drives a MaterialInstanceHandle
 
 // to be used in conjunction with StaticMeshComponent, QuadMeshComponent, or DynamicMeshComponent
 // NOT needed for WorldTextComponent — the font atlas is implicit
-enum class MaterialBlendMode
-{
-    Alpha,
-    Additive
-};
-
 struct MaterialComponent
 {
     std::string texturePath;

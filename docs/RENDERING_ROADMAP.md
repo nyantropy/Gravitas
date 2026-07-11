@@ -6,7 +6,7 @@ Complete the transition from a working renderer into a scalable
 rendering architecture before expanding into full PBR and future
 rendering features.
 
-### Phase 2A --- Complete Transform Ownership (Current)
+### Phase 2A --- Complete Transform Ownership (Complete)
 
 Finish the ownership transition so **WorldTransformComponent** becomes
 the authoritative source of world-space data.
@@ -26,17 +26,24 @@ the authoritative source of world-space data.
 Separate mesh, material, and render-object lifecycle responsibilities
 into dedicated systems.
 
-### Phase 2C --- Assetize Materials
+Status: complete.
+
+### Phase 2C --- Material Asset Architecture (Complete)
 
 Introduce:
 
--   MaterialAsset
 -   MaterialDefinition
 -   MaterialInstance
 -   MaterialGpuState
+-   MaterialReferenceComponent
+-   MaterialRuntime
 
 Entities should reference material instances rather than embedding
 material state.
+
+Status: complete for material identity, sharing, fallback, and versioned GPU
+cache ownership. Full material asset files and PBR parameter sets remain future
+work on top of this ownership model.
 
 ### Phase 2D --- Simplify Extraction
 

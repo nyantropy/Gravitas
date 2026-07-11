@@ -71,6 +71,24 @@ set_tests_properties(render_lifecycle_ownership
         LABELS "gravitas;rendering;lifecycle"
 )
 
+add_executable(MaterialRuntimeArchitectureTest
+    rendering/MaterialRuntimeArchitectureTest.cpp
+)
+
+target_compile_features(MaterialRuntimeArchitectureTest PRIVATE cxx_std_20)
+
+target_link_libraries(MaterialRuntimeArchitectureTest PRIVATE gravitas_rendering)
+
+add_test(
+    NAME material_runtime_architecture
+    COMMAND MaterialRuntimeArchitectureTest
+)
+
+set_tests_properties(material_runtime_architecture
+    PROPERTIES
+        LABELS "gravitas;rendering;materials"
+)
+
 add_executable(UiLayerRuntimeTest
     ui/UiLayerRuntimeTest.cpp
 )

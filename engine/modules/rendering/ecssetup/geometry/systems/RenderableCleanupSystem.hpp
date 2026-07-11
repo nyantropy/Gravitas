@@ -2,7 +2,6 @@
 
 #include "ECSControllerSystem.hpp"
 #include "GeometryBindingLifecycle.h"
-#include "MaterialGpuComponent.h"
 #include "MeshGpuComponent.h"
 #include "RenderGpuComponent.h"
 #include "RenderObjectLifecycle.h"
@@ -25,9 +24,6 @@ public:
             Entity entity{entityId};
             if (!gts::rendering::hasRenderableGeometryDescriptor(ctx.world, entity))
                 gts::rendering::scheduleMeshGpuCleanup(ctx.world, commands, entity);
-
-            if (!gts::rendering::hasRenderableMaterialDescriptor(ctx.world, entity))
-                gts::rendering::scheduleMaterialGpuCleanup(ctx.world, commands, entity);
 
             if (!gts::rendering::renderObjectReady(ctx.world, entity))
                 gts::rendering::scheduleRenderObjectCleanup(ctx.world, commands, entity);

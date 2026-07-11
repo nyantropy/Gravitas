@@ -5,7 +5,7 @@
 #include "WorldTextComponent.h"
 #include "WorldTextRuntimeComponent.h"
 #include "BoundsComponent.h"
-#include "MaterialGpuComponent.h"
+#include "MaterialReferenceComponent.h"
 #include "MeshGpuComponent.h"
 #include "TransformComponent.h"
 #include "GlyphLayoutEngine.h"
@@ -54,7 +54,7 @@ public:
 
             const bool layoutChanged = textLayoutChanged(wtc, runtime);
             const bool materialChanged =
-                !ctx.world.hasComponent<MaterialGpuComponent>(e)
+                !ctx.world.hasComponent<MaterialReferenceComponent>(e)
                 || !runtime.initialized
                 || runtime.lastTint != wtc.tint
                 || runtime.lastFontPath != wtc.fontPath;

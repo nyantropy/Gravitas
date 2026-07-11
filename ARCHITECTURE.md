@@ -328,7 +328,7 @@ GPU resource release still happens through component removal callbacks, but desc
 
 The render lifecycle is split by concern:
 - **Mesh lifecycle** resolves static mesh / quad mesh / dynamic mesh / world-text mesh state and owns `MeshGpuComponent`
-- **Material lifecycle** resolves legacy per-entity material state and world-text atlas material state and owns `MaterialGpuComponent`
+- **Material lifecycle** resolves material references, legacy material adapters, world-text atlas materials, and per-instance `MaterialGpuState`
 - **Render-object lifecycle** decides readiness, owns `RenderGpuComponent` creation, and allocates object SSBO slots
 - **Renderable cleanup** tears down stale GPU companions regardless of descriptor source
 - **Camera lifecycle** owns `CameraGpuComponent` creation/removal independently of renderable lifecycle
@@ -337,12 +337,72 @@ The render lifecycle is split by concern:
 - **Render invalidation** queues snapshot dirtiness explicitly so steady-state extraction does not scan every renderable
 
 Mesh, material, and render-object lifecycle are intentionally independent.
-Changing material tint or texture must not recreate mesh state; changing mesh
-geometry must not recreate material state; object-slot allocation is centralized
-in the render-object lifecycle rather than repeated by every descriptor path.
-Queued descriptor changes may allow a newly bound renderable to participate in
-the same controller update because lifecycle systems run in mesh, material, then
-render-object order with deferred command flushes between systems.
+Changing material parameters or textures must not recreate mesh state; changing
+mesh geometry must not recreate material state; object-slot allocation is
+centralized in the render-object lifecycle rather than repeated by every
+descriptor path. Queued descriptor changes may allow a newly bound renderable
+to participate in the same controller update because lifecycle systems run in
+mesh, material, then render-object order with deferred command flushes between
+systems.
+
+### Material Runtime Architecture
+
+Materials have stable identity independent of ECS entities. A renderable uses a
+material; it does not own the material.
+
+`MaterialRuntime` is the CPU-side owner for:
+
+- `MaterialDefinition`: backend-independent material structure, currently
+  `LegacyUnlit` or a future `StandardSurface`
+- `MaterialInstance`: shared material parameter values, texture assignment,
+  render state, vertex-color-only mode, and an authoritative `version`
+- `MaterialGpuState`: a generic cached representation keyed by
+  `MaterialInstanceHandle`, storing resolved texture ID, base color, render
+  state, uploaded version, variant key, and an opaque `MaterialGpuHandle`
+- built-in fallback materials, including the default material and a
+  vertex-color-only material
+
+Material handles are small typed values with `id + generation`; `0` is invalid.
+They are backend-independent and never depend on ECS entity IDs. Destroyed or
+invalid material instance handles resolve to the runtime default material, so
+stale references cannot silently address reused material state.
+
+Entities reference material instances through `MaterialReferenceComponent`.
+Multiple entities may intentionally reference the same `MaterialInstanceHandle`.
+When that shared instance changes, `MaterialBindingSystem` synchronizes one GPU
+cache entry for the instance and marks every referencing renderable dirty.
+Each GPU cache entry tracks `uploadedVersion`, so one consumer observing a
+material update does not clear a shared dirty bit for other consumers.
+
+`MaterialComponent` remains a bounded legacy authoring adapter. It is converted
+by `MaterialBindingSystem` into a unique material instance tracked by
+`LegacyMaterialRuntimeComponent`; after conversion, the `MaterialInstance` is
+the runtime authority. Existing application code can keep authoring
+`MaterialComponent` during migration, but new sharing-oriented code should
+author or obtain a `MaterialInstanceHandle` and attach `MaterialReferenceComponent`.
+
+World text follows the same rule. `WorldTextBindingSystem` owns text-to-mesh
+generation and font resolution. `MaterialBindingSystem` creates or updates the
+world-text material instance from the font atlas texture and text tint.
+
+Shared material state currently includes texture assignment, base color/tint,
+alpha mode, alpha cutoff, double-sided state, depth-write state, legacy
+alpha/additive blend selection, and vertex-color-only mode. Per-object state
+remains in `RenderGpuComponent` and object uploads: model matrix, UV animation
+transform, and future object-specific IDs or overrides. Tint/base color is a
+shared material value; extraction copies it into object upload data only as a
+temporary compatibility bridge for the current backend.
+
+Alpha semantics use `MaterialAlphaMode`:
+
+- `Opaque`: opaque sorting/depth-writing material
+- `Mask`: architecturally reserved for alpha cutoff; shader discard support is
+  a later rendering phase
+- `Blend`: transparent/blended material
+
+The legacy `MaterialBlendMode` is retained only as a Phase 2C compatibility
+field so the current Vulkan scene stage can still select alpha/additive
+pipelines until render commands are modernized.
 
 Scene-level render pass visibility is controlled at two layers. The stronger
 layer is the active `SceneExecutionProfile`: its `FrameBuildMode` determines
@@ -408,7 +468,8 @@ runtime companion components and systems.
 | `StaticMeshComponent` | Asset path to mesh |
 | `QuadMeshComponent` | Width/height for shared generated quad meshes |
 | `DynamicMeshComponent` | Runtime-authored vertices/indices plus `geometryVersion` for uploaded mesh updates |
-| `MaterialComponent` | Texture path, tint color/opacity, culling, and optional vertex-color-only rendering |
+| `MaterialComponent` | Legacy texture path, tint color/opacity, culling, and optional vertex-color-only rendering; converted into a material instance |
+| `MaterialReferenceComponent` | Stable `MaterialInstanceHandle` used by renderables that share or explicitly reference materials |
 | `TextureAnimationComponent` | Optional per-object scene-material UV scrolling or flipbook atlas animation |
 | `WorldTextComponent` | World-space text, font asset path, scale, and tint |
 | `BoundsComponent` | Local AABB used for frustum culling |
@@ -433,9 +494,12 @@ mixed domain/rendering object.
 | Component | Managed By |
 |-----------|-----------|
 | `MeshGpuComponent` | mesh binding systems: `StaticMeshBindingSystem`, `QuadMeshBindingSystem`, `DynamicMeshBindingSystem`, and `WorldTextBindingSystem` |
-| `MaterialGpuComponent` | `MaterialBindingSystem` |
 | `RenderGpuComponent` | `RenderObjectLifecycleSystem` + `RenderableCleanupSystem` + `RenderGpuSystem` |
 | `CameraGpuComponent` | `CameraLifecycleSystem` + `CameraGpuSystem` + `CameraBindingSystem` for view IDs; renderer for UBO upload |
+
+`MaterialGpuState` is not an ECS component. It is stored in `MaterialRuntime`
+per `MaterialInstanceHandle` and reused by all renderables that reference that
+material instance.
 
 Particle emitters use a runtime companion component (`ParticleEmitterRuntimeComponent`)
 for simulation state, but particles are extracted into `ParticleFrameDataComponent`
@@ -447,9 +511,9 @@ renderer feature owns `WorldTextRuntimeComponent`. The runtime companion caches
 the last authored text/font/scale/tint values and the resolved `font_id_type`.
 `WorldTextBindingSystem` resolves the font and uploads glyph quads as runtime
 mesh data. `MaterialBindingSystem` mirrors the font atlas texture and tint into
-`MaterialGpuComponent`. Cleanup removes stale mesh, material, and render-object
-companions through the shared renderable cleanup path when the text has no
-visible glyphs.
+a material instance referenced by `MaterialReferenceComponent`. Cleanup removes
+stale mesh, material reference, and render-object companions through the shared
+renderable cleanup path when the text has no visible glyphs.
 
 Scene texture animation uses the same descriptor/runtime split:
 applications author `TextureAnimationComponent`, the renderer feature creates
@@ -511,6 +575,8 @@ The extractor output:
 ```
 RenderCommand {
     mesh_id_type       meshID
+    MaterialInstanceHandle material
+    MaterialGpuHandle  materialGpu
     texture_id_type    textureID
     ssbo_id_type       objectSSBOSlot    (per-object transform)
     view_id_type       cameraViewID      (camera UBO)
@@ -518,6 +584,10 @@ RenderCommand {
     bool               vertexColorOnly
 }
 ```
+`material` and `materialGpu` are the stable material identity path for Phase
+2D. `textureID`, tint upload data, and legacy blend flags remain in the command
+temporarily so the current backend can render unchanged.
+
 Opaque commands are sorted by (double-sided, vertex-color-only, meshID, textureID) to minimize state changes. Transparent commands are appended after opaque commands. Cached across frames; only rebuilt when renderable content, visibility, camera version, or active camera view changes.
 
 Render extraction also emits upload command side channels:

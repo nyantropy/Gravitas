@@ -79,6 +79,8 @@ class RenderCommandExtractor
                                               cached.command.meshID != renderable.meshID ||
                                               cached.command.textureID != renderable.textureID ||
                                               cached.command.objectSSBOSlot != renderable.objectSSBOSlot ||
+                                              cached.command.material != renderable.material ||
+                                              cached.command.materialGpu != renderable.materialGpu ||
                                               cached.command.blendMode != renderable.blendMode ||
                                               cached.command.doubleSided != renderable.doubleSided ||
                                               cached.command.vertexColorOnly != renderable.vertexColorOnly ||
@@ -103,6 +105,8 @@ class RenderCommandExtractor
                 cached.command.textureID       = renderable.textureID;
                 cached.command.objectSSBOSlot  = renderable.objectSSBOSlot;
                 cached.command.cameraViewID    = snapshot.cameraViewID;
+                cached.command.material        = renderable.material;
+                cached.command.materialGpu     = renderable.materialGpu;
                 cached.command.blendMode       = renderable.blendMode;
                 cached.command.doubleSided     = renderable.doubleSided;
                 cached.command.vertexColorOnly = renderable.vertexColorOnly;
