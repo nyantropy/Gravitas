@@ -58,10 +58,19 @@ data travels beside the command list so the Vulkan backend can resolve
 `MaterialGpuHandle` into the current compatibility texture/color/render-state
 payload. Object uploads now carry object-owned model and UV data only.
 
-### Phase 2E --- Modernize Geometry
+### Phase 2E --- Modernize Geometry (Complete)
 
 Add normals, tangents, improved vertex layouts, and importer support
 required for modern PBR.
+
+Status: complete. Generic scene geometry now uses a standard
+position/normal/tangent/color/UV vertex contract. OBJ loading preserves
+independent position/normal/UV indices, generated and procedural geometry have
+explicit attribute/default behavior, missing normals and tangents are generated
+deterministically outside extraction/draw hot paths, and Vulkan vertex input
+plus compatibility shaders consume the expanded layout. Phase 3 can add PBR
+lighting on top of this surface-frame data without reopening mesh lifecycle,
+material identity, or render command ownership.
 
 ### Phase 3 --- PBR Foundation
 

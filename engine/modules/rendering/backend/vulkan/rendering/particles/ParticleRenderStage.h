@@ -464,7 +464,7 @@ private:
         {
             VkVertexInputAttributeDescription attr{};
             attr.binding = 1;
-            attr.location = 3 + i;
+            attr.location = 5 + i;
             attr.format = VK_FORMAT_R32G32B32A32_SFLOAT;
             attr.offset = offsetof(ParticleMeshGpuInstance, modelMatrix) + sizeof(glm::vec4) * i;
             attrs.push_back(attr);
@@ -472,14 +472,14 @@ private:
 
         VkVertexInputAttributeDescription colorAttr{};
         colorAttr.binding = 1;
-        colorAttr.location = 7;
+        colorAttr.location = 9;
         colorAttr.format = VK_FORMAT_R32G32B32A32_SFLOAT;
         colorAttr.offset = offsetof(ParticleMeshGpuInstance, color);
         attrs.push_back(colorAttr);
 
         VkVertexInputAttributeDescription uvAttr{};
         uvAttr.binding = 1;
-        uvAttr.location = 8;
+        uvAttr.location = 10;
         uvAttr.format = VK_FORMAT_R32G32B32A32_SFLOAT;
         uvAttr.offset = offsetof(ParticleMeshGpuInstance, uvTransform);
         attrs.push_back(uvAttr);

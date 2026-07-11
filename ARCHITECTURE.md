@@ -470,7 +470,7 @@ runtime companion components and systems.
 | `HierarchyComponent` | Parent-child transform relationship |
 | `StaticMeshComponent` | Asset path to mesh |
 | `QuadMeshComponent` | Width/height for shared generated quad meshes |
-| `DynamicMeshComponent` | Runtime-authored vertices/indices plus `geometryVersion` for uploaded mesh updates |
+| `DynamicMeshComponent` | Runtime-authored vertices/indices plus `geometryVersion` and authored vertex-attribute flags for uploaded mesh updates |
 | `MaterialComponent` | Legacy texture path, tint color/opacity, culling, and optional vertex-color-only rendering; converted into a material instance |
 | `MaterialReferenceComponent` | Stable `MaterialInstanceHandle` used by renderables that share or explicitly reference materials |
 | `TextureAnimationComponent` | Optional per-object scene-material UV scrolling or flipbook atlas animation |
@@ -491,6 +491,78 @@ runtime data, and backend bookkeeping belong in engine-owned companion
 components or feature runtime components. When a descriptor starts needing that
 kind of state, split the state out instead of growing the descriptor into a
 mixed domain/rendering object.
+
+### Geometry Surface Contract
+
+Renderable scene geometry uses one backend-independent `Vertex` contract:
+
+```
+Vertex {
+    glm::vec3 pos
+    glm::vec3 normal
+    glm::vec4 tangent   // xyz = tangent direction, w = bitangent handedness
+    glm::vec4 color
+    glm::vec2 texCoord
+}
+```
+
+Geometry defines the surface frame; materials define how light interacts with
+that surface. Mesh assets and generated meshes own vertex attributes. Materials
+must not synthesize geometry data, and render extraction must not inspect vertex
+arrays to decide command behavior.
+
+The renderer uses counter-clockwise front faces. Current generated quads and
+world text lie in the local XY plane with +Z normals, +X tangents, and tangent
+handedness `+1`. Tangents store only the tangent vector and handedness; the
+bitangent is reconstructed from normal, tangent, and handedness in shaders that
+need it. UVs use the engine's existing top-left atlas conventions; OBJ loading
+continues to flip imported V coordinates to match the renderer's texture-space
+expectations.
+
+Missing or invalid imported/generated attributes have deterministic behavior:
+
+- missing normals are generated for indexed triangle meshes when possible,
+  using area-weighted face-normal accumulation over the already split vertex
+  stream; duplicated vertices preserve authored hard edges
+- missing tangents are generated when positions, normals, UVs, and triangle
+  topology are available; the current implementation is a first-pass tangent
+  basis and is not claimed to be MikkTSpace-compatible
+- tangents are Gram-Schmidt orthogonalized against the vertex normal and store
+  handedness in `tangent.w`
+- degenerate triangles or degenerate UVs produce finite fallback normals or
+  tangents instead of NaNs
+- missing colors default to white and missing UVs default to zero
+
+`MeshGeometryMetadata` records the processed vertex attribute mask, vertex and
+index counts, and whether normals or tangents were generated. Procedural mesh
+uploads declare the attributes authored by the producer. Existing
+`DynamicMeshComponent` producers default to the legacy unlit contract
+(`Position | Color | UV0`), while `WorldTextBindingSystem` and shared generated
+quads provide full standard attributes. Debug/tool meshes may stay
+semantically unlit; the standard vertex layout still carries fallback
+normal/tangent data so backend vertex input remains uniform.
+
+OBJ import deduplicates vertices by the complete `(position index, normal
+index, UV index)` tuple, not by position alone. This preserves hard edges and
+split UVs authored in OBJ files. Missing normals/UVs are valid and trigger the
+generation/default policies above; malformed positive indices are import
+errors.
+
+Preliminary material/mesh compatibility:
+
+- `LegacyUnlit`: requires position; UV is required only for textured materials;
+  color is optional and defaults to white
+- `LegacyUnlit` with `vertexColorOnly`: requires position and meaningful color
+  for useful output, but remains unlit
+- future `StandardSurface`: requires position and normal
+- future `StandardSurface` with normal mapping: requires position, normal,
+  tangent, and UV
+
+Phase 3 lighting should initially derive the normal matrix in shader from the
+model matrix (`mat3(transpose(inverse(model)))`) rather than expanding object
+upload data immediately. If profiling later shows this is a bottleneck, the
+renderer can add a versioned per-object normal-matrix upload without changing
+geometry ownership.
 
 ### GPU Components (engine-managed)
 
@@ -1574,7 +1646,9 @@ image-filter noise.
 
 Assets are accessed through `IResourceProvider` (passed in `SceneContext`). Binding systems call into this interface when descriptor components are first processed:
 
-- **Meshes**: loaded from `.obj` via tinyobjloader, uploaded to GPU vertex/index buffers
+- **Meshes**: loaded from `.obj` via tinyobjloader, processed into the standard
+  position/normal/tangent/color/UV vertex contract, and uploaded to GPU
+  vertex/index buffers
 - **Textures**: decoded via stb_image, uploaded to Vulkan images
 - **Fonts**: loaded from `.font.json`; `FontManager` owns glyph metrics and uses `TextureManager` for atlas textures
 - **Shaders**: pre-compiled SPIR-V stored in `/shaders/`

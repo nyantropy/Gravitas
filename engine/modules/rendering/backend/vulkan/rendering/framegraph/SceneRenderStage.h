@@ -79,7 +79,7 @@ public:
 
         VkVertexInputAttributeDescription instanceAttr{};
         instanceAttr.binding  = 1;
-        instanceAttr.location = 3;
+        instanceAttr.location = 5;
         instanceAttr.format   = VK_FORMAT_R32_UINT;
         instanceAttr.offset   = 0;
 

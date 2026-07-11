@@ -71,7 +71,8 @@ namespace
 
         mesh_id_type uploadProceduralMesh(mesh_id_type existingId,
                                           const std::vector<Vertex>&,
-                                          const std::vector<uint32_t>&) override
+                                          const std::vector<uint32_t>&,
+                                          VertexAttributeFlags = LegacyUnlitVertexAttributes) override
         {
             ++proceduralUploads;
             if (existingId != 0)

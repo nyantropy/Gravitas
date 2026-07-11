@@ -77,7 +77,11 @@ public:
                 }
 
                 const mesh_id_type existingId = meshGpu.ownsProceduralMeshResource ? meshGpu.meshID : 0;
-                meshGpu.meshID = ctx.resources->uploadProceduralMesh(existingId, verts, indices);
+                meshGpu.meshID = ctx.resources->uploadProceduralMesh(
+                    existingId,
+                    verts,
+                    indices,
+                    StandardVertexAttributes);
                 meshGpu.ownsProceduralMeshResource = true;
                 meshGpu.boundMeshPath = {};
                 meshGpu.boundQuadWidth = 0.0f;

@@ -3,12 +3,14 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
+#include "MeshGeometryProcessor.h"
 #include "Vertex.h"
 
 struct MeshResource 
 {
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
+    MeshGeometryMetadata metadata;
 
     VkBuffer vertexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory vertexMemory = VK_NULL_HANDLE;

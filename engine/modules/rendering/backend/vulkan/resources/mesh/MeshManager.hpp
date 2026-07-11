@@ -60,7 +60,7 @@ class MeshManager
 
             auto mesh = std::make_unique<MeshResource>();
 
-            GtsModelLoader::loadModel(path, mesh->vertices, mesh->indices);
+            mesh->metadata = GtsModelLoader::loadModel(path, mesh->vertices, mesh->indices);
 
             BufferUtil::createVertexBuffer(
                 backendContext.device(), backendContext.physicalDevice(),
@@ -108,11 +108,14 @@ class MeshManager
 
             const float hw = w * 0.5f;
             const float hh = h * 0.5f;
+            const glm::vec3 normal = {0.0f, 0.0f, 1.0f};
+            const glm::vec4 tangent = {1.0f, 0.0f, 0.0f, 1.0f};
+            const glm::vec4 color = {1.0f, 1.0f, 1.0f, 1.0f};
             std::vector<Vertex> verts = {
-                { { -hw,  hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f } },
-                { {  hw,  hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 0.0f } },
-                { {  hw, -hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f } },
-                { { -hw, -hh, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } },
+                { { -hw,  hh, 0.0f }, normal, tangent, color, { 0.0f, 0.0f } },
+                { {  hw,  hh, 0.0f }, normal, tangent, color, { 1.0f, 0.0f } },
+                { {  hw, -hh, 0.0f }, normal, tangent, color, { 1.0f, 1.0f } },
+                { { -hw, -hh, 0.0f }, normal, tangent, color, { 0.0f, 1.0f } },
             };
             std::vector<uint32_t> idxs  = { 0, 1, 2, 0, 2, 3 };
             std::vector<Vertex>   vertsC = verts;
@@ -121,6 +124,7 @@ class MeshManager
             auto mesh = std::make_unique<MeshResource>();
             mesh->vertices = verts;
             mesh->indices  = idxs;
+            mesh->metadata = gts::rendering::standardGeneratedMeshMetadata(verts.size(), idxs.size());
 
             BufferUtil::createVertexBuffer(
                 backendContext.device(), backendContext.physicalDevice(),
@@ -153,11 +157,15 @@ class MeshManager
         // zero-byte buffer); guard against this before calling.
         mesh_id_type uploadProceduralMesh(mesh_id_type                 existingId,
                                           const std::vector<Vertex>&   vertices,
-                                          const std::vector<uint32_t>& indices)
+                                          const std::vector<uint32_t>& indices,
+                                          VertexAttributeFlags sourceAttributes =
+                                              LegacyUnlitVertexAttributes)
         {
             // BufferUtil takes non-const refs; copy into locals.
             std::vector<Vertex>   verts = vertices;
             std::vector<uint32_t> idxs  = indices;
+            const MeshGeometryMetadata metadata =
+                gts::rendering::prepareMeshGeometry(verts, idxs, sourceAttributes);
 
             if (existingId != 0)
             {
@@ -190,8 +198,9 @@ class MeshManager
                     vkDestroyBuffer(backendContext.device(), mesh.indexBuffer,  nullptr);
                     vkFreeMemory   (backendContext.device(), mesh.indexMemory,  nullptr);
 
-                    mesh.vertices     = vertices;
-                    mesh.indices      = indices;
+                    mesh.vertices     = verts;
+                    mesh.indices      = idxs;
+                    mesh.metadata     = metadata;
                     mesh.vertexBuffer = newVB;
                     mesh.vertexMemory = newVM;
                     mesh.indexBuffer  = newIB;
@@ -203,8 +212,9 @@ class MeshManager
 
             // Create a brand-new mesh entry.
             auto mesh = std::make_unique<MeshResource>();
-            mesh->vertices = vertices;
-            mesh->indices  = indices;
+            mesh->vertices = verts;
+            mesh->indices  = idxs;
+            mesh->metadata = metadata;
 
             BufferUtil::createVertexBuffer(
                 backendContext.device(), backendContext.physicalDevice(),

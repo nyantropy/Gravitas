@@ -362,12 +362,14 @@ namespace GlyphLayoutEngine
 
                 auto base = static_cast<uint32_t>(verts.size());
 
-                constexpr glm::vec3 white = {1.0f, 1.0f, 1.0f};
+                const glm::vec3 normal = {0.0f, 0.0f, 1.0f};
+                const glm::vec4 tangent = {1.0f, 0.0f, 0.0f, 1.0f};
+                const glm::vec4 white = {1.0f, 1.0f, 1.0f, 1.0f};
 
-                verts.push_back({{x0, y0, 0.0f}, white, {g.uvMin.x, g.uvMin.y}}); // TL
-                verts.push_back({{x1, y0, 0.0f}, white, {g.uvMax.x, g.uvMin.y}}); // TR
-                verts.push_back({{x0, y1, 0.0f}, white, {g.uvMin.x, g.uvMax.y}}); // BL
-                verts.push_back({{x1, y1, 0.0f}, white, {g.uvMax.x, g.uvMax.y}}); // BR
+                verts.push_back({{x0, y0, 0.0f}, normal, tangent, white, {g.uvMin.x, g.uvMin.y}}); // TL
+                verts.push_back({{x1, y0, 0.0f}, normal, tangent, white, {g.uvMax.x, g.uvMin.y}}); // TR
+                verts.push_back({{x0, y1, 0.0f}, normal, tangent, white, {g.uvMin.x, g.uvMax.y}}); // BL
+                verts.push_back({{x1, y1, 0.0f}, normal, tangent, white, {g.uvMax.x, g.uvMax.y}}); // BR
 
                 // Two CCW triangles (TL→BL→TR, TR→BL→BR).
                 indices.push_back(base + 0);

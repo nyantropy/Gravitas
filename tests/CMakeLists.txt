@@ -89,6 +89,24 @@ set_tests_properties(material_runtime_architecture
         LABELS "gravitas;rendering;materials"
 )
 
+add_executable(GeometryPbrPreparationTest
+    rendering/GeometryPbrPreparationTest.cpp
+)
+
+target_compile_features(GeometryPbrPreparationTest PRIVATE cxx_std_20)
+
+target_link_libraries(GeometryPbrPreparationTest PRIVATE gravitas_vulkan_backend)
+
+add_test(
+    NAME geometry_pbr_preparation
+    COMMAND GeometryPbrPreparationTest
+)
+
+set_tests_properties(geometry_pbr_preparation
+    PROPERTIES
+        LABELS "gravitas;rendering;geometry"
+)
+
 add_executable(UiLayerRuntimeTest
     ui/UiLayerRuntimeTest.cpp
 )

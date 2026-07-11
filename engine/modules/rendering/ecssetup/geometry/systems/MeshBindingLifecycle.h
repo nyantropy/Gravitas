@@ -124,7 +124,11 @@ namespace gts::rendering
             return;
 
         const mesh_id_type existingId = meshGpu.ownsProceduralMeshResource ? meshGpu.meshID : 0;
-        meshGpu.meshID = resources->uploadProceduralMesh(existingId, mesh.vertices, mesh.indices);
+        meshGpu.meshID = resources->uploadProceduralMesh(
+            existingId,
+            mesh.vertices,
+            mesh.indices,
+            mesh.sourceAttributes);
         meshGpu.ownsProceduralMeshResource = true;
         meshGpu.boundMeshPath = {};
         meshGpu.boundQuadWidth = 0.0f;
