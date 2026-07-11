@@ -114,12 +114,16 @@ namespace gts::tools
     struct ToolSelectableRowData
     {
         std::string icon;
+        std::string badge;
         std::string primary;
         std::string secondary;
+        size_t depth = 0;
         bool visible = true;
         bool selected = false;
         bool enabled = true;
         bool warning = false;
+        bool hasChildren = false;
+        bool expanded = false;
     };
 
     class ToolSelectableRow
@@ -144,10 +148,7 @@ namespace gts::tools
                            data.visible ? rowText(data) : "--",
                            data.enabled,
                            data.selected);
-            if (data.visible && !data.selected && !data.warning)
-                toolui::setTextColor(context.ui, context.surface, row.label(), ToolTheme::mutedText);
-            if (data.visible && data.warning)
-                toolui::setTextColor(context.ui, context.surface, row.label(), ToolTheme::warning);
+            paintRow(context, data);
         }
 
         void onEvent(gts::ui::UiWidgetContext& context, UiEvent& event)
@@ -171,13 +172,55 @@ namespace gts::tools
     private:
         static std::string rowText(const ToolSelectableRowData& data)
         {
-            std::string text = "  ";
-            if (!data.icon.empty())
-                text = data.icon + " ";
+            std::string text;
+            for (size_t i = 0; i < data.depth; ++i)
+                text += "  ";
+            if (data.hasChildren)
+                text += data.expanded ? "v " : "> ";
+            else
+                text += "  ";
+            if (!data.badge.empty())
+                text += data.badge + " ";
+            else if (!data.icon.empty())
+                text += data.icon + " ";
             text += data.primary.empty() ? "--" : data.primary;
             if (!data.secondary.empty())
                 text += "  " + data.secondary;
             return text;
+        }
+
+        void paintRow(gts::ui::UiWidgetContext& context, const ToolSelectableRowData& data)
+        {
+            const UiNode* node = context.ui.findNode(context.surface, row.root());
+            if (node == nullptr)
+                return;
+
+            UiColor fill = ToolTheme::rowBackground;
+            UiColor text = data.selected ? ToolTheme::text : ToolTheme::mutedText;
+            if (!data.enabled)
+            {
+                fill = ToolTheme::disabled;
+                text = ToolTheme::disabledText;
+            }
+            else if (data.selected)
+            {
+                fill = ToolTheme::rowSelected;
+            }
+            else if (node->state.pressed)
+            {
+                fill = ToolTheme::buttonPressed;
+            }
+            else if (node->state.hovered)
+            {
+                fill = ToolTheme::rowHover;
+                text = ToolTheme::text;
+            }
+
+            if (data.warning && data.enabled)
+                text = ToolTheme::warning;
+
+            toolui::setRectPayload(context.ui, context.surface, row.root(), fill);
+            toolui::setTextColor(context.ui, context.surface, row.label(), text);
         }
 
         gts::ui::UiButtonWidget row;
@@ -329,7 +372,7 @@ namespace gts::tools
             }
 
             if (showPager)
-                pager.sync(context, visible, hasPrevious, hasNext);
+                pager.sync(context, visible && (hasPrevious || hasNext), hasPrevious, hasNext);
         }
 
         void onEvent(gts::ui::UiWidgetContext& context, UiEvent& event)

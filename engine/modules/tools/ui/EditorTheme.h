@@ -84,7 +84,7 @@ namespace gts::tools
     {
         float rowHeight             = 0.030f;
         float compactRowHeight      = 0.025f;
-        float propertyRowHeight     = 0.035f;
+        float propertyRowHeight     = 0.033f;
         float sliderHeight          = 0.028f;
         float buttonHeight          = 0.034f;
         float iconButtonSize        = 0.028f;
@@ -115,6 +115,8 @@ namespace gts::tools
         UiColor cardBackground      = {0.040f, 0.047f, 0.057f, 0.985f};
         UiColor groupBackground     = {0.030f, 0.036f, 0.044f, 0.965f};
         UiColor overlay             = {0.015f, 0.018f, 0.023f, 0.875f};
+        UiColor toolbarGroupBackground = {0.034f, 0.041f, 0.050f, 0.920f};
+        UiColor viewportOverlayBackground = {0.018f, 0.023f, 0.030f, 0.700f};
 
         UiColor headerBackground      = {0.032f, 0.039f, 0.048f, 0.995f};
         UiColor headerActive          = {0.044f, 0.056f, 0.069f, 1.000f};
@@ -146,6 +148,11 @@ namespace gts::tools
         UiColor focus         = {0.240f, 0.560f, 0.810f, 1.000f};
         UiColor selection     = {0.060f, 0.218f, 0.340f, 1.000f};
         UiColor selectionSoft = {0.052f, 0.150f, 0.240f, 0.820f};
+        UiColor rowBackground = {0.031f, 0.037f, 0.046f, 0.970f};
+        UiColor rowHover      = {0.052f, 0.064f, 0.079f, 1.000f};
+        UiColor rowSelected   = {0.055f, 0.165f, 0.260f, 1.000f};
+        UiColor rowAccent     = {0.235f, 0.565f, 0.880f, 1.000f};
+        UiColor inspectorRowBackground = {0.033f, 0.039f, 0.048f, 0.965f};
         UiColor hover         = {0.072f, 0.085f, 0.102f, 1.000f};
         UiColor pressed       = {0.096f, 0.115f, 0.138f, 1.000f};
         UiColor accent        = {0.210f, 0.550f, 0.780f, 1.000f};

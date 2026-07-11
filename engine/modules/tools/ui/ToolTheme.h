@@ -18,6 +18,8 @@ namespace gts::tools
         static constexpr UiColor headerBackground   = DefaultEditorTheme.colors.headerBackground;
         static constexpr UiColor panelInset         = DefaultEditorTheme.colors.panelInset;
         static constexpr UiColor cardBackground     = DefaultEditorTheme.colors.cardBackground;
+        static constexpr UiColor toolbarGroupBackground = DefaultEditorTheme.colors.toolbarGroupBackground;
+        static constexpr UiColor viewportOverlay    = DefaultEditorTheme.colors.viewportOverlayBackground;
         static constexpr UiColor separator          = DefaultEditorTheme.colors.separator;
         static constexpr UiColor button             = DefaultEditorTheme.colors.button;
         static constexpr UiColor buttonSecondary    = DefaultEditorTheme.colors.buttonSecondary;
@@ -39,6 +41,11 @@ namespace gts::tools
         static constexpr UiColor focus              = DefaultEditorTheme.colors.focus;
         static constexpr UiColor selection          = DefaultEditorTheme.colors.selection;
         static constexpr UiColor selectionSoft      = DefaultEditorTheme.colors.selectionSoft;
+        static constexpr UiColor rowBackground      = DefaultEditorTheme.colors.rowBackground;
+        static constexpr UiColor rowHover           = DefaultEditorTheme.colors.rowHover;
+        static constexpr UiColor rowSelected        = DefaultEditorTheme.colors.rowSelected;
+        static constexpr UiColor rowAccent          = DefaultEditorTheme.colors.rowAccent;
+        static constexpr UiColor inspectorRowBackground = DefaultEditorTheme.colors.inspectorRowBackground;
         static constexpr UiColor accent             = DefaultEditorTheme.colors.accent;
         static constexpr UiColor accentSoft         = DefaultEditorTheme.colors.accentSoft;
         static constexpr UiColor accentMuted        = DefaultEditorTheme.colors.accentMuted;
