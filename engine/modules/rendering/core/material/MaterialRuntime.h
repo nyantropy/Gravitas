@@ -161,6 +161,11 @@ namespace gts::rendering
             if (textureID == 0 && resources == nullptr)
                 return {&state, false, false, false};
 
+            const MaterialDefinition* definition = getDefinition(instance->definition);
+            const MaterialShaderFamily shaderFamily = definition != nullptr
+                ? definition->shaderFamily
+                : MaterialShaderFamily::LegacyUnlit;
+
             MaterialGpuState next = state;
             next.instance = handle;
             next.uploadedVersion = instance->version;
@@ -168,7 +173,7 @@ namespace gts::rendering
             next.baseColor = instance->baseColor;
             next.renderState = instance->renderState;
             next.vertexColorOnly = instance->vertexColorOnly;
-            next.variantKey = makeMaterialVariantKey(*instance);
+            next.variantKey = makeMaterialVariantKey(shaderFamily, *instance);
             next.boundTexturePath = instance->baseColorTexture.source == MaterialTextureSource::AssetPath
                 ? instance->baseColorTexture.path
                 : std::string{};
@@ -176,14 +181,13 @@ namespace gts::rendering
             const bool textureChanged = inserted || state.baseColorTextureID != next.baseColorTextureID;
             const bool colorChanged = inserted || state.baseColor != next.baseColor;
             const bool topologyChanged =
-                textureChanged
-                || state.renderState.alphaMode != next.renderState.alphaMode
+                state.renderState.alphaMode != next.renderState.alphaMode
                 || state.renderState.legacyBlendMode != next.renderState.legacyBlendMode
                 || state.renderState.doubleSided != next.renderState.doubleSided
                 || state.renderState.depthWrite != next.renderState.depthWrite
                 || state.vertexColorOnly != next.vertexColorOnly
                 || state.variantKey != next.variantKey;
-            const bool parameterChanged = colorChanged;
+            const bool parameterChanged = textureChanged || colorChanged;
             const bool versionChanged = state.uploadedVersion != next.uploadedVersion;
             const bool changed = inserted || versionChanged || topologyChanged || parameterChanged;
 

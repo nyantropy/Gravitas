@@ -52,6 +52,10 @@ class RenderCommandExtractor
         int  visibleRenderables      = 0;
         int  updatedCommands         = 0;
         bool visibilityStatesChanged = false;
+        const bool cameraChanged = cacheInitialised &&
+            (lastSnapshotCameraVersion != snapshot.cameraVersion || lastCameraViewID != snapshot.cameraViewID);
+        if (cameraChanged)
+            sortOrderDirty = true;
 
         nextOpaqueSlotOrder.clear();
         nextTransparentSlotOrder.clear();
@@ -69,22 +73,20 @@ class RenderCommandExtractor
                 occupiedSlots.push_back(slot);
             cached.lastSeenFrame = frameStamp;
 
-            const bool opaque               = renderable.blendMode == MaterialBlendMode::Alpha
-                                           && renderable.depthWrite
-                                           && renderable.tint.a >= 1.0f;
+            const bool transparent          = renderable.renderQueue == RenderQueue::Transparent;
+            const bool opaque               = !transparent;
             const bool visible              = renderable.visible;
             const bool sortKeyChanged       = !cached.initialised || cached.sortKey != renderable.sortKey;
+            const bool depthChanged         = !cached.initialised || cached.cameraDepth != renderable.cameraDepth;
             const bool opacityBucketChanged = !cached.initialised || cached.opaque != opaque;
             const bool needsUpdate          = !cacheInitialised || !cached.initialised ||
                                               cached.command.meshID != renderable.meshID ||
-                                              cached.command.textureID != renderable.textureID ||
                                               cached.command.objectSSBOSlot != renderable.objectSSBOSlot ||
                                               cached.command.material != renderable.material ||
                                               cached.command.materialGpu != renderable.materialGpu ||
-                                              cached.command.blendMode != renderable.blendMode ||
-                                              cached.command.doubleSided != renderable.doubleSided ||
-                                              cached.command.vertexColorOnly != renderable.vertexColorOnly ||
-                                              cached.command.depthWrite != renderable.depthWrite ||
+                                              cached.command.variantKey != renderable.variantKey ||
+                                              cached.command.renderQueue != renderable.renderQueue ||
+                                              cached.command.sortKey != renderable.sortKey ||
                                               cached.command.cameraViewID != snapshot.cameraViewID;
 
             if (!cached.initialised || cached.visible != visible || opacityBucketChanged)
@@ -92,9 +94,12 @@ class RenderCommandExtractor
 
             if (opacityBucketChanged)
                 sortOrderDirty = true;
+            if (transparent && depthChanged)
+                sortOrderDirty = true;
 
             cached.visible = visible;
             cached.opaque  = opaque;
+            cached.cameraDepth = renderable.cameraDepth;
 
             if (needsUpdate)
             {
@@ -102,15 +107,13 @@ class RenderCommandExtractor
                     sortOrderDirty = true;
 
                 cached.command.meshID          = renderable.meshID;
-                cached.command.textureID       = renderable.textureID;
                 cached.command.objectSSBOSlot  = renderable.objectSSBOSlot;
                 cached.command.cameraViewID    = snapshot.cameraViewID;
                 cached.command.material        = renderable.material;
                 cached.command.materialGpu     = renderable.materialGpu;
-                cached.command.blendMode       = renderable.blendMode;
-                cached.command.doubleSided     = renderable.doubleSided;
-                cached.command.vertexColorOnly = renderable.vertexColorOnly;
-                cached.command.depthWrite      = renderable.depthWrite;
+                cached.command.variantKey      = renderable.variantKey;
+                cached.command.renderQueue     = renderable.renderQueue;
+                cached.command.sortKey         = renderable.sortKey;
                 cached.sortKey                 = renderable.sortKey;
                 cached.initialised             = true;
                 updatedCommands += 1;
@@ -136,18 +139,30 @@ class RenderCommandExtractor
             opaqueSlotOrder      = nextOpaqueSlotOrder;
             transparentSlotOrder = nextTransparentSlotOrder;
 
-            // sortKey encodes material pipeline flags, then meshID, then textureID.
+            // Opaque/masked commands group by queue, variant, material, then mesh.
+            // Transparent commands keep conventional back-to-front order with
+            // the same state key as a stable secondary ordering.
             std::sort(opaqueSlotOrder.begin(),
                       opaqueSlotOrder.end(),
                       [&](ssbo_id_type lhs, ssbo_id_type rhs)
                       {
                           return commandCache[lhs].sortKey < commandCache[rhs].sortKey;
                       });
+            std::sort(transparentSlotOrder.begin(),
+                      transparentSlotOrder.end(),
+                      [&](ssbo_id_type lhs, ssbo_id_type rhs)
+                      {
+                          const CachedCommandState& lhsState = commandCache[lhs];
+                          const CachedCommandState& rhsState = commandCache[rhs];
+                          if (lhsState.cameraDepth != rhsState.cameraDepth)
+                              return lhsState.cameraDepth > rhsState.cameraDepth;
+                          return lhsState.sortKey < rhsState.sortKey;
+                      });
             sortOrderDirty = false;
 
             const auto sortEnd          = std::chrono::steady_clock::now();
             lastMetrics.sortCpuMs       = std::chrono::duration<float, std::milli>(sortEnd - sortStart).count();
-            lastMetrics.sortedThisFrame = !opaqueSlotOrder.empty();
+            lastMetrics.sortedThisFrame = !opaqueSlotOrder.empty() || !transparentSlotOrder.empty();
         }
 
         if (visibilityChanged || !cacheInitialised)
@@ -227,6 +242,7 @@ class RenderCommandExtractor
         RenderCommand command;
         uint64_t      sortKey       = 0;
         uint64_t      lastSeenFrame = 0;
+        float         cameraDepth   = 0.0f;
         bool          visible       = false;
         bool          opaque        = true;
         bool          initialised   = false;

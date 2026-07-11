@@ -16,6 +16,7 @@ struct EditorPreviewRenderData
     texture_id_type colorTextureID = 0;
     RenderViewportRect viewport = RenderViewportRect::full(1, 1);
     std::vector<RenderCommand> renderList;
+    MaterialFrameData materialFrameData;
     std::vector<ObjectUploadCommand> objectUploads;
     std::vector<CameraUploadCommand> cameraUploads;
     ParticleFrameData particleData;

@@ -24,23 +24,20 @@ struct RenderableSnapshot
     Entity        entity{0};
     glm::mat4     modelMatrix = glm::mat4(1.0f);
     glm::vec4     uvTransform = {1.0f, 1.0f, 0.0f, 0.0f};
-    glm::vec4     tint = {1.0f, 1.0f, 1.0f, 1.0f};
 
     AABB          worldBounds{};
     bool          hasBounds = false;
 
-    mesh_id_type    meshID = 0;
-    texture_id_type textureID = 0;
-    ssbo_id_type    objectSSBOSlot = 0;
+    mesh_id_type meshID = 0;
+    ssbo_id_type objectSSBOSlot = 0;
     MaterialInstanceHandle material;
-    MaterialGpuHandle      materialGpu;
+    MaterialGpuHandle materialGpu;
+    MaterialVariantKey variantKey{};
+    RenderQueue renderQueue = RenderQueue::Opaque;
 
-    MaterialBlendMode blendMode = MaterialBlendMode::Alpha;
-    bool          doubleSided = false;
-    bool          vertexColorOnly = false;
-    bool          depthWrite = true;
     bool          visible = true;
     uint64_t      sortKey = 0;
+    float         cameraDepth = 0.0f;
 };
 
 struct RenderExtractionSnapshot
@@ -53,7 +50,9 @@ struct RenderExtractionSnapshot
     std::vector<ssbo_id_type>        occupiedSlots;
     std::vector<ObjectUploadCommand> objectUploads;
     std::vector<CameraUploadCommand> cameraUploads;
+    MaterialFrameData                materialFrameData;
     FrustumPlanes                    frustum{};
+    glm::mat4                        cameraViewMatrix = glm::mat4(1.0f);
     view_id_type                     cameraViewID = 0;
     // Monotonic versions let downstream render stages skip full scans when
     // renderable data and visibility results are unchanged.

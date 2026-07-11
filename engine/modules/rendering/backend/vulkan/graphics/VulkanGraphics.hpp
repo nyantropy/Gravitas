@@ -170,6 +170,7 @@ public:
     // whenever the graphics module renders a frame, we poll the window events, and direct
     // the draw call to the renderer
     void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
+                     const MaterialFrameData& materialFrameData,
                      const std::vector<ObjectUploadCommand>& objectUploads,
                      const std::vector<CameraUploadCommand>& cameraUploads,
                      const ParticleFrameData& particleData,
@@ -183,6 +184,7 @@ public:
 
         renderer->renderFrame(dt,
                               renderList,
+                              materialFrameData,
                               objectUploads,
                               cameraUploads,
                               particleData,

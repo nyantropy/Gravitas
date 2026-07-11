@@ -177,6 +177,7 @@ namespace gts::tools
             data.height = std::max(1u, height);
             data.viewport = RenderViewportRect::full(static_cast<int>(data.width), static_cast<int>(data.height));
             data.renderList = commands;
+            data.materialFrameData = renderPipeline.getLatestSnapshot().materialFrameData;
             data.objectUploads = renderPipeline.getLatestSnapshot().objectUploads;
             data.cameraUploads = renderPipeline.getLatestSnapshot().cameraUploads;
             if (world.hasAny<ParticleFrameDataComponent>())

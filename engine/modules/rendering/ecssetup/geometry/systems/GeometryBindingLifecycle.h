@@ -148,7 +148,6 @@ namespace gts::rendering
         {
             RenderDirtyComponent& dirty = world.getComponent<RenderDirtyComponent>(entity);
             dirty.materialDirty = true;
-            dirty.objectDataDirty = true;
         }
         queueRenderSnapshotDirty(world, entity);
     }

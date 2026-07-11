@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "GlmConfig.h"
 #include "Types.h"
@@ -87,6 +88,13 @@ enum class MaterialAlphaMode
     Opaque,
     Mask,
     Blend
+};
+
+enum class RenderQueue
+{
+    Opaque,
+    AlphaMasked,
+    Transparent
 };
 
 enum class MaterialTextureSource
@@ -182,19 +190,105 @@ struct MaterialSyncResult
     bool topologyChanged = false;
 };
 
-inline MaterialVariantKey makeMaterialVariantKey(const MaterialInstance& instance)
+struct MaterialFrameState
 {
+    MaterialInstanceHandle instance;
+    MaterialGpuHandle gpuHandle;
+    MaterialVariantKey variantKey{};
+    RenderQueue renderQueue = RenderQueue::Opaque;
+    uint64_t uploadedVersion = 0;
+
+    // Temporary Vulkan compatibility data. These fields are material-owned
+    // cache state; render commands and object uploads must not duplicate them.
+    texture_id_type baseColorTextureID = 0;
+    glm::vec4 baseColor = {1.0f, 1.0f, 1.0f, 1.0f};
+    MaterialRenderState renderState{};
+    bool vertexColorOnly = false;
+};
+
+struct MaterialFrameData
+{
+    std::vector<MaterialFrameState> materials;
+
+    void clear()
+    {
+        materials.clear();
+    }
+
+    const MaterialFrameState* find(MaterialGpuHandle handle) const
+    {
+        for (const MaterialFrameState& material : materials)
+        {
+            if (material.gpuHandle == handle)
+                return &material;
+        }
+        return nullptr;
+    }
+
+    void upsert(const MaterialFrameState& material)
+    {
+        for (MaterialFrameState& existing : materials)
+        {
+            if (existing.gpuHandle == material.gpuHandle)
+            {
+                existing = material;
+                return;
+            }
+        }
+
+        materials.push_back(material);
+    }
+};
+
+inline RenderQueue renderQueueForAlphaMode(MaterialAlphaMode alphaMode)
+{
+    switch (alphaMode)
+    {
+        case MaterialAlphaMode::Opaque: return RenderQueue::Opaque;
+        case MaterialAlphaMode::Mask:   return RenderQueue::AlphaMasked;
+        case MaterialAlphaMode::Blend:  return RenderQueue::Transparent;
+    }
+    return RenderQueue::Opaque;
+}
+
+inline MaterialVariantKey makeMaterialVariantKey(MaterialShaderFamily shaderFamily,
+                                                 const MaterialInstance& instance)
+{
+    const uint64_t shader = static_cast<uint64_t>(shaderFamily) & 0xFFull;
     const uint64_t alphaMode = static_cast<uint64_t>(instance.renderState.alphaMode) & 0x3ull;
+    // Temporary legacy blend mode bit until additive/alpha compatibility
+    // becomes a proper backend material realization in the PBR pipeline.
     const uint64_t blendMode = static_cast<uint64_t>(instance.renderState.legacyBlendMode) & 0x3ull;
     const uint64_t depth = instance.renderState.depthWrite ? 1ull : 0ull;
     const uint64_t sidedness = instance.renderState.doubleSided ? 1ull : 0ull;
     const uint64_t vertexColor = instance.vertexColorOnly ? 1ull : 0ull;
     return MaterialVariantKey{
-        (alphaMode << 5)
+        (shader << 8)
+        | (alphaMode << 5)
         | (blendMode << 3)
         | (depth << 2)
         | (sidedness << 1)
         | vertexColor
+    };
+}
+
+inline MaterialVariantKey makeMaterialVariantKey(const MaterialInstance& instance)
+{
+    return makeMaterialVariantKey(MaterialShaderFamily::LegacyUnlit, instance);
+}
+
+inline MaterialFrameState makeMaterialFrameState(const MaterialGpuState& state)
+{
+    return MaterialFrameState{
+        state.instance,
+        state.gpuHandle,
+        state.variantKey,
+        renderQueueForAlphaMode(state.renderState.alphaMode),
+        state.uploadedVersion,
+        state.baseColorTextureID,
+        state.baseColor,
+        state.renderState,
+        state.vertexColorOnly
     };
 }
 
@@ -226,6 +320,15 @@ namespace std
     struct hash<MaterialDefinitionHandle>
     {
         size_t operator()(MaterialDefinitionHandle handle) const noexcept
+        {
+            return (static_cast<size_t>(handle.id) << 32u) ^ static_cast<size_t>(handle.generation);
+        }
+    };
+
+    template<>
+    struct hash<MaterialGpuHandle>
+    {
+        size_t operator()(MaterialGpuHandle handle) const noexcept
         {
             return (static_cast<size_t>(handle.id) << 32u) ^ static_cast<size_t>(handle.generation);
         }

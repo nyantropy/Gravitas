@@ -390,8 +390,10 @@ alpha mode, alpha cutoff, double-sided state, depth-write state, legacy
 alpha/additive blend selection, and vertex-color-only mode. Per-object state
 remains in `RenderGpuComponent` and object uploads: model matrix, UV animation
 transform, and future object-specific IDs or overrides. Tint/base color is a
-shared material value; extraction copies it into object upload data only as a
-temporary compatibility bridge for the current backend.
+shared material value. It is no longer part of generic object upload data; the
+current Vulkan backend still writes the scene shader's temporary object tint
+field from material frame state until base color moves into real material
+descriptor data.
 
 Alpha semantics use `MaterialAlphaMode`:
 
@@ -401,8 +403,9 @@ Alpha semantics use `MaterialAlphaMode`:
 - `Blend`: transparent/blended material
 
 The legacy `MaterialBlendMode` is retained only as a Phase 2C compatibility
-field so the current Vulkan scene stage can still select alpha/additive
-pipelines until render commands are modernized.
+field inside material runtime/backend compatibility code so the current Vulkan
+scene stage can still select alpha/additive pipelines. It is not an
+authoritative render-command field.
 
 Scene-level render pass visibility is controlled at two layers. The stronger
 layer is the active `SceneExecutionProfile`: its `FrameBuildMode` determines
@@ -560,35 +563,76 @@ This order is intentional:
 - particle simulation runs after camera matrix generation so extracted billboards can use the current view
 
 Invalidation ownership follows the lifecycle split. Mesh lifecycle marks mesh
-representation changes. Material lifecycle marks material representation and
-object-data changes. `RenderGpuSystem` marks consumed world-transform changes
-after comparing `WorldTransformComponent::version` with
+representation changes. Material lifecycle marks material representation
+changes. `RenderGpuSystem` marks consumed world-transform changes after
+comparing `WorldTransformComponent::version` with
 `RenderGpuComponent::uploadedWorldTransformVersion`. Texture animation marks
 object-data changes. Readiness and companion add/remove events queue command
-topology changes through the render snapshot invalidation queue. Version checks
-mean "a consumer has not observed a newer authoritative value"; dirty markers
-mean "derived extraction data must be rebuilt."
+topology changes through the render snapshot invalidation queue. Parameter-only
+material changes update the material GPU cache and material frame state without
+recreating mesh or object-slot state. Material topology changes such as alpha
+mode, double-sided state, vertex-color-only mode, shader family, or temporary
+legacy additive blend state update the `MaterialVariantKey`, render queue, and
+command ordering. Version checks mean "a consumer has not observed a newer
+authoritative value"; dirty markers mean "derived extraction data must be
+rebuilt."
 
 ### RenderCommand
 
 The extractor output:
 ```
 RenderCommand {
-    mesh_id_type       meshID
+    mesh_id_type           meshID
     MaterialInstanceHandle material
-    MaterialGpuHandle  materialGpu
-    texture_id_type    textureID
-    ssbo_id_type       objectSSBOSlot    (per-object transform)
-    view_id_type       cameraViewID      (camera UBO)
-    bool               doubleSided
-    bool               vertexColorOnly
+    MaterialGpuHandle      materialGpu
+    MaterialVariantKey     variantKey
+    RenderQueue            renderQueue
+    ssbo_id_type           objectSSBOSlot    (per-object transform/UV)
+    view_id_type           cameraViewID      (camera UBO)
+    uint64_t               sortKey
 }
 ```
-`material` and `materialGpu` are the stable material identity path for Phase
-2D. `textureID`, tint upload data, and legacy blend flags remain in the command
-temporarily so the current backend can render unchanged.
 
-Opaque commands are sorted by (double-sided, vertex-color-only, meshID, textureID) to minimize state changes. Transparent commands are appended after opaque commands. Cached across frames; only rebuilt when renderable content, visibility, camera version, or active camera view changes.
+`RenderCommand` is backend-agnostic and carries identity, not material
+parameters. It does not contain texture IDs, base color/tint, raw blend flags,
+Vulkan descriptor sets, pipelines, or ECS entity IDs. Extraction identifies
+what to render; `MaterialRuntime` and material frame state define how it
+renders; object upload data defines where it renders.
+
+Material frame data is emitted beside the render command list:
+
+```
+MaterialFrameState {
+    MaterialInstanceHandle material
+    MaterialGpuHandle      materialGpu
+    MaterialVariantKey     variantKey
+    RenderQueue            renderQueue
+    texture_id_type        baseColorTextureID   (temporary compatibility)
+    glm::vec4              baseColor            (temporary compatibility)
+    MaterialRenderState    renderState
+    uint64_t               uploadedVersion
+}
+```
+
+The Vulkan backend resolves `MaterialGpuHandle` through this frame material
+state into backend-owned texture descriptors and the current compatibility
+pipeline choice. Alpha-masked commands are represented distinctly as
+`RenderQueue::AlphaMasked`, but they currently share the opaque Vulkan path
+until alpha-cutoff shader support lands.
+
+Render queues are explicit:
+
+- `Opaque`: submitted first and sorted to minimize state changes
+- `AlphaMasked`: submitted after opaque and before transparent; currently an
+  opaque-path backend fallback
+- `Transparent`: submitted last and sorted back-to-front by resolved camera
+  depth, with variant/material/mesh ordering as a stable secondary key
+
+Opaque and alpha-masked command ordering groups by render queue, material
+variant key, material GPU handle, mesh ID, and object slot. Transparent command
+ordering prioritizes camera depth so conventional alpha blending remains
+back-to-front. Camera or transform changes that affect transparent depth
+invalidate command ordering without requiring material or mesh recreation.
 
 Render extraction also emits upload command side channels:
 
@@ -597,7 +641,6 @@ ObjectUploadCommand {
     ssbo_id_type objectSSBOSlot
     glm::mat4    modelMatrix
     glm::vec4    uvTransform    // xy = scale, zw = offset
-    glm::vec4    tint           // rgba multiplier; a controls material opacity
 }
 
 CameraUploadCommand {
@@ -609,13 +652,13 @@ CameraUploadCommand {
 
 Object uploads are generated only for renderables marked dirty by the render
 invalidation queue. They carry the full per-object scene data, currently the
-model matrix, scene-material UV transform, and material tint. Camera uploads are generated
-every extracted frame for the active camera and consumed by the renderer after
-the current-frame fence wait.
+model matrix and scene-material UV transform. Camera uploads are generated every
+extracted frame for the active camera and consumed by the renderer after the
+current-frame fence wait.
 
-`vertexColorOnly` is a material/render-command flag for tool and debug meshes
-that should render from authored vertex colors without sampling a color texture.
-The regular material texture path remains the default for application-authored
+`vertexColorOnly` is a material variant flag for tool and debug meshes that
+should render from authored vertex colors without sampling a color texture. The
+regular material texture path remains the default for application-authored
 geometry.
 
 ### Scene Texture Animation

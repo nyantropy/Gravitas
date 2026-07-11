@@ -248,7 +248,6 @@ namespace gts::debugdraw
                 RenderDirtyComponent& dirty = world.getComponent<RenderDirtyComponent>(entity);
                 dirty.meshDirty = true;
                 dirty.materialDirty = true;
-                dirty.objectDataDirty = true;
             }
 
             gts::rendering::queueRenderSnapshotDirty(world, entity);

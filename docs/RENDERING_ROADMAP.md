@@ -45,10 +45,18 @@ Status: complete for material identity, sharing, fallback, and versioned GPU
 cache ownership. Full material asset files and PBR parameter sets remain future
 work on top of this ownership model.
 
-### Phase 2D --- Simplify Extraction
+### Phase 2D --- Modernize Render Extraction and Commands (Complete)
 
 Render extraction should emit stable render-facing objects and commands
 using mesh/material handles rather than texture-specific data.
+
+Status: complete. `RenderCommand` now carries mesh identity, material instance
+identity, material GPU identity, variant key, render queue, object slot, camera
+view, and sort key. Texture IDs, material tint/base color, legacy blend flags,
+and vertex-color booleans are no longer generic command fields. Material frame
+data travels beside the command list so the Vulkan backend can resolve
+`MaterialGpuHandle` into the current compatibility texture/color/render-state
+payload. Object uploads now carry object-owned model and UV data only.
 
 ### Phase 2E --- Modernize Geometry
 

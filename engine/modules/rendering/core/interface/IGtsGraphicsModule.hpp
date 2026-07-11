@@ -22,6 +22,7 @@ public:
     virtual ~IGtsGraphicsModule() = default;
 
     virtual void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
+                             const MaterialFrameData& materialFrameData,
                              const std::vector<ObjectUploadCommand>& objectUploads,
                              const std::vector<CameraUploadCommand>& cameraUploads,
                              const ParticleFrameData& particleData,

@@ -236,11 +236,19 @@ namespace gts::rendering
         const FrameBuildMode frameBuildMode = executionProfile.frameBuildMode;
 
         static const std::vector<RenderCommand> emptyRenderList;
+        static const MaterialFrameData emptyMaterialFrameData;
         const std::vector<RenderCommand>* renderList = &emptyRenderList;
+        const MaterialFrameData* materialFrameData = &emptyMaterialFrameData;
         if (frameBuildMode == FrameBuildMode::FullWorld)
+        {
             renderList = &renderPipeline->build(world);
+            materialFrameData = &renderPipeline->getLatestSnapshot().materialFrameData;
+        }
         else if (frameBuildMode == FrameBuildMode::CachedWorldFrame)
+        {
             renderList = &renderPipeline->getExtractor().getLastCommands();
+            materialFrameData = &renderPipeline->getLatestSnapshot().materialFrameData;
+        }
 
         static const UiCommandBuffer emptyUiBuffer;
         const UiCommandBuffer* uiBuffer = &emptyUiBuffer;
@@ -292,6 +300,8 @@ namespace gts::rendering
 
         const std::vector<RenderCommand>& submittedRenderList =
             passVisibility.renderScene ? *renderList : emptyRenderList;
+        const MaterialFrameData& submittedMaterialFrameData =
+            passVisibility.renderScene ? *materialFrameData : emptyMaterialFrameData;
         const ParticleFrameData& submittedParticleData =
             passVisibility.renderParticles && frameBuildMode == FrameBuildMode::FullWorld
                 ? particleData
@@ -333,6 +343,7 @@ namespace gts::rendering
         const auto submitStart = std::chrono::steady_clock::now();
         graphics.renderFrame(dt,
                              submittedRenderList,
+                             submittedMaterialFrameData,
                              renderPipeline->getLatestSnapshot().objectUploads,
                              renderPipeline->getLatestSnapshot().cameraUploads,
                              submittedParticleData,

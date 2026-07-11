@@ -168,6 +168,7 @@ public:
         else
         {
             graph.requestData<std::vector<RenderCommand>>(this);
+            graph.requestData<MaterialFrameData>(this);
             graph.requestData<RenderViewportFrame>(this);
         }
 
@@ -186,9 +187,10 @@ public:
                 uint32_t imageIndex, uint32_t currentFrame) override
     {
         const std::vector<RenderCommand>& renderList = resolveRenderList(graph);
+        const MaterialFrameData& materialFrameData = resolveMaterialFrameData(graph);
         const RenderViewportRect viewport = resolveViewport(graph);
 
-        prepareBatches(renderList, currentFrame);
+        prepareBatches(renderList, materialFrameData, currentFrame);
         resetFrameStats();
 
         if (renderList.empty() || renderList[0].cameraViewID == 0)
@@ -241,15 +243,14 @@ public:
 private:
     struct PreparedBatch
     {
-        mesh_id_type    meshID = 0;
-        texture_id_type textureID = 0;
-        MaterialBlendMode blendMode = MaterialBlendMode::Alpha;
-        bool            doubleSided = false;
-        bool            vertexColorOnly = false;
-        bool            depthWrite = true;
-        uint32_t        instanceOffset = 0;
-        uint32_t        instanceCount = 0;
-        MeshResource*   mesh = nullptr;
+        mesh_id_type meshID = 0;
+        MaterialGpuHandle materialGpu;
+        MaterialVariantKey variantKey{};
+        RenderQueue renderQueue = RenderQueue::Opaque;
+        MaterialFrameState material{};
+        uint32_t instanceOffset = 0;
+        uint32_t instanceCount = 0;
+        MeshResource* mesh = nullptr;
         TextureResource* texture = nullptr;
     };
 
@@ -319,6 +320,13 @@ private:
         if (dataSource == DataSource::EditorPreview)
             return graph.getData<EditorPreviewRenderData>().renderList;
         return graph.getData<std::vector<RenderCommand>>();
+    }
+
+    const MaterialFrameData& resolveMaterialFrameData(GtsFrameGraph& graph) const
+    {
+        if (dataSource == DataSource::EditorPreview)
+            return graph.getData<EditorPreviewRenderData>().materialFrameData;
+        return graph.getData<MaterialFrameData>();
     }
 
     RenderViewportRect resolveViewport(GtsFrameGraph& graph) const
@@ -459,7 +467,9 @@ private:
         return preparedBatches.size() > 1;
     }
 
-    void prepareBatches(const std::vector<RenderCommand>& renderList, uint32_t currentFrame)
+    void prepareBatches(const std::vector<RenderCommand>& renderList,
+                        const MaterialFrameData& materialFrameData,
+                        uint32_t currentFrame)
     {
         preparedBatches.clear();
 
@@ -473,26 +483,30 @@ private:
         while (i < renderList.size())
         {
             const RenderCommand& first = renderList[i];
+            const MaterialFrameState* firstMaterial = materialFrameData.find(first.materialGpu);
+            if (firstMaterial == nullptr)
+            {
+                i += 1;
+                continue;
+            }
+
             PreparedBatch batch{};
             batch.meshID = first.meshID;
-            batch.textureID = first.textureID;
-            batch.blendMode = first.blendMode;
-            batch.doubleSided = first.doubleSided;
-            batch.vertexColorOnly = first.vertexColorOnly;
-            batch.depthWrite = first.depthWrite;
+            batch.materialGpu = first.materialGpu;
+            batch.variantKey = first.variantKey;
+            batch.renderQueue = first.renderQueue;
+            batch.material = *firstMaterial;
             batch.instanceOffset = instanceHead;
             batch.mesh = resources->getMesh(first.meshID);
-            batch.texture = resources->getTexture(first.textureID);
+            batch.texture = resources->getTexture(firstMaterial->baseColorTextureID);
 
             while (i < renderList.size())
             {
                 const RenderCommand& current = renderList[i];
                 if (current.meshID != batch.meshID
-                    || current.textureID != batch.textureID
-                    || current.blendMode != batch.blendMode
-                    || current.doubleSided != batch.doubleSided
-                    || current.vertexColorOnly != batch.vertexColorOnly
-                    || current.depthWrite != batch.depthWrite)
+                    || current.materialGpu != batch.materialGpu
+                    || current.variantKey != batch.variantKey
+                    || current.renderQueue != batch.renderQueue)
                 {
                     break;
                 }
@@ -509,21 +523,21 @@ private:
 
     VulkanPipeline* selectPipeline(const PreparedBatch& batch) const
     {
-        if (batch.blendMode == MaterialBlendMode::Additive)
+        if (batch.material.renderState.legacyBlendMode == MaterialBlendMode::Additive)
         {
-            return batch.doubleSided
+            return batch.material.renderState.doubleSided
                 ? pipelineAdditiveNoDepthDoubleSided.get()
                 : pipelineAdditiveNoDepth.get();
         }
 
-        if (!batch.depthWrite)
+        if (!batch.material.renderState.depthWrite)
         {
-            return batch.doubleSided
+            return batch.material.renderState.doubleSided
                 ? pipelineAlphaNoDepthDoubleSided.get()
                 : pipelineAlphaNoDepth.get();
         }
 
-        return batch.doubleSided
+        return batch.material.renderState.doubleSided
             ? pipelineDoubleSided.get()
             : pipeline.get();
     }
@@ -566,6 +580,9 @@ private:
             const PreparedBatch& batch = preparedBatches[batchIndex];
             MeshResource* mesh = batch.mesh;
             TextureResource* tex = batch.texture;
+            if (mesh == nullptr || tex == nullptr)
+                continue;
+
             VulkanPipeline* activePipeline = selectPipeline(batch);
 
             if (activePipeline != boundPipeline)
@@ -583,27 +600,27 @@ private:
                 boundMesh = batch.meshID;
             }
 
-            if (batch.textureID != boundTexture)
+            if (tex->id != boundTexture)
             {
                 vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                         activePipeline->getPipelineLayout(),
                                         2, 1, &tex->descriptorSets[currentFrame],
                                         0, nullptr);
-                boundTexture = batch.textureID;
+                boundTexture = tex->id;
                 stats.descriptorBinds += 1;
                 stats.textureSwitches += 1;
             }
 
             if (!hasBoundPushConstants
-                || batch.vertexColorOnly != boundVertexColorOnly)
+                || batch.material.vertexColorOnly != boundVertexColorOnly)
             {
                 const ScenePushConstants pushConstants{
-                    batch.vertexColorOnly ? 1 : 0
+                    batch.material.vertexColorOnly ? 1 : 0
                 };
                 vkCmdPushConstants(cmd, activePipeline->getPipelineLayout(),
                                    VK_SHADER_STAGE_FRAGMENT_BIT,
                                    0, sizeof(ScenePushConstants), &pushConstants);
-                boundVertexColorOnly = batch.vertexColorOnly;
+                boundVertexColorOnly = batch.material.vertexColorOnly;
                 hasBoundPushConstants = true;
             }
 

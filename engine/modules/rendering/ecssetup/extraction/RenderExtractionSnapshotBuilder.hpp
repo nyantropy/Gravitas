@@ -56,8 +56,10 @@ class RenderExtractionSnapshotBuilder
         m_pendingSnapshotDirty = false;
         snapshot.cameraViewID  = 0;
         snapshot.frustum.fill(glm::vec4(0.0f));
+        snapshot.cameraViewMatrix = glm::mat4(1.0f);
         snapshot.objectUploads.clear();
         snapshot.cameraUploads.clear();
+        snapshot.materialFrameData.clear();
         uint32_t                                 dirtyUpdatedCount   = 0;
         uint32_t                                 reusedCount         = 0;
         uint32_t                                 staticUpdatedCount  = 0;
@@ -75,13 +77,14 @@ class RenderExtractionSnapshotBuilder
                     return;
 
                 snapshot.cameraViewID = gpu.viewID;
+                snapshot.cameraViewMatrix = gpu.viewMatrix;
                 snapshot.frustum      = FrustumCuller::extractPlanesFromMatrix(gpu.projMatrix * gpu.viewMatrix);
                 if (gpu.viewID != 0)
                 {
                     snapshot.cameraUploads.push_back({gpu.viewID, gpu.viewMatrix, gpu.projMatrix});
                 }
             });
-        updateCameraVersion();
+        const bool cameraChanged = updateCameraVersion();
 
         for (entity_id_type entityId : invalidation.snapshotDirtyEntities)
         {
@@ -169,6 +172,7 @@ class RenderExtractionSnapshotBuilder
             {
                 renderable.modelMatrix = rc.modelMatrix;
                 updateBounds(world, e, renderable);
+                updateCameraDepth(renderable);
             }
 
             if (inserted || objectDataDirty)
@@ -183,21 +187,17 @@ class RenderExtractionSnapshotBuilder
 
             if (inserted || materialDirty)
             {
-                renderable.material        = materialGpu->instance;
-                renderable.materialGpu     = materialGpu->gpuHandle;
-                renderable.textureID       = materialGpu->baseColorTextureID;
-                renderable.tint            = materialGpu->baseColor;
-                renderable.blendMode       = materialGpu->renderState.legacyBlendMode;
-                renderable.doubleSided     = materialGpu->renderState.doubleSided;
-                renderable.vertexColorOnly = materialGpu->vertexColorOnly;
-                renderable.depthWrite      = materialGpu->renderState.depthWrite;
-                sortKeyNeedsUpdate         = true;
+                renderable.material    = materialGpu->instance;
+                renderable.materialGpu = materialGpu->gpuHandle;
+                renderable.variantKey  = materialGpu->variantKey;
+                renderable.renderQueue = renderQueueForAlphaMode(materialGpu->renderState.alphaMode);
+                sortKeyNeedsUpdate     = true;
             }
 
             if (inserted || transformDirty || objectDataDirty)
             {
                 snapshot.objectUploads.push_back(
-                    {rc.objectSSBOSlot, renderable.modelMatrix, renderable.uvTransform, renderable.tint});
+                    {rc.objectSSBOSlot, renderable.modelMatrix, renderable.uvTransform});
             }
 
             if (sortKeyNeedsUpdate)
@@ -208,6 +208,12 @@ class RenderExtractionSnapshotBuilder
             dirty.meshDirty       = false;
             dirty.objectDataDirty = false;
         }
+        if (cameraChanged)
+        {
+            for (RenderableSnapshot& renderable : snapshot.renderables)
+                updateCameraDepth(renderable);
+        }
+        populateMaterialFrameData(world);
         gts::rendering::clearSnapshotDirtyQueue(invalidation);
         if (m_snapshotDirty)
             snapshot.contentVersion = ++contentVersion;
@@ -340,6 +346,7 @@ class RenderExtractionSnapshotBuilder
         snapshot.occupiedSlots.clear();
         snapshot.objectUploads.clear();
         snapshot.cameraUploads.clear();
+        snapshot.materialFrameData.clear();
         entryMetadata.clear();
         entityToIndex.clear();
         std::fill(slotToIndex.begin(), slotToIndex.end(), InvalidIndex);
@@ -449,29 +456,58 @@ class RenderExtractionSnapshotBuilder
         return true;
     }
 
-    void updateCameraVersion()
+    bool updateCameraVersion()
     {
         if (cameraCacheValid && lastCameraViewID == snapshot.cameraViewID && sameFrustum(lastFrustum, snapshot.frustum))
         {
-            return;
+            return false;
         }
 
         lastCameraViewID       = snapshot.cameraViewID;
         lastFrustum            = snapshot.frustum;
         cameraCacheValid       = true;
         snapshot.cameraVersion = ++cameraVersion;
+        return true;
     }
 
     static uint64_t makeSortKey(const RenderableSnapshot& renderable)
     {
-        const uint64_t blend       = static_cast<uint64_t>(renderable.blendMode) & 0x3ull;
-        const uint64_t depth       = renderable.depthWrite ? 1ull : 0ull;
-        const uint64_t sidedness   = renderable.doubleSided ? 1ull : 0ull;
-        const uint64_t vertexColor = renderable.vertexColorOnly ? 1ull : 0ull;
-        const uint64_t materialFlags = (blend << 3) | (depth << 2) | (sidedness << 1) | vertexColor;
-        return (materialFlags << 56)
-             | ((static_cast<uint64_t>(renderable.meshID) & 0xFFFFFFull) << 32)
-             | (static_cast<uint64_t>(renderable.textureID) & 0xFFFFFFFFull);
+        const uint64_t queue = static_cast<uint64_t>(renderable.renderQueue) & 0x3ull;
+        const uint64_t variant = renderable.variantKey.value & 0xFFFFull;
+        const uint64_t material =
+            ((static_cast<uint64_t>(renderable.materialGpu.id) & 0xFFFFull) << 8)
+            | (static_cast<uint64_t>(renderable.materialGpu.generation) & 0xFFull);
+        const uint64_t mesh = static_cast<uint64_t>(renderable.meshID) & 0xFFFFull;
+        const uint64_t slot = static_cast<uint64_t>(renderable.objectSSBOSlot) & 0xFFull;
+
+        return (queue << 62)
+             | (variant << 46)
+             | ((material & 0xFFFFFFull) << 22)
+             | (mesh << 6)
+             | slot;
+    }
+
+    void updateCameraDepth(RenderableSnapshot& renderable) const
+    {
+        glm::vec3 worldCenter = glm::vec3(renderable.modelMatrix[3]);
+        if (renderable.hasBounds)
+            worldCenter = (renderable.worldBounds.min + renderable.worldBounds.max) * 0.5f;
+
+        const glm::vec4 viewPosition = snapshot.cameraViewMatrix * glm::vec4(worldCenter, 1.0f);
+        renderable.cameraDepth = -viewPosition.z;
+    }
+
+    void populateMaterialFrameData(ECSWorld& world)
+    {
+        gts::rendering::MaterialRuntime& materials = gts::rendering::materialRuntime(world);
+        for (const RenderableSnapshot& renderable : snapshot.renderables)
+        {
+            const MaterialGpuState* materialGpu = materials.getGpuState(renderable.material);
+            if (materialGpu == nullptr)
+                continue;
+
+            snapshot.materialFrameData.upsert(makeMaterialFrameState(*materialGpu));
+        }
     }
 
     static void updateBounds(ECSWorld& world, Entity e, RenderableSnapshot& renderable)

@@ -17,7 +17,6 @@
 
 #include "RenderResourceManager.hpp"
 #include "RenderCommandExtractor.hpp"
-#include "ObjectUBO.h"
 
 #include "GraphicsConstants.h"
 #include "FormatUtil.hpp"
@@ -442,6 +441,7 @@ class ForwardRenderer : Renderer
         }
 
         void recordCommandBuffer(const std::vector<RenderCommand>& renderList,
+                                 const MaterialFrameData& materialFrameData,
                                  const ParticleFrameData& particleData,
                                  const RenderViewportRect& sceneViewport,
                                  const UiCommandBuffer& uiBuffer,
@@ -456,6 +456,7 @@ class ForwardRenderer : Renderer
 
             const RenderViewportFrame viewportFrame = buildViewportFrame(sceneViewport);
             frameGraph.provideData(&renderList);
+            frameGraph.provideData(&materialFrameData);
             frameGraph.provideData(&particleData);
             frameGraph.provideData(&viewportFrame);
             frameGraph.provideData(&uiBuffer);
@@ -608,6 +609,7 @@ class ForwardRenderer : Renderer
         }
 
         void renderFrame(float dt, const std::vector<RenderCommand>& renderList,
+                         const MaterialFrameData& materialFrameData,
                          const std::vector<ObjectUploadCommand>& objectUploads,
                          const std::vector<CameraUploadCommand>& cameraUploads,
                          const ParticleFrameData& particleData,
@@ -691,11 +693,23 @@ class ForwardRenderer : Renderer
             frameStats.backendObjectWritesSkipped = 0;
             for (const auto& upload : objectUploads)
             {
-                ObjectUBO ubo;
-                ubo.model = upload.modelMatrix;
-                ubo.uvTransform = upload.uvTransform;
-                ubo.tint = upload.tint;
-                const uint32_t writes = resourceSystem->writeObjectSlotAllFrames(upload.objectSSBOSlot, ubo);
+                const uint32_t writes =
+                    resourceSystem->writeObjectDataAllFrames(
+                        upload.objectSSBOSlot,
+                        upload.modelMatrix,
+                        upload.uvTransform);
+                frameStats.backendObjectWrites += writes;
+                if (writes == 0)
+                    frameStats.backendObjectWritesSkipped += 1;
+            }
+            for (const RenderCommand& command : renderList)
+            {
+                const MaterialFrameState* material = materialFrameData.find(command.materialGpu);
+                if (material == nullptr)
+                    continue;
+
+                const uint32_t writes =
+                    resourceSystem->writeObjectTintAllFrames(command.objectSSBOSlot, material->baseColor);
                 frameStats.backendObjectWrites += writes;
                 if (writes == 0)
                     frameStats.backendObjectWritesSkipped += 1;
@@ -704,12 +718,23 @@ class ForwardRenderer : Renderer
             {
                 for (const auto& upload : editorPreview.objectUploads)
                 {
-                    ObjectUBO ubo;
-                    ubo.model = upload.modelMatrix;
-                    ubo.uvTransform = upload.uvTransform;
-                    ubo.tint = upload.tint;
                     const uint32_t writes =
-                        resourceSystem->writeObjectSlotAllFrames(upload.objectSSBOSlot, ubo);
+                        resourceSystem->writeObjectDataAllFrames(
+                            upload.objectSSBOSlot,
+                            upload.modelMatrix,
+                            upload.uvTransform);
+                    frameStats.backendObjectWrites += writes;
+                    if (writes == 0)
+                        frameStats.backendObjectWritesSkipped += 1;
+                }
+                for (const RenderCommand& command : editorPreview.renderList)
+                {
+                    const MaterialFrameState* material = editorPreview.materialFrameData.find(command.materialGpu);
+                    if (material == nullptr)
+                        continue;
+
+                    const uint32_t writes =
+                        resourceSystem->writeObjectTintAllFrames(command.objectSSBOSlot, material->baseColor);
                     frameStats.backendObjectWrites += writes;
                     if (writes == 0)
                         frameStats.backendObjectWritesSkipped += 1;
@@ -735,6 +760,7 @@ class ForwardRenderer : Renderer
 
             const auto cmdRecordStart = std::chrono::steady_clock::now();
             recordCommandBuffer(renderList,
+                                materialFrameData,
                                 particleData,
                                 sceneViewport,
                                 uiBuffer,

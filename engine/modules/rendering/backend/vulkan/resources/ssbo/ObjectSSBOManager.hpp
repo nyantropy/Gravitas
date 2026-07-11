@@ -138,6 +138,53 @@ class ObjectSSBOManager
             return writes;
         }
 
+        bool writeSlotObjectData(uint32_t frameIndex,
+                                 ssbo_id_type slot,
+                                 const glm::mat4& model,
+                                 const glm::vec4& uvTransform)
+        {
+            ObjectUBO data = lastWrittenObject[frameIndex][slot];
+            data.model = model;
+            data.uvTransform = uvTransform;
+            return writeSlot(frameIndex, slot, data);
+        }
+
+        uint32_t writeSlotObjectDataAllFrames(ssbo_id_type slot,
+                                              const glm::mat4& model,
+                                              const glm::vec4& uvTransform)
+        {
+            uint32_t writes = 0;
+            for (uint32_t frameIndex = 0; frameIndex < static_cast<uint32_t>(ssboMapped.size()); ++frameIndex)
+            {
+                if (writeSlotObjectData(frameIndex, slot, model, uvTransform))
+                    writes += 1;
+            }
+
+            return writes;
+        }
+
+        bool writeSlotTint(uint32_t frameIndex, ssbo_id_type slot, const glm::vec4& tint)
+        {
+            ObjectUBO data = lastWrittenObject[frameIndex][slot];
+            if (data.tint == tint)
+                return false;
+
+            data.tint = tint;
+            return writeSlot(frameIndex, slot, data);
+        }
+
+        uint32_t writeSlotTintAllFrames(ssbo_id_type slot, const glm::vec4& tint)
+        {
+            uint32_t writes = 0;
+            for (uint32_t frameIndex = 0; frameIndex < static_cast<uint32_t>(ssboMapped.size()); ++frameIndex)
+            {
+                if (writeSlotTint(frameIndex, slot, tint))
+                    writes += 1;
+            }
+
+            return writes;
+        }
+
         void flushFrame(uint32_t frameIndex)
         {
             // Dirty-range tracking: part of the engine's dirty-notification pattern.

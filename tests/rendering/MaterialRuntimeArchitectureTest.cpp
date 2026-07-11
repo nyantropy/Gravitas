@@ -12,6 +12,7 @@
 #include "MaterialRuntime.h"
 #include "MeshGpuComponent.h"
 #include "RenderDirtyComponent.h"
+#include "RenderCommandExtractor.hpp"
 #include "RenderExtractionSnapshotBuilder.hpp"
 #include "RenderGpuComponent.h"
 #include "RendererGeometrySceneFeature.h"
@@ -246,6 +247,8 @@ namespace
         const Entity a = createStaticRenderable(world, "mesh/a.obj", shared);
         const Entity b = createStaticRenderable(world, "mesh/b.obj", shared);
         update(world, resources);
+        RenderExtractionSnapshotBuilder builder;
+        builder.build(world);
 
         const mesh_id_type meshA = world.getComponent<MeshGpuComponent>(a).meshID;
         const mesh_id_type meshB = world.getComponent<MeshGpuComponent>(b).meshID;
@@ -264,10 +267,10 @@ namespace
 
         const bool aDirty = world.hasComponent<RenderDirtyComponent>(a)
             && world.getComponent<RenderDirtyComponent>(a).materialDirty
-            && world.getComponent<RenderDirtyComponent>(a).objectDataDirty;
+            && !world.getComponent<RenderDirtyComponent>(a).objectDataDirty;
         const bool bDirty = world.hasComponent<RenderDirtyComponent>(b)
             && world.getComponent<RenderDirtyComponent>(b).materialDirty
-            && world.getComponent<RenderDirtyComponent>(b).objectDataDirty;
+            && !world.getComponent<RenderDirtyComponent>(b).objectDataDirty;
         const MaterialGpuState* updatedState = materials.getGpuState(shared);
 
         return require(world.getComponent<MaterialReferenceComponent>(a).material == shared,
@@ -280,7 +283,7 @@ namespace
             && require(materials.gpuStateCount() == 1, "shared material creates one GPU material cache state")
             && require(updatedState != nullptr && updatedState->uploadedVersion == uploadedVersion + 1,
                        "shared material update uploads one material cache version")
-            && require(aDirty && bDirty, "shared material update dirties every referencing renderable")
+            && require(aDirty && bDirty, "shared material update dirties material representation only")
             && require(world.getComponent<MeshGpuComponent>(a).meshID == meshA &&
                        world.getComponent<MeshGpuComponent>(b).meshID == meshB,
                        "shared material update preserves mesh GPU state")
@@ -304,17 +307,169 @@ namespace
         RenderExtractionSnapshot& snapshot = builder.build(world);
 
         bool allCarrySharedMaterial = snapshot.renderables.size() == 2;
+        bool materialFrameStatePresent = snapshot.materialFrameData.materials.size() == 1;
         for (const RenderableSnapshot& renderable : snapshot.renderables)
         {
+            const MaterialFrameState* materialState = snapshot.materialFrameData.find(renderable.materialGpu);
             allCarrySharedMaterial =
                 allCarrySharedMaterial
                 && renderable.material == shared
                 && renderable.materialGpu.valid()
-                && renderable.textureID != 0;
+                && renderable.variantKey.value != 0
+                && renderable.renderQueue == RenderQueue::Opaque
+                && materialState != nullptr
+                && materialState->baseColorTextureID != 0;
         }
 
         return require(allCarrySharedMaterial,
-                       "render extraction carries material instance and GPU cache handles");
+                       "render extraction carries material instance and GPU cache handles")
+            && require(materialFrameStatePresent,
+                       "shared material appears once in material frame data");
+    }
+
+    bool renderCommandsUseMaterialIdentity()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        auto& materials = gts::rendering::materialRuntime(world);
+        const MaterialInstanceHandle shared = materials.createInstance(
+            makeTexturedInstance(materials, "textures/shared.png", {1.0f, 1.0f, 1.0f, 1.0f}));
+        createStaticRenderable(world, "mesh/a.obj", shared);
+        createStaticRenderable(world, "mesh/b.obj", shared);
+        update(world, resources);
+
+        RenderExtractionSnapshotBuilder builder;
+        RenderExtractionSnapshot& snapshot = builder.build(world);
+        RenderCommandExtractor extractor;
+        const std::vector<RenderCommand>& commands = extractor.extract(snapshot);
+
+        bool commandsCarryMaterialIdentity = commands.size() == 2;
+        for (const RenderCommand& command : commands)
+        {
+            commandsCarryMaterialIdentity =
+                commandsCarryMaterialIdentity
+                && command.material == shared
+                && command.materialGpu.valid()
+                && command.variantKey.value != 0
+                && command.renderQueue == RenderQueue::Opaque
+                && snapshot.materialFrameData.find(command.materialGpu) != nullptr;
+        }
+
+        return require(commandsCarryMaterialIdentity,
+                       "render commands carry material handles, variant key, and queue")
+            && require(snapshot.materialFrameData.materials.size() == 1,
+                       "shared commands resolve one material frame state")
+            && require(snapshot.objectUploads.size() == 2,
+                       "object uploads remain per-object model/UV data");
+    }
+
+    bool variantKeySeparatesTopologyFromParameters()
+    {
+        gts::rendering::MaterialRuntime materials;
+        FakeResourceProvider resources;
+
+        MaterialInstance instance = makeTexturedInstance(
+            materials,
+            "textures/shared.png",
+            {1.0f, 1.0f, 1.0f, 1.0f});
+        const MaterialInstanceHandle handle = materials.createInstance(instance);
+        const MaterialSyncResult firstSync = materials.synchronizeGpuState(handle, &resources);
+        const MaterialVariantKey initialVariant = firstSync.state->variantKey;
+
+        materials.modifyInstance(
+            handle,
+            [](MaterialInstance& editable)
+            {
+                editable.baseColor = {0.25f, 0.5f, 0.75f, 1.0f};
+                return true;
+            });
+        const MaterialSyncResult parameterSync = materials.synchronizeGpuState(handle, &resources);
+        const MaterialVariantKey parameterVariant = parameterSync.state->variantKey;
+
+        materials.modifyInstance(
+            handle,
+            [](MaterialInstance& editable)
+            {
+                editable.renderState.doubleSided = !editable.renderState.doubleSided;
+                return true;
+            });
+        const MaterialSyncResult topologySync = materials.synchronizeGpuState(handle, &resources);
+
+        materials.modifyInstance(
+            handle,
+            [](MaterialInstance& editable)
+            {
+                editable.baseColor.a = 0.5f;
+                editable.renderState.alphaMode = MaterialAlphaMode::Blend;
+                editable.renderState.depthWrite = false;
+                return true;
+            });
+        const MaterialSyncResult alphaSync = materials.synchronizeGpuState(handle, &resources);
+        const MaterialFrameState frameState = makeMaterialFrameState(*alphaSync.state);
+
+        return require(firstSync.changed, "initial sync creates material GPU state")
+            && require(parameterSync.parameterChanged && !parameterSync.topologyChanged,
+                       "base color change is a material parameter update")
+            && require(parameterVariant == initialVariant,
+                       "base color change preserves material variant key")
+            && require(topologySync.topologyChanged,
+                       "double-sided change is material topology")
+            && require(topologySync.state->variantKey != initialVariant,
+                       "double-sided change updates material variant key")
+            && require(alphaSync.topologyChanged,
+                       "alpha mode change is material topology")
+            && require(frameState.renderQueue == RenderQueue::Transparent,
+                       "blend alpha mode maps to transparent render queue");
+    }
+
+    bool commandExtractorSortsQueuesAndTransparentDepth()
+    {
+        RenderExtractionSnapshot snapshot;
+        snapshot.cameraViewID = 1;
+        snapshot.contentVersion = 1;
+        snapshot.visibilityVersion = 1;
+        snapshot.cameraVersion = 1;
+
+        RenderableSnapshot opaque;
+        opaque.objectSSBOSlot = 0;
+        opaque.meshID = 20;
+        opaque.material = {1, 1};
+        opaque.materialGpu = {1, 1};
+        opaque.variantKey = {1};
+        opaque.renderQueue = RenderQueue::Opaque;
+        opaque.sortKey = 10;
+        opaque.cameraDepth = 1.0f;
+
+        RenderableSnapshot transparentNear = opaque;
+        transparentNear.objectSSBOSlot = 1;
+        transparentNear.material = {2, 1};
+        transparentNear.materialGpu = {2, 1};
+        transparentNear.variantKey = {2};
+        transparentNear.renderQueue = RenderQueue::Transparent;
+        transparentNear.sortKey = 20;
+        transparentNear.cameraDepth = 2.0f;
+
+        RenderableSnapshot transparentFar = transparentNear;
+        transparentFar.objectSSBOSlot = 2;
+        transparentFar.material = {3, 1};
+        transparentFar.materialGpu = {3, 1};
+        transparentFar.sortKey = 30;
+        transparentFar.cameraDepth = 8.0f;
+
+        snapshot.renderables = {transparentNear, opaque, transparentFar};
+
+        RenderCommandExtractor extractor;
+        const std::vector<RenderCommand>& commands = extractor.extract(snapshot);
+
+        return require(commands.size() == 3, "extractor emits every visible command")
+            && require(commands[0].renderQueue == RenderQueue::Opaque,
+                       "opaque commands are submitted before transparent commands")
+            && require(commands[1].objectSSBOSlot == transparentFar.objectSSBOSlot,
+                       "transparent commands sort far to near")
+            && require(commands[2].objectSSBOSlot == transparentNear.objectSSBOSlot,
+                       "nearest transparent command is submitted last");
     }
 
     bool perObjectUvAnimationDoesNotMutateSharedMaterial()
@@ -378,6 +533,9 @@ int main()
     ok &= handlesVersionsAndClone();
     ok &= sharedMaterialUpdatesAllReferencingRenderables();
     ok &= extractionCarriesStableMaterialIdentity();
+    ok &= renderCommandsUseMaterialIdentity();
+    ok &= variantKeySeparatesTopologyFromParameters();
+    ok &= commandExtractorSortsQueuesAndTransparentDepth();
     ok &= perObjectUvAnimationDoesNotMutateSharedMaterial();
     ok &= destroyedSharedMaterialFallsBackSafely();
 
