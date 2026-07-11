@@ -14,6 +14,8 @@
 #include "ECSWorld.hpp"
 #include "EcsControllerContext.hpp"
 #include "EnvironmentLightComponent.h"
+#include "EnvironmentResourceManager.hpp"
+#include "GraphicsConstants.h"
 #include "IResourceProvider.hpp"
 #include "LightExtraction.h"
 #include "LightingFrameData.h"
@@ -883,6 +885,69 @@ namespace
                        "IBL specular is finite and follows prefiltered radiance");
     }
 
+    bool productionEnvironmentPreprocessHelpersAreDeterministic()
+    {
+        const glm::vec3 posX = gts::rendering::cubemapDirectionForFaceUv(
+            gts::rendering::EnvironmentCubemapFace::PositiveX,
+            0.5f,
+            0.5f);
+        const glm::vec3 negX = gts::rendering::cubemapDirectionForFaceUv(
+            gts::rendering::EnvironmentCubemapFace::NegativeX,
+            0.5f,
+            0.5f);
+        const glm::vec3 posY = gts::rendering::cubemapDirectionForFaceUv(
+            gts::rendering::EnvironmentCubemapFace::PositiveY,
+            0.5f,
+            0.5f);
+        const glm::vec3 negY = gts::rendering::cubemapDirectionForFaceUv(
+            gts::rendering::EnvironmentCubemapFace::NegativeY,
+            0.5f,
+            0.5f);
+        const glm::vec3 posZ = gts::rendering::cubemapDirectionForFaceUv(
+            gts::rendering::EnvironmentCubemapFace::PositiveZ,
+            0.5f,
+            0.5f);
+        const glm::vec3 negZ = gts::rendering::cubemapDirectionForFaceUv(
+            gts::rendering::EnvironmentCubemapFace::NegativeZ,
+            0.5f,
+            0.5f);
+        const glm::vec2 firstHammersley = gts::vulkan::hammersley2d(0, 16);
+        const glm::vec2 brdf = gts::vulkan::integrateBrdfReference(0.5f, 0.5f);
+        const std::string firstKey = gts::vulkan::environmentCacheKeyForPath(
+            "/textures/test_environment.hdr");
+        const std::string secondKey = gts::vulkan::environmentCacheKeyForPath(
+            "/textures/test_environment.hdr");
+        const std::string otherKey = gts::vulkan::environmentCacheKeyForPath(
+            "/textures/other_environment.hdr");
+        const gts::vulkan::HdrEquirectangularImage hdr =
+            gts::vulkan::loadHdrEquirectangular(
+                GraphicsConstants::ENGINE_RESOURCES +
+                std::string("/textures/engine_ibl_validation_environment.hdr"));
+        const glm::vec3 hdrSample = hdr.sampleDirection({1.0f, 0.0f, 0.0f});
+
+        return require(nearVec3(posX, {1.0f, 0.0f, 0.0f}) &&
+                       nearVec3(negX, {-1.0f, 0.0f, 0.0f}) &&
+                       nearVec3(posY, {0.0f, 1.0f, 0.0f}) &&
+                       nearVec3(negY, {0.0f, -1.0f, 0.0f}) &&
+                       nearVec3(posZ, {0.0f, 0.0f, 1.0f}) &&
+                       nearVec3(negZ, {0.0f, 0.0f, -1.0f}),
+                       "cubemap face centers map to documented world axes")
+            && require(near(firstHammersley.x, 0.0f) && near(firstHammersley.y, 0.0f),
+                       "Hammersley sequence starts deterministically")
+            && require(std::isfinite(brdf.x) && std::isfinite(brdf.y) &&
+                       brdf.x >= 0.0f && brdf.y >= 0.0f,
+                       "BRDF LUT reference integration remains finite and nonnegative")
+            && require(firstKey == secondKey && firstKey != otherKey,
+                       "environment cache key is deterministic and source-dependent")
+            && require(gts::vulkan::resolveEnvironmentAssetPath("/textures/test.hdr").find(
+                           "engine/resources/textures/test.hdr") != std::string::npos,
+                       "engine-relative environment paths resolve into engine resources")
+            && require(hdr.width == 256 && hdr.height == 128,
+                       "HDR environment source decodes with expected dimensions")
+            && require(hdrSample.x > 1.0f || hdrSample.y > 1.0f || hdrSample.z > 1.0f,
+                       "HDR environment source preserves radiance above one");
+    }
+
     bool textureColorSpaceClassificationIsExplicit()
     {
         gts::rendering::MaterialRuntime materials;
@@ -1044,6 +1109,10 @@ namespace
                        "point GPU light packing is two vec4s")
             && require(sizeof(GpuSpotLightData) == sizeof(glm::vec4) * 4,
                        "spot GPU light packing is four vec4s")
+            && require(near(
+                           gts::rendering::MaxEnvironmentPrefilterMip,
+                           static_cast<float>(gts::rendering::EnvironmentPrefilterMipCount - 1u)),
+                       "environment prefilter max mip matches production mip count")
             && require(offsetof(CameraUBO, environmentParameters) >
                        offsetof(CameraUBO, lightingCountsAmbient),
                        "environment parameters follow lighting counts")
@@ -1080,6 +1149,7 @@ int main()
     ok = normalMapReferenceHelpersUseTangentFrameAndHandedness() && ok;
     ok = ambientOcclusionAndEmissiveReferenceHelpersAreIndependent() && ok;
     ok = environmentIblReferenceHelpersMatchShaderSemantics() && ok;
+    ok = productionEnvironmentPreprocessHelpersAreDeterministic() && ok;
     ok = textureColorSpaceClassificationIsExplicit() && ok;
     ok = extractionPublishesCameraPositionAndLightFrameData() && ok;
     ok = extractionPublishesEnvironmentFrameData() && ok;

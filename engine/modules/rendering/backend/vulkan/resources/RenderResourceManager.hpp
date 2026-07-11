@@ -2,6 +2,7 @@
 #include <string>
 
 #include "DescriptorSetManager.hpp"
+#include "EnvironmentResourceManager.hpp"
 #include "GraphicsConstants.h"
 #include "IResourceProvider.hpp"
 #include "MeshManager.hpp"
@@ -20,6 +21,7 @@ class RenderResourceManager : public IResourceProvider
         std::unique_ptr<MeshManager>              meshManager;
         std::unique_ptr<CameraBufferManager>      cameraBufferManager;
         std::unique_ptr<TextureManager>           textureManager;
+        std::unique_ptr<gts::vulkan::EnvironmentResourceManager> environmentResourceManager;
         std::unique_ptr<FontManager>              fontManager;
         std::unique_ptr<ObjectSSBOManager>        objectSSBOManager;
 
@@ -32,6 +34,11 @@ class RenderResourceManager : public IResourceProvider
             meshManager          = std::make_unique<MeshManager>(backendContext);
             cameraBufferManager  = std::make_unique<CameraBufferManager>(backendContext, *descriptorSetManager);
             textureManager       = std::make_unique<TextureManager>(backendContext, *descriptorSetManager);
+            environmentResourceManager =
+                std::make_unique<gts::vulkan::EnvironmentResourceManager>(
+                    backendContext,
+                    *descriptorSetManager,
+                    GraphicsConstants::MAX_FRAMES_IN_FLIGHT);
             fontManager          = std::make_unique<FontManager>(textureManager.get());
 
             objectSSBOManager    = std::make_unique<ObjectSSBOManager>(backendContext, *descriptorSetManager);
@@ -43,6 +50,7 @@ class RenderResourceManager : public IResourceProvider
             // so the pool stays alive while other managers free their sets.
             if (objectSSBOManager)   objectSSBOManager.reset();
             if (fontManager)         fontManager.reset();
+            if (environmentResourceManager) environmentResourceManager.reset();
             if (textureManager)      textureManager.reset();
             if (cameraBufferManager) cameraBufferManager.reset();
             if (meshManager)         meshManager.reset();
@@ -134,55 +142,10 @@ class RenderResourceManager : public IResourceProvider
             return textureManager->getMaterialTextureDescriptorSets(textures);
         }
 
-        gts::rendering::EnvironmentTextureIds resolveEnvironmentTextures(
-            const gts::rendering::EnvironmentFrameData& environment)
-        {
-            const bool useAuthoredEnvironment =
-                environment.enabled && !environment.environmentPath.empty();
-            const auto resolveEnvironmentPath = [](const std::string& path)
-            {
-                return path.rfind("/textures/", 0) == 0
-                    ? GraphicsConstants::ENGINE_RESOURCES + path
-                    : path;
-            };
-            const std::string authoredPath = resolveEnvironmentPath(environment.environmentPath);
-            const std::string irradianceFallback = GraphicsConstants::ENGINE_RESOURCES
-                + "/textures/"
-                + gts::rendering::fallbackEnvironmentTextureNameForRole(
-                    gts::rendering::EnvironmentTextureRole::Irradiance);
-            const std::string specularFallback = GraphicsConstants::ENGINE_RESOURCES
-                + "/textures/"
-                + gts::rendering::fallbackEnvironmentTextureNameForRole(
-                    gts::rendering::EnvironmentTextureRole::PrefilteredSpecular);
-            const std::string brdfPath = GraphicsConstants::ENGINE_RESOURCES
-                + "/textures/"
-                + gts::rendering::fallbackEnvironmentTextureNameForRole(
-                    gts::rendering::EnvironmentTextureRole::BrdfLut);
-
-            gts::rendering::EnvironmentTextureIds ids;
-            ids.irradiance = textureManager->loadTexture(
-                useAuthoredEnvironment ? authoredPath : irradianceFallback,
-                false,
-                true,
-                TextureColorSpace::Linear);
-            ids.prefilteredSpecular = textureManager->loadTexture(
-                useAuthoredEnvironment ? authoredPath : specularFallback,
-                false,
-                true,
-                TextureColorSpace::Linear);
-            ids.brdfLut = textureManager->loadTexture(
-                brdfPath,
-                false,
-                true,
-                TextureColorSpace::Linear);
-            return ids;
-        }
-
         const std::vector<VkDescriptorSet>* getEnvironmentTextureDescriptorSets(
             const gts::rendering::EnvironmentFrameData& environment)
         {
-            return textureManager->getEnvironmentTextureDescriptorSets(
-                resolveEnvironmentTextures(environment));
+            return environmentResourceManager->getEnvironmentDescriptorSets(environment);
         }
 
         texture_id_type registerSampledImageTexture(const std::string& key,

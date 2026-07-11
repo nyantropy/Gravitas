@@ -30,8 +30,8 @@ layout(set = 2, binding = 2) uniform sampler2D normalSampler;
 layout(set = 2, binding = 3) uniform sampler2D ambientOcclusionSampler;
 layout(set = 2, binding = 4) uniform sampler2D emissiveSampler;
 
-layout(set = 3, binding = 0) uniform sampler2D environmentIrradianceSampler;
-layout(set = 3, binding = 1) uniform sampler2D environmentSpecularSampler;
+layout(set = 3, binding = 0) uniform samplerCube environmentIrradianceSampler;
+layout(set = 3, binding = 1) uniform samplerCube environmentSpecularSampler;
 layout(set = 3, binding = 2) uniform sampler2D environmentBrdfSampler;
 
 layout(push_constant) uniform PushConstants {
@@ -51,8 +51,6 @@ const int FEATURE_METALLIC_ROUGHNESS_TEXTURE = 1 << 1;
 const int FEATURE_NORMAL_TEXTURE = 1 << 2;
 const int FEATURE_AMBIENT_OCCLUSION_TEXTURE = 1 << 3;
 const int FEATURE_EMISSIVE_TEXTURE = 1 << 4;
-const float MAX_ENVIRONMENT_PREFILTER_MIP = 5.0;
-
 float saturate(float value) {
     return clamp(value, 0.0, 1.0);
 }
@@ -156,13 +154,6 @@ vec3 rotateEnvironmentDirectionY(vec3 direction, float rotationRadians) {
         d);
 }
 
-vec2 equirectangularUv(vec3 direction) {
-    vec3 d = safeNormalize(direction, vec3(0.0, 0.0, 1.0));
-    float u = atan(d.z, d.x) / (2.0 * PI) + 0.5;
-    float v = acos(clamp(d.y, -1.0, 1.0)) / PI;
-    return vec2(u, v);
-}
-
 vec3 fallbackTangentForNormal(vec3 normal) {
     if (abs(normal.z) < 0.999)
         return safeNormalize(cross(vec3(0.0, 0.0, 1.0), normal), vec3(1.0, 0.0, 0.0));
@@ -209,15 +200,16 @@ vec3 evaluateEnvironmentIbl(
 
     vec3 irradianceDirection = rotateEnvironmentDirectionY(normal, rotation);
     vec3 irradiance =
-        texture(environmentIrradianceSampler, equirectangularUv(irradianceDirection)).rgb *
+        texture(environmentIrradianceSampler, irradianceDirection).rgb *
         intensity;
     vec3 diffuse = kd * baseRgb * irradiance * ambientOcclusion;
 
     vec3 reflectionDirection = reflect(-viewDirection, normal);
     vec3 specularDirection = rotateEnvironmentDirectionY(reflectionDirection, rotation);
-    float lod = clamp(roughness, MIN_ROUGHNESS, 1.0) * MAX_ENVIRONMENT_PREFILTER_MIP;
+    float maxEnvironmentMip = max(cam.environmentParameters.w, 0.0);
+    float lod = clamp(roughness, MIN_ROUGHNESS, 1.0) * maxEnvironmentMip;
     vec3 prefiltered =
-        textureLod(environmentSpecularSampler, equirectangularUv(specularDirection), lod).rgb *
+        textureLod(environmentSpecularSampler, specularDirection, lod).rgb *
         intensity;
     vec2 brdf = texture(environmentBrdfSampler, vec2(nDotV, roughness)).rg;
     vec3 specular = prefiltered * (fresnel * brdf.x + brdf.y);

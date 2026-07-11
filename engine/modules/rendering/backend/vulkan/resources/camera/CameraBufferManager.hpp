@@ -159,7 +159,7 @@ class CameraBufferManager
                 gts::rendering::sanitizeEnvironmentIntensity(lighting.environment.intensity),
                 gts::rendering::sanitizeEnvironmentRotation(lighting.environment.rotationRadians),
                 lighting.environment.enabled ? 1.0f : 0.0f,
-                0.0f
+                gts::rendering::MaxEnvironmentPrefilterMip
             };
 
             for (uint32_t i = 0; i < lighting.directionalCount && i < gts::rendering::MaxDirectionalLights; ++i)

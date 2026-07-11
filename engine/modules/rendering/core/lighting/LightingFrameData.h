@@ -17,48 +17,18 @@ namespace gts::rendering
     inline constexpr float MinLightRange = 0.01f;
     inline constexpr float MinConeSeparationRadians = 0.001f;
     inline constexpr float MaxEnvironmentPrefilterMip = 5.0f;
+    inline constexpr uint32_t EnvironmentCubemapFaceCount = 6;
+    inline constexpr uint32_t EnvironmentPrefilterMipCount = 6;
 
-    enum class EnvironmentTextureRole
+    enum class EnvironmentCubemapFace : uint32_t
     {
-        Irradiance,
-        PrefilteredSpecular,
-        BrdfLut
+        PositiveX = 0,
+        NegativeX = 1,
+        PositiveY = 2,
+        NegativeY = 3,
+        PositiveZ = 4,
+        NegativeZ = 5
     };
-
-    struct EnvironmentTextureIds
-    {
-        texture_id_type irradiance = 0;
-        texture_id_type prefilteredSpecular = 0;
-        texture_id_type brdfLut = 0;
-    };
-
-    inline bool operator==(const EnvironmentTextureIds& lhs,
-                           const EnvironmentTextureIds& rhs)
-    {
-        return lhs.irradiance == rhs.irradiance
-            && lhs.prefilteredSpecular == rhs.prefilteredSpecular
-            && lhs.brdfLut == rhs.brdfLut;
-    }
-
-    inline bool operator!=(const EnvironmentTextureIds& lhs,
-                           const EnvironmentTextureIds& rhs)
-    {
-        return !(lhs == rhs);
-    }
-
-    inline const char* fallbackEnvironmentTextureNameForRole(EnvironmentTextureRole role)
-    {
-        switch (role)
-        {
-            case EnvironmentTextureRole::Irradiance:
-                return "engine_ibl_irradiance_neutral.png";
-            case EnvironmentTextureRole::PrefilteredSpecular:
-                return "engine_ibl_specular_black.png";
-            case EnvironmentTextureRole::BrdfLut:
-                return "engine_ibl_brdf_lut.png";
-        }
-        return "engine_ibl_specular_black.png";
-    }
 
     struct DirectionalLightFrameData
     {
@@ -374,6 +344,30 @@ namespace gts::rendering
         const float u = std::atan2(d.z, d.x) / (2.0f * PbrPi) + 0.5f;
         const float v = std::acos(std::clamp(d.y, -1.0f, 1.0f)) / PbrPi;
         return {u, v};
+    }
+
+    inline glm::vec3 cubemapDirectionForFaceUv(EnvironmentCubemapFace face,
+                                               float u,
+                                               float v)
+    {
+        const float x = 2.0f * saturateLighting(u) - 1.0f;
+        const float y = 2.0f * saturateLighting(v) - 1.0f;
+        switch (face)
+        {
+            case EnvironmentCubemapFace::PositiveX:
+                return safeLightingNormalize({1.0f, -y, -x}, {1.0f, 0.0f, 0.0f});
+            case EnvironmentCubemapFace::NegativeX:
+                return safeLightingNormalize({-1.0f, -y, x}, {-1.0f, 0.0f, 0.0f});
+            case EnvironmentCubemapFace::PositiveY:
+                return safeLightingNormalize({x, 1.0f, y}, {0.0f, 1.0f, 0.0f});
+            case EnvironmentCubemapFace::NegativeY:
+                return safeLightingNormalize({x, -1.0f, -y}, {0.0f, -1.0f, 0.0f});
+            case EnvironmentCubemapFace::PositiveZ:
+                return safeLightingNormalize({x, -y, 1.0f}, {0.0f, 0.0f, 1.0f});
+            case EnvironmentCubemapFace::NegativeZ:
+                return safeLightingNormalize({-x, -y, -1.0f}, {0.0f, 0.0f, -1.0f});
+        }
+        return {0.0f, 0.0f, 1.0f};
     }
 
     inline float roughnessToEnvironmentMip(float roughness, float maxMipLevel)

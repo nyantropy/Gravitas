@@ -57,7 +57,7 @@ private:
     static constexpr const char* ValidationEmissiveTexture =
         "/textures/engine_pbr_validation_emissive.png";
     static constexpr const char* ValidationEnvironmentTexture =
-        "/textures/engine_ibl_validation_environment.png";
+        "/textures/engine_ibl_validation_environment.hdr";
 
     MaterialInstanceHandle createStandardSurface(const glm::vec4& baseColor,
                                                  float metallic,

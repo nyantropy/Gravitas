@@ -555,20 +555,48 @@ EnvironmentFrameData {
 }
 ```
 
-The Vulkan renderer resolves that state through render resource management into
-one shared environment descriptor set containing irradiance, prefiltered
-specular, and BRDF-LUT bindings. Render commands, object uploads, and material
-instances do not carry environment texture IDs. Intensity and rotation changes
-update frame state only and do not mutate material versions or material variant
-keys.
+The Vulkan renderer resolves that state through backend-owned environment
+resource management into one shared environment descriptor set containing an
+irradiance cubemap, a GGX-prefiltered specular cubemap, and the shared BRDF
+integration LUT. Render commands, object uploads, and material instances do not
+carry environment texture IDs. Intensity and rotation changes update frame
+state only and do not mutate material versions or material variant keys.
 
-Phase 3E establishes this ownership and shader integration with deterministic
-linear equirectangular environment textures and fallback images. The current
-backend does not yet generate true HDR cubemaps, irradiance convolutions, or
-GGX-prefiltered cubemap mip chains; that preprocessing is the next backend
-resource refinement before production-quality IBL. The descriptor contract is
-already shaped so those resources can replace the current texture realization
-without changing material, command, or object ownership.
+Production environment resources are realized from Radiance `.hdr`
+equirectangular sources. Source radiance is decoded as linear floating-point
+data, preserving values above `1.0`, then preprocessed outside ordinary draw
+execution into:
+
+```
+HDR equirectangular source
+    -> radiance cubemap
+    -> diffuse irradiance cubemap
+    -> GGX-prefiltered specular cubemap mip chain
+    -> shared BRDF integration LUT
+```
+
+The current Vulkan realization uses `VK_FORMAT_R32G32B32A32_SFLOAT` for HDR
+environment cubemaps and the BRDF LUT. This is larger than the eventual
+`R16G16B16A16_SFLOAT`/`R16G16_SFLOAT` target, but keeps the first production
+implementation simple and preserves HDR radiance without half-float packing.
+Cubemap images use six layers with `VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT`; set 3
+binds samplerCube irradiance and prefiltered-specular resources plus a 2D BRDF
+LUT sampler.
+
+Cubemap layer order is `+X`, `-X`, `+Y`, `-Y`, `+Z`, `-Z`. Face-center
+directions map to their named world axes, world up is `+Y`, and the
+equirectangular mapping uses longitude from `atan2(z, x)` and latitude from
+`acos(y)`. Environment rotation is a frame-level world-up-axis rotation applied
+to sampling directions before cubemap lookup; cubemap images are not regenerated
+when rotation changes.
+
+Environment cache identity includes the source path and a preprocessing version
+plus current quality settings. It intentionally excludes scene entity,
+intensity, and rotation, so multiple scene descriptors using the same source
+share one GPU realization. Decode or preprocessing failure is recorded once per
+cache key, emits a bounded diagnostic, and resolves to production-compatible
+fallback cubemaps plus the shared BRDF LUT. No-environment frames bind those
+same valid fallback resources.
 
 Scene-level render pass visibility is controlled at two layers. The stronger
 layer is the active `SceneExecutionProfile`: its `FrameBuildMode` determines
@@ -971,11 +999,11 @@ emissive = emissiveFactor * emissiveStrength * sampledEmissive
 Emissive materials glow visually but do not illuminate nearby geometry in this
 phase.
 
-When no environment is selected, the backend binds valid fallback resources: a
-neutral low-intensity irradiance texture, a black specular environment texture,
-and the shared BRDF LUT. This removes missing-descriptor cases while keeping
-PBR material variants stable across environment enable/disable changes.
-Phase 3E is lighting-only: it does not render the selected environment as a sky
+When no environment is selected, the backend binds valid fallback resources:
+black irradiance and prefiltered-specular cubemaps with the production image
+view types, plus the shared BRDF LUT. This removes missing-descriptor cases
+while keeping PBR material variants stable across environment enable/disable
+changes. Phase 3E.1 is lighting-only: it does not render the selected environment as a sky
 background. A future sky pass should consume the same selected environment
 state, respect intensity and rotation, and remain independent from material
 draw commands.

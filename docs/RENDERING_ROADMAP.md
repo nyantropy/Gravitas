@@ -196,13 +196,40 @@ Environment intensity scales the IBL contribution and rotation is applied around
 world up through sample-direction rotation. Valid fallback resources are always
 bound for no-environment scenes.
 
-The current backend realization intentionally uses deterministic linear
-equirectangular/fallback 2D environment textures as the sampled environment
-source. It does not yet generate true HDR cubemaps, irradiance convolution
-cubemaps, or GGX-prefiltered cubemap mip chains. That backend preprocessing
-work remains the main rendering-quality blocker before a production IBL pass,
-but it can replace the current resource realization without reopening material,
-command, object, or light-extraction ownership.
+Phase 3E intentionally shipped with a temporary backend realization using
+deterministic linear equirectangular/fallback 2D environment textures. Phase
+3E.1 replaces that resource path.
+
+### Phase 3E.1 --- Production-Quality IBL Resources (Complete)
+
+Replace the temporary 2D environment backend with production-compatible Vulkan
+environment resources.
+
+Status: complete. Environment realization is now owned by a backend
+`EnvironmentResourceManager`. It loads Radiance `.hdr` equirectangular sources
+as linear floating-point data, preprocesses them outside ordinary draw
+execution, and caches the result by source path, preprocessing version, and
+quality settings. Intensity and rotation remain frame-level values and do not
+participate in cache identity.
+
+The realized resource set contains a radiance cubemap, a cosine-convolved
+diffuse irradiance cubemap, a GGX-prefiltered specular cubemap with six mip
+levels, and a shared BRDF integration LUT. The first implementation uses
+`VK_FORMAT_R32G32B32A32_SFLOAT` for environment cubemaps and the LUT. This
+preserves HDR radiance and keeps the first production implementation simple;
+smaller half-float formats remain a future memory optimization.
+
+Descriptor set 3 now binds samplerCube irradiance and prefiltered-specular
+resources plus a 2D BRDF LUT. The PBR shader samples cubemaps directly with
+world-space directions, using `environmentParameters.w` as the maximum
+prefilter mip. The temporary equirectangular direction-to-UV sampling path has
+been removed from the draw shader and from the environment descriptor path.
+
+Fallback resources now match the production descriptor types: black irradiance
+and prefiltered-specular cubemaps with a valid mip chain plus the shared BRDF
+LUT. Invalid or unsupported environment sources emit a bounded diagnostic once
+per cache key and resolve to those fallback resources. `GtsPbrValidation` now
+uses an engine-owned `.hdr` validation environment source.
 
 No sky/background pass is included in this phase. A future sky pass should
 consume the selected environment state independently from material draw
