@@ -134,6 +134,57 @@ class RenderResourceManager : public IResourceProvider
             return textureManager->getMaterialTextureDescriptorSets(textures);
         }
 
+        gts::rendering::EnvironmentTextureIds resolveEnvironmentTextures(
+            const gts::rendering::EnvironmentFrameData& environment)
+        {
+            const bool useAuthoredEnvironment =
+                environment.enabled && !environment.environmentPath.empty();
+            const auto resolveEnvironmentPath = [](const std::string& path)
+            {
+                return path.rfind("/textures/", 0) == 0
+                    ? GraphicsConstants::ENGINE_RESOURCES + path
+                    : path;
+            };
+            const std::string authoredPath = resolveEnvironmentPath(environment.environmentPath);
+            const std::string irradianceFallback = GraphicsConstants::ENGINE_RESOURCES
+                + "/textures/"
+                + gts::rendering::fallbackEnvironmentTextureNameForRole(
+                    gts::rendering::EnvironmentTextureRole::Irradiance);
+            const std::string specularFallback = GraphicsConstants::ENGINE_RESOURCES
+                + "/textures/"
+                + gts::rendering::fallbackEnvironmentTextureNameForRole(
+                    gts::rendering::EnvironmentTextureRole::PrefilteredSpecular);
+            const std::string brdfPath = GraphicsConstants::ENGINE_RESOURCES
+                + "/textures/"
+                + gts::rendering::fallbackEnvironmentTextureNameForRole(
+                    gts::rendering::EnvironmentTextureRole::BrdfLut);
+
+            gts::rendering::EnvironmentTextureIds ids;
+            ids.irradiance = textureManager->loadTexture(
+                useAuthoredEnvironment ? authoredPath : irradianceFallback,
+                false,
+                true,
+                TextureColorSpace::Linear);
+            ids.prefilteredSpecular = textureManager->loadTexture(
+                useAuthoredEnvironment ? authoredPath : specularFallback,
+                false,
+                true,
+                TextureColorSpace::Linear);
+            ids.brdfLut = textureManager->loadTexture(
+                brdfPath,
+                false,
+                true,
+                TextureColorSpace::Linear);
+            return ids;
+        }
+
+        const std::vector<VkDescriptorSet>* getEnvironmentTextureDescriptorSets(
+            const gts::rendering::EnvironmentFrameData& environment)
+        {
+            return textureManager->getEnvironmentTextureDescriptorSets(
+                resolveEnvironmentTextures(environment));
+        }
+
         texture_id_type registerSampledImageTexture(const std::string& key,
                                                     VkImageView imageView,
                                                     VkSampler sampler,

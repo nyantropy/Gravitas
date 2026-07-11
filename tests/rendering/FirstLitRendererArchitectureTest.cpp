@@ -13,6 +13,7 @@
 #include "DirectionalLightComponent.h"
 #include "ECSWorld.hpp"
 #include "EcsControllerContext.hpp"
+#include "EnvironmentLightComponent.h"
 #include "IResourceProvider.hpp"
 #include "LightExtraction.h"
 #include "LightingFrameData.h"
@@ -416,6 +417,94 @@ namespace
                        "lighting diagnostics count sanitized descriptors");
     }
 
+    bool environmentSelectionIsPriorityAndIdDeterministic()
+    {
+        ECSWorld world;
+        gts::transform::installTransformFeature(world);
+
+        Entity disabled = createTransformEntity(world);
+        EnvironmentLightComponent disabledEnvironment;
+        disabledEnvironment.environmentPath = "textures/disabled_environment.png";
+        disabledEnvironment.priority = 100;
+        disabledEnvironment.enabled = false;
+        world.addComponent(disabled, disabledEnvironment);
+
+        Entity lowPriority = createTransformEntity(world);
+        EnvironmentLightComponent lowEnvironment;
+        lowEnvironment.environmentPath = "textures/low_environment.png";
+        lowEnvironment.priority = 1;
+        world.addComponent(lowPriority, lowEnvironment);
+
+        Entity firstTie = createTransformEntity(world);
+        EnvironmentLightComponent firstEnvironment;
+        firstEnvironment.environmentPath = "textures/first_environment.png";
+        firstEnvironment.priority = 10;
+        firstEnvironment.intensity = 2.0f;
+        firstEnvironment.rotationRadians = 0.25f;
+        world.addComponent(firstTie, firstEnvironment);
+
+        Entity secondTie = createTransformEntity(world);
+        EnvironmentLightComponent secondEnvironment;
+        secondEnvironment.environmentPath = "textures/second_environment.png";
+        secondEnvironment.priority = 10;
+        world.addComponent(secondTie, secondEnvironment);
+
+        resolveTransforms(world);
+        const gts::rendering::LightingFrameData first =
+            gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
+        const gts::rendering::LightingFrameData second =
+            gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
+
+        return require(first.environment.environmentPath == "textures/first_environment.png",
+                       "environment selection uses priority and stable entity order")
+            && require(first.environment.enabled, "selected environment is enabled")
+            && require(near(first.environment.intensity, 2.0f),
+                       "environment intensity is copied to frame state")
+            && require(near(first.environment.rotationRadians, 0.25f),
+                       "environment rotation is copied to frame state")
+            && require(first.diagnostics.totalEnvironmentLights == 4,
+                       "environment diagnostics count authored descriptors")
+            && require(first.diagnostics.droppedEnvironmentLights == 2,
+                       "environment diagnostics report deterministic capacity drop")
+            && require(second.environment.environmentPath == first.environment.environmentPath,
+                       "repeated environment extraction is deterministic");
+    }
+
+    bool environmentValuesAreSanitizedAndTransformIndependent()
+    {
+        ECSWorld world;
+        gts::transform::installTransformFeature(world);
+
+        Entity parent = createTransformEntity(
+            world,
+            {42.0f, 13.0f, -7.0f},
+            {0.0f, 1.0f, 0.0f});
+        Entity environmentEntity = createTransformEntity(world);
+        EnvironmentLightComponent environment;
+        environment.environmentPath = "textures/sanitized_environment.png";
+        environment.intensity = -4.0f;
+        environment.rotationRadians = std::numeric_limits<float>::quiet_NaN();
+        environment.enabled = true;
+        world.addComponent(environmentEntity, environment);
+        require(gts::transform::attachToParent(world, environmentEntity, parent),
+                "attach environment entity to transformed parent");
+
+        resolveTransforms(world);
+        const gts::rendering::LightingFrameData frame =
+            gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
+
+        return require(frame.environment.environmentPath == "textures/sanitized_environment.png",
+                       "environment identity is scene-level and not transform-derived")
+            && require(!frame.environment.enabled,
+                       "zero-intensity sanitized environment is disabled in frame state")
+            && require(near(frame.environment.intensity, 0.0f),
+                       "negative environment intensity clamps to zero")
+            && require(near(frame.environment.rotationRadians, 0.0f),
+                       "invalid environment rotation falls back to zero")
+            && require(frame.diagnostics.sanitizedEnvironmentLights == 1,
+                       "environment diagnostics count sanitized descriptors");
+    }
+
     bool attenuationHelpersAreFiniteAndBounded()
     {
         const float nearOrigin = gts::rendering::pointLightAttenuation(0.0f, 5.0f);
@@ -743,6 +832,57 @@ namespace
                        "emissive factor and texture add independent linear contribution");
     }
 
+    bool environmentIblReferenceHelpersMatchShaderSemantics()
+    {
+        const glm::vec3 f0 = gts::rendering::pbrDielectricF0();
+        const glm::vec3 normalIncidence =
+            gts::rendering::fresnelSchlickRoughness(1.0f, f0, 0.7f);
+        const glm::vec3 grazing =
+            gts::rendering::fresnelSchlickRoughness(0.0f, f0, 0.7f);
+        const float mip = gts::rendering::roughnessToEnvironmentMip(
+            0.5f,
+            gts::rendering::MaxEnvironmentPrefilterMip);
+        constexpr float HalfPi = 1.57079632679f;
+        const glm::vec3 rotated = gts::rendering::rotateEnvironmentDirectionY(
+            {1.0f, 0.0f, 0.0f},
+            HalfPi);
+        const glm::vec2 forwardUv =
+            gts::rendering::equirectangularUvForDirection({1.0f, 0.0f, 0.0f});
+        const glm::vec3 diffuseDielectric = gts::rendering::evaluateDiffuseIbl(
+            {0.8f, 0.4f, 0.2f},
+            f0,
+            0.0f,
+            {1.0f, 1.0f, 1.0f},
+            0.5f);
+        const glm::vec3 diffuseMetal = gts::rendering::evaluateDiffuseIbl(
+            {0.8f, 0.4f, 0.2f},
+            f0,
+            1.0f,
+            {1.0f, 1.0f, 1.0f},
+            1.0f);
+        const glm::vec3 specular = gts::rendering::evaluateSpecularIbl(
+            f0,
+            0.5f,
+            0.5f,
+            {2.0f, 1.0f, 0.5f},
+            {0.8f, 0.1f});
+
+        return require(nearVec3(normalIncidence, f0),
+                       "roughness Fresnel returns F0 at normal incidence")
+            && require(grazing.x >= normalIncidence.x,
+                       "roughness Fresnel increases toward grazing angles")
+            && require(near(mip, gts::rendering::MaxEnvironmentPrefilterMip * 0.5f),
+                       "roughness maps to deterministic prefilter mip range")
+            && require(nearVec3(rotated, {0.0f, 0.0f, 1.0f}),
+                       "environment rotation applies around world up")
+            && require(near(forwardUv.x, 0.5f) && near(forwardUv.y, 0.5f),
+                       "equirectangular direction mapping is deterministic")
+            && require(diffuseDielectric.x > 0.0f && nearVec3(diffuseMetal, glm::vec3(0.0f)),
+                       "IBL diffuse is AO-aware and vanishes for full metals")
+            && require(finiteVec3(specular) && specular.x > specular.z,
+                       "IBL specular is finite and follows prefiltered radiance");
+    }
+
     bool textureColorSpaceClassificationIsExplicit()
     {
         gts::rendering::MaterialRuntime materials;
@@ -810,6 +950,48 @@ namespace
                        "camera upload carries ambient intensity");
     }
 
+    bool extractionPublishesEnvironmentFrameData()
+    {
+        ECSWorld world;
+        gts::transform::installTransformFeature(world);
+
+        Entity camera = createTransformEntity(world, {0.0f, 2.0f, 6.0f});
+        CameraGpuComponent cameraGpu;
+        cameraGpu.viewID = 11;
+        cameraGpu.active = true;
+        cameraGpu.viewMatrix = glm::translate(glm::mat4(1.0f), {0.0f, -2.0f, -6.0f});
+        cameraGpu.projMatrix = glm::mat4(1.0f);
+        world.addComponent(camera, cameraGpu);
+
+        Entity environmentEntity = createTransformEntity(world);
+        EnvironmentLightComponent environment;
+        environment.environmentPath = "textures/test_environment.png";
+        environment.intensity = 1.5f;
+        environment.rotationRadians = 0.75f;
+        environment.priority = 3;
+        world.addComponent(environmentEntity, environment);
+
+        resolveTransforms(world);
+
+        RenderExtractionSnapshotBuilder builder;
+        RenderExtractionSnapshot& snapshot = builder.build(world);
+
+        const bool hasUpload = !snapshot.cameraUploads.empty();
+        const CameraUploadCommand upload = hasUpload ? snapshot.cameraUploads.front() : CameraUploadCommand{};
+
+        return require(snapshot.lighting.environment.environmentPath == "textures/test_environment.png",
+                       "render snapshot carries selected environment identity")
+            && require(snapshot.lighting.environment.enabled,
+                       "render snapshot carries environment enabled state")
+            && require(near(snapshot.lighting.environment.intensity, 1.5f),
+                       "render snapshot carries environment intensity")
+            && require(hasUpload, "environment frame state reaches camera upload")
+            && require(upload.lighting.environment.environmentPath == "textures/test_environment.png",
+                       "camera upload carries selected environment identity")
+            && require(near(upload.lighting.environment.rotationRadians, 0.75f),
+                       "camera upload carries environment rotation");
+    }
+
     bool lightingChangesRemainFrameLevelState()
     {
         ECSWorld world;
@@ -828,10 +1010,17 @@ namespace
         PointLightComponent light;
         light.intensity = 2.0f;
         world.addComponent(point, light);
+        Entity environmentEntity = createTransformEntity(world);
+        EnvironmentLightComponent environment;
+        environment.environmentPath = "textures/frame_environment.png";
+        environment.intensity = 1.0f;
+        world.addComponent(environmentEntity, environment);
         resolveTransforms(world);
         gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
 
         world.getComponent<PointLightComponent>(point).intensity = 8.0f;
+        world.getComponent<EnvironmentLightComponent>(environmentEntity).intensity = 3.0f;
+        world.getComponent<EnvironmentLightComponent>(environmentEntity).rotationRadians = 1.0f;
         gts::rendering::extractLightingFrameData(world, {0.0f, 0.0f, 0.0f});
 
         const MaterialInstance* instance = materials.getInstance(material);
@@ -855,8 +1044,11 @@ namespace
                        "point GPU light packing is two vec4s")
             && require(sizeof(GpuSpotLightData) == sizeof(glm::vec4) * 4,
                        "spot GPU light packing is four vec4s")
-            && require(offsetof(CameraUBO, directional) > offsetof(CameraUBO, lightingCountsAmbient),
-                       "directional light array follows lighting counts")
+            && require(offsetof(CameraUBO, environmentParameters) >
+                       offsetof(CameraUBO, lightingCountsAmbient),
+                       "environment parameters follow lighting counts")
+            && require(offsetof(CameraUBO, directional) > offsetof(CameraUBO, environmentParameters),
+                       "directional light array follows environment parameters")
             && require(offsetof(CameraUBO, point) > offsetof(CameraUBO, directional),
                        "point light array follows directional lights")
             && require(offsetof(CameraUBO, spot) > offsetof(CameraUBO, point),
@@ -876,6 +1068,8 @@ int main()
     ok = pointAndSpotLightsUseResolvedWorldTransforms() && ok;
     ok = localLightSelectionIsPriorityDistanceAndCapacityBounded() && ok;
     ok = invalidLightValuesAreSanitized() && ok;
+    ok = environmentSelectionIsPriorityAndIdDeterministic() && ok;
+    ok = environmentValuesAreSanitizedAndTransformIndependent() && ok;
     ok = attenuationHelpersAreFiniteAndBounded() && ok;
     ok = litMaterialVariantAndParametersAreSeparated() && ok;
     ok = normalTransformationHandlesScaleAndReflection() && ok;
@@ -885,8 +1079,10 @@ int main()
     ok = materialTextureReferenceHelpersMatchShaderSemantics() && ok;
     ok = normalMapReferenceHelpersUseTangentFrameAndHandedness() && ok;
     ok = ambientOcclusionAndEmissiveReferenceHelpersAreIndependent() && ok;
+    ok = environmentIblReferenceHelpersMatchShaderSemantics() && ok;
     ok = textureColorSpaceClassificationIsExplicit() && ok;
     ok = extractionPublishesCameraPositionAndLightFrameData() && ok;
+    ok = extractionPublishesEnvironmentFrameData() && ok;
     ok = lightingChangesRemainFrameLevelState() && ok;
     ok = cameraUboPackingMatchesShaderCapacities() && ok;
 

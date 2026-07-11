@@ -13,6 +13,7 @@ layout(set = 0, binding = 0) uniform CameraUBO {
     mat4 proj;
     vec4 cameraPosition;
     vec4 lightingCountsAmbient;
+    vec4 environmentParameters;
     vec4 directionalDirectionIntensity[2];
     vec4 directionalColor[2];
     vec4 pointPositionRange[32];
@@ -28,6 +29,10 @@ layout(set = 2, binding = 1) uniform sampler2D metallicRoughnessSampler;
 layout(set = 2, binding = 2) uniform sampler2D normalSampler;
 layout(set = 2, binding = 3) uniform sampler2D ambientOcclusionSampler;
 layout(set = 2, binding = 4) uniform sampler2D emissiveSampler;
+
+layout(set = 3, binding = 0) uniform sampler2D environmentIrradianceSampler;
+layout(set = 3, binding = 1) uniform sampler2D environmentSpecularSampler;
+layout(set = 3, binding = 2) uniform sampler2D environmentBrdfSampler;
 
 layout(push_constant) uniform PushConstants {
     ivec4 materialFlags;
@@ -46,6 +51,7 @@ const int FEATURE_METALLIC_ROUGHNESS_TEXTURE = 1 << 1;
 const int FEATURE_NORMAL_TEXTURE = 1 << 2;
 const int FEATURE_AMBIENT_OCCLUSION_TEXTURE = 1 << 3;
 const int FEATURE_EMISSIVE_TEXTURE = 1 << 4;
+const float MAX_ENVIRONMENT_PREFILTER_MIP = 5.0;
 
 float saturate(float value) {
     return clamp(value, 0.0, 1.0);
@@ -60,6 +66,11 @@ vec3 safeNormalize(vec3 value, vec3 fallback) {
 
 vec3 fresnelSchlick(float cosTheta, vec3 f0) {
     return f0 + (vec3(1.0) - f0) * pow(1.0 - saturate(cosTheta), 5.0);
+}
+
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 f0, float roughness) {
+    vec3 upper = max(vec3(1.0 - clamp(roughness, MIN_ROUGHNESS, 1.0)), f0);
+    return f0 + (upper - f0) * pow(1.0 - saturate(cosTheta), 5.0);
 }
 
 float distributionGGX(float nDotH, float roughness) {
@@ -136,6 +147,22 @@ bool hasFeature(int feature) {
     return (pc.materialFlags.y & feature) != 0;
 }
 
+vec3 rotateEnvironmentDirectionY(vec3 direction, float rotationRadians) {
+    vec3 d = safeNormalize(direction, vec3(0.0, 0.0, 1.0));
+    float c = cos(rotationRadians);
+    float s = sin(rotationRadians);
+    return safeNormalize(
+        vec3(d.x * c - d.z * s, d.y, d.x * s + d.z * c),
+        d);
+}
+
+vec2 equirectangularUv(vec3 direction) {
+    vec3 d = safeNormalize(direction, vec3(0.0, 0.0, 1.0));
+    float u = atan(d.z, d.x) / (2.0 * PI) + 0.5;
+    float v = acos(clamp(d.y, -1.0, 1.0)) / PI;
+    return vec2(u, v);
+}
+
 vec3 fallbackTangentForNormal(vec3 normal) {
     if (abs(normal.z) < 0.999)
         return safeNormalize(cross(vec3(0.0, 0.0, 1.0), normal), vec3(1.0, 0.0, 0.0));
@@ -159,6 +186,42 @@ vec3 applyNormalMap(vec3 geometricNormal, vec4 worldTangent) {
     vec3 bitangent = safeNormalize(cross(normal, tangent) * worldTangent.w, vec3(0.0, 1.0, 0.0));
     vec3 mappedNormal = decodeTangentNormal(texture(normalSampler, fragTexCoord).rgb, pc.surfaceFactors.z);
     return safeNormalize(mat3(tangent, bitangent, normal) * mappedNormal, normal);
+}
+
+vec3 evaluateEnvironmentIbl(
+    vec3 baseRgb,
+    vec3 normal,
+    vec3 viewDirection,
+    float metallic,
+    float roughness,
+    float ambientOcclusion)
+{
+    float enabled = cam.environmentParameters.z >= 0.5 ? 1.0 : 0.0;
+    float intensity = max(cam.environmentParameters.x, 0.0) * enabled;
+    if (intensity <= 0.0)
+        return vec3(0.0);
+
+    float rotation = cam.environmentParameters.y;
+    float nDotV = saturate(dot(normal, viewDirection));
+    vec3 f0 = mix(vec3(0.04), max(baseRgb, vec3(0.0)), metallic);
+    vec3 fresnel = fresnelSchlickRoughness(nDotV, f0, roughness);
+    vec3 kd = (vec3(1.0) - fresnel) * (1.0 - metallic);
+
+    vec3 irradianceDirection = rotateEnvironmentDirectionY(normal, rotation);
+    vec3 irradiance =
+        texture(environmentIrradianceSampler, equirectangularUv(irradianceDirection)).rgb *
+        intensity;
+    vec3 diffuse = kd * baseRgb * irradiance * ambientOcclusion;
+
+    vec3 reflectionDirection = reflect(-viewDirection, normal);
+    vec3 specularDirection = rotateEnvironmentDirectionY(reflectionDirection, rotation);
+    float lod = clamp(roughness, MIN_ROUGHNESS, 1.0) * MAX_ENVIRONMENT_PREFILTER_MIP;
+    vec3 prefiltered =
+        textureLod(environmentSpecularSampler, equirectangularUv(specularDirection), lod).rgb *
+        intensity;
+    vec2 brdf = texture(environmentBrdfSampler, vec2(nDotV, roughness)).rg;
+    vec3 specular = prefiltered * (fresnel * brdf.x + brdf.y);
+    return max(diffuse + specular, vec3(0.0));
 }
 
 void main() {
@@ -199,7 +262,6 @@ void main() {
     int directionalCount = min(int(cam.lightingCountsAmbient.x + 0.5), MAX_DIRECTIONAL_LIGHTS);
     int pointCount = min(int(cam.lightingCountsAmbient.y + 0.5), MAX_POINT_LIGHTS);
     int spotCount = min(int(cam.lightingCountsAmbient.z + 0.5), MAX_SPOT_LIGHTS);
-    float ambientIntensity = max(cam.lightingCountsAmbient.w, 0.0);
 
     vec3 direct = vec3(0.0);
     for (int i = 0; i < directionalCount; ++i) {
@@ -255,6 +317,12 @@ void main() {
             base.rgb, normal, viewDirection, directionToLight, radiance, metallic, roughness);
     }
 
-    vec3 ambient = base.rgb * (1.0 - metallic) * ambientIntensity * ambientOcclusion;
-    outColor = vec4(max(ambient + direct + emissive, vec3(0.0)), base.a);
+    vec3 ibl = evaluateEnvironmentIbl(
+        base.rgb,
+        normal,
+        viewDirection,
+        metallic,
+        roughness,
+        ambientOcclusion);
+    outColor = vec4(max(direct + ibl + emissive, vec3(0.0)), base.a);
 }

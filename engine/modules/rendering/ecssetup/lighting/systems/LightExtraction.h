@@ -6,6 +6,7 @@
 
 #include "DirectionalLightComponent.h"
 #include "ECSWorld.hpp"
+#include "EnvironmentLightComponent.h"
 #include "LightingFrameData.h"
 #include "PointLightComponent.h"
 #include "SpotLightComponent.h"
@@ -118,6 +119,24 @@ namespace gts::rendering
             || std::abs(outerAngle - light.outerConeAngle) > 1.0e-6f;
     }
 
+    inline bool environmentLightRequiresSanitization(const EnvironmentLightComponent& environment)
+    {
+        return environment.intensity < 0.0f
+            || !std::isfinite(environment.intensity)
+            || !std::isfinite(environment.rotationRadians);
+    }
+
+    inline EnvironmentFrameData makeEnvironmentFrameData(
+        const EnvironmentLightComponent& environment)
+    {
+        EnvironmentFrameData frame;
+        frame.environmentPath = environment.environmentPath;
+        frame.intensity = sanitizeEnvironmentIntensity(environment.intensity);
+        frame.rotationRadians = sanitizeEnvironmentRotation(environment.rotationRadians);
+        frame.enabled = environment.enabled && frame.intensity > 0.0f;
+        return frame;
+    }
+
     inline LightingFrameData extractLightingFrameData(ECSWorld& world,
                                                       const glm::vec3& activeCameraPosition)
     {
@@ -134,10 +153,17 @@ namespace gts::rendering
             float distanceSquared = 0.0f;
         };
 
+        struct RankedEnvironment
+        {
+            Entity entity;
+            int priority = 0;
+        };
+
         LightingFrameData frame = defaultLightingFrameData();
         std::vector<RankedDirectional> directionalCandidates;
         std::vector<RankedLocal> pointCandidates;
         std::vector<RankedLocal> spotCandidates;
+        std::vector<RankedEnvironment> environmentCandidates;
 
         for (Entity entity : world.getAllEntitiesWith<DirectionalLightComponent>())
         {
@@ -185,6 +211,19 @@ namespace gts::rendering
             });
         }
 
+        for (Entity entity : world.getAllEntitiesWith<EnvironmentLightComponent>())
+        {
+            frame.diagnostics.totalEnvironmentLights += 1;
+            const EnvironmentLightComponent& environment =
+                world.getComponent<EnvironmentLightComponent>(entity);
+            if (environmentLightRequiresSanitization(environment))
+                frame.diagnostics.sanitizedEnvironmentLights += 1;
+            if (!environment.enabled)
+                continue;
+
+            environmentCandidates.push_back({entity, environment.priority});
+        }
+
         std::sort(
             directionalCandidates.begin(),
             directionalCandidates.end(),
@@ -205,6 +244,15 @@ namespace gts::rendering
         };
         std::sort(pointCandidates.begin(), pointCandidates.end(), localLightLess);
         std::sort(spotCandidates.begin(), spotCandidates.end(), localLightLess);
+        std::sort(
+            environmentCandidates.begin(),
+            environmentCandidates.end(),
+            [](const RankedEnvironment& lhs, const RankedEnvironment& rhs)
+            {
+                if (lhs.priority != rhs.priority)
+                    return lhs.priority > rhs.priority;
+                return lhs.entity.id < rhs.entity.id;
+            });
 
         frame.directionalCount =
             std::min<uint32_t>(static_cast<uint32_t>(directionalCandidates.size()), MaxDirectionalLights);
@@ -218,6 +266,10 @@ namespace gts::rendering
             static_cast<uint32_t>(pointCandidates.size()) - frame.pointCount;
         frame.diagnostics.droppedSpotLights =
             static_cast<uint32_t>(spotCandidates.size()) - frame.spotCount;
+        frame.diagnostics.droppedEnvironmentLights =
+            environmentCandidates.empty()
+                ? 0u
+                : static_cast<uint32_t>(environmentCandidates.size() - 1u);
 
         for (uint32_t i = 0; i < frame.directionalCount; ++i)
         {
@@ -249,6 +301,13 @@ namespace gts::rendering
             frame.spot[i] = makeSpotLightFrameData(
                 world.getComponent<SpotLightComponent>(entity),
                 resolvedLightWorldMatrix(world, entity));
+        }
+
+        if (!environmentCandidates.empty())
+        {
+            const Entity entity = environmentCandidates.front().entity;
+            frame.environment = makeEnvironmentFrameData(
+                world.getComponent<EnvironmentLightComponent>(entity));
         }
 
         return frame;

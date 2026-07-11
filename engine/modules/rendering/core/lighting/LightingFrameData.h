@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <string>
 
 #include "GlmConfig.h"
 #include "MaterialTypes.h"
@@ -15,6 +16,49 @@ namespace gts::rendering
     inline constexpr uint32_t MaxSpotLights = 16;
     inline constexpr float MinLightRange = 0.01f;
     inline constexpr float MinConeSeparationRadians = 0.001f;
+    inline constexpr float MaxEnvironmentPrefilterMip = 5.0f;
+
+    enum class EnvironmentTextureRole
+    {
+        Irradiance,
+        PrefilteredSpecular,
+        BrdfLut
+    };
+
+    struct EnvironmentTextureIds
+    {
+        texture_id_type irradiance = 0;
+        texture_id_type prefilteredSpecular = 0;
+        texture_id_type brdfLut = 0;
+    };
+
+    inline bool operator==(const EnvironmentTextureIds& lhs,
+                           const EnvironmentTextureIds& rhs)
+    {
+        return lhs.irradiance == rhs.irradiance
+            && lhs.prefilteredSpecular == rhs.prefilteredSpecular
+            && lhs.brdfLut == rhs.brdfLut;
+    }
+
+    inline bool operator!=(const EnvironmentTextureIds& lhs,
+                           const EnvironmentTextureIds& rhs)
+    {
+        return !(lhs == rhs);
+    }
+
+    inline const char* fallbackEnvironmentTextureNameForRole(EnvironmentTextureRole role)
+    {
+        switch (role)
+        {
+            case EnvironmentTextureRole::Irradiance:
+                return "engine_ibl_irradiance_neutral.png";
+            case EnvironmentTextureRole::PrefilteredSpecular:
+                return "engine_ibl_specular_black.png";
+            case EnvironmentTextureRole::BrdfLut:
+                return "engine_ibl_brdf_lut.png";
+        }
+        return "engine_ibl_specular_black.png";
+    }
 
     struct DirectionalLightFrameData
     {
@@ -58,10 +102,22 @@ namespace gts::rendering
         uint32_t totalDirectionalLights = 0;
         uint32_t totalPointLights = 0;
         uint32_t totalSpotLights = 0;
+        uint32_t totalEnvironmentLights = 0;
         uint32_t droppedDirectionalLights = 0;
         uint32_t droppedPointLights = 0;
         uint32_t droppedSpotLights = 0;
+        uint32_t droppedEnvironmentLights = 0;
         uint32_t sanitizedLights = 0;
+        uint32_t sanitizedEnvironmentLights = 0;
+    };
+
+    struct EnvironmentFrameData
+    {
+        // Empty path means the backend should use built-in neutral fallback resources.
+        std::string environmentPath;
+        float intensity = 0.0f;
+        float rotationRadians = 0.0f;
+        bool enabled = false;
     };
 
     struct LightingFrameData
@@ -75,6 +131,7 @@ namespace gts::rendering
         uint32_t spotCount = 0;
         float ambientIntensity = 0.12f;
 
+        EnvironmentFrameData environment{};
         LightingDiagnostics diagnostics{};
     };
 
@@ -129,6 +186,9 @@ namespace gts::rendering
 
     inline glm::vec3 pbrF0ForBaseColor(const glm::vec3& baseColor, float metallic);
     inline glm::vec3 fresnelSchlick(float cosTheta, const glm::vec3& f0);
+    inline glm::vec3 fresnelSchlickRoughness(float cosTheta,
+                                             const glm::vec3& f0,
+                                             float roughness);
     inline float distributionGGX(float nDotH, float roughness);
     inline float geometrySmith(float nDotV, float nDotL, float roughness);
 
@@ -280,6 +340,77 @@ namespace gts::rendering
             * glm::max(sampledEmissive, glm::vec3(0.0f));
     }
 
+    inline float sanitizeEnvironmentIntensity(float intensity)
+    {
+        if (!std::isfinite(intensity))
+            return 0.0f;
+        return std::max(0.0f, intensity);
+    }
+
+    inline float sanitizeEnvironmentRotation(float rotationRadians)
+    {
+        return std::isfinite(rotationRadians) ? rotationRadians : 0.0f;
+    }
+
+    inline glm::vec3 rotateEnvironmentDirectionY(const glm::vec3& direction,
+                                                 float rotationRadians)
+    {
+        const glm::vec3 normalized = safeLightingNormalize(direction, {0.0f, 0.0f, 1.0f});
+        const float rotation = sanitizeEnvironmentRotation(rotationRadians);
+        const float c = std::cos(rotation);
+        const float s = std::sin(rotation);
+        return safeLightingNormalize(
+            {
+                normalized.x * c - normalized.z * s,
+                normalized.y,
+                normalized.x * s + normalized.z * c
+            },
+            normalized);
+    }
+
+    inline glm::vec2 equirectangularUvForDirection(const glm::vec3& direction)
+    {
+        const glm::vec3 d = safeLightingNormalize(direction, {0.0f, 0.0f, 1.0f});
+        const float u = std::atan2(d.z, d.x) / (2.0f * PbrPi) + 0.5f;
+        const float v = std::acos(std::clamp(d.y, -1.0f, 1.0f)) / PbrPi;
+        return {u, v};
+    }
+
+    inline float roughnessToEnvironmentMip(float roughness, float maxMipLevel)
+    {
+        const float clampedRoughness = sanitizeMaterialRoughness(roughness);
+        const float clampedMaxMip =
+            std::isfinite(maxMipLevel) ? std::max(0.0f, maxMipLevel) : 0.0f;
+        return clampedRoughness * clampedMaxMip;
+    }
+
+    inline glm::vec3 evaluateDiffuseIbl(const glm::vec3& baseRgb,
+                                        const glm::vec3& fresnel,
+                                        float metallic,
+                                        const glm::vec3& irradiance,
+                                        float ambientOcclusion)
+    {
+        const glm::vec3 kd =
+            (glm::vec3(1.0f) - glm::clamp(fresnel, glm::vec3(0.0f), glm::vec3(1.0f))) *
+            (1.0f - sanitizeMaterialMetallic(metallic));
+        return kd *
+            glm::max(baseRgb, glm::vec3(0.0f)) *
+            glm::max(irradiance, glm::vec3(0.0f)) *
+            saturateLighting(ambientOcclusion);
+    }
+
+    inline glm::vec3 evaluateSpecularIbl(const glm::vec3& f0,
+                                         float nDotV,
+                                         float roughness,
+                                         const glm::vec3& prefilteredRadiance,
+                                         const glm::vec2& brdfSample)
+    {
+        const glm::vec3 fresnel = fresnelSchlickRoughness(nDotV, f0, roughness);
+        const glm::vec2 brdf = glm::max(brdfSample, glm::vec2(0.0f));
+        return glm::max(prefilteredRadiance, glm::vec3(0.0f)) *
+            (fresnel * brdf.x + brdf.y);
+    }
+
     inline glm::vec3 evaluatePbrDirectContribution(const glm::vec3& baseRgb,
                                                    const glm::vec3& normal,
                                                    const glm::vec3& viewDirection,
@@ -326,6 +457,16 @@ namespace gts::rendering
         const float clampedCosTheta = saturateLighting(cosTheta);
         return f0 + (glm::vec3(1.0f) - f0) *
             std::pow(1.0f - clampedCosTheta, 5.0f);
+    }
+
+    inline glm::vec3 fresnelSchlickRoughness(float cosTheta,
+                                             const glm::vec3& f0,
+                                             float roughness)
+    {
+        const float clampedCosTheta = saturateLighting(cosTheta);
+        const float clampedRoughness = sanitizeMaterialRoughness(roughness);
+        const glm::vec3 upper = glm::max(glm::vec3(1.0f - clampedRoughness), f0);
+        return f0 + (upper - f0) * std::pow(1.0f - clampedCosTheta, 5.0f);
     }
 
     inline float distributionGGX(float nDotH, float roughness)

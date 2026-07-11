@@ -30,6 +30,8 @@ struct CameraUBO
     alignas(16) glm::vec4 cameraPosition;
     // x/y/z = directional/point/spot counts, w = ambient intensity.
     alignas(16) glm::vec4 lightingCountsAmbient;
+    // x = environment intensity, y = world-up rotation radians, z = enabled.
+    alignas(16) glm::vec4 environmentParameters;
     alignas(16) GpuDirectionalLightData directional[gts::rendering::MaxDirectionalLights];
     alignas(16) GpuPointLightData point[gts::rendering::MaxPointLights];
     alignas(16) GpuSpotLightData spot[gts::rendering::MaxSpotLights];

@@ -8,6 +8,7 @@
 #include <vulkan/vulkan.h>
 
 #include "DescriptorSetManager.hpp"
+#include "LightingFrameData.h"
 #include "MaterialTypes.h"
 #include "TextureResource.h"
 #include "VulkanTexture.hpp"
@@ -23,6 +24,7 @@ class TextureManager
         std::unordered_map<std::string, texture_id_type> pathToID;
         std::unordered_map<texture_id_type, std::unique_ptr<TextureResource>> idToTexture;
         std::unordered_map<std::string, std::vector<VkDescriptorSet>> materialTextureSets;
+        std::unordered_map<std::string, std::vector<VkDescriptorSet>> environmentTextureSets;
         texture_id_type nextID = 1; // 0 = invalid
 
     public:
@@ -155,6 +157,40 @@ class TextureManager
             return &it->second;
         }
 
+        const std::vector<VkDescriptorSet>* getEnvironmentTextureDescriptorSets(
+            const gts::rendering::EnvironmentTextureIds& textures)
+        {
+            const std::string key = environmentTextureSetKey(textures);
+            auto existing = environmentTextureSets.find(key);
+            if (existing != environmentTextureSets.end())
+                return &existing->second;
+
+            std::array<TextureResource*, DescriptorSetManager::EnvironmentTextureBindingCount> resources = {
+                getTexture(textures.irradiance),
+                getTexture(textures.prefilteredSpecular),
+                getTexture(textures.brdfLut)
+            };
+
+            for (TextureResource* texture : resources)
+            {
+                if (texture == nullptr || texture->texture == nullptr)
+                    return nullptr;
+            }
+
+            std::array<VkDescriptorImageInfo, DescriptorSetManager::EnvironmentTextureBindingCount> images{};
+            for (size_t i = 0; i < resources.size(); ++i)
+            {
+                images[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                images[i].imageView = resources[i]->texture->getTextureImageView();
+                images[i].sampler = resources[i]->texture->getTextureSampler();
+            }
+
+            auto [it, inserted] = environmentTextureSets.emplace(
+                key,
+                descriptorSetManager.allocateForEnvironmentTextures(images));
+            return &it->second;
+        }
+
         int getTextureWidth(texture_id_type id) const
         {
             auto it = idToTexture.find(id);
@@ -179,5 +215,13 @@ class TextureManager
                 + ":" + std::to_string(textures.normal)
                 + ":" + std::to_string(textures.ambientOcclusion)
                 + ":" + std::to_string(textures.emissive);
+        }
+
+        static std::string environmentTextureSetKey(
+            const gts::rendering::EnvironmentTextureIds& textures)
+        {
+            return std::to_string(textures.irradiance)
+                + ":" + std::to_string(textures.prefilteredSpecular)
+                + ":" + std::to_string(textures.brdfLut);
         }
 };

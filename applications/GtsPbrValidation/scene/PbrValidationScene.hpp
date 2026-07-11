@@ -5,6 +5,7 @@
 #include "DirectionalLightComponent.h"
 #include "DynamicMeshComponent.h"
 #include "ECSWorld.hpp"
+#include "EnvironmentLightComponent.h"
 #include "GlmConfig.h"
 #include "GraphicsConstants.h"
 #include "GtsScene.hpp"
@@ -28,6 +29,7 @@ public:
         spawnComparisonObjects();
         spawnTextureMapSamples();
         spawnLights();
+        spawnEnvironment();
         spawnCamera(ctx.windowAspectRatio);
     }
 
@@ -54,6 +56,8 @@ private:
         "/textures/engine_pbr_validation_ao.png";
     static constexpr const char* ValidationEmissiveTexture =
         "/textures/engine_pbr_validation_emissive.png";
+    static constexpr const char* ValidationEnvironmentTexture =
+        "/textures/engine_ibl_validation_environment.png";
 
     MaterialInstanceHandle createStandardSurface(const glm::vec4& baseColor,
                                                  float metallic,
@@ -382,6 +386,25 @@ private:
             extraLight.priority = -100;
             ecsWorld.addComponent(extra, extraLight);
         }
+    }
+
+    void spawnEnvironment()
+    {
+        Entity environment = ecsWorld.createEntity();
+        EnvironmentLightComponent light;
+        light.environmentPath = GraphicsConstants::ENGINE_RESOURCES + ValidationEnvironmentTexture;
+        light.intensity = 0.7f;
+        light.rotationRadians = glm::radians(18.0f);
+        light.priority = 10;
+        ecsWorld.addComponent(environment, light);
+
+        Entity disabledFallback = ecsWorld.createEntity();
+        EnvironmentLightComponent disabled;
+        disabled.environmentPath = {};
+        disabled.intensity = 2.0f;
+        disabled.enabled = false;
+        disabled.priority = 100;
+        ecsWorld.addComponent(disabledFallback, disabled);
     }
 
     void spawnCamera(float aspectRatio)

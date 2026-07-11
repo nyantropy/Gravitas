@@ -18,6 +18,7 @@ layout(set = 0, binding = 0) uniform CameraUBO {
     mat4 proj;
     vec4 cameraPosition;
     vec4 lightingCountsAmbient;
+    vec4 environmentParameters;
     vec4 directionalDirectionIntensity[2];
     vec4 directionalColor[2];
     vec4 pointPositionRange[32];

@@ -313,6 +313,7 @@ private:
     {
         VkDescriptorSet camera = VK_NULL_HANDLE;
         VkDescriptorSet object = VK_NULL_HANDLE;
+        VkDescriptorSet environment = VK_NULL_HANDLE;
     };
 
     static constexpr uint32_t PARALLEL_RECORDING_THRESHOLD = 64;
@@ -697,9 +698,12 @@ private:
     GlobalDescriptorSets resolveGlobalDescriptorSets(uint32_t currentFrame, view_id_type cameraViewID) const
     {
         CameraBufferResource* cameraView = resources->getCameraView(cameraViewID);
+        const std::vector<VkDescriptorSet>* environmentSets =
+            resources->getEnvironmentTextureDescriptorSets(cameraView->environment);
         return {
             cameraView->descriptorSets[currentFrame],
-            resources->getObjectSSBODescriptorSet(currentFrame)
+            resources->getObjectSSBODescriptorSet(currentFrame),
+            environmentSets != nullptr ? (*environmentSets)[currentFrame] : VK_NULL_HANDLE
         };
     }
 
@@ -712,6 +716,14 @@ private:
                                 pipeline->getPipelineLayout(),
                                 0, 2, sets, 0, nullptr);
         stats.descriptorBinds += 1;
+
+        if (globalSets.environment != VK_NULL_HANDLE)
+        {
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                    pipeline->getPipelineLayout(),
+                                    3, 1, &globalSets.environment, 0, nullptr);
+            stats.descriptorBinds += 1;
+        }
     }
 
     void recordBatchRange(VkCommandBuffer cmd,

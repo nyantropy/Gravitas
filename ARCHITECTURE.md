@@ -477,6 +477,10 @@ Supported scene light descriptors are:
 - `SpotLightComponent`: local radiance from the entity world position, pointing
   along local `-Z`, with authored `range`, `innerConeAngle`, and
   `outerConeAngle` in radians.
+- `EnvironmentLightComponent`: scene-level image-based lighting descriptor
+  with an environment texture path, intensity, world-up rotation, enabled flag,
+  and priority. It does not own spatial transform semantics or backend
+  resources.
 
 Light extraction publishes bounded backend-independent frame data:
 
@@ -488,6 +492,7 @@ LightingFrameData {
     uint32_t                  directionalCount
     uint32_t                  pointCount
     uint32_t                  spotCount
+    EnvironmentFrameData      environment
     float                     ambientIntensity
     LightingDiagnostics       diagnostics
 }
@@ -499,14 +504,19 @@ lights are enabled, then ranked by `priority` descending, distance to the active
 camera ascending, and stable entity ID ascending. Excess lights are dropped
 after the fixed capacities above, with diagnostics counting total, selected,
 dropped, and sanitized descriptors. Disabled lights are excluded. If no
-directional light is selected, lit materials receive the temporary ambient
-fallback only from the frame's default ambient intensity.
+directional light is selected, direct-light arrays are empty. Environment
+descriptors are enabled candidates ranked by `priority` descending and stable
+entity ID ascending; the first selected environment becomes the frame-level IBL
+state. Multiple environments are not blended yet. If no valid environment is
+selected, the backend resolves deterministic neutral/black fallback
+environment resources.
 
 Authored values are sanitized during extraction: negative or non-finite
 intensity becomes zero, range is clamped to at least `0.01`, light colors clamp
 to nonnegative finite values, and spot cones are clamped to valid ordered
 angles before cosine thresholds are stored. Spot cone cosines are computed once
-on the CPU, not per fragment.
+on the CPU, not per fragment. Environment intensity clamps to nonnegative finite
+values and rotation falls back to zero when authored as non-finite.
 
 Point and spot lights use finite-range inverse-square attenuation with a smooth
 cutoff:
@@ -532,6 +542,33 @@ binding instead of introducing an SSBO or per-light allocations. Light state is
 not duplicated per material, per object, or per render command. Future
 clustered/tiled lighting should replace selection/upload strategy without
 changing material ownership or the direct BRDF.
+
+Environment lighting is also frame-level state. `EnvironmentFrameData` carries
+only backend-independent identity and scalar controls:
+
+```
+EnvironmentFrameData {
+    std::string environmentPath
+    float       intensity
+    float       rotationRadians
+    bool        enabled
+}
+```
+
+The Vulkan renderer resolves that state through render resource management into
+one shared environment descriptor set containing irradiance, prefiltered
+specular, and BRDF-LUT bindings. Render commands, object uploads, and material
+instances do not carry environment texture IDs. Intensity and rotation changes
+update frame state only and do not mutate material versions or material variant
+keys.
+
+Phase 3E establishes this ownership and shader integration with deterministic
+linear equirectangular environment textures and fallback images. The current
+backend does not yet generate true HDR cubemaps, irradiance convolutions, or
+GGX-prefiltered cubemap mip chains; that preprocessing is the next backend
+resource refinement before production-quality IBL. The descriptor contract is
+already shaped so those resources can replace the current texture realization
+without changing material, command, or object ownership.
 
 Scene-level render pass visibility is controlled at two layers. The stronger
 layer is the active `SceneExecutionProfile`: its `FrameBuildMode` determines
@@ -869,7 +906,8 @@ model matrix and scene-material UV transform. Camera uploads are generated every
 extracted frame for the active camera and consumed by the renderer after the
 current-frame fence wait. The camera UBO is frame-level data: scene shaders use
 it for view/projection, camera world position for specular lighting, and the
-extracted bounded directional/point/spot lighting frame data.
+extracted bounded directional/point/spot lighting arrays plus environment
+parameters.
 
 `vertexColorOnly` is a material variant flag for tool and debug meshes that
 should render from authored vertex colors without sampling a color texture. The
@@ -907,23 +945,24 @@ derives the microfacet alpha value. Light types differ only in how they produce
 `directionToLight` and `lightRadiance`; they do not have separate surface
 shading models.
 
-The current ambient term is intentionally a bounded fallback, not IBL:
+Image-based lighting is evaluated as indirect lighting, separate from the
+direct-light loops:
 
 ```
-ambient = baseColor * (1 - metallic) * ambientIntensity
+F       = fresnelSchlickRoughness(NdotV, F0, roughness)
+kd      = (1 - F) * (1 - metallic)
+diffuse = irradiance(worldNormal) * baseColor * kd
+spec    = prefilteredEnvironment(reflect(-V, N), roughness)
+          * (F * brdfLut.x + brdfLut.y)
+ibl     = diffuse * AO + spec
 ```
 
-Metallic materials therefore do not receive the same diffuse ambient term as
-dielectrics. Future irradiance and prefiltered environment lighting should feed
-the same material response model rather than replacing material ownership.
-Ambient occlusion is applied only to this ambient fallback:
-
-```
-ambient *= mix(1, sampledAO, ambientOcclusionStrength)
-```
-
-It does not darken direct Cook-Torrance lighting. Emissive contribution is
-added independently in linear space:
+Environment intensity scales both diffuse irradiance and prefiltered specular
+response. Environment rotation is applied around world up by rotating the
+sampling directions, not by mutating source textures. Ambient occlusion affects
+indirect diffuse IBL only in the current policy; it does not darken direct
+Cook-Torrance lighting and does not occlude environment specular yet. Emissive
+contribution is added independently in linear space:
 
 ```
 emissive = emissiveFactor * emissiveStrength * sampledEmissive
@@ -931,6 +970,15 @@ emissive = emissiveFactor * emissiveStrength * sampledEmissive
 
 Emissive materials glow visually but do not illuminate nearby geometry in this
 phase.
+
+When no environment is selected, the backend binds valid fallback resources: a
+neutral low-intensity irradiance texture, a black specular environment texture,
+and the shared BRDF LUT. This removes missing-descriptor cases while keeping
+PBR material variants stable across environment enable/disable changes.
+Phase 3E is lighting-only: it does not render the selected environment as a sky
+background. A future sky pass should consume the same selected environment
+state, respect intensity and rotation, and remain independent from material
+draw commands.
 
 `MaterialVariantKey` includes shader family and topology-relevant flags such as
 alpha mode, double-sided state, temporary legacy blend mode, depth-write state,

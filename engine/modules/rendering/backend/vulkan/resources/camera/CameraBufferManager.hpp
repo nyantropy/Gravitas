@@ -135,6 +135,7 @@ class CameraBufferManager
 
             const CameraUBO ubo = makeCameraUbo(view, proj, cameraWorldPosition, lighting);
             memcpy(res->uniformBuffersMapped[frameIndex], &ubo, sizeof(CameraUBO));
+            res->environment = lighting.environment;
         }
 
     private:
@@ -153,6 +154,12 @@ class CameraBufferManager
                 static_cast<float>(lighting.pointCount),
                 static_cast<float>(lighting.spotCount),
                 lighting.ambientIntensity
+            };
+            ubo.environmentParameters = glm::vec4{
+                gts::rendering::sanitizeEnvironmentIntensity(lighting.environment.intensity),
+                gts::rendering::sanitizeEnvironmentRotation(lighting.environment.rotationRadians),
+                lighting.environment.enabled ? 1.0f : 0.0f,
+                0.0f
             };
 
             for (uint32_t i = 0; i < lighting.directionalCount && i < gts::rendering::MaxDirectionalLights; ++i)

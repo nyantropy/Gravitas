@@ -166,13 +166,47 @@ only mesh/material/object identity.
 Normal mapping uses geometry tangents and handedness, transforms normals and
 tangents correctly under non-uniform and negative scale, and degrades
 deterministically when a mesh lacks the required normal/tangent/UV surface
-frame. AO affects only the temporary ambient fallback. Emissive adds visual
-linear emission but does not inject scene lighting. `GtsPbrValidation` now
-includes texture-map, shared-material, AO/emissive, non-uniform normal-map, and
-incompatible-geometry fallback samples.
+frame. At the end of Phase 3D, AO affected only the temporary ambient fallback.
+Emissive adds visual linear emission but does not inject scene lighting.
+`GtsPbrValidation` now includes texture-map, shared-material, AO/emissive,
+non-uniform normal-map, and incompatible-geometry fallback samples.
 
-Image-based lighting, shadows, environment probes, normal/AO/emissive texture
-authoring tools, and advanced material extensions remain later roadmap items.
+Shadows, environment probes, normal/AO/emissive texture authoring tools, and
+advanced material extensions remain later roadmap items.
+
+### Phase 3E --- Image-Based Lighting and Environment Lighting (Complete)
+
+Replace the temporary ambient approximation with scene-authored environment
+lighting that remains frame-level renderer state.
+
+Status: complete for the first ownership-safe IBL integration. Scenes can now
+author `EnvironmentLightComponent` descriptors with path, intensity, rotation,
+enabled state, and priority. Extraction deterministically selects one enabled
+environment by priority and stable entity ID, sanitizes intensity/rotation, and
+publishes backend-independent `EnvironmentFrameData` beside the generic light
+arrays. Environment changes remain frame-level state; they do not mutate
+materials, meshes, render commands, or object uploads.
+
+The Vulkan renderer resolves the selected environment through render resource
+management into a separate environment descriptor set containing irradiance,
+prefiltered-specular, and BRDF-LUT bindings. PBR shaders now evaluate direct
+lighting plus diffuse IBL, specular IBL, and emissive contribution. AO affects
+indirect diffuse IBL only, while direct lights and emissive remain independent.
+Environment intensity scales the IBL contribution and rotation is applied around
+world up through sample-direction rotation. Valid fallback resources are always
+bound for no-environment scenes.
+
+The current backend realization intentionally uses deterministic linear
+equirectangular/fallback 2D environment textures as the sampled environment
+source. It does not yet generate true HDR cubemaps, irradiance convolution
+cubemaps, or GGX-prefiltered cubemap mip chains. That backend preprocessing
+work remains the main rendering-quality blocker before a production IBL pass,
+but it can replace the current resource realization without reopening material,
+command, object, or light-extraction ownership.
+
+No sky/background pass is included in this phase. A future sky pass should
+consume the selected environment state independently from material draw
+commands.
 
 ## Guiding Principles
 
