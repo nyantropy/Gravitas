@@ -19,7 +19,6 @@
 #include "TextureAnimationComponent.h"
 #include "TextureAnimationRuntimeComponent.h"
 #include "TextureAnimationSystem.hpp"
-#include "TransformDirtyHelpers.h"
 #include "WorldTextBindingSystem.hpp"
 #include "WorldTextComponent.h"
 #include "WorldTextRuntimeComponent.h"
@@ -53,11 +52,6 @@ namespace gts::rendering
                 resources->releaseProceduralMesh(meshGpu.meshID);
                 meshGpu.meshID                     = 0;
                 meshGpu.ownsProceduralMeshResource = false;
-            });
-        world.registerAddCallback<TransformComponent>(
-            [](ECSWorld& world, Entity entity, TransformComponent&)
-            {
-                gts::transform::markDirty(world, entity);
             });
         world.registerAddCallback<StaticMeshComponent>(
             [](ECSWorld& world, Entity entity, StaticMeshComponent&)

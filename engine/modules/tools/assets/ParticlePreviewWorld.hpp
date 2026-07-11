@@ -31,6 +31,8 @@
 #include "RendererParticleSceneFeature.h"
 #include "TimeContext.h"
 #include "TransformComponent.h"
+#include "TransformDirtyHelpers.h"
+#include "TransformSceneFeature.h"
 #include "Vertex.h"
 
 namespace gts::tools
@@ -54,6 +56,7 @@ namespace gts::tools
                 return;
 
             resourceProvider = resources;
+            gts::transform::installTransformFeature(world);
             gts::rendering::installRendererGeometrySceneFeature(world, resources);
             installPreviewCameraFeature(resources);
             gts::rendering::installRendererParticleSceneFeature(world);
@@ -109,6 +112,7 @@ namespace gts::tools
                 transform.position = {0.0f, 0.0f, 0.0f};
                 transform.rotation = {0.0f, 0.0f, 0.0f};
                 transform.scale = {1.0f, 1.0f, 1.0f};
+                gts::transform::markDirty(world, entity);
 
                 ParticleEmitterRuntimeComponent& runtime = ensureRuntime(entity, descriptor);
                 runtime.playbackTimeScale = playbackTimeScale;
@@ -400,6 +404,7 @@ namespace gts::tools
 
             TransformComponent& transform = ensureTransform(cameraEntity);
             transform.position = asset.preview.cameraPosition;
+            gts::transform::markDirty(world, cameraEntity);
 
             CameraDescriptionComponent& camera = world.getComponent<CameraDescriptionComponent>(cameraEntity);
             camera.target = asset.preview.cameraTarget;

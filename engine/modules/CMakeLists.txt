@@ -35,11 +35,12 @@ target_include_directories(gravitas_modules INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/narrative/dialogue/runtime"
     "${CMAKE_CURRENT_SOURCE_DIR}/narrative/dialogue/systems"
 
-    # Hierarchy
-    "${CMAKE_CURRENT_SOURCE_DIR}/hierarchy/components"
-
     # Transform
     "${CMAKE_CURRENT_SOURCE_DIR}/transform/components"
+    "${CMAKE_CURRENT_SOURCE_DIR}/transform/hierarchy"
+    "${CMAKE_CURRENT_SOURCE_DIR}/transform/runtime"
+    "${CMAKE_CURRENT_SOURCE_DIR}/transform/scene"
+    "${CMAKE_CURRENT_SOURCE_DIR}/transform/systems"
 
     # Visual novel presentation/runtime
     "${CMAKE_CURRENT_SOURCE_DIR}/visualnovel/components"

@@ -12,8 +12,6 @@ namespace gts::rendering
 {
     struct RenderInvalidationState
     {
-        std::vector<entity_id_type> transformDirtyEntities;
-        std::vector<uint8_t>        transformDirtyFlags;
         std::vector<entity_id_type> snapshotDirtyEntities;
         std::vector<uint8_t>        snapshotDirtyFlags;
     };
@@ -46,21 +44,6 @@ namespace gts::rendering
             flags.resize(index + 1, 0);
     }
 
-    inline void queueRenderTransformDirty(ECSWorld& world, Entity entity)
-    {
-        if (!validInvalidationEntity(entity))
-            return;
-
-        RenderInvalidationState& state = renderInvalidationState(world);
-        ensureInvalidationFlagCapacity(state.transformDirtyFlags, entity.id);
-        uint8_t& queued = state.transformDirtyFlags[static_cast<size_t>(entity.id)];
-        if (queued != 0)
-            return;
-
-        queued = 1;
-        state.transformDirtyEntities.push_back(entity.id);
-    }
-
     inline void queueRenderSnapshotDirty(ECSWorld& world, Entity entity)
     {
         if (!validInvalidationEntity(entity))
@@ -74,17 +57,6 @@ namespace gts::rendering
 
         queued = 1;
         state.snapshotDirtyEntities.push_back(entity.id);
-    }
-
-    inline void clearTransformDirtyQueue(RenderInvalidationState& state)
-    {
-        for (entity_id_type id : state.transformDirtyEntities)
-        {
-            const size_t index = static_cast<size_t>(id);
-            if (index < state.transformDirtyFlags.size())
-                state.transformDirtyFlags[index] = 0;
-        }
-        state.transformDirtyEntities.clear();
     }
 
     inline void clearSnapshotDirtyQueue(RenderInvalidationState& state)

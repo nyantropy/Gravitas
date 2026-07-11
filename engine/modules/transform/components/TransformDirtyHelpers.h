@@ -1,25 +1,27 @@
 #pragma once
 
+#include <cstdint>
+#include <limits>
+
 #include "ECSWorld.hpp"
-#include "RenderDirtyComponent.h"
-#include "RenderGpuComponent.h"
-#include "RenderInvalidationLifecycle.h"
+#include "TransformComponent.h"
+#include "TransformInvalidationLifecycle.h"
 
 namespace gts::transform
 {
+    inline uint32_t nextTransformVersion(uint32_t version)
+    {
+        return version == std::numeric_limits<uint32_t>::max() ? 1 : version + 1;
+    }
+
     inline void markDirty(ECSWorld& world, Entity entity)
     {
-        gts::rendering::queueRenderTransformDirty(world, entity);
-
-        if (world.hasComponent<RenderGpuComponent>(entity))
+        if (world.hasComponent<TransformComponent>(entity))
         {
-            auto& renderGpu = world.getComponent<RenderGpuComponent>(entity);
-            renderGpu.dirty         = true;
-            renderGpu.readyToRender = false;
-            renderGpu.commandDirty  = true;
+            TransformComponent& transform = world.getComponent<TransformComponent>(entity);
+            transform.version = nextTransformVersion(transform.version);
         }
 
-        if (world.hasComponent<RenderDirtyComponent>(entity))
-            world.getComponent<RenderDirtyComponent>(entity).transformDirty = true;
+        queueTransformDirty(world, entity);
     }
 }

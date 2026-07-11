@@ -23,6 +23,9 @@ frame rate.
 - Rendering module code may define renderer-facing ECS descriptors and
   extraction contracts, but Vulkan-specific types stay under
   `modules/rendering/backend/vulkan/`.
+- Transform and hierarchy semantics belong to `modules/transform/`. Rendering
+  consumes `WorldTransformComponent`; it must not compute parent-child world
+  matrices or mutate scene transforms.
 - Base physics must not depend on rendering. Physics visualization belongs in
   diagnostics bridge modules such as `diagnostics/physics/`, which can consume
   debug-draw primitives without making physics depend on rendering.
@@ -47,8 +50,7 @@ Gravitas/
 │   │   ├── ui/             # Retained-mode UI document model
 │   │   └── event/          # Event bus
 │   ├── modules/            # Feature modules built on core
-│   │   ├── transform/      # TransformComponent (position, rotation, scale)
-│   │   ├── hierarchy/      # Parent-child transform hierarchy
+│   │   ├── transform/      # Local/world transforms and parent-child hierarchy
 │   │   ├── animation/      # Keyframe animation
 │   │   ├── tween/          # Reusable value tween/easing helpers
 │   │   ├── narrative/      # Headless narrative runtimes such as dialogue graphs
@@ -228,7 +230,8 @@ the profile stack API.
 │  ECSControllerSystem::update(ctx) if group is enabled   │
 │    └─ Lifecycle systems (descriptor → GPU companions)  │
 │    └─ Cleanup systems (GPU companion teardown)         │
-│    └─ RenderGpuSystem (sync world matrices)            │
+│    └─ TransformSystem (resolve world transforms)       │
+│    └─ RenderGpuSystem (sync resolved transforms)       │
 │    └─ Camera control / CameraGpuSystem / view IDs      │
 │    └─ ParticleEmitterSystem (particle frame data)       │
 │    └─ [user systems] (input handling, domain logic)    │
@@ -327,7 +330,9 @@ The render lifecycle is split by concern:
 - **Geometry lifecycle** queues and resolves static mesh / quad mesh / dynamic mesh companion state
 - **Renderable cleanup** tears down geometry GPU companions regardless of descriptor source
 - **Camera lifecycle** owns `CameraGpuComponent` creation/removal independently of geometry lifecycle
-- **Render invalidation** queues transform and snapshot dirtiness explicitly so steady-state extraction does not scan every renderable
+- **Transform lifecycle** resolves `TransformComponent` + `HierarchyComponent`
+  into versioned `WorldTransformComponent` data
+- **Render invalidation** queues snapshot dirtiness explicitly so steady-state extraction does not scan every renderable
 
 Scene-level render pass visibility is controlled at two layers. The stronger
 layer is the active `SceneExecutionProfile`: its `FrameBuildMode` determines
@@ -382,13 +387,14 @@ snapshot even if entity IDs, SSBO slots, or allocator addresses are reused.
 
 ### Descriptor Components (application-facing)
 
-Transform descriptors live in the transform module. Render and particle
-descriptors live with the renderer ECS setup, next to their runtime companion
-components and systems.
+Local transform and hierarchy descriptors live in the transform module. Render
+and particle descriptors live with the renderer ECS setup, next to their
+runtime companion components and systems.
 
 | Component | Purpose |
 |-----------|---------|
-| `TransformComponent` | Position, rotation, scale |
+| `TransformComponent` | Local position, rotation, scale, and local version |
+| `HierarchyComponent` | Parent-child transform relationship |
 | `StaticMeshComponent` | Asset path to mesh |
 | `QuadMeshComponent` | Width/height for shared generated quad meshes |
 | `DynamicMeshComponent` | Runtime-authored vertices/indices plus `geometryVersion` for uploaded mesh updates |
@@ -451,17 +457,20 @@ through the normal object SSBO path.
 
 The shared renderer feature installs controller systems in this order:
 
-1. Geometry and text binding systems
-2. `RenderableCleanupSystem`
-3. `RenderGpuSystem`
-4. `TextureAnimationSystem`
-5. `CameraLifecycleSystem`
-6. camera control systems
-7. `CameraGpuSystem`
-8. camera view ID allocation / active-camera export systems
-9. particle effect hot reload and particle emitter simulation
+1. `TransformSystem`
+2. Geometry and text binding systems
+3. `RenderableCleanupSystem`
+4. `RenderGpuSystem`
+5. `TextureAnimationSystem`
+6. `CameraLifecycleSystem`
+7. camera control systems
+8. `CameraGpuSystem`
+9. camera view ID allocation / active-camera export systems
+10. particle effect hot reload and particle emitter simulation
 
 This order is intentional:
+- transform resolution runs before render GPU sync so rendering consumes
+  authoritative `WorldTransformComponent` matrices
 - lifecycle runs before per-frame sync so newly created GPU companions participate immediately
 - texture animation runs after `RenderGpuSystem` so newly ready renderables have
   a valid object slot before animated UV data is queued for upload
@@ -684,15 +693,22 @@ across camera changes, even when the visible set happens to stay the same.
 
 ### Transform Sync
 
-`RenderGpuSystem` owns world-matrix propagation into `RenderGpuComponent::modelMatrix`.
+`TransformSystem` owns world-matrix propagation into `WorldTransformComponent`.
 
-- Root renderables take a flat fast path keyed by `objectSSBOSlot`
-- Hierarchical entities use a cached recursive path with cycle protection
-- `gts::transform::markDirty(...)` queues render transform dirtiness through `RenderInvalidationLifecycle`
-- `RenderGpuSystem` consumes transform-dirty entities, updates world matrices, and queues snapshot dirtiness
-- `RenderDirtyComponent` is the bridge to extraction: `RenderExtractionSnapshotBuilder` consumes queued snapshot-dirty entities and clears the per-renderable dirty flags
+- `TransformComponent` is authoritative local-space data and carries a local version
+- `HierarchyComponent` lives under the transform module and owns parent-child relationships
+- `gts::transform::markDirty(...)` queues transform dirtiness without touching rendering state
+- `TransformSystem` traverses hierarchy, resolves scene-space matrices, and increments
+  `WorldTransformComponent::version`
+- `RenderGpuSystem` consumes `WorldTransformComponent` by comparing
+  `RenderGpuComponent::uploadedWorldTransformVersion` to the world-transform version
+- When rendering consumes a new world transform, it copies the model matrix into
+  GPU companion state and queues render snapshot dirtiness
+- `RenderDirtyComponent` remains the bridge to extraction for render-owned mesh,
+  material, object-data, and consumed-transform updates
 
-This split gives strong single-threaded performance for flat scenes such as large cube benchmarks without removing hierarchy support.
+This split keeps scene meaning in transform/hierarchy systems and leaves
+rendering responsible for representation and upload state.
 
 ### Frame Graph
 

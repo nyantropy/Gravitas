@@ -15,7 +15,6 @@
 #include "RenderInvalidationLifecycle.h"
 #include "StaticMeshComponent.h"
 #include "TransformComponent.h"
-#include "TransformDirtyHelpers.h"
 #include "WorldTextComponent.h"
 
 namespace gts::rendering
@@ -99,11 +98,8 @@ namespace gts::rendering
 
     inline void markRenderableDirty(RenderDirtyComponent& dirty, RenderGpuComponent& renderGpu)
     {
-        renderGpu.dirty         = true;
-        renderGpu.readyToRender = false;
-        renderGpu.commandDirty  = true;
-        dirty.transformDirty    = true;
-        dirty.objectDataDirty   = true;
+        renderGpu.commandDirty = true;
+        dirty.objectDataDirty = true;
     }
 
     inline void scheduleRenderableCleanup(ECSWorld& world,
@@ -241,8 +237,7 @@ namespace gts::rendering
         else
             commands.addComponent<RenderDirtyComponent>(entity, dirty);
 
-        if (world.hasComponent<TransformComponent>(entity))
-            gts::transform::markDirty(world, entity);
+        queueRenderSnapshotDirty(world, entity);
     }
 
     inline void syncQuadMeshBinding(ECSWorld& world,
@@ -343,8 +338,7 @@ namespace gts::rendering
         else
             commands.addComponent<RenderDirtyComponent>(entity, dirty);
 
-        if (world.hasComponent<TransformComponent>(entity))
-            gts::transform::markDirty(world, entity);
+        queueRenderSnapshotDirty(world, entity);
     }
 
     inline void syncDynamicMeshBinding(ECSWorld& world,
@@ -448,7 +442,6 @@ namespace gts::rendering
         else
             commands.addComponent<RenderDirtyComponent>(entity, dirty);
 
-        if (world.hasComponent<TransformComponent>(entity))
-            gts::transform::markDirty(world, entity);
+        queueRenderSnapshotDirty(world, entity);
     }
 }

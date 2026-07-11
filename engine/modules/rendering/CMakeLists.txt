@@ -74,8 +74,11 @@ target_include_directories(gravitas_rendering PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/particles/systems"
 
     # Cross-module component contracts used by rendering systems
-    "${CMAKE_CURRENT_SOURCE_DIR}/../hierarchy/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/../transform/components"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../transform/hierarchy"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../transform/runtime"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../transform/scene"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../transform/systems"
 
     # Engine UI system + renderer-side UI extraction
     "${CMAKE_CURRENT_SOURCE_DIR}/core/ui"
