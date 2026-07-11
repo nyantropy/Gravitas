@@ -35,21 +35,25 @@ class TextureManager
         // Sampler variants of the same path are cached independently.
         texture_id_type loadTexture(const std::string& path,
                                     bool nearestFilter = false,
-                                    bool clampToEdge = false)
+                                    bool clampToEdge = false,
+                                    TextureColorSpace colorSpace = TextureColorSpace::SRgb)
         {
             const bool effectiveClampToEdge = nearestFilter || clampToEdge;
             const std::string key = path
                 + (nearestFilter ? ":nearest" : ":linear")
-                + (effectiveClampToEdge ? ":clamp" : ":repeat");
+                + (effectiveClampToEdge ? ":clamp" : ":repeat")
+                + (colorSpace == TextureColorSpace::SRgb ? ":srgb" : ":linear-data");
 
             auto it = pathToID.find(key);
             if (it != pathToID.end())
                 return it->second;
 
             auto resource = std::make_unique<TextureResource>();
-            resource->texture = std::make_unique<VulkanTexture>(backendContext, path, nearestFilter, clampToEdge);
+            resource->texture =
+                std::make_unique<VulkanTexture>(backendContext, path, nearestFilter, clampToEdge, colorSpace);
             resource->width = resource->texture->getWidth();
             resource->height = resource->texture->getHeight();
+            resource->colorSpace = colorSpace;
 
             resource->descriptorSets = descriptorSetManager.allocateForTexture(
                 resource->texture->getTextureImageView(),

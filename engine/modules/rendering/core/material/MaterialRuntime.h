@@ -102,6 +102,7 @@ namespace gts::rendering
             MaterialInstance copy = next;
             if (getDefinition(copy.definition) == nullptr)
                 copy.definition = defaultDefinitionHandle;
+            sanitizeMaterialInstance(copy);
             copy.version = slot->instance.version + 1;
             slot->instance = copy;
             return true;
@@ -120,6 +121,7 @@ namespace gts::rendering
 
             if (getDefinition(slot->instance.definition) == nullptr)
                 slot->instance.definition = defaultDefinitionHandle;
+            sanitizeMaterialInstance(slot->instance);
             slot->instance.version += 1;
             if (slot->instance.version == 0)
                 slot->instance.version = 1;
@@ -134,6 +136,11 @@ namespace gts::rendering
         MaterialInstanceHandle vertexColorOnlyMaterial() const
         {
             return vertexColorOnlyMaterialHandle;
+        }
+
+        MaterialInstanceHandle defaultStandardSurfaceMaterial() const
+        {
+            return defaultStandardSurfaceMaterialHandle;
         }
 
         MaterialInstanceHandle resolveInstanceHandle(MaterialInstanceHandle handle) const
@@ -171,22 +178,26 @@ namespace gts::rendering
             next.uploadedVersion = instance->version;
             next.shaderFamily = shaderFamily;
             next.baseColorTextureID = textureID;
-            next.baseColor = instance->baseColor;
-            next.specularStrength = instance->specularStrength;
-            next.shininess = instance->shininess;
+            next.parameters = makeMaterialGpuParameters(
+                instance->baseColor,
+                instance->metallic,
+                instance->roughness);
             next.renderState = instance->renderState;
             next.vertexColorOnly = instance->vertexColorOnly;
             next.variantKey = makeMaterialVariantKey(shaderFamily, *instance);
             next.boundTexturePath = instance->baseColorTexture.source == MaterialTextureSource::AssetPath
                 ? instance->baseColorTexture.path
                 : std::string{};
+            next.boundTextureColorSpace = instance->baseColorTexture.colorSpace;
 
-            const bool textureChanged = inserted || state.baseColorTextureID != next.baseColorTextureID;
-            const bool colorChanged = inserted || state.baseColor != next.baseColor;
-            const bool litParameterChanged =
+            const bool textureChanged =
                 inserted
-                || state.specularStrength != next.specularStrength
-                || state.shininess != next.shininess;
+                || state.baseColorTextureID != next.baseColorTextureID
+                || state.boundTextureColorSpace != next.boundTextureColorSpace;
+            const bool parameterDataChanged =
+                inserted
+                || state.parameters.baseColor != next.parameters.baseColor
+                || state.parameters.surfaceParameters != next.parameters.surfaceParameters;
             const bool topologyChanged =
                 state.shaderFamily != next.shaderFamily
                 || state.renderState.alphaMode != next.renderState.alphaMode
@@ -195,7 +206,7 @@ namespace gts::rendering
                 || state.renderState.depthWrite != next.renderState.depthWrite
                 || state.vertexColorOnly != next.vertexColorOnly
                 || state.variantKey != next.variantKey;
-            const bool parameterChanged = textureChanged || colorChanged || litParameterChanged;
+            const bool parameterChanged = textureChanged || parameterDataChanged;
             const bool versionChanged = state.uploadedVersion != next.uploadedVersion;
             const bool changed = inserted || versionChanged || topologyChanged || parameterChanged;
 
@@ -237,8 +248,10 @@ namespace gts::rendering
         std::vector<InstanceSlot> instances;
         std::unordered_map<MaterialInstanceHandle, MaterialGpuState> gpuStates;
         MaterialDefinitionHandle defaultDefinitionHandle;
+        MaterialDefinitionHandle standardSurfaceDefinitionHandle;
         MaterialInstanceHandle defaultMaterialHandle;
         MaterialInstanceHandle vertexColorOnlyMaterialHandle;
+        MaterialInstanceHandle defaultStandardSurfaceMaterialHandle;
         uint32_t nextGpuHandle = 1;
 
         void initializeBuiltIns()
@@ -260,12 +273,29 @@ namespace gts::rendering
             vertexColorInstance.vertexColorOnly = true;
             vertexColorInstance.renderState.doubleSided = true;
             vertexColorOnlyMaterialHandle = createInstanceInternal(vertexColorInstance, true);
+
+            MaterialDefinition standardDefinition;
+            standardDefinition.shaderFamily = MaterialShaderFamily::StandardSurface;
+            standardSurfaceDefinitionHandle = createDefinition(standardDefinition);
+            if (!definitions.empty())
+                definitions.back().builtIn = true;
+
+            MaterialInstance standardInstance;
+            standardInstance.definition = standardSurfaceDefinitionHandle;
+            standardInstance.baseColorTexture = MaterialTextureBinding::assetPath({});
+            standardInstance.baseColor = {1.0f, 1.0f, 1.0f, 1.0f};
+            standardInstance.metallic = 0.0f;
+            standardInstance.roughness = 1.0f;
+            standardInstance.renderState.alphaMode = MaterialAlphaMode::Opaque;
+            standardInstance.renderState.depthWrite = true;
+            defaultStandardSurfaceMaterialHandle = createInstanceInternal(standardInstance, true);
         }
 
         MaterialInstanceHandle createInstanceInternal(MaterialInstance instance, bool builtIn)
         {
             if (getDefinition(instance.definition) == nullptr)
                 instance.definition = defaultDefinitionHandle;
+            sanitizeMaterialInstance(instance);
             if (instance.version == 0)
                 instance.version = 1;
 
@@ -277,6 +307,12 @@ namespace gts::rendering
 
             instances.push_back(slot);
             return {static_cast<uint32_t>(instances.size()), slot.generation};
+        }
+
+        static void sanitizeMaterialInstance(MaterialInstance& instance)
+        {
+            instance.metallic = sanitizeMaterialMetallic(instance.metallic);
+            instance.roughness = sanitizeMaterialRoughness(instance.roughness);
         }
 
         DefinitionSlot* findDefinitionSlot(MaterialDefinitionHandle handle)
@@ -335,12 +371,16 @@ namespace gts::rendering
                 return currentState.baseColorTextureID;
 
             if (texture.source == MaterialTextureSource::None)
-                return resources->requestTexture({});
+                return resources->requestTexture({}, TextureColorSpace::SRgb);
 
-            if (currentState.baseColorTextureID != 0 && currentState.boundTexturePath == texture.path)
+            if (currentState.baseColorTextureID != 0
+                && currentState.boundTexturePath == texture.path
+                && currentState.boundTextureColorSpace == texture.colorSpace)
+            {
                 return currentState.baseColorTextureID;
+            }
 
-            return resources->requestTexture(texture.path);
+            return resources->requestTexture(texture.path, texture.colorSpace);
         }
     };
 

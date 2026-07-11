@@ -33,9 +33,9 @@ class SceneRenderStage : public GtsRenderStage
     struct ScenePushConstants
     {
         int32_t vertexColorOnly = 0;
-        int32_t lit = 0;
-        float specularStrength = 0.5f;
-        float shininess = 32.0f;
+        float metallic = 0.0f;
+        float roughness = 1.0f;
+        float reserved0 = 0.0f;
     };
 
 public:
@@ -119,15 +119,35 @@ public:
         pConfigAdditiveNoDepthDS.cullMode = VK_CULL_MODE_NONE;
         pipelineAdditiveNoDepthDoubleSided = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigAdditiveNoDepthDS);
 
-        pipelineLit = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfig);
-        pipelineLitDoubleSided = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigDS);
-        pipelineLitAlphaNoDepth = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigAlphaNoDepth);
+        VulkanPipelineConfig pbrConfig = pConfig;
+        pbrConfig.fragmentShaderPath = GraphicsConstants::PBR_F_SHADER_PATH;
+        pipelineLit = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pbrConfig);
+
+        VulkanPipelineConfig pbrConfigDS = pbrConfig;
+        pbrConfigDS.cullMode = VK_CULL_MODE_NONE;
+        pipelineLitDoubleSided = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pbrConfigDS);
+
+        VulkanPipelineConfig pbrConfigAlphaNoDepth = pbrConfig;
+        pbrConfigAlphaNoDepth.depthWriteEnable = false;
+        pipelineLitAlphaNoDepth = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pbrConfigAlphaNoDepth);
+
+        VulkanPipelineConfig pbrConfigAlphaNoDepthDS = pbrConfigAlphaNoDepth;
+        pbrConfigAlphaNoDepthDS.cullMode = VK_CULL_MODE_NONE;
         pipelineLitAlphaNoDepthDoubleSided =
-            std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigAlphaNoDepthDS);
+            std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pbrConfigAlphaNoDepthDS);
+
+        VulkanPipelineConfig pbrConfigAdditiveNoDepth = pbrConfigAlphaNoDepth;
+        pbrConfigAdditiveNoDepth.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        pbrConfigAdditiveNoDepth.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        pbrConfigAdditiveNoDepth.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        pbrConfigAdditiveNoDepth.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         pipelineLitAdditiveNoDepth =
-            std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigAdditiveNoDepth);
+            std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pbrConfigAdditiveNoDepth);
+
+        VulkanPipelineConfig pbrConfigAdditiveNoDepthDS = pbrConfigAdditiveNoDepth;
+        pbrConfigAdditiveNoDepthDS.cullMode = VK_CULL_MODE_NONE;
         pipelineLitAdditiveNoDepthDoubleSided =
-            std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigAdditiveNoDepthDS);
+            std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pbrConfigAdditiveNoDepthDS);
 
         FramebufferManagerConfig fbConfig;
         fbConfig.colorImageViews     = colorImageViews;
@@ -643,9 +663,8 @@ private:
         mesh_id_type    boundMesh     = static_cast<mesh_id_type>(-1);
         texture_id_type boundTexture  = static_cast<texture_id_type>(-1);
         bool            boundVertexColorOnly = false;
-        bool            boundLit = false;
-        float           boundSpecularStrength = -1.0f;
-        float           boundShininess = -1.0f;
+        float           boundMetallic = -1.0f;
+        float           boundRoughness = -1.0f;
         bool            hasBoundPushConstants = false;
 
         for (uint32_t batchIndex = batchStart; batchIndex < batchEnd; ++batchIndex)
@@ -684,26 +703,23 @@ private:
                 stats.textureSwitches += 1;
             }
 
-            const bool lit = shouldShadeLit(batch);
             if (!hasBoundPushConstants
                 || batch.material.vertexColorOnly != boundVertexColorOnly
-                || lit != boundLit
-                || batch.material.specularStrength != boundSpecularStrength
-                || batch.material.shininess != boundShininess)
+                || batch.material.parameters.metallic() != boundMetallic
+                || batch.material.parameters.roughness() != boundRoughness)
             {
                 const ScenePushConstants pushConstants{
                     batch.material.vertexColorOnly ? 1 : 0,
-                    lit ? 1 : 0,
-                    batch.material.specularStrength,
-                    batch.material.shininess
+                    batch.material.parameters.metallic(),
+                    batch.material.parameters.roughness(),
+                    0.0f
                 };
                 vkCmdPushConstants(cmd, activePipeline->getPipelineLayout(),
                                    VK_SHADER_STAGE_FRAGMENT_BIT,
                                    0, sizeof(ScenePushConstants), &pushConstants);
                 boundVertexColorOnly = batch.material.vertexColorOnly;
-                boundLit = lit;
-                boundSpecularStrength = batch.material.specularStrength;
-                boundShininess = batch.material.shininess;
+                boundMetallic = batch.material.parameters.metallic();
+                boundRoughness = batch.material.parameters.roughness();
                 hasBoundPushConstants = true;
             }
 

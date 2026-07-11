@@ -6,6 +6,7 @@
 #include "GlmConfig.h"
 
 #include "Types.h"
+#include "TextureColorSpace.h"
 #include "Vertex.h"
 
 struct BitmapFont;
@@ -47,6 +48,10 @@ class IResourceProvider
 
         // request a texture from the resource provider, no nearest neighbor
         virtual texture_id_type requestTexture(const std::string& path) = 0;
+        virtual texture_id_type requestTexture(const std::string& path, TextureColorSpace)
+        {
+            return requestTexture(path);
+        }
         // Like requestTexture but clamps UVs to the texture edge while preserving linear filtering.
         virtual texture_id_type requestClampedTexture(const std::string& path) = 0;
         // Like requestTexture but forces NEAREST-neighbor sampling and no anisotropy.

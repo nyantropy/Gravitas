@@ -13,9 +13,11 @@ class GraphicsConstants
 
         static inline const char* V_SHADER_PATH_CSTR = GRAVITAS_ENGINE_ROOT "/shaders/vert.spv";
         static inline const char* F_SHADER_PATH_CSTR = GRAVITAS_ENGINE_ROOT "/shaders/frag.spv";
+        static inline const char* PBR_F_SHADER_PATH_CSTR = GRAVITAS_ENGINE_ROOT "/shaders/frag_pbr.spv";
 
         static inline const std::string V_SHADER_PATH = V_SHADER_PATH_CSTR;
         static inline const std::string F_SHADER_PATH = F_SHADER_PATH_CSTR;
+        static inline const std::string PBR_F_SHADER_PATH = PBR_F_SHADER_PATH_CSTR;
 
         static inline const char* UI_V_SHADER_PATH_CSTR = GRAVITAS_ENGINE_ROOT "/shaders/ui_vert.spv";
         static inline const char* UI_F_SHADER_PATH_CSTR = GRAVITAS_ENGINE_ROOT "/shaders/ui_frag.spv";

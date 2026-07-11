@@ -1,11 +1,14 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
+#include <cmath>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "GlmConfig.h"
+#include "TextureColorSpace.h"
 #include "Types.h"
 
 struct MaterialDefinitionHandle
@@ -126,31 +129,89 @@ struct MaterialTextureBinding
     MaterialTextureSource source = MaterialTextureSource::AssetPath;
     std::string path;
     texture_id_type resolvedTextureID = 0;
+    TextureColorSpace colorSpace = TextureColorSpace::SRgb;
 
-    static MaterialTextureBinding assetPath(std::string texturePath)
+    static MaterialTextureBinding assetPath(std::string texturePath,
+                                            TextureColorSpace textureColorSpace = TextureColorSpace::SRgb)
     {
         MaterialTextureBinding binding;
         binding.source = MaterialTextureSource::AssetPath;
         binding.path = std::move(texturePath);
+        binding.colorSpace = textureColorSpace;
         return binding;
     }
 
-    static MaterialTextureBinding resolved(texture_id_type textureID)
+    static MaterialTextureBinding dataAssetPath(std::string texturePath)
+    {
+        return assetPath(std::move(texturePath), TextureColorSpace::Linear);
+    }
+
+    static MaterialTextureBinding resolved(texture_id_type textureID,
+                                           TextureColorSpace textureColorSpace = TextureColorSpace::SRgb)
     {
         MaterialTextureBinding binding;
         binding.source = MaterialTextureSource::ResolvedTexture;
         binding.resolvedTextureID = textureID;
+        binding.colorSpace = textureColorSpace;
         return binding;
     }
 };
+
+inline constexpr float MaterialMinimumRoughness = 0.04f;
+
+inline float sanitizeMaterialMetallic(float metallic)
+{
+    if (!std::isfinite(metallic))
+        return 0.0f;
+    return std::clamp(metallic, 0.0f, 1.0f);
+}
+
+inline float sanitizeMaterialRoughness(float roughness)
+{
+    if (!std::isfinite(roughness))
+        return 1.0f;
+    return std::clamp(roughness, MaterialMinimumRoughness, 1.0f);
+}
+
+struct MaterialGpuParameters
+{
+    glm::vec4 baseColor = {1.0f, 1.0f, 1.0f, 1.0f};
+    // x = metallic, y = perceptual roughness, zw reserved.
+    glm::vec4 surfaceParameters = {0.0f, 1.0f, 0.0f, 0.0f};
+
+    float metallic() const
+    {
+        return surfaceParameters.x;
+    }
+
+    float roughness() const
+    {
+        return surfaceParameters.y;
+    }
+};
+
+inline MaterialGpuParameters makeMaterialGpuParameters(const glm::vec4& baseColor,
+                                                       float metallic,
+                                                       float roughness)
+{
+    MaterialGpuParameters parameters;
+    parameters.baseColor = baseColor;
+    parameters.surfaceParameters = {
+        sanitizeMaterialMetallic(metallic),
+        sanitizeMaterialRoughness(roughness),
+        0.0f,
+        0.0f
+    };
+    return parameters;
+}
 
 struct MaterialInstance
 {
     MaterialDefinitionHandle definition;
     glm::vec4 baseColor = {1.0f, 1.0f, 1.0f, 1.0f};
     MaterialTextureBinding baseColorTexture = MaterialTextureBinding::assetPath({});
-    float specularStrength = 0.5f;
-    float shininess = 32.0f;
+    float metallic = 0.0f;
+    float roughness = 1.0f;
     MaterialRenderState renderState{};
     bool vertexColorOnly = false;
     uint64_t version = 1;
@@ -179,9 +240,8 @@ struct MaterialGpuState
     MaterialShaderFamily shaderFamily = MaterialShaderFamily::LegacyUnlit;
     texture_id_type baseColorTextureID = 0;
     std::string boundTexturePath;
-    glm::vec4 baseColor = {1.0f, 1.0f, 1.0f, 1.0f};
-    float specularStrength = 0.5f;
-    float shininess = 32.0f;
+    TextureColorSpace boundTextureColorSpace = TextureColorSpace::SRgb;
+    MaterialGpuParameters parameters{};
     MaterialRenderState renderState{};
     bool vertexColorOnly = false;
     MaterialVariantKey variantKey{};
@@ -207,9 +267,7 @@ struct MaterialFrameState
     // Temporary Vulkan compatibility data. These fields are material-owned
     // cache state; render commands and object uploads must not duplicate them.
     texture_id_type baseColorTextureID = 0;
-    glm::vec4 baseColor = {1.0f, 1.0f, 1.0f, 1.0f};
-    float specularStrength = 0.5f;
-    float shininess = 32.0f;
+    MaterialGpuParameters parameters{};
     MaterialRenderState renderState{};
     bool vertexColorOnly = false;
 };
@@ -295,9 +353,7 @@ inline MaterialFrameState makeMaterialFrameState(const MaterialGpuState& state)
         state.uploadedVersion,
         state.shaderFamily,
         state.baseColorTextureID,
-        state.baseColor,
-        state.specularStrength,
-        state.shininess,
+        state.parameters,
         state.renderState,
         state.vertexColorOnly
     };

@@ -83,6 +83,7 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
         set(SHADER_DIR "${GTS_ENGINE_ROOT}/shaders")
         add_custom_target(compile_shaders
             COMMAND ${GLSLC} "${SHADER_DIR}/fragmentshader.frag" -o "${SHADER_DIR}/frag.spv"
+            COMMAND ${GLSLC} "${SHADER_DIR}/fragmentshader_pbr.frag" -o "${SHADER_DIR}/frag_pbr.spv"
             COMMAND ${GLSLC} "${SHADER_DIR}/vertexshader.vert"  -o "${SHADER_DIR}/vert.spv"
             COMMAND ${GLSLC} "${SHADER_DIR}/particle_frag.frag" -o "${SHADER_DIR}/particle_frag.spv"
             COMMAND ${GLSLC} "${SHADER_DIR}/particle_vert.vert" -o "${SHADER_DIR}/particle_vert.spv"

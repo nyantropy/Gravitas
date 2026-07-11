@@ -1,8 +1,15 @@
 #include "VulkanTexture.hpp"
 
-VulkanTexture::VulkanTexture(VulkanBackendContext& backendContext, const std::string path, bool nearestFilter, bool clampToEdge)
+VulkanTexture::VulkanTexture(VulkanBackendContext& backendContext,
+                             const std::string path,
+                             bool nearestFilter,
+                             bool clampToEdge,
+                             TextureColorSpace colorSpace)
     : nearestFilter(nearestFilter)
     , clampToEdge(clampToEdge)
+    , textureFormat(colorSpace == TextureColorSpace::SRgb
+        ? VK_FORMAT_R8G8B8A8_SRGB
+        : VK_FORMAT_R8G8B8A8_UNORM)
     , backendContext(backendContext)
 {
     createTextureImage(path);
@@ -50,14 +57,13 @@ int VulkanTexture::getHeight() const
 
 void VulkanTexture::createTextureImageView() 
 {
-    VkFormat format = VK_FORMAT_R8G8B8A8_SRGB;
     VkImageAspectFlags aspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
 
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.image = textureImage;
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = format;
+    viewInfo.format = textureFormat;
     viewInfo.subresourceRange.aspectMask = aspectFlags;
     viewInfo.subresourceRange.baseMipLevel = 0;
     viewInfo.subresourceRange.levelCount = 1;
@@ -151,18 +157,18 @@ void VulkanTexture::createTextureImage(const std::string path)
 
     ImageUtil::createImage(backendContext.device(),
     texWidth, texHeight,
-    VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
+    textureFormat, VK_IMAGE_TILING_OPTIMAL,
     VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, textureImage);
 
     MemoryUtil::allocateImageMemory(backendContext.device(), backendContext.physicalDevice(), textureImage,
     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImageMemory);
 
     ImageUtil::transitionImageLayout(backendContext.device(), backendContext.commandPool(), backendContext.graphicsQueue(), textureImage,
-    VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    textureFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         BufferUtil::copyBufferToImage(backendContext.device(), backendContext.commandPool(), backendContext.graphicsQueue(),
         stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
     ImageUtil::transitionImageLayout(backendContext.device(), backendContext.commandPool(), backendContext.graphicsQueue(), textureImage,
-    VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    textureFormat, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     vkDestroyBuffer(backendContext.device(), stagingBuffer, nullptr);
     vkFreeMemory(backendContext.device(), stagingBufferMemory, nullptr);

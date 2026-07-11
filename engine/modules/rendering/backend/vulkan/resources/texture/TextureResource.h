@@ -6,6 +6,7 @@
 #include <vulkan/vulkan.h>
 
 #include "Types.h"
+#include "TextureColorSpace.h"
 #include "VulkanTexture.hpp"
 
 struct TextureResource
@@ -16,4 +17,5 @@ struct TextureResource
     int width = 0;
     int height = 0;
     texture_id_type id = 0;
+    TextureColorSpace colorSpace = TextureColorSpace::SRgb;
 };

@@ -85,14 +85,36 @@ shader, and ambient + diffuse + temporary Blinn-Phong-style specular lighting.
 Unlit, world-text, debug, particles, editor-preview, and vertex-color-only paths
 remain explicitly unlit. `StandardSurface` compatibility requires normals and
 falls back to unlit shading with a diagnostic when mesh metadata is
-incompatible. The temporary `specularStrength` and `shininess` material
-parameters are versioned material data, not shader variants, and `shininess`
-will be replaced by roughness in the metallic-roughness phase.
+incompatible. Phase 3B replaces the temporary lit response with the
+metallic-roughness model without reopening light, material, or command
+ownership.
 
-### Phase 3B --- PBR Foundation
+### Phase 3B --- PBR Foundation (Complete)
 
 Implement a metallic-roughness PBR pipeline on top of the completed
 ownership model.
+
+Status: complete. `StandardSurface` now uses shared material `baseColor`,
+`metallic`, and perceptual `roughness` parameters. Direct directional lighting
+uses a Cook-Torrance BRDF with GGX distribution, Smith geometry, and Schlick
+Fresnel. Roughness is clamped to a documented minimum of `0.04`, metallic is
+clamped to `[0, 1]`, and parameter changes update material GPU/frame data
+without changing `MaterialVariantKey`. `LegacyUnlit` and `StandardSurface` now
+resolve to distinct Vulkan fragment shader modules through shader-family
+pipeline variants. Texture bindings carry explicit sRGB versus linear/data
+intent so base-color textures are sampled through sRGB formats while future
+metallic, roughness, normal, AO, and mask textures can remain linear.
+`GtsPbrValidation` is a deterministic visual fixture for this phase, with a
+metallic/roughness grid, a non-uniformly scaled lit object, an unlit comparison
+object, a transparent object, and one directional light.
+
+Point and spot lights, generic multi-light extraction, normal maps, image-based
+lighting, shadows, and metallic/roughness texture maps remain future phases.
+
+### Phase 3C --- Point and Spot Light Extraction
+
+Extend the completed directional-light and PBR surface-response path with
+additional scene-authored light types and generic light extraction.
 
 ## Guiding Principles
 

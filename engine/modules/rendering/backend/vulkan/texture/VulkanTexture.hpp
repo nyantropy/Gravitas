@@ -9,6 +9,7 @@
 #include "ImageUtil.hpp"
 #include "MemoryUtil.hpp"
 #include "BufferUtil.hpp"
+#include "TextureColorSpace.h"
 
 class VulkanTexture
 {
@@ -18,7 +19,8 @@ class VulkanTexture
         VulkanTexture(VulkanBackendContext& backendContext,
                       const std::string path,
                       bool nearestFilter = false,
-                      bool clampToEdge = false);
+                      bool clampToEdge = false,
+                      TextureColorSpace colorSpace = TextureColorSpace::SRgb);
         ~VulkanTexture();
 
         VkImage& getTextureImage();
@@ -31,6 +33,7 @@ class VulkanTexture
     private:
         bool nearestFilter;
         bool clampToEdge;
+        VkFormat textureFormat = VK_FORMAT_R8G8B8A8_SRGB;
         VulkanBackendContext& backendContext;
         int width = 0;
         int height = 0;

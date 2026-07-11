@@ -713,7 +713,9 @@ class ForwardRenderer : Renderer
                     continue;
 
                 const uint32_t writes =
-                    resourceSystem->writeObjectTintAllFrames(command.objectSSBOSlot, material->baseColor);
+                    resourceSystem->writeObjectTintAllFrames(
+                        command.objectSSBOSlot,
+                        material->parameters.baseColor);
                 frameStats.backendObjectWrites += writes;
                 if (writes == 0)
                     frameStats.backendObjectWritesSkipped += 1;
@@ -738,7 +740,9 @@ class ForwardRenderer : Renderer
                         continue;
 
                     const uint32_t writes =
-                        resourceSystem->writeObjectTintAllFrames(command.objectSSBOSlot, material->baseColor);
+                        resourceSystem->writeObjectTintAllFrames(
+                            command.objectSSBOSlot,
+                            material->parameters.baseColor);
                     frameStats.backendObjectWrites += writes;
                     if (writes == 0)
                         frameStats.backendObjectWritesSkipped += 1;

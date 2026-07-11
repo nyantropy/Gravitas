@@ -61,6 +61,7 @@ namespace
         texture_id_type nextTexture = 100;
         ssbo_id_type nextSlot = 0;
         std::unordered_map<std::string, texture_id_type> textures;
+        std::unordered_map<std::string, TextureColorSpace> textureColorSpaces;
 
         mesh_id_type requestMesh(const std::string&) override
         {
@@ -90,6 +91,12 @@ namespace
             if (inserted)
                 ++nextTexture;
             return it->second;
+        }
+
+        texture_id_type requestTexture(const std::string& path, TextureColorSpace colorSpace) override
+        {
+            textureColorSpaces[path] = colorSpace;
+            return requestTexture(path);
         }
 
         texture_id_type requestClampedTexture(const std::string& path) override
@@ -297,8 +304,8 @@ namespace
             lit,
             [](MaterialInstance& instance)
             {
-                instance.specularStrength = 0.8f;
-                instance.shininess = 64.0f;
+                instance.metallic = 1.4f;
+                instance.roughness = 0.0f;
                 return true;
             });
         const MaterialSyncResult parameterSync = materials.synchronizeGpuState(lit, &resources);
@@ -306,6 +313,10 @@ namespace
             parameterSync.changed && parameterSync.parameterChanged && !parameterSync.topologyChanged;
         const MaterialVariantKey parameterVariant =
             parameterSync.state ? parameterSync.state->variantKey : MaterialVariantKey{};
+        const bool sanitizedParameters =
+            parameterSync.state != nullptr
+            && near(parameterSync.state->parameters.metallic(), 1.0f)
+            && near(parameterSync.state->parameters.roughness(), MaterialMinimumRoughness);
 
         materials.modifyInstance(
             lit,
@@ -324,9 +335,11 @@ namespace
             && require(unlitVariant != litVariant,
                        "lit and unlit material variants differ")
             && require(parameterOnlyChange,
-                       "specular and shininess are parameter-only changes")
+                       "metallic and roughness are parameter-only changes")
             && require(parameterSync.state != nullptr && parameterVariant == litVariant,
-                       "specular and shininess preserve variant key")
+                       "metallic and roughness preserve variant key")
+            && require(sanitizedParameters,
+                       "metallic and roughness are clamped to stable PBR ranges")
             && require(topologySync.changed && topologySync.topologyChanged,
                        "shader-family change is topology-changing")
             && require(topologySync.state != nullptr
@@ -360,28 +373,72 @@ namespace
                        "normal transformation produces finite normalized output");
     }
 
-    bool lightingEquationProducesAmbientDiffuseAndSpecularTerms()
+    bool pbrHelpersProduceFinitePhysicallyBoundedTerms()
+    {
+        const glm::vec3 dielectricF0 = gts::rendering::pbrF0ForBaseColor({0.8f, 0.2f, 0.1f}, 0.0f);
+        const glm::vec3 metallicF0 = gts::rendering::pbrF0ForBaseColor({0.8f, 0.2f, 0.1f}, 1.0f);
+        const glm::vec3 facingFresnel =
+            gts::rendering::fresnelSchlick(1.0f, gts::rendering::pbrDielectricF0());
+        const glm::vec3 grazingFresnel =
+            gts::rendering::fresnelSchlick(0.0f, gts::rendering::pbrDielectricF0());
+        const float ggx = gts::rendering::distributionGGX(1.0f, 0.04f);
+        const float smith = gts::rendering::geometrySmith(1.0f, 1.0f, 0.5f);
+
+        return require(nearVec3(dielectricF0, {0.04f, 0.04f, 0.04f}),
+                       "dielectric F0 uses the expected baseline")
+            && require(nearVec3(metallicF0, {0.8f, 0.2f, 0.1f}),
+                       "metallic F0 approaches base color")
+            && require(grazingFresnel.x > facingFresnel.x &&
+                       grazingFresnel.y > facingFresnel.y &&
+                       grazingFresnel.z > facingFresnel.z,
+                       "Schlick Fresnel increases toward grazing angles")
+            && require(std::isfinite(ggx) && ggx >= 0.0f,
+                       "GGX distribution remains finite and nonnegative")
+            && require(std::isfinite(smith) && smith >= 0.0f && smith <= 1.0f,
+                       "Smith geometry term remains finite and bounded");
+    }
+
+    bool pbrDirectLightingHandlesAmbientAndBackfaces()
     {
         gts::rendering::DirectionalLightFrameData light;
         light.active = true;
         light.directionToLight = {0.0f, 0.0f, 1.0f};
         light.color = {1.0f, 1.0f, 1.0f};
         light.intensity = 1.0f;
-        light.ambientIntensity = 0.1f;
+        light.ambientIntensity = 0.0f;
 
-        const glm::vec4 diffuseOnly = gts::rendering::evaluateBlinnPhongLighting(
-            {1.0f, 0.0f, 0.0f, 1.0f},
+        const glm::vec4 dielectricLit = gts::rendering::evaluateMetallicRoughnessDirectLighting(
+            {1.0f, 0.5f, 0.25f, 1.0f},
             {1.0f, 1.0f, 1.0f, 1.0f},
             {0.0f, 0.0f, 1.0f},
             {0.0f, 0.0f, 0.0f},
             {0.0f, 0.0f, 1.0f},
             light,
             0.0f,
-            32.0f);
+            0.5f);
+
+        const glm::vec4 backFacing = gts::rendering::evaluateMetallicRoughnessDirectLighting(
+            {1.0f, 0.5f, 0.25f, 1.0f},
+            {1.0f, 1.0f, 1.0f, 1.0f},
+            {0.0f, 0.0f, -1.0f},
+            {0.0f, 0.0f, 0.0f},
+            {0.0f, 0.0f, 1.0f},
+            light,
+            0.0f,
+            0.5f);
 
         light.intensity = 0.0f;
         light.ambientIntensity = 0.2f;
-        const glm::vec4 ambientOnly = gts::rendering::evaluateBlinnPhongLighting(
+        const glm::vec4 dielectricAmbient = gts::rendering::evaluateMetallicRoughnessDirectLighting(
+            {0.5f, 0.25f, 0.0f, 0.75f},
+            {1.0f, 1.0f, 1.0f, 1.0f},
+            {0.0f, 0.0f, 1.0f},
+            {0.0f, 0.0f, 0.0f},
+            {0.0f, 0.0f, 1.0f},
+            light,
+            0.0f,
+            0.5f);
+        const glm::vec4 metallicAmbient = gts::rendering::evaluateMetallicRoughnessDirectLighting(
             {0.5f, 0.25f, 0.0f, 0.75f},
             {1.0f, 1.0f, 1.0f, 1.0f},
             {0.0f, 0.0f, 1.0f},
@@ -389,12 +446,79 @@ namespace
             {0.0f, 0.0f, 1.0f},
             light,
             1.0f,
-            32.0f);
+            0.5f);
 
-        return require(nearVec4(diffuseOnly, {1.1f, 0.0f, 0.0f, 1.0f}),
-                       "lighting equation includes ambient and diffuse terms")
-            && require(nearVec4(ambientOnly, {0.1f, 0.05f, 0.0f, 0.75f}),
-                       "zero direct light leaves ambient contribution only");
+        const bool finiteLit =
+            std::isfinite(dielectricLit.x) && std::isfinite(dielectricLit.y) &&
+            std::isfinite(dielectricLit.z) && std::isfinite(dielectricLit.w);
+
+        return require(finiteLit && dielectricLit.x >= 0.0f &&
+                       dielectricLit.y >= 0.0f && dielectricLit.z >= 0.0f,
+                       "PBR direct lighting produces finite nonnegative output")
+            && require(nearVec4(backFacing, {0.0f, 0.0f, 0.0f, 1.0f}),
+                       "back-facing light contributes no direct lighting")
+            && require(nearVec4(dielectricAmbient, {0.1f, 0.05f, 0.0f, 0.75f}),
+                       "dielectric ambient fallback uses base color")
+            && require(nearVec4(metallicAmbient, {0.0f, 0.0f, 0.0f, 0.75f}),
+                       "metallic surfaces do not receive diffuse ambient fallback");
+    }
+
+    bool pbrValidationGridFixtureProducesFiniteSamples()
+    {
+        gts::rendering::DirectionalLightFrameData light;
+        light.active = true;
+        light.directionToLight = glm::normalize(glm::vec3(0.25f, 0.4f, 1.0f));
+        light.color = {1.0f, 0.96f, 0.9f};
+        light.intensity = 2.0f;
+        light.ambientIntensity = 0.05f;
+
+        const float metallicValues[] = {0.0f, 0.5f, 1.0f};
+        const float roughnessValues[] = {MaterialMinimumRoughness, 0.5f, 1.0f};
+        for (float metallic : metallicValues)
+        {
+            for (float roughness : roughnessValues)
+            {
+                const glm::vec4 sample = gts::rendering::evaluateMetallicRoughnessDirectLighting(
+                    {0.8f, 0.3f, 0.1f, 1.0f},
+                    {1.0f, 1.0f, 1.0f, 1.0f},
+                    {0.0f, 0.0f, 1.0f},
+                    {0.0f, 0.0f, 0.0f},
+                    {0.0f, 0.0f, 2.0f},
+                    light,
+                    metallic,
+                    roughness);
+                if (!std::isfinite(sample.x) || !std::isfinite(sample.y) ||
+                    !std::isfinite(sample.z) || !std::isfinite(sample.w))
+                {
+                    return require(false, "PBR validation grid sample is finite");
+                }
+            }
+        }
+
+        return true;
+    }
+
+    bool textureColorSpaceClassificationIsExplicit()
+    {
+        gts::rendering::MaterialRuntime materials;
+        FakeResourceProvider resources;
+
+        const MaterialInstance* defaultInstance = materials.getInstance(materials.defaultMaterial());
+        MaterialInstance instance = makeInstance(defaultInstance != nullptr
+            ? defaultInstance->definition
+            : MaterialDefinitionHandle{});
+        instance.baseColorTexture = MaterialTextureBinding::assetPath("textures/base.png");
+        const MaterialInstanceHandle baseColor = materials.createInstance(instance);
+        materials.synchronizeGpuState(baseColor, &resources);
+
+        instance.baseColorTexture = MaterialTextureBinding::dataAssetPath("textures/roughness.png");
+        const MaterialInstanceHandle dataTexture = materials.createInstance(instance);
+        materials.synchronizeGpuState(dataTexture, &resources);
+
+        return require(resources.textureColorSpaces["textures/base.png"] == TextureColorSpace::SRgb,
+                       "base-color texture requests are classified as sRGB")
+            && require(resources.textureColorSpaces["textures/roughness.png"] == TextureColorSpace::Linear,
+                       "data texture requests are classified as linear");
     }
 
     bool extractionPublishesCameraPositionAndLightFrameData()
@@ -448,7 +572,10 @@ int main()
     ok = lightMutationUpdatesExtractedFrameData() && ok;
     ok = litMaterialVariantAndParametersAreSeparated() && ok;
     ok = normalTransformationHandlesScaleAndReflection() && ok;
-    ok = lightingEquationProducesAmbientDiffuseAndSpecularTerms() && ok;
+    ok = pbrHelpersProduceFinitePhysicallyBoundedTerms() && ok;
+    ok = pbrDirectLightingHandlesAmbientAndBackfaces() && ok;
+    ok = pbrValidationGridFixtureProducesFiniteSamples() && ok;
+    ok = textureColorSpaceClassificationIsExplicit() && ok;
     ok = extractionPublishesCameraPositionAndLightFrameData() && ok;
 
     if (!ok)

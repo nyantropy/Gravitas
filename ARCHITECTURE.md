@@ -357,10 +357,11 @@ material; it does not own the material.
 - `MaterialInstance`: shared material parameter values, texture assignment,
   render state, vertex-color-only mode, and an authoritative `version`
 - `MaterialGpuState`: a generic cached representation keyed by
-  `MaterialInstanceHandle`, storing resolved texture ID, base color, render
-  state, uploaded version, variant key, and an opaque `MaterialGpuHandle`
+  `MaterialInstanceHandle`, storing resolved texture ID, packed material GPU
+  parameters, render state, uploaded version, variant key, and an opaque
+  `MaterialGpuHandle`
 - built-in fallback materials, including the default material and a
-  vertex-color-only material
+  vertex-color-only material, plus a default standard-surface material
 
 Material handles are small typed values with `id + generation`; `0` is invalid.
 They are backend-independent and never depend on ECS entity IDs. Destroyed or
@@ -386,23 +387,34 @@ generation and font resolution. `MaterialBindingSystem` creates or updates the
 world-text material instance from the font atlas texture and text tint.
 
 Shared material state currently includes texture assignment, base color/tint,
-temporary lit parameters (`specularStrength`, `shininess`), alpha mode, alpha
-cutoff, double-sided state, depth-write state, legacy alpha/additive blend
-selection, and vertex-color-only mode. Per-object state remains in
-`RenderGpuComponent` and object uploads: model matrix, UV animation transform,
-and future object-specific IDs or overrides. Tint/base color is a shared
-material value. It is no longer part of generic object upload data; the current
-Vulkan backend still writes the scene shader's temporary object tint field from
-material frame state until base color moves into real material descriptor data.
+metallic, perceptual roughness, alpha mode, alpha cutoff, double-sided state,
+depth-write state, legacy alpha/additive blend selection, and vertex-color-only
+mode. Per-object state remains in `RenderGpuComponent` and object uploads:
+model matrix, UV animation transform, and future object-specific IDs or
+overrides. Tint/base color is a shared material value. It is no longer part of
+generic object upload data; the current Vulkan backend still writes the scene
+shader's temporary object tint field from material frame state until base color
+moves into real material descriptor data.
 
 `LegacyUnlit` and `StandardSurface` are explicit shader families. `LegacyUnlit`
 samples texture/base color without scene lighting and is the correct default for
 world text, debug draw, particles, tool visuals, and UI-like world geometry.
 `StandardSurface` is the first lit scene-material family. In Phase 3A it uses a
-temporary ambient + Lambert diffuse + Blinn-Phong-style specular model. The
-temporary `specularStrength` and `shininess` fields are material parameters and
-do not affect `MaterialVariantKey`; `shininess` is expected to be replaced by
-roughness when metallic-roughness PBR lands.
+temporary ambient + Lambert diffuse + Blinn-Phong-style specular model. In
+Phase 3B it is a metallic-roughness material family using Cook-Torrance direct
+lighting with GGX distribution, Smith geometry, and Schlick Fresnel. Its first
+production parameter set is:
+
+```
+baseColor : vec4
+metallic  : [0, 1]
+roughness : [0.04, 1] perceptual roughness
+```
+
+`specularStrength` and `shininess` are removed from the authoritative material
+model. `roughness` is perceptual; shaders derive microfacet alpha as
+`roughness * roughness`. A dielectric baseline reflectance of `F0 = 0.04` is
+mixed toward `baseColor.rgb` as metallic approaches `1`.
 
 Alpha semantics use `MaterialAlphaMode`:
 
@@ -727,7 +739,7 @@ MaterialFrameState {
     MaterialVariantKey     variantKey
     RenderQueue            renderQueue
     texture_id_type        baseColorTextureID   (temporary compatibility)
-    glm::vec4              baseColor            (temporary compatibility)
+    MaterialGpuParameters  parameters           (baseColor + metallic/roughness)
     MaterialRenderState    renderState
     uint64_t               uploadedVersion
 }
@@ -784,49 +796,71 @@ should render from authored vertex colors without sampling a color texture. The
 regular material texture path remains the default for application-authored
 geometry.
 
-### First Lit Scene Pipeline
+### Metallic-Roughness Scene Pipeline
 
-Scene shading is world-space in Phase 3A:
+Scene shading is world-space:
 
 - the vertex shader transforms positions to world space
 - the vertex shader derives `transpose(inverse(mat3(modelMatrix)))` for
   world-space normals
 - the fragment shader reads camera world position and `DirectionalLightFrameData`
   from the frame/camera UBO
-- `StandardSurface` materials evaluate ambient + Lambert diffuse +
-  Blinn-Phong-style specular
+- `StandardSurface` materials evaluate direct directional lighting with a
+  Cook-Torrance metallic-roughness BRDF
 - `LegacyUnlit` materials ignore light data and remain explicitly unlit
 
-The lighting equation is transitional and intentionally not described as PBR.
-It exists to prove that light descriptors, world transforms, geometry normals,
-material identity, camera frame data, and backend pipeline selection are flowing
-through the right ownership boundaries before the metallic-roughness BRDF is
-introduced.
+The direct-light BRDF is:
+
+```
+specular = (D * G * F) / max(4 * NdotV * NdotL, epsilon)
+diffuse  = ((1 - F) * (1 - metallic)) * baseColor / PI
+Lo      += (diffuse + specular) * lightRadiance * NdotL
+```
+
+Where `D` is GGX/Trowbridge-Reitz, `G` is Smith masking-shadowing using a
+Schlick-GGX approximation, and `F` is Schlick Fresnel. `F0` is `vec3(0.04)` for
+dielectrics and is mixed toward `baseColor.rgb` for metals. Roughness is
+perceptual and clamped to a documented minimum of `0.04` before the shader
+derives the microfacet alpha value.
+
+The current ambient term is intentionally a bounded fallback, not IBL:
+
+```
+ambient = baseColor * (1 - metallic) * ambientIntensity
+```
+
+Metallic materials therefore do not receive the same diffuse ambient term as
+dielectrics. Future irradiance and prefiltered environment lighting should feed
+the same material response model rather than replacing material ownership.
 
 `MaterialVariantKey` includes shader family and topology-relevant flags such as
 alpha mode, double-sided state, temporary legacy blend mode, depth-write state,
 and vertex-color-only mode. It does not include ordinary material parameters:
-base color, texture assignment, `specularStrength`, or `shininess`. Changing
-those parameters updates material GPU/frame data without recreating meshes,
-object slots, or command topology. Changing shader family updates the variant
-key and command ordering.
+base color, texture assignment, metallic, or roughness. Changing those
+parameters updates material GPU/frame data without recreating meshes, object
+slots, or command topology. Changing shader family updates the variant key and
+command ordering.
 
 The Vulkan scene stage selects lit or unlit pipeline variants from
 `MaterialFrameState::shaderFamily` and the batch compatibility result. The
-current implementation still uses the same scene shader module with an explicit
-lit push-constant flag; the material family remains the authoritative shader
-selection input, and later PBR shader modules can replace this compatibility
-shader without changing extraction or material ownership.
+unlit scene path uses the legacy fragment shader, while `StandardSurface` uses
+the PBR fragment shader. Shader-family identity selects the shader
+implementation before draw execution; there is no per-fragment shader-family
+branch.
 
 Current color-space behavior:
 
 - regular loaded textures are uploaded as `VK_FORMAT_R8G8B8A8_SRGB`, so color
   texture samples are decoded before lighting math
+- material texture bindings carry explicit `TextureColorSpace` intent:
+  base-color textures default to `SRgb`, while data texture requests use
+  `Linear`
+- Vulkan realizes `TextureColorSpace::SRgb` as `VK_FORMAT_R8G8B8A8_SRGB` and
+  `TextureColorSpace::Linear` as `VK_FORMAT_R8G8B8A8_UNORM`
 - swapchain/headless frame output prefers sRGB color formats, so shader outputs
   are encoded by the framebuffer path
-- the engine does not yet distinguish color textures from future data textures
-  such as normal, roughness, or metallic maps; Phase 3B must make that split
-  explicit before full PBR
+- lighting math is authored in linear space; future metallic, roughness,
+  normal, AO, and mask textures must remain linear/data textures
 
 ### Scene Texture Animation
 
