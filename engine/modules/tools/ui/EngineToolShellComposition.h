@@ -8,6 +8,7 @@
 #include "EngineToolPanes.h"
 #include "EngineToolUiHelpers.h"
 #include "ToolTheme.h"
+#include "ToolWorkspaceLayout.h"
 #include "UiComposition.h"
 #include "UiWidget.h"
 
@@ -121,6 +122,7 @@ namespace gts::tools
         ToolCommandQueue commands;
         std::vector<std::unique_ptr<ToolPane>> panes;
         ToolDockLayout dockLayout;
+        ToolWorkspaceLayout workspaceLayout;
         std::vector<ResolvedPaneLayout> resolvedLayouts;
 
         gts::ui::UiPanelWidget topChrome;
@@ -138,7 +140,9 @@ namespace gts::tools
 
         void resolvePaneLayouts()
         {
-            resolvedLayouts = dockLayout.resolve(paneDescriptors(),
+            const std::vector<PaneDescriptor> descriptors =
+                workspaceLayout.apply(paneDescriptors(), view.activeWorkspace);
+            resolvedLayouts = dockLayout.resolve(descriptors,
                                                  view.activeWorkspace,
                                                  toolDockLayoutBoundsFromView(view));
         }

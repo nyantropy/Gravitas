@@ -6,14 +6,10 @@
 #include <utility>
 #include <vector>
 
+#include "ToolWorkspace.h"
+
 namespace gts::tools
 {
-    enum class ToolWorkspace
-    {
-        World,
-        Particles
-    };
-
     enum class ToolCommandType
     {
         SetWorkspace,

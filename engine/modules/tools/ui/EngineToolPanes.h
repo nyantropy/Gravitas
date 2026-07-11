@@ -961,6 +961,28 @@ namespace gts::tools
                     bool visible) override
         {
             updateRoot(context, layout, visible);
+            const bool dominantPreview = view.activeWorkspace == ToolWorkspace::Particles;
+            context.ui.setLayout(context.surface,
+                                 headerPanel.root(),
+                                 dominantPreview
+                                     ? toolui::rect(0.024f, 0.026f, 0.952f, 0.110f)
+                                     : toolui::rect(0.035f, 0.035f, 0.930f, 0.145f));
+            context.ui.setLayout(context.surface,
+                                 previewPanel.root(),
+                                 dominantPreview
+                                     ? toolui::rect(0.024f, 0.160f, 0.952f, 0.690f)
+                                     : toolui::rect(0.050f, 0.205f, 0.900f, 0.480f));
+            context.ui.setLayout(context.surface,
+                                 statusStrip.root(),
+                                 dominantPreview
+                                     ? toolui::rect(0.024f, 0.875f, 0.465f, 0.060f)
+                                     : toolui::rect(0.050f, 0.705f, 0.900f, 0.060f));
+            context.ui.setLayout(context.surface,
+                                 actionBar.root(),
+                                 dominantPreview
+                                     ? toolui::rect(0.510f, 0.875f, 0.466f, 0.060f)
+                                     : toolui::rect(0.050f, 0.790f, 0.900f, 0.105f));
+
             title.setText(context, view.particleTitle + (view.particleDirty ? " *" : ""));
             path.setText(context,
                          view.particlePath.empty()

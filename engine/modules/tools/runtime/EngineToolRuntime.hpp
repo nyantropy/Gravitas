@@ -237,7 +237,11 @@ namespace gts::tools
         {
             const int width  = std::max(1, static_cast<int>(std::round(ctx.windowPixelWidth)));
             const int height = std::max(1, static_cast<int>(std::round(ctx.windowPixelHeight)));
-            publishEngineToolWorkspace(ctx.world, width, height, persistentToolState.visible);
+            publishEngineToolWorkspace(ctx.world,
+                                       width,
+                                       height,
+                                       persistentToolState.visible,
+                                       shellSystem.currentWorkspace());
         }
 
         void capturePersistentState(ECSWorld& world)

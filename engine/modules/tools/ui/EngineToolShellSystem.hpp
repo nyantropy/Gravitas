@@ -54,7 +54,7 @@ namespace gts::tools
 
             setToolsInputContext(ctx, true);
             state.editorMode = EditorMode::Runtime;
-            const EngineToolWorkspaceComponent& workspace = publishWorkspace(ctx, true);
+            EngineToolWorkspaceComponent workspace = publishWorkspace(ctx, true);
 
             if (!ensureFont(ctx))
             {
@@ -69,7 +69,10 @@ namespace gts::tools
                 return;
             }
 
+            const ToolWorkspace workspaceBeforeCommands = activeWorkspace;
             processCommands(ctx, state, *shell);
+            if (activeWorkspace != workspaceBeforeCommands)
+                workspace = publishWorkspace(ctx, true);
             syncParticlePreviewWorld(ctx);
 
             ToolShellView view = buildView(ctx, state, workspace);
@@ -98,6 +101,11 @@ namespace gts::tools
         {
             if (previewWorld)
                 previewWorld->destroy();
+        }
+
+        ToolWorkspace currentWorkspace() const
+        {
+            return activeWorkspace;
         }
 
         std::string applyStartupOptions(const ToolStartupOptions& options)
@@ -235,11 +243,11 @@ namespace gts::tools
             capture = {};
         }
 
-        static EngineToolWorkspaceComponent& publishWorkspace(const EcsControllerContext& ctx, bool active)
+        EngineToolWorkspaceComponent& publishWorkspace(const EcsControllerContext& ctx, bool active)
         {
             const int width = std::max(1, static_cast<int>(std::round(ctx.windowPixelWidth)));
             const int height = std::max(1, static_cast<int>(std::round(ctx.windowPixelHeight)));
-            return publishEngineToolWorkspace(ctx.world, width, height, active);
+            return publishEngineToolWorkspace(ctx.world, width, height, active, activeWorkspace);
         }
 
         bool ensureFont(const EcsControllerContext& ctx)
