@@ -5,6 +5,7 @@ layout(location = 1) in vec3 fragColor;
 layout(location = 2) in vec4 fragTint;
 layout(location = 3) in vec3 fragWorldPosition;
 layout(location = 4) in vec3 fragWorldNormal;
+layout(location = 5) in vec4 fragWorldTangent;
 layout(location = 0) out vec4 outColor;
 
 layout(set = 0, binding = 0) uniform CameraUBO {
@@ -25,14 +26,13 @@ layout(set = 0, binding = 0) uniform CameraUBO {
 layout(set = 2, binding = 0) uniform sampler2D texSampler;
 
 layout(push_constant) uniform PushConstants {
-    int vertexColorOnly;
-    float metallic;
-    float roughness;
-    float reserved0;
+    ivec4 materialFlags;
+    vec4 surfaceFactors;
+    vec4 emissiveFactorStrength;
 } pc;
 
 void main() {
-    if (pc.vertexColorOnly != 0) {
+    if (pc.materialFlags.x != 0) {
         outColor = vec4(fragColor, 1.0) * fragTint;
         return;
     }

@@ -5,6 +5,7 @@
 
 #include "GlmConfig.h"
 
+#include "MaterialTypes.h"
 #include "Types.h"
 #include "TextureColorSpace.h"
 #include "Vertex.h"
@@ -51,6 +52,10 @@ class IResourceProvider
         virtual texture_id_type requestTexture(const std::string& path, TextureColorSpace)
         {
             return requestTexture(path);
+        }
+        virtual texture_id_type requestMaterialFallbackTexture(MaterialTextureRole role)
+        {
+            return requestTexture({}, textureColorSpaceForRole(role));
         }
         // Like requestTexture but clamps UVs to the texture edge while preserving linear filtering.
         virtual texture_id_type requestClampedTexture(const std::string& path) = 0;

@@ -93,16 +93,24 @@ namespace
 
         texture_id_type requestTexture(const std::string& path) override
         {
-            auto [it, inserted] = textures.emplace(path, nextTexture);
+            return requestTexture(path, TextureColorSpace::SRgb);
+        }
+
+        texture_id_type requestTexture(const std::string& path, TextureColorSpace colorSpace) override
+        {
+            const std::string key = path
+                + (colorSpace == TextureColorSpace::SRgb ? ":srgb" : ":linear");
+            textureColorSpaces[path] = colorSpace;
+            auto [it, inserted] = textures.emplace(key, nextTexture);
             if (inserted)
                 ++nextTexture;
             return it->second;
         }
 
-        texture_id_type requestTexture(const std::string& path, TextureColorSpace colorSpace) override
+        texture_id_type requestMaterialFallbackTexture(MaterialTextureRole role) override
         {
-            textureColorSpaces[path] = colorSpace;
-            return requestTexture(path);
+            const std::string path = std::string("__fallback/") + fallbackTextureNameForRole(role);
+            return requestTexture(path, textureColorSpaceForRole(role));
         }
 
         texture_id_type requestClampedTexture(const std::string& path) override
@@ -657,6 +665,84 @@ namespace
         return true;
     }
 
+    bool materialTextureReferenceHelpersMatchShaderSemantics()
+    {
+        const glm::vec4 base = gts::rendering::combineBaseColor(
+            {0.5f, 0.25f, 1.0f, 0.8f},
+            {0.8f, 0.5f, 0.25f, 0.5f},
+            {1.0f, 0.5f, 0.5f, 1.0f});
+        const glm::vec2 mr = gts::rendering::decodeMetallicRoughness(
+            {1.0f, 0.25f, 0.75f, 1.0f},
+            0.5f,
+            0.8f);
+        const glm::vec2 clamped = gts::rendering::decodeMetallicRoughness(
+            {1.0f, 0.0f, 4.0f, 1.0f},
+            2.0f,
+            0.0f);
+
+        return require(nearVec4(base, {0.4f, 0.0625f, 0.125f, 0.4f}),
+                       "base-color factor multiplies texture and vertex color")
+            && require(near(mr.x, 0.375f) && near(mr.y, 0.2f),
+                       "metallic-roughness channels decode as B=metallic and G=roughness")
+            && require(near(clamped.x, 1.0f) && near(clamped.y, MaterialMinimumRoughness),
+                       "metallic and roughness texture results are clamped");
+    }
+
+    bool normalMapReferenceHelpersUseTangentFrameAndHandedness()
+    {
+        const glm::vec3 geometricNormal = {0.0f, 0.0f, 1.0f};
+        const glm::vec4 tangent = {1.0f, 0.0f, 0.0f, 1.0f};
+        const glm::vec4 mirroredTangent = {1.0f, 0.0f, 0.0f, -1.0f};
+
+        const glm::vec3 flat = gts::rendering::applyTangentSpaceNormalMap(
+            geometricNormal,
+            tangent,
+            {0.5f, 0.5f, 1.0f},
+            1.0f);
+        const glm::vec3 scaledZero = gts::rendering::applyTangentSpaceNormalMap(
+            geometricNormal,
+            tangent,
+            {1.0f, 0.5f, 1.0f},
+            0.0f);
+        const glm::vec3 upward = gts::rendering::applyTangentSpaceNormalMap(
+            geometricNormal,
+            tangent,
+            {0.5f, 1.0f, 1.0f},
+            1.0f);
+        const glm::vec3 mirrored = gts::rendering::applyTangentSpaceNormalMap(
+            geometricNormal,
+            mirroredTangent,
+            {0.5f, 1.0f, 1.0f},
+            1.0f);
+
+        return require(nearVec3(flat, geometricNormal),
+                       "flat normal map preserves geometric normal")
+            && require(nearVec3(scaledZero, geometricNormal),
+                       "normal scale zero approaches geometric normal")
+            && require(upward.y > 0.0f && mirrored.y < 0.0f,
+                       "tangent handedness flips mirrored bitangent contribution")
+            && require(finiteVec3(upward) && finiteVec3(mirrored),
+                       "normal-map reference output remains finite");
+    }
+
+    bool ambientOcclusionAndEmissiveReferenceHelpersAreIndependent()
+    {
+        const glm::vec3 ambient = {0.5f, 0.25f, 0.125f};
+        const glm::vec3 aoDisabled = gts::rendering::applyAmbientOcclusion(ambient, 0.2f, 0.0f);
+        const glm::vec3 aoEnabled = gts::rendering::applyAmbientOcclusion(ambient, 0.2f, 1.0f);
+        const glm::vec3 emissive = gts::rendering::evaluateEmissive(
+            {0.5f, 0.25f, 0.0f},
+            2.0f,
+            {0.5f, 1.0f, 1.0f});
+
+        return require(nearVec3(aoDisabled, ambient),
+                       "AO strength zero leaves ambient unchanged")
+            && require(nearVec3(aoEnabled, ambient * 0.2f),
+                       "AO applies to ambient contribution")
+            && require(nearVec3(emissive, {0.5f, 0.5f, 0.0f}),
+                       "emissive factor and texture add independent linear contribution");
+    }
+
     bool textureColorSpaceClassificationIsExplicit()
     {
         gts::rendering::MaterialRuntime materials;
@@ -670,7 +756,9 @@ namespace
         const MaterialInstanceHandle baseColor = materials.createInstance(instance);
         materials.synchronizeGpuState(baseColor, &resources);
 
-        instance.baseColorTexture = MaterialTextureBinding::dataAssetPath("textures/roughness.png");
+        instance.baseColorTexture = MaterialTextureBinding::assetPath("textures/base.png");
+        instance.metallicRoughnessTexture =
+            MaterialTextureBinding::dataAssetPath("textures/roughness.png");
         const MaterialInstanceHandle dataTexture = materials.createInstance(instance);
         materials.synchronizeGpuState(dataTexture, &resources);
 
@@ -794,6 +882,9 @@ int main()
     ok = pbrHelpersProduceFinitePhysicallyBoundedTerms() && ok;
     ok = pbrDirectLightingHandlesAmbientAndBackfaces() && ok;
     ok = pbrValidationGridFixtureProducesFiniteSamples() && ok;
+    ok = materialTextureReferenceHelpersMatchShaderSemantics() && ok;
+    ok = normalMapReferenceHelpersUseTangentFrameAndHandedness() && ok;
+    ok = ambientOcclusionAndEmissiveReferenceHelpersAreIndependent() && ok;
     ok = textureColorSpaceClassificationIsExplicit() && ok;
     ok = extractionPublishesCameraPositionAndLightFrameData() && ok;
     ok = lightingChangesRemainFrameLevelState() && ok;

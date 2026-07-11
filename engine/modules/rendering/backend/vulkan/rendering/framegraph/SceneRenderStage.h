@@ -32,10 +32,12 @@ class SceneRenderStage : public GtsRenderStage
 {
     struct ScenePushConstants
     {
-        int32_t vertexColorOnly = 0;
-        float metallic = 0.0f;
-        float roughness = 1.0f;
-        float reserved0 = 0.0f;
+        // x = vertex-color-only, y = material feature flags.
+        glm::ivec4 materialFlags = {0, 0, 0, 0};
+        // x = metallic, y = roughness, z = normalScale, w = AO strength.
+        glm::vec4 surfaceFactors = {0.0f, 1.0f, 1.0f, 1.0f};
+        // xyz = emissive factor, w = emissive strength.
+        glm::vec4 emissiveFactorStrength = {0.0f, 0.0f, 0.0f, 1.0f};
     };
 
 public:
@@ -285,8 +287,10 @@ private:
         uint32_t instanceOffset = 0;
         uint32_t instanceCount = 0;
         MeshResource* mesh = nullptr;
-        TextureResource* texture = nullptr;
+        const std::vector<VkDescriptorSet>* materialTextureSets = nullptr;
         bool litCompatible = true;
+        bool normalMapCompatible = true;
+        MaterialFeatureFlags effectiveFeatureFlags = MaterialFeatureFlags::None;
     };
 
     struct BatchRange
@@ -356,6 +360,7 @@ private:
     std::vector<VkCommandBuffer>        secondaryExecutionBuffers;
     std::vector<ChunkStats>             chunkStats;
     bool                                litCompatibilityWarningLogged = false;
+    bool                                normalMapCompatibilityWarningLogged = false;
 
     const std::vector<RenderCommand>& resolveRenderList(GtsFrameGraph& graph) const
     {
@@ -540,8 +545,11 @@ private:
             batch.material = *firstMaterial;
             batch.instanceOffset = instanceHead;
             batch.mesh = resources->getMesh(first.meshID);
-            batch.texture = resources->getTexture(firstMaterial->baseColorTextureID);
+            batch.materialTextureSets =
+                resources->getMaterialTextureDescriptorSets(firstMaterial->textures);
             batch.litCompatible = litMaterialCompatible(batch);
+            batch.normalMapCompatible = normalMappedMaterialCompatible(batch);
+            batch.effectiveFeatureFlags = firstMaterial->featureFlags;
             if (!batch.litCompatible && !litCompatibilityWarningLogged)
             {
                 std::cerr
@@ -549,6 +557,20 @@ private:
                     << "falling back to unlit shading for incompatible mesh "
                     << first.meshID << ".\n";
                 litCompatibilityWarningLogged = true;
+            }
+            if (!batch.normalMapCompatible)
+            {
+                batch.effectiveFeatureFlags = withoutMaterialFeature(
+                    batch.effectiveFeatureFlags,
+                    MaterialFeatureFlags::HasNormalTexture);
+                if (!normalMapCompatibilityWarningLogged)
+                {
+                    std::cerr
+                        << "[rendering] StandardSurface normal map requires normals, tangents, and UVs; "
+                        << "disabling normal mapping for incompatible mesh "
+                        << first.meshID << ".\n";
+                    normalMapCompatibilityWarningLogged = true;
+                }
             }
 
             while (i < renderList.size())
@@ -632,6 +654,46 @@ private:
             && hasVertexAttribute(batch.mesh->metadata.attributes, VertexAttributeFlags::Normal);
     }
 
+    static bool normalMappedMaterialCompatible(const PreparedBatch& batch)
+    {
+        if (!hasMaterialFeature(batch.material.featureFlags, MaterialFeatureFlags::HasNormalTexture))
+            return true;
+
+        if (batch.material.shaderFamily != MaterialShaderFamily::StandardSurface)
+            return true;
+
+        return batch.mesh != nullptr
+            && hasVertexAttribute(batch.mesh->metadata.attributes, VertexAttributeFlags::Normal)
+            && hasVertexAttribute(batch.mesh->metadata.attributes, VertexAttributeFlags::Tangent)
+            && hasVertexAttribute(batch.mesh->metadata.attributes, VertexAttributeFlags::UV0);
+    }
+
+    static ScenePushConstants makePushConstants(const PreparedBatch& batch)
+    {
+        ScenePushConstants pushConstants;
+        pushConstants.materialFlags = {
+            batch.material.vertexColorOnly ? 1 : 0,
+            static_cast<int32_t>(batch.effectiveFeatureFlags),
+            0,
+            0
+        };
+        pushConstants.surfaceFactors = batch.material.parameters.surfaceParameters;
+        pushConstants.emissiveFactorStrength =
+            batch.material.parameters.emissiveFactorStrength;
+        return pushConstants;
+    }
+
+    static bool pushConstantsEqual(const ScenePushConstants& lhs,
+                                   const ScenePushConstants& rhs)
+    {
+        return lhs.materialFlags.x == rhs.materialFlags.x
+            && lhs.materialFlags.y == rhs.materialFlags.y
+            && lhs.materialFlags.z == rhs.materialFlags.z
+            && lhs.materialFlags.w == rhs.materialFlags.w
+            && lhs.surfaceFactors == rhs.surfaceFactors
+            && lhs.emissiveFactorStrength == rhs.emissiveFactorStrength;
+    }
+
     GlobalDescriptorSets resolveGlobalDescriptorSets(uint32_t currentFrame, view_id_type cameraViewID) const
     {
         CameraBufferResource* cameraView = resources->getCameraView(cameraViewID);
@@ -661,18 +723,16 @@ private:
         const VkDeviceSize zeroOffset = 0;
         VulkanPipeline* boundPipeline = nullptr;
         mesh_id_type    boundMesh     = static_cast<mesh_id_type>(-1);
-        texture_id_type boundTexture  = static_cast<texture_id_type>(-1);
-        bool            boundVertexColorOnly = false;
-        float           boundMetallic = -1.0f;
-        float           boundRoughness = -1.0f;
+        MaterialTextureIds boundTextures{};
+        bool            hasBoundTextureSet = false;
+        ScenePushConstants boundPushConstants{};
         bool            hasBoundPushConstants = false;
 
         for (uint32_t batchIndex = batchStart; batchIndex < batchEnd; ++batchIndex)
         {
             const PreparedBatch& batch = preparedBatches[batchIndex];
             MeshResource* mesh = batch.mesh;
-            TextureResource* tex = batch.texture;
-            if (mesh == nullptr || tex == nullptr)
+            if (mesh == nullptr || batch.materialTextureSets == nullptr)
                 continue;
 
             VulkanPipeline* activePipeline = selectPipeline(batch);
@@ -692,34 +752,27 @@ private:
                 boundMesh = batch.meshID;
             }
 
-            if (tex->id != boundTexture)
+            if (!hasBoundTextureSet || batch.material.textures != boundTextures)
             {
+                const VkDescriptorSet materialTextureSet =
+                    (*batch.materialTextureSets)[currentFrame];
                 vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                         activePipeline->getPipelineLayout(),
-                                        2, 1, &tex->descriptorSets[currentFrame],
+                                        2, 1, &materialTextureSet,
                                         0, nullptr);
-                boundTexture = tex->id;
+                boundTextures = batch.material.textures;
+                hasBoundTextureSet = true;
                 stats.descriptorBinds += 1;
                 stats.textureSwitches += 1;
             }
 
-            if (!hasBoundPushConstants
-                || batch.material.vertexColorOnly != boundVertexColorOnly
-                || batch.material.parameters.metallic() != boundMetallic
-                || batch.material.parameters.roughness() != boundRoughness)
+            const ScenePushConstants pushConstants = makePushConstants(batch);
+            if (!hasBoundPushConstants || !pushConstantsEqual(pushConstants, boundPushConstants))
             {
-                const ScenePushConstants pushConstants{
-                    batch.material.vertexColorOnly ? 1 : 0,
-                    batch.material.parameters.metallic(),
-                    batch.material.parameters.roughness(),
-                    0.0f
-                };
                 vkCmdPushConstants(cmd, activePipeline->getPipelineLayout(),
                                    VK_SHADER_STAGE_FRAGMENT_BIT,
                                    0, sizeof(ScenePushConstants), &pushConstants);
-                boundVertexColorOnly = batch.material.vertexColorOnly;
-                boundMetallic = batch.material.parameters.metallic();
-                boundRoughness = batch.material.parameters.roughness();
+                boundPushConstants = pushConstants;
                 hasBoundPushConstants = true;
             }
 

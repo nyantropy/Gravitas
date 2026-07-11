@@ -1,12 +1,14 @@
 #pragma once
 
 #include <memory>
+#include <array>
 #include <string>
 #include <unordered_map>
 #include <vector>
 #include <vulkan/vulkan.h>
 
 #include "DescriptorSetManager.hpp"
+#include "MaterialTypes.h"
 #include "TextureResource.h"
 #include "VulkanTexture.hpp"
 #include "Types.h"
@@ -20,6 +22,7 @@ class TextureManager
         DescriptorSetManager& descriptorSetManager;
         std::unordered_map<std::string, texture_id_type> pathToID;
         std::unordered_map<texture_id_type, std::unique_ptr<TextureResource>> idToTexture;
+        std::unordered_map<std::string, std::vector<VkDescriptorSet>> materialTextureSets;
         texture_id_type nextID = 1; // 0 = invalid
 
     public:
@@ -116,6 +119,42 @@ class TextureManager
             return nullptr;
         }
 
+        const std::vector<VkDescriptorSet>* getMaterialTextureDescriptorSets(
+            const MaterialTextureIds& textures)
+        {
+            const std::string key = materialTextureSetKey(textures);
+            auto existing = materialTextureSets.find(key);
+            if (existing != materialTextureSets.end())
+                return &existing->second;
+
+            std::array<TextureResource*, DescriptorSetManager::MaterialTextureBindingCount> resources = {
+                getTexture(textures.baseColor),
+                getTexture(textures.metallicRoughness),
+                getTexture(textures.normal),
+                getTexture(textures.ambientOcclusion),
+                getTexture(textures.emissive)
+            };
+
+            for (TextureResource* texture : resources)
+            {
+                if (texture == nullptr || texture->texture == nullptr)
+                    return nullptr;
+            }
+
+            std::array<VkDescriptorImageInfo, DescriptorSetManager::MaterialTextureBindingCount> images{};
+            for (size_t i = 0; i < resources.size(); ++i)
+            {
+                images[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                images[i].imageView = resources[i]->texture->getTextureImageView();
+                images[i].sampler = resources[i]->texture->getTextureSampler();
+            }
+
+            auto [it, inserted] = materialTextureSets.emplace(
+                key,
+                descriptorSetManager.allocateForMaterialTextures(images));
+            return &it->second;
+        }
+
         int getTextureWidth(texture_id_type id) const
         {
             auto it = idToTexture.find(id);
@@ -130,5 +169,15 @@ class TextureManager
             if (it == idToTexture.end() || !it->second)
                 return 0;
             return it->second->height;
+        }
+
+    private:
+        static std::string materialTextureSetKey(const MaterialTextureIds& textures)
+        {
+            return std::to_string(textures.baseColor)
+                + ":" + std::to_string(textures.metallicRoughness)
+                + ":" + std::to_string(textures.normal)
+                + ":" + std::to_string(textures.ambientOcclusion)
+                + ":" + std::to_string(textures.emissive);
         }
 };

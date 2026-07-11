@@ -199,6 +199,87 @@ namespace gts::rendering
         return t * t * (3.0f - 2.0f * t);
     }
 
+    inline glm::vec4 combineBaseColor(const glm::vec4& baseColorFactor,
+                                      const glm::vec4& sampledBaseColor,
+                                      const glm::vec4& vertexColor)
+    {
+        return baseColorFactor * sampledBaseColor * vertexColor;
+    }
+
+    inline glm::vec2 decodeMetallicRoughness(const glm::vec4& sampledMetallicRoughness,
+                                             float metallicFactor,
+                                             float roughnessFactor)
+    {
+        return {
+            sanitizeMaterialMetallic(metallicFactor * sampledMetallicRoughness.b),
+            sanitizeMaterialRoughness(roughnessFactor * sampledMetallicRoughness.g)
+        };
+    }
+
+    inline glm::vec3 decodeTangentSpaceNormal(const glm::vec3& encodedNormal,
+                                              float normalScale)
+    {
+        glm::vec3 tangentNormal = encodedNormal * 2.0f - glm::vec3(1.0f);
+        const float scale = sanitizeMaterialNormalScale(normalScale);
+        tangentNormal.x *= scale;
+        tangentNormal.y *= scale;
+        return safeLightingNormalize(tangentNormal, {0.0f, 0.0f, 1.0f});
+    }
+
+    inline glm::vec3 fallbackLightingTangentForNormal(const glm::vec3& normal)
+    {
+        const glm::vec3 normalized = safeLightingNormalize(normal, {0.0f, 0.0f, 1.0f});
+        if (std::abs(normalized.z) < 0.999f)
+        {
+            return safeLightingNormalize(
+                glm::cross(glm::vec3(0.0f, 0.0f, 1.0f), normalized),
+                {1.0f, 0.0f, 0.0f});
+        }
+        return {1.0f, 0.0f, 0.0f};
+    }
+
+    inline glm::vec3 applyTangentSpaceNormalMap(const glm::vec3& worldNormal,
+                                                const glm::vec4& worldTangent,
+                                                const glm::vec3& encodedNormal,
+                                                float normalScale)
+    {
+        const glm::vec3 normal = safeLightingNormalize(worldNormal, {0.0f, 0.0f, 1.0f});
+        glm::vec3 tangent = safeLightingNormalize(
+            glm::vec3(worldTangent),
+            fallbackLightingTangentForNormal(normal));
+        tangent = tangent - normal * glm::dot(tangent, normal);
+        tangent = safeLightingNormalize(tangent, fallbackLightingTangentForNormal(normal));
+        const glm::vec3 bitangent = safeLightingNormalize(
+            glm::cross(normal, tangent) * worldTangent.w,
+            {0.0f, 1.0f, 0.0f});
+        const glm::vec3 mappedNormal = decodeTangentSpaceNormal(encodedNormal, normalScale);
+        return safeLightingNormalize(
+            glm::mat3(tangent, bitangent, normal) * mappedNormal,
+            normal);
+    }
+
+    inline glm::vec3 applyAmbientOcclusion(const glm::vec3& ambient,
+                                           float sampledAmbientOcclusion,
+                                           float strength)
+    {
+        const float occlusion = std::isfinite(sampledAmbientOcclusion)
+            ? saturateLighting(sampledAmbientOcclusion)
+            : 1.0f;
+        return ambient * glm::mix(
+            1.0f,
+            occlusion,
+            sanitizeMaterialAmbientOcclusionStrength(strength));
+    }
+
+    inline glm::vec3 evaluateEmissive(const glm::vec3& emissiveFactor,
+                                      float emissiveStrength,
+                                      const glm::vec3& sampledEmissive)
+    {
+        return sanitizeMaterialEmissiveFactor(emissiveFactor)
+            * sanitizeMaterialEmissiveStrength(emissiveStrength)
+            * glm::max(sampledEmissive, glm::vec3(0.0f));
+    }
+
     inline glm::vec3 evaluatePbrDirectContribution(const glm::vec3& baseRgb,
                                                    const glm::vec3& normal,
                                                    const glm::vec3& viewDirection,

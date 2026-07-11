@@ -12,6 +12,7 @@ layout(location = 1) out vec3 fragColor;
 layout(location = 2) out vec4 fragTint;
 layout(location = 3) out vec3 fragWorldPosition;
 layout(location = 4) out vec3 fragWorldNormal;
+layout(location = 5) out vec4 fragWorldTangent;
 
 layout(set = 0, binding = 0) uniform CameraUBO {
     mat4 view;
@@ -45,6 +46,12 @@ vec3 safeNormalize(vec3 value, vec3 fallback) {
     return value * inversesqrt(lengthSquared);
 }
 
+vec3 fallbackTangentForNormal(vec3 normal) {
+    if (abs(normal.z) < 0.999)
+        return safeNormalize(cross(vec3(0.0, 0.0, 1.0), normal), vec3(1.0, 0.0, 0.0));
+    return vec3(1.0, 0.0, 0.0);
+}
+
 void main() {
     ObjectData objectData = objects[instanceObjectIndex];
     vec4 worldPosition = objectData.model * vec4(inPosition, 1.0);
@@ -60,4 +67,10 @@ void main() {
     fragTint = objectData.tint;
     fragWorldPosition = worldPosition.xyz;
     fragWorldNormal = safeNormalize(normalMatrix * inNormal, vec3(0.0, 0.0, 1.0));
+
+    vec3 worldTangent = safeNormalize(modelBasis * inTangent.xyz, fallbackTangentForNormal(fragWorldNormal));
+    worldTangent = worldTangent - fragWorldNormal * dot(worldTangent, fragWorldNormal);
+    worldTangent = safeNormalize(worldTangent, fallbackTangentForNormal(fragWorldNormal));
+    float handedness = inTangent.w * (determinantValue < 0.0 ? -1.0 : 1.0);
+    fragWorldTangent = vec4(worldTangent, handedness);
 }

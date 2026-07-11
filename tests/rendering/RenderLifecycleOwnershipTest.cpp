@@ -251,7 +251,7 @@ namespace
             && require(world.hasComponent<RenderGpuComponent>(entity), "render object lifecycle creates RenderGpuComponent")
             && require(world.getComponent<RenderGpuComponent>(entity).readyToRender, "render object becomes ready")
             && require(resources.meshRequests == 1, "static mesh requested once")
-            && require(resources.textureRequests == 1, "material texture requested once")
+            && require(resources.textureRequests == 5, "material texture role set requested once")
             && require(resources.objectSlotRequests == 1, "render object slot allocated once");
     }
 
@@ -275,7 +275,7 @@ namespace
         return require(world.getComponent<MeshGpuComponent>(entity).meshID == meshId,
                        "material change preserves mesh GPU state")
             && require(resources.meshRequests == 1, "material change does not request mesh")
-            && require(resources.textureRequests == 1, "tint-only material change does not request texture");
+            && require(resources.textureRequests == 5, "tint-only material change does not request texture roles");
     }
 
     bool meshChangeDoesNotRecreateMaterial()
@@ -298,7 +298,7 @@ namespace
         return require(materialTextureID(world, entity) == textureId,
                        "mesh change preserves material GPU state")
             && require(resources.meshRequests == 2, "mesh change requests new mesh")
-            && require(resources.textureRequests == 1, "mesh change does not request texture again");
+            && require(resources.textureRequests == 5, "mesh change does not request texture roles again");
     }
 
     bool renderObjectWaitsForMaterialCompanion()
@@ -369,7 +369,7 @@ namespace
         return require(materialTextureID(world, entity) == textureId,
                        "dynamic mesh update preserves material")
             && require(resources.proceduralUploads == 2, "dynamic mesh version uploads new geometry")
-            && require(resources.textureRequests == 1, "dynamic mesh update does not request material texture again");
+            && require(resources.textureRequests == 5, "dynamic mesh update does not request material texture roles again");
     }
 
     bool geometryDescriptorTypeChangeKeepsObjectSlot()

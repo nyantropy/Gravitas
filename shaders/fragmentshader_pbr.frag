@@ -5,6 +5,7 @@ layout(location = 1) in vec3 fragColor;
 layout(location = 2) in vec4 fragTint;
 layout(location = 3) in vec3 fragWorldPosition;
 layout(location = 4) in vec3 fragWorldNormal;
+layout(location = 5) in vec4 fragWorldTangent;
 layout(location = 0) out vec4 outColor;
 
 layout(set = 0, binding = 0) uniform CameraUBO {
@@ -22,13 +23,16 @@ layout(set = 0, binding = 0) uniform CameraUBO {
     vec4 spotOuterCone[16];
 } cam;
 
-layout(set = 2, binding = 0) uniform sampler2D texSampler;
+layout(set = 2, binding = 0) uniform sampler2D baseColorSampler;
+layout(set = 2, binding = 1) uniform sampler2D metallicRoughnessSampler;
+layout(set = 2, binding = 2) uniform sampler2D normalSampler;
+layout(set = 2, binding = 3) uniform sampler2D ambientOcclusionSampler;
+layout(set = 2, binding = 4) uniform sampler2D emissiveSampler;
 
 layout(push_constant) uniform PushConstants {
-    int vertexColorOnly;
-    float metallic;
-    float roughness;
-    float reserved0;
+    ivec4 materialFlags;
+    vec4 surfaceFactors;
+    vec4 emissiveFactorStrength;
 } pc;
 
 const float PI = 3.14159265358979323846;
@@ -37,6 +41,11 @@ const float MIN_ROUGHNESS = 0.04;
 const int MAX_DIRECTIONAL_LIGHTS = 2;
 const int MAX_POINT_LIGHTS = 32;
 const int MAX_SPOT_LIGHTS = 16;
+const int FEATURE_BASE_COLOR_TEXTURE = 1 << 0;
+const int FEATURE_METALLIC_ROUGHNESS_TEXTURE = 1 << 1;
+const int FEATURE_NORMAL_TEXTURE = 1 << 2;
+const int FEATURE_AMBIENT_OCCLUSION_TEXTURE = 1 << 3;
+const int FEATURE_EMISSIVE_TEXTURE = 1 << 4;
 
 float saturate(float value) {
     return clamp(value, 0.0, 1.0);
@@ -123,21 +132,69 @@ float spotConeAttenuation(float coneCos, float innerConeCos, float outerConeCos)
     return t * t * (3.0 - 2.0 * t);
 }
 
+bool hasFeature(int feature) {
+    return (pc.materialFlags.y & feature) != 0;
+}
+
+vec3 fallbackTangentForNormal(vec3 normal) {
+    if (abs(normal.z) < 0.999)
+        return safeNormalize(cross(vec3(0.0, 0.0, 1.0), normal), vec3(1.0, 0.0, 0.0));
+    return vec3(1.0, 0.0, 0.0);
+}
+
+vec3 decodeTangentNormal(vec3 encodedNormal, float normalScale) {
+    vec3 tangentNormal = encodedNormal * 2.0 - 1.0;
+    tangentNormal.xy *= normalScale;
+    return safeNormalize(tangentNormal, vec3(0.0, 0.0, 1.0));
+}
+
+vec3 applyNormalMap(vec3 geometricNormal, vec4 worldTangent) {
+    if (!hasFeature(FEATURE_NORMAL_TEXTURE))
+        return geometricNormal;
+
+    vec3 normal = safeNormalize(geometricNormal, vec3(0.0, 0.0, 1.0));
+    vec3 tangent = safeNormalize(worldTangent.xyz, fallbackTangentForNormal(normal));
+    tangent = tangent - normal * dot(tangent, normal);
+    tangent = safeNormalize(tangent, fallbackTangentForNormal(normal));
+    vec3 bitangent = safeNormalize(cross(normal, tangent) * worldTangent.w, vec3(0.0, 1.0, 0.0));
+    vec3 mappedNormal = decodeTangentNormal(texture(normalSampler, fragTexCoord).rgb, pc.surfaceFactors.z);
+    return safeNormalize(mat3(tangent, bitangent, normal) * mappedNormal, normal);
+}
+
 void main() {
-    if (pc.vertexColorOnly != 0) {
+    if (pc.materialFlags.x != 0) {
         outColor = vec4(fragColor, 1.0) * fragTint;
         return;
     }
 
-    vec4 textureColor = texture(texSampler, fragTexCoord);
+    vec4 textureColor = texture(baseColorSampler, fragTexCoord);
     if (textureColor.a < 0.1)
         discard;
 
     vec4 base = textureColor * fragTint * vec4(fragColor, 1.0);
-    float metallic = clamp(pc.metallic, 0.0, 1.0);
-    float roughness = clamp(pc.roughness, MIN_ROUGHNESS, 1.0);
+    vec4 metallicRoughnessSample = texture(metallicRoughnessSampler, fragTexCoord);
+    float metallicSample = hasFeature(FEATURE_METALLIC_ROUGHNESS_TEXTURE)
+        ? metallicRoughnessSample.b
+        : 1.0;
+    float roughnessSample = hasFeature(FEATURE_METALLIC_ROUGHNESS_TEXTURE)
+        ? metallicRoughnessSample.g
+        : 1.0;
+    float metallic = clamp(pc.surfaceFactors.x * metallicSample, 0.0, 1.0);
+    float roughness = clamp(pc.surfaceFactors.y * roughnessSample, MIN_ROUGHNESS, 1.0);
+    float ambientOcclusionSample = hasFeature(FEATURE_AMBIENT_OCCLUSION_TEXTURE)
+        ? texture(ambientOcclusionSampler, fragTexCoord).r
+        : (hasFeature(FEATURE_METALLIC_ROUGHNESS_TEXTURE) ? metallicRoughnessSample.r : 1.0);
+    float ambientOcclusion = mix(1.0, ambientOcclusionSample, clamp(pc.surfaceFactors.w, 0.0, 1.0));
+    vec3 emissiveSample = hasFeature(FEATURE_EMISSIVE_TEXTURE)
+        ? texture(emissiveSampler, fragTexCoord).rgb
+        : vec3(1.0);
+    vec3 emissive = pc.emissiveFactorStrength.rgb *
+        max(pc.emissiveFactorStrength.w, 0.0) *
+        emissiveSample;
 
-    vec3 normal = safeNormalize(fragWorldNormal, vec3(0.0, 0.0, 1.0));
+    vec3 normal = applyNormalMap(
+        safeNormalize(fragWorldNormal, vec3(0.0, 0.0, 1.0)),
+        fragWorldTangent);
     vec3 viewDirection = safeNormalize(cam.cameraPosition.xyz - fragWorldPosition, vec3(0.0, 0.0, 1.0));
     int directionalCount = min(int(cam.lightingCountsAmbient.x + 0.5), MAX_DIRECTIONAL_LIGHTS);
     int pointCount = min(int(cam.lightingCountsAmbient.y + 0.5), MAX_POINT_LIGHTS);
@@ -198,6 +255,6 @@ void main() {
             base.rgb, normal, viewDirection, directionToLight, radiance, metallic, roughness);
     }
 
-    vec3 ambient = base.rgb * (1.0 - metallic) * ambientIntensity;
-    outColor = vec4(max(ambient + direct, vec3(0.0)), base.a);
+    vec3 ambient = base.rgb * (1.0 - metallic) * ambientIntensity * ambientOcclusion;
+    outColor = vec4(max(ambient + direct + emissive, vec3(0.0)), base.a);
 }

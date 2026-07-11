@@ -1,4 +1,6 @@
 #include <cstdio>
+#include <cmath>
+#include <limits>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -34,6 +36,11 @@ namespace
         return false;
     }
 
+    bool near(float lhs, float rhs, float epsilon = 0.0005f)
+    {
+        return std::abs(lhs - rhs) <= epsilon;
+    }
+
     struct FakeResourceProvider : IResourceProvider
     {
         mesh_id_type nextMesh = 100;
@@ -47,6 +54,7 @@ namespace
 
         std::unordered_map<std::string, mesh_id_type> meshes;
         std::unordered_map<std::string, texture_id_type> textures;
+        std::unordered_map<std::string, TextureColorSpace> textureColorSpaces;
 
         mesh_id_type requestMesh(const std::string& path) override
         {
@@ -78,11 +86,25 @@ namespace
 
         texture_id_type requestTexture(const std::string& path) override
         {
+            return requestTexture(path, TextureColorSpace::SRgb);
+        }
+
+        texture_id_type requestTexture(const std::string& path, TextureColorSpace colorSpace) override
+        {
             ++textureRequests;
-            auto [it, inserted] = textures.emplace(path, nextTexture);
+            const std::string key = path
+                + (colorSpace == TextureColorSpace::SRgb ? ":srgb" : ":linear");
+            textureColorSpaces[path] = colorSpace;
+            auto [it, inserted] = textures.emplace(key, nextTexture);
             if (inserted)
                 ++nextTexture;
             return it->second;
+        }
+
+        texture_id_type requestMaterialFallbackTexture(MaterialTextureRole role) override
+        {
+            const std::string path = std::string("__fallback/") + fallbackTextureNameForRole(role);
+            return requestTexture(path, textureColorSpaceForRole(role));
         }
 
         texture_id_type requestClampedTexture(const std::string& path) override
@@ -227,7 +249,7 @@ namespace
             && require(modified, "material instance mutation reports change")
             && require(updatedVersion == firstVersion + 1, "material mutation increments version")
             && require(secondSyncUpdatedParameters, "material parameter change synchronizes GPU state")
-            && require(resources.textureRequests == 1, "base-color-only update does not request texture again")
+            && require(resources.textureRequests == 5, "base-color-only update does not request texture set again")
             && require(clone.valid(), "clone creates valid independent material handle")
             && require(cloneIndependent, "clone mutation does not mutate source instance")
             && require(destroyed, "scene material instance can be destroyed")
@@ -280,7 +302,7 @@ namespace
                        "second renderable references shared material")
             && require(world.hasComponent<RenderGpuComponent>(a) && world.hasComponent<RenderGpuComponent>(b),
                        "both shared-material renderables become render objects")
-            && require(resources.textureRequests == 1, "shared material resolves one texture cache entry")
+            && require(resources.textureRequests == 5, "shared material resolves one texture set")
             && require(materials.gpuStateCount() == 1, "shared material creates one GPU material cache state")
             && require(updatedState != nullptr && updatedState->uploadedVersion == uploadedVersion + 1,
                        "shared material update uploads one material cache version")
@@ -425,6 +447,205 @@ namespace
                        "blend alpha mode maps to transparent render queue");
     }
 
+    bool standardSurfaceTextureRolesResolveWithColorSpace()
+    {
+        gts::rendering::MaterialRuntime materials;
+        FakeResourceProvider resources;
+
+        const MaterialInstance* defaultSurface =
+            materials.getInstance(materials.defaultStandardSurfaceMaterial());
+        MaterialInstance instance = defaultSurface != nullptr ? *defaultSurface : MaterialInstance{};
+        instance.baseColorTexture = MaterialTextureBinding::assetPath("textures/shared.png");
+        instance.metallicRoughnessTexture =
+            MaterialTextureBinding::dataAssetPath("textures/shared.png");
+        instance.normalTexture = MaterialTextureBinding::dataAssetPath("textures/normal.png");
+        instance.ambientOcclusionTexture = MaterialTextureBinding::dataAssetPath("textures/ao.png");
+        instance.emissiveTexture = MaterialTextureBinding::assetPath("textures/emissive.png");
+
+        const MaterialInstanceHandle handle = materials.createInstance(instance);
+        const MaterialSyncResult sync = materials.synchronizeGpuState(handle, &resources);
+        const MaterialGpuState* state = sync.state;
+
+        return require(sync.changed && state != nullptr, "standard surface texture set synchronizes")
+            && require(state->textures.baseColor != 0 &&
+                       state->textures.metallicRoughness != 0 &&
+                       state->textures.normal != 0 &&
+                       state->textures.ambientOcclusion != 0 &&
+                       state->textures.emissive != 0,
+                       "every standard-surface texture role resolves to an ID")
+            && require(state->textures.baseColor != state->textures.metallicRoughness,
+                       "same path can resolve differently for color and data usage")
+            && require(resources.textureColorSpaces["textures/shared.png"] == TextureColorSpace::Linear,
+                       "last same-path data request records linear color-space intent")
+            && require(resources.textureColorSpaces["textures/normal.png"] == TextureColorSpace::Linear,
+                       "normal texture requests are linear/data")
+            && require(resources.textureColorSpaces["textures/ao.png"] == TextureColorSpace::Linear,
+                       "ambient-occlusion texture requests are linear/data")
+            && require(resources.textureColorSpaces["textures/emissive.png"] == TextureColorSpace::SRgb,
+                       "emissive texture requests are sRGB")
+            && require(hasMaterialFeature(state->featureFlags, MaterialFeatureFlags::HasBaseColorTexture) &&
+                       hasMaterialFeature(state->featureFlags, MaterialFeatureFlags::HasMetallicRoughnessTexture) &&
+                       hasMaterialFeature(state->featureFlags, MaterialFeatureFlags::HasNormalTexture) &&
+                       hasMaterialFeature(state->featureFlags, MaterialFeatureFlags::HasAmbientOcclusionTexture) &&
+                       hasMaterialFeature(state->featureFlags, MaterialFeatureFlags::HasEmissiveTexture),
+                       "material GPU state records texture feature bits");
+    }
+
+    bool missingMapsResolveNeutralFallbacks()
+    {
+        gts::rendering::MaterialRuntime materials;
+        FakeResourceProvider resources;
+
+        const MaterialInstance* defaultSurface =
+            materials.getInstance(materials.defaultStandardSurfaceMaterial());
+        MaterialInstance instance = defaultSurface != nullptr ? *defaultSurface : MaterialInstance{};
+        instance.baseColorTexture = MaterialTextureBinding::assetPath({});
+        instance.metallicRoughnessTexture = MaterialTextureBinding::dataAssetPath({});
+        instance.normalTexture = MaterialTextureBinding::dataAssetPath({});
+        instance.ambientOcclusionTexture = MaterialTextureBinding::dataAssetPath({});
+        instance.emissiveTexture = MaterialTextureBinding::assetPath({});
+
+        const MaterialInstanceHandle handle = materials.createInstance(instance);
+        const MaterialSyncResult sync = materials.synchronizeGpuState(handle, &resources);
+        const MaterialGpuState* state = sync.state;
+
+        return require(state != nullptr, "fallback material state exists")
+            && require(state->textures.baseColor != 0 &&
+                       state->textures.metallicRoughness != 0 &&
+                       state->textures.normal != 0 &&
+                       state->textures.ambientOcclusion != 0 &&
+                       state->textures.emissive != 0,
+                       "missing maps resolve through fallback textures")
+            && require(!hasMaterialFeature(state->featureFlags, MaterialFeatureFlags::HasNormalTexture),
+                       "fallback normal texture does not imply authored normal-map feature")
+            && require(resources.textureColorSpaces["__fallback/engine_pbr_base_white.png"] == TextureColorSpace::SRgb,
+                       "base-color fallback is sRGB")
+            && require(resources.textureColorSpaces["__fallback/engine_pbr_metallic_roughness_neutral.png"] ==
+                       TextureColorSpace::Linear,
+                       "metallic-roughness fallback is linear")
+            && require(resources.textureColorSpaces["__fallback/engine_pbr_normal_flat.png"] == TextureColorSpace::Linear,
+                       "normal fallback is linear")
+            && require(resources.textureColorSpaces["__fallback/engine_pbr_ao_white.png"] == TextureColorSpace::Linear,
+                       "AO fallback is linear")
+            && require(resources.textureColorSpaces["__fallback/engine_pbr_emissive_black.png"] == TextureColorSpace::SRgb,
+                       "emissive fallback is sRGB");
+    }
+
+    bool surfaceFactorsAreVersionedWithoutChangingVariant()
+    {
+        gts::rendering::MaterialRuntime materials;
+        FakeResourceProvider resources;
+
+        const MaterialInstance* defaultSurface =
+            materials.getInstance(materials.defaultStandardSurfaceMaterial());
+        MaterialInstance instance = defaultSurface != nullptr ? *defaultSurface : MaterialInstance{};
+        const MaterialInstanceHandle handle = materials.createInstance(instance);
+        const MaterialSyncResult first = materials.synchronizeGpuState(handle, &resources);
+        const MaterialVariantKey initialVariant = first.state->variantKey;
+        const uint64_t initialVersion = materials.getInstance(handle)->version;
+
+        materials.modifyInstance(
+            handle,
+            [](MaterialInstance& editable)
+            {
+                editable.metallic = 2.0f;
+                editable.roughness = 0.0f;
+                editable.normalScale = std::numeric_limits<float>::quiet_NaN();
+                editable.ambientOcclusionStrength = 2.0f;
+                editable.emissiveFactor = {-1.0f, 0.5f, 3.0f};
+                editable.emissiveStrength = -4.0f;
+                return true;
+            });
+        const MaterialSyncResult second = materials.synchronizeGpuState(handle, &resources);
+
+        return require(materials.getInstance(handle)->version == initialVersion + 1,
+                       "surface factor edit increments material version")
+            && require(second.parameterChanged && !second.topologyChanged,
+                       "surface factor edit is parameter-only")
+            && require(second.state->variantKey == initialVariant,
+                       "surface factor edit preserves variant key")
+            && require(near(second.state->parameters.metallic(), 1.0f) &&
+                       near(second.state->parameters.roughness(), MaterialMinimumRoughness) &&
+                       near(second.state->parameters.normalScale(), 1.0f) &&
+                       near(second.state->parameters.ambientOcclusionStrength(), 1.0f) &&
+                       near(second.state->parameters.emissiveFactor().x, 0.0f) &&
+                       near(second.state->parameters.emissiveFactor().y, 0.5f) &&
+                       near(second.state->parameters.emissiveFactor().z, 3.0f) &&
+                       near(second.state->parameters.emissiveStrength(), 0.0f),
+                       "surface factors are sanitized into GPU parameter layout");
+    }
+
+    bool normalMapPresenceControlsVariantButTextureReplacementDoesNot()
+    {
+        gts::rendering::MaterialRuntime materials;
+        FakeResourceProvider resources;
+
+        const MaterialInstance* defaultSurface =
+            materials.getInstance(materials.defaultStandardSurfaceMaterial());
+        MaterialInstance instance = defaultSurface != nullptr ? *defaultSurface : MaterialInstance{};
+        const MaterialInstanceHandle handle = materials.createInstance(instance);
+        const MaterialSyncResult first = materials.synchronizeGpuState(handle, &resources);
+        const MaterialVariantKey initialVariant = first.state->variantKey;
+
+        materials.modifyInstance(
+            handle,
+            [](MaterialInstance& editable)
+            {
+                editable.metallicRoughnessTexture =
+                    MaterialTextureBinding::dataAssetPath("textures/mr_a.png");
+                return true;
+            });
+        const MaterialSyncResult metallicRoughnessSync =
+            materials.synchronizeGpuState(handle, &resources);
+        const bool metallicRoughnessParameterChanged = metallicRoughnessSync.parameterChanged;
+        const bool metallicRoughnessTopologyChanged = metallicRoughnessSync.topologyChanged;
+        const MaterialVariantKey metallicRoughnessVariant =
+            metallicRoughnessSync.state->variantKey;
+
+        materials.modifyInstance(
+            handle,
+            [](MaterialInstance& editable)
+            {
+                editable.normalTexture =
+                    MaterialTextureBinding::dataAssetPath("textures/normal_a.png");
+                return true;
+            });
+        const MaterialSyncResult normalEnabledSync =
+            materials.synchronizeGpuState(handle, &resources);
+        const bool normalEnabledTopologyChanged = normalEnabledSync.topologyChanged;
+        const MaterialVariantKey normalVariant = normalEnabledSync.state->variantKey;
+
+        materials.modifyInstance(
+            handle,
+            [](MaterialInstance& editable)
+            {
+                editable.normalTexture =
+                    MaterialTextureBinding::dataAssetPath("textures/normal_b.png");
+                return true;
+            });
+        const MaterialSyncResult normalReplacementSync =
+            materials.synchronizeGpuState(handle, &resources);
+        const bool normalReplacementParameterChanged = normalReplacementSync.parameterChanged;
+        const bool normalReplacementTopologyChanged = normalReplacementSync.topologyChanged;
+        const MaterialVariantKey normalReplacementVariant =
+            normalReplacementSync.state->variantKey;
+
+        return require(metallicRoughnessParameterChanged &&
+                       !metallicRoughnessTopologyChanged,
+                       "metallic-roughness texture presence is parameter data in current variant policy")
+            && require(metallicRoughnessVariant == initialVariant,
+                       "metallic-roughness texture presence does not alter variant key")
+            && require(normalEnabledTopologyChanged,
+                       "normal-map presence is topology-relevant")
+            && require(normalVariant != initialVariant,
+                       "normal-map presence updates variant key")
+            && require(normalReplacementParameterChanged &&
+                       !normalReplacementTopologyChanged,
+                       "normal texture replacement is parameter-only while feature remains enabled")
+            && require(normalReplacementVariant == normalVariant,
+                       "normal texture replacement preserves variant key");
+    }
+
     bool commandExtractorSortsQueuesAndTransparentDepth()
     {
         RenderExtractionSnapshot snapshot;
@@ -536,6 +757,10 @@ int main()
     ok &= extractionCarriesStableMaterialIdentity();
     ok &= renderCommandsUseMaterialIdentity();
     ok &= variantKeySeparatesTopologyFromParameters();
+    ok &= standardSurfaceTextureRolesResolveWithColorSpace();
+    ok &= missingMapsResolveNeutralFallbacks();
+    ok &= surfaceFactorsAreVersionedWithoutChangingVariant();
+    ok &= normalMapPresenceControlsVariantButTextureReplacementDoesNot();
     ok &= commandExtractorSortsQueuesAndTransparentDepth();
     ok &= perObjectUvAnimationDoesNotMutateSharedMaterial();
     ok &= destroyedSharedMaterialFallsBackSafely();

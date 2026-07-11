@@ -100,6 +100,49 @@ enum class RenderQueue
     Transparent
 };
 
+enum class MaterialTextureRole
+{
+    BaseColor,
+    MetallicRoughness,
+    Normal,
+    AmbientOcclusion,
+    Emissive
+};
+
+enum class MaterialFeatureFlags : uint32_t
+{
+    None = 0,
+    HasBaseColorTexture = 1u << 0u,
+    HasMetallicRoughnessTexture = 1u << 1u,
+    HasNormalTexture = 1u << 2u,
+    HasAmbientOcclusionTexture = 1u << 3u,
+    HasEmissiveTexture = 1u << 4u
+};
+
+inline MaterialFeatureFlags operator|(MaterialFeatureFlags lhs, MaterialFeatureFlags rhs)
+{
+    return static_cast<MaterialFeatureFlags>(
+        static_cast<uint32_t>(lhs) | static_cast<uint32_t>(rhs));
+}
+
+inline MaterialFeatureFlags& operator|=(MaterialFeatureFlags& lhs, MaterialFeatureFlags rhs)
+{
+    lhs = lhs | rhs;
+    return lhs;
+}
+
+inline bool hasMaterialFeature(MaterialFeatureFlags flags, MaterialFeatureFlags feature)
+{
+    return (static_cast<uint32_t>(flags) & static_cast<uint32_t>(feature)) != 0u;
+}
+
+inline MaterialFeatureFlags withoutMaterialFeature(MaterialFeatureFlags flags,
+                                                  MaterialFeatureFlags feature)
+{
+    return static_cast<MaterialFeatureFlags>(
+        static_cast<uint32_t>(flags) & ~static_cast<uint32_t>(feature));
+}
+
 enum class MaterialTextureSource
 {
     None,
@@ -157,6 +200,109 @@ struct MaterialTextureBinding
     }
 };
 
+struct MaterialTextureIds
+{
+    texture_id_type baseColor = 0;
+    texture_id_type metallicRoughness = 0;
+    texture_id_type normal = 0;
+    texture_id_type ambientOcclusion = 0;
+    texture_id_type emissive = 0;
+};
+
+inline bool operator==(const MaterialTextureIds& lhs, const MaterialTextureIds& rhs)
+{
+    return lhs.baseColor == rhs.baseColor
+        && lhs.metallicRoughness == rhs.metallicRoughness
+        && lhs.normal == rhs.normal
+        && lhs.ambientOcclusion == rhs.ambientOcclusion
+        && lhs.emissive == rhs.emissive;
+}
+
+inline bool operator!=(const MaterialTextureIds& lhs, const MaterialTextureIds& rhs)
+{
+    return !(lhs == rhs);
+}
+
+struct MaterialTextureCacheState
+{
+    std::string baseColorPath;
+    std::string metallicRoughnessPath;
+    std::string normalPath;
+    std::string ambientOcclusionPath;
+    std::string emissivePath;
+
+    TextureColorSpace baseColorColorSpace = TextureColorSpace::SRgb;
+    TextureColorSpace metallicRoughnessColorSpace = TextureColorSpace::Linear;
+    TextureColorSpace normalColorSpace = TextureColorSpace::Linear;
+    TextureColorSpace ambientOcclusionColorSpace = TextureColorSpace::Linear;
+    TextureColorSpace emissiveColorSpace = TextureColorSpace::SRgb;
+};
+
+inline bool operator==(const MaterialTextureCacheState& lhs,
+                       const MaterialTextureCacheState& rhs)
+{
+    return lhs.baseColorPath == rhs.baseColorPath
+        && lhs.metallicRoughnessPath == rhs.metallicRoughnessPath
+        && lhs.normalPath == rhs.normalPath
+        && lhs.ambientOcclusionPath == rhs.ambientOcclusionPath
+        && lhs.emissivePath == rhs.emissivePath
+        && lhs.baseColorColorSpace == rhs.baseColorColorSpace
+        && lhs.metallicRoughnessColorSpace == rhs.metallicRoughnessColorSpace
+        && lhs.normalColorSpace == rhs.normalColorSpace
+        && lhs.ambientOcclusionColorSpace == rhs.ambientOcclusionColorSpace
+        && lhs.emissiveColorSpace == rhs.emissiveColorSpace;
+}
+
+inline bool operator!=(const MaterialTextureCacheState& lhs,
+                       const MaterialTextureCacheState& rhs)
+{
+    return !(lhs == rhs);
+}
+
+inline TextureColorSpace textureColorSpaceForRole(MaterialTextureRole role)
+{
+    switch (role)
+    {
+        case MaterialTextureRole::BaseColor:
+        case MaterialTextureRole::Emissive:
+            return TextureColorSpace::SRgb;
+        case MaterialTextureRole::MetallicRoughness:
+        case MaterialTextureRole::Normal:
+        case MaterialTextureRole::AmbientOcclusion:
+            return TextureColorSpace::Linear;
+    }
+    return TextureColorSpace::SRgb;
+}
+
+inline const char* fallbackTextureNameForRole(MaterialTextureRole role)
+{
+    switch (role)
+    {
+        case MaterialTextureRole::BaseColor:
+            return "engine_pbr_base_white.png";
+        case MaterialTextureRole::MetallicRoughness:
+            return "engine_pbr_metallic_roughness_neutral.png";
+        case MaterialTextureRole::Normal:
+            return "engine_pbr_normal_flat.png";
+        case MaterialTextureRole::AmbientOcclusion:
+            return "engine_pbr_ao_white.png";
+        case MaterialTextureRole::Emissive:
+            return "engine_pbr_emissive_black.png";
+    }
+    return "engine_pbr_base_white.png";
+}
+
+inline bool materialTextureBindingPresent(const MaterialTextureBinding& binding)
+{
+    if (binding.source == MaterialTextureSource::ResolvedTexture)
+        return binding.resolvedTextureID != 0;
+
+    if (binding.source == MaterialTextureSource::AssetPath)
+        return !binding.path.empty();
+
+    return false;
+}
+
 inline constexpr float MaterialMinimumRoughness = 0.04f;
 
 inline float sanitizeMaterialMetallic(float metallic)
@@ -173,11 +319,46 @@ inline float sanitizeMaterialRoughness(float roughness)
     return std::clamp(roughness, MaterialMinimumRoughness, 1.0f);
 }
 
+inline float sanitizeMaterialNormalScale(float normalScale)
+{
+    if (!std::isfinite(normalScale))
+        return 1.0f;
+    return normalScale;
+}
+
+inline float sanitizeMaterialAmbientOcclusionStrength(float strength)
+{
+    if (!std::isfinite(strength))
+        return 1.0f;
+    return std::clamp(strength, 0.0f, 1.0f);
+}
+
+inline glm::vec3 sanitizeMaterialEmissiveFactor(const glm::vec3& emissive)
+{
+    return {
+        std::isfinite(emissive.x) ? std::max(0.0f, emissive.x) : 0.0f,
+        std::isfinite(emissive.y) ? std::max(0.0f, emissive.y) : 0.0f,
+        std::isfinite(emissive.z) ? std::max(0.0f, emissive.z) : 0.0f
+    };
+}
+
+inline float sanitizeMaterialEmissiveStrength(float strength)
+{
+    if (!std::isfinite(strength))
+        return 1.0f;
+    return std::max(0.0f, strength);
+}
+
 struct MaterialGpuParameters
 {
+    // StandardSurface base-color factor. The final base color multiplies this
+    // by the base-color texture and vertex color.
     glm::vec4 baseColor = {1.0f, 1.0f, 1.0f, 1.0f};
-    // x = metallic, y = perceptual roughness, zw reserved.
-    glm::vec4 surfaceParameters = {0.0f, 1.0f, 0.0f, 0.0f};
+    // x = metallic, y = perceptual roughness, z = normal scale,
+    // w = ambient occlusion strength.
+    glm::vec4 surfaceParameters = {0.0f, 1.0f, 1.0f, 1.0f};
+    // xyz = emissive factor, w = emissive strength.
+    glm::vec4 emissiveFactorStrength = {0.0f, 0.0f, 0.0f, 1.0f};
 
     float metallic() const
     {
@@ -188,21 +369,62 @@ struct MaterialGpuParameters
     {
         return surfaceParameters.y;
     }
+
+    float normalScale() const
+    {
+        return surfaceParameters.z;
+    }
+
+    float ambientOcclusionStrength() const
+    {
+        return surfaceParameters.w;
+    }
+
+    glm::vec3 emissiveFactor() const
+    {
+        return glm::vec3(emissiveFactorStrength);
+    }
+
+    float emissiveStrength() const
+    {
+        return emissiveFactorStrength.w;
+    }
 };
 
 inline MaterialGpuParameters makeMaterialGpuParameters(const glm::vec4& baseColor,
                                                        float metallic,
-                                                       float roughness)
+                                                       float roughness,
+                                                       float normalScale,
+                                                       float ambientOcclusionStrength,
+                                                       const glm::vec3& emissiveFactor,
+                                                       float emissiveStrength)
 {
     MaterialGpuParameters parameters;
     parameters.baseColor = baseColor;
     parameters.surfaceParameters = {
         sanitizeMaterialMetallic(metallic),
         sanitizeMaterialRoughness(roughness),
-        0.0f,
-        0.0f
+        sanitizeMaterialNormalScale(normalScale),
+        sanitizeMaterialAmbientOcclusionStrength(ambientOcclusionStrength)
     };
+    parameters.emissiveFactorStrength = glm::vec4(
+        sanitizeMaterialEmissiveFactor(emissiveFactor),
+        sanitizeMaterialEmissiveStrength(emissiveStrength));
     return parameters;
+}
+
+inline MaterialGpuParameters makeMaterialGpuParameters(const glm::vec4& baseColor,
+                                                       float metallic,
+                                                       float roughness)
+{
+    return makeMaterialGpuParameters(
+        baseColor,
+        metallic,
+        roughness,
+        1.0f,
+        1.0f,
+        {0.0f, 0.0f, 0.0f},
+        1.0f);
 }
 
 struct MaterialInstance
@@ -210,8 +432,19 @@ struct MaterialInstance
     MaterialDefinitionHandle definition;
     glm::vec4 baseColor = {1.0f, 1.0f, 1.0f, 1.0f};
     MaterialTextureBinding baseColorTexture = MaterialTextureBinding::assetPath({});
+    MaterialTextureBinding metallicRoughnessTexture =
+        MaterialTextureBinding::dataAssetPath({});
+    MaterialTextureBinding normalTexture = MaterialTextureBinding::dataAssetPath({});
+    MaterialTextureBinding ambientOcclusionTexture =
+        MaterialTextureBinding::dataAssetPath({});
+    MaterialTextureBinding emissiveTexture =
+        MaterialTextureBinding::assetPath({});
     float metallic = 0.0f;
     float roughness = 1.0f;
+    float normalScale = 1.0f;
+    float ambientOcclusionStrength = 1.0f;
+    glm::vec3 emissiveFactor = {0.0f, 0.0f, 0.0f};
+    float emissiveStrength = 1.0f;
     MaterialRenderState renderState{};
     bool vertexColorOnly = false;
     uint64_t version = 1;
@@ -238,9 +471,10 @@ struct MaterialGpuState
     MaterialInstanceHandle instance;
     uint64_t uploadedVersion = 0;
     MaterialShaderFamily shaderFamily = MaterialShaderFamily::LegacyUnlit;
+    MaterialTextureIds textures{};
     texture_id_type baseColorTextureID = 0;
-    std::string boundTexturePath;
-    TextureColorSpace boundTextureColorSpace = TextureColorSpace::SRgb;
+    MaterialTextureCacheState textureCache{};
+    MaterialFeatureFlags featureFlags = MaterialFeatureFlags::None;
     MaterialGpuParameters parameters{};
     MaterialRenderState renderState{};
     bool vertexColorOnly = false;
@@ -266,7 +500,9 @@ struct MaterialFrameState
 
     // Temporary Vulkan compatibility data. These fields are material-owned
     // cache state; render commands and object uploads must not duplicate them.
+    MaterialTextureIds textures{};
     texture_id_type baseColorTextureID = 0;
+    MaterialFeatureFlags featureFlags = MaterialFeatureFlags::None;
     MaterialGpuParameters parameters{};
     MaterialRenderState renderState{};
     bool vertexColorOnly = false;
@@ -318,7 +554,8 @@ inline RenderQueue renderQueueForAlphaMode(MaterialAlphaMode alphaMode)
 }
 
 inline MaterialVariantKey makeMaterialVariantKey(MaterialShaderFamily shaderFamily,
-                                                 const MaterialInstance& instance)
+                                                 const MaterialInstance& instance,
+                                                 MaterialFeatureFlags featureFlags)
 {
     const uint64_t shader = static_cast<uint64_t>(shaderFamily) & 0xFFull;
     const uint64_t alphaMode = static_cast<uint64_t>(instance.renderState.alphaMode) & 0x3ull;
@@ -328,14 +565,42 @@ inline MaterialVariantKey makeMaterialVariantKey(MaterialShaderFamily shaderFami
     const uint64_t depth = instance.renderState.depthWrite ? 1ull : 0ull;
     const uint64_t sidedness = instance.renderState.doubleSided ? 1ull : 0ull;
     const uint64_t vertexColor = instance.vertexColorOnly ? 1ull : 0ull;
+    const uint64_t normalMap =
+        hasMaterialFeature(featureFlags, MaterialFeatureFlags::HasNormalTexture) ? 1ull : 0ull;
     return MaterialVariantKey{
-        (shader << 8)
+        (normalMap << 16)
+        | (shader << 8)
         | (alphaMode << 5)
         | (blendMode << 3)
         | (depth << 2)
         | (sidedness << 1)
         | vertexColor
     };
+}
+
+inline MaterialFeatureFlags materialFeatureFlagsForInstance(const MaterialInstance& instance)
+{
+    MaterialFeatureFlags flags = MaterialFeatureFlags::None;
+    if (materialTextureBindingPresent(instance.baseColorTexture))
+        flags |= MaterialFeatureFlags::HasBaseColorTexture;
+    if (materialTextureBindingPresent(instance.metallicRoughnessTexture))
+        flags |= MaterialFeatureFlags::HasMetallicRoughnessTexture;
+    if (materialTextureBindingPresent(instance.normalTexture))
+        flags |= MaterialFeatureFlags::HasNormalTexture;
+    if (materialTextureBindingPresent(instance.ambientOcclusionTexture))
+        flags |= MaterialFeatureFlags::HasAmbientOcclusionTexture;
+    if (materialTextureBindingPresent(instance.emissiveTexture))
+        flags |= MaterialFeatureFlags::HasEmissiveTexture;
+    return flags;
+}
+
+inline MaterialVariantKey makeMaterialVariantKey(MaterialShaderFamily shaderFamily,
+                                                 const MaterialInstance& instance)
+{
+    return makeMaterialVariantKey(
+        shaderFamily,
+        instance,
+        materialFeatureFlagsForInstance(instance));
 }
 
 inline MaterialVariantKey makeMaterialVariantKey(const MaterialInstance& instance)
@@ -352,7 +617,9 @@ inline MaterialFrameState makeMaterialFrameState(const MaterialGpuState& state)
         renderQueueForAlphaMode(state.renderState.alphaMode),
         state.uploadedVersion,
         state.shaderFamily,
+        state.textures,
         state.baseColorTextureID,
+        state.featureFlags,
         state.parameters,
         state.renderState,
         state.vertexColorOnly

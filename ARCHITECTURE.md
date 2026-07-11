@@ -357,9 +357,9 @@ material; it does not own the material.
 - `MaterialInstance`: shared material parameter values, texture assignment,
   render state, vertex-color-only mode, and an authoritative `version`
 - `MaterialGpuState`: a generic cached representation keyed by
-  `MaterialInstanceHandle`, storing resolved texture ID, packed material GPU
-  parameters, render state, uploaded version, variant key, and an opaque
-  `MaterialGpuHandle`
+  `MaterialInstanceHandle`, storing resolved texture IDs for each material
+  role, packed material GPU parameters, feature flags, render state, uploaded
+  version, variant key, and an opaque `MaterialGpuHandle`
 - built-in fallback materials, including the default material and a
   vertex-color-only material, plus a default standard-surface material
 
@@ -386,10 +386,12 @@ World text follows the same rule. `WorldTextBindingSystem` owns text-to-mesh
 generation and font resolution. `MaterialBindingSystem` creates or updates the
 world-text material instance from the font atlas texture and text tint.
 
-Shared material state currently includes texture assignment, base color/tint,
-metallic, perceptual roughness, alpha mode, alpha cutoff, double-sided state,
-depth-write state, legacy alpha/additive blend selection, and vertex-color-only
-mode. Per-object state remains in `RenderGpuComponent` and object uploads:
+Shared material state currently includes texture assignment by role, base color
+factor, metallic factor, perceptual roughness factor, normal scale, ambient
+occlusion strength, emissive factor/strength, alpha mode, alpha cutoff,
+double-sided state, depth-write state, legacy alpha/additive blend selection,
+and vertex-color-only mode. Per-object state remains in `RenderGpuComponent`
+and object uploads:
 model matrix, UV animation transform, and future object-specific IDs or
 overrides. Tint/base color is a shared material value. It is no longer part of
 generic object upload data; the current Vulkan backend still writes the scene
@@ -406,15 +408,43 @@ lighting with GGX distribution, Smith geometry, and Schlick Fresnel. Its first
 production parameter set is:
 
 ```
-baseColor : vec4
-metallic  : [0, 1]
-roughness : [0.04, 1] perceptual roughness
+baseColorFactor           : vec4
+metallicFactor            : [0, 1]
+roughnessFactor           : [0.04, 1] perceptual roughness
+normalScale               : finite float
+ambientOcclusionStrength  : [0, 1]
+emissiveFactor            : nonnegative vec3
+emissiveStrength          : nonnegative float
 ```
 
 `specularStrength` and `shininess` are removed from the authoritative material
 model. `roughness` is perceptual; shaders derive microfacet alpha as
 `roughness * roughness`. A dielectric baseline reflectance of `F0 = 0.04` is
 mixed toward `baseColor.rgb` as metallic approaches `1`.
+
+`StandardSurface` supports explicit texture roles:
+
+- `BaseColor`: sRGB color texture multiplied by `baseColorFactor` and vertex
+  color
+- `MetallicRoughness`: linear/data texture using glTF-compatible channel
+  packing: `R = ambient occlusion`, `G = roughness`, `B = metallic`
+- `Normal`: linear/data tangent-space normal map
+- `AmbientOcclusion`: linear/data AO texture sampled from red; when present it
+  overrides the metallic-roughness texture's `R` AO channel
+- `Emissive`: sRGB color texture multiplied by emissive factor/strength
+
+Missing maps are represented by backend fallback textures so the descriptor
+layout is stable: white base color, neutral metallic-roughness
+(`AO = 1`, `roughness = 1`, `metallic = 0`), flat normal
+(`0.5, 0.5, 1`), white AO, and black emissive. Material texture assignments are
+part of shared material state; render commands and object uploads never carry
+texture IDs or texture-role details.
+
+Material feature flags describe map presence. The current variant key includes
+normal-map presence because it changes the required surface frame. Other map
+presence bits are carried as material feature flags and handled through the
+stable material descriptor layout with fallback textures. Scalar factors and
+texture handles themselves are not variant-key data.
 
 Alpha semantics use `MaterialAlphaMode`:
 
@@ -655,8 +685,8 @@ Preliminary material/mesh compatibility:
 - `LegacyUnlit` with `vertexColorOnly`: requires position and meaningful color
   for useful output, but remains unlit
 - `StandardSurface`: requires position and normal for lit rendering
-- future `StandardSurface` with normal mapping: requires position, normal,
-  tangent, and UV
+- `StandardSurface` with normal mapping: requires position, normal, tangent,
+  and UV0
 
 Phase 3A derives the normal matrix in the scene vertex shader from the model
 matrix (`mat3(transpose(inverse(model)))`) rather than expanding object upload
@@ -666,7 +696,10 @@ ownership.
 
 If a `StandardSurface` batch reaches the backend without normal-capable mesh
 metadata, the scene stage emits a diagnostic and falls back to unlit shading for
-that incompatible batch. Tangents are not required until normal mapping lands.
+that incompatible batch. If a normal-mapped `StandardSurface` reaches the
+backend with normals but without tangents or UV0, the scene stage keeps the
+material lit, disables normal-map sampling for that batch, and emits a bounded
+diagnostic. It never consumes undefined tangent data.
 
 ### GPU Components (engine-managed)
 
@@ -783,16 +816,18 @@ MaterialFrameState {
     MaterialGpuHandle      materialGpu
     MaterialVariantKey     variantKey
     RenderQueue            renderQueue
-    texture_id_type        baseColorTextureID   (temporary compatibility)
-    MaterialGpuParameters  parameters           (baseColor + metallic/roughness)
+    MaterialTextureIds     textures             (base color, MR, normal, AO, emissive)
+    MaterialFeatureFlags   featureFlags         (map presence / sampling features)
+    MaterialGpuParameters  parameters           (base color, surface, emissive)
     MaterialRenderState    renderState
     uint64_t               uploadedVersion
 }
 ```
 
 The Vulkan backend resolves `MaterialGpuHandle` through this frame material
-state into backend-owned texture descriptors and the current compatibility
-pipeline choice. Alpha-masked commands are represented distinctly as
+state into backend-owned texture descriptors and the current pipeline choice.
+The generic extraction path does not know which material texture roles are
+bound. Alpha-masked commands are represented distinctly as
 `RenderQueue::AlphaMasked`, but they currently share the opaque Vulkan path
 until alpha-cutoff shader support lands.
 
@@ -852,6 +887,8 @@ Scene shading is world-space:
   arrays from the frame/camera UBO
 - `StandardSurface` materials evaluate directional, point, and spot radiance
   through one shared Cook-Torrance metallic-roughness BRDF
+- `StandardSurface` optionally samples base-color, metallic-roughness, normal,
+  AO, and emissive texture roles from shared material state
 - `LegacyUnlit` materials ignore light data and remain explicitly unlit
 
 The direct-light BRDF is:
@@ -879,14 +916,30 @@ ambient = baseColor * (1 - metallic) * ambientIntensity
 Metallic materials therefore do not receive the same diffuse ambient term as
 dielectrics. Future irradiance and prefiltered environment lighting should feed
 the same material response model rather than replacing material ownership.
+Ambient occlusion is applied only to this ambient fallback:
+
+```
+ambient *= mix(1, sampledAO, ambientOcclusionStrength)
+```
+
+It does not darken direct Cook-Torrance lighting. Emissive contribution is
+added independently in linear space:
+
+```
+emissive = emissiveFactor * emissiveStrength * sampledEmissive
+```
+
+Emissive materials glow visually but do not illuminate nearby geometry in this
+phase.
 
 `MaterialVariantKey` includes shader family and topology-relevant flags such as
 alpha mode, double-sided state, temporary legacy blend mode, depth-write state,
-and vertex-color-only mode. It does not include ordinary material parameters:
-base color, texture assignment, metallic, or roughness. Changing those
-parameters updates material GPU/frame data without recreating meshes, object
-slots, or command topology. Changing shader family updates the variant key and
-command ordering.
+vertex-color-only mode, and normal-map presence. It does not include ordinary
+material parameters or texture identities: base color, metallic, roughness,
+normal scale, AO strength, emissive factor, or the concrete texture handles.
+Changing those parameters updates material GPU/frame data without recreating
+meshes, object slots, or command topology. Changing shader family or enabling
+or disabling normal mapping updates the variant key and command ordering.
 
 The Vulkan scene stage selects lit or unlit pipeline variants from
 `MaterialFrameState::shaderFamily` and the batch compatibility result. The
@@ -897,17 +950,28 @@ branch.
 
 Current color-space behavior:
 
-- regular loaded textures are uploaded as `VK_FORMAT_R8G8B8A8_SRGB`, so color
-  texture samples are decoded before lighting math
-- material texture bindings carry explicit `TextureColorSpace` intent:
-  base-color textures default to `SRgb`, while data texture requests use
-  `Linear`
+- regular color textures are uploaded as `VK_FORMAT_R8G8B8A8_SRGB`, so color
+  samples are decoded before lighting math
+- material texture roles carry explicit `TextureColorSpace` intent:
+  `BaseColor` and `Emissive` are `SRgb`; `MetallicRoughness`, `Normal`, and
+  `AmbientOcclusion` are `Linear`
 - Vulkan realizes `TextureColorSpace::SRgb` as `VK_FORMAT_R8G8B8A8_SRGB` and
   `TextureColorSpace::Linear` as `VK_FORMAT_R8G8B8A8_UNORM`
+- texture cache keys include color-space intent, so the same file path can be
+  realized as a color texture and as data texture without accidental sRGB decode
 - swapchain/headless frame output prefers sRGB color formats, so shader outputs
   are encoded by the framebuffer path
-- lighting math is authored in linear space; future metallic, roughness,
-  normal, AO, and mask textures must remain linear/data textures
+- lighting math is authored in linear space; metallic-roughness, normal, AO,
+  and future mask textures remain linear/data textures
+
+Normal mapping is tangent-space. The vertex shader transforms normals with the
+inverse-transpose normal matrix, transforms tangents through the model basis,
+orthogonalizes the world tangent against the world normal, and preserves tangent
+handedness in `.w` with determinant-sign correction for negative scale. The
+fragment shader reconstructs the bitangent as
+`cross(worldNormal, worldTangent) * tangent.w`, decodes normal-map samples from
+`[0, 1]` to `[-1, 1]`, scales tangent-space X/Y by `normalScale`, normalizes,
+and converts the mapped normal into world space.
 
 ### Scene Texture Animation
 

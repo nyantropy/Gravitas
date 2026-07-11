@@ -3,6 +3,7 @@
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
 #include "DirectionalLightComponent.h"
+#include "DynamicMeshComponent.h"
 #include "ECSWorld.hpp"
 #include "GlmConfig.h"
 #include "GraphicsConstants.h"
@@ -25,6 +26,7 @@ public:
         gts::rendering::installRendererFeature(*this, ctx);
         spawnPbrGrid();
         spawnComparisonObjects();
+        spawnTextureMapSamples();
         spawnLights();
         spawnCamera(ctx.windowAspectRatio);
     }
@@ -42,6 +44,16 @@ public:
 private:
     static constexpr const char* CubeMesh = "/models/cube.obj";
     static constexpr const char* NeutralTexture = "/textures/engine_debug_neutral.png";
+    static constexpr const char* ValidationBaseTexture =
+        "/textures/engine_pbr_validation_base.png";
+    static constexpr const char* ValidationMetallicRoughnessTexture =
+        "/textures/engine_pbr_validation_metallic_roughness.png";
+    static constexpr const char* ValidationNormalTexture =
+        "/textures/engine_pbr_validation_normal.png";
+    static constexpr const char* ValidationAoTexture =
+        "/textures/engine_pbr_validation_ao.png";
+    static constexpr const char* ValidationEmissiveTexture =
+        "/textures/engine_pbr_validation_emissive.png";
 
     MaterialInstanceHandle createStandardSurface(const glm::vec4& baseColor,
                                                  float metallic,
@@ -60,6 +72,77 @@ private:
         instance.roughness = roughness;
         instance.renderState.alphaMode = transparent ? MaterialAlphaMode::Blend : MaterialAlphaMode::Opaque;
         instance.renderState.depthWrite = !transparent;
+        return materials.createInstance(instance);
+    }
+
+    MaterialInstanceHandle createTextureMappedSurface(const glm::vec4& baseColor,
+                                                      float metallic,
+                                                      float roughness)
+    {
+        gts::rendering::MaterialRuntime& materials = gts::rendering::materialRuntime(ecsWorld);
+        const MaterialInstance* defaultSurface =
+            materials.getInstance(materials.defaultStandardSurfaceMaterial());
+
+        MaterialInstance instance = defaultSurface != nullptr ? *defaultSurface : MaterialInstance{};
+        instance.baseColor = baseColor;
+        instance.baseColorTexture = MaterialTextureBinding::assetPath(
+            GraphicsConstants::ENGINE_RESOURCES + ValidationBaseTexture);
+        instance.metallic = metallic;
+        instance.roughness = roughness;
+        instance.metallicRoughnessTexture = MaterialTextureBinding::dataAssetPath(
+            GraphicsConstants::ENGINE_RESOURCES + ValidationMetallicRoughnessTexture);
+        instance.normalTexture = MaterialTextureBinding::dataAssetPath(
+            GraphicsConstants::ENGINE_RESOURCES + ValidationNormalTexture);
+        instance.ambientOcclusionTexture = MaterialTextureBinding::dataAssetPath(
+            GraphicsConstants::ENGINE_RESOURCES + ValidationAoTexture);
+        instance.emissiveTexture = MaterialTextureBinding::assetPath(
+            GraphicsConstants::ENGINE_RESOURCES + ValidationEmissiveTexture);
+        instance.normalScale = 0.85f;
+        instance.ambientOcclusionStrength = 0.75f;
+        instance.emissiveFactor = {0.55f, 0.65f, 1.0f};
+        instance.emissiveStrength = 0.35f;
+        instance.renderState.alphaMode = MaterialAlphaMode::Opaque;
+        instance.renderState.depthWrite = true;
+        return materials.createInstance(instance);
+    }
+
+    MaterialInstanceHandle createNormalMappedSurface(float normalScale)
+    {
+        gts::rendering::MaterialRuntime& materials = gts::rendering::materialRuntime(ecsWorld);
+        const MaterialInstance* defaultSurface =
+            materials.getInstance(materials.defaultStandardSurfaceMaterial());
+
+        MaterialInstance instance = defaultSurface != nullptr ? *defaultSurface : MaterialInstance{};
+        instance.baseColor = {0.72f, 0.72f, 0.78f, 1.0f};
+        instance.baseColorTexture = MaterialTextureBinding::assetPath(
+            GraphicsConstants::ENGINE_RESOURCES + NeutralTexture);
+        instance.metallic = 0.0f;
+        instance.roughness = 0.45f;
+        instance.normalTexture = MaterialTextureBinding::dataAssetPath(
+            GraphicsConstants::ENGINE_RESOURCES + ValidationNormalTexture);
+        instance.normalScale = normalScale;
+        return materials.createInstance(instance);
+    }
+
+    MaterialInstanceHandle createAoEmissiveSurface()
+    {
+        gts::rendering::MaterialRuntime& materials = gts::rendering::materialRuntime(ecsWorld);
+        const MaterialInstance* defaultSurface =
+            materials.getInstance(materials.defaultStandardSurfaceMaterial());
+
+        MaterialInstance instance = defaultSurface != nullptr ? *defaultSurface : MaterialInstance{};
+        instance.baseColor = {0.18f, 0.2f, 0.24f, 1.0f};
+        instance.baseColorTexture = MaterialTextureBinding::assetPath(
+            GraphicsConstants::ENGINE_RESOURCES + ValidationBaseTexture);
+        instance.metallic = 0.0f;
+        instance.roughness = 0.75f;
+        instance.ambientOcclusionTexture = MaterialTextureBinding::dataAssetPath(
+            GraphicsConstants::ENGINE_RESOURCES + ValidationAoTexture);
+        instance.ambientOcclusionStrength = 1.0f;
+        instance.emissiveTexture = MaterialTextureBinding::assetPath(
+            GraphicsConstants::ENGINE_RESOURCES + ValidationEmissiveTexture);
+        instance.emissiveFactor = {1.0f, 0.75f, 0.45f};
+        instance.emissiveStrength = 1.4f;
         return materials.createInstance(instance);
     }
 
@@ -85,6 +168,34 @@ private:
 
         StaticMeshComponent mesh;
         mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + CubeMesh;
+        ecsWorld.addComponent(entity, mesh);
+
+        TransformComponent transform;
+        transform.position = position;
+        transform.scale = scale;
+        ecsWorld.addComponent(entity, transform);
+
+        ecsWorld.addComponent(entity, MaterialReferenceComponent{material});
+        ecsWorld.addComponent(entity, BoundsComponent{});
+        return entity;
+    }
+
+    Entity spawnLegacyAttributeQuad(const glm::vec3& position,
+                                    const glm::vec3& scale,
+                                    MaterialInstanceHandle material)
+    {
+        Entity entity = ecsWorld.createEntity();
+
+        DynamicMeshComponent mesh;
+        mesh.vertices = {
+            Vertex{{-0.55f, -0.55f, 0.0f}, glm::vec4{1.0f}, {0.0f, 0.0f}},
+            Vertex{{ 0.55f, -0.55f, 0.0f}, glm::vec4{1.0f}, {1.0f, 0.0f}},
+            Vertex{{ 0.55f,  0.55f, 0.0f}, glm::vec4{1.0f}, {1.0f, 1.0f}},
+            Vertex{{-0.55f,  0.55f, 0.0f}, glm::vec4{1.0f}, {0.0f, 1.0f}}
+        };
+        mesh.indices = {0, 1, 2, 0, 2, 3};
+        mesh.geometryVersion = 1;
+        mesh.sourceAttributes = LegacyUnlitVertexAttributes;
         ecsWorld.addComponent(entity, mesh);
 
         TransformComponent transform;
@@ -135,6 +246,25 @@ private:
             {-7.2f, -4.8f, 0.0f},
             {1.1f, 1.1f, 1.1f},
             createStandardSurface({0.9f, 0.45f, 0.15f, 0.45f}, 0.0f, 0.2f, true));
+    }
+
+    void spawnTextureMapSamples()
+    {
+        const MaterialInstanceHandle allMaps =
+            createTextureMappedSurface({1.0f, 1.0f, 1.0f, 1.0f}, 0.7f, 0.65f);
+        const MaterialInstanceHandle sharedNormal = createNormalMappedSurface(1.0f);
+        const MaterialInstanceHandle strongNormal = createNormalMappedSurface(1.35f);
+        const MaterialInstanceHandle aoEmissive = createAoEmissiveSurface();
+
+        spawnCube({-4.8f, -5.4f, 0.0f}, {0.85f, 0.85f, 0.85f}, allMaps);
+        spawnCube({-2.4f, -5.4f, 0.0f}, {0.75f, 1.15f, 0.75f}, sharedNormal);
+        spawnCube({-0.8f, -5.4f, 0.0f}, {1.1f, 0.75f, 0.75f}, sharedNormal);
+        spawnCube({1.6f, -5.4f, 0.0f}, {0.7f, 1.65f, 0.45f}, strongNormal);
+        spawnCube({4.0f, -5.4f, 0.0f}, {0.9f, 0.9f, 0.9f}, aoEmissive);
+        spawnLegacyAttributeQuad(
+            {6.4f, -5.4f, 0.0f},
+            {1.25f, 1.25f, 1.25f},
+            strongNormal);
     }
 
     void spawnLights()

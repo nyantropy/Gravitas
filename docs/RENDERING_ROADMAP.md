@@ -142,6 +142,38 @@ state; they do not mutate materials, meshes, render commands, or object slots.
 over-capacity lights so attenuation, cone behavior, and deterministic dropping
 can be inspected visually.
 
+### Phase 3D --- Material Texture Maps and Surface Detail (Complete)
+
+Complete the first practical `StandardSurface` material model by adding
+texture-driven surface detail without leaking texture data into render commands
+or object uploads.
+
+Status: complete. `StandardSurface` now has explicit material texture roles for
+base color, metallic-roughness, normal, ambient occlusion, and emissive maps.
+Base-color and emissive textures are sRGB color textures; metallic-roughness,
+normal, and AO textures are linear/data textures, and the texture cache keys by
+color-space intent so the same path can be realized safely for different
+usages. Metallic-roughness maps use glTF-compatible channel semantics:
+`R = AO`, `G = roughness`, `B = metallic`, with a separate AO role able to
+override the packed AO channel.
+
+Material GPU parameters now carry base-color factor, metallic/roughness
+factors, normal scale, AO strength, and emissive factor/strength. Vulkan binds
+a stable five-role material texture descriptor set backed by neutral fallback
+textures for missing maps. Render commands remain texture-agnostic and carry
+only mesh/material/object identity.
+
+Normal mapping uses geometry tangents and handedness, transforms normals and
+tangents correctly under non-uniform and negative scale, and degrades
+deterministically when a mesh lacks the required normal/tangent/UV surface
+frame. AO affects only the temporary ambient fallback. Emissive adds visual
+linear emission but does not inject scene lighting. `GtsPbrValidation` now
+includes texture-map, shared-material, AO/emissive, non-uniform normal-map, and
+incompatible-geometry fallback samples.
+
+Image-based lighting, shadows, environment probes, normal/AO/emissive texture
+authoring tools, and advanced material extensions remain later roadmap items.
+
 ## Guiding Principles
 
 -   Scene systems own semantic data.

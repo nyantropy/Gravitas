@@ -10,12 +10,14 @@
 // Creates 3 descriptor set layouts:
 //   set 0 = camera/frame UBO (camera, light)  - VERTEX+FRAGMENT, UNIFORM_BUFFER
 //   set 1 = object SSBO (array of ObjectData) - VERTEX, STORAGE_BUFFER
-//   set 2 = texture sampler                   - FRAGMENT, COMBINED_IMAGE_SAMPLER
+//   set 2 = material texture samplers         - FRAGMENT, COMBINED_IMAGE_SAMPLER
 //
 // Pools are fixed-size and never scale with object count.
 class DescriptorSetManager
 {
     public:
+        static constexpr uint32_t MaterialTextureBindingCount = 5;
+
         explicit DescriptorSetManager(VulkanBackendContext& backendContext, uint32_t framesInFlight)
             : backendContext(backendContext), framesInFlight(framesInFlight)
         {
@@ -177,6 +179,46 @@ class DescriptorSetManager
             return descriptorSets;
         }
 
+        std::vector<VkDescriptorSet> allocateForMaterialTextures(
+            const std::array<VkDescriptorImageInfo, MaterialTextureBindingCount>& images)
+        {
+            std::vector<VkDescriptorSet> descriptorSets(framesInFlight);
+
+            std::vector<VkDescriptorSetLayout> layouts(framesInFlight, descriptorSetLayouts[2]);
+            VkDescriptorSetAllocateInfo allocInfo{};
+            allocInfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+            allocInfo.descriptorPool     = samplerDescriptorPool;
+            allocInfo.descriptorSetCount = framesInFlight;
+            allocInfo.pSetLayouts        = layouts.data();
+
+            if (vkAllocateDescriptorSets(backendContext.device(), &allocInfo, descriptorSets.data()) != VK_SUCCESS)
+                throw std::runtime_error("Failed to allocate material texture descriptor sets!");
+
+            for (size_t frame = 0; frame < framesInFlight; ++frame)
+            {
+                std::array<VkWriteDescriptorSet, MaterialTextureBindingCount> writes{};
+                for (uint32_t binding = 0; binding < MaterialTextureBindingCount; ++binding)
+                {
+                    writes[binding].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    writes[binding].dstSet          = descriptorSets[frame];
+                    writes[binding].dstBinding      = binding;
+                    writes[binding].dstArrayElement = 0;
+                    writes[binding].descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                    writes[binding].descriptorCount = 1;
+                    writes[binding].pImageInfo      = &images[binding];
+                }
+
+                vkUpdateDescriptorSets(
+                    backendContext.device(),
+                    static_cast<uint32_t>(writes.size()),
+                    writes.data(),
+                    0,
+                    nullptr);
+            }
+
+            return descriptorSets;
+        }
+
     private:
         VulkanBackendContext& backendContext;
         uint32_t framesInFlight;
@@ -222,18 +264,22 @@ class DescriptorSetManager
             if (vkCreateDescriptorSetLayout(backendContext.device(), &ssboLayoutInfo, nullptr, &descriptorSetLayouts[1]) != VK_SUCCESS)
                 throw std::runtime_error("Failed to create object SSBO descriptor set layout!");
 
-            // set 2: texture sampler
-            VkDescriptorSetLayoutBinding samplerBinding{};
-            samplerBinding.binding            = 0;
-            samplerBinding.descriptorCount    = 1;
-            samplerBinding.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            samplerBinding.pImmutableSamplers = nullptr;
-            samplerBinding.stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT;
+            // set 2: material texture samplers. Binding 0 remains compatible
+            // with legacy/UI/particle shaders that only sample one texture.
+            std::array<VkDescriptorSetLayoutBinding, MaterialTextureBindingCount> samplerBindings{};
+            for (uint32_t binding = 0; binding < MaterialTextureBindingCount; ++binding)
+            {
+                samplerBindings[binding].binding            = binding;
+                samplerBindings[binding].descriptorCount    = 1;
+                samplerBindings[binding].descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                samplerBindings[binding].pImmutableSamplers = nullptr;
+                samplerBindings[binding].stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT;
+            }
 
             VkDescriptorSetLayoutCreateInfo samplerLayoutInfo{};
             samplerLayoutInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-            samplerLayoutInfo.bindingCount = 1;
-            samplerLayoutInfo.pBindings    = &samplerBinding;
+            samplerLayoutInfo.bindingCount = static_cast<uint32_t>(samplerBindings.size());
+            samplerLayoutInfo.pBindings    = samplerBindings.data();
 
             if (vkCreateDescriptorSetLayout(backendContext.device(), &samplerLayoutInfo, nullptr, &descriptorSetLayouts[2]) != VK_SUCCESS)
                 throw std::runtime_error("Failed to create texture descriptor set layout!");
@@ -278,19 +324,21 @@ class DescriptorSetManager
                     throw std::runtime_error("Failed to create object SSBO descriptor pool!");
             }
 
-            // Sampler pool — scales with unique texture count, not object count
+            // Sampler pool — scales with unique texture/material descriptor
+            // sets, not object count. Set 2 has five possible bindings.
             {
-                constexpr uint32_t MAX_TEXTURES = 64;
+                constexpr uint32_t MAX_TEXTURE_DESCRIPTOR_SETS = 512;
                 VkDescriptorPoolSize poolSize{};
                 poolSize.type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                poolSize.descriptorCount = framesInFlight * MAX_TEXTURES;
+                poolSize.descriptorCount =
+                    framesInFlight * MAX_TEXTURE_DESCRIPTOR_SETS * MaterialTextureBindingCount;
 
                 VkDescriptorPoolCreateInfo poolInfo{};
                 poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
                 poolInfo.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
                 poolInfo.poolSizeCount = 1;
                 poolInfo.pPoolSizes    = &poolSize;
-                poolInfo.maxSets       = framesInFlight * MAX_TEXTURES;
+                poolInfo.maxSets       = framesInFlight * MAX_TEXTURE_DESCRIPTOR_SETS;
 
                 if (vkCreateDescriptorPool(backendContext.device(), &poolInfo, nullptr, &samplerDescriptorPool) != VK_SUCCESS)
                     throw std::runtime_error("Failed to create sampler descriptor pool!");

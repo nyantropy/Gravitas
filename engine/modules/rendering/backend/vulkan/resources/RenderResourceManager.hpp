@@ -2,6 +2,7 @@
 #include <string>
 
 #include "DescriptorSetManager.hpp"
+#include "GraphicsConstants.h"
 #include "IResourceProvider.hpp"
 #include "MeshManager.hpp"
 #include "TextureManager.hpp"
@@ -94,6 +95,13 @@ class RenderResourceManager : public IResourceProvider
             return textureManager->loadTexture(path, false, false, colorSpace);
         }
 
+        texture_id_type requestMaterialFallbackTexture(MaterialTextureRole role) override
+        {
+            const std::string path = GraphicsConstants::ENGINE_RESOURCES
+                + "/textures/" + fallbackTextureNameForRole(role);
+            return textureManager->loadTexture(path, false, false, textureColorSpaceForRole(role));
+        }
+
         texture_id_type requestClampedTexture(const std::string& path) override
         {
             return textureManager->loadTexture(path, false, true);
@@ -118,6 +126,12 @@ class RenderResourceManager : public IResourceProvider
         TextureResource* getTexture(texture_id_type id)
         {
             return textureManager->getTexture(id);
+        }
+
+        const std::vector<VkDescriptorSet>* getMaterialTextureDescriptorSets(
+            const MaterialTextureIds& textures)
+        {
+            return textureManager->getMaterialTextureDescriptorSets(textures);
         }
 
         texture_id_type registerSampledImageTexture(const std::string& key,

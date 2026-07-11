@@ -164,40 +164,46 @@ namespace gts::rendering
                 state.instance = handle;
             }
 
-            const texture_id_type textureID = resolveTexture(*instance, state, resources);
-            if (textureID == 0 && resources == nullptr)
+            const MaterialTextureIds textureIDs = resolveTextures(*instance, state, resources);
+            if (textureIDs.baseColor == 0 && resources == nullptr)
                 return {&state, false, false, false};
 
             const MaterialDefinition* definition = getDefinition(instance->definition);
             const MaterialShaderFamily shaderFamily = definition != nullptr
                 ? definition->shaderFamily
                 : MaterialShaderFamily::LegacyUnlit;
+            const MaterialFeatureFlags featureFlags = materialFeatureFlagsForInstance(*instance);
 
             MaterialGpuState next = state;
             next.instance = handle;
             next.uploadedVersion = instance->version;
             next.shaderFamily = shaderFamily;
-            next.baseColorTextureID = textureID;
+            next.textures = textureIDs;
+            next.baseColorTextureID = textureIDs.baseColor;
             next.parameters = makeMaterialGpuParameters(
                 instance->baseColor,
                 instance->metallic,
-                instance->roughness);
+                instance->roughness,
+                instance->normalScale,
+                instance->ambientOcclusionStrength,
+                instance->emissiveFactor,
+                instance->emissiveStrength);
             next.renderState = instance->renderState;
             next.vertexColorOnly = instance->vertexColorOnly;
-            next.variantKey = makeMaterialVariantKey(shaderFamily, *instance);
-            next.boundTexturePath = instance->baseColorTexture.source == MaterialTextureSource::AssetPath
-                ? instance->baseColorTexture.path
-                : std::string{};
-            next.boundTextureColorSpace = instance->baseColorTexture.colorSpace;
+            next.featureFlags = featureFlags;
+            next.variantKey = makeMaterialVariantKey(shaderFamily, *instance, featureFlags);
+            next.textureCache = makeTextureCacheState(*instance);
 
             const bool textureChanged =
                 inserted
-                || state.baseColorTextureID != next.baseColorTextureID
-                || state.boundTextureColorSpace != next.boundTextureColorSpace;
+                || state.textures != next.textures
+                || state.textureCache != next.textureCache
+                || state.featureFlags != next.featureFlags;
             const bool parameterDataChanged =
                 inserted
                 || state.parameters.baseColor != next.parameters.baseColor
-                || state.parameters.surfaceParameters != next.parameters.surfaceParameters;
+                || state.parameters.surfaceParameters != next.parameters.surfaceParameters
+                || state.parameters.emissiveFactorStrength != next.parameters.emissiveFactorStrength;
             const bool topologyChanged =
                 state.shaderFamily != next.shaderFamily
                 || state.renderState.alphaMode != next.renderState.alphaMode
@@ -313,6 +319,22 @@ namespace gts::rendering
         {
             instance.metallic = sanitizeMaterialMetallic(instance.metallic);
             instance.roughness = sanitizeMaterialRoughness(instance.roughness);
+            instance.normalScale = sanitizeMaterialNormalScale(instance.normalScale);
+            instance.ambientOcclusionStrength =
+                sanitizeMaterialAmbientOcclusionStrength(instance.ambientOcclusionStrength);
+            instance.emissiveFactor = sanitizeMaterialEmissiveFactor(instance.emissiveFactor);
+            instance.emissiveStrength = sanitizeMaterialEmissiveStrength(instance.emissiveStrength);
+
+            instance.baseColorTexture.colorSpace =
+                textureColorSpaceForRole(MaterialTextureRole::BaseColor);
+            instance.metallicRoughnessTexture.colorSpace =
+                textureColorSpaceForRole(MaterialTextureRole::MetallicRoughness);
+            instance.normalTexture.colorSpace =
+                textureColorSpaceForRole(MaterialTextureRole::Normal);
+            instance.ambientOcclusionTexture.colorSpace =
+                textureColorSpaceForRole(MaterialTextureRole::AmbientOcclusion);
+            instance.emissiveTexture.colorSpace =
+                textureColorSpaceForRole(MaterialTextureRole::Emissive);
         }
 
         DefinitionSlot* findDefinitionSlot(MaterialDefinitionHandle handle)
@@ -359,28 +381,145 @@ namespace gts::rendering
             return &slot;
         }
 
-        texture_id_type resolveTexture(const MaterialInstance& instance,
+        static const MaterialTextureBinding& textureBindingForRole(const MaterialInstance& instance,
+                                                                   MaterialTextureRole role)
+        {
+            switch (role)
+            {
+                case MaterialTextureRole::BaseColor:
+                    return instance.baseColorTexture;
+                case MaterialTextureRole::MetallicRoughness:
+                    return instance.metallicRoughnessTexture;
+                case MaterialTextureRole::Normal:
+                    return instance.normalTexture;
+                case MaterialTextureRole::AmbientOcclusion:
+                    return instance.ambientOcclusionTexture;
+                case MaterialTextureRole::Emissive:
+                    return instance.emissiveTexture;
+            }
+            return instance.baseColorTexture;
+        }
+
+        static texture_id_type textureIdForRole(const MaterialTextureIds& textures,
+                                                MaterialTextureRole role)
+        {
+            switch (role)
+            {
+                case MaterialTextureRole::BaseColor:
+                    return textures.baseColor;
+                case MaterialTextureRole::MetallicRoughness:
+                    return textures.metallicRoughness;
+                case MaterialTextureRole::Normal:
+                    return textures.normal;
+                case MaterialTextureRole::AmbientOcclusion:
+                    return textures.ambientOcclusion;
+                case MaterialTextureRole::Emissive:
+                    return textures.emissive;
+            }
+            return textures.baseColor;
+        }
+
+        static std::string assetPathForRole(const MaterialInstance& instance,
+                                            MaterialTextureRole role)
+        {
+            const MaterialTextureBinding& texture = textureBindingForRole(instance, role);
+            return texture.source == MaterialTextureSource::AssetPath
+                ? texture.path
+                : std::string{};
+        }
+
+        static MaterialTextureCacheState makeTextureCacheState(const MaterialInstance& instance)
+        {
+            MaterialTextureCacheState cache;
+            cache.baseColorPath = assetPathForRole(instance, MaterialTextureRole::BaseColor);
+            cache.metallicRoughnessPath =
+                assetPathForRole(instance, MaterialTextureRole::MetallicRoughness);
+            cache.normalPath = assetPathForRole(instance, MaterialTextureRole::Normal);
+            cache.ambientOcclusionPath =
+                assetPathForRole(instance, MaterialTextureRole::AmbientOcclusion);
+            cache.emissivePath = assetPathForRole(instance, MaterialTextureRole::Emissive);
+            cache.baseColorColorSpace = textureColorSpaceForRole(MaterialTextureRole::BaseColor);
+            cache.metallicRoughnessColorSpace =
+                textureColorSpaceForRole(MaterialTextureRole::MetallicRoughness);
+            cache.normalColorSpace = textureColorSpaceForRole(MaterialTextureRole::Normal);
+            cache.ambientOcclusionColorSpace =
+                textureColorSpaceForRole(MaterialTextureRole::AmbientOcclusion);
+            cache.emissiveColorSpace = textureColorSpaceForRole(MaterialTextureRole::Emissive);
+            return cache;
+        }
+
+        static bool textureCacheMatchesRole(const MaterialTextureCacheState& current,
+                                            const MaterialTextureCacheState& desired,
+                                            MaterialTextureRole role)
+        {
+            switch (role)
+            {
+            case MaterialTextureRole::BaseColor:
+                return current.baseColorPath == desired.baseColorPath
+                    && current.baseColorColorSpace == desired.baseColorColorSpace;
+            case MaterialTextureRole::MetallicRoughness:
+                return current.metallicRoughnessPath == desired.metallicRoughnessPath
+                    && current.metallicRoughnessColorSpace == desired.metallicRoughnessColorSpace;
+            case MaterialTextureRole::Normal:
+                return current.normalPath == desired.normalPath
+                    && current.normalColorSpace == desired.normalColorSpace;
+            case MaterialTextureRole::AmbientOcclusion:
+                return current.ambientOcclusionPath == desired.ambientOcclusionPath
+                    && current.ambientOcclusionColorSpace == desired.ambientOcclusionColorSpace;
+            case MaterialTextureRole::Emissive:
+                return current.emissivePath == desired.emissivePath
+                    && current.emissiveColorSpace == desired.emissiveColorSpace;
+            }
+            return false;
+        }
+
+        texture_id_type resolveTexture(MaterialTextureRole role,
+                                       const MaterialInstance& instance,
                                        const MaterialGpuState& currentState,
                                        IResourceProvider* resources) const
         {
-            const MaterialTextureBinding& texture = instance.baseColorTexture;
+            const MaterialTextureBinding& texture = textureBindingForRole(instance, role);
             if (texture.source == MaterialTextureSource::ResolvedTexture)
-                return texture.resolvedTextureID;
-
-            if (resources == nullptr)
-                return currentState.baseColorTextureID;
-
-            if (texture.source == MaterialTextureSource::None)
-                return resources->requestTexture({}, TextureColorSpace::SRgb);
-
-            if (currentState.baseColorTextureID != 0
-                && currentState.boundTexturePath == texture.path
-                && currentState.boundTextureColorSpace == texture.colorSpace)
             {
-                return currentState.baseColorTextureID;
+                if (texture.resolvedTextureID != 0)
+                    return texture.resolvedTextureID;
+
+                if (resources == nullptr)
+                    return textureIdForRole(currentState.textures, role);
             }
 
-            return resources->requestTexture(texture.path, texture.colorSpace);
+            if (resources == nullptr)
+                return textureIdForRole(currentState.textures, role);
+
+            const MaterialTextureCacheState currentCache = makeTextureCacheState(instance);
+            const texture_id_type currentTexture = textureIdForRole(currentState.textures, role);
+            if (currentTexture != 0 &&
+                textureCacheMatchesRole(currentState.textureCache, currentCache, role))
+            {
+                return currentTexture;
+            }
+
+            if (texture.source == MaterialTextureSource::ResolvedTexture
+                || texture.source == MaterialTextureSource::None
+                || texture.path.empty())
+            {
+                return resources->requestMaterialFallbackTexture(role);
+            }
+
+            return resources->requestTexture(texture.path, textureColorSpaceForRole(role));
+        }
+
+        MaterialTextureIds resolveTextures(const MaterialInstance& instance,
+                                           const MaterialGpuState& currentState,
+                                           IResourceProvider* resources) const
+        {
+            return {
+                resolveTexture(MaterialTextureRole::BaseColor, instance, currentState, resources),
+                resolveTexture(MaterialTextureRole::MetallicRoughness, instance, currentState, resources),
+                resolveTexture(MaterialTextureRole::Normal, instance, currentState, resources),
+                resolveTexture(MaterialTextureRole::AmbientOcclusion, instance, currentState, resources),
+                resolveTexture(MaterialTextureRole::Emissive, instance, currentState, resources)
+            };
         }
     };
 
