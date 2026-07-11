@@ -1,10 +1,6 @@
 #pragma once
 
-#include <unordered_map>
-#include <vector>
-
 #include "ECSControllerSystem.hpp"
-#include "Entity.h"
 
 class PhysicsDebugRenderer : public ECSControllerSystem
 {
@@ -22,5 +18,4 @@ public:
 
 private:
     bool enabled = true;
-    std::unordered_map<entity_id_type, std::vector<Entity>> debugEntitiesByCollider;
 };

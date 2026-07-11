@@ -8,6 +8,9 @@ if(GTS_ENABLE_PHYSICS)
 endif()
 if(GTS_ENABLE_DEBUGDRAW)
     add_subdirectory(diagnostics/debugdraw)
+    if(GTS_ENABLE_PHYSICS)
+        add_subdirectory(diagnostics/physics)
+    endif()
 endif()
 if(GTS_ENABLE_TOOLS)
     add_subdirectory(tools)
@@ -53,6 +56,7 @@ foreach(GTS_OPTIONAL_MODULE_TARGET
         gravitas_rendering
         gravitas_physics
         gravitas_debugdraw
+        gravitas_diagnostics_physics
         gravitas_tools)
     if(TARGET ${GTS_OPTIONAL_MODULE_TARGET})
         target_link_libraries(gravitas_modules INTERFACE ${GTS_OPTIONAL_MODULE_TARGET})

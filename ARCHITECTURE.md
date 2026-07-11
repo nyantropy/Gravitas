@@ -24,7 +24,8 @@ frame rate.
   extraction contracts, but Vulkan-specific types stay under
   `modules/rendering/backend/vulkan/`.
 - Base physics must not depend on rendering. Physics visualization belongs in
-  diagnostics bridge modules such as `diagnostics/debugdraw/physics/`.
+  diagnostics bridge modules such as `diagnostics/physics/`, which can consume
+  debug-draw primitives without making physics depend on rendering.
 - Tools and debug bridges are allowed to depend on multiple modules because
   integration is their purpose.
 - Public module headers should stay small and stable. Heavy implementation
@@ -730,6 +731,9 @@ bounds, rays, and frusta are not dependent on sampled debug textures.
 
 Debug draw is intentionally generic. Tool-specific policy, such as drawing the
 selected entity bounds or pick ray, lives under `modules/tools/debugdraw/`.
+Physics-specific diagnostic policy lives under `modules/diagnostics/physics/`
+and emits shared debug-draw primitives instead of owning a separate line
+rendering path.
 
 ---
 
@@ -1540,4 +1544,4 @@ rather than a new panel registry.
 - **Separation of lifecycle concerns**: geometry lifecycle, camera lifecycle, cleanup, transform sync, and extraction are distinct stages with distinct ownership
 - **RAII resource management**: backend resources tied to GPU component lifecycle via removal callbacks
 - **Modular assembly**: scenes are built by adding systems and components — the engine imposes no mandatory scene structure
-- **Feature-first tooling**: editor/tooling panels live under `modules/tools/`, generic visualization under `modules/diagnostics/debugdraw/`, and runtime particle simulation under rendering particle ECS setup
+- **Feature-first tooling**: editor/tooling panels live under `modules/tools/`, generic visualization under `modules/diagnostics/debugdraw/`, physics diagnostic producers under `modules/diagnostics/physics/`, and runtime particle simulation under rendering particle ECS setup
