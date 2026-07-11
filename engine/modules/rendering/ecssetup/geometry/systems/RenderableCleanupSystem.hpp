@@ -2,7 +2,10 @@
 
 #include "ECSControllerSystem.hpp"
 #include "GeometryBindingLifecycle.h"
+#include "MaterialGpuComponent.h"
+#include "MeshGpuComponent.h"
 #include "RenderGpuComponent.h"
+#include "RenderObjectLifecycle.h"
 
 // Shared geometry cleanup pass. This owns teardown of renderable GPU companion
 // components regardless of whether the descriptor source was static mesh,
@@ -20,11 +23,14 @@ public:
         for (entity_id_type entityId : pendingCleanup)
         {
             Entity entity{entityId};
-            if (ctx.world.hasComponent<RenderGpuComponent>(entity)
-                && !gts::rendering::hasRenderableDescriptor(ctx.world, entity))
-            {
-                gts::rendering::scheduleRenderableCleanup(ctx.world, commands, entity);
-            }
+            if (!gts::rendering::hasRenderableGeometryDescriptor(ctx.world, entity))
+                gts::rendering::scheduleMeshGpuCleanup(ctx.world, commands, entity);
+
+            if (!gts::rendering::hasRenderableMaterialDescriptor(ctx.world, entity))
+                gts::rendering::scheduleMaterialGpuCleanup(ctx.world, commands, entity);
+
+            if (!gts::rendering::renderObjectReady(ctx.world, entity))
+                gts::rendering::scheduleRenderObjectCleanup(ctx.world, commands, entity);
         }
     }
 };

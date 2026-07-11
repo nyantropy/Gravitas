@@ -5,6 +5,7 @@
 #include "ECSWorld.hpp"
 #include "GeometryBindingLifecycle.h"
 #include "IResourceProvider.hpp"
+#include "MaterialBindingSystem.hpp"
 #include "MaterialComponent.h"
 #include "MeshGpuComponent.h"
 #include "QuadMeshBindingSystem.hpp"
@@ -13,6 +14,7 @@
 #include "RenderExtractionSnapshotBuilder.hpp"
 #include "RenderGpuComponent.h"
 #include "RenderGpuSystem.hpp"
+#include "RenderObjectLifecycleSystem.hpp"
 #include "RenderableCleanupSystem.hpp"
 #include "StaticMeshBindingSystem.hpp"
 #include "StaticMeshComponent.h"
@@ -22,6 +24,7 @@
 #include "WorldTextBindingSystem.hpp"
 #include "WorldTextComponent.h"
 #include "WorldTextRuntimeComponent.h"
+#include "WorldTransformComponent.h"
 
 namespace gts::rendering
 {
@@ -44,8 +47,10 @@ namespace gts::rendering
                 renderGpu.objectSSBOSlot = RENDERABLE_SLOT_UNALLOCATED;
             });
         world.registerRemoveCallback<MeshGpuComponent>(
-            [resources](ECSWorld&, Entity, MeshGpuComponent& meshGpu)
+            [resources](ECSWorld& world, Entity entity, MeshGpuComponent& meshGpu)
             {
+                queueRenderObjectRefresh(world, entity);
+
                 if (!meshGpu.ownsProceduralMeshResource || meshGpu.meshID == 0 || resources == nullptr)
                     return;
 
@@ -61,6 +66,7 @@ namespace gts::rendering
         world.registerRemoveCallback<StaticMeshComponent>(
             [](ECSWorld& world, Entity entity, StaticMeshComponent&)
             {
+                queueMaterialRefresh(world, entity);
                 queueRenderableCleanup(world, entity);
             });
         world.registerAddCallback<QuadMeshComponent>(
@@ -71,6 +77,7 @@ namespace gts::rendering
         world.registerRemoveCallback<QuadMeshComponent>(
             [](ECSWorld& world, Entity entity, QuadMeshComponent&)
             {
+                queueMaterialRefresh(world, entity);
                 queueRenderableCleanup(world, entity);
             });
         world.registerAddCallback<DynamicMeshComponent>(
@@ -81,14 +88,14 @@ namespace gts::rendering
         world.registerRemoveCallback<DynamicMeshComponent>(
             [](ECSWorld& world, Entity entity, DynamicMeshComponent&)
             {
+                queueMaterialRefresh(world, entity);
                 queueRenderableCleanup(world, entity);
             });
         world.registerAddCallback<MaterialComponent>(
             [](ECSWorld& world, Entity entity, MaterialComponent&)
             {
-                queueStaticMeshRefresh(world, entity);
-                queueQuadMeshRefresh(world, entity);
-                queueDynamicMeshRefresh(world, entity);
+                queueMaterialRefresh(world, entity);
+                queueRenderObjectRefresh(world, entity);
             });
         world.registerRemoveCallback<MaterialComponent>(
             [](ECSWorld& world, Entity entity, MaterialComponent&)
@@ -109,10 +116,8 @@ namespace gts::rendering
                 }
 
                 auto& renderGpu       = world.getComponent<RenderGpuComponent>(entity);
-                auto& dirty           = world.getComponent<RenderDirtyComponent>(entity);
                 renderGpu.uvTransform = {1.0f, 1.0f, 0.0f, 0.0f};
-                dirty.objectDataDirty = true;
-                queueRenderSnapshotDirty(world, entity);
+                markObjectDataDirty(world, entity);
             });
         world.registerRemoveCallback<TextureAnimationComponent>(
             [](ECSWorld& world, Entity entity, TextureAnimationComponent&)
@@ -127,16 +132,16 @@ namespace gts::rendering
                 }
 
                 auto& renderGpu       = world.getComponent<RenderGpuComponent>(entity);
-                auto& dirty           = world.getComponent<RenderDirtyComponent>(entity);
                 renderGpu.uvTransform = {1.0f, 1.0f, 0.0f, 0.0f};
-                dirty.objectDataDirty = true;
-                queueRenderSnapshotDirty(world, entity);
+                markObjectDataDirty(world, entity);
             });
         world.registerAddCallback<WorldTextComponent>(
             [](ECSWorld& world, Entity entity, WorldTextComponent&)
             {
                 if (!world.hasComponent<WorldTextRuntimeComponent>(entity))
                     world.commands().addComponent<WorldTextRuntimeComponent>(entity, WorldTextRuntimeComponent{});
+                queueMaterialRefresh(world, entity);
+                queueRenderObjectRefresh(world, entity);
             });
         world.registerRemoveCallback<WorldTextComponent>(
             [](ECSWorld& world, Entity entity, WorldTextComponent&)
@@ -146,11 +151,33 @@ namespace gts::rendering
 
                 queueRenderableCleanup(world, entity);
             });
+        world.registerAddCallback<MeshGpuComponent>(
+            [](ECSWorld& world, Entity entity, MeshGpuComponent&)
+            {
+                queueRenderObjectRefresh(world, entity);
+            });
+        world.registerAddCallback<MaterialGpuComponent>(
+            [](ECSWorld& world, Entity entity, MaterialGpuComponent&)
+            {
+                queueRenderObjectRefresh(world, entity);
+            });
+        world.registerRemoveCallback<MaterialGpuComponent>(
+            [](ECSWorld& world, Entity entity, MaterialGpuComponent&)
+            {
+                queueRenderObjectRefresh(world, entity);
+            });
+        world.registerAddCallback<WorldTransformComponent>(
+            [](ECSWorld& world, Entity entity, WorldTransformComponent&)
+            {
+                queueRenderObjectRefresh(world, entity);
+            });
 
         world.addControllerSystem<StaticMeshBindingSystem>(EcsSystemGroup::RenderPrep);
         world.addControllerSystem<QuadMeshBindingSystem>(EcsSystemGroup::RenderPrep);
         world.addControllerSystem<DynamicMeshBindingSystem>(EcsSystemGroup::RenderPrep);
         world.addControllerSystem<WorldTextBindingSystem>(EcsSystemGroup::RenderPrep);
+        world.addControllerSystem<MaterialBindingSystem>(EcsSystemGroup::RenderPrep);
+        world.addControllerSystem<RenderObjectLifecycleSystem>(EcsSystemGroup::RenderPrep);
         world.addControllerSystem<RenderableCleanupSystem>(EcsSystemGroup::RenderPrep);
         world.addControllerSystem<RenderGpuSystem>(EcsSystemGroup::RenderPrep);
         world.addControllerSystem<TextureAnimationSystem>(EcsSystemGroup::Animation);
@@ -159,16 +186,24 @@ namespace gts::rendering
             [&world](Entity entity, StaticMeshComponent&, MaterialComponent&)
             {
                 queueStaticMeshRefresh(world, entity);
+                queueMaterialRefresh(world, entity);
             });
         world.forEachSnapshot<QuadMeshComponent, MaterialComponent>(
             [&world](Entity entity, QuadMeshComponent&, MaterialComponent&)
             {
                 queueQuadMeshRefresh(world, entity);
+                queueMaterialRefresh(world, entity);
             });
         world.forEachSnapshot<DynamicMeshComponent, MaterialComponent>(
             [&world](Entity entity, DynamicMeshComponent&, MaterialComponent&)
             {
                 queueDynamicMeshRefresh(world, entity);
+                queueMaterialRefresh(world, entity);
+            });
+        world.forEachSnapshot<MaterialComponent>(
+            [&world](Entity entity, MaterialComponent&)
+            {
+                queueMaterialRefresh(world, entity);
             });
         world.forEachSnapshot<TextureAnimationComponent>(
             [&world](Entity entity, TextureAnimationComponent&)
@@ -182,6 +217,7 @@ namespace gts::rendering
             {
                 if (!world.hasComponent<WorldTextRuntimeComponent>(entity))
                     world.commands().addComponent<WorldTextRuntimeComponent>(entity, WorldTextRuntimeComponent{});
+                queueMaterialRefresh(world, entity);
             });
     }
 }

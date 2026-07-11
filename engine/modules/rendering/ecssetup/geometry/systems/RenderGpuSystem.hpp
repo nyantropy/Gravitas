@@ -53,7 +53,6 @@ public:
             renderGpu.modelMatrix = worldTransform.matrix;
             renderGpu.uploadedWorldTransformVersion = worldTransform.version;
             renderGpu.readyToRender = true;
-            renderGpu.commandDirty = true;
             dirty.transformDirty = true;
             gts::rendering::queueRenderSnapshotDirty(ctx.world, entity);
             updatedRenderables += 1;

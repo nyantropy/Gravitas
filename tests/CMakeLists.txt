@@ -53,6 +53,24 @@ set_tests_properties(particle_module_authoring
         LABELS "gravitas;particles;authoring"
 )
 
+add_executable(RenderLifecycleOwnershipTest
+    rendering/RenderLifecycleOwnershipTest.cpp
+)
+
+target_compile_features(RenderLifecycleOwnershipTest PRIVATE cxx_std_20)
+
+target_link_libraries(RenderLifecycleOwnershipTest PRIVATE gravitas_rendering)
+
+add_test(
+    NAME render_lifecycle_ownership
+    COMMAND RenderLifecycleOwnershipTest
+)
+
+set_tests_properties(render_lifecycle_ownership
+    PROPERTIES
+        LABELS "gravitas;rendering;lifecycle"
+)
+
 add_executable(UiLayerRuntimeTest
     ui/UiLayerRuntimeTest.cpp
 )

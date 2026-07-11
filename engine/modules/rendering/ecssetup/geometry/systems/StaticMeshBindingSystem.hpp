@@ -1,23 +1,17 @@
 #pragma once
 
 #include "ECSControllerSystem.hpp"
-#include "StaticMeshComponent.h"
-#include "MaterialComponent.h"
-#include "MeshGpuComponent.h"
-#include "MaterialGpuComponent.h"
-#include "RenderDirtyComponent.h"
-#include "RenderGpuComponent.h"
 #include "GeometryBindingLifecycle.h"
+#include "MeshBindingLifecycle.h"
+#include "StaticMeshComponent.h"
 
 // Explicit lifecycle pass for static mesh renderables.
-// Reads StaticMeshComponent + MaterialComponent and is the only system permitted to call
-// ctx.resources->requestMesh / requestTexture / requestObjectSlot for static entities.
+// Reads StaticMeshComponent and owns only static mesh resource binding.
 //
 // Responsibilities:
-//   - Creates MeshGpuComponent, MaterialGpuComponent, RenderGpuComponent on first frame
-//   - Allocates an SSBO slot on first bind
-//   - Resolves mesh/texture paths to GPU IDs on first bind and whenever they change
-//   - Sets dirty state so RenderGpuSystem re-uploads the model matrix
+//   - Creates or updates MeshGpuComponent
+//   - Resolves mesh paths to GPU IDs on first bind and whenever they change
+//   - Marks mesh representation dirty when the mesh resource changes
 class StaticMeshBindingSystem : public ECSControllerSystem
 {
 public:
@@ -32,8 +26,7 @@ public:
         for (entity_id_type entityId : pendingStatic)
         {
             Entity entity{entityId};
-            if (!ctx.world.hasComponent<StaticMeshComponent>(entity)
-                || !ctx.world.hasComponent<MaterialComponent>(entity))
+            if (!ctx.world.hasComponent<StaticMeshComponent>(entity))
             {
                 continue;
             }

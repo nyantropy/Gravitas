@@ -327,12 +327,22 @@ RenderCommandExtractor reads both         ← emits RenderCommand
 GPU resource release still happens through component removal callbacks, but descriptor add/remove no longer performs recursive ECS mutation. Binding/cleanup decisions are queued and executed by explicit lifecycle systems.
 
 The render lifecycle is split by concern:
-- **Geometry lifecycle** queues and resolves static mesh / quad mesh / dynamic mesh companion state
-- **Renderable cleanup** tears down geometry GPU companions regardless of descriptor source
-- **Camera lifecycle** owns `CameraGpuComponent` creation/removal independently of geometry lifecycle
+- **Mesh lifecycle** resolves static mesh / quad mesh / dynamic mesh / world-text mesh state and owns `MeshGpuComponent`
+- **Material lifecycle** resolves legacy per-entity material state and world-text atlas material state and owns `MaterialGpuComponent`
+- **Render-object lifecycle** decides readiness, owns `RenderGpuComponent` creation, and allocates object SSBO slots
+- **Renderable cleanup** tears down stale GPU companions regardless of descriptor source
+- **Camera lifecycle** owns `CameraGpuComponent` creation/removal independently of renderable lifecycle
 - **Transform lifecycle** resolves `TransformComponent` + `HierarchyComponent`
   into versioned `WorldTransformComponent` data
 - **Render invalidation** queues snapshot dirtiness explicitly so steady-state extraction does not scan every renderable
+
+Mesh, material, and render-object lifecycle are intentionally independent.
+Changing material tint or texture must not recreate mesh state; changing mesh
+geometry must not recreate material state; object-slot allocation is centralized
+in the render-object lifecycle rather than repeated by every descriptor path.
+Queued descriptor changes may allow a newly bound renderable to participate in
+the same controller update because lifecycle systems run in mesh, material, then
+render-object order with deferred command flushes between systems.
 
 Scene-level render pass visibility is controlled at two layers. The stronger
 layer is the active `SceneExecutionProfile`: its `FrameBuildMode` determines
@@ -422,9 +432,9 @@ mixed domain/rendering object.
 
 | Component | Managed By |
 |-----------|-----------|
-| `MeshGpuComponent` | `StaticMeshBindingSystem`, `QuadMeshBindingSystem`, `DynamicMeshBindingSystem`, and `WorldTextBindingSystem` |
-| `MaterialGpuComponent` | geometry lifecycle systems |
-| `RenderGpuComponent` | geometry lifecycle systems + `RenderableCleanupSystem` + `RenderGpuSystem` |
+| `MeshGpuComponent` | mesh binding systems: `StaticMeshBindingSystem`, `QuadMeshBindingSystem`, `DynamicMeshBindingSystem`, and `WorldTextBindingSystem` |
+| `MaterialGpuComponent` | `MaterialBindingSystem` |
+| `RenderGpuComponent` | `RenderObjectLifecycleSystem` + `RenderableCleanupSystem` + `RenderGpuSystem` |
 | `CameraGpuComponent` | `CameraLifecycleSystem` + `CameraGpuSystem` + `CameraBindingSystem` for view IDs; renderer for UBO upload |
 
 Particle emitters use a runtime companion component (`ParticleEmitterRuntimeComponent`)
@@ -435,9 +445,11 @@ World text uses the same descriptor/runtime split:
 applications author `WorldTextComponent` with a font asset path, and the
 renderer feature owns `WorldTextRuntimeComponent`. The runtime companion caches
 the last authored text/font/scale/tint values and the resolved `font_id_type`.
-`WorldTextBindingSystem` resolves the font, uploads glyph quads as runtime mesh
-data, writes the font atlas texture and tint into `MaterialGpuComponent`, and
-cleans up the renderable when the text has no visible glyphs.
+`WorldTextBindingSystem` resolves the font and uploads glyph quads as runtime
+mesh data. `MaterialBindingSystem` mirrors the font atlas texture and tint into
+`MaterialGpuComponent`. Cleanup removes stale mesh, material, and render-object
+companions through the shared renderable cleanup path when the text has no
+visible glyphs.
 
 Scene texture animation uses the same descriptor/runtime split:
 applications author `TextureAnimationComponent`, the renderer feature creates
@@ -458,25 +470,40 @@ through the normal object SSBO path.
 The shared renderer feature installs controller systems in this order:
 
 1. `TransformSystem`
-2. Geometry and text binding systems
-3. `RenderableCleanupSystem`
-4. `RenderGpuSystem`
-5. `TextureAnimationSystem`
-6. `CameraLifecycleSystem`
-7. camera control systems
-8. `CameraGpuSystem`
-9. camera view ID allocation / active-camera export systems
-10. particle effect hot reload and particle emitter simulation
+2. Mesh binding systems: static mesh, quad mesh, dynamic mesh, world text
+3. `MaterialBindingSystem`
+4. `RenderObjectLifecycleSystem`
+5. `RenderableCleanupSystem`
+6. `RenderGpuSystem`
+7. `TextureAnimationSystem`
+8. `CameraLifecycleSystem`
+9. camera control systems
+10. `CameraGpuSystem`
+11. camera view ID allocation / active-camera export systems
+12. particle effect hot reload and particle emitter simulation
 
 This order is intentional:
 - transform resolution runs before render GPU sync so rendering consumes
   authoritative `WorldTransformComponent` matrices
-- lifecycle runs before per-frame sync so newly created GPU companions participate immediately
+- mesh lifecycle runs before material lifecycle so world-text font resolution can feed material binding
+- material lifecycle runs before render-object lifecycle so readiness is decided from resolved companions
+- render-object lifecycle owns object-slot allocation before per-frame sync
+- cleanup runs after readiness so descriptor removal tears down stale companions through one path
 - texture animation runs after `RenderGpuSystem` so newly ready renderables have
   a valid object slot before animated UV data is queued for upload
 - camera control runs before `CameraGpuSystem` so same-frame transform/description changes feed matrix generation
 - camera view ID allocation/export runs after matrix generation so rendering and UI see the current frame's active camera state
 - particle simulation runs after camera matrix generation so extracted billboards can use the current view
+
+Invalidation ownership follows the lifecycle split. Mesh lifecycle marks mesh
+representation changes. Material lifecycle marks material representation and
+object-data changes. `RenderGpuSystem` marks consumed world-transform changes
+after comparing `WorldTransformComponent::version` with
+`RenderGpuComponent::uploadedWorldTransformVersion`. Texture animation marks
+object-data changes. Readiness and companion add/remove events queue command
+topology changes through the render snapshot invalidation queue. Version checks
+mean "a consumer has not observed a newer authoritative value"; dirty markers
+mean "derived extraction data must be rebuilt."
 
 ### RenderCommand
 
@@ -1563,7 +1590,7 @@ rather than a new panel registry.
 - **Explicit structural mutation**: hot-path queries stay non-structural; lifecycle mutation is deferred and flushed at controlled points
 - **Profile-driven runtime modes**: scenes stay loaded while execution profiles
   decide which broad system groups and render build paths are awake
-- **Separation of lifecycle concerns**: geometry lifecycle, camera lifecycle, cleanup, transform sync, and extraction are distinct stages with distinct ownership
+- **Separation of lifecycle concerns**: mesh lifecycle, material lifecycle, render-object lifecycle, camera lifecycle, cleanup, transform sync, and extraction are distinct stages with distinct ownership
 - **RAII resource management**: backend resources tied to GPU component lifecycle via removal callbacks
 - **Modular assembly**: scenes are built by adding systems and components — the engine imposes no mandatory scene structure
 - **Feature-first tooling**: editor/tooling panels live under `modules/tools/`, generic visualization under `modules/diagnostics/debugdraw/`, physics diagnostic producers under `modules/diagnostics/physics/`, and runtime particle simulation under rendering particle ECS setup

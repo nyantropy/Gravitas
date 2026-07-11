@@ -244,10 +244,14 @@ namespace gts::debugdraw
         static void markExtractionDirty(ECSWorld& world, Entity entity)
         {
             if (world.hasComponent<RenderDirtyComponent>(entity))
-                world.getComponent<RenderDirtyComponent>(entity).transformDirty = true;
+            {
+                RenderDirtyComponent& dirty = world.getComponent<RenderDirtyComponent>(entity);
+                dirty.meshDirty = true;
+                dirty.materialDirty = true;
+                dirty.objectDataDirty = true;
+            }
 
-            if (world.hasComponent<RenderGpuComponent>(entity))
-                world.getComponent<RenderGpuComponent>(entity).commandDirty = true;
+            gts::rendering::queueRenderSnapshotDirty(world, entity);
         }
 
         static void appendLineBox(std::vector<Vertex>& vertices,

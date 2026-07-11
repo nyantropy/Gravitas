@@ -5,10 +5,8 @@
 #include "WorldTextComponent.h"
 #include "WorldTextRuntimeComponent.h"
 #include "BoundsComponent.h"
-#include "MeshGpuComponent.h"
 #include "MaterialGpuComponent.h"
-#include "RenderDirtyComponent.h"
-#include "RenderGpuComponent.h"
+#include "MeshGpuComponent.h"
 #include "TransformComponent.h"
 #include "GlyphLayoutEngine.h"
 #include "Vertex.h"
@@ -33,7 +31,7 @@ public:
         {
             if (wtc.text.empty() || wtc.fontPath.empty())
             {
-                cleanupRenderable(ctx.world, commands, e, runtime, wtc);
+                cleanupTextMesh(ctx.world, commands, e, runtime, wtc);
                 return;
             }
 
@@ -46,36 +44,25 @@ public:
             const BitmapFont* font = ctx.resources->getFont(runtime.fontID);
             if (font == nullptr)
             {
-                cleanupRenderable(ctx.world, commands, e, runtime, wtc);
+                cleanupTextMesh(ctx.world, commands, e, runtime, wtc);
                 return;
             }
 
             const bool hasMeshGpu = ctx.world.hasComponent<MeshGpuComponent>(e);
-            const bool hasMatGpu = ctx.world.hasComponent<MaterialGpuComponent>(e);
-            const bool hasRenderGpu = ctx.world.hasComponent<RenderGpuComponent>(e);
-            const bool hasDirty = ctx.world.hasComponent<RenderDirtyComponent>(e);
 
             MeshGpuComponent meshGpu = hasMeshGpu ? ctx.world.getComponent<MeshGpuComponent>(e) : MeshGpuComponent{};
-            MaterialGpuComponent matGpu = hasMatGpu ? ctx.world.getComponent<MaterialGpuComponent>(e) : MaterialGpuComponent{};
-            RenderGpuComponent rc = hasRenderGpu ? ctx.world.getComponent<RenderGpuComponent>(e) : RenderGpuComponent{};
-            RenderDirtyComponent dirty = hasDirty ? ctx.world.getComponent<RenderDirtyComponent>(e) : RenderDirtyComponent{};
-            bool renderStateChanged = false;
 
             const bool layoutChanged = textLayoutChanged(wtc, runtime);
+            const bool materialChanged =
+                !ctx.world.hasComponent<MaterialGpuComponent>(e)
+                || !runtime.initialized
+                || runtime.lastTint != wtc.tint
+                || runtime.lastFontPath != wtc.fontPath;
             const bool needsMeshUpload =
                 layoutChanged
                 || !hasMeshGpu
                 || meshGpu.meshID == 0
                 || !meshGpu.ownsProceduralMeshResource;
-            const bool materialChanged =
-                matGpu.textureID != font->atlasTexture
-                || matGpu.tint != wtc.tint
-                || matGpu.blendMode != MaterialBlendMode::Alpha
-                || !matGpu.doubleSided
-                || matGpu.vertexColorOnly
-                || !matGpu.depthWrite
-                || !runtime.initialized
-                || runtime.lastTint != wtc.tint;
 
             if (needsMeshUpload)
             {
@@ -85,7 +72,7 @@ public:
 
                 if (verts.empty() || indices.empty())
                 {
-                    cleanupRenderable(ctx.world, commands, e, runtime, wtc);
+                    cleanupTextMesh(ctx.world, commands, e, runtime, wtc);
                     return;
                 }
 
@@ -96,34 +83,14 @@ public:
                 meshGpu.boundQuadWidth = 0.0f;
                 meshGpu.boundQuadHeight = 0.0f;
                 meshGpu.boundDynamicGeometryVersion = 0;
-                dirty.meshDirty = true;
-                gts::rendering::markRenderableDirty(dirty, rc);
                 updateBounds(ctx.world, e, verts);
-                renderStateChanged = true;
-            }
 
-            if (rc.objectSSBOSlot == RENDERABLE_SLOT_UNALLOCATED)
-            {
-                rc.objectSSBOSlot = ctx.resources->requestObjectSlot();
-                rc.commandDirty = true;
-                renderStateChanged = true;
+                gts::rendering::markMeshRepresentationDirty(ctx.world, e);
+                gts::rendering::queueRenderObjectRefresh(ctx.world, e);
             }
 
             if (materialChanged)
-            {
-                dirty.materialDirty = true;
-                dirty.objectDataDirty = true;
-                rc.commandDirty = true;
-                renderStateChanged = true;
-            }
-
-            matGpu.textureID = font->atlasTexture;
-            matGpu.tint = wtc.tint;
-            matGpu.blendMode = MaterialBlendMode::Alpha;
-            matGpu.doubleSided = true;
-            matGpu.vertexColorOnly = false;
-            matGpu.depthWrite = true;
-            matGpu.boundTexturePath = wtc.fontPath;
+                gts::rendering::queueMaterialRefresh(ctx.world, e);
             cacheDescriptor(runtime, wtc);
 
             if (hasMeshGpu)
@@ -131,22 +98,7 @@ public:
             else
                 commands.addComponent<MeshGpuComponent>(e, meshGpu);
 
-            if (hasMatGpu)
-                ctx.world.getComponent<MaterialGpuComponent>(e) = matGpu;
-            else
-                commands.addComponent<MaterialGpuComponent>(e, matGpu);
-
-            if (hasRenderGpu)
-                ctx.world.getComponent<RenderGpuComponent>(e) = rc;
-            else
-                commands.addComponent<RenderGpuComponent>(e, rc);
-
-            if (hasDirty)
-                ctx.world.getComponent<RenderDirtyComponent>(e) = dirty;
-            else
-                commands.addComponent<RenderDirtyComponent>(e, dirty);
-
-            if (renderStateChanged)
+            if (needsMeshUpload)
                 gts::transform::markDirty(ctx.world, e);
         });
     }
@@ -171,13 +123,14 @@ private:
         runtime.initialized = true;
     }
 
-    static void cleanupRenderable(ECSWorld& world,
-                                  ECSWorld::EntityCommandBuffer& commands,
-                                  Entity entity,
-                                  WorldTextRuntimeComponent& runtime,
-                                  const WorldTextComponent& text)
+    static void cleanupTextMesh(ECSWorld& world,
+                                ECSWorld::EntityCommandBuffer& commands,
+                                Entity entity,
+                                WorldTextRuntimeComponent& runtime,
+                                const WorldTextComponent& text)
     {
-        gts::rendering::scheduleRenderableCleanup(world, commands, entity);
+        gts::rendering::scheduleMeshGpuCleanup(world, commands, entity);
+        gts::rendering::queueRenderableCleanup(world, entity);
         runtime.lastText = text.text;
         runtime.lastFontPath = text.fontPath;
         runtime.lastScale = text.scale;

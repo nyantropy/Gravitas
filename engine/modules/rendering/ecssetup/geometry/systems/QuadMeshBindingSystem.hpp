@@ -1,13 +1,9 @@
 #pragma once
 
 #include "ECSControllerSystem.hpp"
-#include "QuadMeshComponent.h"
-#include "MaterialComponent.h"
-#include "MeshGpuComponent.h"
-#include "MaterialGpuComponent.h"
-#include "RenderDirtyComponent.h"
-#include "RenderGpuComponent.h"
 #include "GeometryBindingLifecycle.h"
+#include "MeshBindingLifecycle.h"
+#include "QuadMeshComponent.h"
 
 class QuadMeshBindingSystem : public ECSControllerSystem
 {
@@ -22,8 +18,7 @@ public:
         for (entity_id_type entityId : pendingQuads)
         {
             Entity entity{entityId};
-            if (!ctx.world.hasComponent<QuadMeshComponent>(entity)
-                || !ctx.world.hasComponent<MaterialComponent>(entity))
+            if (!ctx.world.hasComponent<QuadMeshComponent>(entity))
             {
                 continue;
             }

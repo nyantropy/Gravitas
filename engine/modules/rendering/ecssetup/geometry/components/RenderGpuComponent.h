@@ -22,9 +22,6 @@ constexpr ssbo_id_type RENDERABLE_SLOT_UNALLOCATED = std::numeric_limits<ssbo_id
 // readyToRender  : starts false; set true by RenderGpuSystem the first time it
 //   consumes a WorldTransformComponent. RenderCommandExtractor skips any entity
 //   where this is still false.
-// commandDirty   : marks that the cached RenderCommand needs to be rebuilt. Set
-//   by binding systems when mesh/material state changes and by RenderGpuSystem
-//   when the world-space model matrix changes.
 struct RenderGpuComponent
 {
     ssbo_id_type objectSSBOSlot = RENDERABLE_SLOT_UNALLOCATED;
@@ -32,5 +29,4 @@ struct RenderGpuComponent
     glm::vec4    uvTransform    = {1.0f, 1.0f, 0.0f, 0.0f};
     uint32_t     uploadedWorldTransformVersion = 0;
     bool         readyToRender  = false;
-    bool         commandDirty   = true;
 };
