@@ -15,7 +15,7 @@ namespace gts::transform
         resetTransformInvalidationState(world);
     }
 
-    inline void installTransformFeature(ECSWorld& world)
+    inline void installTransformRuntime(ECSWorld& world)
     {
         world.registerAddCallback<TransformComponent>(
             [](ECSWorld& world, Entity entity, TransformComponent&)
@@ -43,9 +43,20 @@ namespace gts::transform
             });
     }
 
-    inline void installTransformFeature(GtsScene& scene)
+    inline void installTransformResolver(ECSWorld& world)
     {
-        if (!scene.markSceneFeatureInstalled("transform"))
+        world.addControllerSystem<TransformSystem>(EcsSystemGroup::RenderPrep);
+    }
+
+    inline void installTransformFeature(ECSWorld& world)
+    {
+        installTransformRuntime(world);
+        installTransformResolver(world);
+    }
+
+    inline void installTransformRuntime(GtsScene& scene)
+    {
+        if (!scene.markSceneFeatureInstalled("transform-runtime"))
             return;
 
         scene.registerSceneResetHook(
@@ -54,6 +65,20 @@ namespace gts::transform
                 resetTransformSceneFeature(world);
             });
 
-        installTransformFeature(scene.getWorld());
+        installTransformRuntime(scene.getWorld());
+    }
+
+    inline void installTransformResolver(GtsScene& scene)
+    {
+        if (!scene.markSceneFeatureInstalled("transform-resolver"))
+            return;
+
+        installTransformResolver(scene.getWorld());
+    }
+
+    inline void installTransformFeature(GtsScene& scene)
+    {
+        installTransformRuntime(scene);
+        installTransformResolver(scene);
     }
 }

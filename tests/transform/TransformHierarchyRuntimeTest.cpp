@@ -4,6 +4,7 @@
 
 #include "ECSWorld.hpp"
 #include "EcsControllerContext.hpp"
+#include "ECSControllerSystem.hpp"
 #include "GlmConfig.h"
 #include "HierarchyComponent.h"
 #include "TransformComponent.h"
@@ -53,6 +54,52 @@ namespace
         world.addComponent(entity, transform);
         return entity;
     }
+
+    class MoveTransformController : public ECSControllerSystem
+    {
+    public:
+        MoveTransformController(Entity entity, glm::vec3 position)
+            : entity(entity)
+            , position(position)
+        {
+        }
+
+        void update(const EcsControllerContext& ctx) override
+        {
+            auto& transform = ctx.world.getComponent<TransformComponent>(entity);
+            transform.position = position;
+            gts::transform::markDirty(ctx.world, entity);
+        }
+
+    private:
+        Entity entity;
+        glm::vec3 position;
+    };
+
+    class CaptureWorldTransformController : public ECSControllerSystem
+    {
+    public:
+        CaptureWorldTransformController(Entity entity, glm::vec3& captured, bool& capturedValue)
+            : entity(entity)
+            , captured(captured)
+            , capturedValue(capturedValue)
+        {
+        }
+
+        void update(const EcsControllerContext& ctx) override
+        {
+            if (!ctx.world.hasComponent<WorldTransformComponent>(entity))
+                return;
+
+            captured = worldPosition(ctx.world, entity);
+            capturedValue = true;
+        }
+
+    private:
+        Entity entity;
+        glm::vec3& captured;
+        bool& capturedValue;
+    };
 
     void resolveTransforms(ECSWorld& world)
     {
@@ -241,6 +288,33 @@ namespace
         return require(nearVec3(worldPosition(world, child), {2.0f, 3.0f, 4.0f}),
                        "non-uniform parent scale affects child world transform");
     }
+
+    bool resolverCanBeRegisteredAfterTransformWriters()
+    {
+        ECSWorld world;
+        gts::transform::installTransformRuntime(world);
+
+        const Entity entity = makeEntity(world, {0.0f, 0.0f, 0.0f});
+        glm::vec3 captured{0.0f};
+        bool capturedValue = false;
+
+        world.addControllerSystem<MoveTransformController>(
+            EcsSystemGroup::Camera,
+            entity,
+            glm::vec3{7.0f, 2.0f, -3.0f});
+        gts::transform::installTransformResolver(world);
+        world.addControllerSystem<CaptureWorldTransformController>(
+            EcsSystemGroup::RenderPrep,
+            entity,
+            captured,
+            capturedValue);
+
+        resolveTransforms(world);
+
+        return require(capturedValue, "post-resolver consumer sees world transform")
+            && require(nearVec3(captured, {7.0f, 2.0f, -3.0f}),
+                       "resolver registered after writer publishes current world transform");
+    }
 }
 
 int main()
@@ -256,6 +330,7 @@ int main()
     ok &= ancestorCyclesAreRejected();
     ok &= negativeScalePropagates();
     ok &= nonUniformScalePropagates();
+    ok &= resolverCanBeRegisteredAfterTransformWriters();
 
     if (!ok)
         return 1;

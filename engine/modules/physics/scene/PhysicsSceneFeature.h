@@ -13,7 +13,7 @@ namespace gts::physics
         if (!scene.markSceneFeatureInstalled("physics"))
             return;
 
-        gts::transform::installTransformFeature(scene);
+        gts::transform::installTransformRuntime(scene);
 
         PhysicsWorld& physicsWorld = scene.createSceneResource<PhysicsWorld>(&scene.getWorld());
         scene.setPhysicsModule(&physicsWorld);
