@@ -24,7 +24,7 @@ frame rate.
   extraction contracts, but Vulkan-specific types stay under
   `modules/rendering/backend/vulkan/`.
 - Base physics must not depend on rendering. Physics visualization belongs in
-  debug/bridge modules such as `debugdraw/physics/`.
+  diagnostics bridge modules such as `diagnostics/debugdraw/physics/`.
 - Tools and debug bridges are allowed to depend on multiple modules because
   integration is their purpose.
 - Public module headers should stay small and stable. Heavy implementation
@@ -51,7 +51,7 @@ Gravitas/
 │   │   ├── animation/      # Keyframe animation
 │   │   ├── tween/          # Reusable value tween/easing helpers
 │   │   ├── narrative/      # Headless narrative runtimes such as dialogue graphs
-│   │   ├── debugdraw/      # Debug primitives and module bridge renderers
+│   │   ├── diagnostics/    # Debug/diagnostic visualization modules
 │   │   ├── physics/        # Physics world, PhysicsSystem, body components
 │   │   ├── tools/          # Optional in-engine inspection/editing toolchain
 │   │   ├── visualnovel/    # VN stage, command runtime, and retained UI overlay
@@ -722,8 +722,8 @@ helpers.
 
 ### Debug Draw
 
-`modules/debugdraw/` is a standalone feature for transient visual diagnostics.
-Callers enqueue world-space primitives through helpers in
+`modules/diagnostics/debugdraw/` is a standalone feature for transient visual
+diagnostics. Callers enqueue world-space primitives through helpers in
 `DebugDrawPrimitives.h`; `DebugDrawSystem` batches those lines by color into
 dynamic meshes. Debug draw uses `MaterialComponent::vertexColorOnly` so axes,
 bounds, rays, and frusta are not dependent on sampled debug textures.
@@ -1540,4 +1540,4 @@ rather than a new panel registry.
 - **Separation of lifecycle concerns**: geometry lifecycle, camera lifecycle, cleanup, transform sync, and extraction are distinct stages with distinct ownership
 - **RAII resource management**: backend resources tied to GPU component lifecycle via removal callbacks
 - **Modular assembly**: scenes are built by adding systems and components — the engine imposes no mandatory scene structure
-- **Feature-first tooling**: editor/tooling panels live under `modules/tools/`, generic visualization under `modules/debugdraw/`, and runtime particle simulation under rendering particle ECS setup
+- **Feature-first tooling**: editor/tooling panels live under `modules/tools/`, generic visualization under `modules/diagnostics/debugdraw/`, and runtime particle simulation under rendering particle ECS setup
