@@ -16,6 +16,9 @@ layout(location = 2) out vec4 fragInstanceColor;
 layout(set = 0, binding = 0) uniform CameraUBO {
     mat4 view;
     mat4 proj;
+    vec4 cameraPosition;
+    vec4 lightDirectionIntensity;
+    vec4 lightColorAmbient;
 } cam;
 
 void main() {

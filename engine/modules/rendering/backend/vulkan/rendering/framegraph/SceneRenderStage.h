@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <vector>
@@ -32,6 +33,9 @@ class SceneRenderStage : public GtsRenderStage
     struct ScenePushConstants
     {
         int32_t vertexColorOnly = 0;
+        int32_t lit = 0;
+        float specularStrength = 0.5f;
+        float shininess = 32.0f;
     };
 
 public:
@@ -114,6 +118,16 @@ public:
         VulkanPipelineConfig pConfigAdditiveNoDepthDS = pConfigAdditiveNoDepth;
         pConfigAdditiveNoDepthDS.cullMode = VK_CULL_MODE_NONE;
         pipelineAdditiveNoDepthDoubleSided = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigAdditiveNoDepthDS);
+
+        pipelineLit = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfig);
+        pipelineLitDoubleSided = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigDS);
+        pipelineLitAlphaNoDepth = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigAlphaNoDepth);
+        pipelineLitAlphaNoDepthDoubleSided =
+            std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigAlphaNoDepthDS);
+        pipelineLitAdditiveNoDepth =
+            std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigAdditiveNoDepth);
+        pipelineLitAdditiveNoDepthDoubleSided =
+            std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfigAdditiveNoDepthDS);
 
         FramebufferManagerConfig fbConfig;
         fbConfig.colorImageViews     = colorImageViews;
@@ -252,6 +266,7 @@ private:
         uint32_t instanceCount = 0;
         MeshResource* mesh = nullptr;
         TextureResource* texture = nullptr;
+        bool litCompatible = true;
     };
 
     struct BatchRange
@@ -285,6 +300,12 @@ private:
     std::unique_ptr<VulkanPipeline>     pipelineAlphaNoDepthDoubleSided;
     std::unique_ptr<VulkanPipeline>     pipelineAdditiveNoDepth;
     std::unique_ptr<VulkanPipeline>     pipelineAdditiveNoDepthDoubleSided;
+    std::unique_ptr<VulkanPipeline>     pipelineLit;
+    std::unique_ptr<VulkanPipeline>     pipelineLitDoubleSided;
+    std::unique_ptr<VulkanPipeline>     pipelineLitAlphaNoDepth;
+    std::unique_ptr<VulkanPipeline>     pipelineLitAlphaNoDepthDoubleSided;
+    std::unique_ptr<VulkanPipeline>     pipelineLitAdditiveNoDepth;
+    std::unique_ptr<VulkanPipeline>     pipelineLitAdditiveNoDepthDoubleSided;
     std::unique_ptr<FramebufferManager> framebuffers;
     RenderResourceManager*              resources = nullptr;
     ThreadPool*                         threadPool = nullptr;
@@ -314,6 +335,7 @@ private:
     std::vector<BatchRange>             chunkRanges;
     std::vector<VkCommandBuffer>        secondaryExecutionBuffers;
     std::vector<ChunkStats>             chunkStats;
+    bool                                litCompatibilityWarningLogged = false;
 
     const std::vector<RenderCommand>& resolveRenderList(GtsFrameGraph& graph) const
     {
@@ -499,6 +521,15 @@ private:
             batch.instanceOffset = instanceHead;
             batch.mesh = resources->getMesh(first.meshID);
             batch.texture = resources->getTexture(firstMaterial->baseColorTextureID);
+            batch.litCompatible = litMaterialCompatible(batch);
+            if (!batch.litCompatible && !litCompatibilityWarningLogged)
+            {
+                std::cerr
+                    << "[rendering] StandardSurface material requires normals; "
+                    << "falling back to unlit shading for incompatible mesh "
+                    << first.meshID << ".\n";
+                litCompatibilityWarningLogged = true;
+            }
 
             while (i < renderList.size())
             {
@@ -523,8 +554,17 @@ private:
 
     VulkanPipeline* selectPipeline(const PreparedBatch& batch) const
     {
+        const bool lit = shouldShadeLit(batch);
+
         if (batch.material.renderState.legacyBlendMode == MaterialBlendMode::Additive)
         {
+            if (lit)
+            {
+                return batch.material.renderState.doubleSided
+                    ? pipelineLitAdditiveNoDepthDoubleSided.get()
+                    : pipelineLitAdditiveNoDepth.get();
+            }
+
             return batch.material.renderState.doubleSided
                 ? pipelineAdditiveNoDepthDoubleSided.get()
                 : pipelineAdditiveNoDepth.get();
@@ -532,14 +572,44 @@ private:
 
         if (!batch.material.renderState.depthWrite)
         {
+            if (lit)
+            {
+                return batch.material.renderState.doubleSided
+                    ? pipelineLitAlphaNoDepthDoubleSided.get()
+                    : pipelineLitAlphaNoDepth.get();
+            }
+
             return batch.material.renderState.doubleSided
                 ? pipelineAlphaNoDepthDoubleSided.get()
                 : pipelineAlphaNoDepth.get();
         }
 
+        if (lit)
+        {
+            return batch.material.renderState.doubleSided
+                ? pipelineLitDoubleSided.get()
+                : pipelineLit.get();
+        }
+
         return batch.material.renderState.doubleSided
             ? pipelineDoubleSided.get()
             : pipeline.get();
+    }
+
+    static bool shouldShadeLit(const PreparedBatch& batch)
+    {
+        return batch.material.shaderFamily == MaterialShaderFamily::StandardSurface
+            && !batch.material.vertexColorOnly
+            && batch.litCompatible;
+    }
+
+    static bool litMaterialCompatible(const PreparedBatch& batch)
+    {
+        if (batch.material.shaderFamily != MaterialShaderFamily::StandardSurface)
+            return true;
+
+        return batch.mesh != nullptr
+            && hasVertexAttribute(batch.mesh->metadata.attributes, VertexAttributeFlags::Normal);
     }
 
     GlobalDescriptorSets resolveGlobalDescriptorSets(uint32_t currentFrame, view_id_type cameraViewID) const
@@ -573,6 +643,9 @@ private:
         mesh_id_type    boundMesh     = static_cast<mesh_id_type>(-1);
         texture_id_type boundTexture  = static_cast<texture_id_type>(-1);
         bool            boundVertexColorOnly = false;
+        bool            boundLit = false;
+        float           boundSpecularStrength = -1.0f;
+        float           boundShininess = -1.0f;
         bool            hasBoundPushConstants = false;
 
         for (uint32_t batchIndex = batchStart; batchIndex < batchEnd; ++batchIndex)
@@ -611,16 +684,26 @@ private:
                 stats.textureSwitches += 1;
             }
 
+            const bool lit = shouldShadeLit(batch);
             if (!hasBoundPushConstants
-                || batch.material.vertexColorOnly != boundVertexColorOnly)
+                || batch.material.vertexColorOnly != boundVertexColorOnly
+                || lit != boundLit
+                || batch.material.specularStrength != boundSpecularStrength
+                || batch.material.shininess != boundShininess)
             {
                 const ScenePushConstants pushConstants{
-                    batch.material.vertexColorOnly ? 1 : 0
+                    batch.material.vertexColorOnly ? 1 : 0,
+                    lit ? 1 : 0,
+                    batch.material.specularStrength,
+                    batch.material.shininess
                 };
                 vkCmdPushConstants(cmd, activePipeline->getPipelineLayout(),
                                    VK_SHADER_STAGE_FRAGMENT_BIT,
                                    0, sizeof(ScenePushConstants), &pushConstants);
                 boundVertexColorOnly = batch.material.vertexColorOnly;
+                boundLit = lit;
+                boundSpecularStrength = batch.material.specularStrength;
+                boundShininess = batch.material.shininess;
                 hasBoundPushConstants = true;
             }
 

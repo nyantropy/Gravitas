@@ -6,6 +6,7 @@
 
 #include "Entity.h"
 #include "GlmConfig.h"
+#include "LightingFrameData.h"
 #include "RenderCommand.h"
 #include "Types.h"
 
@@ -51,8 +52,11 @@ struct RenderExtractionSnapshot
     std::vector<ObjectUploadCommand> objectUploads;
     std::vector<CameraUploadCommand> cameraUploads;
     MaterialFrameData                materialFrameData;
+    gts::rendering::DirectionalLightFrameData directionalLight =
+        gts::rendering::defaultDirectionalLightFrameData();
     FrustumPlanes                    frustum{};
     glm::mat4                        cameraViewMatrix = glm::mat4(1.0f);
+    glm::vec3                        cameraWorldPosition = {0.0f, 0.0f, 0.0f};
     view_id_type                     cameraViewID = 0;
     // Monotonic versions let downstream render stages skip full scans when
     // renderable data and visibility results are unchanged.

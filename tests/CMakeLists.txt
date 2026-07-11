@@ -107,6 +107,24 @@ set_tests_properties(geometry_pbr_preparation
         LABELS "gravitas;rendering;geometry"
 )
 
+add_executable(FirstLitRendererArchitectureTest
+    rendering/FirstLitRendererArchitectureTest.cpp
+)
+
+target_compile_features(FirstLitRendererArchitectureTest PRIVATE cxx_std_20)
+
+target_link_libraries(FirstLitRendererArchitectureTest PRIVATE gravitas_rendering)
+
+add_test(
+    NAME first_lit_renderer_architecture
+    COMMAND FirstLitRendererArchitectureTest
+)
+
+set_tests_properties(first_lit_renderer_architecture
+    PROPERTIES
+        LABELS "gravitas;rendering;lighting"
+)
+
 add_executable(UiLayerRuntimeTest
     ui/UiLayerRuntimeTest.cpp
 )

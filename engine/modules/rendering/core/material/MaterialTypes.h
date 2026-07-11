@@ -149,6 +149,8 @@ struct MaterialInstance
     MaterialDefinitionHandle definition;
     glm::vec4 baseColor = {1.0f, 1.0f, 1.0f, 1.0f};
     MaterialTextureBinding baseColorTexture = MaterialTextureBinding::assetPath({});
+    float specularStrength = 0.5f;
+    float shininess = 32.0f;
     MaterialRenderState renderState{};
     bool vertexColorOnly = false;
     uint64_t version = 1;
@@ -174,9 +176,12 @@ struct MaterialGpuState
     MaterialGpuHandle gpuHandle;
     MaterialInstanceHandle instance;
     uint64_t uploadedVersion = 0;
+    MaterialShaderFamily shaderFamily = MaterialShaderFamily::LegacyUnlit;
     texture_id_type baseColorTextureID = 0;
     std::string boundTexturePath;
     glm::vec4 baseColor = {1.0f, 1.0f, 1.0f, 1.0f};
+    float specularStrength = 0.5f;
+    float shininess = 32.0f;
     MaterialRenderState renderState{};
     bool vertexColorOnly = false;
     MaterialVariantKey variantKey{};
@@ -197,11 +202,14 @@ struct MaterialFrameState
     MaterialVariantKey variantKey{};
     RenderQueue renderQueue = RenderQueue::Opaque;
     uint64_t uploadedVersion = 0;
+    MaterialShaderFamily shaderFamily = MaterialShaderFamily::LegacyUnlit;
 
     // Temporary Vulkan compatibility data. These fields are material-owned
     // cache state; render commands and object uploads must not duplicate them.
     texture_id_type baseColorTextureID = 0;
     glm::vec4 baseColor = {1.0f, 1.0f, 1.0f, 1.0f};
+    float specularStrength = 0.5f;
+    float shininess = 32.0f;
     MaterialRenderState renderState{};
     bool vertexColorOnly = false;
 };
@@ -285,8 +293,11 @@ inline MaterialFrameState makeMaterialFrameState(const MaterialGpuState& state)
         state.variantKey,
         renderQueueForAlphaMode(state.renderState.alphaMode),
         state.uploadedVersion,
+        state.shaderFamily,
         state.baseColorTextureID,
         state.baseColor,
+        state.specularStrength,
+        state.shininess,
         state.renderState,
         state.vertexColorOnly
     };

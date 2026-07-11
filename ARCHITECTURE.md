@@ -353,7 +353,7 @@ material; it does not own the material.
 `MaterialRuntime` is the CPU-side owner for:
 
 - `MaterialDefinition`: backend-independent material structure, currently
-  `LegacyUnlit` or a future `StandardSurface`
+  `LegacyUnlit` or `StandardSurface`
 - `MaterialInstance`: shared material parameter values, texture assignment,
   render state, vertex-color-only mode, and an authoritative `version`
 - `MaterialGpuState`: a generic cached representation keyed by
@@ -386,14 +386,23 @@ generation and font resolution. `MaterialBindingSystem` creates or updates the
 world-text material instance from the font atlas texture and text tint.
 
 Shared material state currently includes texture assignment, base color/tint,
-alpha mode, alpha cutoff, double-sided state, depth-write state, legacy
-alpha/additive blend selection, and vertex-color-only mode. Per-object state
-remains in `RenderGpuComponent` and object uploads: model matrix, UV animation
-transform, and future object-specific IDs or overrides. Tint/base color is a
-shared material value. It is no longer part of generic object upload data; the
-current Vulkan backend still writes the scene shader's temporary object tint
-field from material frame state until base color moves into real material
-descriptor data.
+temporary lit parameters (`specularStrength`, `shininess`), alpha mode, alpha
+cutoff, double-sided state, depth-write state, legacy alpha/additive blend
+selection, and vertex-color-only mode. Per-object state remains in
+`RenderGpuComponent` and object uploads: model matrix, UV animation transform,
+and future object-specific IDs or overrides. Tint/base color is a shared
+material value. It is no longer part of generic object upload data; the current
+Vulkan backend still writes the scene shader's temporary object tint field from
+material frame state until base color moves into real material descriptor data.
+
+`LegacyUnlit` and `StandardSurface` are explicit shader families. `LegacyUnlit`
+samples texture/base color without scene lighting and is the correct default for
+world text, debug draw, particles, tool visuals, and UI-like world geometry.
+`StandardSurface` is the first lit scene-material family. In Phase 3A it uses a
+temporary ambient + Lambert diffuse + Blinn-Phong-style specular model. The
+temporary `specularStrength` and `shininess` fields are material parameters and
+do not affect `MaterialVariantKey`; `shininess` is expected to be replaced by
+roughness when metallic-roughness PBR lands.
 
 Alpha semantics use `MaterialAlphaMode`:
 
@@ -406,6 +415,39 @@ The legacy `MaterialBlendMode` is retained only as a Phase 2C compatibility
 field inside material runtime/backend compatibility code so the current Vulkan
 scene stage can still select alpha/additive pipelines. It is not an
 authoritative render-command field.
+
+### Scene Lighting
+
+Lights are scene data. Applications author `DirectionalLightComponent` on an
+entity, while direction is resolved from that entity's
+`WorldTransformComponent`. Directional lights follow this convention:
+
+- local `-Z` is the direction light rays travel
+- shaders receive the opposite vector, local `+Z` transformed to world space,
+  as `directionToLight`
+
+Phase 3A supports one active directional light. Selection is explicit:
+`DirectionalLightComponent::active` marks candidates, disabled lights are
+ignored, and the first enabled active light in deterministic entity-ID order is
+used. If no active directional light exists, lit materials receive ambient
+contribution only.
+
+Light extraction happens before backend submission and publishes
+backend-independent `DirectionalLightFrameData`:
+
+```
+DirectionalLightFrameData {
+    glm::vec3 directionToLight
+    float     intensity
+    glm::vec3 color
+    float     ambientIntensity
+    bool      active
+}
+```
+
+The Vulkan backend stores this frame light data in the existing camera/frame
+UBO alongside view/projection and camera world position. It does not search ECS
+for lights, and light state is not duplicated per material or per object.
 
 Scene-level render pass visibility is controlled at two layers. The stronger
 layer is the active `SceneExecutionProfile`: its `FrameBuildMode` determines
@@ -427,12 +469,13 @@ plus transform/control descriptors. The engine-owned camera lifecycle
 creates/removes `CameraGpuComponent`, `CameraGpuSystem` computes matrices, and
 `CameraBindingSystem` allocates the stable camera view ID. The renderer owns the
 actual camera UBO upload: extraction packages the active camera matrices into
-`CameraUploadCommand`, and `ForwardRenderer` writes the current frame's camera
-UBO only after waiting for that frame's fence. This keeps camera data in sync
-with uncapped rendering without racing frames in flight. Engine consumers that
-need final matrices outside the renderer should read the read-only
-`ActiveCameraViewStateComponent` singleton instead of touching GPU companion
-components directly.
+`CameraUploadCommand` together with camera world position and extracted
+directional-light frame data, and `ForwardRenderer` writes the current frame's
+camera UBO only after waiting for that frame's fence. This keeps camera/light
+frame data in sync with uncapped rendering without racing frames in flight.
+Engine consumers that need final camera matrices outside the renderer should
+read the read-only `ActiveCameraViewStateComponent` singleton instead of
+touching GPU companion components directly.
 
 ### Scene Lifetime
 
@@ -554,15 +597,19 @@ Preliminary material/mesh compatibility:
   color is optional and defaults to white
 - `LegacyUnlit` with `vertexColorOnly`: requires position and meaningful color
   for useful output, but remains unlit
-- future `StandardSurface`: requires position and normal
+- `StandardSurface`: requires position and normal for lit rendering
 - future `StandardSurface` with normal mapping: requires position, normal,
   tangent, and UV
 
-Phase 3 lighting should initially derive the normal matrix in shader from the
-model matrix (`mat3(transpose(inverse(model)))`) rather than expanding object
-upload data immediately. If profiling later shows this is a bottleneck, the
-renderer can add a versioned per-object normal-matrix upload without changing
-geometry ownership.
+Phase 3A derives the normal matrix in the scene vertex shader from the model
+matrix (`mat3(transpose(inverse(model)))`) rather than expanding object upload
+data immediately. If profiling later shows this is a bottleneck, the renderer
+can add a versioned per-object normal-matrix upload without changing geometry
+ownership.
+
+If a `StandardSurface` batch reaches the backend without normal-capable mesh
+metadata, the scene stage emits a diagnostic and falls back to unlit shading for
+that incompatible batch. Tangents are not required until normal mapping lands.
 
 ### GPU Components (engine-managed)
 
@@ -719,6 +766,8 @@ CameraUploadCommand {
     view_id_type cameraViewID
     glm::mat4    viewMatrix
     glm::mat4    projMatrix
+    glm::vec3    cameraWorldPosition
+    DirectionalLightFrameData directionalLight
 }
 ```
 
@@ -726,12 +775,58 @@ Object uploads are generated only for renderables marked dirty by the render
 invalidation queue. They carry the full per-object scene data, currently the
 model matrix and scene-material UV transform. Camera uploads are generated every
 extracted frame for the active camera and consumed by the renderer after the
-current-frame fence wait.
+current-frame fence wait. The camera UBO is frame-level data: scene shaders use
+it for view/projection, camera world position for specular lighting, and the
+extracted directional-light frame data.
 
 `vertexColorOnly` is a material variant flag for tool and debug meshes that
 should render from authored vertex colors without sampling a color texture. The
 regular material texture path remains the default for application-authored
 geometry.
+
+### First Lit Scene Pipeline
+
+Scene shading is world-space in Phase 3A:
+
+- the vertex shader transforms positions to world space
+- the vertex shader derives `transpose(inverse(mat3(modelMatrix)))` for
+  world-space normals
+- the fragment shader reads camera world position and `DirectionalLightFrameData`
+  from the frame/camera UBO
+- `StandardSurface` materials evaluate ambient + Lambert diffuse +
+  Blinn-Phong-style specular
+- `LegacyUnlit` materials ignore light data and remain explicitly unlit
+
+The lighting equation is transitional and intentionally not described as PBR.
+It exists to prove that light descriptors, world transforms, geometry normals,
+material identity, camera frame data, and backend pipeline selection are flowing
+through the right ownership boundaries before the metallic-roughness BRDF is
+introduced.
+
+`MaterialVariantKey` includes shader family and topology-relevant flags such as
+alpha mode, double-sided state, temporary legacy blend mode, depth-write state,
+and vertex-color-only mode. It does not include ordinary material parameters:
+base color, texture assignment, `specularStrength`, or `shininess`. Changing
+those parameters updates material GPU/frame data without recreating meshes,
+object slots, or command topology. Changing shader family updates the variant
+key and command ordering.
+
+The Vulkan scene stage selects lit or unlit pipeline variants from
+`MaterialFrameState::shaderFamily` and the batch compatibility result. The
+current implementation still uses the same scene shader module with an explicit
+lit push-constant flag; the material family remains the authoritative shader
+selection input, and later PBR shader modules can replace this compatibility
+shader without changing extraction or material ownership.
+
+Current color-space behavior:
+
+- regular loaded textures are uploaded as `VK_FORMAT_R8G8B8A8_SRGB`, so color
+  texture samples are decoded before lighting math
+- swapchain/headless frame output prefers sRGB color formats, so shader outputs
+  are encoded by the framebuffer path
+- the engine does not yet distinguish color textures from future data textures
+  such as normal, roughness, or metallic maps; Phase 3B must make that split
+  explicit before full PBR
 
 ### Scene Texture Animation
 

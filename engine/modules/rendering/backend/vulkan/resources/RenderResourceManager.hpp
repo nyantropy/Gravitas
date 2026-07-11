@@ -7,6 +7,7 @@
 #include "TextureManager.hpp"
 #include "FontManager.hpp"
 #include "CameraBufferManager.hpp"
+#include "LightingFrameData.h"
 #include "ObjectSSBOManager.hpp"
 #include "Types.h"
 #include "VulkanBackendContext.h"
@@ -161,9 +162,17 @@ class RenderResourceManager : public IResourceProvider
         void uploadCameraViewFrame(uint32_t frameIndex,
                                    view_id_type id,
                                    const glm::mat4& view,
-                                   const glm::mat4& proj)
+                                   const glm::mat4& proj,
+                                   const glm::vec3& cameraWorldPosition,
+                                   const gts::rendering::DirectionalLightFrameData& directionalLight)
         {
-            cameraBufferManager->uploadViewFrame(frameIndex, id, view, proj);
+            cameraBufferManager->uploadViewFrame(
+                frameIndex,
+                id,
+                view,
+                proj,
+                cameraWorldPosition,
+                directionalLight);
         }
 
         // Backend-only: returns raw GPU resource for descriptor-set binding.

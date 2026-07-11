@@ -35,6 +35,7 @@ target_include_directories(gravitas_rendering PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/core/commands"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/geometry"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/init"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/lighting"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/material"
 
     # Abstract interfaces (IGtsGraphicsModule, IResourceProvider)
@@ -69,6 +70,8 @@ target_include_directories(gravitas_rendering PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/extraction/frustumcull/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/geometry/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/geometry/systems"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/lighting/components"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/lighting/systems"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/particles/assets"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/particles/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/particles/extraction"

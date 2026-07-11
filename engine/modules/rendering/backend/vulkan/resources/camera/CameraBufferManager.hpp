@@ -11,6 +11,7 @@
 #include "CameraBufferResource.h"
 #include "CameraUBO.h"
 #include "GraphicsConstants.h"
+#include "LightingFrameData.h"
 #include "Types.h"
 
 // Manages camera (view) UBOs exclusively.
@@ -109,9 +110,11 @@ class CameraBufferManager
             CameraBufferResource* res = getView(id);
             if (!res) return;
 
-            CameraUBO ubo;
-            ubo.view = view;
-            ubo.proj = proj;
+            const CameraUBO ubo = makeCameraUbo(
+                view,
+                proj,
+                {0.0f, 0.0f, 0.0f},
+                gts::rendering::defaultDirectionalLightFrameData());
 
             for (void* mapped : res->uniformBuffersMapped)
                 memcpy(mapped, &ubo, sizeof(CameraUBO));
@@ -122,19 +125,40 @@ class CameraBufferManager
         void uploadViewFrame(uint32_t frameIndex,
                              view_id_type id,
                              const glm::mat4& view,
-                             const glm::mat4& proj)
+                             const glm::mat4& proj,
+                             const glm::vec3& cameraWorldPosition,
+                             const gts::rendering::DirectionalLightFrameData& directionalLight)
         {
             CameraBufferResource* res = getView(id);
             if (!res || frameIndex >= res->uniformBuffersMapped.size())
                 return;
 
-            CameraUBO ubo;
-            ubo.view = view;
-            ubo.proj = proj;
+            const CameraUBO ubo = makeCameraUbo(view, proj, cameraWorldPosition, directionalLight);
             memcpy(res->uniformBuffersMapped[frameIndex], &ubo, sizeof(CameraUBO));
         }
 
     private:
+        static CameraUBO makeCameraUbo(
+            const glm::mat4& view,
+            const glm::mat4& proj,
+            const glm::vec3& cameraWorldPosition,
+            const gts::rendering::DirectionalLightFrameData& directionalLight)
+        {
+            CameraUBO ubo;
+            ubo.view = view;
+            ubo.proj = proj;
+            ubo.cameraPosition = {cameraWorldPosition, 1.0f};
+            ubo.lightDirectionIntensity = {
+                directionalLight.directionToLight,
+                directionalLight.active ? directionalLight.intensity : 0.0f
+            };
+            ubo.lightColorAmbient = {
+                directionalLight.color,
+                directionalLight.ambientIntensity
+            };
+            return ubo;
+        }
+
         VulkanBackendContext& backendContext;
         DescriptorSetManager& descriptorSetManager;
         std::unordered_map<view_id_type, std::unique_ptr<CameraBufferResource>> idToView;

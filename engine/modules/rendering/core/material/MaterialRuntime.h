@@ -169,8 +169,11 @@ namespace gts::rendering
             MaterialGpuState next = state;
             next.instance = handle;
             next.uploadedVersion = instance->version;
+            next.shaderFamily = shaderFamily;
             next.baseColorTextureID = textureID;
             next.baseColor = instance->baseColor;
+            next.specularStrength = instance->specularStrength;
+            next.shininess = instance->shininess;
             next.renderState = instance->renderState;
             next.vertexColorOnly = instance->vertexColorOnly;
             next.variantKey = makeMaterialVariantKey(shaderFamily, *instance);
@@ -180,14 +183,19 @@ namespace gts::rendering
 
             const bool textureChanged = inserted || state.baseColorTextureID != next.baseColorTextureID;
             const bool colorChanged = inserted || state.baseColor != next.baseColor;
+            const bool litParameterChanged =
+                inserted
+                || state.specularStrength != next.specularStrength
+                || state.shininess != next.shininess;
             const bool topologyChanged =
-                state.renderState.alphaMode != next.renderState.alphaMode
+                state.shaderFamily != next.shaderFamily
+                || state.renderState.alphaMode != next.renderState.alphaMode
                 || state.renderState.legacyBlendMode != next.renderState.legacyBlendMode
                 || state.renderState.doubleSided != next.renderState.doubleSided
                 || state.renderState.depthWrite != next.renderState.depthWrite
                 || state.vertexColorOnly != next.vertexColorOnly
                 || state.variantKey != next.variantKey;
-            const bool parameterChanged = textureChanged || colorChanged;
+            const bool parameterChanged = textureChanged || colorChanged || litParameterChanged;
             const bool versionChanged = state.uploadedVersion != next.uploadedVersion;
             const bool changed = inserted || versionChanged || topologyChanged || parameterChanged;
 

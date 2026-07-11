@@ -8,6 +8,7 @@
 #include "BoundsComponent.h"
 #include "CameraGpuComponent.h"
 #include "CullFlagsComponent.h"
+#include "DirectionalLightExtraction.h"
 #include "ECSWorld.hpp"
 #include "FrustumCuller.h"
 #include "GraphicsConstants.h"
@@ -19,6 +20,8 @@
 #include "RenderGpuComponent.h"
 #include "RenderInvalidationLifecycle.h"
 #include "RenderStaticTag.h"
+#include "TransformMatrixHelpers.h"
+#include "WorldTransformComponent.h"
 
 class RenderExtractionSnapshotBuilder
 {
@@ -57,6 +60,8 @@ class RenderExtractionSnapshotBuilder
         snapshot.cameraViewID  = 0;
         snapshot.frustum.fill(glm::vec4(0.0f));
         snapshot.cameraViewMatrix = glm::mat4(1.0f);
+        snapshot.cameraWorldPosition = {0.0f, 0.0f, 0.0f};
+        snapshot.directionalLight = gts::rendering::extractDirectionalLightFrameData(world);
         snapshot.objectUploads.clear();
         snapshot.cameraUploads.clear();
         snapshot.materialFrameData.clear();
@@ -68,7 +73,7 @@ class RenderExtractionSnapshotBuilder
         snapshot.objectUploads.reserve(invalidation.snapshotDirtyEntities.size());
 
         world.forEach<CameraGpuComponent>(
-            [&](Entity, CameraGpuComponent& gpu)
+            [&](Entity entity, CameraGpuComponent& gpu)
             {
                 if (snapshot.cameraViewID != 0)
                     return;
@@ -78,10 +83,17 @@ class RenderExtractionSnapshotBuilder
 
                 snapshot.cameraViewID = gpu.viewID;
                 snapshot.cameraViewMatrix = gpu.viewMatrix;
+                snapshot.cameraWorldPosition = cameraWorldPosition(world, entity, gpu.viewMatrix);
                 snapshot.frustum      = FrustumCuller::extractPlanesFromMatrix(gpu.projMatrix * gpu.viewMatrix);
                 if (gpu.viewID != 0)
                 {
-                    snapshot.cameraUploads.push_back({gpu.viewID, gpu.viewMatrix, gpu.projMatrix});
+                    snapshot.cameraUploads.push_back({
+                        gpu.viewID,
+                        gpu.viewMatrix,
+                        gpu.projMatrix,
+                        snapshot.cameraWorldPosition,
+                        snapshot.directionalLight
+                    });
                 }
             });
         const bool cameraChanged = updateCameraVersion();
@@ -252,6 +264,7 @@ class RenderExtractionSnapshotBuilder
         cameraVersion           = 0;
         lastFrustum.fill(glm::vec4(0.0f));
         lastCameraViewID = 0;
+        lastCameraPosition = {0.0f, 0.0f, 0.0f};
         lastMetrics      = {};
         m_snapshotDirty  = true;
     }
@@ -303,6 +316,7 @@ class RenderExtractionSnapshotBuilder
     uint64_t                                   cameraVersion   = 0;
     FrustumPlanes                              lastFrustum{};
     view_id_type                               lastCameraViewID       = 0;
+    glm::vec3                                  lastCameraPosition     = {0.0f, 0.0f, 0.0f};
     bool                                       cameraCacheValid       = false;
     uint32_t                                   staticRenderableCount  = 0;
     uint32_t                                   dynamicRenderableCount = 0;
@@ -347,6 +361,8 @@ class RenderExtractionSnapshotBuilder
         snapshot.objectUploads.clear();
         snapshot.cameraUploads.clear();
         snapshot.materialFrameData.clear();
+        snapshot.directionalLight = gts::rendering::defaultDirectionalLightFrameData();
+        snapshot.cameraWorldPosition = {0.0f, 0.0f, 0.0f};
         entryMetadata.clear();
         entityToIndex.clear();
         std::fill(slotToIndex.begin(), slotToIndex.end(), InvalidIndex);
@@ -458,16 +474,31 @@ class RenderExtractionSnapshotBuilder
 
     bool updateCameraVersion()
     {
-        if (cameraCacheValid && lastCameraViewID == snapshot.cameraViewID && sameFrustum(lastFrustum, snapshot.frustum))
+        if (cameraCacheValid
+            && lastCameraViewID == snapshot.cameraViewID
+            && lastCameraPosition == snapshot.cameraWorldPosition
+            && sameFrustum(lastFrustum, snapshot.frustum))
         {
             return false;
         }
 
         lastCameraViewID       = snapshot.cameraViewID;
+        lastCameraPosition     = snapshot.cameraWorldPosition;
         lastFrustum            = snapshot.frustum;
         cameraCacheValid       = true;
         snapshot.cameraVersion = ++cameraVersion;
         return true;
+    }
+
+    static glm::vec3 cameraWorldPosition(ECSWorld& world, Entity entity, const glm::mat4& viewMatrix)
+    {
+        if (world.hasComponent<WorldTransformComponent>(entity))
+        {
+            return gts::transform::worldPositionFromMatrix(
+                world.getComponent<WorldTransformComponent>(entity).matrix);
+        }
+
+        return glm::vec3(glm::inverse(viewMatrix)[3]);
     }
 
     static uint64_t makeSortKey(const RenderableSnapshot& renderable)

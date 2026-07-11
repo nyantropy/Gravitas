@@ -645,7 +645,9 @@ class ForwardRenderer : Renderer
                     currentFrame,
                     upload.cameraViewID,
                     upload.viewMatrix,
-                    upload.projMatrix);
+                    upload.projMatrix,
+                    upload.cameraWorldPosition,
+                    upload.directionalLight);
             }
             if (editorPreview.enabled)
             {
@@ -655,7 +657,9 @@ class ForwardRenderer : Renderer
                         currentFrame,
                         upload.cameraViewID,
                         upload.viewMatrix,
-                        upload.projMatrix);
+                        upload.projMatrix,
+                        upload.cameraWorldPosition,
+                        upload.directionalLight);
                 }
             }
 

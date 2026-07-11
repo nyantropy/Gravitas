@@ -8,7 +8,7 @@
 #include "VulkanBackendContext.h"
 
 // Creates 3 descriptor set layouts:
-//   set 0 = camera UBO  (view, proj)          - VERTEX, UNIFORM_BUFFER
+//   set 0 = camera/frame UBO (camera, light)  - VERTEX+FRAGMENT, UNIFORM_BUFFER
 //   set 1 = object SSBO (array of ObjectData) - VERTEX, STORAGE_BUFFER
 //   set 2 = texture sampler                   - FRAGMENT, COMBINED_IMAGE_SAMPLER
 //
@@ -196,7 +196,7 @@ class DescriptorSetManager
             uboBinding.descriptorCount    = 1;
             uboBinding.descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             uboBinding.pImmutableSamplers = nullptr;
-            uboBinding.stageFlags         = VK_SHADER_STAGE_VERTEX_BIT;
+            uboBinding.stageFlags         = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
             VkDescriptorSetLayoutCreateInfo uboLayoutInfo{};
             uboLayoutInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;

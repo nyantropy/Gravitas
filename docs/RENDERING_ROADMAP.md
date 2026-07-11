@@ -72,7 +72,24 @@ plus compatibility shaders consume the expanded layout. Phase 3 can add PBR
 lighting on top of this surface-frame data without reopening mesh lifecycle,
 material identity, or render command ownership.
 
-### Phase 3 --- PBR Foundation
+### Phase 3A --- First Lit Renderer (Complete)
+
+Establish the first production-quality lit path before implementing the final
+PBR BRDF.
+
+Status: complete. The renderer now supports explicit `LegacyUnlit` and
+`StandardSurface` shader families, one active scene directional light extracted
+from ECS through `WorldTransformComponent`, frame-level camera position and
+directional-light upload, world-space normal transformation in the scene vertex
+shader, and ambient + diffuse + temporary Blinn-Phong-style specular lighting.
+Unlit, world-text, debug, particles, editor-preview, and vertex-color-only paths
+remain explicitly unlit. `StandardSurface` compatibility requires normals and
+falls back to unlit shading with a diagnostic when mesh metadata is
+incompatible. The temporary `specularStrength` and `shininess` material
+parameters are versioned material data, not shader variants, and `shininess`
+will be replaced by roughness in the metallic-roughness phase.
+
+### Phase 3B --- PBR Foundation
 
 Implement a metallic-roughness PBR pipeline on top of the completed
 ownership model.
