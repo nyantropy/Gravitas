@@ -915,6 +915,93 @@ namespace gts::tools
             toolui::setRectPayload(context.ui, context.surface, previewPanel.root(), ToolTheme::panelInset);
 
             previewImage.build(context, previewPanel.content(), image(toolui::rect(0.018f, 0.025f, 0.964f, 0.950f)));
+            for (size_t i = 0; i < previewGridVertical.size(); ++i)
+            {
+                const float x = 0.140f + static_cast<float>(i) * 0.120f;
+                buildPanel(context,
+                           previewGridVertical[i],
+                           previewPanel.content(),
+                           toolui::rect(x, 0.455f, 0.0011f, 0.365f),
+                           previewGridColor());
+            }
+            for (size_t i = 0; i < previewGridHorizontal.size(); ++i)
+            {
+                const float y = 0.510f + static_cast<float>(i) * 0.060f;
+                buildPanel(context,
+                           previewGridHorizontal[i],
+                           previewPanel.content(),
+                           toolui::rect(0.085f, y, 0.830f, 0.0014f),
+                           previewGridColor());
+            }
+            buildPanel(context,
+                       originHorizontal,
+                       previewPanel.content(),
+                       toolui::rect(0.450f, 0.505f, 0.100f, 0.0020f),
+                       previewOriginColor());
+            buildPanel(context,
+                       originVertical,
+                       previewPanel.content(),
+                       toolui::rect(0.499f, 0.455f, 0.0020f, 0.100f),
+                       previewOriginColor());
+            buildPanel(context,
+                       previewTopBar,
+                       previewPanel.content(),
+                       toolui::rect(0.018f, 0.025f, 0.964f, 0.072f),
+                       ToolTheme::viewportOverlay);
+            previewViewportTitle.build(context,
+                                       previewTopBar.content(),
+                                       label("Particle Viewport",
+                                             toolui::rect(0.025f, 0.120f, 0.300f, 0.760f),
+                                             ToolTheme::text,
+                                             ToolTheme::smallTextScale));
+            previewViewportContext.build(context,
+                                         previewTopBar.content(),
+                                         label("Effect",
+                                               toolui::rect(0.340f, 0.120f, 0.635f, 0.760f),
+                                               ToolTheme::mutedText,
+                                               ToolTheme::smallTextScale,
+                                               UiHorizontalAlign::Right));
+            buildPanel(context,
+                       previewStatsChip,
+                       previewPanel.content(),
+                       toolui::rect(0.720f, 0.120f, 0.245f, 0.072f),
+                       ToolTheme::viewportOverlay);
+            previewStats.build(context,
+                               previewStatsChip.content(),
+                               label("Particles 0 / 0",
+                                     toolui::rect(0.050f, 0.120f, 0.900f, 0.760f),
+                                     ToolTheme::statusText,
+                                     ToolTheme::smallTextScale,
+                                     UiHorizontalAlign::Right));
+            buildPanel(context,
+                       previewBottomBar,
+                       previewPanel.content(),
+                       toolui::rect(0.018f, 0.875f, 0.964f, 0.082f),
+                       ToolTheme::viewportOverlay);
+            previewEmitter.build(context,
+                                 previewBottomBar.content(),
+                                 label("Emitter",
+                                       toolui::rect(0.025f, 0.110f, 0.540f, 0.780f),
+                                       ToolTheme::statusText,
+                                       ToolTheme::smallTextScale));
+            previewCamera.build(context,
+                                previewBottomBar.content(),
+                                label("Orbit Camera",
+                                      toolui::rect(0.600f, 0.110f, 0.375f, 0.780f),
+                                      ToolTheme::mutedText,
+                                      ToolTheme::smallTextScale,
+                                      UiHorizontalAlign::Right));
+            buildPanel(context,
+                       previewPlaybackChip,
+                       previewPanel.content(),
+                       toolui::rect(0.035f, 0.120f, 0.250f, 0.072f),
+                       ToolTheme::viewportOverlay);
+            previewPlayback.build(context,
+                                  previewPlaybackChip.content(),
+                                  label("Preview idle",
+                                        toolui::rect(0.050f, 0.120f, 0.900f, 0.760f),
+                                        ToolTheme::statusText,
+                                        ToolTheme::smallTextScale));
             placeholder.build(context,
                               previewPanel.content(),
                               label("No preview",
@@ -965,23 +1052,28 @@ namespace gts::tools
             context.ui.setLayout(context.surface,
                                  headerPanel.root(),
                                  dominantPreview
-                                     ? toolui::rect(0.024f, 0.026f, 0.952f, 0.110f)
+                                     ? toolui::rect(0.024f, 0.026f, 0.952f, 0.090f)
                                      : toolui::rect(0.035f, 0.035f, 0.930f, 0.145f));
             context.ui.setLayout(context.surface,
                                  previewPanel.root(),
                                  dominantPreview
-                                     ? toolui::rect(0.024f, 0.160f, 0.952f, 0.690f)
+                                     ? toolui::rect(0.024f, 0.132f, 0.952f, 0.742f)
                                      : toolui::rect(0.050f, 0.205f, 0.900f, 0.480f));
             context.ui.setLayout(context.surface,
                                  statusStrip.root(),
                                  dominantPreview
-                                     ? toolui::rect(0.024f, 0.875f, 0.465f, 0.060f)
+                                     ? toolui::rect(0.024f, 0.895f, 0.465f, 0.055f)
                                      : toolui::rect(0.050f, 0.705f, 0.900f, 0.060f));
             context.ui.setLayout(context.surface,
                                  actionBar.root(),
                                  dominantPreview
-                                     ? toolui::rect(0.510f, 0.875f, 0.466f, 0.060f)
+                                     ? toolui::rect(0.510f, 0.895f, 0.466f, 0.055f)
                                      : toolui::rect(0.050f, 0.790f, 0.900f, 0.105f));
+            context.ui.setLayout(context.surface,
+                                 previewImage.root(),
+                                 dominantPreview
+                                     ? toolui::rect(0.012f, 0.018f, 0.976f, 0.964f)
+                                     : toolui::rect(0.018f, 0.025f, 0.964f, 0.950f));
 
             title.setText(context, view.particleTitle + (view.particleDirty ? " *" : ""));
             path.setText(context,
@@ -1004,10 +1096,46 @@ namespace gts::tools
             previewStatus.setVisible(context, visible);
             previewTarget.setVisible(context, visible);
             actionBar.setVisible(context, visible);
+            const bool overlayVisible = visible && dominantPreview && hasPreview;
+            for (auto& line : previewGridVertical)
+                line.setVisible(context, overlayVisible);
+            for (auto& line : previewGridHorizontal)
+                line.setVisible(context, overlayVisible);
+            originHorizontal.setVisible(context, overlayVisible);
+            originVertical.setVisible(context, overlayVisible);
+            previewTopBar.setVisible(context, overlayVisible);
+            previewBottomBar.setVisible(context, overlayVisible);
+            previewStatsChip.setVisible(context, overlayVisible);
+            previewPlaybackChip.setVisible(context, overlayVisible);
+            previewViewportTitle.setVisible(context, overlayVisible);
+            previewViewportContext.setVisible(context, overlayVisible);
+            previewStats.setVisible(context, overlayVisible);
+            previewEmitter.setVisible(context, overlayVisible);
+            previewCamera.setVisible(context, overlayVisible);
+            previewPlayback.setVisible(context, overlayVisible);
+
+            previewViewportContext.setText(context, toolui::compact(view.particleTitle, 38));
+            previewStats.setText(context,
+                                 "Particles " + std::to_string(view.previewRenderedParticles) +
+                                     " / " + std::to_string(view.previewMaxParticles));
+            previewEmitter.setText(context,
+                                   "Emitter: " + toolui::compact(view.previewEmitterName, 24) +
+                                       "  Module: " + toolui::compact(view.previewModuleName, 20));
+            previewCamera.setText(context,
+                                  "Orbit camera  |  " +
+                                      std::to_string(view.previewEmitterCount) + " emitters  |  " +
+                                      std::to_string(view.previewModuleCount) + " modules");
+            previewPlayback.setText(context,
+                                    std::string(view.particlePlaying ? "Playing" : "Paused") +
+                                        "  " + toolui::fixed(view.previewTimeScale, 2) + "x" +
+                                        (view.previewLooping ? "  Loop" : ""));
             previewStatus.setText(context,
                                   view.particleLoaded
                                       ? (view.particlePlaying ? "Preview playing" : "Preview paused")
                                       : "Preview idle");
+            previewTarget.setText(context,
+                                  std::to_string(view.previewEmitterCount) + " emitters  |  " +
+                                      std::to_string(view.previewModuleCount) + " modules");
 
             actions.sync(context, 0, visible, "Save", view.particleLoaded, false);
             actions.sync(context, 1, visible, "Reload", view.particleLoaded, false);
@@ -1037,6 +1165,22 @@ namespace gts::tools
             title.destroy(context);
             path.destroy(context);
             placeholder.destroy(context);
+            previewPlayback.destroy(context);
+            previewCamera.destroy(context);
+            previewEmitter.destroy(context);
+            previewStats.destroy(context);
+            previewViewportContext.destroy(context);
+            previewViewportTitle.destroy(context);
+            previewPlaybackChip.destroy(context);
+            previewStatsChip.destroy(context);
+            previewBottomBar.destroy(context);
+            previewTopBar.destroy(context);
+            originVertical.destroy(context);
+            originHorizontal.destroy(context);
+            for (auto& line : previewGridHorizontal)
+                line.destroy(context);
+            for (auto& line : previewGridVertical)
+                line.destroy(context);
             previewImage.destroy(context);
             previewPanel.destroy(context);
             previewTarget.destroy(context);
@@ -1049,11 +1193,35 @@ namespace gts::tools
         }
 
     private:
+        static UiColor previewGridColor()
+        {
+            return {0.120f, 0.170f, 0.210f, 0.155f};
+        }
+
+        static UiColor previewOriginColor()
+        {
+            return {0.210f, 0.550f, 0.780f, 0.340f};
+        }
+
         gts::ui::UiPanelWidget headerPanel;
         gts::ui::UiLabelWidget title;
         gts::ui::UiLabelWidget path;
         gts::ui::UiPanelWidget previewPanel;
         gts::ui::UiImageWidget previewImage;
+        std::array<gts::ui::UiPanelWidget, 7> previewGridVertical;
+        std::array<gts::ui::UiPanelWidget, 6> previewGridHorizontal;
+        gts::ui::UiPanelWidget originHorizontal;
+        gts::ui::UiPanelWidget originVertical;
+        gts::ui::UiPanelWidget previewTopBar;
+        gts::ui::UiPanelWidget previewBottomBar;
+        gts::ui::UiPanelWidget previewStatsChip;
+        gts::ui::UiPanelWidget previewPlaybackChip;
+        gts::ui::UiLabelWidget previewViewportTitle;
+        gts::ui::UiLabelWidget previewViewportContext;
+        gts::ui::UiLabelWidget previewStats;
+        gts::ui::UiLabelWidget previewEmitter;
+        gts::ui::UiLabelWidget previewCamera;
+        gts::ui::UiLabelWidget previewPlayback;
         gts::ui::UiLabelWidget placeholder;
         gts::ui::UiPanelWidget statusStrip;
         gts::ui::UiLabelWidget previewStatus;

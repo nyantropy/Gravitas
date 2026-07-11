@@ -126,6 +126,15 @@ namespace gts::tools
         std::string particleTitle = "No Effect";
         std::string particlePath;
         texture_id_type previewTexture = 0;
+        std::string previewEmitterName = "No emitter";
+        std::string previewModuleName = "No module";
+        uint32_t previewLiveParticles = 0;
+        uint32_t previewRenderedParticles = 0;
+        uint32_t previewMaxParticles = 0;
+        uint32_t previewEmitterCount = 0;
+        uint32_t previewModuleCount = 0;
+        float previewTimeScale = 1.0f;
+        bool previewLooping = false;
 
         std::vector<ToolEmitterRow> emitters;
         std::vector<ToolModuleRow> modules;

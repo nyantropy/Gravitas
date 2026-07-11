@@ -446,21 +446,27 @@ namespace gts::tools
             view.particlePlaying = particleSession.isPlaying();
             view.particlePath = particleSession.path();
             view.particleTitle = particleSession.title();
+            view.previewTimeScale = particleSession.timeScale();
 
             if (const ParticleEffectEmitter* emitter = particleSession.selectedEmitter())
             {
                 view.hasSelectedEmitter = true;
                 view.selectedEmitterEnabled = emitter->descriptor.enabled;
+                view.previewEmitterName = emitter->name.empty() ? emitter->stableId : emitter->name;
                 if (particleSession.selectedModule() != nullptr)
                 {
                     view.hasSelectedModule = true;
                     view.selectedModuleEnabled = particleSession.selectedModule()->enabled;
+                    view.previewModuleName = particleSession.selectedModule()->displayName.empty()
+                        ? particleSession.selectedModule()->typeId
+                        : particleSession.selectedModule()->displayName;
                 }
             }
 
             fillSceneRows(ctx, view);
             fillEffectRows(view);
             fillParticleRows(view);
+            fillPreviewSummary(ctx, view);
             fillPropertySections(view);
             fillDiagnostics(view);
             return view;
@@ -545,6 +551,38 @@ namespace gts::tools
                     : std::string(gts::particles::executionStageShortLabel(definition->executionStage));
                 row.summary += " " + std::to_string(module.parameters.size()) + " params";
                 view.modules.push_back(std::move(row));
+            }
+        }
+
+        void fillPreviewSummary(const EcsControllerContext& ctx, ToolShellView& view) const
+        {
+            if (!particleSession.hasAsset())
+                return;
+
+            const ParticleEffectAsset& asset = particleSession.asset();
+            view.previewEmitterCount = static_cast<uint32_t>(asset.emitters.size());
+            for (const ParticleEffectEmitter& emitter : asset.emitters)
+            {
+                if (emitter.descriptor.enabled)
+                {
+                    view.previewMaxParticles += emitter.descriptor.maxParticles;
+                    view.previewLooping = view.previewLooping || emitter.descriptor.looping;
+                }
+            }
+
+            if (const ParticleEffectEmitter* emitter = particleSession.selectedEmitter())
+                view.previewModuleCount = static_cast<uint32_t>(emitter->modules.size());
+
+            if (!ctx.world.hasAny<EditorPreviewRenderComponent>())
+                return;
+
+            const ParticleFrameData& particleData = ctx.world.getSingleton<EditorPreviewRenderComponent>().data.particleData;
+            view.previewLiveParticles = particleData.simulatedParticleCount;
+            view.previewRenderedParticles = particleData.renderedParticleCount;
+            if (view.previewRenderedParticles == 0)
+            {
+                view.previewRenderedParticles = static_cast<uint32_t>(particleData.instances.size() +
+                                                                      particleData.meshInstances.size());
             }
         }
 
