@@ -10,7 +10,7 @@
 #include "DebugDrawSettingsComponent.h"
 #include "ECSWorld.hpp"
 #include "GlmConfig.h"
-#include "TransformComponent.h"
+#include "TransformMatrixHelpers.h"
 
 namespace gts::debugdraw
 {
@@ -79,13 +79,13 @@ namespace gts::debugdraw
         };
     }
 
-    inline size_t buildBoundsLines(const TransformComponent& transform,
+    inline size_t buildBoundsLines(const glm::mat4& model,
                                    const BoundsComponent& localBounds,
                                    DebugDrawColor color,
                                    float thickness,
                                    std::array<DebugDrawLine, 12>& outLines)
     {
-        const auto corners = boundsCorners(localBounds, transform.getModelMatrix());
+        const auto corners = boundsCorners(localBounds, model);
         constexpr std::array<std::array<int, 2>, 12> edges{{
             {{0, 1}}, {{1, 2}}, {{2, 3}}, {{3, 0}},
             {{4, 5}}, {{5, 6}}, {{6, 7}}, {{7, 4}},
@@ -109,43 +109,34 @@ namespace gts::debugdraw
     }
 
     inline void bounds(DebugDrawQueueComponent& queue,
-                       const TransformComponent& transform,
+                       const glm::mat4& model,
                        const BoundsComponent& localBounds,
                        DebugDrawColor color,
                        float thickness)
     {
         std::array<DebugDrawLine, 12> lines{};
-        const size_t lineCount = buildBoundsLines(transform, localBounds, color, thickness, lines);
+        const size_t lineCount = buildBoundsLines(model, localBounds, color, thickness, lines);
         queue.appendLines(color, lines.data(), lineCount);
     }
 
     inline void bounds(ECSWorld& world,
-                       const TransformComponent& transform,
+                       const glm::mat4& model,
                        const BoundsComponent& localBounds,
                        DebugDrawColor color,
                        float thickness)
     {
         DebugDrawQueueComponent& queue = ensureQueue(world);
-        bounds(queue, transform, localBounds, color, thickness);
-    }
-
-    inline glm::mat3 rotationBasis(const TransformComponent& transform)
-    {
-        glm::mat4 rotation(1.0f);
-        rotation = glm::rotate(rotation, transform.rotation.x, glm::vec3(1.0f, 0.0f, 0.0f));
-        rotation = glm::rotate(rotation, transform.rotation.y, glm::vec3(0.0f, 1.0f, 0.0f));
-        rotation = glm::rotate(rotation, transform.rotation.z, glm::vec3(0.0f, 0.0f, 1.0f));
-        return glm::mat3(rotation);
+        bounds(queue, model, localBounds, color, thickness);
     }
 
     inline void basis(ECSWorld& world,
-                      const TransformComponent& transform,
+                      const glm::mat4& worldMatrix,
                       float length,
                       float thickness,
                       bool localSpace)
     {
-        const glm::mat3 axes = localSpace ? rotationBasis(transform) : glm::mat3(1.0f);
-        const glm::vec3 origin = transform.position;
+        const glm::mat3 axes = localSpace ? glm::mat3(worldMatrix) : glm::mat3(1.0f);
+        const glm::vec3 origin = gts::transform::worldPositionFromMatrix(worldMatrix);
         line(world, origin, origin + glm::normalize(axes[0]) * length, DebugDrawColor::Red, thickness);
         line(world, origin, origin + glm::normalize(axes[1]) * length, DebugDrawColor::Green, thickness);
         line(world, origin, origin + glm::normalize(axes[2]) * length, DebugDrawColor::Blue, thickness);

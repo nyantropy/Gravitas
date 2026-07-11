@@ -17,6 +17,9 @@
 #include "EngineToolStateComponent.h"
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
+#include "TransformHierarchyHelpers.h"
+#include "TransformMatrixHelpers.h"
+#include "WorldTransformComponent.h"
 
 namespace gts::tools
 {
@@ -48,26 +51,29 @@ namespace gts::tools
 
             if (!isValidToolEntity(toolState.selectedEntity)
                 || isToolInternalEntity(ctx.world, toolState.selectedEntity)
-                || !ctx.world.hasComponent<TransformComponent>(toolState.selectedEntity))
+                || !ctx.world.hasComponent<TransformComponent>(toolState.selectedEntity)
+                || !ctx.world.hasComponent<WorldTransformComponent>(toolState.selectedEntity))
             {
                 clearDrag(gizmo);
                 return;
             }
 
             TransformComponent& transform = ctx.world.getComponent<TransformComponent>(toolState.selectedEntity);
+            const glm::mat4& worldMatrix =
+                ctx.world.getComponent<WorldTransformComponent>(toolState.selectedEntity).matrix;
 
             if (capture.pointerOverToolUi || capture.toolUiPressed)
             {
                 if (!isDragging(gizmo))
                 {
-                    drawGizmo(ctx.world, gizmo, transform);
+                    drawGizmo(ctx.world, gizmo, worldMatrix);
                     return;
                 }
             }
 
             if (!capture.pointerOverViewport && !isDragging(gizmo))
             {
-                drawGizmo(ctx.world, gizmo, transform);
+                drawGizmo(ctx.world, gizmo, worldMatrix);
                 return;
             }
 
@@ -75,29 +81,29 @@ namespace gts::tools
                 buildToolPickRay(camera, capture.viewportPointerX, capture.viewportPointerY);
             if (!ray)
             {
-                drawGizmo(ctx.world, gizmo, transform);
+                drawGizmo(ctx.world, gizmo, worldMatrix);
                 return;
             }
 
             if (isDragging(gizmo))
             {
                 capture.worldConsumed = true;
-                updateDrag(ctx.world, gizmo, capture, transform, *ray);
-                drawGizmo(ctx.world, gizmo, transform);
+                updateDrag(ctx.world, gizmo, capture, toolState.selectedEntity, transform, *ray);
+                drawGizmo(ctx.world, gizmo, worldMatrix);
                 return;
             }
 
-            gizmo.hoveredAxis = pickAxis(gizmo, transform, *ray);
+            gizmo.hoveredAxis = pickAxis(gizmo, worldMatrix, *ray);
             if (gizmo.hoveredAxis != EngineGizmoAxis::None)
                 capture.worldConsumed = true;
 
             if (capture.primaryPressed && gizmo.hoveredAxis != EngineGizmoAxis::None)
             {
-                beginDrag(gizmo, capture, transform, *ray, toolState.selectedEntity);
+                beginDrag(gizmo, capture, worldMatrix, *ray, toolState.selectedEntity);
                 capture.worldConsumed = true;
             }
 
-            drawGizmo(ctx.world, gizmo, transform);
+            drawGizmo(ctx.world, gizmo, worldMatrix);
         }
 
     private:
@@ -122,8 +128,14 @@ namespace gts::tools
             gizmo.activeEntity = Entity{InvalidEntityId};
         }
 
+        static glm::vec3 safeAxis(const glm::vec3& axis, const glm::vec3& fallback)
+        {
+            const float length = glm::length(axis);
+            return length <= 0.0001f ? fallback : axis / length;
+        }
+
         static std::array<glm::vec3, 3> axisDirections(const EngineGizmoStateComponent& gizmo,
-                                                       const TransformComponent& transform)
+                                                       const glm::mat4& worldMatrix)
         {
             if (gizmo.space == EngineGizmoSpace::World)
             {
@@ -134,19 +146,19 @@ namespace gts::tools
                 };
             }
 
-            const glm::mat3 basis = gts::debugdraw::rotationBasis(transform);
+            const glm::mat3 basis = glm::mat3(worldMatrix);
             return {
-                glm::normalize(basis[0]),
-                glm::normalize(basis[1]),
-                glm::normalize(basis[2])
+                safeAxis(basis[0], glm::vec3(1.0f, 0.0f, 0.0f)),
+                safeAxis(basis[1], glm::vec3(0.0f, 1.0f, 0.0f)),
+                safeAxis(basis[2], glm::vec3(0.0f, 0.0f, 1.0f))
             };
         }
 
         static glm::vec3 axisDirection(const EngineGizmoStateComponent& gizmo,
-                                       const TransformComponent& transform,
+                                       const glm::mat4& worldMatrix,
                                        EngineGizmoAxis axis)
         {
-            const auto axes = axisDirections(gizmo, transform);
+            const auto axes = axisDirections(gizmo, worldMatrix);
             switch (axis)
             {
                 case EngineGizmoAxis::X: return axes[0];
@@ -171,10 +183,10 @@ namespace gts::tools
 
         static void drawGizmo(ECSWorld& world,
                               const EngineGizmoStateComponent& gizmo,
-                              const TransformComponent& transform)
+                              const glm::mat4& worldMatrix)
         {
-            const auto axes = axisDirections(gizmo, transform);
-            const glm::vec3 origin = transform.position;
+            const auto axes = axisDirections(gizmo, worldMatrix);
+            const glm::vec3 origin = gts::transform::worldPositionFromMatrix(worldMatrix);
             constexpr std::array<EngineGizmoAxis, 3> axisIds{
                 EngineGizmoAxis::X,
                 EngineGizmoAxis::Y,
@@ -194,11 +206,11 @@ namespace gts::tools
         }
 
         static EngineGizmoAxis pickAxis(const EngineGizmoStateComponent& gizmo,
-                                        const TransformComponent& transform,
+                                        const glm::mat4& worldMatrix,
                                         const EngineToolPickRay& ray)
         {
-            const auto axes = axisDirections(gizmo, transform);
-            const glm::vec3 origin = transform.position;
+            const auto axes = axisDirections(gizmo, worldMatrix);
+            const glm::vec3 origin = gts::transform::worldPositionFromMatrix(worldMatrix);
             const float distanceScale = glm::length(origin - ray.origin) * 0.015f;
             const float threshold = std::max(gizmo.pickRadius, distanceScale);
 
@@ -243,13 +255,14 @@ namespace gts::tools
 
         static void beginDrag(EngineGizmoStateComponent& gizmo,
                               EngineToolInputCaptureComponent& capture,
-                              const TransformComponent& transform,
+                              const glm::mat4& worldMatrix,
                               const EngineToolPickRay& ray,
                               Entity entity)
         {
-            const glm::vec3 axis = axisDirection(gizmo, transform, gizmo.hoveredAxis);
+            const glm::vec3 axis = axisDirection(gizmo, worldMatrix, gizmo.hoveredAxis);
+            const glm::vec3 origin = gts::transform::worldPositionFromMatrix(worldMatrix);
             const glm::vec3 normal = dragPlaneNormal(ray, axis);
-            const std::optional<glm::vec3> hit = intersectRayPlane(ray, transform.position, normal);
+            const std::optional<glm::vec3> hit = intersectRayPlane(ray, origin, normal);
             if (!hit)
                 return;
 
@@ -258,13 +271,27 @@ namespace gts::tools
             gizmo.dragAxisWorld = axis;
             gizmo.dragPlaneNormal = normal;
             gizmo.dragStartHit = *hit;
-            gizmo.dragStartPosition = transform.position;
+            gizmo.dragStartPosition = origin;
             capture.worldConsumed = true;
+        }
+
+        static glm::vec3 parentLocalPosition(ECSWorld& world, Entity entity, const glm::vec3& worldPosition)
+        {
+            if (!world.hasComponent<HierarchyComponent>(entity))
+                return worldPosition;
+
+            const Entity parent = world.getComponent<HierarchyComponent>(entity).parent;
+            if (parent == INVALID_ENTITY)
+                return worldPosition;
+
+            const glm::mat4 parentWorldMatrix = gts::transform::resolvedWorldMatrix(world, parent);
+            return glm::vec3(glm::inverse(parentWorldMatrix) * glm::vec4(worldPosition, 1.0f));
         }
 
         static void updateDrag(ECSWorld& world,
                                EngineGizmoStateComponent& gizmo,
                                const EngineToolInputCaptureComponent& capture,
+                               Entity entity,
                                TransformComponent& transform,
                                const EngineToolPickRay& ray)
         {
@@ -283,7 +310,8 @@ namespace gts::tools
             if (gizmo.snapEnabled && gizmo.snapStep > 0.0001f)
                 amount = std::round(amount / gizmo.snapStep) * gizmo.snapStep;
 
-            transform.position = gizmo.dragStartPosition + gizmo.dragAxisWorld * amount;
+            const glm::vec3 worldPosition = gizmo.dragStartPosition + gizmo.dragAxisWorld * amount;
+            transform.position = parentLocalPosition(world, entity, worldPosition);
             if (gizmo.activeEntity.id != InvalidEntityId)
                 gts::transform::markDirty(world, gizmo.activeEntity);
         }

@@ -6,7 +6,8 @@
 #include "CameraDescriptionComponent.h"
 #include "CameraGpuComponent.h"
 #include "CameraOverrideComponent.h"
-#include "TransformComponent.h"
+#include "TransformMatrixHelpers.h"
+#include "WorldTransformComponent.h"
 
 // Controller system — pure CPU math, no GPU resources.
 // Runs every frame regardless of pause state so camera matrices stay current.
@@ -15,7 +16,7 @@
 // Each frame, for every entity with CameraDescriptionComponent + CameraGpuComponent:
 //   - Skips the entity if CameraOverrideComponent is present (owned by a custom
 //     camera system that already wrote its matrices this frame)
-//   - Reads TransformComponent.position (falls back to origin if absent)
+//   - Reads WorldTransformComponent position (falls back to origin if absent)
 //   - Computes view matrix via glm::lookAt
 //   - Computes projection matrix via glm::perspective with renderer clip-space Y-flip
 //   - Syncs the active flag from CameraDescriptionComponent
@@ -35,8 +36,8 @@ public:
             if (ctx.world.hasComponent<CameraOverrideComponent>(e))
                 return;
 
-            glm::vec3 position = ctx.world.hasComponent<TransformComponent>(e)
-                ? ctx.world.getComponent<TransformComponent>(e).position
+            const glm::vec3 position = ctx.world.hasComponent<WorldTransformComponent>(e)
+                ? gts::transform::worldPositionFromMatrix(ctx.world.getComponent<WorldTransformComponent>(e).matrix)
                 : glm::vec3(0.0f);
 
             gpu.viewMatrix = glm::lookAt(position, desc.target, desc.up);

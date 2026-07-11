@@ -19,7 +19,9 @@
 #include "ToolEntityLabelComponent.h"
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
+#include "TransformMatrixHelpers.h"
 #include "Vertex.h"
+#include "WorldTransformComponent.h"
 
 namespace gts::tools
 {
@@ -38,7 +40,7 @@ namespace gts::tools
             EngineToolStateComponent& state = ctx.world.getSingleton<EngineToolStateComponent>();
             if (!state.visible
                 || !isValidToolEntity(state.selectedEntity)
-                || !ctx.world.hasComponent<TransformComponent>(state.selectedEntity)
+                || !ctx.world.hasComponent<WorldTransformComponent>(state.selectedEntity)
                 || !ctx.world.hasComponent<BoundsComponent>(state.selectedEntity)
                 || isToolInternalEntity(ctx.world, state.selectedEntity))
             {
@@ -112,12 +114,12 @@ namespace gts::tools
                 return;
             }
 
-            const TransformComponent& targetTransform = world.getComponent<TransformComponent>(target);
+            const WorldTransformComponent& targetTransform = world.getComponent<WorldTransformComponent>(target);
             const BoundsComponent& targetBounds = world.getComponent<BoundsComponent>(target);
 
             TransformComponent& highlightTransform =
                 world.getComponent<TransformComponent>(highlight.highlightEntity);
-            highlightTransform = targetTransform;
+            gts::transform::decomposeMatrixToTransform(targetTransform.matrix, highlightTransform);
             gts::transform::markDirty(world, highlight.highlightEntity);
 
             if (highlight.targetEntity.id == target.id)

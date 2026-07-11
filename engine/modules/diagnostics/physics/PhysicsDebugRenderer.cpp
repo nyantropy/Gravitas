@@ -9,7 +9,8 @@
 #include "EcsControllerContext.hpp"
 #include "PhysicsWorld.h"
 #include "SphereColliderComponent.h"
-#include "TransformComponent.h"
+#include "TransformMatrixHelpers.h"
+#include "WorldTransformComponent.h"
 
 namespace
 {
@@ -92,11 +93,14 @@ void PhysicsDebugRenderer::update(const EcsControllerContext& ctx)
     size_t colliderCount = 0;
     size_t debugSegmentCount = 0;
 
-    ctx.world.forEach<TransformComponent, SphereColliderComponent>(
-        [&](Entity, TransformComponent& transform, SphereColliderComponent& collider)
+    ctx.world.forEach<WorldTransformComponent, SphereColliderComponent>(
+        [&](Entity, WorldTransformComponent& worldTransform, SphereColliderComponent& collider)
     {
         ++colliderCount;
-        debugSegmentCount += appendSphereCollider(queue, transform.position, collider.radius);
+        debugSegmentCount += appendSphereCollider(
+            queue,
+            gts::transform::worldPositionFromMatrix(worldTransform.matrix),
+            collider.radius);
     });
 
     if (auto* physicsWorld = dynamic_cast<PhysicsWorld*>(ctx.physics))

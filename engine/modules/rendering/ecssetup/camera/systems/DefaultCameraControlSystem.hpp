@@ -9,6 +9,7 @@
 #include "CameraDescriptionComponent.h"
 #include "CameraControlOverrideComponent.h"
 #include "TransformComponent.h"
+#include "TransformDirtyHelpers.h"
 
 // Baseline orbit camera installed automatically by gts::rendering::installRendererFeature().
 // Binds arrow keys to zoom/orbit on first update.
@@ -68,7 +69,11 @@ public:
                 pos.z = z;
             }
 
-            transform.position = pos;
+            if (transform.position != pos)
+            {
+                transform.position = pos;
+                gts::transform::markDirty(ctx.world, e);
+            }
         }
     }
 };

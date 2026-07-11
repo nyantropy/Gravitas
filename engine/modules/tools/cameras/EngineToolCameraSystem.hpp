@@ -19,6 +19,9 @@
 #include "RenderViewportComponent.h"
 #include "ToolEntityLabelComponent.h"
 #include "TransformComponent.h"
+#include "TransformDirtyHelpers.h"
+#include "TransformMatrixHelpers.h"
+#include "WorldTransformComponent.h"
 
 namespace gts::tools
 {
@@ -155,6 +158,18 @@ namespace gts::tools
             return ctx.windowAspectRatio > 0.0f ? ctx.windowAspectRatio : 1.0f;
         }
 
+        static glm::vec3 worldCameraPosition(ECSWorld& world, Entity entity)
+        {
+            if (world.hasComponent<WorldTransformComponent>(entity))
+                return gts::transform::worldPositionFromMatrix(
+                    world.getComponent<WorldTransformComponent>(entity).matrix);
+
+            if (world.hasComponent<TransformComponent>(entity))
+                return world.getComponent<TransformComponent>(entity).position;
+
+            return glm::vec3(0.0f);
+        }
+
         static void setCameraActive(ECSWorld& world, Entity entity, bool active, float aspectRatio)
         {
             if (entity.id == invalidEntity().id || !world.hasComponent<CameraDescriptionComponent>(entity))
@@ -182,9 +197,7 @@ namespace gts::tools
                                             const CameraDescriptionComponent& camera,
                                             CameraGpuComponent&               gpu)
         {
-            const glm::vec3 position = world.hasComponent<TransformComponent>(entity)
-                                           ? world.getComponent<TransformComponent>(entity).position
-                                           : glm::vec3(0.0f);
+            const glm::vec3 position = worldCameraPosition(world, entity);
             gpu.viewMatrix           = glm::lookAt(position, camera.target, camera.up);
             gpu.projMatrix = glm::perspective(camera.fov, camera.aspectRatio, camera.nearClip, camera.farClip);
             gpu.projMatrix[1][1] *= -1.0f;
@@ -221,9 +234,7 @@ namespace gts::tools
             }
 
             const CameraDescriptionComponent& camera   = world.getComponent<CameraDescriptionComponent>(entity);
-            const glm::vec3                   position = world.hasComponent<TransformComponent>(entity)
-                                                             ? world.getComponent<TransformComponent>(entity).position
-                                                             : glm::vec3(0.0f);
+            const glm::vec3                   position = worldCameraPosition(world, entity);
             glm::mat4                         view     = glm::lookAt(position, camera.target, camera.up);
             glm::mat4 proj = glm::perspective(camera.fov, camera.aspectRatio, camera.nearClip, camera.farClip);
             proj[1][1] *= -1.0f;
@@ -247,13 +258,11 @@ namespace gts::tools
             {
                 const CameraDescriptionComponent& sourceDesc =
                     ctx.world.getComponent<CameraDescriptionComponent>(currentCamera);
-                const glm::vec3 sourcePosition =
-                    ctx.world.hasComponent<TransformComponent>(currentCamera)
-                        ? ctx.world.getComponent<TransformComponent>(currentCamera).position
-                        : glm::vec3(0.0f);
+                const glm::vec3 sourcePosition = worldCameraPosition(ctx.world, currentCamera);
                 const glm::vec3 forward = safeForward(sourceDesc.target - sourcePosition);
 
                 toolTransform.position = sourcePosition;
+                gts::transform::markDirty(ctx.world, toolCamera);
                 toolDesc.fov           = sourceDesc.fov;
                 toolDesc.nearClip      = sourceDesc.nearClip;
                 toolDesc.farClip       = sourceDesc.farClip;
@@ -294,6 +303,7 @@ namespace gts::tools
             TransformComponent&         transform = ctx.world.getComponent<TransformComponent>(state.toolCameraEntity);
             CameraDescriptionComponent& camera =
                 ctx.world.getComponent<CameraDescriptionComponent>(state.toolCameraEntity);
+            const glm::vec3 previousPosition = transform.position;
 
             if (ctx.world.hasAny<EngineToolPreviewCameraComponent>())
             {
@@ -351,6 +361,9 @@ namespace gts::tools
                     transform.position.y -= MOVE_SPEED * dt;
             }
 
+            if (transform.position != previousPosition)
+                gts::transform::markDirty(ctx.world, state.toolCameraEntity);
+
             camera.active      = true;
             camera.aspectRatio = aspectRatio;
             camera.target      = transform.position + forward;
@@ -382,6 +395,7 @@ namespace gts::tools
                                        float                                  aspectRatio)
         {
             transform.position = preview.position;
+            gts::transform::markDirty(world, entity);
             camera.active      = true;
             camera.aspectRatio = aspectRatio;
             camera.fov         = glm::radians(glm::clamp(preview.fov, 20.0f, 110.0f));

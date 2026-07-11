@@ -10,6 +10,7 @@
 #include "CameraDescriptionComponent.h"
 #include "CameraControlOverrideComponent.h"
 #include "TransformComponent.h"
+#include "TransformDirtyHelpers.h"
 
 // Free-fly camera controller for GtsScene2.
 // Entities must have CameraControlOverrideComponent so DefaultCameraControlSystem skips them.
@@ -36,6 +37,7 @@ public:
         {
             auto& tr   = ctx.world.getComponent<TransformComponent>(e);
             auto& desc = ctx.world.getComponent<CameraDescriptionComponent>(e);
+            const glm::vec3 previousPosition = tr.position;
 
             // Yaw rotation
             if (ctx.input->isHeld("gts_scene2.camera_yaw_left")) yaw += ROTATE_SPEED * dt;
@@ -56,6 +58,9 @@ public:
             if (ctx.input->isHeld("gts_scene2.camera_right")) tr.position += right   * MOVE_SPEED * dt;
             if (ctx.input->isHeld("gts_scene2.camera_up")) tr.position.y += MOVE_SPEED * dt;
             if (ctx.input->isHeld("gts_scene2.camera_down")) tr.position.y -= MOVE_SPEED * dt;
+
+            if (tr.position != previousPosition)
+                gts::transform::markDirty(ctx.world, e);
 
             desc.target      = tr.position + forward;
             desc.up          = glm::vec3(0.0f, 1.0f, 0.0f);

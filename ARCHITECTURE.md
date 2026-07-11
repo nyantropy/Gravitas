@@ -698,8 +698,14 @@ across camera changes, even when the visible set happens to stay the same.
 - `TransformComponent` is authoritative local-space data and carries a local version
 - `HierarchyComponent` lives under the transform module and owns parent-child relationships
 - `gts::transform::markDirty(...)` queues transform dirtiness without touching rendering state
-- `TransformSystem` traverses hierarchy, resolves scene-space matrices, and increments
-  `WorldTransformComponent::version`
+- `TransformSystem` and the shared transform resolver traverse hierarchy, resolve scene-space
+  matrices, and increment `WorldTransformComponent::version`
+- `attachToParent(...)` rejects ancestor cycles and preserves local transform by default
+- `attachToParentPreserveWorld(...)` is the explicit API for reparenting while preserving
+  world-space position/orientation/scale where the transform can be decomposed
+- Removing a parent hierarchy or destroying a parent promotes children to roots; entity
+  lifetime remains owned by application/gameplay code, and children never keep stale parent
+  references
 - `RenderGpuSystem` consumes `WorldTransformComponent` by comparing
   `RenderGpuComponent::uploadedWorldTransformVersion` to the world-transform version
 - When rendering consumes a new world transform, it copies the model matrix into

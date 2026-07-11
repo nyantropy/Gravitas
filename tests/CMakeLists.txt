@@ -17,6 +17,24 @@ set_tests_properties(gravitas_runtime_headless_startup
         SKIP_RETURN_CODE 77
 )
 
+add_executable(TransformHierarchyRuntimeTest
+    transform/TransformHierarchyRuntimeTest.cpp
+)
+
+target_compile_features(TransformHierarchyRuntimeTest PRIVATE cxx_std_20)
+
+target_link_libraries(TransformHierarchyRuntimeTest PRIVATE gravitas_modules)
+
+add_test(
+    NAME transform_hierarchy_runtime
+    COMMAND TransformHierarchyRuntimeTest
+)
+
+set_tests_properties(transform_hierarchy_runtime
+    PROPERTIES
+        LABELS "gravitas;transform;runtime"
+)
+
 add_executable(ParticleModuleAuthoringTest
     particles/ParticleModuleAuthoringTest.cpp
 )

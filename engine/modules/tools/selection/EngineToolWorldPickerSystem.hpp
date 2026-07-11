@@ -11,7 +11,7 @@
 #include "EngineToolRaycast.h"
 #include "EngineToolSelectionHelpers.h"
 #include "EngineToolStateComponent.h"
-#include "TransformComponent.h"
+#include "WorldTransformComponent.h"
 
 namespace gts::tools
 {
@@ -136,7 +136,7 @@ namespace gts::tools
             if (!isValidToolEntity(entity))
                 return true;
 
-            return world.hasComponent<TransformComponent>(entity)
+            return world.hasComponent<WorldTransformComponent>(entity)
                 && world.hasComponent<BoundsComponent>(entity)
                 && !isToolInternalEntity(world, entity)
                 && entitySelectable(world, entity);
@@ -145,13 +145,14 @@ namespace gts::tools
         static PickResult pickEntity(ECSWorld& world, const EngineToolPickRay& ray)
         {
             PickResult best;
-            world.forEach<TransformComponent, BoundsComponent>(
-                [&](Entity entity, TransformComponent& transform, BoundsComponent& bounds)
+            world.forEach<WorldTransformComponent, BoundsComponent>(
+                [&](Entity entity, WorldTransformComponent& worldTransform, BoundsComponent& bounds)
                 {
                     if (isToolInternalEntity(world, entity) || !entitySelectable(world, entity))
                         return;
 
-                    const std::optional<float> distance = intersectLocalBounds(ray, transform, bounds);
+                    const std::optional<float> distance =
+                        intersectLocalBounds(ray, worldTransform.matrix, bounds);
                     if (!distance || *distance < 0.0f || *distance >= best.distance)
                         return;
 

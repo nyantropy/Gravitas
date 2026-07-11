@@ -10,7 +10,9 @@
 #include "PhysicsWorld.h"
 #include "PhysicsBodyComponent.h"
 #include "SphereColliderComponent.h"
-#include "TransformComponent.h"
+#include "TransformMatrixHelpers.h"
+#include "TransformWorldResolver.h"
+#include "WorldTransformComponent.h"
 
 void PhysicsSystem::update(const EcsSimulationContext& ctx)
 {
@@ -20,12 +22,14 @@ void PhysicsSystem::update(const EcsSimulationContext& ctx)
 
     physicsWorld->setWorld(&ctx.world);
     physicsWorld->update(ctx.dt);
+    gts::transform::TransformWorldResolver transformResolver;
+    transformResolver.resolve(ctx.world);
 
     PhysicsWorld::ProfileStats stats = physicsWorld->getProfileStats();
     stats.totalEntities = ctx.world.getEntityCount();
 
     const auto collectionStart = Clock::now();
-    const auto entities = ctx.world.getAllEntitiesWith<TransformComponent,
+    const auto entities = ctx.world.getAllEntitiesWith<WorldTransformComponent,
                                                        PhysicsBodyComponent,
                                                        SphereColliderComponent>();
     const auto collectionEnd = Clock::now();
@@ -41,24 +45,26 @@ void PhysicsSystem::update(const EcsSimulationContext& ctx)
     for (size_t i = 0; i < entities.size(); ++i)
     {
         const Entity a = entities[i];
-        const auto& transformA = ctx.world.getComponent<TransformComponent>(a);
+        const auto& transformA = ctx.world.getComponent<WorldTransformComponent>(a);
         const auto& bodyA = ctx.world.getComponent<PhysicsBodyComponent>(a);
         const auto& colliderA = ctx.world.getComponent<SphereColliderComponent>(a);
+        const glm::vec3 positionA = gts::transform::worldPositionFromMatrix(transformA.matrix);
 
         for (size_t j = i + 1; j < entities.size(); ++j)
         {
             ++stats.broadPhaseChecks;
 
             const Entity b = entities[j];
-            const auto& transformB = ctx.world.getComponent<TransformComponent>(b);
+            const auto& transformB = ctx.world.getComponent<WorldTransformComponent>(b);
             const auto& bodyB = ctx.world.getComponent<PhysicsBodyComponent>(b);
             const auto& colliderB = ctx.world.getComponent<SphereColliderComponent>(b);
+            const glm::vec3 positionB = gts::transform::worldPositionFromMatrix(transformB.matrix);
 
             if (!bodyA.dynamic && !bodyB.dynamic)
                 continue;
 
             const float combinedRadius = colliderA.radius + colliderB.radius;
-            const glm::vec3 delta = transformB.position - transformA.position;
+            const glm::vec3 delta = positionB - positionA;
 
             // Broad phase: reject obvious misses using per-axis overlap.
             if (std::abs(delta.x) > combinedRadius) continue;
@@ -77,13 +83,15 @@ void PhysicsSystem::update(const EcsSimulationContext& ctx)
     {
         const Entity a = entities[i];
         const Entity b = entities[j];
-        const auto& transformA = ctx.world.getComponent<TransformComponent>(a);
-        const auto& transformB = ctx.world.getComponent<TransformComponent>(b);
+        const auto& transformA = ctx.world.getComponent<WorldTransformComponent>(a);
+        const auto& transformB = ctx.world.getComponent<WorldTransformComponent>(b);
         const auto& colliderA = ctx.world.getComponent<SphereColliderComponent>(a);
         const auto& colliderB = ctx.world.getComponent<SphereColliderComponent>(b);
+        const glm::vec3 positionA = gts::transform::worldPositionFromMatrix(transformA.matrix);
+        const glm::vec3 positionB = gts::transform::worldPositionFromMatrix(transformB.matrix);
 
         const float combinedRadius = colliderA.radius + colliderB.radius;
-        const glm::vec3 delta = transformB.position - transformA.position;
+        const glm::vec3 delta = positionB - positionA;
 
         const float distanceSquared = glm::dot(delta, delta);
         if (distanceSquared > combinedRadius * combinedRadius)

@@ -4,6 +4,7 @@
 #include "GtsScene.hpp"
 #include "PhysicsSystem.h"
 #include "PhysicsWorld.h"
+#include "TransformSceneFeature.h"
 
 namespace gts::physics
 {
@@ -11,6 +12,8 @@ namespace gts::physics
     {
         if (!scene.markSceneFeatureInstalled("physics"))
             return;
+
+        gts::transform::installTransformFeature(scene);
 
         PhysicsWorld& physicsWorld = scene.createSceneResource<PhysicsWorld>(&scene.getWorld());
         scene.setPhysicsModule(&physicsWorld);

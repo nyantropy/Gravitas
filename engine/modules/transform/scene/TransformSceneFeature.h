@@ -3,6 +3,7 @@
 #include "ECSWorld.hpp"
 #include "GtsScene.hpp"
 #include "HierarchyComponent.h"
+#include "TransformHierarchyHelpers.h"
 #include "TransformDirtyHelpers.h"
 #include "TransformInvalidationLifecycle.h"
 #include "TransformSystem.hpp"
@@ -29,9 +30,7 @@ namespace gts::transform
         world.registerRemoveCallback<HierarchyComponent>(
             [](ECSWorld& world, Entity entity, HierarchyComponent& hierarchy)
             {
-                queueTransformDirty(world, entity);
-                for (Entity child : hierarchy.children)
-                    queueTransformDirty(world, child);
+                detachHierarchyForRemoval(world, entity, hierarchy);
             });
 
         world.addControllerSystem<TransformSystem>(EcsSystemGroup::RenderPrep);

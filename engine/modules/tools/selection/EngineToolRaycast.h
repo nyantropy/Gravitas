@@ -8,7 +8,6 @@
 #include "ActiveCameraViewStateComponent.h"
 #include "BoundsComponent.h"
 #include "GlmConfig.h"
-#include "TransformComponent.h"
 
 namespace gts::tools
 {
@@ -63,10 +62,10 @@ namespace gts::tools
     }
 
     inline std::optional<float> intersectLocalBounds(const EngineToolPickRay& worldRay,
-                                                     const TransformComponent& transform,
+                                                     const glm::mat4& worldMatrix,
                                                      const BoundsComponent& bounds)
     {
-        const glm::mat4 inverseModel = glm::inverse(transform.getModelMatrix());
+        const glm::mat4 inverseModel = glm::inverse(worldMatrix);
         const glm::vec3 localOrigin = glm::vec3(inverseModel * glm::vec4(worldRay.origin, 1.0f));
         const glm::vec3 localDirection = glm::vec3(inverseModel * glm::vec4(worldRay.direction, 0.0f));
 

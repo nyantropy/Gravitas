@@ -18,7 +18,8 @@
 #include "EngineToolSelectionHelpers.h"
 #include "EngineToolStateComponent.h"
 #include "GlmConfig.h"
-#include "TransformComponent.h"
+#include "TransformMatrixHelpers.h"
+#include "WorldTransformComponent.h"
 
 namespace gts::tools
 {
@@ -68,7 +69,7 @@ namespace gts::tools
     private:
         struct CachedBoundsLines
         {
-            TransformComponent transform;
+            glm::mat4 worldMatrix = glm::mat4(1.0f);
             BoundsComponent bounds;
             gts::debugdraw::DebugDrawColor color = gts::debugdraw::DebugDrawColor::Grey;
             float thickness = 0.0f;
@@ -88,8 +89,8 @@ namespace gts::tools
                            float thickness)
         {
             ++boundsCacheFrame;
-            world.forEach<TransformComponent, BoundsComponent>(
-                [&](Entity entity, TransformComponent& transform, BoundsComponent& bounds)
+            world.forEach<WorldTransformComponent, BoundsComponent>(
+                [&](Entity entity, WorldTransformComponent& worldTransform, BoundsComponent& bounds)
                 {
                     if (isToolInternalEntity(world, entity))
                         return;
@@ -100,7 +101,7 @@ namespace gts::tools
                         ? gts::debugdraw::DebugDrawColor::Yellow
                         : gts::debugdraw::DebugDrawColor::Grey;
                     const float effectiveThickness = selected ? thickness * 1.35f : thickness;
-                    appendCachedBounds(queue, entity, transform, bounds, color, effectiveThickness);
+                    appendCachedBounds(queue, entity, worldTransform.matrix, bounds, color, effectiveThickness);
                 });
 
             pruneBoundsCache();
@@ -113,14 +114,14 @@ namespace gts::tools
         {
             if (!isValidToolEntity(state.selectedEntity)
                 || isToolInternalEntity(world, state.selectedEntity)
-                || !world.hasComponent<TransformComponent>(state.selectedEntity)
+                || !world.hasComponent<WorldTransformComponent>(state.selectedEntity)
                 || !world.hasComponent<BoundsComponent>(state.selectedEntity))
             {
                 return;
             }
 
             gts::debugdraw::bounds(queue,
-                                   world.getComponent<TransformComponent>(state.selectedEntity),
+                                   world.getComponent<WorldTransformComponent>(state.selectedEntity).matrix,
                                    world.getComponent<BoundsComponent>(state.selectedEntity),
                                    gts::debugdraw::DebugDrawColor::Yellow,
                                    thickness);
@@ -130,15 +131,17 @@ namespace gts::tools
                                 const EngineToolStateComponent& state,
                                 float thickness)
         {
-            world.forEach<TransformComponent, CameraDescriptionComponent>(
-                [&](Entity entity, TransformComponent& transform, CameraDescriptionComponent& camera)
+            world.forEach<WorldTransformComponent, CameraDescriptionComponent>(
+                [&](Entity entity, WorldTransformComponent& worldTransform, CameraDescriptionComponent& camera)
                 {
                     if (isCurrentViewCamera(world, entity))
                         return;
 
                     const gts::debugdraw::DebugDrawColor color =
                         cameraDebugColor(world, state, entity, camera);
-                    const glm::mat4 view = glm::lookAt(transform.position, camera.target, camera.up);
+                    const glm::vec3 position =
+                        gts::transform::worldPositionFromMatrix(worldTransform.matrix);
+                    const glm::mat4 view = glm::lookAt(position, camera.target, camera.up);
                     glm::mat4 proj = glm::perspective(camera.fov,
                                                       camera.aspectRatio > 0.0f ? camera.aspectRatio : 1.0f,
                                                       camera.nearClip,
@@ -146,7 +149,7 @@ namespace gts::tools
                     proj[1][1] *= -1.0f;
 
                     gts::debugdraw::frustumFromViewProj(world, proj * view, color, thickness);
-                    drawCameraMarker(world, transform, camera, color, thickness * 1.45f);
+                    drawCameraMarker(world, position, camera, color, thickness * 1.45f);
                 });
         }
 
@@ -188,12 +191,12 @@ namespace gts::tools
         }
 
         static void drawCameraMarker(ECSWorld& world,
-                                     const TransformComponent& transform,
+                                     const glm::vec3& position,
                                      const CameraDescriptionComponent& camera,
                                      gts::debugdraw::DebugDrawColor color,
                                      float thickness)
         {
-            const glm::vec3 forward = safeNormalized(camera.target - transform.position,
+            const glm::vec3 forward = safeNormalized(camera.target - position,
                                                      {0.0f, 0.0f, -1.0f});
             glm::vec3 right = glm::cross(forward, camera.up);
             if (glm::dot(right, right) <= 0.000001f)
@@ -202,7 +205,7 @@ namespace gts::tools
             const glm::vec3 up = glm::normalize(glm::cross(right, forward));
 
             const float size = 0.34f;
-            const glm::vec3 center = transform.position;
+            const glm::vec3 center = position;
             const glm::vec3 a = center - right * size - up * size;
             const glm::vec3 b = center + right * size - up * size;
             const glm::vec3 c = center + right * size + up * size;
@@ -223,7 +226,7 @@ namespace gts::tools
         {
             if (!isValidToolEntity(state.selectedEntity)
                 || isToolInternalEntity(world, state.selectedEntity)
-                || !world.hasComponent<TransformComponent>(state.selectedEntity))
+                || !world.hasComponent<WorldTransformComponent>(state.selectedEntity))
             {
                 return;
             }
@@ -238,7 +241,7 @@ namespace gts::tools
             }
 
             gts::debugdraw::basis(world,
-                                  world.getComponent<TransformComponent>(state.selectedEntity),
+                                  world.getComponent<WorldTransformComponent>(state.selectedEntity).matrix,
                                   length,
                                   thickness,
                                   localSpace);
@@ -251,7 +254,7 @@ namespace gts::tools
                 && world.getSingleton<EngineGizmoStateComponent>().enabled
                 && isValidToolEntity(state.selectedEntity)
                 && !isToolInternalEntity(world, state.selectedEntity)
-                && world.hasComponent<TransformComponent>(state.selectedEntity);
+                && world.hasComponent<WorldTransformComponent>(state.selectedEntity);
         }
 
         static glm::vec3 safeNormalized(const glm::vec3& value, const glm::vec3& fallback)
@@ -295,23 +298,23 @@ namespace gts::tools
 
         void appendCachedBounds(gts::debugdraw::DebugDrawQueueComponent& queue,
                                 Entity entity,
-                                const TransformComponent& transform,
+                                const glm::mat4& worldMatrix,
                                 const BoundsComponent& bounds,
                                 gts::debugdraw::DebugDrawColor color,
                                 float thickness)
         {
             CachedBoundsLines& cached = boundsLineCache[entity.id];
             if (!cached.valid
-                || !sameTransform(cached.transform, transform)
+                || !sameMatrix(cached.worldMatrix, worldMatrix)
                 || !sameBounds(cached.bounds, bounds)
                 || cached.color != color
                 || cached.thickness != thickness)
             {
-                cached.transform = transform;
+                cached.worldMatrix = worldMatrix;
                 cached.bounds = bounds;
                 cached.color = color;
                 cached.thickness = thickness;
-                cached.lineCount = gts::debugdraw::buildBoundsLines(transform,
+                cached.lineCount = gts::debugdraw::buildBoundsLines(worldMatrix,
                                                                     bounds,
                                                                     color,
                                                                     thickness,
@@ -344,11 +347,13 @@ namespace gts::tools
             return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
         }
 
-        static bool sameTransform(const TransformComponent& lhs, const TransformComponent& rhs)
+        static bool sameMatrix(const glm::mat4& lhs, const glm::mat4& rhs)
         {
-            return sameVec3(lhs.position, rhs.position)
-                && sameVec3(lhs.rotation, rhs.rotation)
-                && sameVec3(lhs.scale, rhs.scale);
+            for (int column = 0; column < 4; ++column)
+                for (int row = 0; row < 4; ++row)
+                    if (lhs[column][row] != rhs[column][row])
+                        return false;
+            return true;
         }
 
         static bool sameBounds(const BoundsComponent& lhs, const BoundsComponent& rhs)

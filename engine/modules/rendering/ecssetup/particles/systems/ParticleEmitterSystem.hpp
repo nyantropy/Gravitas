@@ -14,7 +14,8 @@
 #include "ParticleEmitterMath.h"
 #include "ParticleEmitterRuntimeComponent.h"
 #include "ParticleFrameData.h"
-#include "TransformComponent.h"
+#include "TransformMatrixHelpers.h"
+#include "WorldTransformComponent.h"
 
 class ParticleEmitterSystem : public ECSControllerSystem
 {
@@ -45,20 +46,22 @@ public:
 
         ctx.world.forEach<ParticleEmitterComponent,
                           ParticleEmitterRuntimeComponent,
-                          TransformComponent>(
+                          WorldTransformComponent>(
             [&](Entity,
                 ParticleEmitterComponent& emitter,
                 ParticleEmitterRuntimeComponent& runtime,
-                TransformComponent& transform)
+                WorldTransformComponent& worldTransform)
             {
+                const EmitterTransform emitterTransform = makeEmitterTransform(worldTransform);
                 frameData.emitterCount += 1;
                 resetRuntimeFrameStats(runtime);
-                const EmitterFramePolicy policy = resolveEmitterFramePolicy(emitter, runtime, transform, camera, budgetFrame);
+                const EmitterFramePolicy policy =
+                    resolveEmitterFramePolicy(emitter, runtime, emitterTransform, camera, budgetFrame);
                 const float emitterDt =
                     runtime.playbackPaused ? 0.0f : dt * std::max(0.0f, runtime.playbackTimeScale);
-                updateEmitter(ctx, emitter, runtime, transform, emitterDt, policy);
-                refreshRuntimeBounds(emitter, runtime, transform);
-                applyVisibilityPolicy(emitter, runtime, transform, camera);
+                updateEmitter(ctx, emitter, runtime, emitterTransform, emitterDt, policy);
+                refreshRuntimeBounds(emitter, runtime, emitterTransform);
+                applyVisibilityPolicy(emitter, runtime, emitterTransform, camera);
 
                 frameData.simulatedParticleCount += static_cast<uint32_t>(runtime.particles.size());
                 frameData.collisionEventCount += runtime.collisionEventsThisFrame;
@@ -82,7 +85,7 @@ public:
                 }
 
                 frameData.visibleEmitterCount += 1;
-                extractEmitter(emitter, runtime, transform, camera);
+                extractEmitter(emitter, runtime, emitterTransform, camera);
             });
 
         buildFrameData(frameData, budget);
@@ -96,6 +99,14 @@ private:
         glm::mat4    projMatrix = glm::mat4(1.0f);
         FrustumPlanes frustum{};
         glm::vec3    position = {0.0f, 0.0f, 0.0f};
+    };
+
+    struct EmitterTransform
+    {
+        glm::mat4 worldMatrix = glm::mat4(1.0f);
+        glm::mat4 inverseWorldMatrix = glm::mat4(1.0f);
+        glm::mat3 worldLinear = glm::mat3(1.0f);
+        glm::vec3 origin = {0.0f, 0.0f, 0.0f};
     };
 
     struct BudgetFrame
@@ -132,6 +143,16 @@ private:
     std::vector<ExtractedParticle> additiveParticles;
     std::vector<ExtractedMeshParticle> alphaMeshParticles;
     std::vector<ExtractedMeshParticle> additiveMeshParticles;
+
+    static EmitterTransform makeEmitterTransform(const WorldTransformComponent& worldTransform)
+    {
+        EmitterTransform transform;
+        transform.worldMatrix = worldTransform.matrix;
+        transform.inverseWorldMatrix = glm::inverse(worldTransform.matrix);
+        transform.worldLinear = glm::mat3(worldTransform.matrix);
+        transform.origin = gts::transform::worldPositionFromMatrix(worldTransform.matrix);
+        return transform;
+    }
 
     static ParticleFrameDataComponent& ensureFrameData(ECSWorld& world)
     {
@@ -265,7 +286,7 @@ private:
 
     static EmitterFramePolicy resolveEmitterFramePolicy(const ParticleEmitterComponent& emitter,
                                                         ParticleEmitterRuntimeComponent& runtime,
-                                                        const TransformComponent& transform,
+                                                        const EmitterTransform& transform,
                                                         const CameraInfo& camera,
                                                         const BudgetFrame& budgetFrame)
     {
@@ -302,14 +323,14 @@ private:
         return glm::vec3(matrix * glm::vec4(point, 1.0f));
     }
 
-    static glm::vec3 transformOrigin(const TransformComponent& transform)
+    static glm::vec3 transformOrigin(const EmitterTransform& transform)
     {
-        return transformPoint(transform.getModelMatrix(), {0.0f, 0.0f, 0.0f});
+        return transform.origin;
     }
 
     static void refreshRuntimeBounds(const ParticleEmitterComponent& emitter,
                                      ParticleEmitterRuntimeComponent& runtime,
-                                     const TransformComponent& transform)
+                                     const EmitterTransform& transform)
     {
         if (runtime.particles.empty())
         {
@@ -321,7 +342,7 @@ private:
             return;
         }
 
-        const glm::mat4 model = emitter.localSpace ? transform.getModelMatrix() : glm::mat4(1.0f);
+        const glm::mat4 model = emitter.localSpace ? transform.worldMatrix : glm::mat4(1.0f);
         const float padding = std::max(0.0f, emitter.runtime.cullPadding) +
             std::max(0.001f, emitter.runtime.effectScale) * maxParticleSize(emitter);
         glm::vec3 minValue(std::numeric_limits<float>::max());
@@ -358,7 +379,7 @@ private:
 
     static void applyVisibilityPolicy(const ParticleEmitterComponent& emitter,
                                       ParticleEmitterRuntimeComponent& runtime,
-                                      const TransformComponent& transform,
+                                      const EmitterTransform& transform,
                                       const CameraInfo& camera)
     {
         const glm::vec3 center = runtime.hasBounds ? runtime.boundsCenter : transformOrigin(transform);
@@ -404,7 +425,7 @@ private:
     static void updateEmitter(const EcsControllerContext& ctx,
                               const ParticleEmitterComponent& emitter,
                               ParticleEmitterRuntimeComponent& runtime,
-                              const TransformComponent& transform,
+                              const EmitterTransform& transform,
                               float dt,
                               const EmitterFramePolicy& policy)
     {
@@ -521,7 +542,7 @@ private:
 
     static void spawnParticles(const ParticleEmitterComponent& emitter,
                                ParticleEmitterRuntimeComponent& runtime,
-                               const TransformComponent& transform,
+                               const EmitterTransform& transform,
                                uint32_t count,
                                uint32_t maxParticles)
     {
@@ -539,7 +560,7 @@ private:
 
     static void spawnBursts(const ParticleEmitterComponent& emitter,
                             ParticleEmitterRuntimeComponent& runtime,
-                            const TransformComponent& transform,
+                            const EmitterTransform& transform,
                             float previousLocalAge,
                             float localAge,
                             bool loopWrapped,
@@ -591,14 +612,14 @@ private:
     }
 
     static void applyForces(const ParticleEmitterComponent& emitter,
-                            const TransformComponent& transform,
+                            const EmitterTransform& transform,
                             ParticleState& particle,
                             float dt)
     {
         glm::vec3 acceleration = emitter.forces.acceleration + emitter.forces.wind;
         const glm::vec3 localPosition = emitter.localSpace
             ? particle.position
-            : glm::vec3(glm::inverse(transform.getModelMatrix()) * glm::vec4(particle.position, 1.0f));
+            : glm::vec3(transform.inverseWorldMatrix * glm::vec4(particle.position, 1.0f));
         glm::vec3 radial = ParticleEmitterMath::radialDirection(localPosition);
 
         if (emitter.forces.radial != 0.0f)
@@ -702,7 +723,7 @@ private:
 
     static void spawnEventParticles(const ParticleEmitterComponent& emitter,
                                     ParticleEmitterRuntimeComponent& runtime,
-                                    const TransformComponent& transform,
+                                    const EmitterTransform& transform,
                                     const glm::vec3& position,
                                     uint32_t count,
                                     uint32_t maxParticles)
@@ -735,7 +756,7 @@ private:
 
     static bool spawnParticle(const ParticleEmitterComponent& emitter,
                               ParticleEmitterRuntimeComponent& runtime,
-                              const TransformComponent& transform,
+                              const EmitterTransform& transform,
                               const glm::vec3* positionOverride)
     {
         ParticleState particle;
@@ -761,11 +782,10 @@ private:
         }
         else
         {
-            const glm::mat4 model = transform.getModelMatrix();
             particle.position = positionOverride == nullptr
-                ? glm::vec3(model * glm::vec4(localPosition, 1.0f))
+                ? glm::vec3(transform.worldMatrix * glm::vec4(localPosition, 1.0f))
                 : *positionOverride;
-            particle.velocity = glm::mat3(model) * velocity;
+            particle.velocity = transform.worldLinear * velocity;
         }
 
         particle.tint = ParticleEmitterMath::applyColorVariation(emitter.baseTint,
@@ -806,10 +826,10 @@ private:
 
     void extractEmitter(const ParticleEmitterComponent& emitter,
                         const ParticleEmitterRuntimeComponent& runtime,
-                        const TransformComponent& transform,
+                        const EmitterTransform& transform,
                         const CameraInfo& camera)
     {
-        const glm::mat4 model = emitter.localSpace ? transform.getModelMatrix() : glm::mat4(1.0f);
+        const glm::mat4 model = emitter.localSpace ? transform.worldMatrix : glm::mat4(1.0f);
 
         for (const ParticleState& particle : runtime.particles)
         {
@@ -836,7 +856,7 @@ private:
                 if (runtime.meshID == 0)
                     continue;
 
-                glm::mat4 particleModel = emitter.localSpace ? transform.getModelMatrix() : glm::mat4(1.0f);
+                glm::mat4 particleModel = emitter.localSpace ? transform.worldMatrix : glm::mat4(1.0f);
                 particleModel = glm::translate(particleModel, particle.position);
                 particleModel = glm::rotate(particleModel, particle.meshRotation.x, {1.0f, 0.0f, 0.0f});
                 particleModel = glm::rotate(particleModel, particle.meshRotation.y, {0.0f, 1.0f, 0.0f});
@@ -890,14 +910,14 @@ private:
 
     static void applyVelocityStretch(const ParticleEmitterComponent& emitter,
                                      const ParticleState& particle,
-                                     const TransformComponent& transform,
+                                     const EmitterTransform& transform,
                                      const CameraInfo& camera,
                                      ParticleInstance& instance)
     {
         if (emitter.runtime.velocityStretch <= 0.0f || camera.viewID == 0)
             return;
 
-        const glm::mat3 modelRotation = emitter.localSpace ? glm::mat3(transform.getModelMatrix()) : glm::mat3(1.0f);
+        const glm::mat3 modelRotation = emitter.localSpace ? transform.worldLinear : glm::mat3(1.0f);
         const glm::vec3 worldVelocity = modelRotation * particle.velocity;
         const glm::vec3 viewVelocity = glm::mat3(camera.viewMatrix) * worldVelocity;
         const glm::vec2 viewVelocity2D = {viewVelocity.x, viewVelocity.y};
