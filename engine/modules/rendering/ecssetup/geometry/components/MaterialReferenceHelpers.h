@@ -2,12 +2,15 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 
 #include "ECSWorld.hpp"
 #include "GlmConfig.h"
+#include "MaterialAssetLoader.h"
 #include "MaterialReferenceComponent.h"
 #include "MaterialRuntime.h"
 
@@ -72,6 +75,22 @@ namespace gts::rendering
         sharedUnlitMaterialCacheRegistry().erase(&world);
     }
 
+    inline bool isCookedMaterialPath(const std::string& path)
+    {
+        return std::filesystem::path(path).extension() == ".gmat";
+    }
+
+    inline MaterialInstanceHandle loadCookedMaterialReference(MaterialRuntime& runtime,
+                                                             const std::string& path)
+    {
+        std::string error;
+        const MaterialInstanceHandle handle =
+            MaterialAssetLoader::loadIntoRuntime(path, runtime, &error);
+        if (!handle.valid())
+            throw std::runtime_error("Failed to load cooked material asset '" + path + "': " + error);
+        return handle;
+    }
+
     inline MaterialInstance makeUnlitMaterialInstance(MaterialRuntime& runtime,
                                                       const UnlitMaterialDescriptor& descriptor)
     {
@@ -97,6 +116,9 @@ namespace gts::rendering
                                                       const UnlitMaterialDescriptor& descriptor)
     {
         MaterialRuntime& runtime = materialRuntime(world);
+        if (isCookedMaterialPath(descriptor.texturePath))
+            return loadCookedMaterialReference(runtime, descriptor.texturePath);
+
         return runtime.createInstance(makeUnlitMaterialInstance(runtime, descriptor));
     }
 
@@ -110,8 +132,9 @@ namespace gts::rendering
         if (it != cache.end() && runtime.isInstanceAlive(it->second))
             return it->second;
 
-        const MaterialInstanceHandle handle =
-            runtime.createInstance(makeUnlitMaterialInstance(runtime, descriptor));
+        const MaterialInstanceHandle handle = isCookedMaterialPath(descriptor.texturePath)
+            ? loadCookedMaterialReference(runtime, descriptor.texturePath)
+            : runtime.createInstance(makeUnlitMaterialInstance(runtime, descriptor));
         cache[descriptor] = handle;
         return handle;
     }

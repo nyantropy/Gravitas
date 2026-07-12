@@ -4,6 +4,8 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "GlmConfig.h"
@@ -15,6 +17,38 @@ namespace gts::rendering
 {
     using AssetId = uint64_t;
     inline constexpr AssetId InvalidAssetId = 0;
+
+    inline AssetId stableAssetIdFromLogicalPath(std::string_view logicalPath)
+    {
+        uint64_t hash = 14695981039346656037ull;
+        for (char ch : logicalPath)
+        {
+            hash ^= static_cast<unsigned char>(ch);
+            hash *= 1099511628211ull;
+        }
+        return hash == InvalidAssetId ? 1ull : hash;
+    }
+
+    struct AssetReference
+    {
+        AssetId id = InvalidAssetId;
+        std::string logicalPath;
+
+        bool empty() const
+        {
+            return id == InvalidAssetId && logicalPath.empty();
+        }
+
+        static AssetReference fromLogicalPath(std::string path)
+        {
+            AssetReference reference;
+            reference.logicalPath = std::move(path);
+            reference.id = reference.logicalPath.empty()
+                ? InvalidAssetId
+                : stableAssetIdFromLogicalPath(reference.logicalPath);
+            return reference;
+        }
+    };
 
     enum class AssetDiagnosticSeverity
     {
@@ -135,7 +169,7 @@ namespace gts::rendering
     {
         uint32_t firstIndex = 0;
         uint32_t indexCount = 0;
-        AssetId materialId = InvalidAssetId;
+        AssetReference material;
         std::string debugName;
     };
 
@@ -147,6 +181,7 @@ namespace gts::rendering
         std::vector<Vertex> vertices;
         std::vector<uint32_t> indices;
         std::vector<SubmeshAssetData> submeshes;
+        std::vector<AssetReference> dependencies;
         AssetBounds bounds;
         bool generatedNormals = false;
         bool generatedTangents = false;
@@ -168,11 +203,12 @@ namespace gts::rendering
         glm::vec3 emissiveFactor = {0.0f, 0.0f, 0.0f};
         float emissiveStrength = 1.0f;
 
-        AssetId baseColorTexture = InvalidAssetId;
-        AssetId metallicRoughnessTexture = InvalidAssetId;
-        AssetId normalTexture = InvalidAssetId;
-        AssetId ambientOcclusionTexture = InvalidAssetId;
-        AssetId emissiveTexture = InvalidAssetId;
+        AssetReference baseColorTexture;
+        AssetReference metallicRoughnessTexture;
+        AssetReference normalTexture;
+        AssetReference ambientOcclusionTexture;
+        AssetReference emissiveTexture;
+        std::vector<AssetReference> dependencies;
 
         MaterialRenderState renderState{};
         bool vertexColorOnly = false;

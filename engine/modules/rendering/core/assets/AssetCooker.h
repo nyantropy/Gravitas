@@ -1,8 +1,12 @@
 #pragma once
 
 #include <algorithm>
+#include <filesystem>
+#include <string>
+#include <vector>
 
 #include "AssetTypes.h"
+#include "AssetImporter.h"
 #include "MeshGeometryProcessor.h"
 
 namespace gts::rendering
@@ -37,7 +41,20 @@ namespace gts::rendering
         };
     }
 
+    inline std::string logicalPathString(const std::filesystem::path& path)
+    {
+        return path.lexically_normal().generic_string();
+    }
+
+    inline AssetReference referenceFromPath(const std::filesystem::path& path)
+    {
+        if (path.empty())
+            return {};
+        return AssetReference::fromLogicalPath(logicalPathString(path));
+    }
+
     inline MeshAssetData cookImportedMesh(const ImportedMesh& imported,
+                                          const std::vector<AssetReference>& materialReferences = {},
                                           AssetId assetId = InvalidAssetId)
     {
         MeshAssetData asset;
@@ -49,10 +66,18 @@ namespace gts::rendering
         asset.submeshes.reserve(imported.primitives.size());
         for (const ImportedMeshPrimitive& primitive : imported.primitives)
         {
+            AssetReference material;
+            if (primitive.materialIndex >= 0 &&
+                static_cast<size_t>(primitive.materialIndex) < materialReferences.size())
+            {
+                material = materialReferences[static_cast<size_t>(primitive.materialIndex)];
+                asset.dependencies.push_back(material);
+            }
+
             asset.submeshes.push_back({
                 primitive.firstIndex,
                 primitive.indexCount,
-                InvalidAssetId,
+                material,
                 primitive.name
             });
         }
@@ -82,8 +107,79 @@ namespace gts::rendering
             imported.ambientOcclusionStrength.value_or(asset.ambientOcclusionStrength);
         asset.emissiveFactor = imported.emissiveFactor.value_or(asset.emissiveFactor);
         asset.emissiveStrength = imported.emissiveStrength.value_or(asset.emissiveStrength);
+        asset.baseColorTexture = referenceFromPath(imported.baseColorTexture);
+        asset.metallicRoughnessTexture = referenceFromPath(
+            !imported.metallicTexture.empty() ? imported.metallicTexture : imported.roughnessTexture);
+        asset.normalTexture = referenceFromPath(imported.normalTexture);
+        asset.ambientOcclusionTexture = referenceFromPath(imported.ambientOcclusionTexture);
+        asset.emissiveTexture = referenceFromPath(imported.emissiveTexture);
+        for (const AssetReference& reference : {
+                 asset.baseColorTexture,
+                 asset.metallicRoughnessTexture,
+                 asset.normalTexture,
+                 asset.ambientOcclusionTexture,
+                 asset.emissiveTexture})
+        {
+            if (!reference.empty())
+                asset.dependencies.push_back(reference);
+        }
         asset.renderState = imported.renderState;
         asset.vertexColorOnly = imported.vertexColorOnly;
         return asset;
     }
+
+    enum class CookedAssetOutputType
+    {
+        Mesh,
+        Material
+    };
+
+    struct CookedAssetOutput
+    {
+        CookedAssetOutputType type = CookedAssetOutputType::Mesh;
+        std::filesystem::path path;
+        AssetReference reference;
+    };
+
+    struct AssetCookerOptions
+    {
+        std::filesystem::path outputDirectory;
+        std::filesystem::path baseColorTextureOverride;
+        bool vertexColorOnly = false;
+        std::string explicitImporter;
+    };
+
+    struct AssetCookResult
+    {
+        std::vector<MeshAssetData> meshes;
+        std::vector<MaterialAssetData> materials;
+        std::vector<CookedAssetOutput> outputs;
+        std::vector<AssetDiagnostic> diagnostics;
+
+        bool hasErrors() const
+        {
+            for (const AssetDiagnostic& diagnostic : diagnostics)
+            {
+                if (diagnostic.severity == AssetDiagnosticSeverity::Error)
+                    return true;
+            }
+            return false;
+        }
+
+        bool succeeded() const
+        {
+            return !hasErrors();
+        }
+    };
+
+    class AssetCooker
+    {
+    public:
+        static AssetCookResult cookImportResult(const AssetImportResult& importResult,
+                                                const std::filesystem::path& sourcePath,
+                                                const AssetCookerOptions& options);
+
+        static AssetCookResult cookSourceAsset(const std::filesystem::path& sourcePath,
+                                               const AssetCookerOptions& options);
+    };
 }

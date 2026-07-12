@@ -162,6 +162,42 @@ set_tests_properties(obj_asset_importer
         LABELS "gravitas;assets;importer"
 )
 
+add_executable(AssetSerializationTest
+    assets/AssetSerializationTest.cpp
+)
+
+target_compile_features(AssetSerializationTest PRIVATE cxx_std_20)
+
+target_link_libraries(AssetSerializationTest PRIVATE gravitas_rendering)
+
+add_test(
+    NAME asset_serialization
+    COMMAND AssetSerializationTest
+)
+
+set_tests_properties(asset_serialization
+    PROPERTIES
+        LABELS "gravitas;assets;serialization"
+)
+
+add_executable(CookedAssetPipelineTest
+    assets/CookedAssetPipelineTest.cpp
+)
+
+target_compile_features(CookedAssetPipelineTest PRIVATE cxx_std_20)
+
+target_link_libraries(CookedAssetPipelineTest PRIVATE gravitas_vulkan_backend)
+
+add_test(
+    NAME cooked_asset_pipeline
+    COMMAND CookedAssetPipelineTest
+)
+
+set_tests_properties(cooked_asset_pipeline
+    PROPERTIES
+        LABELS "gravitas;assets;cooked"
+)
+
 add_executable(FirstLitRendererArchitectureTest
     rendering/FirstLitRendererArchitectureTest.cpp
 )

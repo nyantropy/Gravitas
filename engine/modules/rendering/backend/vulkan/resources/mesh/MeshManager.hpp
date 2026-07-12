@@ -2,12 +2,17 @@
 #include <vulkan/vulkan.h>
 #include <algorithm>
 #include <chrono>
+#include <cctype>
+#include <filesystem>
 #include <string>
 #include <memory>
+#include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
 #include <cstring>
+#include <utility>
 
+#include "MeshAssetLoader.h"
 #include "MeshResource.h"
 #include "GtsModelLoader.hpp"
 #include "IResourceProvider.hpp"
@@ -29,6 +34,29 @@ class MeshManager
         ProceduralMeshUploadMetrics proceduralMetrics;
         uint32_t proceduralUpdateBatchDepth = 0;
         bool proceduralUpdateSafetyWaitPerformed = false;
+
+        static bool isCookedMeshPath(const std::string& path)
+        {
+            std::string extension = std::filesystem::path(path).extension().string();
+            std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char ch)
+            {
+                return static_cast<char>(std::tolower(ch));
+            });
+            return extension == ".gmesh";
+        }
+
+        static std::string preferredMeshLoadPath(const std::string& path)
+        {
+            if (isCookedMeshPath(path))
+                return path;
+
+            std::filesystem::path cookedPath(path);
+            cookedPath.replace_extension(".gmesh");
+            if (std::filesystem::exists(cookedPath))
+                return cookedPath.string();
+
+            return path;
+        }
 
         static VkDeviceSize grownCapacity(VkDeviceSize currentCapacity, VkDeviceSize requiredBytes)
         {
@@ -142,6 +170,21 @@ class MeshManager
         }
 
     public:
+        static void populateMeshResourceFromAssetData(MeshResource& mesh,
+                                                      gts::rendering::MeshAssetData asset)
+        {
+            mesh.metadata = {
+                asset.attributes,
+                static_cast<uint32_t>(asset.vertices.size()),
+                static_cast<uint32_t>(asset.indices.size()),
+                asset.generatedNormals,
+                asset.generatedTangents
+            };
+            mesh.vertices = std::move(asset.vertices);
+            mesh.indices = std::move(asset.indices);
+            mesh.submeshes = std::move(asset.submeshes);
+        }
+
         explicit MeshManager(VulkanBackendContext& backendContext) : backendContext(backendContext) {}
 
         ~MeshManager()
@@ -175,9 +218,31 @@ class MeshManager
             if (it != pathToID.end())
                 return it->second;
 
+            const std::string loadPath = preferredMeshLoadPath(path);
+            if (loadPath != path)
+            {
+                auto cookedIt = pathToID.find(loadPath);
+                if (cookedIt != pathToID.end())
+                {
+                    pathToID[path] = cookedIt->second;
+                    return cookedIt->second;
+                }
+            }
+
             auto mesh = std::make_unique<MeshResource>();
 
-            mesh->metadata = GtsModelLoader::loadModel(path, mesh->vertices, mesh->indices);
+            if (isCookedMeshPath(loadPath))
+            {
+                gts::rendering::MeshAssetData asset;
+                std::string error;
+                if (!gts::rendering::MeshAssetLoader::load(loadPath, asset, &error))
+                    throw std::runtime_error("Failed to load cooked mesh asset '" + loadPath + "': " + error);
+                populateMeshResourceFromAssetData(*mesh, std::move(asset));
+            }
+            else
+            {
+                mesh->metadata = GtsModelLoader::loadModel(loadPath, mesh->vertices, mesh->indices);
+            }
 
             BufferUtil::createVertexBuffer(
                 backendContext.device(), backendContext.physicalDevice(),
@@ -194,6 +259,8 @@ class MeshManager
             mesh_id_type id = nextID++;
             idToMesh[id] = std::move(mesh);
             pathToID[path] = id;
+            if (loadPath != path)
+                pathToID[loadPath] = id;
 
             return id;
         }

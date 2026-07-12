@@ -3,6 +3,7 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
+#include "AssetTypes.h"
 #include "MeshGeometryProcessor.h"
 #include "Vertex.h"
 
@@ -10,6 +11,7 @@ struct MeshResource
 {
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
+    std::vector<gts::rendering::SubmeshAssetData> submeshes;
     MeshGeometryMetadata metadata;
 
     VkBuffer vertexBuffer = VK_NULL_HANDLE;
