@@ -53,6 +53,8 @@ echo "== GPU combined benchmark =="
 for preset in \
     moving_static_control \
     moving_independent \
+    moving_sparse \
+    moving_dense \
     moving_deep_hierarchy \
     moving_wide_hierarchy \
     upload_only_pressure \
@@ -81,6 +83,8 @@ echo "  $OUT_DIR/static_geometry_small_gpu.json"
 echo "  $OUT_DIR/combined_game_like_gpu.json"
 echo "  $OUT_DIR/moving_static_control_gpu.json"
 echo "  $OUT_DIR/moving_independent_gpu.json"
+echo "  $OUT_DIR/moving_sparse_gpu.json"
+echo "  $OUT_DIR/moving_dense_gpu.json"
 echo "  $OUT_DIR/moving_deep_hierarchy_gpu.json"
 echo "  $OUT_DIR/moving_wide_hierarchy_gpu.json"
 echo "  $OUT_DIR/upload_only_pressure_gpu.json"

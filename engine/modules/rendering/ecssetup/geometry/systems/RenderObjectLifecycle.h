@@ -53,6 +53,9 @@ namespace gts::rendering
         if (!hasDirty)
             commands.addComponent<RenderDirtyComponent>(entity, RenderDirtyComponent{});
 
+        if (!hasRenderGpu || changed)
+            queueRenderTransformSync(world, entity);
+
         if (changed || !hasDirty)
             queueRenderSnapshotDirty(world, entity);
     }

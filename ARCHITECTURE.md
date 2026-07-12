@@ -222,6 +222,14 @@ updates reuse the existing procedural mesh allocation. Detailed dynamic mesh
 lifetime and failure behavior is documented in
 [docs/rendering/architecture.md](docs/rendering/architecture.md).
 
+Render transform synchronization follows the same version-plus-queue model.
+`TransformSystem` owns `WorldTransformComponent` publication, the renderer-owned
+bridge schedules affected renderables, and `RenderGpuSystem` validates
+`WorldTransformComponent::version` against
+`RenderGpuComponent::uploadedWorldTransformVersion` before copying model
+matrices or requesting object uploads. Static steady state performs no full
+renderable scan and emits no transform-driven object uploads.
+
 Rendering performance work should use the benchmark suite documented in
 [docs/rendering/benchmarks.md](docs/rendering/benchmarks.md). Smoke benchmarks
 run deterministic ECS/extraction workloads in ordinary CI and emit JSON

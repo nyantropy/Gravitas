@@ -95,6 +95,8 @@ Current presets:
 - `transform_many_moving`
 - `moving_static_control`
 - `moving_independent`
+- `moving_sparse`
+- `moving_dense`
 - `moving_deep_hierarchy`
 - `moving_wide_hierarchy`
 - `upload_only_pressure`
@@ -171,6 +173,13 @@ Selected low-cardinality substages are emitted in `controller_substages_ms`:
 - `TransformSystem.publish_world_transform`
 - `RenderGpuSystem.scan_compare`
 - `RenderGpuSystem.model_sync_enqueue`
+- `RenderGpuSystem.candidate_discovery`
+- `RenderGpuSystem.validation`
+- `RenderGpuSystem.version_checks`
+- `RenderGpuSystem.model_matrix_copy`
+- `RenderGpuSystem.object_upload_enqueue`
+- `RenderGpuSystem.snapshot_invalidation`
+- `RenderGpuSystem.queue_cleanup`
 - `ForwardRenderer.object_buffer_writes`
 - `DynamicMeshBindingSystem.candidate_discovery`
 - `DynamicMeshBindingSystem.version_checks`
@@ -218,6 +227,10 @@ Representative counters include:
   substitutions, material reference adds/removes, and full material scans
 - authored, selected, and dropped lights by type
 - transform and render-GPU synchronization counts
+- render-GPU full-scan visits, queued entries, drained entries, stale skips,
+  missing-component skips, unchanged-version skips, changed syncs, matrix
+  copies, object-upload requests, duplicate queue attempts, queue
+  deduplications, and object-slot lookup failures
 - logical object updates, object-upload commands, physical object-buffer
   writes, object write bytes, and contiguous write runs
 - dynamic mesh queued candidates, unchanged skips, failed-version skips,
@@ -272,15 +285,21 @@ summary shape.
 Benchmarks assert architectural expectations in addition to timings:
 
 - material full scans must remain zero
+- `RenderGpuSystem` full renderable scans must remain zero during measured
+  frames
 - steady-state material presets must not queue or synchronize material work
   after warmup
 - static workloads must not produce object uploads after warmup
+- `moving_static_control` must queue zero render-transform sync work, sync zero
+  render transforms, and emit zero transform-driven object uploads after warmup
 - visible renderables must not exceed snapshot renderables
 - authored renderable counters must match measured frame count
 - visible renderable workloads must produce visible renderables and render
   commands
 - moving-object attribution presets must produce the configured logical update
   and object-upload command counts
+- moving-object attribution presets must produce matching
+  `render_gpu_changed_syncs` and `render_gpu_object_upload_requests`
 - `dynamic_mesh_static_control` must process and upload zero geometry after
   warmup
 - dynamic mesh mutation presets must process exactly
@@ -345,6 +364,9 @@ The engine-root helper script runs the current GPU attribution matrix:
 ./run_gpu_rendering_benchmarks.sh /tmp/gts_rendering_benchmarks
 ```
 
+The script writes one JSON file per preset and a full console transcript to
+`gpu_benchmark_run.log` in the output directory.
+
 ## Adding A Preset
 
 Add a `RenderingBenchmarkConfig` entry to `standardBenchmarkPresets()`, keep
@@ -365,6 +387,9 @@ to isolate specific paths:
 - `moving_static_control`: confirms steady-state transform/upload work reaches
   zero after warmup.
 - `moving_independent`: isolates independent moving roots.
+- `moving_sparse`: verifies sparse movement scales with changed renderables,
+  not total renderable count.
+- `moving_dense`: measures all-renderable movement throughput.
 - `moving_deep_hierarchy`: creates root-strided transform chains and moves the
   roots to isolate depth propagation.
 - `moving_wide_hierarchy`: attaches most objects directly under a smaller root
@@ -388,8 +413,11 @@ Use counters to distinguish logical object changes from backend work. If
 `logical_object_updates` matches `object_upload_commands` but
 `physical_object_buffer_writes` is a multiple, the cost is likely in
 frames-in-flight replication or mapped-buffer writes. If
-`RenderGpuSystem` dominates while transform substages are low, focus the next
-optimization on render transform synchronization and upload-command enqueueing.
+`RenderGpuSystem` dominates while `render_gpu_full_scan_visited` remains zero,
+inspect `render_gpu_changed_syncs`, `render_gpu_object_upload_requests`,
+matrix-copy substages, and backend object-buffer write counters before choosing
+between upload-command enqueueing, physical object-buffer writes, or transform
+resolution as the next target.
 If `DynamicMeshBindingSystem` dominates, inspect the dynamic mesh substage
 timings and counters. Static-control work should be near zero after warmup;
 sparse mutation should report changed meshes equal to the configured mutation

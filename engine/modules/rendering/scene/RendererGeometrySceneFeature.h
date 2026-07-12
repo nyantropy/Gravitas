@@ -23,6 +23,7 @@
 #include "TextureAnimationComponent.h"
 #include "TextureAnimationRuntimeComponent.h"
 #include "TextureAnimationSystem.hpp"
+#include "TransformInvalidationLifecycle.h"
 #include "WorldTextBindingSystem.hpp"
 #include "WorldTextComponent.h"
 #include "WorldTextRuntimeComponent.h"
@@ -30,6 +31,12 @@
 
 namespace gts::rendering
 {
+    inline void scheduleRenderTransformSyncFromWorldTransform(ECSWorld& world, Entity entity)
+    {
+        if (world.hasComponent<RenderGpuComponent>(entity) || hasRenderableDescriptor(world, entity))
+            queueRenderTransformSync(world, entity);
+    }
+
     inline void resetRendererGeometrySceneFeature(ECSWorld& world)
     {
         resetGeometryBindingLifecycleState(world);
@@ -38,6 +45,9 @@ namespace gts::rendering
 
     inline void installRendererGeometrySceneFeature(ECSWorld& world, IResourceProvider* resources)
     {
+        gts::transform::registerWorldTransformPublishedCallback(
+            world, scheduleRenderTransformSyncFromWorldTransform);
+
         world.registerRemoveCallback<RenderGpuComponent>(
             [resources](ECSWorld& world, Entity entity, RenderGpuComponent& renderGpu)
             {
@@ -187,11 +197,13 @@ namespace gts::rendering
             [](ECSWorld& world, Entity entity, MeshGpuComponent&)
             {
                 queueRenderObjectRefresh(world, entity);
+                queueRenderTransformSync(world, entity);
             });
         world.registerAddCallback<WorldTransformComponent>(
             [](ECSWorld& world, Entity entity, WorldTransformComponent&)
             {
                 queueRenderObjectRefresh(world, entity);
+                scheduleRenderTransformSyncFromWorldTransform(world, entity);
             });
 
         world.addControllerSystem<StaticMeshBindingSystem>(EcsSystemGroup::RenderPrep);
@@ -232,6 +244,11 @@ namespace gts::rendering
             {
                 reference.material = registerMaterialUser(world, entity, reference.material);
                 queueRenderObjectRefresh(world, entity);
+            });
+        world.forEachSnapshot<RenderGpuComponent>(
+            [&world](Entity entity, RenderGpuComponent&)
+            {
+                queueRenderTransformSync(world, entity);
             });
         world.forEachSnapshot<TextureAnimationComponent>(
             [&world](Entity entity, TextureAnimationComponent&)

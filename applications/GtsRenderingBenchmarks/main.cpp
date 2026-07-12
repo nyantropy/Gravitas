@@ -709,6 +709,27 @@ namespace
                   "RenderGpuSystem.model_sync_enqueue",
                   stats.renderGpuModelSyncCpuMs);
         addSample(collector.controllerSubstageSamples,
+                  "RenderGpuSystem.candidate_discovery",
+                  stats.renderGpuCandidateDiscoveryCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "RenderGpuSystem.validation",
+                  stats.renderGpuValidationCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "RenderGpuSystem.version_checks",
+                  stats.renderGpuVersionCheckCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "RenderGpuSystem.model_matrix_copy",
+                  stats.renderGpuMatrixCopyCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "RenderGpuSystem.object_upload_enqueue",
+                  stats.renderGpuObjectUploadEnqueueCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "RenderGpuSystem.snapshot_invalidation",
+                  stats.renderGpuSnapshotInvalidationCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "RenderGpuSystem.queue_cleanup",
+                  stats.renderGpuQueueCleanupCpuMs);
+        addSample(collector.controllerSubstageSamples,
                   "ForwardRenderer.object_buffer_writes",
                   stats.backendObjectWriteCpuMs);
         addSample(collector.controllerSubstageSamples,
@@ -792,6 +813,26 @@ namespace
         addCounter(collector.counters, "render_gpu_total", stats.renderGpuTotalCount);
         addCounter(collector.counters, "render_gpu_version_matches", stats.renderGpuVersionMatchCount);
         addCounter(collector.counters, "render_gpu_snapshot_dirty_enqueues", stats.renderGpuSnapshotDirtyEnqueueCount);
+        addCounter(collector.counters, "render_gpu_full_scan_visited", stats.renderGpuFullScanVisitedCount);
+        addCounter(collector.counters, "render_gpu_queued", stats.renderGpuQueuedCount);
+        addCounter(collector.counters, "render_gpu_queue_drained", stats.renderGpuQueueDrainedCount);
+        addCounter(collector.counters, "render_gpu_stale_skipped", stats.renderGpuStaleSkippedCount);
+        addCounter(collector.counters,
+                   "render_gpu_missing_component_skipped",
+                   stats.renderGpuMissingComponentSkippedCount);
+        addCounter(collector.counters, "render_gpu_unchanged_skipped", stats.renderGpuUnchangedSkippedCount);
+        addCounter(collector.counters, "render_gpu_changed_syncs", stats.renderGpuChangedSyncCount);
+        addCounter(collector.counters, "render_gpu_matrix_copies", stats.renderGpuMatrixCopyCount);
+        addCounter(collector.counters, "render_gpu_object_upload_requests", stats.renderGpuObjectUploadRequestCount);
+        addCounter(collector.counters,
+                   "render_gpu_duplicate_queue_attempts",
+                   stats.renderGpuDuplicateQueueAttemptCount);
+        addCounter(collector.counters,
+                   "render_gpu_queue_deduplications",
+                   stats.renderGpuQueueDeduplicationCount);
+        addCounter(collector.counters,
+                   "render_gpu_object_slot_lookup_failures",
+                   stats.renderGpuObjectSlotLookupFailureCount);
         addCounter(collector.counters, "dynamic_mesh_queued", stats.dynamicMeshQueuedCount);
         addCounter(collector.counters, "dynamic_mesh_candidates", stats.dynamicMeshCandidateCount);
         addCounter(collector.counters, "dynamic_mesh_unchanged_skipped", stats.dynamicMeshUnchangedSkippedCount);

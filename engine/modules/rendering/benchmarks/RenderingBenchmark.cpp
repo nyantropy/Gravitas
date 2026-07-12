@@ -891,6 +891,27 @@ namespace gts::rendering::benchmarks
                               "RenderGpuSystem.model_sync_enqueue",
                               renderGpuMetrics.modelSyncCpuMs);
             addSubstageSample(substages,
+                              "RenderGpuSystem.candidate_discovery",
+                              renderGpuMetrics.candidateDiscoveryCpuMs);
+            addSubstageSample(substages,
+                              "RenderGpuSystem.validation",
+                              renderGpuMetrics.validationCpuMs);
+            addSubstageSample(substages,
+                              "RenderGpuSystem.version_checks",
+                              renderGpuMetrics.versionCheckCpuMs);
+            addSubstageSample(substages,
+                              "RenderGpuSystem.model_matrix_copy",
+                              renderGpuMetrics.matrixCopyCpuMs);
+            addSubstageSample(substages,
+                              "RenderGpuSystem.object_upload_enqueue",
+                              renderGpuMetrics.objectUploadEnqueueCpuMs);
+            addSubstageSample(substages,
+                              "RenderGpuSystem.snapshot_invalidation",
+                              renderGpuMetrics.snapshotInvalidationCpuMs);
+            addSubstageSample(substages,
+                              "RenderGpuSystem.queue_cleanup",
+                              renderGpuMetrics.queueCleanupCpuMs);
+            addSubstageSample(substages,
                               "DynamicMeshBindingSystem.candidate_discovery",
                               dynamicMeshMetrics.candidateDiscoveryCpuMs);
             addSubstageSample(substages,
@@ -1097,6 +1118,26 @@ namespace gts::rendering::benchmarks
             addCounter(counters, "render_gpu_total", renderGpuMetrics.totalRenderables);
             addCounter(counters, "render_gpu_version_matches", renderGpuMetrics.readyVersionMatches);
             addCounter(counters, "render_gpu_snapshot_dirty_enqueues", renderGpuMetrics.snapshotDirtyEnqueues);
+            addCounter(counters, "render_gpu_full_scan_visited", renderGpuMetrics.fullScanRenderablesVisited);
+            addCounter(counters, "render_gpu_queued", renderGpuMetrics.queuedRenderables);
+            addCounter(counters, "render_gpu_queue_drained", renderGpuMetrics.queuedEntriesDrained);
+            addCounter(counters, "render_gpu_stale_skipped", renderGpuMetrics.staleQueueEntriesSkipped);
+            addCounter(counters,
+                       "render_gpu_missing_component_skipped",
+                       renderGpuMetrics.missingComponentEntriesSkipped);
+            addCounter(counters, "render_gpu_unchanged_skipped", renderGpuMetrics.unchangedVersionsSkipped);
+            addCounter(counters, "render_gpu_changed_syncs", renderGpuMetrics.changedTransformsSynchronized);
+            addCounter(counters, "render_gpu_matrix_copies", renderGpuMetrics.modelMatricesCopied);
+            addCounter(counters, "render_gpu_object_upload_requests", renderGpuMetrics.objectUploadRequests);
+            addCounter(counters,
+                       "render_gpu_duplicate_queue_attempts",
+                       renderGpuMetrics.duplicateQueueAttempts);
+            addCounter(counters,
+                       "render_gpu_queue_deduplications",
+                       renderGpuMetrics.queueDeduplications);
+            addCounter(counters,
+                       "render_gpu_object_slot_lookup_failures",
+                       renderGpuMetrics.objectSlotLookupFailures);
             addCounter(counters, "lights_total_directional", lighting.diagnostics.totalDirectionalLights);
             addCounter(counters, "lights_total_point", lighting.diagnostics.totalPointLights);
             addCounter(counters, "lights_total_spot", lighting.diagnostics.totalSpotLights);
@@ -1237,6 +1278,22 @@ namespace gts::rendering::benchmarks
                      "Independent moving roots with shared mesh/material and minimal lighting.",
                      1,
                      movingIndependent,
+                     presets);
+
+        RenderingBenchmarkConfig movingSparse = movingStaticControl;
+        movingSparse.movingObjectCount = 64;
+        presetConfig("moving_sparse",
+                     "Sparse independent moving roots among many static renderables.",
+                     1,
+                     movingSparse,
+                     presets);
+
+        RenderingBenchmarkConfig movingDense = movingStaticControl;
+        movingDense.movingObjectCount = movingDense.renderableCount;
+        presetConfig("moving_dense",
+                     "Dense independent moving roots where every renderable moves.",
+                     1,
+                     movingDense,
                      presets);
 
         RenderingBenchmarkConfig movingDeep = movingStaticControl;
@@ -1775,6 +1832,8 @@ namespace gts::rendering::benchmarks
         const uint64_t frames = result.config.measuredFrames;
         if (counter("material_full_scans") != 0)
             failures.push_back("material_full_scans must remain zero in benchmark workloads");
+        if (counter("render_gpu_full_scan_visited") != 0)
+            failures.push_back("RenderGpuSystem performed a full renderable scan during measured frames");
 
         if (result.config.materialMutationCountPerFrame == 0 &&
             result.config.topologyMutationCountPerFrame == 0 &&
@@ -1797,7 +1856,17 @@ namespace gts::rendering::benchmarks
             failures.push_back("static workload produced object uploads after warmup");
         }
 
+        if (result.config.presetName == "moving_static_control")
+        {
+            if (counter("render_gpu_queued") != 0)
+                failures.push_back("static moving-control workload queued render-transform sync after warmup");
+            if (counter("render_gpu_changed_syncs") != 0)
+                failures.push_back("static moving-control workload synchronized render transforms after warmup");
+        }
+
         if ((result.config.presetName == "moving_independent" ||
+             result.config.presetName == "moving_sparse" ||
+             result.config.presetName == "moving_dense" ||
              result.config.presetName == "upload_only_pressure") &&
             result.config.movingObjectCount > 0)
         {
@@ -1807,6 +1876,10 @@ namespace gts::rendering::benchmarks
                 failures.push_back("moving-object preset logical update count does not match movingObjectCount");
             if (counter("object_upload_commands") != expectedUpdates)
                 failures.push_back("moving-object preset upload command count does not match movingObjectCount");
+            if (counter("render_gpu_changed_syncs") != expectedUpdates)
+                failures.push_back("moving-object preset render sync count does not match movingObjectCount");
+            if (counter("render_gpu_object_upload_requests") != expectedUpdates)
+                failures.push_back("moving-object preset render upload requests do not match movingObjectCount");
         }
 
         if ((result.config.presetName == "moving_deep_hierarchy" ||
@@ -1821,6 +1894,8 @@ namespace gts::rendering::benchmarks
                 failures.push_back("hierarchy moving-object preset did not fan out transform updates");
             if (uploadCommands != logicalUpdates)
                 failures.push_back("hierarchy moving-object preset upload commands do not match logical updates");
+            if (counter("render_gpu_changed_syncs") != logicalUpdates)
+                failures.push_back("hierarchy moving-object preset render sync count does not match logical updates");
         }
 
         if (result.config.presetName == "dynamic_mesh_static_control")
@@ -2134,6 +2209,14 @@ namespace gts::rendering::benchmarks
         out << "material_synchronized total: " << counter("material_synchronized") << "\n";
         out << "object_uploads total: " << counter("object_uploads") << "\n";
         const uint64_t frames = std::max<uint64_t>(1u, result.config.measuredFrames);
+        out << "render_gpu_full_scan_visited/frame: "
+            << static_cast<double>(counter("render_gpu_full_scan_visited")) / static_cast<double>(frames) << "\n";
+        out << "render_gpu_queued/frame: "
+            << static_cast<double>(counter("render_gpu_queued")) / static_cast<double>(frames) << "\n";
+        out << "render_gpu_changed_syncs/frame: "
+            << static_cast<double>(counter("render_gpu_changed_syncs")) / static_cast<double>(frames) << "\n";
+        out << "render_gpu_object_upload_requests/frame: "
+            << static_cast<double>(counter("render_gpu_object_upload_requests")) / static_cast<double>(frames) << "\n";
         out << "logical_object_updates/frame: "
             << static_cast<double>(counter("logical_object_updates")) / static_cast<double>(frames) << "\n";
         out << "object_upload_commands/frame: "

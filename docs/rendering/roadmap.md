@@ -31,6 +31,9 @@ The renderer currently has:
 - incremental dynamic mesh synchronization with version-scheduled work,
   failed-version suppression, capacity-stable procedural buffer reuse, and
   dynamic mesh benchmark attribution
+- incremental render-transform synchronization through a scene-local queue so
+  `RenderGpuSystem` scales with changed world transforms instead of total
+  renderable count
 - retained UI extraction and Vulkan overlay composition
 - screenshot capture with async PNG writes
 
@@ -39,7 +42,7 @@ The renderer currently has:
 - Establish versioned fixed-hardware performance baselines for the full CPU/GPU
   benchmark matrix.
 - Use the updated benchmark matrix to choose the next renderer optimization
-  target after dynamic mesh binding.
+  target after render-transform synchronization.
 - Add alpha-cutoff shader support for `RenderQueue::AlphaMasked`.
 - Add sky/background rendering that consumes selected environment state without
   coupling sky draw commands to material draw commands.

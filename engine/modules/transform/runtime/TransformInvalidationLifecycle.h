@@ -14,9 +14,17 @@ namespace gts::transform
         std::vector<uint8_t>        transformDirtyFlags;
     };
 
+    using WorldTransformPublishedCallback = void (*)(ECSWorld&, Entity);
+
     inline auto& transformInvalidationRegistry()
     {
         static std::unordered_map<ECSWorld*, TransformInvalidationState> registry;
+        return registry;
+    }
+
+    inline auto& worldTransformPublishedCallbackRegistry()
+    {
+        static std::unordered_map<ECSWorld*, std::vector<WorldTransformPublishedCallback>> registry;
         return registry;
     }
 
@@ -28,6 +36,31 @@ namespace gts::transform
     inline void resetTransformInvalidationState(ECSWorld& world)
     {
         transformInvalidationRegistry().erase(&world);
+    }
+
+    inline void registerWorldTransformPublishedCallback(ECSWorld& world,
+                                                        WorldTransformPublishedCallback callback)
+    {
+        if (callback == nullptr)
+            return;
+
+        auto& callbacks = worldTransformPublishedCallbackRegistry()[&world];
+        for (WorldTransformPublishedCallback existing : callbacks)
+        {
+            if (existing == callback)
+                return;
+        }
+        callbacks.push_back(callback);
+    }
+
+    inline void notifyWorldTransformPublished(ECSWorld& world, Entity entity)
+    {
+        auto it = worldTransformPublishedCallbackRegistry().find(&world);
+        if (it == worldTransformPublishedCallbackRegistry().end())
+            return;
+
+        for (WorldTransformPublishedCallback callback : it->second)
+            callback(world, entity);
     }
 
     inline bool validTransformEntity(Entity entity)

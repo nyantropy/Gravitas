@@ -16,12 +16,15 @@
 #include "MeshGpuComponent.h"
 #include "QuadMeshComponent.h"
 #include "RenderGpuComponent.h"
+#include "RenderGpuSystem.hpp"
 #include "RendererGeometrySceneFeature.h"
 #include "StaticMeshComponent.h"
 #include "TransformComponent.h"
+#include "TransformDirtyHelpers.h"
 #include "TransformSceneFeature.h"
 #include "Vertex.h"
 #include "WorldTextComponent.h"
+#include "WorldTransformComponent.h"
 
 namespace
 {
@@ -565,6 +568,119 @@ namespace
             && require(resources.objectSlotReleases == 0, "descriptor type change does not release live object slot");
     }
 
+    bool staticRenderableDoesNotScanOrUploadInSteadyState()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        StaticMeshComponent mesh;
+        mesh.meshPath = "mesh/a.obj";
+        const Entity entity = createRenderable(world, mesh, materialWithTexture("textures/a.png"));
+        update(world, resources);
+        update(world, resources);
+
+        const RenderGpuSystem::Metrics metrics = RenderGpuSystem::getLastMetrics();
+        return require(world.hasComponent<RenderGpuComponent>(entity), "static control has render GPU state")
+            && require(metrics.fullScanRenderablesVisited == 0, "steady-state RenderGpuSystem performs no full scan")
+            && require(metrics.queuedEntriesDrained == 0, "steady-state RenderGpuSystem drains no queued transforms")
+            && require(metrics.updatedRenderables == 0, "steady-state RenderGpuSystem emits no transform uploads");
+    }
+
+    bool movedRenderableQueuesOneRenderSync()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        StaticMeshComponent mesh;
+        mesh.meshPath = "mesh/a.obj";
+        const Entity entity = createRenderable(world, mesh, materialWithTexture("textures/a.png"));
+        update(world, resources);
+
+        TransformComponent& transform = world.getComponent<TransformComponent>(entity);
+        transform.position.x += 2.0f;
+        gts::transform::markDirty(world, entity);
+        update(world, resources);
+
+        const RenderGpuSystem::Metrics metrics = RenderGpuSystem::getLastMetrics();
+        const RenderGpuComponent& renderGpu = world.getComponent<RenderGpuComponent>(entity);
+        const WorldTransformComponent& worldTransform = world.getComponent<WorldTransformComponent>(entity);
+        return require(metrics.fullScanRenderablesVisited == 0, "moving render sync does not fall back to full scan")
+            && require(metrics.queuedEntriesDrained == 1, "moving renderable drains one queued entry")
+            && require(metrics.updatedRenderables == 1, "moving renderable synchronizes once")
+            && require(metrics.modelMatricesCopied == 1, "moving renderable copies one model matrix")
+            && require(metrics.objectUploadRequests == 1, "moving renderable requests one object upload")
+            && require(renderGpu.uploadedWorldTransformVersion == worldTransform.version,
+                       "render GPU uploaded version matches world transform version");
+    }
+
+    bool renderTransformQueueDeduplicatesRepeatedScheduling()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        StaticMeshComponent mesh;
+        mesh.meshPath = "mesh/a.obj";
+        const Entity entity = createRenderable(world, mesh, materialWithTexture("textures/a.png"));
+        update(world, resources);
+
+        gts::rendering::queueRenderTransformSync(world, entity);
+        gts::rendering::queueRenderTransformSync(world, entity);
+        update(world, resources);
+
+        const RenderGpuSystem::Metrics metrics = RenderGpuSystem::getLastMetrics();
+        return require(metrics.queuedEntriesDrained == 1, "duplicate render sync scheduling drains one entity")
+            && require(metrics.queueDeduplications == 1, "duplicate render sync scheduling is counted")
+            && require(metrics.unchangedVersionsSkipped == 1, "unchanged queued renderable is skipped by version")
+            && require(metrics.updatedRenderables == 0, "unchanged queued renderable emits no upload");
+    }
+
+    bool readyLateRenderableReceivesInitialTransformSync()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        Entity entity = world.createEntity();
+        StaticMeshComponent mesh;
+        mesh.meshPath = "mesh/a.obj";
+        world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
+        world.addComponent(entity, mesh);
+        update(world, resources);
+
+        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        update(world, resources);
+
+        const RenderGpuSystem::Metrics metrics = RenderGpuSystem::getLastMetrics();
+        const RenderGpuComponent& renderGpu = world.getComponent<RenderGpuComponent>(entity);
+        const WorldTransformComponent& worldTransform = world.getComponent<WorldTransformComponent>(entity);
+        return require(metrics.updatedRenderables == 1,
+                       "late-ready renderable receives initial render transform sync")
+            && require(metrics.objectUploadRequests == 1,
+                       "late-ready renderable requests initial object upload")
+            && require(renderGpu.uploadedWorldTransformVersion == worldTransform.version,
+                       "late-ready uploaded version matches current world transform");
+    }
+
+    bool staleRenderTransformQueueEntryIsDiscarded()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        const Entity entity = world.createEntity();
+        gts::rendering::queueRenderTransformSync(world, entity);
+        update(world, resources);
+
+        const RenderGpuSystem::Metrics metrics = RenderGpuSystem::getLastMetrics();
+        return require(metrics.queuedEntriesDrained == 1, "stale render sync entry is drained once")
+            && require(metrics.staleQueueEntriesSkipped == 1, "stale render sync entry is counted")
+            && require(metrics.missingComponentEntriesSkipped == 1, "stale render sync entry has missing components")
+            && require(metrics.updatedRenderables == 0, "stale render sync entry emits no upload");
+    }
+
     bool worldTextUsesMeshAndMaterialLifecycle()
     {
         ECSWorld world;
@@ -613,6 +729,11 @@ int main()
     ok &= dynamicMeshInvalidVersionDoesNotRetry();
     ok &= dynamicMeshUploadFailureDoesNotRetry();
     ok &= geometryDescriptorTypeChangeKeepsObjectSlot();
+    ok &= staticRenderableDoesNotScanOrUploadInSteadyState();
+    ok &= movedRenderableQueuesOneRenderSync();
+    ok &= renderTransformQueueDeduplicatesRepeatedScheduling();
+    ok &= readyLateRenderableReceivesInitialTransformSync();
+    ok &= staleRenderTransformQueueEntryIsDiscarded();
     ok &= worldTextUsesMeshAndMaterialLifecycle();
 
     if (!ok)

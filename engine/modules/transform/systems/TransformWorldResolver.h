@@ -148,12 +148,14 @@ namespace gts::transform
                 worldTransform.matrix = matrix;
                 worldTransform.version = 1;
                 world.addComponent(entity, worldTransform);
+                notifyWorldTransformPublished(world, entity);
                 return;
             }
 
             WorldTransformComponent& worldTransform = world.getComponent<WorldTransformComponent>(entity);
             worldTransform.matrix = matrix;
             worldTransform.version = nextWorldTransformVersion(worldTransform.version);
+            notifyWorldTransformPublished(world, entity);
         }
 
         static uint32_t nextWorldTransformVersion(uint32_t version)

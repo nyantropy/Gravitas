@@ -18,6 +18,9 @@ DEFAULT_EXACT_COUNTERS = {
     "object_uploads",
     "prepared_batches",
     "render_commands",
+    "render_gpu_changed_syncs",
+    "render_gpu_full_scan_visited",
+    "render_gpu_object_upload_requests",
 }
 
 

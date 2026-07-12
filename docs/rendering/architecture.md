@@ -238,6 +238,58 @@ Old procedural resources are released through the existing mesh lifetime path.
 Dynamic mesh content changes invalidate only mesh-derived render state. They do
 not alter material identity, object slots, or shared material GPU state.
 
+## Render Transform Synchronization
+
+`TransformSystem` is the sole writer of `WorldTransformComponent`. Its
+`version` remains the authoritative transform change signal. Rendering observes
+world-transform publication through a backend-agnostic callback registered by
+the geometry scene feature; the transform module does not depend on rendering.
+
+The geometry lifecycle owns the scene-local render-transform synchronization
+queue. Its only responsibility is tracking entities whose resolved world
+transform may need to be copied into render runtime state. The queue does not
+own transforms, object slots, materials, meshes, render commands, or Vulkan
+objects.
+
+Synchronization flow:
+
+```text
+TransformSystem publishes WorldTransformComponent version
+  -> renderer bridge queues entity once
+  -> RenderGpuSystem drains queued entities
+  -> component/object-slot readiness is validated
+  -> WorldTransformComponent::version is compared with uploadedWorldTransformVersion
+  -> changed ready objects copy one model matrix and mark object data dirty
+  -> extraction emits one ObjectUploadCommand for the object slot
+```
+
+Queue entries are deduplicated and deterministic. Stale entries caused by
+component removal, entity destruction, unready objects, or slot release are
+skipped once and discarded. Newly ready render objects and object-slot
+replacement also queue one sync so current transforms are uploaded without
+waiting for a future transform mutation.
+
+Version comparison remains mandatory even when work was queued. Queue presence
+only schedules a check; it is not proof that authored state changed. Static
+steady state therefore drains no render-transform work, performs no full
+renderable scan, copies no matrices, and emits no object uploads.
+
+Object uploads remain object-owned data:
+
+```text
+ObjectUploadCommand {
+    objectSSBOSlot
+    modelMatrix
+    uvTransform
+}
+```
+
+Material changes, mesh uploads, and ordinary shared-material synchronization do
+not schedule render-transform work. Transform changes of transparent renderables
+continue to mark snapshot state dirty so transparent ordering can be refreshed;
+opaque transform changes do not change command topology merely because the
+model matrix changed.
+
 ## Material Runtime
 
 `MaterialRuntime` owns:

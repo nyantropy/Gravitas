@@ -46,11 +46,21 @@ namespace gts::rendering
         std::unordered_set<entity_id_type> materialRefreshEntities;
         std::unordered_set<entity_id_type> renderObjectRefreshEntities;
         std::unordered_set<entity_id_type> cleanupEntities;
+        std::vector<entity_id_type> renderTransformSyncEntities;
+        std::vector<uint8_t> renderTransformSyncFlags;
+        uint32_t renderTransformSyncQueueAttempts = 0;
+        uint32_t renderTransformSyncQueueDeduplications = 0;
         MaterialUserIndex materialUserIndex;
         MaterialBindingMetrics materialMetrics;
     };
 
     using MaterialBindingMetrics = GeometryBindingLifecycleState::MaterialBindingMetrics;
+
+    struct RenderTransformSyncQueueStats
+    {
+        uint32_t queueAttempts = 0;
+        uint32_t queueDeduplications = 0;
+    };
 
     inline auto& geometryBindingLifecycleRegistry()
     {
@@ -115,6 +125,59 @@ namespace gts::rendering
         std::unordered_set<entity_id_type> pending;
         pending.swap(state.cleanupEntities);
         return pending;
+    }
+
+    inline void ensureRenderTransformSyncFlagCapacity(std::vector<uint8_t>& flags, entity_id_type id)
+    {
+        const size_t index = static_cast<size_t>(id);
+        if (index >= flags.size())
+            flags.resize(index + 1, 0);
+    }
+
+    inline bool queueRenderTransformSync(ECSWorld& world, Entity entity)
+    {
+        if (!validInvalidationEntity(entity))
+            return false;
+
+        GeometryBindingLifecycleState& state = geometryBindingLifecycleState(world);
+        state.renderTransformSyncQueueAttempts += 1;
+        ensureRenderTransformSyncFlagCapacity(state.renderTransformSyncFlags, entity.id);
+        uint8_t& queued = state.renderTransformSyncFlags[static_cast<size_t>(entity.id)];
+        if (queued != 0)
+        {
+            state.renderTransformSyncQueueDeduplications += 1;
+            return false;
+        }
+
+        queued = 1;
+        state.renderTransformSyncEntities.push_back(entity.id);
+        return true;
+    }
+
+    inline std::vector<entity_id_type> takeRenderTransformSyncs(ECSWorld& world)
+    {
+        GeometryBindingLifecycleState& state = geometryBindingLifecycleState(world);
+        std::vector<entity_id_type> pending;
+        pending.swap(state.renderTransformSyncEntities);
+        for (entity_id_type id : pending)
+        {
+            const size_t index = static_cast<size_t>(id);
+            if (index < state.renderTransformSyncFlags.size())
+                state.renderTransformSyncFlags[index] = 0;
+        }
+        return pending;
+    }
+
+    inline RenderTransformSyncQueueStats takeRenderTransformSyncQueueStats(ECSWorld& world)
+    {
+        GeometryBindingLifecycleState& state = geometryBindingLifecycleState(world);
+        RenderTransformSyncQueueStats stats{
+            state.renderTransformSyncQueueAttempts,
+            state.renderTransformSyncQueueDeduplications
+        };
+        state.renderTransformSyncQueueAttempts = 0;
+        state.renderTransformSyncQueueDeduplications = 0;
+        return stats;
     }
 
     inline void queueMaterialRefresh(ECSWorld& world, Entity entity)
