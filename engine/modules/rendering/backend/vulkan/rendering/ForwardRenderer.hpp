@@ -690,8 +690,8 @@ class ForwardRenderer : Renderer
             }
 
             // Object data is double/triple-buffered, so changed transforms or
-            // per-object material state must be propagated to every in-flight
-            // SSBO copy before we clear the dirty state.
+            // per-object presentation state must be propagated to every
+            // in-flight SSBO copy before we clear the dirty state.
             const auto objectWriteStart = std::chrono::steady_clock::now();
             frameStats.backendObjectWrites = 0;
             frameStats.backendObjectWritesSkipped = 0;
@@ -706,20 +706,6 @@ class ForwardRenderer : Renderer
                 if (writes == 0)
                     frameStats.backendObjectWritesSkipped += 1;
             }
-            for (const RenderCommand& command : renderList)
-            {
-                const MaterialFrameState* material = materialFrameData.find(command.materialGpu);
-                if (material == nullptr)
-                    continue;
-
-                const uint32_t writes =
-                    resourceSystem->writeObjectTintAllFrames(
-                        command.objectSSBOSlot,
-                        material->parameters.baseColor);
-                frameStats.backendObjectWrites += writes;
-                if (writes == 0)
-                    frameStats.backendObjectWritesSkipped += 1;
-            }
             if (editorPreview.enabled)
             {
                 for (const auto& upload : editorPreview.objectUploads)
@@ -729,20 +715,6 @@ class ForwardRenderer : Renderer
                             upload.objectSSBOSlot,
                             upload.modelMatrix,
                             upload.uvTransform);
-                    frameStats.backendObjectWrites += writes;
-                    if (writes == 0)
-                        frameStats.backendObjectWritesSkipped += 1;
-                }
-                for (const RenderCommand& command : editorPreview.renderList)
-                {
-                    const MaterialFrameState* material = editorPreview.materialFrameData.find(command.materialGpu);
-                    if (material == nullptr)
-                        continue;
-
-                    const uint32_t writes =
-                        resourceSystem->writeObjectTintAllFrames(
-                            command.objectSSBOSlot,
-                            material->parameters.baseColor);
                     frameStats.backendObjectWrites += writes;
                     if (writes == 0)
                         frameStats.backendObjectWritesSkipped += 1;

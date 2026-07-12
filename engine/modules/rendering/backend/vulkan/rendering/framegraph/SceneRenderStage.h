@@ -34,6 +34,8 @@ class SceneRenderStage : public GtsRenderStage
     {
         // x = vertex-color-only, y = material feature flags.
         glm::ivec4 materialFlags = {0, 0, 0, 0};
+        // Shared material base-color factor.
+        glm::vec4 baseColor = {1.0f, 1.0f, 1.0f, 1.0f};
         // x = metallic, y = roughness, z = normalScale, w = AO strength.
         glm::vec4 surfaceFactors = {0.0f, 1.0f, 1.0f, 1.0f};
         // xyz = emissive factor, w = emissive strength.
@@ -678,6 +680,7 @@ private:
             0,
             0
         };
+        pushConstants.baseColor = batch.material.parameters.baseColor;
         pushConstants.surfaceFactors = batch.material.parameters.surfaceParameters;
         pushConstants.emissiveFactorStrength =
             batch.material.parameters.emissiveFactorStrength;
@@ -691,6 +694,7 @@ private:
             && lhs.materialFlags.y == rhs.materialFlags.y
             && lhs.materialFlags.z == rhs.materialFlags.z
             && lhs.materialFlags.w == rhs.materialFlags.w
+            && lhs.baseColor == rhs.baseColor
             && lhs.surfaceFactors == rhs.surfaceFactors
             && lhs.emissiveFactorStrength == rhs.emissiveFactorStrength;
     }

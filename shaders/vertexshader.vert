@@ -9,10 +9,9 @@ layout(location = 5) in uint instanceObjectIndex;
 
 layout(location = 0) out vec2 fragTexCoord;
 layout(location = 1) out vec3 fragColor;
-layout(location = 2) out vec4 fragTint;
-layout(location = 3) out vec3 fragWorldPosition;
-layout(location = 4) out vec3 fragWorldNormal;
-layout(location = 5) out vec4 fragWorldTangent;
+layout(location = 2) out vec3 fragWorldPosition;
+layout(location = 3) out vec3 fragWorldNormal;
+layout(location = 4) out vec4 fragWorldTangent;
 
 layout(set = 0, binding = 0) uniform CameraUBO {
     mat4 view;
@@ -33,7 +32,6 @@ layout(set = 0, binding = 0) uniform CameraUBO {
 struct ObjectData {
     mat4 model;
     vec4 uvTransform;
-    vec4 tint;
 };
 
 layout(set = 1, binding = 0) readonly buffer ObjectSSBO {
@@ -65,7 +63,6 @@ void main() {
     gl_Position = cam.proj * cam.view * worldPosition;
     fragTexCoord = inTexCoord * objectData.uvTransform.xy + objectData.uvTransform.zw;
     fragColor = inColor.rgb;
-    fragTint = objectData.tint;
     fragWorldPosition = worldPosition.xyz;
     fragWorldNormal = safeNormalize(normalMatrix * inNormal, vec3(0.0, 0.0, 1.0));
 

@@ -243,11 +243,6 @@ class RenderResourceManager : public IResourceProvider
             return objectSSBOManager->writeSlotObjectDataAllFrames(slot, model, uvTransform);
         }
 
-        uint32_t writeObjectTintAllFrames(ssbo_id_type slot, const glm::vec4& tint)
-        {
-            return objectSSBOManager->writeSlotTintAllFrames(slot, tint);
-        }
-
         void flushObjectSSBO(uint32_t frameIndex)
         {
             objectSSBOManager->flushFrame(frameIndex);

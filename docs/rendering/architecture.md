@@ -137,6 +137,19 @@ Material frame data is emitted beside command lists. Object uploads carry
 per-object model matrix and UV transform. Camera uploads carry view/projection,
 camera world position, and `LightingFrameData`.
 
+Final scene object GPU layout:
+
+```text
+ObjectUBO {
+    mat4 model
+    vec4 uvTransform   // xy = scale, zw = offset
+}
+```
+
+Object data must not store shared material color, tint, texture IDs, or blend
+state. Material color belongs to material GPU state; object GPU state contains
+placement and per-object presentation data only.
+
 Render queues are explicit:
 
 - `Opaque`
@@ -215,6 +228,22 @@ Supported texture roles:
 Missing maps bind backend fallback textures so descriptor layout stays stable.
 Texture roles and material parameters are shared material state; render
 commands and object uploads never carry texture-role details.
+
+Base color data flow:
+
+```text
+MaterialInstance::baseColor
+  -> MaterialRuntime::synchronizeGpuState
+  -> MaterialGpuState::parameters.baseColor
+  -> MaterialFrameData / MaterialFrameState
+  -> SceneRenderStage material push constants
+  -> scene shader
+```
+
+Scene shaders evaluate final surface color as material base color multiplied
+by the base-color texture when present and by vertex color. Lit and unlit scene
+shaders do not read material color from object buffers. Per-object UV animation
+remains object data.
 
 ## Lighting And IBL
 

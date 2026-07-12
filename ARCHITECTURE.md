@@ -200,6 +200,12 @@ and upload meshes, textures, fonts, shaders, and engine assets as needed.
 GPU resource handles are engine-managed runtime values. Application code should
 not create, remove, or read GPU companion components directly.
 
+Renderer ownership rule: material color belongs to material GPU state. Object
+GPU state contains placement and per-object presentation data only. The current
+scene object buffer stores the model matrix and UV transform; shared material
+base color is synchronized through `MaterialRuntime`, `MaterialFrameData`, and
+the scene material binding path rather than being copied into every object.
+
 Runtime graphics changes are engine-owned and travel through engine-facing
 types. Applications request changes through
 `gts::rendering::requestApplyGraphicsSettings(...)`; the graphics module and

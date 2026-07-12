@@ -163,28 +163,6 @@ class ObjectSSBOManager
             return writes;
         }
 
-        bool writeSlotTint(uint32_t frameIndex, ssbo_id_type slot, const glm::vec4& tint)
-        {
-            ObjectUBO data = lastWrittenObject[frameIndex][slot];
-            if (data.tint == tint)
-                return false;
-
-            data.tint = tint;
-            return writeSlot(frameIndex, slot, data);
-        }
-
-        uint32_t writeSlotTintAllFrames(ssbo_id_type slot, const glm::vec4& tint)
-        {
-            uint32_t writes = 0;
-            for (uint32_t frameIndex = 0; frameIndex < static_cast<uint32_t>(ssboMapped.size()); ++frameIndex)
-            {
-                if (writeSlotTint(frameIndex, slot, tint))
-                    writes += 1;
-            }
-
-            return writes;
-        }
-
         void flushFrame(uint32_t frameIndex)
         {
             // Dirty-range tracking: part of the engine's dirty-notification pattern.
@@ -266,12 +244,11 @@ class ObjectSSBOManager
             ObjectUBO empty{};
             empty.model = glm::mat4(0.0f);
             empty.uvTransform = {1.0f, 1.0f, 0.0f, 0.0f};
-            empty.tint = {1.0f, 1.0f, 1.0f, 1.0f};
             return empty;
         }
 
         static bool sameObjectData(const ObjectUBO& lhs, const ObjectUBO& rhs)
         {
-            return lhs.model == rhs.model && lhs.uvTransform == rhs.uvTransform && lhs.tint == rhs.tint;
+            return lhs.model == rhs.model && lhs.uvTransform == rhs.uvTransform;
         }
 };

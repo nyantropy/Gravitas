@@ -295,6 +295,9 @@ namespace
             && world.getComponent<RenderDirtyComponent>(b).materialDirty
             && !world.getComponent<RenderDirtyComponent>(b).objectDataDirty;
         const MaterialGpuState* updatedState = materials.getGpuState(shared);
+        RenderExtractionSnapshot& updatedSnapshot = builder.build(world);
+        const MaterialFrameState* updatedFrameState =
+            updatedSnapshot.materialFrameData.find(updatedState ? updatedState->gpuHandle : MaterialGpuHandle{});
 
         return require(world.getComponent<MaterialReferenceComponent>(a).material == shared,
                        "first renderable references shared material")
@@ -307,6 +310,13 @@ namespace
             && require(updatedState != nullptr && updatedState->uploadedVersion == uploadedVersion + 1,
                        "shared material update uploads one material cache version")
             && require(aDirty && bDirty, "shared material update dirties material representation only")
+            && require(updatedSnapshot.objectUploads.empty(),
+                       "shared material color update does not enqueue object uploads")
+            && require(updatedFrameState != nullptr &&
+                       near(updatedFrameState->parameters.baseColor.r, 0.2f) &&
+                       near(updatedFrameState->parameters.baseColor.g, 0.4f) &&
+                       near(updatedFrameState->parameters.baseColor.b, 0.8f),
+                       "updated shared base color is carried by material frame state")
             && require(world.getComponent<MeshGpuComponent>(a).meshID == meshA &&
                        world.getComponent<MeshGpuComponent>(b).meshID == meshB,
                        "shared material update preserves mesh GPU state")

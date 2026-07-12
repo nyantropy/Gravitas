@@ -2,10 +2,9 @@
 
 layout(location = 0) in vec2 fragTexCoord;
 layout(location = 1) in vec3 fragColor;
-layout(location = 2) in vec4 fragTint;
-layout(location = 3) in vec3 fragWorldPosition;
-layout(location = 4) in vec3 fragWorldNormal;
-layout(location = 5) in vec4 fragWorldTangent;
+layout(location = 2) in vec3 fragWorldPosition;
+layout(location = 3) in vec3 fragWorldNormal;
+layout(location = 4) in vec4 fragWorldTangent;
 layout(location = 0) out vec4 outColor;
 
 layout(set = 0, binding = 0) uniform CameraUBO {
@@ -36,6 +35,7 @@ layout(set = 3, binding = 2) uniform sampler2D environmentBrdfSampler;
 
 layout(push_constant) uniform PushConstants {
     ivec4 materialFlags;
+    vec4 baseColor;
     vec4 surfaceFactors;
     vec4 emissiveFactorStrength;
 } pc;
@@ -218,7 +218,7 @@ vec3 evaluateEnvironmentIbl(
 
 void main() {
     if (pc.materialFlags.x != 0) {
-        outColor = vec4(fragColor, 1.0) * fragTint;
+        outColor = pc.baseColor * vec4(fragColor, 1.0);
         return;
     }
 
@@ -226,7 +226,7 @@ void main() {
     if (textureColor.a < 0.1)
         discard;
 
-    vec4 base = textureColor * fragTint * vec4(fragColor, 1.0);
+    vec4 base = pc.baseColor * textureColor * vec4(fragColor, 1.0);
     vec4 metallicRoughnessSample = texture(metallicRoughnessSampler, fragTexCoord);
     float metallicSample = hasFeature(FEATURE_METALLIC_ROUGHNESS_TEXTURE)
         ? metallicRoughnessSample.b

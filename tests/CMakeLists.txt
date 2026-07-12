@@ -125,6 +125,29 @@ set_tests_properties(first_lit_renderer_architecture
         LABELS "gravitas;rendering;lighting"
 )
 
+add_executable(ObjectMaterialColorOwnershipTest
+    rendering/ObjectMaterialColorOwnershipTest.cpp
+)
+
+target_compile_features(ObjectMaterialColorOwnershipTest PRIVATE cxx_std_20)
+
+target_compile_definitions(ObjectMaterialColorOwnershipTest
+    PRIVATE
+        GRAVITAS_ENGINE_ROOT="${GTS_ENGINE_ROOT}"
+)
+
+target_link_libraries(ObjectMaterialColorOwnershipTest PRIVATE gravitas_vulkan_backend)
+
+add_test(
+    NAME object_material_color_ownership
+    COMMAND ObjectMaterialColorOwnershipTest
+)
+
+set_tests_properties(object_material_color_ownership
+    PROPERTIES
+        LABELS "gravitas;rendering;materials"
+)
+
 add_executable(UiLayerRuntimeTest
     ui/UiLayerRuntimeTest.cpp
 )

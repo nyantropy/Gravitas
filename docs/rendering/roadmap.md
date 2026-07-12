@@ -18,6 +18,8 @@ The renderer currently has:
 - image-based lighting from HDR equirectangular sources preprocessed into
   cubemap resources
 - production-compatible environment descriptor bindings
+- object SSBO layout limited to model matrix and UV transform, with material
+  base color owned by shared material GPU state instead of object tint writes
 - retained UI extraction and Vulkan overlay composition
 - screenshot capture with async PNG writes
 
