@@ -120,6 +120,7 @@ struct GtsFrameStats
     uint32_t playerCollisionCount   = 0;
 
     // Per-stage CPU timings — populated by GravitasEngine each frame
+    uint32_t simulationTickCount = 0;
     float    simulationCpuMs    = 0.0f;
     float    controllerCpuMs    = 0.0f;
     float    snapshotBuildCpuMs = 0.0f;

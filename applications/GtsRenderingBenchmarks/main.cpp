@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <deque>
 #include <exception>
 #include <iostream>
 #include <map>
@@ -51,6 +52,10 @@ namespace
 
     constexpr int GpuBenchmarkSkipExitCode = 77;
     constexpr uint32_t TimestampWaitFrameBudget = 240;
+    constexpr uint32_t GtsScene3GridColumns = 40;
+    constexpr uint32_t GtsScene3GridRows = 40;
+    constexpr uint32_t GtsScene3GridLayers = 40;
+    constexpr float GtsScene3GridSpacing = 2.5f;
 
     struct CliOptions
     {
@@ -85,6 +90,9 @@ namespace
         std::string gpuTimingStatus = "GPU timestamp samples were not collected";
         uint32_t renderedFrames = 0;
         uint32_t measuredFrames = 0;
+        std::vector<gts::rendering::benchmarks::BenchmarkHitchEvent> hitchEvents;
+        std::deque<gts::rendering::benchmarks::BenchmarkHitchFrame> recentHitchFrames;
+        std::vector<size_t> activeHitchEvents;
     };
 
     void printUsage()
@@ -106,6 +114,9 @@ namespace
             << "  --visible-renderable-count <n>\n"
             << "  --unique-mesh-count <n>\n"
             << "  --unique-material-count <n>\n"
+            << "  --hitch-threshold-ms <ms>\n"
+            << "  --hitch-context-frames <n>\n"
+            << "  --max-hitch-events <n>\n"
             << "  --seed <n>\n";
     }
 
@@ -254,6 +265,44 @@ namespace
             : StandardVertexAttributes;
     }
 
+    bool isGtsScene3StressPreset(const RenderingBenchmarkConfig& config)
+    {
+        return config.presetName == "gtsscene3_64k_moving_cubes";
+    }
+
+    glm::vec3 gtsScene3CubePosition(uint32_t index)
+    {
+        const uint32_t x = index % GtsScene3GridColumns;
+        const uint32_t y = (index / GtsScene3GridColumns) % GtsScene3GridRows;
+        const uint32_t z = index / (GtsScene3GridColumns * GtsScene3GridRows);
+
+        const float halfColumns = (static_cast<float>(GtsScene3GridColumns) - 1.0f) * 0.5f;
+        const float halfRows = (static_cast<float>(GtsScene3GridRows) - 1.0f) * 0.5f;
+        const float halfLayers = (static_cast<float>(GtsScene3GridLayers) - 1.0f) * 0.5f;
+
+        return {
+            (static_cast<float>(x) - halfColumns) * GtsScene3GridSpacing,
+            (static_cast<float>(y) - halfRows) * GtsScene3GridSpacing,
+            (static_cast<float>(z) - halfLayers) * GtsScene3GridSpacing
+        };
+    }
+
+    std::string gtsScene3TexturePath(uint32_t index)
+    {
+        static constexpr const char* TextureNames[] = {
+            "engine_demo_cool_stone.png",
+            "engine_demo_crystal_stone.png",
+            "engine_demo_moss_floor.png",
+            "engine_demo_neutral_stone.png",
+            "engine_demo_lantern_stone.png",
+            "engine_demo_arcane_stone.png",
+            "engine_demo_rune_stone.png",
+            "engine_demo_gilt_stone.png"
+        };
+        return std::string(GraphicsConstants::ENGINE_RESOURCES) + "/textures/" +
+            TextureNames[index % (sizeof(TextureNames) / sizeof(TextureNames[0]))];
+    }
+
     std::vector<Vertex> dynamicMeshVerticesForFrame(const RenderingBenchmarkConfig& config,
                                                     uint32_t frame)
     {
@@ -275,6 +324,18 @@ namespace
                                                  uint32_t index)
     {
         gts::rendering::MaterialRuntime& runtime = gts::rendering::materialRuntime(world);
+        if (isGtsScene3StressPreset(config))
+        {
+            MaterialInstance instance;
+            if (const MaterialInstance* defaultMaterial = runtime.getInstance(runtime.defaultMaterial()))
+                instance.definition = defaultMaterial->definition;
+            instance.baseColorTexture = MaterialTextureBinding::assetPath(gtsScene3TexturePath(index));
+            instance.renderState.blendMode = MaterialBlendMode::Alpha;
+            instance.renderState.alphaMode =
+                alphaModeForBlendMode(MaterialBlendMode::Alpha, instance.baseColor.a, true);
+            return runtime.createInstance(instance);
+        }
+
         const MaterialInstanceHandle source = config.enablePbr
             ? runtime.defaultStandardSurfaceMaterial()
             : runtime.defaultMaterial();
@@ -298,10 +359,14 @@ namespace
     {
         Entity camera = world.createEntity();
         TransformComponent transform;
-        transform.position = {0.0f, 0.0f, 80.0f};
+        transform.position = isGtsScene3StressPreset(config)
+            ? glm::vec3(0.0f, 35.0f, 120.0f)
+            : glm::vec3(0.0f, 0.0f, 80.0f);
         world.addComponent(camera, transform);
         CameraDescriptionComponent cameraDesc;
         cameraDesc.active = true;
+        if (isGtsScene3StressPreset(config))
+            cameraDesc.fov = glm::radians(70.0f);
         cameraDesc.target = {0.0f, 0.0f, 0.0f};
         cameraDesc.aspectRatio = config.renderHeight == 0
             ? 1.0f
@@ -382,19 +447,30 @@ namespace
         const uint32_t requestedVisible = config.visibleRenderableCount == 0
             ? config.renderableCount
             : std::min(config.visibleRenderableCount, config.renderableCount);
+        const bool gtsScene3Stress = isGtsScene3StressPreset(config);
+        const std::string gtsScene3CubeMesh =
+            std::string(GraphicsConstants::ENGINE_RESOURCES) + "/models/cube.obj";
 
         for (uint32_t i = 0; i < config.renderableCount; ++i)
         {
             Entity entity = world.createEntity();
             TransformComponent transform;
-            const uint32_t x = i % gridSide;
-            const uint32_t y = i / gridSide;
-            const bool shouldBeVisible = i < requestedVisible;
-            transform.position = {
-                (static_cast<float>(x) - static_cast<float>(gridSide) * 0.5f) * 2.8f + jitter(rng),
-                (static_cast<float>(y) - static_cast<float>(gridSide) * 0.5f) * 2.8f + jitter(rng),
-                shouldBeVisible ? jitter(rng) : 900.0f + static_cast<float>(i)
-            };
+            if (gtsScene3Stress)
+            {
+                transform.position = gtsScene3CubePosition(i);
+                transform.scale = glm::vec3(1.0f);
+            }
+            else
+            {
+                const uint32_t x = i % gridSide;
+                const uint32_t y = i / gridSide;
+                const bool shouldBeVisible = i < requestedVisible;
+                transform.position = {
+                    (static_cast<float>(x) - static_cast<float>(gridSide) * 0.5f) * 2.8f + jitter(rng),
+                    (static_cast<float>(y) - static_cast<float>(gridSide) * 0.5f) * 2.8f + jitter(rng),
+                    shouldBeVisible ? jitter(rng) : 900.0f + static_cast<float>(i)
+                };
+            }
             world.addComponent(entity, transform);
 
             if (i < config.dynamicMeshCount)
@@ -408,11 +484,20 @@ namespace
             }
             else
             {
-                QuadMeshComponent quad;
-                const uint32_t meshBucket = i % std::max(1u, config.uniqueMeshCount);
-                quad.width = 0.95f + 0.05f * static_cast<float>(meshBucket % 8u);
-                quad.height = 0.95f + 0.07f * static_cast<float>((meshBucket / 8u) % 8u);
-                world.addComponent(entity, quad);
+                if (gtsScene3Stress)
+                {
+                    StaticMeshComponent mesh;
+                    mesh.meshPath = gtsScene3CubeMesh;
+                    world.addComponent(entity, mesh);
+                }
+                else
+                {
+                    QuadMeshComponent quad;
+                    const uint32_t meshBucket = i % std::max(1u, config.uniqueMeshCount);
+                    quad.width = 0.95f + 0.05f * static_cast<float>(meshBucket % 8u);
+                    quad.height = 0.95f + 0.07f * static_cast<float>((meshBucket / 8u) % 8u);
+                    world.addComponent(entity, quad);
+                }
             }
 
             world.addComponent(entity, MaterialReferenceComponent{
@@ -568,8 +653,25 @@ namespace
 
             TransformComponent& transform = world.getComponent<TransformComponent>(entity);
             const float phase = static_cast<float>(frameIndex) * 0.031f + static_cast<float>(i) * 0.13f;
-            transform.position.x += std::sin(phase) * 0.015f;
-            transform.position.y += std::cos(phase) * 0.010f;
+            if (isGtsScene3StressPreset(config))
+            {
+                const glm::vec3 home = gtsScene3CubePosition(i);
+                transform.position = {
+                    home.x + std::cos(phase) * 0.5f,
+                    home.y + std::sin(phase * 1.7f) * 0.25f,
+                    home.z + std::sin(phase) * 0.5f
+                };
+                transform.rotation = {
+                    std::sin(phase * 0.7f) * 0.35f,
+                    phase,
+                    std::cos(phase * 0.5f) * 0.25f
+                };
+            }
+            else
+            {
+                transform.position.x += std::sin(phase) * 0.015f;
+                transform.position.y += std::cos(phase) * 0.010f;
+            }
             gts::transform::markDirty(world, entity);
         }
 
@@ -780,6 +882,7 @@ namespace
         }
 
         const uint64_t frames = 1;
+        addCounter(collector.counters, "simulation_ticks", stats.simulationTickCount);
         addCounter(collector.counters, "authored_renderables", config.renderableCount);
         addCounter(collector.counters, "snapshot_renderables", stats.totalObjects);
         addCounter(collector.counters, "visible_renderables", stats.visibleObjects);
@@ -866,6 +969,170 @@ namespace
         addCounter(collector.counters, "gpu_timing_available", stats.gpuTimingAvailable != 0 ? 1u : 0u);
     }
 
+    gts::rendering::benchmarks::BenchmarkHitchFrame makeHitchFrame(
+        const GtsFrameStats& stats,
+        const std::vector<EcsSystemTimingSample>& controllerTimings,
+        uint32_t measuredFrameIndex)
+    {
+        using gts::rendering::benchmarks::BenchmarkControllerFrameTiming;
+        using gts::rendering::benchmarks::BenchmarkHitchFrame;
+
+        BenchmarkHitchFrame frame;
+        frame.frameIndex = stats.frameIndex;
+        frame.measuredFrameIndex = measuredFrameIndex;
+        frame.timingsMs = {
+            {"frame_cpu", stats.frameCpuMs},
+            {"frame_delta", stats.frameTimeMs},
+            {"simulation_cpu", stats.simulationCpuMs},
+            {"controller_cpu", stats.controllerCpuMs},
+            {"snapshot_build_cpu", stats.snapshotBuildCpuMs},
+            {"visibility_cpu", stats.visibilityCpuMs},
+            {"command_extract_cpu", stats.renderExtractCpuMs},
+            {"command_sort_cpu", stats.renderExtractSortCpuMs},
+            {"render_gpu_sync_cpu", stats.renderGpuCpuMs},
+            {"render_submit_cpu", stats.renderSubmitCpuMs},
+            {"backend_frame_cpu", stats.backendFrameCpuMs},
+            {"backend_fence_wait_cpu", stats.backendFenceWaitCpuMs},
+            {"backend_acquire_cpu", stats.backendAcquireCpuMs},
+            {"backend_image_wait_cpu", stats.backendImageWaitCpuMs},
+            {"backend_object_write_cpu", stats.backendObjectWriteCpuMs},
+            {"backend_command_record_cpu", stats.backendCmdRecordCpuMs},
+            {"backend_queue_submit_cpu", stats.backendQueueSubmitCpuMs},
+            {"backend_present_cpu", stats.backendPresentCpuMs},
+            {"gpu_frame", stats.gpuFrameMs},
+            {"gpu_scene", stats.sceneGpuMs},
+            {"gpu_particles", stats.particleGpuMs},
+            {"gpu_ui", stats.uiGpuMs}
+        };
+        frame.counters = {
+            {"simulation_ticks", stats.simulationTickCount},
+            {"render_commands", stats.renderCommandTotalCount},
+            {"visible_renderables", stats.visibleObjects},
+            {"snapshot_renderables", stats.totalObjects},
+            {"snapshot_dirty_entries", stats.snapshotDirtyCount},
+            {"snapshot_reused_entries", stats.snapshotReusedCount},
+            {"transform_queued", stats.transformQueuedCount},
+            {"transform_processed", stats.transformProcessedCount},
+            {"transform_updates", stats.transformUpdatedCount},
+            {"render_gpu_queued", stats.renderGpuQueuedCount},
+            {"render_gpu_queue_drained", stats.renderGpuQueueDrainedCount},
+            {"render_gpu_changed_syncs", stats.renderGpuChangedSyncCount},
+            {"render_gpu_full_scan_visited", stats.renderGpuFullScanVisitedCount},
+            {"render_gpu_matrix_copies", stats.renderGpuMatrixCopyCount},
+            {"object_uploads", stats.objectUploadCommandCount},
+            {"physical_object_buffer_writes", stats.backendObjectWrites},
+            {"bytes_written_object_buffer", stats.backendObjectWriteBytes},
+            {"object_write_contiguous_runs", stats.backendObjectWriteContiguousRuns},
+            {"draw_calls", stats.drawCalls},
+            {"pipeline_switches", stats.pipelineSwitches},
+            {"descriptor_binds", stats.descriptorBinds},
+            {"dynamic_mesh_changed", stats.dynamicMeshChangedCount},
+            {"material_synchronized", stats.materialSynchronizedCount},
+            {"gpu_timing_available", stats.gpuTimingAvailable}
+        };
+
+        frame.controllerTimings.reserve(controllerTimings.size());
+        for (const EcsSystemTimingSample& sample : controllerTimings)
+        {
+            std::string name(sample.name);
+            if (sample.instanceIndex > 0)
+            {
+                name += "#";
+                name += std::to_string(sample.instanceIndex);
+            }
+            frame.controllerTimings.push_back(BenchmarkControllerFrameTiming{
+                std::move(name),
+                ecsSystemGroupName(sample.group),
+                sample.updateMs,
+                sample.commandFlushMs
+            });
+        }
+        std::sort(frame.controllerTimings.begin(),
+                  frame.controllerTimings.end(),
+                  [](const BenchmarkControllerFrameTiming& lhs,
+                     const BenchmarkControllerFrameTiming& rhs)
+                  {
+                      if (lhs.updateMs != rhs.updateMs)
+                          return lhs.updateMs > rhs.updateMs;
+                      return lhs.name < rhs.name;
+                  });
+        return frame;
+    }
+
+    void recordRuntimeHitchFrame(RuntimeBenchmarkCollector& collector,
+                                 const GtsFrameStats& stats,
+                                 const std::vector<EcsSystemTimingSample>& controllerTimings)
+    {
+        if (collector.config.hitchThresholdMs <= 0.0 || collector.config.maxHitchEvents == 0)
+            return;
+
+        using gts::rendering::benchmarks::BenchmarkHitchEvent;
+        using gts::rendering::benchmarks::BenchmarkHitchFrame;
+
+        BenchmarkHitchFrame frame = makeHitchFrame(stats, controllerTimings, collector.measuredFrames);
+        collector.recentHitchFrames.push_back(frame);
+        while (collector.recentHitchFrames.size() >
+               static_cast<size_t>(collector.config.hitchContextFrames) + 1u)
+        {
+            collector.recentHitchFrames.pop_front();
+        }
+
+        std::vector<size_t> stillActive;
+        stillActive.reserve(collector.activeHitchEvents.size());
+        for (size_t eventIndex : collector.activeHitchEvents)
+        {
+            if (eventIndex >= collector.hitchEvents.size())
+                continue;
+            BenchmarkHitchEvent& event = collector.hitchEvents[eventIndex];
+            if (!event.frames.empty() &&
+                event.frames.back().measuredFrameIndex == frame.measuredFrameIndex)
+            {
+                stillActive.push_back(eventIndex);
+                continue;
+            }
+            BenchmarkHitchFrame follow = frame;
+            follow.relativeFrame =
+                static_cast<int32_t>(follow.measuredFrameIndex) -
+                static_cast<int32_t>(event.triggerMeasuredFrameIndex);
+            follow.trigger = false;
+            event.frames.push_back(std::move(follow));
+            if (event.frames.back().relativeFrame <
+                static_cast<int32_t>(collector.config.hitchContextFrames))
+            {
+                stillActive.push_back(eventIndex);
+            }
+        }
+        collector.activeHitchEvents = std::move(stillActive);
+
+        const bool thresholdCrossed =
+            stats.frameCpuMs >= static_cast<float>(collector.config.hitchThresholdMs);
+        if (!thresholdCrossed ||
+            collector.hitchEvents.size() >= collector.config.maxHitchEvents ||
+            !collector.activeHitchEvents.empty())
+        {
+            return;
+        }
+
+        BenchmarkHitchEvent event;
+        event.triggerFrameIndex = stats.frameIndex;
+        event.triggerMeasuredFrameIndex = collector.measuredFrames;
+        event.triggerFrameCpuMs = stats.frameCpuMs;
+        event.frames.reserve(static_cast<size_t>(collector.config.hitchContextFrames) * 2u + 1u);
+
+        for (const BenchmarkHitchFrame& previous : collector.recentHitchFrames)
+        {
+            BenchmarkHitchFrame copy = previous;
+            copy.relativeFrame =
+                static_cast<int32_t>(copy.measuredFrameIndex) -
+                static_cast<int32_t>(event.triggerMeasuredFrameIndex);
+            copy.trigger = copy.measuredFrameIndex == event.triggerMeasuredFrameIndex;
+            event.frames.push_back(std::move(copy));
+        }
+
+        collector.hitchEvents.push_back(std::move(event));
+        collector.activeHitchEvents.push_back(collector.hitchEvents.size() - 1u);
+    }
+
     BenchmarkRunResult finishRuntimeBenchmarkResult(const RuntimeBenchmarkCollector& collector)
     {
         BenchmarkRunResult result;
@@ -889,6 +1156,7 @@ namespace
         result.controllerTimingGroups = collector.controllerGroups;
 
         result.counters = collector.counters;
+        result.hitchEvents = collector.hitchEvents;
         result.invariantFailures = gts::rendering::benchmarks::checkBenchmarkInvariants(result);
         return result;
     }
@@ -967,6 +1235,7 @@ namespace
             }
 
             recordRuntimeFrameStats(*collector, stats, lastControllerTimings);
+            recordRuntimeHitchFrame(*collector, stats, lastControllerTimings);
             collector->measuredFrames += 1;
 
             if (collector->measuredFrames >= config.measuredFrames)

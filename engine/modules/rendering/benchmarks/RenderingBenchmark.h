@@ -51,6 +51,10 @@ namespace gts::rendering::benchmarks
         uint32_t renderWidth = 1280;
         uint32_t renderHeight = 720;
         BenchmarkRunMode mode = BenchmarkRunMode::CpuSmoke;
+
+        double hitchThresholdMs = 0.0;
+        uint32_t hitchContextFrames = 2;
+        uint32_t maxHitchEvents = 8;
     };
 
     struct BenchmarkPreset
@@ -69,9 +73,37 @@ namespace gts::rendering::benchmarks
         double p90 = 0.0;
         double p95 = 0.0;
         double p99 = 0.0;
+        double p999 = 0.0;
         double maximum = 0.0;
         double standardDeviation = 0.0;
         uint64_t sampleCount = 0;
+    };
+
+    struct BenchmarkControllerFrameTiming
+    {
+        std::string name;
+        std::string group;
+        double updateMs = 0.0;
+        double commandFlushMs = 0.0;
+    };
+
+    struct BenchmarkHitchFrame
+    {
+        uint64_t frameIndex = 0;
+        uint32_t measuredFrameIndex = 0;
+        int32_t relativeFrame = 0;
+        bool trigger = false;
+        std::map<std::string, double> timingsMs;
+        std::map<std::string, uint64_t> counters;
+        std::vector<BenchmarkControllerFrameTiming> controllerTimings;
+    };
+
+    struct BenchmarkHitchEvent
+    {
+        uint64_t triggerFrameIndex = 0;
+        uint32_t triggerMeasuredFrameIndex = 0;
+        double triggerFrameCpuMs = 0.0;
+        std::vector<BenchmarkHitchFrame> frames;
     };
 
     struct BenchmarkEnvironment
@@ -92,6 +124,7 @@ namespace gts::rendering::benchmarks
         std::map<std::string, uint64_t> counters;
         std::vector<std::string> warnings;
         std::vector<std::string> invariantFailures;
+        std::vector<BenchmarkHitchEvent> hitchEvents;
         bool gpuTimingSupported = false;
         bool gpuTimingAvailable = false;
         std::string gpuTimingStatus = "unavailable";

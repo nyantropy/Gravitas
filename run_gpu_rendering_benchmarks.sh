@@ -50,6 +50,19 @@ echo "== GPU combined benchmark =="
     --output "$OUT_DIR/combined_game_like_gpu.json" \
     --check-invariants
 
+echo
+echo "== GPU GtsScene3 hitch benchmark =="
+"$BENCHMARK_EXE" \
+    --preset gtsscene3_64k_moving_cubes \
+    --mode gpu_runtime \
+    --warmup-frames 120 \
+    --measured-frames 600 \
+    --hitch-threshold-ms 8 \
+    --hitch-context-frames 3 \
+    --max-hitch-events 8 \
+    --output "$OUT_DIR/gtsscene3_64k_moving_cubes_gpu.json" \
+    --check-invariants
+
 for preset in \
     moving_static_control \
     moving_independent \
@@ -81,6 +94,7 @@ echo
 echo "Benchmark JSON written to:"
 echo "  $OUT_DIR/static_geometry_small_gpu.json"
 echo "  $OUT_DIR/combined_game_like_gpu.json"
+echo "  $OUT_DIR/gtsscene3_64k_moving_cubes_gpu.json"
 echo "  $OUT_DIR/moving_static_control_gpu.json"
 echo "  $OUT_DIR/moving_independent_gpu.json"
 echo "  $OUT_DIR/moving_sparse_gpu.json"

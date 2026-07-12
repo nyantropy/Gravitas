@@ -31,6 +31,14 @@ int main()
     const BenchmarkPreset* preset = findBenchmarkPreset("static_geometry_small");
     ok &= require(preset != nullptr, "static_geometry_small preset exists");
     ok &= require(findBenchmarkPreset("does_not_exist") == nullptr, "unknown preset is rejected");
+    const BenchmarkPreset* gtsScene3Preset = findBenchmarkPreset("gtsscene3_64k_moving_cubes");
+    ok &= require(gtsScene3Preset != nullptr, "GtsScene3 hitch preset exists");
+    ok &= require(gtsScene3Preset->config.renderableCount == 64000,
+                  "GtsScene3 hitch preset keeps the 64k cube count");
+    ok &= require(gtsScene3Preset->config.movingObjectCount == 64000,
+                  "GtsScene3 hitch preset moves every cube");
+    ok &= require(near(gtsScene3Preset->config.hitchThresholdMs, 8.0),
+                  "GtsScene3 hitch preset has an 8 ms capture threshold");
 
     RenderingBenchmarkConfig config = preset->config;
     std::string error;
@@ -56,6 +64,7 @@ int main()
     ok &= require(near(stats.maximum, 4.0), "maximum recorded");
     ok &= require(near(stats.median, 2.5), "median uses interpolation");
     ok &= require(near(stats.mean, 2.5), "mean recorded");
+    ok &= require(near(stats.p999, 3.997), "p99.9 uses interpolation");
 
     config.seed = 7;
     config.mode = BenchmarkRunMode::CpuSmoke;
@@ -92,6 +101,8 @@ int main()
                   "json contains timing object");
     ok &= require(json.find("\"gpu_timings_ms\"") != std::string::npos,
                   "json contains gpu timing object");
+    ok &= require(json.find("\"p999\"") != std::string::npos,
+                  "json contains p99.9 timing values");
     ok &= require(json.find("\"controller_timings_ms\"") != std::string::npos,
                   "json contains controller timing object");
     ok &= require(json.find("\"controller_substages_ms\"") != std::string::npos,
@@ -104,6 +115,8 @@ int main()
                   "json contains gpu support flag");
     ok &= require(json.find("\"counters\"") != std::string::npos,
                   "json contains counters object");
+    ok &= require(json.find("\"hitch_capture\"") != std::string::npos,
+                  "json contains hitch capture object");
 
     std::string outputError;
     ok &= require(writeBenchmarkResultJson(result, "/tmp/gts_rendering_benchmark_support_test.json", &outputError),
@@ -130,6 +143,22 @@ int main()
     ok &= require(movingResult.counters.at("object_upload_commands") ==
                       moving.measuredFrames * moving.movingObjectCount,
                   "moving independent upload command count is deterministic");
+
+    RenderingBenchmarkConfig gtsSmall = gtsScene3Preset->config;
+    gtsSmall.mode = BenchmarkRunMode::CpuSmoke;
+    gtsSmall.warmupFrames = 2;
+    gtsSmall.measuredFrames = 4;
+    gtsSmall.renderableCount = 16;
+    gtsSmall.visibleRenderableCount = 16;
+    gtsSmall.movingObjectCount = 16;
+    BenchmarkRunResult gtsSmallResult = runRenderingBenchmark(gtsSmall);
+    ok &= require(gtsSmallResult.invariantFailures.empty(),
+                  "GtsScene3 small smoke invariants pass");
+    ok &= require(gtsSmallResult.counters.at("logical_object_updates") ==
+                      gtsSmall.measuredFrames * gtsSmall.movingObjectCount,
+                  "GtsScene3 small smoke moves every configured cube");
+    ok &= require(gtsSmallResult.config.hitchThresholdMs > 0.0,
+                  "GtsScene3 small smoke preserves hitch threshold config");
 
     RenderingBenchmarkConfig hierarchy = findBenchmarkPreset("moving_wide_hierarchy")->config;
     hierarchy.warmupFrames = 2;

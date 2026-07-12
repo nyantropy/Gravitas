@@ -23,6 +23,7 @@
 #include "ECSWorld.hpp"
 #include "EcsControllerContext.hpp"
 #include "FrustumCullingStrategy.h"
+#include "GraphicsConstants.h"
 #include "IResourceProvider.hpp"
 #include "MaterialBindingSystem.hpp"
 #include "MaterialReferenceComponent.h"
@@ -51,11 +52,16 @@ namespace gts::rendering::benchmarks
 {
     namespace
     {
-        constexpr uint32_t MaxBenchmarkRenderables = 60000;
+        constexpr uint32_t MaxBenchmarkRenderables = GraphicsConstants::MAX_RENDERABLE_OBJECTS - 1u;
         constexpr uint32_t MaxBenchmarkMaterials = 60000;
         constexpr uint32_t MaxBenchmarkMeshes = 4096;
         constexpr uint32_t MaxBenchmarkLights = 20000;
         constexpr float FixedDeltaSeconds = 1.0f / 60.0f;
+        constexpr uint32_t GtsScene3CubeCount = 64000;
+        constexpr uint32_t GtsScene3GridColumns = 40;
+        constexpr uint32_t GtsScene3GridRows = 40;
+        constexpr uint32_t GtsScene3GridLayers = 40;
+        constexpr float GtsScene3GridSpacing = 2.5f;
 
         struct BenchmarkResourceProvider : IResourceProvider
         {
@@ -253,6 +259,22 @@ namespace gts::rendering::benchmarks
             return false;
         }
 
+        double parseDouble(std::string_view text, bool& ok)
+        {
+            ok = false;
+            if (text.empty())
+                return 0.0;
+
+            std::string owned(text);
+            char* end = nullptr;
+            const double value = std::strtod(owned.c_str(), &end);
+            if (end == owned.c_str() || end == nullptr || *end != '\0' || !std::isfinite(value))
+                return 0.0;
+
+            ok = true;
+            return value;
+        }
+
         double percentile(const std::vector<double>& sorted, double fraction)
         {
             if (sorted.empty())
@@ -337,6 +359,44 @@ namespace gts::rendering::benchmarks
 #else
             return "unknown";
 #endif
+        }
+
+        bool isGtsScene3StressPreset(const RenderingBenchmarkConfig& config)
+        {
+            return config.presetName == "gtsscene3_64k_moving_cubes";
+        }
+
+        glm::vec3 gtsScene3CubePosition(uint32_t index)
+        {
+            const uint32_t x = index % GtsScene3GridColumns;
+            const uint32_t y = (index / GtsScene3GridColumns) % GtsScene3GridRows;
+            const uint32_t z = index / (GtsScene3GridColumns * GtsScene3GridRows);
+
+            const float halfColumns = (static_cast<float>(GtsScene3GridColumns) - 1.0f) * 0.5f;
+            const float halfRows = (static_cast<float>(GtsScene3GridRows) - 1.0f) * 0.5f;
+            const float halfLayers = (static_cast<float>(GtsScene3GridLayers) - 1.0f) * 0.5f;
+
+            return {
+                (static_cast<float>(x) - halfColumns) * GtsScene3GridSpacing,
+                (static_cast<float>(y) - halfRows) * GtsScene3GridSpacing,
+                (static_cast<float>(z) - halfLayers) * GtsScene3GridSpacing
+            };
+        }
+
+        std::string gtsScene3TexturePath(uint32_t index)
+        {
+            static constexpr const char* TextureNames[] = {
+                "engine_demo_cool_stone.png",
+                "engine_demo_crystal_stone.png",
+                "engine_demo_moss_floor.png",
+                "engine_demo_neutral_stone.png",
+                "engine_demo_lantern_stone.png",
+                "engine_demo_arcane_stone.png",
+                "engine_demo_rune_stone.png",
+                "engine_demo_gilt_stone.png"
+            };
+            return std::string(GraphicsConstants::ENGINE_RESOURCES) + "/textures/" +
+                TextureNames[index % (sizeof(TextureNames) / sizeof(TextureNames[0]))];
         }
 
         std::string buildTypeName()
@@ -465,6 +525,18 @@ namespace gts::rendering::benchmarks
                                                        uint32_t index)
         {
             MaterialRuntime& runtime = materialRuntime(state.world);
+            if (isGtsScene3StressPreset(config))
+            {
+                MaterialInstance instance;
+                if (const MaterialInstance* defaultMaterial = runtime.getInstance(runtime.defaultMaterial()))
+                    instance.definition = defaultMaterial->definition;
+                instance.baseColorTexture = MaterialTextureBinding::assetPath(gtsScene3TexturePath(index));
+                instance.renderState.blendMode = MaterialBlendMode::Alpha;
+                instance.renderState.alphaMode =
+                    alphaModeForBlendMode(MaterialBlendMode::Alpha, instance.baseColor.a, true);
+                return runtime.createInstance(instance);
+            }
+
             const MaterialInstanceHandle source = config.enablePbr
                 ? runtime.defaultStandardSurfaceMaterial()
                 : runtime.defaultMaterial();
@@ -491,10 +563,14 @@ namespace gts::rendering::benchmarks
         {
             Entity camera = state.world.createEntity();
             TransformComponent transform;
-            transform.position = {0.0f, 0.0f, 80.0f};
+            transform.position = isGtsScene3StressPreset(config)
+                ? glm::vec3(0.0f, 35.0f, 120.0f)
+                : glm::vec3(0.0f, 0.0f, 80.0f);
             state.world.addComponent(camera, transform);
             CameraDescriptionComponent cameraDesc;
             cameraDesc.active = true;
+            if (isGtsScene3StressPreset(config))
+                cameraDesc.fov = glm::radians(70.0f);
             cameraDesc.target = {0.0f, 0.0f, 0.0f};
             cameraDesc.aspectRatio = config.renderHeight == 0
                 ? 1.0f
@@ -572,19 +648,30 @@ namespace gts::rendering::benchmarks
             const uint32_t requestedVisible = config.visibleRenderableCount == 0
                 ? config.renderableCount
                 : std::min(config.visibleRenderableCount, config.renderableCount);
+            const bool gtsScene3Stress = isGtsScene3StressPreset(config);
+            const std::string gtsScene3CubeMesh =
+                std::string(GraphicsConstants::ENGINE_RESOURCES) + "/models/cube.obj";
 
             for (uint32_t i = 0; i < config.renderableCount; ++i)
             {
                 Entity entity = state.world.createEntity();
                 TransformComponent transform;
-                const uint32_t x = i % gridSide;
-                const uint32_t y = i / gridSide;
-                const bool shouldBeVisible = i < requestedVisible;
-                transform.position = {
-                    (static_cast<float>(x) - static_cast<float>(gridSide) * 0.5f) * 2.8f + jitter(rng),
-                    (static_cast<float>(y) - static_cast<float>(gridSide) * 0.5f) * 2.8f + jitter(rng),
-                    shouldBeVisible ? jitter(rng) : 900.0f + static_cast<float>(i)
-                };
+                if (gtsScene3Stress)
+                {
+                    transform.position = gtsScene3CubePosition(i);
+                    transform.scale = glm::vec3(1.0f);
+                }
+                else
+                {
+                    const uint32_t x = i % gridSide;
+                    const uint32_t y = i / gridSide;
+                    const bool shouldBeVisible = i < requestedVisible;
+                    transform.position = {
+                        (static_cast<float>(x) - static_cast<float>(gridSide) * 0.5f) * 2.8f + jitter(rng),
+                        (static_cast<float>(y) - static_cast<float>(gridSide) * 0.5f) * 2.8f + jitter(rng),
+                        shouldBeVisible ? jitter(rng) : 900.0f + static_cast<float>(i)
+                    };
+                }
                 state.world.addComponent(entity, transform);
 
                 if (i < config.dynamicMeshCount)
@@ -599,8 +686,10 @@ namespace gts::rendering::benchmarks
                 else
                 {
                     StaticMeshComponent mesh;
-                    mesh.meshPath = "benchmarks/generated_mesh_" +
-                        std::to_string(i % std::max(1u, config.uniqueMeshCount)) + ".mesh";
+                    mesh.meshPath = gtsScene3Stress
+                        ? gtsScene3CubeMesh
+                        : "benchmarks/generated_mesh_" +
+                            std::to_string(i % std::max(1u, config.uniqueMeshCount)) + ".mesh";
                     state.world.addComponent(entity, mesh);
                 }
 
@@ -747,8 +836,25 @@ namespace gts::rendering::benchmarks
 
                 TransformComponent& transform = state.world.getComponent<TransformComponent>(entity);
                 const float phase = static_cast<float>(frameIndex) * 0.031f + static_cast<float>(i) * 0.13f;
-                transform.position.x += std::sin(phase) * 0.015f;
-                transform.position.y += std::cos(phase) * 0.010f;
+                if (isGtsScene3StressPreset(config))
+                {
+                    const glm::vec3 home = gtsScene3CubePosition(i);
+                    transform.position = {
+                        home.x + std::cos(phase) * 0.5f,
+                        home.y + std::sin(phase * 1.7f) * 0.25f,
+                        home.z + std::sin(phase) * 0.5f
+                    };
+                    transform.rotation = {
+                        std::sin(phase * 0.7f) * 0.35f,
+                        phase,
+                        std::cos(phase * 0.5f) * 0.25f
+                    };
+                }
+                else
+                {
+                    transform.position.x += std::sin(phase) * 0.015f;
+                    transform.position.y += std::cos(phase) * 0.010f;
+                }
                 gts::transform::markDirty(state.world, entity);
             }
 
@@ -1047,6 +1153,7 @@ namespace gts::rendering::benchmarks
             state.previousObjectSlotRequests = state.resources.objectSlotRequests;
             state.previousCameraBufferRequests = state.resources.cameraBufferRequests;
 
+            addCounter(counters, "simulation_ticks", 0);
             addCounter(counters, "authored_renderables", config.renderableCount);
             addCounter(counters, "snapshot_renderables", snapshotMetrics.renderableCount);
             addCounter(counters, "visible_renderables", extractorMetrics.visibleRenderables);
@@ -1326,6 +1433,27 @@ namespace gts::rendering::benchmarks
                      uploadPressure,
                      presets);
 
+        RenderingBenchmarkConfig gtsScene3Stress = movingStaticControl;
+        gtsScene3Stress.renderableCount = GtsScene3CubeCount;
+        gtsScene3Stress.visibleRenderableCount = GtsScene3CubeCount;
+        gtsScene3Stress.uniqueMeshCount = 1;
+        gtsScene3Stress.uniqueMaterialCount = 8;
+        gtsScene3Stress.movingObjectCount = GtsScene3CubeCount;
+        gtsScene3Stress.directionalLightCount = 0;
+        gtsScene3Stress.pointLightCount = 0;
+        gtsScene3Stress.spotLightCount = 0;
+        gtsScene3Stress.enablePbr = false;
+        gtsScene3Stress.enableNormalMaps = false;
+        gtsScene3Stress.enableIbl = false;
+        gtsScene3Stress.hitchThresholdMs = 8.0;
+        gtsScene3Stress.hitchContextFrames = 3;
+        gtsScene3Stress.maxHitchEvents = 8;
+        presetConfig("gtsscene3_64k_moving_cubes",
+                     "GtsScene3-style 40x40x40 moving cube stress scene with hitch capture enabled.",
+                     1,
+                     gtsScene3Stress,
+                     presets);
+
         RenderingBenchmarkConfig dynamicStatic = movingStaticControl;
         dynamicStatic.renderableCount = 4000;
         dynamicStatic.visibleRenderableCount = 4000;
@@ -1529,6 +1657,11 @@ namespace gts::rendering::benchmarks
             std::min(config.dynamicMeshMutationCountPerFrame, config.dynamicMeshCount);
         config.renderWidth = std::clamp(config.renderWidth, 16u, 16384u);
         config.renderHeight = std::clamp(config.renderHeight, 16u, 16384u);
+        if (!std::isfinite(config.hitchThresholdMs) || config.hitchThresholdMs < 0.0)
+            config.hitchThresholdMs = 0.0;
+        config.hitchThresholdMs = std::min(config.hitchThresholdMs, 10000.0);
+        config.hitchContextFrames = std::min(config.hitchContextFrames, 16u);
+        config.maxHitchEvents = std::min(config.maxHitchEvents, 64u);
         if (config.seed == 0)
             config.seed = 1;
     }
@@ -1562,6 +1695,15 @@ namespace gts::rendering::benchmarks
             destination = parsed;
             return true;
         };
+        auto doubleValue = [&](double& destination)
+        {
+            bool ok = false;
+            const double parsed = parseDouble(value, ok);
+            if (!ok)
+                return false;
+            destination = parsed;
+            return true;
+        };
 
         bool ok = true;
         if (key == "seed") ok = unsignedValue(config.seed);
@@ -1584,6 +1726,9 @@ namespace gts::rendering::benchmarks
         else if (key == "world-text-count" || key == "world_text_count") ok = unsignedValue(config.worldTextCount);
         else if (key == "render-width" || key == "render_width") ok = unsignedValue(config.renderWidth);
         else if (key == "render-height" || key == "render_height") ok = unsignedValue(config.renderHeight);
+        else if (key == "hitch-threshold-ms" || key == "hitch_threshold_ms") ok = doubleValue(config.hitchThresholdMs);
+        else if (key == "hitch-context-frames" || key == "hitch_context_frames") ok = unsignedValue(config.hitchContextFrames);
+        else if (key == "max-hitch-events" || key == "max_hitch_events") ok = unsignedValue(config.maxHitchEvents);
         else if (key == "enable-pbr" || key == "enable_pbr") ok = boolValue(config.enablePbr);
         else if (key == "enable-normal-maps" || key == "enable_normal_maps") ok = boolValue(config.enableNormalMaps);
         else if (key == "enable-ibl" || key == "enable_ibl") ok = boolValue(config.enableIbl);
@@ -1626,6 +1771,7 @@ namespace gts::rendering::benchmarks
         summary.p90 = percentile(samples, 0.90);
         summary.p95 = percentile(samples, 0.95);
         summary.p99 = percentile(samples, 0.99);
+        summary.p999 = percentile(samples, 0.999);
         summary.mean = std::accumulate(samples.begin(), samples.end(), 0.0) /
             static_cast<double>(samples.size());
 
@@ -1748,6 +1894,7 @@ namespace gts::rendering::benchmarks
                 summary.p90,
                 summary.p95,
                 summary.p99,
+                summary.p999,
                 summary.maximum,
                 summary.standardDeviation
             };
@@ -1772,6 +1919,7 @@ namespace gts::rendering::benchmarks
                 summary.p90,
                 summary.p95,
                 summary.p99,
+                summary.p999,
                 summary.maximum,
                 summary.standardDeviation
             };
@@ -1800,6 +1948,7 @@ namespace gts::rendering::benchmarks
                         summary.p90,
                         summary.p95,
                         summary.p99,
+                        summary.p999,
                         summary.maximum,
                         summary.standardDeviation
                     };
@@ -1867,7 +2016,8 @@ namespace gts::rendering::benchmarks
         if ((result.config.presetName == "moving_independent" ||
              result.config.presetName == "moving_sparse" ||
              result.config.presetName == "moving_dense" ||
-             result.config.presetName == "upload_only_pressure") &&
+             result.config.presetName == "upload_only_pressure" ||
+             result.config.presetName == "gtsscene3_64k_moving_cubes") &&
             result.config.movingObjectCount > 0)
         {
             const uint64_t expectedUpdates =
@@ -2003,7 +2153,10 @@ namespace gts::rendering::benchmarks
         out << "    \"enable_normal_maps\": " << (result.config.enableNormalMaps ? "true" : "false") << ",\n";
         out << "    \"enable_ibl\": " << (result.config.enableIbl ? "true" : "false") << ",\n";
         out << "    \"enable_ui\": " << (result.config.enableUi ? "true" : "false") << ",\n";
-        out << "    \"enable_frustum_culling\": " << (result.config.enableFrustumCulling ? "true" : "false") << "\n";
+        out << "    \"enable_frustum_culling\": " << (result.config.enableFrustumCulling ? "true" : "false") << ",\n";
+        out << "    \"hitch_threshold_ms\": " << result.config.hitchThresholdMs << ",\n";
+        out << "    \"hitch_context_frames\": " << result.config.hitchContextFrames << ",\n";
+        out << "    \"max_hitch_events\": " << result.config.maxHitchEvents << "\n";
         out << "  },\n";
         out << "  \"environment\": {\n";
         size_t index = 0;
@@ -2024,6 +2177,7 @@ namespace gts::rendering::benchmarks
             out << "      \"p90\": " << summary.p90 << ",\n";
             out << "      \"p95\": " << summary.p95 << ",\n";
             out << "      \"p99\": " << summary.p99 << ",\n";
+            out << "      \"p999\": " << summary.p999 << ",\n";
             out << "      \"max\": " << summary.maximum << ",\n";
             out << "      \"stddev\": " << summary.standardDeviation << ",\n";
             out << "      \"sample_count\": " << summary.sampleCount << "\n";
@@ -2041,6 +2195,7 @@ namespace gts::rendering::benchmarks
             out << "      \"p90\": " << summary.p90 << ",\n";
             out << "      \"p95\": " << summary.p95 << ",\n";
             out << "      \"p99\": " << summary.p99 << ",\n";
+            out << "      \"p999\": " << summary.p999 << ",\n";
             out << "      \"max\": " << summary.maximum << ",\n";
             out << "      \"stddev\": " << summary.standardDeviation << ",\n";
             out << "      \"sample_count\": " << summary.sampleCount << "\n";
@@ -2062,6 +2217,7 @@ namespace gts::rendering::benchmarks
             out << "      \"p90\": " << summary.p90 << ",\n";
             out << "      \"p95\": " << summary.p95 << ",\n";
             out << "      \"p99\": " << summary.p99 << ",\n";
+            out << "      \"p999\": " << summary.p999 << ",\n";
             out << "      \"max\": " << summary.maximum << ",\n";
             out << "      \"stddev\": " << summary.standardDeviation << ",\n";
             out << "      \"sample_count\": " << summary.sampleCount << "\n";
@@ -2075,6 +2231,8 @@ namespace gts::rendering::benchmarks
             out << "    \"" << escapedJson(key) << "\": {\n";
             out << "      \"median\": " << summary.median << ",\n";
             out << "      \"p95\": " << summary.p95 << ",\n";
+            out << "      \"p99\": " << summary.p99 << ",\n";
+            out << "      \"p999\": " << summary.p999 << ",\n";
             out << "      \"sample_count\": " << summary.sampleCount << "\n";
             out << "    }" << (++index < result.controllerFlushTimingsMs.size() ? ",\n" : "\n");
         }
@@ -2086,6 +2244,8 @@ namespace gts::rendering::benchmarks
             out << "    \"" << escapedJson(key) << "\": {\n";
             out << "      \"median\": " << summary.median << ",\n";
             out << "      \"p95\": " << summary.p95 << ",\n";
+            out << "      \"p99\": " << summary.p99 << ",\n";
+            out << "      \"p999\": " << summary.p999 << ",\n";
             out << "      \"sample_count\": " << summary.sampleCount << "\n";
             out << "    }" << (++index < result.controllerSubstageTimingsMs.size() ? ",\n" : "\n");
         }
@@ -2097,6 +2257,65 @@ namespace gts::rendering::benchmarks
             out << "    \"" << escapedJson(key) << "\": " << value;
             out << (++index < result.counters.size() ? ",\n" : "\n");
         }
+        out << "  },\n";
+        out << "  \"hitch_capture\": {\n";
+        out << "    \"enabled\": " << (result.config.hitchThresholdMs > 0.0 ? "true" : "false") << ",\n";
+        out << "    \"threshold_ms\": " << result.config.hitchThresholdMs << ",\n";
+        out << "    \"context_frames\": " << result.config.hitchContextFrames << ",\n";
+        out << "    \"max_events\": " << result.config.maxHitchEvents << ",\n";
+        out << "    \"events\": [";
+        for (size_t eventIndex = 0; eventIndex < result.hitchEvents.size(); ++eventIndex)
+        {
+            const BenchmarkHitchEvent& event = result.hitchEvents[eventIndex];
+            out << (eventIndex == 0 ? "\n" : ",\n");
+            out << "      {\n";
+            out << "        \"trigger_frame_index\": " << event.triggerFrameIndex << ",\n";
+            out << "        \"trigger_measured_frame_index\": " << event.triggerMeasuredFrameIndex << ",\n";
+            out << "        \"trigger_frame_cpu_ms\": " << event.triggerFrameCpuMs << ",\n";
+            out << "        \"frames\": [";
+            for (size_t frameIndex = 0; frameIndex < event.frames.size(); ++frameIndex)
+            {
+                const BenchmarkHitchFrame& frame = event.frames[frameIndex];
+                out << (frameIndex == 0 ? "\n" : ",\n");
+                out << "          {\n";
+                out << "            \"frame_index\": " << frame.frameIndex << ",\n";
+                out << "            \"measured_frame_index\": " << frame.measuredFrameIndex << ",\n";
+                out << "            \"relative_frame\": " << frame.relativeFrame << ",\n";
+                out << "            \"trigger\": " << (frame.trigger ? "true" : "false") << ",\n";
+                out << "            \"timings_ms\": {\n";
+                size_t timingIndex = 0;
+                for (const auto& [key, value] : frame.timingsMs)
+                {
+                    out << "              \"" << escapedJson(key) << "\": " << value;
+                    out << (++timingIndex < frame.timingsMs.size() ? ",\n" : "\n");
+                }
+                out << "            },\n";
+                out << "            \"counters\": {\n";
+                size_t counterIndex = 0;
+                for (const auto& [key, value] : frame.counters)
+                {
+                    out << "              \"" << escapedJson(key) << "\": " << value;
+                    out << (++counterIndex < frame.counters.size() ? ",\n" : "\n");
+                }
+                out << "            },\n";
+                out << "            \"controller_timings_ms\": [";
+                for (size_t controllerIndex = 0; controllerIndex < frame.controllerTimings.size(); ++controllerIndex)
+                {
+                    const BenchmarkControllerFrameTiming& controller = frame.controllerTimings[controllerIndex];
+                    out << (controllerIndex == 0 ? "\n" : ",\n");
+                    out << "              {"
+                        << "\"name\": \"" << escapedJson(controller.name) << "\", "
+                        << "\"group\": \"" << escapedJson(controller.group) << "\", "
+                        << "\"update\": " << controller.updateMs << ", "
+                        << "\"command_flush\": " << controller.commandFlushMs << "}";
+                }
+                out << (frame.controllerTimings.empty() ? "" : "\n            ") << "]\n";
+                out << "          }";
+            }
+            out << (event.frames.empty() ? "" : "\n        ") << "]\n";
+            out << "      }";
+        }
+        out << (result.hitchEvents.empty() ? "" : "\n    ") << "]\n";
         out << "  },\n";
         out << "  \"warnings\": [";
         for (size_t i = 0; i < result.warnings.size(); ++i)
@@ -2155,13 +2374,18 @@ namespace gts::rendering::benchmarks
             << " [" << benchmarkRunModeName(result.config.mode) << "]\n";
         out << "CPU\n";
         if (const StatisticSummary* frame = timing("frame_cpu"))
-            out << "frame median/p95: " << frame->median << " / " << frame->p95 << " ms\n";
+            out << "frame median/p95/p99/p99.9/max: "
+                << frame->median << " / " << frame->p95 << " / " << frame->p99
+                << " / " << frame->p999 << " / " << frame->maximum << " ms\n";
         if (const StatisticSummary* controller = timing("controller_cpu"))
-            out << "controller median/p95: " << controller->median << " / " << controller->p95 << " ms\n";
+            out << "controller median/p95/p99: " << controller->median << " / "
+                << controller->p95 << " / " << controller->p99 << " ms\n";
         if (const StatisticSummary* snapshot = timing("snapshot_build_cpu"))
-            out << "snapshot median/p95: " << snapshot->median << " / " << snapshot->p95 << " ms\n";
+            out << "snapshot median/p95/p99: " << snapshot->median << " / "
+                << snapshot->p95 << " / " << snapshot->p99 << " ms\n";
         if (const StatisticSummary* extract = timing("command_extract_cpu"))
-            out << "commands median/p95: " << extract->median << " / " << extract->p95 << " ms\n";
+            out << "commands median/p95/p99: " << extract->median << " / "
+                << extract->p95 << " / " << extract->p99 << " ms\n";
         if (!result.controllerTimingsMs.empty())
         {
             std::vector<std::pair<std::string, StatisticSummary>> rows(
@@ -2192,9 +2416,11 @@ namespace gts::rendering::benchmarks
         if (result.gpuTimingAvailable)
         {
             if (const StatisticSummary* frame = gpuTiming("frame"))
-                out << "frame median/p95: " << frame->median << " / " << frame->p95 << " ms\n";
+                out << "frame median/p95/p99/p99.9: " << frame->median << " / "
+                    << frame->p95 << " / " << frame->p99 << " / " << frame->p999 << " ms\n";
             if (const StatisticSummary* scene = gpuTiming("scene"))
-                out << "scene median/p95: " << scene->median << " / " << scene->p95 << " ms\n";
+                out << "scene median/p95/p99: " << scene->median << " / "
+                    << scene->p95 << " / " << scene->p99 << " ms\n";
             if (const StatisticSummary* particles = gpuTiming("particles"))
                 out << "particles median/p95: " << particles->median << " / " << particles->p95 << " ms\n";
             if (const StatisticSummary* ui = gpuTiming("ui"))
@@ -2285,6 +2511,53 @@ namespace gts::rendering::benchmarks
         }
         if (!result.invariantFailures.empty())
             out << "invariant_failures: " << result.invariantFailures.size() << "\n";
+        if (!result.hitchEvents.empty())
+        {
+            out << "Hitches\n";
+            out << "threshold_ms: " << result.config.hitchThresholdMs
+                << " events: " << result.hitchEvents.size() << "\n";
+            const size_t eventCount = std::min<size_t>(result.hitchEvents.size(), 4u);
+            for (size_t i = 0; i < eventCount; ++i)
+            {
+                const BenchmarkHitchEvent& event = result.hitchEvents[i];
+                out << "frame " << event.triggerFrameIndex
+                    << " measured#" << event.triggerMeasuredFrameIndex
+                    << " cpu: " << event.triggerFrameCpuMs
+                    << " ms context_frames: " << event.frames.size() << "\n";
+                const BenchmarkHitchFrame* triggerFrame = nullptr;
+                for (const BenchmarkHitchFrame& frame : event.frames)
+                {
+                    if (frame.trigger)
+                    {
+                        triggerFrame = &frame;
+                        break;
+                    }
+                }
+                if (triggerFrame != nullptr)
+                {
+                    auto timingValue = [&](const std::string& key) -> double
+                    {
+                        auto it = triggerFrame->timingsMs.find(key);
+                        return it == triggerFrame->timingsMs.end() ? 0.0 : it->second;
+                    };
+                    auto counterValue = [&](const std::string& key) -> uint64_t
+                    {
+                        auto it = triggerFrame->counters.find(key);
+                        return it == triggerFrame->counters.end() ? 0u : it->second;
+                    };
+                    out << "  trigger cpu sim/controller/snapshot/submit: "
+                        << timingValue("simulation_cpu") << " / "
+                        << timingValue("controller_cpu") << " / "
+                        << timingValue("snapshot_build_cpu") << " / "
+                        << timingValue("render_submit_cpu") << " ms\n";
+                    out << "  ticks/transforms/uploads/physical_writes: "
+                        << counterValue("simulation_ticks") << " / "
+                        << counterValue("transform_updates") << " / "
+                        << counterValue("object_uploads") << " / "
+                        << counterValue("physical_object_buffer_writes") << "\n";
+                }
+            }
+        }
         return out.str();
     }
 }

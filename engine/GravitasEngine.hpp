@@ -84,6 +84,7 @@ class GravitasEngine
     float              lastSimCpuMs   = 0.0f;
     float              lastCtrlCpuMs  = 0.0f;
     float              lastFrameCpuMs = 0.0f;
+    uint32_t           lastSimulationTickCount = 0;
     ProfileAccumulator profiler;
 
     static gts::rendering::GraphicsBackendRegistry createDefaultGraphicsBackendRegistry()
@@ -195,6 +196,7 @@ class GravitasEngine
             dt,
             *activeScene,
             timeContext,
+            lastSimulationTickCount,
             lastSimCpuMs,
             lastCtrlCpuMs,
             lastFrameCpuMs,
@@ -397,6 +399,7 @@ class GravitasEngine
 
             // Fixed timestep simulation ticks — timed for CPU profiling
             int ticks                   = gameLoop.advance(realDt);
+            lastSimulationTickCount     = static_cast<uint32_t>(std::max(0, ticks));
             timeContext.deltaTime       = gameLoop.simulationDt();
             timeContext.frame           = timer->getFrameCount();
             timeContext.simulationAlpha = gameLoop.alpha();

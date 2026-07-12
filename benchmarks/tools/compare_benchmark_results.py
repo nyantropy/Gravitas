@@ -140,7 +140,7 @@ def main():
     parser = argparse.ArgumentParser(description="Compare Gravitas benchmark JSON results.")
     parser.add_argument("--current", required=True)
     parser.add_argument("--baseline", required=True)
-    parser.add_argument("--metric", default="median", choices=["median", "mean", "p90", "p95", "p99"])
+    parser.add_argument("--metric", default="median", choices=["median", "mean", "p90", "p95", "p99", "p999"])
     parser.add_argument("--fail-relative", type=float, default=0.10)
     parser.add_argument("--fail-absolute-ms", type=float, default=0.10)
     parser.add_argument("--warn-relative", type=float, default=0.05)

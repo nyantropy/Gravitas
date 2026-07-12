@@ -28,6 +28,9 @@ The renderer currently has:
   and UI stages when supported by the selected device
 - per-controller benchmark attribution, command-flush timing, render-prep
   substages, and logical-versus-physical object upload counters
+- hitch capture in benchmark JSON for threshold-crossing frames, including
+  nearby context frames, backend submit breakdown, fixed simulation tick count,
+  controller timings, and transform/render-sync/upload counters
 - incremental dynamic mesh synchronization with version-scheduled work,
   failed-version suppression, capacity-stable procedural buffer reuse, and
   dynamic mesh benchmark attribution
@@ -41,8 +44,9 @@ The renderer currently has:
 
 - Establish versioned fixed-hardware performance baselines for the full CPU/GPU
   benchmark matrix.
-- Use the updated benchmark matrix to choose the next renderer optimization
-  target after render-transform synchronization.
+- Use the GtsScene3 64k moving-cube hitch benchmark to identify whether the
+  next optimization target is transform fan-out, snapshot rebuild, render-sync
+  enqueue, object-buffer writes, fixed-step catch-up, or backend submit stalls.
 - Add alpha-cutoff shader support for `RenderQueue::AlphaMasked`.
 - Add sky/background rendering that consumes selected environment state without
   coupling sky draw commands to material draw commands.

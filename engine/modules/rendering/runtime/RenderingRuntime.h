@@ -58,6 +58,7 @@ namespace gts::rendering
         void renderFrame(float dt,
                          GtsScene& activeScene,
                          const TimeContext& time,
+                         uint32_t simulationTickCount,
                          float simulationCpuMs,
                          float controllerCpuMs,
                          float frameCpuMs,

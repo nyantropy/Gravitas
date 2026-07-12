@@ -207,6 +207,7 @@ namespace gts::rendering
     void RenderingRuntime::renderFrame(float dt,
                                        GtsScene& activeScene,
                                        const TimeContext& time,
+                                       uint32_t simulationTickCount,
                                        float simulationCpuMs,
                                        float controllerCpuMs,
                                        float frameCpuMs,
@@ -296,6 +297,7 @@ namespace gts::rendering
         stats.transformQueueChildrenCpuMs = transformMetrics.queueChildrenCpuMs;
         stats.transformResolveWorldCpuMs = transformMetrics.resolveWorldCpuMs;
         stats.transformPublishWorldCpuMs = transformMetrics.publishWorldCpuMs;
+        stats.simulationTickCount   = simulationTickCount;
         stats.simulationCpuMs       = simulationCpuMs;
         stats.controllerCpuMs       = controllerCpuMs;
         stats.frameCpuMs            = frameCpuMs;

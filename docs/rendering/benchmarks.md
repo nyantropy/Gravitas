@@ -65,6 +65,17 @@ Override fields either with named options or `--set key=value`:
 GtsRenderingBenchmarks --preset combined_game_like --set renderable-count=2000
 ```
 
+Capture frames around CPU hitches:
+
+```bash
+GtsRenderingBenchmarks \
+  --preset gtsscene3_64k_moving_cubes \
+  --mode gpu_runtime \
+  --hitch-threshold-ms 8 \
+  --hitch-context-frames 3 \
+  --output gtsscene3_64k_moving_cubes_gpu.json
+```
+
 ## Configuration Fields
 
 `RenderingBenchmarkConfig` controls:
@@ -78,6 +89,7 @@ GtsRenderingBenchmarks --preset combined_game_like --set renderable-count=2000
 - dynamic mesh, particle emitter, and world text counts
 - PBR, normal-map, IBL, UI, and frustum-culling toggles
 - render resolution and run mode
+- hitch capture threshold, context frame count, and maximum captured events
 
 Generation is seeded and deterministic. Animation, material mutation, dynamic
 mesh mutation, and light movement use fixed frame indices rather than arbitrary
@@ -100,6 +112,7 @@ Current presets:
 - `moving_deep_hierarchy`
 - `moving_wide_hierarchy`
 - `upload_only_pressure`
+- `gtsscene3_64k_moving_cubes`
 - `dynamic_mesh_static_control`
 - `dynamic_mesh_sparse_mutation`
 - `dynamic_mesh_dense_mutation`
@@ -115,6 +128,12 @@ Current presets:
 - `batch_low_coherence`
 - `pbr_fragment_heavy`
 - `combined_game_like`
+
+`gtsscene3_64k_moving_cubes` mirrors the GtsScene3 stress case: a 40x40x40
+grid of 64,000 textured static-mesh cubes, eight shared materials, the
+GtsScene3 camera, and all cubes moving every measured frame. It enables an
+8 ms hitch threshold by default and is intended for transform, snapshot,
+render-sync, object-upload, and submit tail-latency diagnosis.
 
 Each preset has a version. Increment the version when changing generation,
 object counts, camera paths, mutation schedules, render settings, or measured
@@ -266,19 +285,28 @@ Results are JSON with these top-level fields:
 - `controller_flush_timings_ms`
 - `controller_substages_ms`
 - `counters`
+- `hitch_capture`
 - `warnings`
 - `invariant_failures`
 
-Timing summaries include minimum, median, mean, p90, p95, p99, maximum,
+Timing summaries include minimum, median, mean, p90, p95, p99, p99.9, maximum,
 standard deviation, and sample count.
 
 `timings_ms` contains CPU wall-clock buckets. `gpu_timings_ms` contains only
 real timestamp-query buckets and remains empty when GPU timing is unsupported or
 unavailable.
 
-`controller_timings_ms` entries also include a `group` field. All timing
-sections use the same min/median/mean/p90/p95/p99/max/stddev/sample-count
-summary shape.
+`controller_timings_ms` entries also include a `group` field. Timing sections
+use the same min/median/mean/p90/p95/p99/p99.9/max/stddev/sample-count summary
+shape where full summaries are emitted.
+
+`hitch_capture` contains bounded event records when `hitch_threshold_ms > 0`.
+Each event stores the trigger frame and nearby context frames. Context frames
+include per-frame CPU and GPU timing buckets, backend submit breakdown, fixed
+simulation tick count, transform/render-sync/upload/snapshot counters, and
+per-controller timings sorted by that frame's update cost. This is for
+diagnosing hitches directly; it does not replace aggregate percentile
+comparison.
 
 ## Invariant Checks
 
@@ -300,6 +328,8 @@ Benchmarks assert architectural expectations in addition to timings:
   and object-upload command counts
 - moving-object attribution presets must produce matching
   `render_gpu_changed_syncs` and `render_gpu_object_upload_requests`
+- `gtsscene3_64k_moving_cubes` must update and upload every configured moving
+  cube during measured frames
 - `dynamic_mesh_static_control` must process and upload zero geometry after
   warmup
 - dynamic mesh mutation presets must process exactly
@@ -334,6 +364,8 @@ The tool verifies benchmark compatibility, compares timing summaries from
 `controller_flush_timings_ms`, and `controller_substages_ms` with relative plus
 absolute thresholds, compares deterministic counters exactly for selected
 counters, prints warnings and improvements, and returns nonzero on failures.
+Use `--metric p999` for hitch-sensitive presets when fixed-hardware noise is
+understood.
 
 Baselines must be keyed by preset version, hardware or runner identity, build
 configuration, render resolution, and graphics settings. Do not compare
@@ -395,6 +427,9 @@ to isolate specific paths:
 - `moving_wide_hierarchy`: attaches most objects directly under a smaller root
   set and moves the centered roots to isolate fan-out propagation.
 - `upload_only_pressure`: maximizes transform-driven object upload pressure.
+- `gtsscene3_64k_moving_cubes`: reproduces the GtsScene3 64k moving-cube stress
+  case and captures exact frames whose CPU frame time crosses the hitch
+  threshold.
 - `dynamic_mesh_static_control`: confirms unchanged dynamic meshes do no
   preparation or upload work after warmup.
 - `dynamic_mesh_sparse_mutation`: confirms dynamic mesh cost scales with a
