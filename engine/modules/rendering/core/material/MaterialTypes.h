@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cmath>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -508,36 +509,51 @@ struct MaterialFrameState
     bool vertexColorOnly = false;
 };
 
+struct MaterialGpuHandleHash
+{
+    size_t operator()(MaterialGpuHandle handle) const noexcept
+    {
+        return (static_cast<size_t>(handle.id) << 32u) ^ static_cast<size_t>(handle.generation);
+    }
+};
+
 struct MaterialFrameData
 {
     std::vector<MaterialFrameState> materials;
+    std::unordered_map<MaterialGpuHandle, size_t, MaterialGpuHandleHash> materialIndexByGpuHandle;
 
     void clear()
     {
         materials.clear();
+        materialIndexByGpuHandle.clear();
+    }
+
+    void reserve(size_t count)
+    {
+        materials.reserve(count);
+        materialIndexByGpuHandle.reserve(count);
     }
 
     const MaterialFrameState* find(MaterialGpuHandle handle) const
     {
-        for (const MaterialFrameState& material : materials)
-        {
-            if (material.gpuHandle == handle)
-                return &material;
-        }
-        return nullptr;
+        const auto it = materialIndexByGpuHandle.find(handle);
+        if (it == materialIndexByGpuHandle.end() || it->second >= materials.size())
+            return nullptr;
+
+        const MaterialFrameState& material = materials[it->second];
+        return material.gpuHandle == handle ? &material : nullptr;
     }
 
     void upsert(const MaterialFrameState& material)
     {
-        for (MaterialFrameState& existing : materials)
+        const auto it = materialIndexByGpuHandle.find(material.gpuHandle);
+        if (it != materialIndexByGpuHandle.end() && it->second < materials.size())
         {
-            if (existing.gpuHandle == material.gpuHandle)
-            {
-                existing = material;
-                return;
-            }
+            materials[it->second] = material;
+            return;
         }
 
+        materialIndexByGpuHandle[material.gpuHandle] = materials.size();
         materials.push_back(material);
     }
 };

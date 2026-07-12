@@ -533,6 +533,7 @@ class RenderExtractionSnapshotBuilder
     void populateMaterialFrameData(ECSWorld& world)
     {
         gts::rendering::MaterialRuntime& materials = gts::rendering::materialRuntime(world);
+        snapshot.materialFrameData.reserve(snapshot.renderables.size());
         for (const RenderableSnapshot& renderable : snapshot.renderables)
         {
             const MaterialGpuState* materialGpu = materials.getGpuState(renderable.material);

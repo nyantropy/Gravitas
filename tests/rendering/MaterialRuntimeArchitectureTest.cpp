@@ -658,6 +658,40 @@ namespace
                        "blend alpha mode maps to transparent render queue");
     }
 
+    bool materialFrameDataUsesIndexedLookup()
+    {
+        MaterialFrameData frameData;
+        frameData.reserve(4096);
+
+        for (uint32_t i = 1; i <= 4096; ++i)
+        {
+            MaterialFrameState state;
+            state.gpuHandle = MaterialGpuHandle{i, i + 10u};
+            state.uploadedVersion = i;
+            frameData.upsert(state);
+        }
+
+        MaterialFrameState replacement;
+        replacement.gpuHandle = MaterialGpuHandle{2048, 2058};
+        replacement.uploadedVersion = 9999;
+        frameData.upsert(replacement);
+
+        const MaterialFrameState* replaced = frameData.find(replacement.gpuHandle);
+        const MaterialFrameState* first = frameData.find(MaterialGpuHandle{1, 11});
+        const MaterialFrameState* last = frameData.find(MaterialGpuHandle{4096, 4106});
+
+        frameData.clear();
+        const bool cleared = frameData.find(replacement.gpuHandle) == nullptr;
+
+        return require(replaced != nullptr && replaced->uploadedVersion == 9999,
+                       "material frame data replaces an existing GPU handle through indexed lookup")
+            && require(first != nullptr && first->uploadedVersion == 1,
+                       "material frame data finds the first inserted material")
+            && require(last != nullptr && last->uploadedVersion == 4096,
+                       "material frame data finds the last inserted material")
+            && require(cleared, "material frame data clear resets the lookup index");
+    }
+
     bool standardSurfaceTextureRolesResolveWithColorSpace()
     {
         gts::rendering::MaterialRuntime materials;
@@ -977,6 +1011,7 @@ int main()
     ok &= extractionCarriesStableMaterialIdentity();
     ok &= renderCommandsUseMaterialIdentity();
     ok &= variantKeySeparatesTopologyFromParameters();
+    ok &= materialFrameDataUsesIndexedLookup();
     ok &= standardSurfaceTextureRolesResolveWithColorSpace();
     ok &= missingMapsResolveNeutralFallbacks();
     ok &= surfaceFactorsAreVersionedWithoutChangingVariant();
