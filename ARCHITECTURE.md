@@ -205,6 +205,9 @@ GPU state contains placement and per-object presentation data only. The current
 scene object buffer stores the model matrix and UV transform; shared material
 base color is synchronized through `MaterialRuntime`, `MaterialFrameData`, and
 the scene material binding path rather than being copied into every object.
+Material versions are authoritative; material queues only schedule work, and
+the scene-local material user index limits invalidation to entities that
+actually reference a changed material.
 
 Runtime graphics changes are engine-owned and travel through engine-facing
 types. Applications request changes through

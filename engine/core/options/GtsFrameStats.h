@@ -41,6 +41,13 @@ struct GtsFrameStats
     uint32_t renderCommandTotalCount   = 0;
     uint32_t renderCommandUpdatedCount = 0;
     uint32_t renderCommandSortedCount  = 0;
+    uint32_t materialQueuedCount       = 0;
+    uint32_t materialSynchronizedCount = 0;
+    uint32_t materialUserInvalidationCount = 0;
+    uint32_t materialFallbackSubstitutionCount = 0;
+    uint32_t materialReferenceAddCount = 0;
+    uint32_t materialReferenceRemoveCount = 0;
+    uint32_t materialFullScanCount     = 0;
     uint32_t backendObjectWrites       = 0;
     uint32_t backendObjectWritesSkipped = 0;
     uint32_t sceneEntityCount          = 0;

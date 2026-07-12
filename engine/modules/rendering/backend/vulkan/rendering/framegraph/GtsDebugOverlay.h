@@ -319,6 +319,16 @@ private:
                  static_cast<int>(s.snapshotReusedCount));
         appendLine(buf, ln, OVERLAY_X, y); y += la * 1.3f;
 
+        snprintf(ln, sizeof(ln), "MAT Q/S %d/%d",
+                 static_cast<int>(s.materialQueuedCount),
+                 static_cast<int>(s.materialSynchronizedCount));
+        appendLine(buf, ln, OVERLAY_X, y); y += la;
+
+        snprintf(ln, sizeof(ln), "MAT I/F %d/%d",
+                 static_cast<int>(s.materialUserInvalidationCount),
+                 static_cast<int>(s.materialFullScanCount));
+        appendLine(buf, ln, OVERLAY_X, y); y += la * 1.3f;
+
         snprintf(ln, sizeof(ln), "WRT %d/%d",
                  static_cast<int>(s.backendObjectWrites),
                  static_cast<int>(s.backendObjectWritesSkipped));

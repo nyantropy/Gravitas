@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include "DynamicMeshComponent.h"
 #include "ECSWorld.hpp"
@@ -21,13 +22,34 @@ namespace gts::rendering
 {
     struct GeometryBindingLifecycleState
     {
+        struct MaterialBindingMetrics
+        {
+            uint32_t queuedMaterials = 0;
+            uint32_t synchronizedMaterials = 0;
+            uint32_t userInvalidations = 0;
+            uint32_t fallbackSubstitutions = 0;
+            uint32_t referenceAdds = 0;
+            uint32_t referenceRemoves = 0;
+            uint32_t fullMaterialScans = 0;
+        };
+
+        struct MaterialUserIndex
+        {
+            std::unordered_map<MaterialInstanceHandle, std::unordered_set<entity_id_type>> usersByMaterial;
+            std::unordered_map<entity_id_type, MaterialInstanceHandle> materialByEntity;
+        };
+
         std::unordered_set<entity_id_type> staticMeshRefreshEntities;
         std::unordered_set<entity_id_type> quadMeshRefreshEntities;
         std::unordered_set<entity_id_type> dynamicMeshRefreshEntities;
         std::unordered_set<entity_id_type> materialRefreshEntities;
         std::unordered_set<entity_id_type> renderObjectRefreshEntities;
         std::unordered_set<entity_id_type> cleanupEntities;
+        MaterialUserIndex materialUserIndex;
+        MaterialBindingMetrics materialMetrics;
     };
+
+    using MaterialBindingMetrics = GeometryBindingLifecycleState::MaterialBindingMetrics;
 
     inline auto& geometryBindingLifecycleRegistry()
     {
@@ -97,6 +119,88 @@ namespace gts::rendering
     inline void queueMaterialRefresh(ECSWorld& world, Entity entity)
     {
         geometryBindingLifecycleState(world).materialRefreshEntities.insert(entity.id);
+    }
+
+    inline void removeIndexedMaterialUser(GeometryBindingLifecycleState& state,
+                                          entity_id_type entityId,
+                                          MaterialInstanceHandle material)
+    {
+        auto usersIt = state.materialUserIndex.usersByMaterial.find(material);
+        if (usersIt == state.materialUserIndex.usersByMaterial.end())
+            return;
+
+        if (usersIt->second.erase(entityId) != 0)
+            state.materialMetrics.referenceRemoves += 1;
+
+        if (usersIt->second.empty())
+            state.materialUserIndex.usersByMaterial.erase(usersIt);
+    }
+
+    inline MaterialInstanceHandle registerMaterialUser(ECSWorld& world,
+                                                       Entity entity,
+                                                       MaterialInstanceHandle requestedMaterial,
+                                                       bool queueSync = true)
+    {
+        MaterialRuntime& materials = materialRuntime(world);
+        const MaterialInstanceHandle material = materials.resolveInstanceHandle(requestedMaterial);
+        GeometryBindingLifecycleState& state = geometryBindingLifecycleState(world);
+        auto& byEntity = state.materialUserIndex.materialByEntity;
+
+        auto existing = byEntity.find(entity.id);
+        if (existing != byEntity.end() && existing->second == material)
+            return material;
+
+        if (existing != byEntity.end())
+            removeIndexedMaterialUser(state, entity.id, existing->second);
+
+        auto& users = state.materialUserIndex.usersByMaterial[material];
+        if (users.insert(entity.id).second)
+            state.materialMetrics.referenceAdds += 1;
+        byEntity[entity.id] = material;
+
+        if (queueSync)
+            materials.queueMaterialSync(material);
+        return material;
+    }
+
+    inline void unregisterMaterialUser(ECSWorld& world, Entity entity)
+    {
+        GeometryBindingLifecycleState& state = geometryBindingLifecycleState(world);
+        auto& byEntity = state.materialUserIndex.materialByEntity;
+        auto existing = byEntity.find(entity.id);
+        if (existing == byEntity.end())
+            return;
+
+        removeIndexedMaterialUser(state, entity.id, existing->second);
+        byEntity.erase(existing);
+    }
+
+    inline std::vector<Entity> materialUsers(ECSWorld& world, MaterialInstanceHandle material)
+    {
+        GeometryBindingLifecycleState& state = geometryBindingLifecycleState(world);
+        std::vector<Entity> users;
+        auto usersIt = state.materialUserIndex.usersByMaterial.find(material);
+        if (usersIt == state.materialUserIndex.usersByMaterial.end())
+            return users;
+
+        users.reserve(usersIt->second.size());
+        for (entity_id_type entityId : usersIt->second)
+            users.push_back(Entity{entityId});
+        return users;
+    }
+
+    inline size_t materialUserCount(ECSWorld& world, MaterialInstanceHandle material)
+    {
+        GeometryBindingLifecycleState& state = geometryBindingLifecycleState(world);
+        auto usersIt = state.materialUserIndex.usersByMaterial.find(material);
+        return usersIt == state.materialUserIndex.usersByMaterial.end() ? 0u : usersIt->second.size();
+    }
+
+    inline MaterialInstanceHandle indexedMaterialForEntity(ECSWorld& world, Entity entity)
+    {
+        GeometryBindingLifecycleState& state = geometryBindingLifecycleState(world);
+        auto it = state.materialUserIndex.materialByEntity.find(entity.id);
+        return it == state.materialUserIndex.materialByEntity.end() ? MaterialInstanceHandle{} : it->second;
     }
 
     inline void queueRenderObjectRefresh(ECSWorld& world, Entity entity)

@@ -107,13 +107,15 @@ namespace gts::rendering
                 queueRenderableCleanup(world, entity);
             });
         world.registerAddCallback<MaterialReferenceComponent>(
-            [](ECSWorld& world, Entity entity, MaterialReferenceComponent&)
+            [](ECSWorld& world, Entity entity, MaterialReferenceComponent& reference)
             {
+                reference.material = registerMaterialUser(world, entity, reference.material);
                 queueRenderObjectRefresh(world, entity);
             });
         world.registerRemoveCallback<MaterialReferenceComponent>(
             [](ECSWorld& world, Entity entity, MaterialReferenceComponent&)
             {
+                unregisterMaterialUser(world, entity);
                 queueRenderObjectRefresh(world, entity);
             });
         world.registerAddCallback<TextureAnimationComponent>(
@@ -166,6 +168,7 @@ namespace gts::rendering
                     if (runtime.materialInitialized)
                     {
                         MaterialInstanceHandle material = runtime.material;
+                        unregisterMaterialUser(world, entity);
                         materialRuntime(world).destroyInstance(material);
                         if (world.hasComponent<MaterialReferenceComponent>(entity) &&
                             world.getComponent<MaterialReferenceComponent>(entity).material == material)
@@ -225,8 +228,9 @@ namespace gts::rendering
                 queueMaterialRefresh(world, entity);
             });
         world.forEachSnapshot<MaterialReferenceComponent>(
-            [&world](Entity entity, MaterialReferenceComponent&)
+            [&world](Entity entity, MaterialReferenceComponent& reference)
             {
+                reference.material = registerMaterialUser(world, entity, reference.material);
                 queueRenderObjectRefresh(world, entity);
             });
         world.forEachSnapshot<TextureAnimationComponent>(

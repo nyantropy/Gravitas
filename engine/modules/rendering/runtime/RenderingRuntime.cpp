@@ -18,6 +18,7 @@
 #include "IGtsGraphicsModule.hpp"
 #include "IResourceProvider.hpp"
 #include "InputBindingRegistry.h"
+#include "MaterialBindingSystem.hpp"
 #include "ParticleFrameData.h"
 #include "ProfileAccumulator.h"
 #include "RenderEngineCommands.h"
@@ -339,6 +340,14 @@ namespace gts::rendering
         stats.renderCommandTotalCount   = extractorMetrics.cachedCommands;
         stats.renderCommandUpdatedCount = extractorMetrics.updatedCommands;
         stats.renderCommandSortedCount  = extractorMetrics.sortedThisFrame ? 1u : 0u;
+        const auto materialMetrics = MaterialBindingSystem::getLastMetrics();
+        stats.materialQueuedCount = materialMetrics.queuedMaterials;
+        stats.materialSynchronizedCount = materialMetrics.synchronizedMaterials;
+        stats.materialUserInvalidationCount = materialMetrics.userInvalidations;
+        stats.materialFallbackSubstitutionCount = materialMetrics.fallbackSubstitutions;
+        stats.materialReferenceAddCount = materialMetrics.referenceAdds;
+        stats.materialReferenceRemoveCount = materialMetrics.referenceRemoves;
+        stats.materialFullScanCount = materialMetrics.fullMaterialScans;
 
         const auto submitStart = std::chrono::steady_clock::now();
         graphics.renderFrame(dt,

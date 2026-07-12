@@ -61,15 +61,27 @@ namespace gts::rendering
         return instance;
     }
 
-    inline void writeMaterialReference(ECSWorld& world,
+    inline bool writeMaterialReference(ECSWorld& world,
                                        ECSWorld::EntityCommandBuffer& commands,
                                        Entity entity,
                                        MaterialInstanceHandle material)
     {
+        const MaterialInstanceHandle resolved = registerMaterialUser(world, entity, material);
+        const bool changed =
+            !world.hasComponent<MaterialReferenceComponent>(entity)
+            || world.getComponent<MaterialReferenceComponent>(entity).material != resolved;
+
         if (world.hasComponent<MaterialReferenceComponent>(entity))
-            world.getComponent<MaterialReferenceComponent>(entity).material = material;
+            world.getComponent<MaterialReferenceComponent>(entity).material = resolved;
         else
-            commands.addComponent<MaterialReferenceComponent>(entity, MaterialReferenceComponent{material});
+            commands.addComponent<MaterialReferenceComponent>(entity, MaterialReferenceComponent{resolved});
+
+        if (changed)
+        {
+            markMaterialRepresentationDirty(world, entity);
+            queueRenderObjectRefresh(world, entity);
+        }
+        return changed;
     }
 
     inline void cleanupLegacyMaterialBinding(ECSWorld& world,
@@ -81,6 +93,7 @@ namespace gts::rendering
 
         LegacyMaterialRuntimeComponent& runtime = world.getComponent<LegacyMaterialRuntimeComponent>(entity);
         MaterialInstanceHandle material = runtime.material;
+        unregisterMaterialUser(world, entity);
         materialRuntime(world).destroyInstance(material);
 
         if (world.hasComponent<MaterialReferenceComponent>(entity) &&
@@ -103,6 +116,7 @@ namespace gts::rendering
             return;
 
         MaterialInstanceHandle material = runtime.material;
+        unregisterMaterialUser(world, entity);
         materialRuntime(world).destroyInstance(material);
 
         if (world.hasComponent<MaterialReferenceComponent>(entity) &&
@@ -122,6 +136,7 @@ namespace gts::rendering
                                           IResourceProvider* resources,
                                           ECSWorld::EntityCommandBuffer& commands)
     {
+        (void)resources;
         MaterialRuntime& materials = materialRuntime(world);
         if (!world.hasComponent<MaterialComponent>(entity) ||
             !legacyMaterialDescriptorUsable(world, entity))
@@ -165,12 +180,6 @@ namespace gts::rendering
         }
 
         writeMaterialReference(world, commands, entity, handle);
-        const MaterialSyncResult result = materials.synchronizeGpuState(handle, resources);
-        if (descriptorChanged || result.changed)
-        {
-            markMaterialRepresentationDirty(world, entity);
-            queueRenderObjectRefresh(world, entity);
-        }
     }
 
     inline void syncWorldTextMaterialBinding(ECSWorld& world,
@@ -230,11 +239,5 @@ namespace gts::rendering
         }
 
         writeMaterialReference(world, commands, entity, handle);
-        const MaterialSyncResult result = materials.synchronizeGpuState(handle, resources);
-        if (descriptorChanged || result.changed)
-        {
-            markMaterialRepresentationDirty(world, entity);
-            queueRenderObjectRefresh(world, entity);
-        }
     }
 }

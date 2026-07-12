@@ -57,6 +57,13 @@ struct ProfileAccumulator
         sum.renderCommandTotalCount   += s.renderCommandTotalCount;
         sum.renderCommandUpdatedCount += s.renderCommandUpdatedCount;
         sum.renderCommandSortedCount  += s.renderCommandSortedCount;
+        sum.materialQueuedCount       += s.materialQueuedCount;
+        sum.materialSynchronizedCount += s.materialSynchronizedCount;
+        sum.materialUserInvalidationCount += s.materialUserInvalidationCount;
+        sum.materialFallbackSubstitutionCount += s.materialFallbackSubstitutionCount;
+        sum.materialReferenceAddCount += s.materialReferenceAddCount;
+        sum.materialReferenceRemoveCount += s.materialReferenceRemoveCount;
+        sum.materialFullScanCount     += s.materialFullScanCount;
         sum.backendObjectWrites       += s.backendObjectWrites;
         sum.backendObjectWritesSkipped += s.backendObjectWritesSkipped;
         sum.sceneEntityCount          += s.sceneEntityCount;
@@ -116,6 +123,13 @@ struct ProfileAccumulator
         max.renderCommandTotalCount   = s.renderCommandTotalCount;
         max.renderCommandUpdatedCount = s.renderCommandUpdatedCount;
         max.renderCommandSortedCount  = s.renderCommandSortedCount;
+        max.materialQueuedCount       = s.materialQueuedCount;
+        max.materialSynchronizedCount = s.materialSynchronizedCount;
+        max.materialUserInvalidationCount = s.materialUserInvalidationCount;
+        max.materialFallbackSubstitutionCount = s.materialFallbackSubstitutionCount;
+        max.materialReferenceAddCount = s.materialReferenceAddCount;
+        max.materialReferenceRemoveCount = s.materialReferenceRemoveCount;
+        max.materialFullScanCount     = s.materialFullScanCount;
         max.backendObjectWrites       = s.backendObjectWrites;
         max.backendObjectWritesSkipped = s.backendObjectWritesSkipped;
         max.sceneEntityCount          = s.sceneEntityCount;

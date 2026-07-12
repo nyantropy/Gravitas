@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <functional>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -73,6 +74,7 @@ namespace gts::rendering
             slot->alive = false;
             slot->generation += 1;
             gpuStates.erase(handle);
+            queueMaterialSync(handle);
             return true;
         }
 
@@ -105,6 +107,7 @@ namespace gts::rendering
             sanitizeMaterialInstance(copy);
             copy.version = slot->instance.version + 1;
             slot->instance = copy;
+            queueMaterialSync(handle);
             return true;
         }
 
@@ -125,6 +128,7 @@ namespace gts::rendering
             slot->instance.version += 1;
             if (slot->instance.version == 0)
                 slot->instance.version = 1;
+            queueMaterialSync(handle);
             return true;
         }
 
@@ -228,6 +232,39 @@ namespace gts::rendering
             return it == gpuStates.end() ? nullptr : &it->second;
         }
 
+        void queueMaterialSync(MaterialInstanceHandle handle)
+        {
+            if (!handle.valid())
+                return;
+
+            if (queuedMaterialSet.insert(handle).second)
+                queuedMaterials.push_back(handle);
+        }
+
+        std::vector<MaterialInstanceHandle> takeQueuedMaterialSyncs()
+        {
+            std::vector<MaterialInstanceHandle> pending;
+            pending.swap(queuedMaterials);
+            queuedMaterialSet.clear();
+            return pending;
+        }
+
+        size_t queuedMaterialSyncCount() const
+        {
+            return queuedMaterials.size();
+        }
+
+        bool materialNeedsGpuSync(MaterialInstanceHandle requestedHandle) const
+        {
+            const MaterialInstanceHandle handle = resolveInstanceHandle(requestedHandle);
+            const MaterialInstance* instance = getInstance(handle);
+            if (instance == nullptr)
+                return false;
+
+            auto it = gpuStates.find(handle);
+            return it == gpuStates.end() || it->second.uploadedVersion != instance->version;
+        }
+
         size_t gpuStateCount() const
         {
             return gpuStates.size();
@@ -253,6 +290,8 @@ namespace gts::rendering
         std::vector<DefinitionSlot> definitions;
         std::vector<InstanceSlot> instances;
         std::unordered_map<MaterialInstanceHandle, MaterialGpuState> gpuStates;
+        std::vector<MaterialInstanceHandle> queuedMaterials;
+        std::unordered_set<MaterialInstanceHandle> queuedMaterialSet;
         MaterialDefinitionHandle defaultDefinitionHandle;
         MaterialDefinitionHandle standardSurfaceDefinitionHandle;
         MaterialInstanceHandle defaultMaterialHandle;
@@ -312,7 +351,10 @@ namespace gts::rendering
             slot.generation = 1;
 
             instances.push_back(slot);
-            return {static_cast<uint32_t>(instances.size()), slot.generation};
+            MaterialInstanceHandle handle{static_cast<uint32_t>(instances.size()), slot.generation};
+            if (!builtIn)
+                queueMaterialSync(handle);
+            return handle;
         }
 
         static void sanitizeMaterialInstance(MaterialInstance& instance)

@@ -10,6 +10,8 @@
 #include "ECSWorld.hpp"
 #include "EcsControllerContext.hpp"
 #include "IResourceProvider.hpp"
+#include "MaterialBindingSystem.hpp"
+#include "MaterialComponent.h"
 #include "MaterialReferenceComponent.h"
 #include "MaterialRuntime.h"
 #include "MeshGpuComponent.h"
@@ -24,6 +26,7 @@
 #include "TransformComponent.h"
 #include "TransformSceneFeature.h"
 #include "Vertex.h"
+#include "WorldTextComponent.h"
 
 namespace
 {
@@ -55,6 +58,8 @@ namespace
         std::unordered_map<std::string, mesh_id_type> meshes;
         std::unordered_map<std::string, texture_id_type> textures;
         std::unordered_map<std::string, TextureColorSpace> textureColorSpaces;
+        std::unordered_map<std::string, font_id_type> fontsByPath;
+        std::unordered_map<font_id_type, BitmapFont> fonts;
 
         mesh_id_type requestMesh(const std::string& path) override
         {
@@ -122,14 +127,32 @@ namespace
             return {16, 16};
         }
 
-        font_id_type requestFont(const std::string&) override
+        font_id_type requestFont(const std::string& path) override
         {
-            return nextFont++;
+            auto [it, inserted] = fontsByPath.emplace(path, nextFont);
+            if (inserted)
+            {
+                BitmapFont font;
+                font.atlasTexture = 900 + nextFont;
+                font.lineHeight = 10.0f;
+                font.glyphs['A'] = GlyphInfo{
+                    {0.0f, 0.0f},
+                    {1.0f, 1.0f},
+                    {8.0f, 8.0f},
+                    {0.0f, 8.0f},
+                    8.0f
+                };
+                font.glyphs['B'] = font.glyphs['A'];
+                fonts.emplace(nextFont, font);
+                ++nextFont;
+            }
+            return it->second;
         }
 
-        const BitmapFont* getFont(font_id_type) const override
+        const BitmapFont* getFont(font_id_type id) const override
         {
-            return nullptr;
+            auto it = fonts.find(id);
+            return it == fonts.end() ? nullptr : &it->second;
         }
 
         view_id_type requestCameraBuffer() override
@@ -288,13 +311,14 @@ namespace
             });
         update(world, resources);
 
-        const bool aDirty = world.hasComponent<RenderDirtyComponent>(a)
-            && world.getComponent<RenderDirtyComponent>(a).materialDirty
+        const bool aClean = world.hasComponent<RenderDirtyComponent>(a)
+            && !world.getComponent<RenderDirtyComponent>(a).materialDirty
             && !world.getComponent<RenderDirtyComponent>(a).objectDataDirty;
-        const bool bDirty = world.hasComponent<RenderDirtyComponent>(b)
-            && world.getComponent<RenderDirtyComponent>(b).materialDirty
+        const bool bClean = world.hasComponent<RenderDirtyComponent>(b)
+            && !world.getComponent<RenderDirtyComponent>(b).materialDirty
             && !world.getComponent<RenderDirtyComponent>(b).objectDataDirty;
         const MaterialGpuState* updatedState = materials.getGpuState(shared);
+        const auto materialMetrics = MaterialBindingSystem::getLastMetrics();
         RenderExtractionSnapshot& updatedSnapshot = builder.build(world);
         const MaterialFrameState* updatedFrameState =
             updatedSnapshot.materialFrameData.find(updatedState ? updatedState->gpuHandle : MaterialGpuHandle{});
@@ -309,7 +333,12 @@ namespace
             && require(materials.gpuStateCount() == 1, "shared material creates one GPU material cache state")
             && require(updatedState != nullptr && updatedState->uploadedVersion == uploadedVersion + 1,
                        "shared material update uploads one material cache version")
-            && require(aDirty && bDirty, "shared material update dirties material representation only")
+            && require(aClean && bClean, "parameter-only material update keeps renderable dirty flags clean")
+            && require(materialMetrics.queuedMaterials == 1 &&
+                       materialMetrics.synchronizedMaterials == 1 &&
+                       materialMetrics.userInvalidations == 0 &&
+                       materialMetrics.fullMaterialScans == 0,
+                       "parameter-only material update synchronizes one queued material without user invalidation")
             && require(updatedSnapshot.objectUploads.empty(),
                        "shared material color update does not enqueue object uploads")
             && require(updatedFrameState != nullptr &&
@@ -321,6 +350,178 @@ namespace
                        world.getComponent<MeshGpuComponent>(b).meshID == meshB,
                        "shared material update preserves mesh GPU state")
             && require(resources.meshRequests == meshRequests, "shared material update does not request meshes");
+    }
+
+    bool materialUserIndexTracksAddRemoveReplaceAndReset()
+    {
+        ECSWorld world;
+        auto& materials = gts::rendering::materialRuntime(world);
+        const MaterialInstanceHandle first = materials.createInstance(MaterialInstance{});
+        const MaterialInstanceHandle second = materials.createInstance(MaterialInstance{});
+        const Entity entity = world.createEntity();
+
+        gts::rendering::registerMaterialUser(world, entity, first);
+        gts::rendering::registerMaterialUser(world, entity, first);
+        const bool duplicatePrevented =
+            gts::rendering::materialUserCount(world, first) == 1
+            && gts::rendering::indexedMaterialForEntity(world, entity) == first;
+
+        gts::rendering::registerMaterialUser(world, entity, second);
+        const bool replaced =
+            gts::rendering::materialUserCount(world, first) == 0
+            && gts::rendering::materialUserCount(world, second) == 1
+            && gts::rendering::indexedMaterialForEntity(world, entity) == second;
+
+        gts::rendering::unregisterMaterialUser(world, entity);
+        const bool removed =
+            gts::rendering::materialUserCount(world, second) == 0
+            && !gts::rendering::indexedMaterialForEntity(world, entity).valid();
+
+        gts::rendering::registerMaterialUser(world, entity, first);
+        gts::rendering::resetGeometryBindingLifecycleState(world);
+        const bool reset =
+            gts::rendering::materialUserCount(world, first) == 0
+            && !gts::rendering::indexedMaterialForEntity(world, entity).valid();
+
+        return require(duplicatePrevented, "material user index prevents duplicate users")
+            && require(replaced, "material user index replaces entity material ownership")
+            && require(removed, "material user index removes entity ownership")
+            && require(reset, "material user index resets with scene lifecycle state");
+    }
+
+    bool materialReferenceCallbacksMaintainUserIndex()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        auto& materials = gts::rendering::materialRuntime(world);
+        const MaterialInstanceHandle material = materials.createInstance(MaterialInstance{});
+        const Entity entity = world.createEntity();
+        world.addComponent(entity, MaterialReferenceComponent{material});
+        const bool added =
+            gts::rendering::materialUserCount(world, material) == 1
+            && gts::rendering::indexedMaterialForEntity(world, entity) == material;
+
+        world.destroyEntity(entity);
+        const bool removed =
+            gts::rendering::materialUserCount(world, material) == 0
+            && !gts::rendering::indexedMaterialForEntity(world, entity).valid();
+
+        return require(added, "material reference add callback registers user")
+            && require(removed, "entity destruction removes material user");
+    }
+
+    bool legacyAndWorldTextDescriptorsQueueMaterialSync()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        Entity legacy = world.createEntity();
+        StaticMeshComponent mesh;
+        mesh.meshPath = "mesh/legacy.obj";
+        MaterialComponent material;
+        material.texturePath = "textures/legacy.png";
+        world.addComponent(legacy, TransformComponent{});
+        world.addComponent(legacy, mesh);
+        world.addComponent(legacy, material);
+        update(world, resources);
+        const auto legacyMetrics = MaterialBindingSystem::getLastMetrics();
+
+        update(world, resources);
+        const auto steadyMetrics = MaterialBindingSystem::getLastMetrics();
+
+        Entity text = world.createEntity();
+        WorldTextComponent worldText;
+        worldText.text = "AB";
+        worldText.fontPath = "fonts/test.fnt";
+        world.addComponent(text, TransformComponent{});
+        world.addComponent(text, worldText);
+        update(world, resources);
+        const auto textMetrics = MaterialBindingSystem::getLastMetrics();
+
+        return require(legacyMetrics.queuedMaterials == 1 &&
+                       legacyMetrics.synchronizedMaterials == 1 &&
+                       legacyMetrics.fullMaterialScans == 0,
+                       "legacy material descriptor queues one material sync without a scan")
+            && require(steadyMetrics.queuedMaterials == 0 &&
+                       steadyMetrics.synchronizedMaterials == 0 &&
+                       steadyMetrics.fullMaterialScans == 0,
+                       "legacy material steady state performs no material sync work")
+            && require(textMetrics.queuedMaterials == 1 &&
+                       textMetrics.synchronizedMaterials == 1 &&
+                       textMetrics.fullMaterialScans == 0,
+                       "world-text material descriptor queues one material sync without a scan");
+    }
+
+    bool steadyStateMaterialBindingDoesNoSynchronizationWork()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        auto& materials = gts::rendering::materialRuntime(world);
+        const MaterialInstanceHandle shared = materials.createInstance(
+            makeTexturedInstance(materials, "textures/shared.png", {1.0f, 1.0f, 1.0f, 1.0f}));
+        createStaticRenderable(world, "mesh/a.obj", shared);
+        createStaticRenderable(world, "mesh/b.obj", shared);
+        update(world, resources);
+        update(world, resources);
+
+        const auto materialMetrics = MaterialBindingSystem::getLastMetrics();
+        return require(materialMetrics.queuedMaterials == 0,
+                       "steady-state material queue is empty")
+            && require(materialMetrics.synchronizedMaterials == 0,
+                       "steady-state performs zero material synchronizations")
+            && require(materialMetrics.userInvalidations == 0,
+                       "steady-state performs zero material user invalidations")
+            && require(materialMetrics.fullMaterialScans == 0,
+                       "steady-state performs zero full material scans");
+    }
+
+    bool topologyChangeInvalidatesOnlyIndexedUsers()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        auto& materials = gts::rendering::materialRuntime(world);
+        const MaterialInstanceHandle shared = materials.createInstance(
+            makeTexturedInstance(materials, "textures/shared.png", {1.0f, 1.0f, 1.0f, 1.0f}));
+        const MaterialInstanceHandle other = materials.createInstance(
+            makeTexturedInstance(materials, "textures/other.png", {1.0f, 1.0f, 1.0f, 1.0f}));
+        const Entity a = createStaticRenderable(world, "mesh/a.obj", shared);
+        const Entity b = createStaticRenderable(world, "mesh/b.obj", shared);
+        const Entity c = createStaticRenderable(world, "mesh/c.obj", other);
+        update(world, resources);
+        RenderExtractionSnapshotBuilder builder;
+        builder.build(world);
+
+        materials.modifyInstance(
+            shared,
+            [](MaterialInstance& editable)
+            {
+                editable.renderState.doubleSided = !editable.renderState.doubleSided;
+                return true;
+            });
+        update(world, resources);
+
+        const auto materialMetrics = MaterialBindingSystem::getLastMetrics();
+        const bool sharedUsersDirty =
+            world.getComponent<RenderDirtyComponent>(a).materialDirty
+            && world.getComponent<RenderDirtyComponent>(b).materialDirty;
+        const bool unrelatedClean =
+            !world.getComponent<RenderDirtyComponent>(c).materialDirty
+            && !world.getComponent<RenderDirtyComponent>(c).objectDataDirty;
+
+        return require(materialMetrics.queuedMaterials == 1 &&
+                       materialMetrics.synchronizedMaterials == 1,
+                       "topology change synchronizes one queued shared material")
+            && require(materialMetrics.userInvalidations == 2,
+                       "topology change invalidates only indexed users")
+            && require(sharedUsersDirty, "indexed users are marked material-dirty")
+            && require(unrelatedClean, "unrelated material user remains clean");
     }
 
     bool extractionCarriesStableMaterialIdentity()
@@ -749,11 +950,15 @@ namespace
 
         materials.destroyInstance(shared);
         update(world, resources);
+        const auto materialMetrics = MaterialBindingSystem::getLastMetrics();
 
         return require(world.getComponent<MaterialReferenceComponent>(entity).material == materials.defaultMaterial(),
                        "destroyed material references are replaced with the default material")
             && require(materials.getGpuState(materials.defaultMaterial()) != nullptr,
                        "default fallback material has synchronized GPU state")
+            && require(materialMetrics.fallbackSubstitutions == 1 &&
+                       materialMetrics.userInvalidations == 1,
+                       "destroyed material performs one indexed fallback substitution")
             && require(world.hasComponent<RenderGpuComponent>(entity),
                        "fallback material keeps render object valid");
     }
@@ -763,7 +968,12 @@ int main()
 {
     bool ok = true;
     ok &= handlesVersionsAndClone();
+    ok &= materialUserIndexTracksAddRemoveReplaceAndReset();
+    ok &= materialReferenceCallbacksMaintainUserIndex();
     ok &= sharedMaterialUpdatesAllReferencingRenderables();
+    ok &= steadyStateMaterialBindingDoesNoSynchronizationWork();
+    ok &= legacyAndWorldTextDescriptorsQueueMaterialSync();
+    ok &= topologyChangeInvalidatesOnlyIndexedUsers();
     ok &= extractionCarriesStableMaterialIdentity();
     ok &= renderCommandsUseMaterialIdentity();
     ok &= variantKeySeparatesTopologyFromParameters();

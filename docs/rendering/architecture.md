@@ -200,6 +200,7 @@ diagnostics rather than consuming undefined surface data.
 - `MaterialDefinition`
 - `MaterialInstance`
 - `MaterialGpuState`
+- the deduplicated material synchronization queue
 - built-in fallback materials
 - default standard-surface material
 
@@ -244,6 +245,51 @@ Scene shaders evaluate final surface color as material base color multiplied
 by the base-color texture when present and by vertex color. Lit and unlit scene
 shaders do not read material color from object buffers. Per-object UV animation
 remains object data.
+
+Material versions are the authoritative change signal. The material queue is
+only a scheduler that avoids rediscovering changed materials by scanning all
+`MaterialReferenceComponent`s every frame.
+
+Incremental synchronization flow:
+
+```text
+MaterialInstance version changes
+  -> MaterialRuntime queues MaterialInstanceHandle
+  -> MaterialBindingSystem drains queued handles
+  -> MaterialRuntime synchronizes GPU state when uploadedVersion is stale
+  -> scene material user index returns affected entities when invalidation is needed
+```
+
+The material user index is scene-local runtime state in the geometry binding
+lifecycle. It tracks only:
+
+```text
+MaterialInstanceHandle -> entities using that material
+entity id -> current MaterialInstanceHandle
+```
+
+It does not own material instances, GPU resources, object slots, meshes,
+render commands, or Vulkan state. `MaterialReferenceComponent` add/remove
+callbacks and the material reference writer update the index incrementally.
+Scene reset clears the index and queue state with the geometry lifecycle and
+material runtime.
+
+User invalidation rules:
+
+- parameter-only changes such as base color, metallic, roughness, AO strength,
+  normal scale, and emissive factors synchronize material GPU state without
+  dirtying object data or rebuilding render commands
+- texture replacements synchronize material GPU resources and preserve material,
+  mesh, and object identity unless they change variant topology
+- topology changes such as shader family, alpha mode, double-sided state,
+  depth-write state, vertex-color-only state, or normal-map presence mark only
+  indexed users material-dirty and queue command/snapshot refresh
+- destroyed materials substitute the default fallback for indexed users and
+  invalidate only those users
+
+Steady-state contract: when no material versions change, the material queue is
+empty, `MaterialBindingSystem` performs zero material synchronizations, and no
+full scene material-reference scan occurs.
 
 ## Lighting And IBL
 

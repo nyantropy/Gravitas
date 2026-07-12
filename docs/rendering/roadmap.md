@@ -20,6 +20,8 @@ The renderer currently has:
 - production-compatible environment descriptor bindings
 - object SSBO layout limited to model matrix and UV transform, with material
   base color owned by shared material GPU state instead of object tint writes
+- incremental material synchronization through a scene-local material user
+  index and deduplicated material change queue
 - retained UI extraction and Vulkan overlay composition
 - screenshot capture with async PNG writes
 
@@ -31,6 +33,8 @@ The renderer currently has:
 - Add shadows.
 - Add normal/AO/emissive texture authoring tools.
 - Add material asset files and material editor workflows.
+- Add material-frame caching so `MaterialFrameData` no longer has to be
+  repopulated from live renderable snapshots every full world build.
 - Add advanced material extensions after the first asset workflow is stable.
 - Add smaller half-float environment formats where memory pressure justifies
   the optimization.
