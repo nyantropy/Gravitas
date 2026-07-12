@@ -170,7 +170,8 @@ class GravitasEngine
         for (IEngineModule* module : engineModules)
             module->beforeSceneLoad(*activeScene, loadCtx);
 
-        toolRuntime->prepare(loadCtx);
+        if (toolRuntime != nullptr)
+            toolRuntime->prepare(loadCtx);
         renderingRuntime->applySceneViewportMetrics(loadCtx, windowPixelWidth, windowPixelHeight);
         activeScene->onLoad(loadCtx, data);
 
@@ -288,7 +289,8 @@ class GravitasEngine
                     applyGraphicsSettingsCommand(settings);
                 });
         installEngineModule(*renderingRuntime);
-        toolRuntime = std::make_unique<gts::tools::EngineToolRuntime>();
+        if (engineConfig.engineToolsEnabled)
+            toolRuntime = std::make_unique<gts::tools::EngineToolRuntime>();
     }
 
     ~GravitasEngine() = default;
@@ -418,11 +420,13 @@ class GravitasEngine
             {
                 const auto           ctrlStart = std::chrono::steady_clock::now();
                 EcsControllerContext ctrlCtx   = buildControllerContext(world);
-                toolRuntime->prepare(ctrlCtx);
+                if (toolRuntime != nullptr)
+                    toolRuntime->prepare(ctrlCtx);
                 EcsControllerContext sceneCtx = buildControllerContext(world);
                 renderingRuntime->applySceneViewportMetrics(sceneCtx, windowPixelWidth, windowPixelHeight);
                 sceneManager->getActiveScene()->onUpdateControllers(sceneCtx);
-                toolRuntime->update(ctrlCtx);
+                if (toolRuntime != nullptr)
+                    toolRuntime->update(ctrlCtx);
                 const auto ctrlEnd = std::chrono::steady_clock::now();
                 lastCtrlCpuMs      = std::chrono::duration<float, std::milli>(ctrlEnd - ctrlStart).count();
             }

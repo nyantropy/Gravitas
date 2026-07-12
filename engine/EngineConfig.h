@@ -21,5 +21,8 @@ struct EngineConfig
     // Whether the F3 debug overlay is visible by default on startup.
     bool debugOverlayEnabledByDefault = false;
 
+    // Whether engine-owned editor/tool controllers run around the active scene.
+    bool engineToolsEnabled = true;
+
     // Extend here later: audio config, input config, physics config, etc.
 };

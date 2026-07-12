@@ -9,6 +9,13 @@ OUT_DIR="${1:-/tmp/gts_rendering_benchmarks}"
 BENCHMARK_EXE="$BUILD_DIR/applications/GtsRenderingBenchmarks/GtsRenderingBenchmarks"
 
 mkdir -p "$OUT_DIR"
+LOG_FILE="$OUT_DIR/gpu_benchmark_run.log"
+: > "$LOG_FILE"
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+echo "Benchmark console log:"
+echo "  $LOG_FILE"
+echo
 
 echo "== Building GtsRenderingBenchmarks =="
 cmake --build "$BUILD_DIR" --target GtsRenderingBenchmarks
@@ -70,3 +77,4 @@ echo "  $OUT_DIR/moving_independent_gpu.json"
 echo "  $OUT_DIR/moving_deep_hierarchy_gpu.json"
 echo "  $OUT_DIR/moving_wide_hierarchy_gpu.json"
 echo "  $OUT_DIR/upload_only_pressure_gpu.json"
+echo "  $LOG_FILE"

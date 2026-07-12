@@ -153,6 +153,10 @@ command flush that runs after each controller is reported separately in
 `controller_flush_timings_ms` so lifecycle command cost is not hidden inside the
 preceding system.
 
+GPU runtime benchmarks disable the global engine tooling runtime so editor/tool
+controllers do not pollute workload attribution. Normal engine applications keep
+tooling enabled by default.
+
 Selected low-cardinality substages are emitted in `controller_substages_ms`:
 
 - `TransformSystem.queue_children`
@@ -333,7 +337,7 @@ to isolate specific paths:
 - `moving_deep_hierarchy`: creates root-strided transform chains and moves the
   roots to isolate depth propagation.
 - `moving_wide_hierarchy`: attaches most objects directly under a smaller root
-  set and moves the roots to isolate fan-out propagation.
+  set and moves the centered roots to isolate fan-out propagation.
 - `upload_only_pressure`: maximizes transform-driven object upload pressure.
 
 Use counters to distinguish logical object changes from backend work. If

@@ -393,6 +393,20 @@ namespace
 
         const uint32_t movingRoots =
             std::clamp<uint32_t>(config.movingObjectCount, 1u, static_cast<uint32_t>(generated.renderables.size()));
+        const uint32_t rootSide = static_cast<uint32_t>(
+            std::ceil(std::sqrt(static_cast<double>(movingRoots))));
+        for (uint32_t i = 0; i < movingRoots; ++i)
+        {
+            TransformComponent& transform = world.getComponent<TransformComponent>(generated.renderables[i]);
+            const uint32_t x = i % rootSide;
+            const uint32_t y = i / rootSide;
+            transform.position = {
+                (static_cast<float>(x) - static_cast<float>(rootSide) * 0.5f) * 2.0f,
+                (static_cast<float>(y) - static_cast<float>(rootSide) * 0.5f) * 2.0f,
+                0.0f
+            };
+            gts::transform::markDirty(world, generated.renderables[i]);
+        }
 
         if (isDeepHierarchyPreset(config))
         {
@@ -828,6 +842,7 @@ namespace
         EngineConfig engineConfig;
         engineConfig.frustumCullingEnabled = config.enableFrustumCulling;
         engineConfig.debugOverlayEnabledByDefault = false;
+        engineConfig.engineToolsEnabled = false;
         engineConfig.graphics.headless = true;
         engineConfig.graphics.enableValidationLayers = false;
         engineConfig.graphics.renderWidth = config.renderWidth;

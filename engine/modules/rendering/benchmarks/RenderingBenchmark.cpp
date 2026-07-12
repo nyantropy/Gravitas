@@ -566,6 +566,20 @@ namespace gts::rendering::benchmarks
 
             const uint32_t movingRoots =
                 std::clamp<uint32_t>(config.movingObjectCount, 1u, static_cast<uint32_t>(state.renderables.size()));
+            const uint32_t rootSide = static_cast<uint32_t>(
+                std::ceil(std::sqrt(static_cast<double>(movingRoots))));
+            for (uint32_t i = 0; i < movingRoots; ++i)
+            {
+                TransformComponent& transform = state.world.getComponent<TransformComponent>(state.renderables[i]);
+                const uint32_t x = i % rootSide;
+                const uint32_t y = i / rootSide;
+                transform.position = {
+                    (static_cast<float>(x) - static_cast<float>(rootSide) * 0.5f) * 2.0f,
+                    (static_cast<float>(y) - static_cast<float>(rootSide) * 0.5f) * 2.0f,
+                    0.0f
+                };
+                gts::transform::markDirty(state.world, state.renderables[i]);
+            }
 
             if (isDeepHierarchyPreset(config))
             {
