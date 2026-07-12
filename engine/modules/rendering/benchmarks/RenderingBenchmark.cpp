@@ -761,7 +761,6 @@ namespace gts::rendering::benchmarks
             addSample(timings, counters, "command_sort_cpu", extractorMetrics.sortCpuMs);
             addSample(timings, counters, "render_gpu_sync_cpu", renderGpuMetrics.cpuTimeMs);
             addSample(timings, counters, "transform_resolve_cpu", transformMetrics.cpuTimeMs);
-            addSample(timings, counters, "gpu_frame", 0.0);
 
             uint64_t transparent = 0;
             for (const RenderableSnapshot& renderable : snapshot.renderables)
@@ -869,6 +868,11 @@ namespace gts::rendering::benchmarks
             case BenchmarkRunMode::GpuRuntime: return "gpu_runtime";
         }
         return "unknown";
+    }
+
+    BenchmarkEnvironment collectBenchmarkEnvironment(const RenderingBenchmarkConfig& config)
+    {
+        return collectEnvironment(config);
     }
 
     std::vector<BenchmarkPreset> standardBenchmarkPresets()
@@ -1198,19 +1202,18 @@ namespace gts::rendering::benchmarks
 
         BenchmarkRunResult result;
         result.config = config;
-        result.environment = collectEnvironment(config);
-        result.gpuTimingAvailable = false;
-        result.gpuTimingStatus =
-            config.mode == BenchmarkRunMode::GpuRuntime
-                ? "Vulkan timestamp query benchmark mode is not implemented yet"
-                : "CPU smoke mode does not create GPU timestamp queries";
-
         if (config.mode == BenchmarkRunMode::GpuRuntime)
         {
             result.warnings.push_back(
-                "gpu_runtime requested; falling back to CPU smoke extraction because Vulkan timestamp support is not implemented");
+                "gpu_runtime requires the benchmark executable runtime path; CPU library harness ran cpu_smoke");
             result.config.mode = BenchmarkRunMode::CpuSmoke;
         }
+
+        result.environment = collectBenchmarkEnvironment(result.config);
+        result.gpuTimingSupported = false;
+        result.gpuTimingAvailable = false;
+        result.gpuTimingStatus =
+            "CPU smoke mode does not create GPU timestamp queries";
 
         BenchmarkSceneState state;
         generateScene(state, result.config);
@@ -1244,6 +1247,10 @@ namespace gts::rendering::benchmarks
             failures.push_back("measured frame count is zero");
         if (result.timingsMs.empty())
             failures.push_back("no timing summaries were emitted");
+        if (result.gpuTimingAvailable && result.gpuTimingsMs.empty())
+            failures.push_back("GPU timing is available but no GPU timing summaries were emitted");
+        if (!result.gpuTimingAvailable && !result.gpuTimingsMs.empty())
+            failures.push_back("GPU timing summaries were emitted while GPU timing is unavailable");
         if (result.environment.values.find("build_type") == result.environment.values.end())
             failures.push_back("environment metadata is missing build_type");
         if (result.environment.values.find("cpu") == result.environment.values.end())
@@ -1268,6 +1275,30 @@ namespace gts::rendering::benchmarks
                 if (!std::isfinite(value))
                 {
                     failures.push_back(key + " contains NaN or infinity");
+                    break;
+                }
+            }
+        }
+
+        for (const auto& [key, summary] : result.gpuTimingsMs)
+        {
+            if (summary.sampleCount != result.config.measuredFrames)
+                failures.push_back(key + " GPU sample count does not match measuredFrames");
+            const double values[] = {
+                summary.minimum,
+                summary.median,
+                summary.mean,
+                summary.p90,
+                summary.p95,
+                summary.p99,
+                summary.maximum,
+                summary.standardDeviation
+            };
+            for (double value : values)
+            {
+                if (!std::isfinite(value))
+                {
+                    failures.push_back(key + " GPU timing contains NaN or infinity");
                     break;
                 }
             }
@@ -1340,7 +1371,9 @@ namespace gts::rendering::benchmarks
         out << "    \"width\": " << result.config.renderWidth << ",\n";
         out << "    \"height\": " << result.config.renderHeight << "\n";
         out << "  },\n";
+        out << "  \"gpu_supported\": " << (result.gpuTimingSupported ? "true" : "false") << ",\n";
         out << "  \"gpu_timing\": {\n";
+        out << "    \"supported\": " << (result.gpuTimingSupported ? "true" : "false") << ",\n";
         out << "    \"available\": " << (result.gpuTimingAvailable ? "true" : "false") << ",\n";
         out << "    \"status\": \"" << escapedJson(result.gpuTimingStatus) << "\"\n";
         out << "  },\n";
@@ -1388,6 +1421,23 @@ namespace gts::rendering::benchmarks
             out << "      \"stddev\": " << summary.standardDeviation << ",\n";
             out << "      \"sample_count\": " << summary.sampleCount << "\n";
             out << "    }" << (++index < result.timingsMs.size() ? ",\n" : "\n");
+        }
+        out << "  },\n";
+        out << "  \"gpu_timings_ms\": {\n";
+        index = 0;
+        for (const auto& [key, summary] : result.gpuTimingsMs)
+        {
+            out << "    \"" << escapedJson(key) << "\": {\n";
+            out << "      \"min\": " << summary.minimum << ",\n";
+            out << "      \"median\": " << summary.median << ",\n";
+            out << "      \"mean\": " << summary.mean << ",\n";
+            out << "      \"p90\": " << summary.p90 << ",\n";
+            out << "      \"p95\": " << summary.p95 << ",\n";
+            out << "      \"p99\": " << summary.p99 << ",\n";
+            out << "      \"max\": " << summary.maximum << ",\n";
+            out << "      \"stddev\": " << summary.standardDeviation << ",\n";
+            out << "      \"sample_count\": " << summary.sampleCount << "\n";
+            out << "    }" << (++index < result.gpuTimingsMs.size() ? ",\n" : "\n");
         }
         out << "  },\n";
         out << "  \"counters\": {\n";
@@ -1438,6 +1488,11 @@ namespace gts::rendering::benchmarks
             auto it = result.timingsMs.find(key);
             return it == result.timingsMs.end() ? nullptr : &it->second;
         };
+        auto gpuTiming = [&](const std::string& key) -> const StatisticSummary*
+        {
+            auto it = result.gpuTimingsMs.find(key);
+            return it == result.gpuTimingsMs.end() ? nullptr : &it->second;
+        };
         auto counter = [&](const std::string& key) -> uint64_t
         {
             auto it = result.counters.find(key);
@@ -1448,19 +1503,35 @@ namespace gts::rendering::benchmarks
         out << std::fixed << std::setprecision(3);
         out << result.config.presetName << " v" << result.config.presetVersion
             << " [" << benchmarkRunModeName(result.config.mode) << "]\n";
+        out << "CPU\n";
         if (const StatisticSummary* frame = timing("frame_cpu"))
-            out << "frame_cpu median/p95: " << frame->median << " / " << frame->p95 << " ms\n";
+            out << "frame median/p95: " << frame->median << " / " << frame->p95 << " ms\n";
         if (const StatisticSummary* controller = timing("controller_cpu"))
-            out << "controller_cpu median/p95: " << controller->median << " / " << controller->p95 << " ms\n";
+            out << "controller median/p95: " << controller->median << " / " << controller->p95 << " ms\n";
         if (const StatisticSummary* snapshot = timing("snapshot_build_cpu"))
-            out << "snapshot_build_cpu median/p95: " << snapshot->median << " / " << snapshot->p95 << " ms\n";
+            out << "snapshot median/p95: " << snapshot->median << " / " << snapshot->p95 << " ms\n";
         if (const StatisticSummary* extract = timing("command_extract_cpu"))
-            out << "command_extract_cpu median/p95: " << extract->median << " / " << extract->p95 << " ms\n";
+            out << "commands median/p95: " << extract->median << " / " << extract->p95 << " ms\n";
+        out << "GPU\n";
+        if (result.gpuTimingAvailable)
+        {
+            if (const StatisticSummary* frame = gpuTiming("frame"))
+                out << "frame median/p95: " << frame->median << " / " << frame->p95 << " ms\n";
+            if (const StatisticSummary* scene = gpuTiming("scene"))
+                out << "scene median/p95: " << scene->median << " / " << scene->p95 << " ms\n";
+            if (const StatisticSummary* particles = gpuTiming("particles"))
+                out << "particles median/p95: " << particles->median << " / " << particles->p95 << " ms\n";
+            if (const StatisticSummary* ui = gpuTiming("ui"))
+                out << "ui median/p95: " << ui->median << " / " << ui->p95 << " ms\n";
+        }
+        else
+        {
+            out << result.gpuTimingStatus << "\n";
+        }
         out << "render_commands total: " << counter("render_commands") << "\n";
         out << "visible_renderables total: " << counter("visible_renderables") << "\n";
         out << "material_synchronized total: " << counter("material_synchronized") << "\n";
         out << "object_uploads total: " << counter("object_uploads") << "\n";
-        out << "gpu_timing: " << result.gpuTimingStatus << "\n";
         if (!result.invariantFailures.empty())
             out << "invariant_failures: " << result.invariantFailures.size() << "\n";
         return out.str();

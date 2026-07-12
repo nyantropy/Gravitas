@@ -73,7 +73,12 @@ struct GtsFrameStats
     float    visibilityCpuMs    = 0.0f;
     float    uiCpuMs            = 0.0f;   // layout + visual + command total
     float    frameCpuMs         = 0.0f;   // total main-loop iteration time
-    float    gpuFrameMs         = 0.0f;   // GPU frame time (placeholder, always 0 until query support added)
+    float    gpuFrameMs         = 0.0f;
+    float    sceneGpuMs         = 0.0f;
+    float    particleGpuMs      = 0.0f;
+    float    uiGpuMs            = 0.0f;
+    uint32_t gpuTimingSupported = 0;
+    uint32_t gpuTimingAvailable = 0;
 
     // Frame counter
     uint64_t frameIndex         = 0;

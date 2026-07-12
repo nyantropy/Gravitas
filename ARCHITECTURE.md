@@ -215,9 +215,11 @@ actually reference a changed material.
 Rendering performance work should use the benchmark suite documented in
 [docs/rendering/benchmarks.md](docs/rendering/benchmarks.md). Smoke benchmarks
 run deterministic ECS/extraction workloads in ordinary CI and emit JSON
-timings, counters, environment metadata, and invariant failures. GPU timing is
-reported unavailable until Vulkan timestamp queries are implemented; CPU
-queue-submit time must not be treated as GPU frame time.
+timings, counters, environment metadata, and invariant failures. GPU runtime
+benchmarks run the normal headless Vulkan engine path with backend-owned
+timestamp query pools and report real GPU frame, scene, particle, and UI
+timings when supported. CPU queue-submit time must not be treated as GPU frame
+time.
 
 Runtime graphics changes are engine-owned and travel through engine-facing
 types. Applications request changes through

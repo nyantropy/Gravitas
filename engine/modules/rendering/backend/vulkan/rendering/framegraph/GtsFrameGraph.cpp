@@ -310,7 +310,13 @@ void GtsFrameGraph::execute(VkCommandBuffer cmd, uint32_t imageIndex, uint32_t c
             }
         }
 
+        if (timestampManager)
+            timestampManager->beginStage(cmd, currentFrame, stages[si]->getName());
+
         stages[si]->record(cmd, *this, imageIndex, currentFrame);
+
+        if (timestampManager)
+            timestampManager->endStage(cmd, currentFrame, stages[si]->getName());
 
         // Update layout tracking for all write accesses of this stage.
         for (const auto& acc : accesses)

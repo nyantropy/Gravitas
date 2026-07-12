@@ -45,6 +45,7 @@ target_include_directories(gravitas_vulkan_backend PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/rendering/framemanager"
     "${CMAKE_CURRENT_SOURCE_DIR}/rendering/pipeline"
     "${CMAKE_CURRENT_SOURCE_DIR}/rendering/particles"
+    "${CMAKE_CURRENT_SOURCE_DIR}/rendering/profiling"
     "${CMAKE_CURRENT_SOURCE_DIR}/rendering/renderpass"
     "${CMAKE_CURRENT_SOURCE_DIR}/rendering/shader"
     "${CMAKE_CURRENT_SOURCE_DIR}/rendering/ui"

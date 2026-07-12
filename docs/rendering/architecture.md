@@ -66,7 +66,9 @@ documented in [benchmarks.md](benchmarks.md). Benchmarks generate deterministic
 descriptor-driven ECS worlds, run normal lifecycle and extraction systems,
 emit JSON timing/counter data, and check invariants such as zero steady-state
 material full scans. The benchmark suite is the required measurement gate for
-future renderer optimization work.
+future renderer optimization work. GPU runtime benchmarks collect backend-owned
+Vulkan timestamp-query measurements for frame, scene, particle, and UI stages
+when the selected device supports them.
 
 ## Descriptor To GPU Split
 

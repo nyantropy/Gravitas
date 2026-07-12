@@ -60,6 +60,7 @@ class GtsScene
     }
 
     virtual void populateFrameStats(GtsFrameStats& /*stats*/) const {}
+    virtual void onFrameStats(const GtsFrameStats& /*stats*/) {}
 
     ECSWorld& getWorld()
     {

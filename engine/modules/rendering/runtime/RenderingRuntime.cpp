@@ -361,10 +361,14 @@ namespace gts::rendering
                              editorPreview != nullptr && editorPreview->enabled ? *editorPreview : emptyEditorPreview,
                              stats);
         const auto submitEnd    = std::chrono::steady_clock::now();
-        stats.renderSubmitCpuMs =
+        GtsFrameStats finalStats = graphics.getLastFrameStats();
+        if (finalStats.frameIndex != stats.frameIndex)
+            finalStats = stats;
+        finalStats.renderSubmitCpuMs =
             std::chrono::duration<float, std::milli>(submitEnd - submitStart).count();
 
-        profiler.add(stats, dt);
+        activeScene.onFrameStats(finalStats);
+        profiler.add(finalStats, dt);
         if (profiler.shouldPrint())
         {
             printProfile(profiler);

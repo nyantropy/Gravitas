@@ -66,7 +66,9 @@ int main()
         std::fprintf(stderr, "validation failure: %s\n", failure.c_str());
     ok &= require(validationFailures.empty(), "benchmark result validates");
     ok &= require(result.invariantFailures.empty(), "static smoke invariants pass");
+    ok &= require(!result.gpuTimingSupported, "cpu smoke reports no gpu timestamp support");
     ok &= require(!result.gpuTimingAvailable, "cpu smoke reports no gpu timing");
+    ok &= require(result.gpuTimingsMs.empty(), "cpu smoke emits no gpu timing summaries");
     ok &= require(result.timingsMs.at("frame_cpu").sampleCount == config.measuredFrames,
                   "warmup frames excluded from samples");
     ok &= require(result.counters.at("material_full_scans") == 0,
@@ -77,6 +79,10 @@ int main()
                   "json contains benchmark name");
     ok &= require(json.find("\"timings_ms\"") != std::string::npos,
                   "json contains timing object");
+    ok &= require(json.find("\"gpu_timings_ms\"") != std::string::npos,
+                  "json contains gpu timing object");
+    ok &= require(json.find("\"gpu_supported\": false") != std::string::npos,
+                  "json contains gpu support flag");
     ok &= require(json.find("\"counters\"") != std::string::npos,
                   "json contains counters object");
 

@@ -12,6 +12,7 @@
 #include "GtsFrameGraphResource.h"
 #include "GtsRenderStage.h"
 #include "VulkanBackendContext.h"
+#include "VulkanTimestampManager.h"
 
 class GtsFrameGraph
 {
@@ -116,6 +117,10 @@ public:
     // Called every frame. Records all stages into cmd in compiled order,
     // inserting pipeline barriers between stages as needed.
     void execute(VkCommandBuffer cmd, uint32_t imageIndex, uint32_t currentFrame);
+    void setTimestampManager(VulkanTimestampManager* manager)
+    {
+        timestampManager = manager;
+    }
 
     // ── Cleanup ───────────────────────────────────────────────────────────
 
@@ -156,6 +161,7 @@ private:
     std::unordered_map<std::type_index, const void*> dataBlackboard;
 
     VulkanBackendContext& backendContext;
+    VulkanTimestampManager* timestampManager = nullptr;
     bool compiled = false;
 
     // ── Internal helpers ──────────────────────────────────────────────────

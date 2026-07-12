@@ -23,6 +23,7 @@
 
 #include "FrameManager.hpp"
 #include "ScreenshotManager.hpp"
+#include "VulkanTimestampManager.h"
 #include "threading/ThreadPool.h"
 
 #include "GtsPlatformEventBus.hpp"
@@ -47,6 +48,7 @@ class ForwardRenderer : Renderer
         std::unique_ptr<IFrameOutputTarget>    frameOutputTarget;
         std::unique_ptr<RenderResourceManager> resourceSystem;
         std::unique_ptr<FrameManager>          frameManager;
+        std::unique_ptr<VulkanTimestampManager> timestampManager;
         std::unique_ptr<ThreadPool>            threadPool;
         VulkanBackendContext&                  backendContext;
 
@@ -240,6 +242,8 @@ class ForwardRenderer : Renderer
 
         void buildFrameGraph()
         {
+            frameGraph.setTimestampManager(timestampManager.get());
+
             const ForwardFrameGraphBuildConfig buildConfig{
                 *resourceSystem,
                 *threadPool,
@@ -272,6 +276,10 @@ class ForwardRenderer : Renderer
             frameManager   = std::make_unique<FrameManager>(backendContext,
                                                             frameOutputTarget->getImages().size(),
                                                             frameOutputTarget->requiresRenderFinishedSemaphore());
+            timestampManager = std::make_unique<VulkanTimestampManager>(
+                backendContext,
+                GraphicsConstants::MAX_FRAMES_IN_FLIGHT,
+                config.enableGpuTimestamps);
             threadPool     = std::make_unique<ThreadPool>();
             buildFrameGraph();
         }
@@ -292,6 +300,7 @@ class ForwardRenderer : Renderer
             uiStage = nullptr;
             if (threadPool) threadPool.reset();
             if (frameManager) frameManager.reset();
+            if (timestampManager) timestampManager.reset();
             if (depthAttachment) depthAttachment.reset();
             if (sceneColorAttachment) sceneColorAttachment.reset();
             if (frameOutputTarget) frameOutputTarget.reset();
@@ -454,6 +463,9 @@ class ForwardRenderer : Renderer
             if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
                 throw std::runtime_error("failed to begin recording command buffer!");
 
+            if (timestampManager)
+                timestampManager->beginFrame(commandBuffer, currentFrame);
+
             const RenderViewportFrame viewportFrame = buildViewportFrame(sceneViewport);
             frameGraph.provideData(&renderList);
             frameGraph.provideData(&materialFrameData);
@@ -463,6 +475,9 @@ class ForwardRenderer : Renderer
             frameGraph.provideData(&editorPreview);
             frameGraph.provideData(&frameStats);
             frameGraph.execute(commandBuffer, imageIndex, currentFrame);
+
+            if (timestampManager)
+                timestampManager->endFrame(commandBuffer, currentFrame);
 
             // Render stats are written by SceneRenderStage during execute — read them back.
             if (sceneStage)
@@ -638,6 +653,20 @@ class ForwardRenderer : Renderer
             const auto fenceWaitEnd = std::chrono::steady_clock::now();
             frameStats.backendFenceWaitCpuMs =
                 std::chrono::duration<float, std::milli>(fenceWaitEnd - fenceWaitStart).count();
+
+            if (timestampManager)
+            {
+                const VulkanGpuTimestampResult gpuTiming = timestampManager->collectFrame(currentFrame);
+                frameStats.gpuTimingSupported = gpuTiming.supported ? 1u : 0u;
+                frameStats.gpuTimingAvailable = gpuTiming.available ? 1u : 0u;
+                if (gpuTiming.available)
+                {
+                    frameStats.gpuFrameMs    = gpuTiming.frameMs;
+                    frameStats.sceneGpuMs    = gpuTiming.sceneMs;
+                    frameStats.particleGpuMs = gpuTiming.particleMs;
+                    frameStats.uiGpuMs       = gpuTiming.uiMs;
+                }
+            }
 
             for (const auto& upload : cameraUploads)
             {
@@ -829,6 +858,11 @@ class ForwardRenderer : Renderer
             const auto frameEnd = std::chrono::steady_clock::now();
             frameStats.backendFrameCpuMs =
                 std::chrono::duration<float, std::milli>(frameEnd - frameStart).count();
+        }
+
+        GtsFrameStats getLastFrameStats() const override
+        {
+            return frameStats;
         }
 
         // filler getters, not to be used in the real program

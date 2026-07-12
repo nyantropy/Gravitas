@@ -32,9 +32,12 @@ installs transform, camera, geometry, material, particle, and extraction
 systems, and runs the normal render-prep plus `RenderPipeline` path with a fake
 resource provider. It does not create a Vulkan device or GPU timestamp queries.
 
-`gpu_runtime` is reserved for the future Vulkan timestamp implementation. The
-current executable reports GPU timing unavailable rather than substituting CPU
-queue-submit time for GPU work.
+`gpu_runtime` starts the real headless Vulkan engine path, installs normal
+renderer scene features, records regular command buffers, enables backend GPU
+timestamp queries, and exits after the requested measured frame window. If no
+Vulkan device is available, the executable exits with code 77 so CTest can mark
+the benchmark skipped. If the device cannot provide timestamp queries, the run
+continues with CPU timings and counters while marking GPU timing unsupported.
 
 ## Usage
 
@@ -109,16 +112,46 @@ CPU timing buckets currently emitted:
 
 - `frame_cpu`
 - `controller_cpu`
+- `simulation_cpu`
 - `transform_resolve_cpu`
 - `render_gpu_sync_cpu`
 - `snapshot_build_cpu`
 - `visibility_cpu`
 - `command_extract_cpu`
 - `command_sort_cpu`
+- `backend_frame_cpu`
+- `backend_cmd_record_cpu`
+- `backend_queue_submit_cpu`
+- `backend_present_cpu`
+- `render_submit_cpu`
 
-`gpu_frame` is emitted as a schema-stable placeholder with GPU timing metadata
-marking it unavailable. Do not interpret it as GPU work until Vulkan timestamp
-queries are implemented.
+GPU timing buckets are emitted only when real Vulkan timestamp query results are
+available:
+
+- `frame`
+- `scene`
+- `particles`
+- `ui`
+
+CPU queue-submit time is never used as a substitute for GPU frame time.
+
+## Vulkan Timestamp Architecture
+
+GPU timestamp ownership is backend-local. `ForwardRenderer` owns a
+`VulkanTimestampManager` beside the other frame resources. The manager allocates
+one timestamp query pool per frame-in-flight, resets the pool while recording
+the reused frame slot, writes frame begin/end timestamps, and wraps frame-graph
+stage recording for scene, particle, and UI timing.
+
+Results are collected only after the corresponding frame fence has completed,
+so benchmark execution does not block the CPU just to read timestamps. The
+manager converts timestamp deltas to milliseconds with the physical device
+`timestampPeriod` and respects the graphics queue family's valid timestamp bit
+width.
+
+If timestamp queries are unavailable, allocation fails, or query results cannot
+be collected, the backend emits a bounded warning, marks GPU timing unavailable
+in `GtsFrameStats`, and continues rendering.
 
 ## Counters
 
@@ -144,15 +177,21 @@ Results are JSON with these top-level fields:
 - `benchmark`, `preset_version`, `mode`, `seed`
 - `warmup_frames`, `measured_frames`, `render_resolution`
 - `gpu_timing`
+- `gpu_supported`
 - `config`
 - `environment`
 - `timings_ms`
+- `gpu_timings_ms`
 - `counters`
 - `warnings`
 - `invariant_failures`
 
 Timing summaries include minimum, median, mean, p90, p95, p99, maximum,
 standard deviation, and sample count.
+
+`timings_ms` contains CPU wall-clock buckets. `gpu_timings_ms` contains only
+real timestamp-query buckets and remains empty when GPU timing is unsupported or
+unavailable.
 
 ## Invariant Checks
 
@@ -211,6 +250,9 @@ graphics settings, versioned baselines, artifact upload, and larger presets.
 Shared CI runners are acceptable for correctness smoke tests, not authoritative
 performance gates.
 
+GPU runtime benchmarks should run only on dedicated Vulkan runners. A missing
+Vulkan device should be treated as a skip, not a failure of CPU smoke CI.
+
 ## Adding A Preset
 
 Add a `RenderingBenchmarkConfig` entry to `standardBenchmarkPresets()`, keep
@@ -224,11 +266,13 @@ contents or licenses can drift.
 
 ## Current Limitations
 
-- GPU timestamp queries are not implemented.
 - `cpu_smoke` does not exercise Vulkan command recording, prepared batch
   construction, descriptor binds, queue submission, present, or real GPU
   fragment cost.
 - UI stress is represented in config and preset identity but retained-UI
   workload generation is not yet wired into the smoke generator.
-- Instrumentation overhead has not been quantified beyond keeping benchmark
-  counters inside benchmark runs and reusing existing renderer metrics.
+- GPU runtime workload generation uses generated quad/procedural geometry and
+  engine fallback textures; asset-heavy benchmark fixtures can be added later.
+- Timestamp overhead is optional and disabled outside GPU benchmark mode by
+  default. This workspace could validate the disabled CPU smoke path and the
+  no-Vulkan skip path, but not timestamp overhead on real GPU hardware.

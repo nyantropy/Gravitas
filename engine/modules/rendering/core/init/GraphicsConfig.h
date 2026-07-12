@@ -28,6 +28,7 @@ struct GraphicsConfig
     uint32_t           renderHeight = 0; // 0 = follow initial window size
     PresentModePreference presentModePreference = PresentModePreference::Immediate;
     int                maxFrameRate = 0; // 0 = uncapped
+    bool               enableGpuTimestamps = false;
     uint32_t           maxScreenshotsPerRun = 64;
     float              minSecondsBetweenScreenshots = 0.25f;
     // Extend here later: antialiasing, render scale, shadow quality, etc.

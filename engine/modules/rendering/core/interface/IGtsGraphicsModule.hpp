@@ -35,6 +35,7 @@ public:
     virtual void toggleDebugOverlay() = 0;
     virtual void cycleDebugOverlayPage() = 0;
     virtual void requestScreenshot(const std::string& outputDirectory = {}) = 0;
+    virtual GtsFrameStats getLastFrameStats() const = 0;
     virtual void waitIdle() = 0;
     virtual void pollWindowEvents() = 0;
     virtual void shutdown() = 0;

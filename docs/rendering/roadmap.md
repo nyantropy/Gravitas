@@ -24,13 +24,13 @@ The renderer currently has:
   index and deduplicated material change queue
 - deterministic rendering benchmark smoke suite with JSON output, statistical
   summaries, invariant checks, baseline comparison tooling, and CTest labels
+- Vulkan GPU timestamp-query benchmarking for total frame, scene, particles,
+  and UI stages when supported by the selected device
 - retained UI extraction and Vulkan overlay composition
 - screenshot capture with async PNG writes
 
 ## Future Rendering Work
 
-- Add Vulkan GPU timestamp-query timing for total frame, scene/PBR, particles,
-  UI, environment, and future post-processing stages.
 - Run the full benchmark matrix on fixed hardware and establish versioned CI
   baselines before starting the next renderer optimization phase.
 - Add alpha-cutoff shader support for `RenderQueue::AlphaMasked`.

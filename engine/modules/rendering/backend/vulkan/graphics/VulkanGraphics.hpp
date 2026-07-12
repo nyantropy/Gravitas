@@ -151,6 +151,7 @@ public:
         rConfig.renderHeight = config.renderHeight;
         rConfig.maxScreenshotsPerRun = config.maxScreenshotsPerRun;
         rConfig.minSecondsBetweenScreenshots = config.minSecondsBetweenScreenshots;
+        rConfig.enableGpuTimestamps = config.enableGpuTimestamps;
         renderer = std::make_unique<ForwardRenderer>(rConfig, *backendContext, eventBus);
         if (config.headless)
         {
@@ -198,6 +199,11 @@ public:
             swapchainRecreatePending = true;
             recreateSwapchainResourcesIfPossible();
         }
+    }
+
+    GtsFrameStats getLastFrameStats() const override
+    {
+        return renderer ? renderer->getLastFrameStats() : GtsFrameStats{};
     }
 
     texture_id_type ensureEditorPreviewTarget(uint32_t width, uint32_t height) override

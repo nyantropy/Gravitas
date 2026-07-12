@@ -83,9 +83,11 @@ namespace gts::rendering::benchmarks
         RenderingBenchmarkConfig config;
         BenchmarkEnvironment environment;
         std::map<std::string, StatisticSummary> timingsMs;
+        std::map<std::string, StatisticSummary> gpuTimingsMs;
         std::map<std::string, uint64_t> counters;
         std::vector<std::string> warnings;
         std::vector<std::string> invariantFailures;
+        bool gpuTimingSupported = false;
         bool gpuTimingAvailable = false;
         std::string gpuTimingStatus = "unavailable";
     };
@@ -99,6 +101,7 @@ namespace gts::rendering::benchmarks
                              std::string* error = nullptr);
     const char* benchmarkRunModeName(BenchmarkRunMode mode);
 
+    BenchmarkEnvironment collectBenchmarkEnvironment(const RenderingBenchmarkConfig& config);
     StatisticSummary summarizeSamples(std::vector<double> samples);
 
     BenchmarkRunResult runRenderingBenchmark(const RenderingBenchmarkConfig& config);

@@ -45,6 +45,11 @@ struct ProfileAccumulator
         sum.uiCpuMs                += s.uiCpuMs;
         sum.frameCpuMs             += s.frameCpuMs;
         sum.gpuFrameMs             += s.gpuFrameMs;
+        sum.sceneGpuMs             += s.sceneGpuMs;
+        sum.particleGpuMs          += s.particleGpuMs;
+        sum.uiGpuMs                += s.uiGpuMs;
+        sum.gpuTimingSupported     += s.gpuTimingSupported;
+        sum.gpuTimingAvailable     += s.gpuTimingAvailable;
 
         sum.visibleObjects         += s.visibleObjects;
         sum.totalObjects           += s.totalObjects;
@@ -111,6 +116,11 @@ struct ProfileAccumulator
         max.uiCpuMs                = std::max(max.uiCpuMs, s.uiCpuMs);
         max.frameCpuMs             = std::max(max.frameCpuMs, s.frameCpuMs);
         max.gpuFrameMs             = std::max(max.gpuFrameMs, s.gpuFrameMs);
+        max.sceneGpuMs             = std::max(max.sceneGpuMs, s.sceneGpuMs);
+        max.particleGpuMs          = std::max(max.particleGpuMs, s.particleGpuMs);
+        max.uiGpuMs                = std::max(max.uiGpuMs, s.uiGpuMs);
+        max.gpuTimingSupported     = std::max(max.gpuTimingSupported, s.gpuTimingSupported);
+        max.gpuTimingAvailable     = std::max(max.gpuTimingAvailable, s.gpuTimingAvailable);
 
         max.visibleObjects         = s.visibleObjects;
         max.totalObjects           = s.totalObjects;
@@ -202,5 +212,13 @@ inline void printProfile(const ProfileAccumulator& acc)
     printRow("Sort:",        acc.sum.renderExtractSortCpuMs * inv, acc.max.renderExtractSortCpuMs);
     printRow("UI:",          acc.sum.uiCpuMs * inv,                acc.max.uiCpuMs);
     printRow("Submit:",      acc.sum.renderSubmitCpuMs * inv,      acc.max.renderSubmitCpuMs);
+    if (acc.max.gpuTimingAvailable > 0)
+    {
+        std::cout << "\n--- GPU ---\n";
+        printRow("Frame:",     acc.sum.gpuFrameMs * inv,    acc.max.gpuFrameMs);
+        printRow("Scene:",     acc.sum.sceneGpuMs * inv,    acc.max.sceneGpuMs);
+        printRow("Particles:", acc.sum.particleGpuMs * inv, acc.max.particleGpuMs);
+        printRow("UI:",        acc.sum.uiGpuMs * inv,       acc.max.uiGpuMs);
+    }
     std::cout.flush();
 }
