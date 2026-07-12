@@ -10,8 +10,8 @@
 // Each row of cells shares the same width/height; characters are packed
 // left-to-right, top-to-bottom in the atlas following charOrder.
 //
-// All glyphs receive uniform monospaced metrics:
-//   size = (1, 1) world units, bearing = (0, 1), advance = 1.0.
+// All glyphs receive uniform monospaced metrics normalized to cell height:
+//   size = (cellW / cellH, 1), bearing = (0, 1), advance = cellW / cellH.
 namespace BitmapFontLoader
 {
     inline BitmapFont buildGridFont(texture_id_type atlasTexture,
@@ -29,6 +29,7 @@ namespace BitmapFontLoader
 
         const float fW = static_cast<float>(atlasW);
         const float fH = static_cast<float>(atlasH);
+        const float cellAspect = static_cast<float>(cellW) / static_cast<float>(cellH);
         const int   charCount = static_cast<int>(charOrder.size());
 
         for (int i = 0; i < charCount; ++i)
@@ -44,9 +45,9 @@ namespace BitmapFontLoader
             font.glyphs[charOrder[i]] = GlyphInfo{
                 .uvMin   = { ax0 / fW,        ay0 / fH        },
                 .uvMax   = { (ax1 + 1) / fW, (ay1 + 1) / fH  },
-                .size    = { 1.0f, 1.0f },
+                .size    = { cellAspect, 1.0f },
                 .bearing = { 0.0f, 1.0f },
-                .advance = 1.0f
+                .advance = cellAspect
             };
         }
 
