@@ -1,0 +1,203 @@
+# Engine Tooling Architecture
+
+This document describes the current Gravitas engine tooling architecture. The
+tooling UI is built on the retained UI runtime:
+
+```text
+UiSurface -> UiLayer -> UiMount -> UiComposition -> UiWidget -> retained UiNode
+```
+
+Tooling uses that runtime through a pane-based shell. The legacy
+`EngineToolPanel` registry must not return as the main editor shell.
+
+## Overview
+
+Engine tooling is a global development runtime owned by the engine, not by
+individual scenes. It updates against the active scene ECS world so tools can
+inspect and edit the currently running scene without applications installing
+editor systems.
+
+The active editor surface is:
+
+- a retained `EngineToolShellComposition`
+- descriptor-driven `ToolDockLayout`
+- self-contained `ToolPane` implementations
+- reusable tooling widgets for rows, lists, pagers, toolbar rows, inspectors,
+  and property inspectors
+- `EngineToolShellSystem`, which applies commands and integrates with ECS,
+  rendering, asset IO, and input capture
+
+The first-class workspaces are:
+
+- World: scene browser and live runtime scene viewport.
+- Particles: particle asset/effect hierarchy, live runtime scene viewport,
+  separate particle preview viewport, property inspector, diagnostics, and
+  timeline placeholder.
+
+Workspace switching filters pane descriptors. It does not change engine mode.
+
+## Feature Layout
+
+- `modules/tools/core/`: shared tool state and query helpers.
+- `modules/tools/ui/`: pane descriptors, pane widgets, shell composition,
+  shell system, tool theme tokens, and particle editor session state.
+- `modules/tools/runtime/`: global tool runtime and scene-change state handoff.
+- `modules/tools/workspace/`: per-frame workspace layout and scene viewport
+  publication.
+- `modules/tools/assets/`: particle preview world integration.
+- `modules/tools/selection/`: input capture, world picking, selection labels,
+  selection highlight, and shared raycast helpers.
+- `modules/tools/gizmos/`: translation gizmo state, picking, snapping, and
+  transform edits.
+- `modules/tools/debugdraw/`: tool-driven bounds, axes, frustum, and pick-ray
+  drawing.
+
+## Ownership
+
+`ToolShellComposition` owns editor shell structure only: global chrome,
+workspace tabs, pane mounting, dock layout usage, and command collection. It
+does not edit particles, mutate ECS, perform asset IO, render previews, or
+apply tool commands.
+
+`ToolDockLayout` owns descriptor-driven pane placement. Its input is pane
+descriptors, active workspace, and shell/workspace bounds. Its output is
+resolved pane id, visibility, dock area, rectangle, and order.
+
+Current dock areas are fixed:
+
+- `MenuBar`
+- `Toolbar`
+- `Left`
+- `Center`
+- `Right`
+- `Bottom`
+- `StatusBar`
+
+Freeform docking, drag docking, floating panes, workspace persistence, and
+serialized docking trees are future work.
+
+`ToolPane` owns one self-contained editor pane: retained widgets, pane-local UI
+state, retained event handling, and typed `ToolCommand` emission. Panes do not
+mutate ECS, scene state, renderer state, or particle assets.
+
+Reusable tooling controls live under `modules/tools/ui/` and compose retained
+runtime widgets. They are not a second UI framework. Current reusable controls
+include `ToolSelectableRow`, `ToolListSection`, `ToolPager`,
+`ToolInspectorSection`, `ToolToolbarRow`, and `ToolPropertyInspector`.
+
+`EngineToolShellSystem` owns engine integration: ECS integration, renderer
+integration, viewport publication, particle preview rendering, asset IO, scene
+commands, input capture, and applying `ToolCommand`s.
+
+## Command Flow
+
+Tool interaction follows one direction:
+
+```text
+Pane
+  -> ToolCommand
+  -> ToolShellComposition command queue
+  -> EngineToolShellSystem
+  -> feature session or engine service
+  -> updated view model
+  -> panes
+```
+
+For property editing:
+
+```text
+Feature/session state
+  -> explicit property builder
+  -> ToolPropertySection list
+  -> ToolPropertyInspector
+  -> EditProperty ToolCommand
+  -> EngineToolShellSystem
+  -> ParticleEditorSession or future feature session
+```
+
+No pane should bypass this flow by directly mutating assets, ECS components, or
+renderer data.
+
+## Particle Editor Session
+
+`ParticleEditorSession` owns particle editor state:
+
+- selected effect
+- selected emitter
+- selected module
+- dirty state
+- playback state
+- compile/save/reload helpers
+- future undo/redo insertion point
+
+`EngineToolShellSystem` builds particle view models and property descriptors,
+then applies emitted commands back through the session.
+
+The particle preview is separate from the central world viewport.
+`ParticlePreviewViewportPane` owns preview chrome and an image handle.
+`EngineToolShellSystem` measures that handle after composition update, routes
+`ParticlePreviewWorld` rendering into the preview target, and publishes
+`EditorPreviewRenderComponent`.
+
+## Tooling Launch Presets
+
+Tooling launch presets configure the engine into a deterministic startup state
+for development, screenshot capture, visual verification, and future regression
+tests. Presets are documented in [presets.md](presets.md).
+
+Preset startup configures runtime state directly. It does not simulate UI
+clicks.
+
+## Viewport Model
+
+The editor has two viewport concepts.
+
+The central world viewport is the live runtime scene viewport. The tool runtime
+publishes it through `RenderViewportComponent::sceneViewport`, and render
+systems use that viewport to constrain scene rendering so tool chrome is not
+covered.
+
+The particle preview viewport is separate. It is driven by
+`EditorPreviewRenderComponent` and must not be merged into the central world
+viewport.
+
+## Current Limitations
+
+These are known limits, not accidental regressions:
+
+- Docking is fixed, descriptor-driven, and non-resizable.
+- No floating windows or layout persistence.
+- Timeline/curve area is a visual placeholder.
+- No graph editing, curve editing, gradient editing, burst editing, or module
+  add/remove/reorder.
+- Property editing is limited to the first particle fields and stepper controls.
+- Module parameters are read-only.
+- List sections use fixed row counts rather than virtualization or scrolling.
+- Some pane internals still use normalized rectangles because the current
+  widget helper layer is lightweight.
+- Theme usage is improved but not complete; some low-level payload styling
+  still exists inside tooling widgets.
+
+## Guardrails
+
+Do not:
+
+- revive `EngineToolPanel` as the main editor shell
+- add pane-specific placement switches back into `EngineToolShellComposition`
+- make panes mutate ECS, scene state, renderer state, or particle assets
+- merge the particle preview into the world viewport
+- switch to an editor mode that stops live runtime scene rendering
+- add freeform docking before the fixed pane editor is stable
+- introduce reflection or serialization-driven property editing
+- simulate UI clicks for preset startup
+- use gameplay scenes as the default editor visual QA surface
+
+Do:
+
+- build new editor features as pane-local retained widgets plus typed commands
+- extend `ToolPaneWidgets` only for repeated editor patterns
+- build explicit `ToolPropertyDescriptor` lists for inspector controls
+- apply edits through `EngineToolShellSystem` and owning sessions
+- keep `EditorMode::Runtime`
+- use `editor_eval_*` presets before and after visual changes
+- keep generated screenshots clearly labeled

@@ -89,7 +89,9 @@ This document records the repository style contract for the Gravitas engine. It 
 - Keep comments short and plain, like a programmer leaving a note for the next pass. Do not write polished documentation prose in implementation files.
 - Do not comment code that is already self-explanatory.
 - Remove stale comments when changing behavior.
-- Prefer updating `ARCHITECTURE.md` over adding broad architecture explanations inside implementation files.
+- Prefer updating `ARCHITECTURE.md` or the owning feature document under
+  `docs/` over adding broad architecture explanations inside implementation
+  files.
 
 ## Cleanup Policy
 
