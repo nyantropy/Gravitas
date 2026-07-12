@@ -17,6 +17,43 @@ set_tests_properties(gravitas_runtime_headless_startup
         SKIP_RETURN_CODE 77
 )
 
+add_executable(GravitasHeadlessScreenshotSmoke
+    runtime/HeadlessScreenshotRuntimeSmoke.cpp
+)
+
+target_compile_features(GravitasHeadlessScreenshotSmoke PRIVATE cxx_std_20)
+
+target_link_libraries(GravitasHeadlessScreenshotSmoke PRIVATE gravitas_engine)
+
+add_test(
+    NAME gravitas_runtime_headless_screenshot
+    COMMAND GravitasHeadlessScreenshotSmoke
+)
+
+set_tests_properties(gravitas_runtime_headless_screenshot
+    PROPERTIES
+        LABELS "gravitas;runtime;smoke;screenshot"
+        SKIP_RETURN_CODE 77
+)
+
+add_executable(ProfileAccumulatorTest
+    core/ProfileAccumulatorTest.cpp
+)
+
+target_compile_features(ProfileAccumulatorTest PRIVATE cxx_std_20)
+
+target_link_libraries(ProfileAccumulatorTest PRIVATE gravitas_engine)
+
+add_test(
+    NAME profile_accumulator
+    COMMAND ProfileAccumulatorTest
+)
+
+set_tests_properties(profile_accumulator
+    PROPERTIES
+        LABELS "gravitas;core;profiling"
+)
+
 add_executable(TransformHierarchyRuntimeTest
     transform/TransformHierarchyRuntimeTest.cpp
 )

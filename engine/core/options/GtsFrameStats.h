@@ -26,6 +26,9 @@ struct GtsFrameStats
     float    backendCmdRecordCpuMs  = 0.0f;
     float    backendQueueSubmitCpuMs = 0.0f;
     float    backendPresentCpuMs    = 0.0f;
+    float    screenshotScheduleCpuMs = 0.0f;
+    float    screenshotPollCpuMs     = 0.0f;
+    float    screenshotReadbackCpuMs = 0.0f;
     uint32_t visibleObjects         = 0;
     uint32_t totalObjects           = 0;
     uint32_t triangleCount          = 0;
@@ -103,6 +106,13 @@ struct GtsFrameStats
     uint32_t objectUploadBytes         = 0;
     uint32_t backendObjectWriteBytes   = 0;
     uint32_t backendObjectWriteContiguousRuns = 0;
+    uint32_t screenshotRequestedCount = 0;
+    uint32_t screenshotScheduledCount = 0;
+    uint32_t screenshotCompletedCount = 0;
+    uint32_t screenshotSkippedCount = 0;
+    uint32_t screenshotPendingGpuCount = 0;
+    uint32_t screenshotPendingWriteCount = 0;
+    uint32_t screenshotReadbackBytes = 0;
     uint32_t sceneEntityCount          = 0;
     uint32_t controllerSystemCount  = 0;
     uint32_t simulationSystemCount  = 0;

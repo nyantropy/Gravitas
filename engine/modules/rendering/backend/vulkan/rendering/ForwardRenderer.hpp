@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <exception>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -293,6 +295,20 @@ class ForwardRenderer : Renderer
 
         void destroyFrameResources()
         {
+            try
+            {
+                screenshotManager.waitForPendingWork();
+            }
+            catch (const std::exception& e)
+            {
+                std::cerr << "Screenshot drain failed during frame-resource teardown: "
+                          << e.what() << std::endl;
+            }
+            catch (...)
+            {
+                std::cerr << "Screenshot drain failed during frame-resource teardown: unknown error"
+                          << std::endl;
+            }
             frameGraph.clear();
             sceneStage = nullptr;
             particleStage = nullptr;
@@ -456,7 +472,11 @@ class ForwardRenderer : Renderer
                                  const RenderViewportRect& sceneViewport,
                                  const UiCommandBuffer& uiBuffer,
                                  const EditorPreviewRenderData& editorPreview,
-                                 VkCommandBuffer commandBuffer, uint32_t imageIndex)
+                                 VkCommandBuffer commandBuffer,
+                                 uint32_t imageIndex,
+                                 bool captureScreenshot,
+                                 const std::string& captureOutputDirectory,
+                                 VkFence captureCompletionFence)
         {
             VkCommandBufferBeginInfo beginInfo{};
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -479,6 +499,19 @@ class ForwardRenderer : Renderer
 
             if (timestampManager)
                 timestampManager->endFrame(commandBuffer, currentFrame);
+
+            if (captureScreenshot)
+            {
+                screenshotManager.scheduleCapture(
+                    commandBuffer,
+                    frameOutputTarget->getImages()[imageIndex],
+                    frameOutputTarget->getFormat(),
+                    frameOutputTarget->getExtent(),
+                    frameOutputTarget->getUiFinalLayout(),
+                    captureCompletionFence,
+                    captureOutputDirectory,
+                    frameStats);
+            }
 
             // Render stats are written by SceneRenderStage during execute — read them back.
             if (sceneStage)
@@ -655,6 +688,8 @@ class ForwardRenderer : Renderer
             frameStats.backendFenceWaitCpuMs =
                 std::chrono::duration<float, std::milli>(fenceWaitEnd - fenceWaitStart).count();
 
+            screenshotManager.pollCompletedCaptures(frameStats);
+
             if (timestampManager)
             {
                 const VulkanGpuTimestampResult gpuTiming = timestampManager->collectFrame(currentFrame);
@@ -797,18 +832,51 @@ class ForwardRenderer : Renderer
             frameStats.backendCmdResetCpuMs =
                 std::chrono::duration<float, std::milli>(cmdResetEnd - cmdResetStart).count();
 
+            const bool captureScreenshot = tryConsumeScreenshotRequest(dt);
+            std::string captureOutputDirectory;
+            if (captureScreenshot)
+                captureOutputDirectory = screenshotOutputDirectory;
+            const uint32_t screenshotsScheduledBefore = frameStats.screenshotScheduledCount;
+
             const auto cmdRecordStart = std::chrono::steady_clock::now();
-            recordCommandBuffer(renderList,
-                                materialFrameData,
-                                particleData,
-                                sceneViewport,
-                                uiBuffer,
-                                editorPreview,
-                                frame.commandBuffer,
-                                imageIndex);
+            try
+            {
+                recordCommandBuffer(renderList,
+                                    materialFrameData,
+                                    particleData,
+                                    sceneViewport,
+                                    uiBuffer,
+                                    editorPreview,
+                                    frame.commandBuffer,
+                                    imageIndex,
+                                    captureScreenshot,
+                                    captureOutputDirectory,
+                                    frame.inFlightFence);
+            }
+            catch (...)
+            {
+                if (captureScreenshot)
+                    screenshotManager.cancelCapturesForFence(frame.inFlightFence);
+                throw;
+            }
             const auto cmdRecordEnd = std::chrono::steady_clock::now();
             frameStats.backendCmdRecordCpuMs =
                 std::chrono::duration<float, std::milli>(cmdRecordEnd - cmdRecordStart).count();
+
+            if (captureScreenshot)
+            {
+                const bool scheduled =
+                    frameStats.screenshotScheduledCount > screenshotsScheduledBefore;
+                if (scheduled && config.headless)
+                    logHeadlessFrameDiagnostics(renderList);
+                screenshotRequested = false;
+                screenshotOutputDirectory.clear();
+                if (scheduled)
+                {
+                    ++screenshotsTaken;
+                    secondsSinceLastScreenshot = 0.0f;
+                }
+            }
 
             if (config.headless && diagnosticFramesLogged < 5)
             {
@@ -841,6 +909,8 @@ class ForwardRenderer : Renderer
 
             const auto submitStart = std::chrono::steady_clock::now();
             if (vkQueueSubmit(backendContext.graphicsQueue(), 1, &submitInfo, frame.inFlightFence) != VK_SUCCESS) {
+                if (captureScreenshot)
+                    screenshotManager.cancelCapturesForFence(frame.inFlightFence);
                 throw std::runtime_error("failed to submit draw command buffer!");
             }
             const auto submitEnd = std::chrono::steady_clock::now();
@@ -850,23 +920,6 @@ class ForwardRenderer : Renderer
             if (frameManager->getImagesInFlightCount() > imageIndex)
             {
                 frameManager->setImageFence(imageIndex, frame.inFlightFence);
-            }
-
-            if (tryConsumeScreenshotRequest(dt))
-            {
-                vkWaitForFences(backendContext.device(), 1, &frame.inFlightFence, VK_TRUE, UINT64_MAX);
-                if (config.headless)
-                    logHeadlessFrameDiagnostics(renderList);
-                screenshotManager.saveImage(
-                    frameOutputTarget->getImages()[imageIndex],
-                    frameOutputTarget->getFormat(),
-                    frameOutputTarget->getExtent(),
-                    frameOutputTarget->getUiFinalLayout(),
-                    screenshotOutputDirectory);
-                screenshotRequested = false;
-                screenshotOutputDirectory.clear();
-                ++screenshotsTaken;
-                secondsSinceLastScreenshot = 0.0f;
             }
 
             // fire the on frame ended event, currently non functional

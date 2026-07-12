@@ -38,6 +38,9 @@ struct ProfileAccumulator
         sum.backendCmdRecordCpuMs  += s.backendCmdRecordCpuMs;
         sum.backendQueueSubmitCpuMs += s.backendQueueSubmitCpuMs;
         sum.backendPresentCpuMs    += s.backendPresentCpuMs;
+        sum.screenshotScheduleCpuMs += s.screenshotScheduleCpuMs;
+        sum.screenshotPollCpuMs     += s.screenshotPollCpuMs;
+        sum.screenshotReadbackCpuMs += s.screenshotReadbackCpuMs;
         sum.simulationCpuMs        += s.simulationCpuMs;
         sum.controllerCpuMs        += s.controllerCpuMs;
         sum.snapshotBuildCpuMs     += s.snapshotBuildCpuMs;
@@ -71,6 +74,13 @@ struct ProfileAccumulator
         sum.materialFullScanCount     += s.materialFullScanCount;
         sum.backendObjectWrites       += s.backendObjectWrites;
         sum.backendObjectWritesSkipped += s.backendObjectWritesSkipped;
+        sum.screenshotRequestedCount += s.screenshotRequestedCount;
+        sum.screenshotScheduledCount += s.screenshotScheduledCount;
+        sum.screenshotCompletedCount += s.screenshotCompletedCount;
+        sum.screenshotSkippedCount += s.screenshotSkippedCount;
+        sum.screenshotPendingGpuCount += s.screenshotPendingGpuCount;
+        sum.screenshotPendingWriteCount += s.screenshotPendingWriteCount;
+        sum.screenshotReadbackBytes += s.screenshotReadbackBytes;
         sum.sceneEntityCount          += s.sceneEntityCount;
         sum.controllerSystemCount     += s.controllerSystemCount;
         sum.simulationSystemCount     += s.simulationSystemCount;
@@ -109,6 +119,9 @@ struct ProfileAccumulator
         max.backendCmdRecordCpuMs  = std::max(max.backendCmdRecordCpuMs, s.backendCmdRecordCpuMs);
         max.backendQueueSubmitCpuMs = std::max(max.backendQueueSubmitCpuMs, s.backendQueueSubmitCpuMs);
         max.backendPresentCpuMs    = std::max(max.backendPresentCpuMs, s.backendPresentCpuMs);
+        max.screenshotScheduleCpuMs = std::max(max.screenshotScheduleCpuMs, s.screenshotScheduleCpuMs);
+        max.screenshotPollCpuMs     = std::max(max.screenshotPollCpuMs, s.screenshotPollCpuMs);
+        max.screenshotReadbackCpuMs = std::max(max.screenshotReadbackCpuMs, s.screenshotReadbackCpuMs);
         max.simulationCpuMs        = std::max(max.simulationCpuMs, s.simulationCpuMs);
         max.controllerCpuMs        = std::max(max.controllerCpuMs, s.controllerCpuMs);
         max.snapshotBuildCpuMs     = std::max(max.snapshotBuildCpuMs, s.snapshotBuildCpuMs);
@@ -142,6 +155,13 @@ struct ProfileAccumulator
         max.materialFullScanCount     = s.materialFullScanCount;
         max.backendObjectWrites       = s.backendObjectWrites;
         max.backendObjectWritesSkipped = s.backendObjectWritesSkipped;
+        max.screenshotRequestedCount = std::max(max.screenshotRequestedCount, s.screenshotRequestedCount);
+        max.screenshotScheduledCount = std::max(max.screenshotScheduledCount, s.screenshotScheduledCount);
+        max.screenshotCompletedCount = std::max(max.screenshotCompletedCount, s.screenshotCompletedCount);
+        max.screenshotSkippedCount = std::max(max.screenshotSkippedCount, s.screenshotSkippedCount);
+        max.screenshotPendingGpuCount = std::max(max.screenshotPendingGpuCount, s.screenshotPendingGpuCount);
+        max.screenshotPendingWriteCount = std::max(max.screenshotPendingWriteCount, s.screenshotPendingWriteCount);
+        max.screenshotReadbackBytes = std::max(max.screenshotReadbackBytes, s.screenshotReadbackBytes);
         max.sceneEntityCount          = s.sceneEntityCount;
         max.controllerSystemCount     = s.controllerSystemCount;
         max.simulationSystemCount     = s.simulationSystemCount;
@@ -169,6 +189,20 @@ struct ProfileAccumulator
         return timeAccum >= 5.0f;
     }
 
+    float averageFrameDeltaMs() const
+    {
+        if (frameCount <= 0)
+            return 0.0f;
+        return (timeAccum * 1000.0f) / static_cast<float>(frameCount);
+    }
+
+    float windowFps() const
+    {
+        if (timeAccum <= 0.0f)
+            return 0.0f;
+        return static_cast<float>(frameCount) / timeAccum;
+    }
+
     void reset()
     {
         timeAccum = 0.0f;
@@ -194,9 +228,13 @@ inline void printProfile(const ProfileAccumulator& acc)
                   << '\n';
     };
 
-    std::cout << "\n=== FRAME PROFILE (5s avg) ===\n";
-    std::cout << "FPS: " << std::fixed << std::setprecision(0) << (acc.sum.fps * inv)
-              << " | Frame: " << std::setprecision(2) << (acc.sum.frameTimeMs * inv) << " ms";
+    std::cout << "\n=== FRAME PROFILE (5s window, avg / max) ===\n";
+    std::cout << "Samples: " << acc.frameCount
+              << " | Window FPS: " << std::fixed << std::setprecision(0) << acc.windowFps()
+              << " | Frame dt: " << std::setprecision(2)
+              << acc.averageFrameDeltaMs() << " / " << acc.max.frameTimeMs << " ms"
+              << " | CPU frame: "
+              << (acc.sum.frameCpuMs * inv) << " / " << acc.max.frameCpuMs << " ms";
     if (acc.max.gpuFrameMs > 0.0f)
     {
         std::cout << " | GPU: " << (acc.sum.gpuFrameMs * inv) << " / " << acc.max.gpuFrameMs << " ms";
@@ -212,6 +250,29 @@ inline void printProfile(const ProfileAccumulator& acc)
     printRow("Sort:",        acc.sum.renderExtractSortCpuMs * inv, acc.max.renderExtractSortCpuMs);
     printRow("UI:",          acc.sum.uiCpuMs * inv,                acc.max.uiCpuMs);
     printRow("Submit:",      acc.sum.renderSubmitCpuMs * inv,      acc.max.renderSubmitCpuMs);
+    const bool screenshotActive =
+        acc.sum.screenshotRequestedCount > 0 ||
+        acc.sum.screenshotScheduledCount > 0 ||
+        acc.sum.screenshotCompletedCount > 0 ||
+        acc.sum.screenshotSkippedCount > 0 ||
+        acc.max.screenshotPendingGpuCount > 0 ||
+        acc.max.screenshotPendingWriteCount > 0;
+    if (screenshotActive)
+    {
+        std::cout << "\n--- SCREENSHOT ---\n";
+        printRow("Schedule:", acc.sum.screenshotScheduleCpuMs * inv, acc.max.screenshotScheduleCpuMs);
+        printRow("Poll:",     acc.sum.screenshotPollCpuMs * inv,     acc.max.screenshotPollCpuMs);
+        printRow("Readback:", acc.sum.screenshotReadbackCpuMs * inv, acc.max.screenshotReadbackCpuMs);
+        std::cout << "Requests/Scheduled/Completed/Skipped: "
+                  << acc.sum.screenshotRequestedCount << " / "
+                  << acc.sum.screenshotScheduledCount << " / "
+                  << acc.sum.screenshotCompletedCount << " / "
+                  << acc.sum.screenshotSkippedCount << '\n';
+        std::cout << "Pending GPU/Write max: "
+                  << acc.max.screenshotPendingGpuCount << " / "
+                  << acc.max.screenshotPendingWriteCount
+                  << " | Readback bytes: " << acc.sum.screenshotReadbackBytes << '\n';
+    }
     if (acc.max.gpuTimingAvailable > 0)
     {
         std::cout << "\n--- GPU ---\n";
