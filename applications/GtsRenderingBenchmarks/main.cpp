@@ -17,6 +17,7 @@
 #include "CameraDescriptionComponent.h"
 #include "DirectionalLightComponent.h"
 #include "DynamicMeshComponent.h"
+#include "DynamicMeshBindingSystem.hpp"
 #include "EngineConfig.h"
 #include "GeometryBindingLifecycle.h"
 #include "GlmConfig.h"
@@ -218,6 +219,57 @@ namespace
         };
     }
 
+    std::vector<Vertex> benchmarkDoubleQuadVertices(float size, uint32_t frame)
+    {
+        std::vector<Vertex> vertices = benchmarkQuadVertices(size, frame);
+        std::vector<Vertex> second = benchmarkQuadVertices(size * 0.75f, frame + 3u);
+        for (Vertex& vertex : second)
+            vertex.pos.x += size * 0.8f;
+        vertices.insert(vertices.end(), second.begin(), second.end());
+        return vertices;
+    }
+
+    bool dynamicMeshGrowthPreset(const RenderingBenchmarkConfig& config)
+    {
+        return config.presetName == "dynamic_mesh_growth";
+    }
+
+    bool dynamicMeshAttributeGenerationPreset(const RenderingBenchmarkConfig& config)
+    {
+        return config.presetName == "dynamic_mesh_attribute_generation";
+    }
+
+    bool dynamicMeshGrowthExpanded(const RenderingBenchmarkConfig& config,
+                                   uint32_t frame)
+    {
+        if (!dynamicMeshGrowthPreset(config) || frame < config.warmupFrames)
+            return false;
+        return (((frame - config.warmupFrames) / 30u) % 2u) != 0u;
+    }
+
+    VertexAttributeFlags dynamicMeshSourceAttributes(const RenderingBenchmarkConfig& config)
+    {
+        return dynamicMeshAttributeGenerationPreset(config)
+            ? LegacyUnlitVertexAttributes
+            : StandardVertexAttributes;
+    }
+
+    std::vector<Vertex> dynamicMeshVerticesForFrame(const RenderingBenchmarkConfig& config,
+                                                    uint32_t frame)
+    {
+        if (dynamicMeshGrowthExpanded(config, frame))
+            return benchmarkDoubleQuadVertices(1.0f, frame);
+        return benchmarkQuadVertices(1.0f, frame);
+    }
+
+    std::vector<uint32_t> dynamicMeshIndicesForFrame(const RenderingBenchmarkConfig& config,
+                                                     uint32_t frame)
+    {
+        if (dynamicMeshGrowthExpanded(config, frame))
+            return {0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7};
+        return {0, 1, 2, 0, 2, 3};
+    }
+
     MaterialInstanceHandle createRuntimeMaterial(ECSWorld& world,
                                                  const RenderingBenchmarkConfig& config,
                                                  uint32_t index)
@@ -348,10 +400,10 @@ namespace
             if (i < config.dynamicMeshCount)
             {
                 DynamicMeshComponent dynamicMesh;
-                dynamicMesh.vertices = benchmarkQuadVertices(1.0f, 0);
-                dynamicMesh.indices = {0, 1, 2, 0, 2, 3};
+                dynamicMesh.vertices = dynamicMeshVerticesForFrame(config, 0);
+                dynamicMesh.indices = dynamicMeshIndicesForFrame(config, 0);
                 dynamicMesh.geometryVersion = 1;
-                dynamicMesh.sourceAttributes = StandardVertexAttributes;
+                dynamicMesh.sourceAttributes = dynamicMeshSourceAttributes(config);
                 world.addComponent(entity, dynamicMesh);
             }
             else
@@ -577,7 +629,9 @@ namespace
         }
 
         const uint32_t dynamicMeshes =
-            std::min<uint32_t>(config.dynamicMeshCount, static_cast<uint32_t>(generated.renderables.size()));
+            std::min<uint32_t>(config.dynamicMeshMutationCountPerFrame,
+                               std::min<uint32_t>(config.dynamicMeshCount,
+                                                  static_cast<uint32_t>(generated.renderables.size())));
         for (uint32_t i = 0; i < dynamicMeshes; ++i)
         {
             Entity entity = generated.renderables[i];
@@ -585,9 +639,9 @@ namespace
                 continue;
 
             DynamicMeshComponent& mesh = world.getComponent<DynamicMeshComponent>(entity);
-            mesh.vertices = benchmarkQuadVertices(1.0f, static_cast<uint32_t>(frameIndex + i));
-            mesh.geometryVersion += 1;
-            gts::rendering::queueDynamicMeshRefresh(world, entity);
+            mesh.vertices = dynamicMeshVerticesForFrame(config, static_cast<uint32_t>(frameIndex + i));
+            mesh.indices = dynamicMeshIndicesForFrame(config, static_cast<uint32_t>(frameIndex + i));
+            gts::rendering::markDynamicMeshChanged(world, entity);
         }
     }
 
@@ -657,6 +711,42 @@ namespace
         addSample(collector.controllerSubstageSamples,
                   "ForwardRenderer.object_buffer_writes",
                   stats.backendObjectWriteCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "DynamicMeshBindingSystem.candidate_discovery",
+                  stats.dynamicMeshCandidateDiscoveryCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "DynamicMeshBindingSystem.version_checks",
+                  stats.dynamicMeshVersionCheckCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "DynamicMeshBindingSystem.validation",
+                  stats.dynamicMeshValidationCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "DynamicMeshBindingSystem.bounds",
+                  stats.dynamicMeshBoundsCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "DynamicMeshBindingSystem.geometry_preparation",
+                  stats.dynamicMeshGeometryPreparationCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "DynamicMeshBindingSystem.temporary_copy",
+                  stats.dynamicMeshTemporaryCopyCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "DynamicMeshBindingSystem.resource_allocation",
+                  stats.dynamicMeshResourceAllocationCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "DynamicMeshBindingSystem.vertex_upload",
+                  stats.dynamicMeshVertexUploadCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "DynamicMeshBindingSystem.index_upload",
+                  stats.dynamicMeshIndexUploadCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "DynamicMeshBindingSystem.publication",
+                  stats.dynamicMeshPublicationCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "DynamicMeshBindingSystem.invalidation",
+                  stats.dynamicMeshInvalidationCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "DynamicMeshBindingSystem.cleanup",
+                  stats.dynamicMeshCleanupCpuMs);
 
         if (stats.gpuTimingAvailable != 0)
         {
@@ -702,6 +792,27 @@ namespace
         addCounter(collector.counters, "render_gpu_total", stats.renderGpuTotalCount);
         addCounter(collector.counters, "render_gpu_version_matches", stats.renderGpuVersionMatchCount);
         addCounter(collector.counters, "render_gpu_snapshot_dirty_enqueues", stats.renderGpuSnapshotDirtyEnqueueCount);
+        addCounter(collector.counters, "dynamic_mesh_queued", stats.dynamicMeshQueuedCount);
+        addCounter(collector.counters, "dynamic_mesh_candidates", stats.dynamicMeshCandidateCount);
+        addCounter(collector.counters, "dynamic_mesh_unchanged_skipped", stats.dynamicMeshUnchangedSkippedCount);
+        addCounter(collector.counters, "dynamic_mesh_failed_version_skipped", stats.dynamicMeshFailedVersionSkippedCount);
+        addCounter(collector.counters, "dynamic_mesh_changed", stats.dynamicMeshChangedCount);
+        addCounter(collector.counters, "dynamic_mesh_invalid", stats.dynamicMeshInvalidCount);
+        addCounter(collector.counters, "dynamic_mesh_gpu_allocations", stats.dynamicMeshGpuAllocationCount);
+        addCounter(collector.counters, "dynamic_mesh_gpu_reallocations", stats.dynamicMeshGpuReallocationCount);
+        addCounter(collector.counters, "dynamic_mesh_in_place_updates", stats.dynamicMeshInPlaceUpdateCount);
+        addCounter(collector.counters, "dynamic_mesh_resources_recreated", stats.dynamicMeshResourceRecreatedCount);
+        addCounter(collector.counters, "dynamic_mesh_renderable_invalidations", stats.dynamicMeshInvalidationCount);
+        addCounter(collector.counters, "dynamic_mesh_bounds_recomputed", stats.dynamicMeshBoundsRecomputedCount);
+        addCounter(collector.counters, "dynamic_mesh_normals_generated", stats.dynamicMeshNormalsGeneratedCount);
+        addCounter(collector.counters, "dynamic_mesh_tangents_generated", stats.dynamicMeshTangentsGeneratedCount);
+        addCounter(collector.counters, "dynamic_mesh_vertices_processed", stats.dynamicMeshVerticesProcessed);
+        addCounter(collector.counters, "dynamic_mesh_indices_processed", stats.dynamicMeshIndicesProcessed);
+        addCounter(collector.counters, "dynamic_mesh_cpu_bytes_copied", stats.dynamicMeshCpuBytesCopied);
+        addCounter(collector.counters, "dynamic_mesh_vertex_bytes_uploaded", stats.dynamicMeshVertexBytesUploaded);
+        addCounter(collector.counters, "dynamic_mesh_index_bytes_uploaded", stats.dynamicMeshIndexBytesUploaded);
+        addCounter(collector.counters, "dynamic_mesh_vertex_bytes_allocated", stats.dynamicMeshVertexBytesAllocated);
+        addCounter(collector.counters, "dynamic_mesh_index_bytes_allocated", stats.dynamicMeshIndexBytesAllocated);
         addCounter(collector.counters, "transform_queued", stats.transformQueuedCount);
         addCounter(collector.counters, "transform_processed", stats.transformProcessedCount);
         addCounter(collector.counters, "transform_updates", stats.transformUpdatedCount);
@@ -855,6 +966,7 @@ namespace
         engineConfig.graphics.enableGpuTimestamps = true;
         gts::transform::TransformSystem::setDetailedMetricsEnabled(true);
         RenderGpuSystem::setDetailedMetricsEnabled(true);
+        DynamicMeshBindingSystem::setDetailedMetricsEnabled(true);
 
         GravitasEngine engine(engineConfig);
         engine.registerScene(
@@ -868,6 +980,7 @@ namespace
 
         gts::transform::TransformSystem::setDetailedMetricsEnabled(false);
         RenderGpuSystem::setDetailedMetricsEnabled(false);
+        DynamicMeshBindingSystem::setDetailedMetricsEnabled(false);
         return finishRuntimeBenchmarkResult(*collector);
     }
 }

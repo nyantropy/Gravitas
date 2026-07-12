@@ -7,6 +7,12 @@ import sys
 
 DEFAULT_EXACT_COUNTERS = {
     "draw_calls",
+    "dynamic_mesh_bounds_recomputed",
+    "dynamic_mesh_changed",
+    "dynamic_mesh_failed_version_skipped",
+    "dynamic_mesh_gpu_reallocations",
+    "dynamic_mesh_in_place_updates",
+    "dynamic_mesh_invalid",
     "material_full_scans",
     "material_synchronized",
     "object_uploads",

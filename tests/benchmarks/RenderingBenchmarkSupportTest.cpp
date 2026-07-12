@@ -39,11 +39,15 @@ int main()
     ok &= require(applyConfigOverride(config, "renderable-count", "12", &error), "renderable override parses");
     ok &= require(applyConfigOverride(config, "visible-renderable-count", "6", &error), "visible override parses");
     ok &= require(applyConfigOverride(config, "unique-material-count", "3", &error), "material override parses");
+    ok &= require(applyConfigOverride(config, "dynamic-mesh-mutations", "2", &error),
+                  "dynamic mesh mutation override parses");
     ok &= require(config.warmupFrames == 2, "warmup override applied");
     ok &= require(config.measuredFrames == 4, "measured override applied");
     ok &= require(config.renderableCount == 12, "renderable override applied");
     ok &= require(config.visibleRenderableCount == 6, "visible override applied");
     ok &= require(config.uniqueMaterialCount == 3, "material override applied");
+    ok &= require(config.dynamicMeshMutationCountPerFrame == 0,
+                  "dynamic mesh mutation override is clamped by dynamic mesh count");
     ok &= require(!applyConfigOverride(config, "unknown-key", "1", &error), "unknown override fails");
 
     StatisticSummary stats = summarizeSamples({4.0, 1.0, 3.0, 2.0});
@@ -92,6 +96,10 @@ int main()
                   "json contains controller timing object");
     ok &= require(json.find("\"controller_substages_ms\"") != std::string::npos,
                   "json contains controller substage object");
+    ok &= require(json.find("\"dynamic_mesh_mutation_count_per_frame\"") != std::string::npos,
+                  "json contains dynamic mesh mutation config");
+    ok &= require(json.find("\"dynamic_mesh_changed\"") != std::string::npos,
+                  "json contains dynamic mesh counters");
     ok &= require(json.find("\"gpu_supported\": false") != std::string::npos,
                   "json contains gpu support flag");
     ok &= require(json.find("\"counters\"") != std::string::npos,
@@ -138,6 +146,61 @@ int main()
     ok &= require(hierarchyResult.counters.at("object_upload_commands") ==
                       hierarchyResult.counters.at("logical_object_updates"),
                   "moving hierarchy uploads each changed render object once");
+
+    RenderingBenchmarkConfig dynamicStatic = findBenchmarkPreset("dynamic_mesh_static_control")->config;
+    dynamicStatic.warmupFrames = 2;
+    dynamicStatic.measuredFrames = 4;
+    dynamicStatic.renderableCount = 8;
+    dynamicStatic.visibleRenderableCount = 8;
+    dynamicStatic.dynamicMeshCount = 8;
+    dynamicStatic.dynamicMeshMutationCountPerFrame = 0;
+    BenchmarkRunResult dynamicStaticResult = runRenderingBenchmark(dynamicStatic);
+    ok &= require(dynamicStaticResult.invariantFailures.empty(),
+                  "dynamic mesh static-control invariants pass");
+    ok &= require(dynamicStaticResult.counters.at("dynamic_mesh_changed") == 0,
+                  "dynamic mesh static-control processes no changed meshes after warmup");
+    ok &= require(dynamicStaticResult.counters.at("dynamic_mesh_vertex_bytes_uploaded") == 0,
+                  "dynamic mesh static-control uploads no vertex bytes after warmup");
+    ok &= require(dynamicStaticResult.counters.at("dynamic_mesh_bounds_recomputed") == 0,
+                  "dynamic mesh static-control recomputes no bounds after warmup");
+    ok &= require(dynamicStaticResult.controllerSubstageTimingsMs.count(
+                      "DynamicMeshBindingSystem.candidate_discovery") != 0,
+                  "dynamic mesh substage timing is emitted");
+
+    RenderingBenchmarkConfig dynamicSparse = findBenchmarkPreset("dynamic_mesh_sparse_mutation")->config;
+    dynamicSparse.warmupFrames = 2;
+    dynamicSparse.measuredFrames = 4;
+    dynamicSparse.renderableCount = 8;
+    dynamicSparse.visibleRenderableCount = 8;
+    dynamicSparse.dynamicMeshCount = 8;
+    dynamicSparse.dynamicMeshMutationCountPerFrame = 3;
+    BenchmarkRunResult dynamicSparseResult = runRenderingBenchmark(dynamicSparse);
+    ok &= require(dynamicSparseResult.invariantFailures.empty(),
+                  "dynamic mesh sparse-mutation invariants pass");
+    ok &= require(dynamicSparseResult.counters.at("dynamic_mesh_changed") ==
+                      dynamicSparse.measuredFrames * dynamicSparse.dynamicMeshMutationCountPerFrame,
+                  "dynamic mesh sparse-mutation changed count is deterministic");
+    ok &= require(dynamicSparseResult.counters.at("dynamic_mesh_in_place_updates") ==
+                      dynamicSparseResult.counters.at("dynamic_mesh_changed"),
+                  "dynamic mesh sparse-mutation uses in-place updates after warmup");
+    ok &= require(dynamicSparseResult.counters.at("dynamic_mesh_bounds_recomputed") ==
+                      dynamicSparseResult.counters.at("dynamic_mesh_changed"),
+                  "dynamic mesh sparse-mutation recomputes bounds for changed meshes");
+    ok &= require(dynamicSparseResult.counters.at("dynamic_mesh_gpu_reallocations") == 0,
+                  "dynamic mesh sparse-mutation avoids reallocations after warmup");
+
+    RenderingBenchmarkConfig dynamicCapacity = findBenchmarkPreset("dynamic_mesh_capacity_stable")->config;
+    dynamicCapacity.warmupFrames = 2;
+    dynamicCapacity.measuredFrames = 4;
+    dynamicCapacity.renderableCount = 8;
+    dynamicCapacity.visibleRenderableCount = 8;
+    dynamicCapacity.dynamicMeshCount = 8;
+    dynamicCapacity.dynamicMeshMutationCountPerFrame = 4;
+    BenchmarkRunResult dynamicCapacityResult = runRenderingBenchmark(dynamicCapacity);
+    ok &= require(dynamicCapacityResult.invariantFailures.empty(),
+                  "dynamic mesh capacity-stable invariants pass");
+    ok &= require(dynamicCapacityResult.counters.at("dynamic_mesh_gpu_reallocations") == 0,
+                  "dynamic mesh capacity-stable preset avoids reallocations after warmup");
 
     return ok ? 0 : 1;
 }

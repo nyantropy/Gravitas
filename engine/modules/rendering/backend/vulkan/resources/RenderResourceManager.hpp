@@ -92,6 +92,21 @@ class RenderResourceManager : public IResourceProvider
             meshManager->destroyProceduralMesh(id);
         }
 
+        void beginProceduralMeshUpdateBatch(uint32_t meshCount) override
+        {
+            meshManager->beginProceduralMeshUpdateBatch(meshCount);
+        }
+
+        void endProceduralMeshUpdateBatch() override
+        {
+            meshManager->endProceduralMeshUpdateBatch();
+        }
+
+        ProceduralMeshUploadMetrics takeProceduralMeshUploadMetrics() override
+        {
+            return meshManager->takeProceduralMeshUploadMetrics();
+        }
+
         // --- Texture ---
         texture_id_type requestTexture(const std::string& path) override
         {

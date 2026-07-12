@@ -17,4 +17,8 @@ struct MeshResource
 
     VkBuffer indexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory indexMemory = VK_NULL_HANDLE;
+
+    VkDeviceSize vertexCapacityBytes = 0;
+    VkDeviceSize indexCapacityBytes = 0;
+    bool hostVisibleProcedural = false;
 };

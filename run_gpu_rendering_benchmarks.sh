@@ -55,7 +55,14 @@ for preset in \
     moving_independent \
     moving_deep_hierarchy \
     moving_wide_hierarchy \
-    upload_only_pressure
+    upload_only_pressure \
+    dynamic_mesh_static_control \
+    dynamic_mesh_sparse_mutation \
+    dynamic_mesh_dense_mutation \
+    dynamic_mesh_capacity_stable \
+    dynamic_mesh_growth \
+    dynamic_mesh_attribute_generation \
+    dynamic_mesh_precomputed_attributes
 do
     echo
     echo "== GPU attribution benchmark: $preset =="
@@ -77,4 +84,11 @@ echo "  $OUT_DIR/moving_independent_gpu.json"
 echo "  $OUT_DIR/moving_deep_hierarchy_gpu.json"
 echo "  $OUT_DIR/moving_wide_hierarchy_gpu.json"
 echo "  $OUT_DIR/upload_only_pressure_gpu.json"
+echo "  $OUT_DIR/dynamic_mesh_static_control_gpu.json"
+echo "  $OUT_DIR/dynamic_mesh_sparse_mutation_gpu.json"
+echo "  $OUT_DIR/dynamic_mesh_dense_mutation_gpu.json"
+echo "  $OUT_DIR/dynamic_mesh_capacity_stable_gpu.json"
+echo "  $OUT_DIR/dynamic_mesh_growth_gpu.json"
+echo "  $OUT_DIR/dynamic_mesh_attribute_generation_gpu.json"
+echo "  $OUT_DIR/dynamic_mesh_precomputed_attributes_gpu.json"
 echo "  $LOG_FILE"

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -11,6 +12,30 @@
 #include "Vertex.h"
 
 struct BitmapFont;
+
+struct ProceduralMeshUploadMetrics
+{
+    uint32_t uploadCalls = 0;
+    uint32_t gpuAllocations = 0;
+    uint32_t gpuReallocations = 0;
+    uint32_t inPlaceUpdates = 0;
+    uint32_t meshResourcesRecreated = 0;
+    uint32_t generatedNormals = 0;
+    uint32_t generatedTangents = 0;
+    uint64_t verticesProcessed = 0;
+    uint64_t indicesProcessed = 0;
+    uint64_t cpuBytesCopied = 0;
+    uint64_t vertexBytesUploaded = 0;
+    uint64_t indexBytesUploaded = 0;
+    uint64_t vertexBytesAllocated = 0;
+    uint64_t indexBytesAllocated = 0;
+    float geometryPreparationCpuMs = 0.0f;
+    float temporaryCopyCpuMs = 0.0f;
+    float resourceAllocationCpuMs = 0.0f;
+    float vertexUploadCpuMs = 0.0f;
+    float indexUploadCpuMs = 0.0f;
+    float cleanupCpuMs = 0.0f;
+};
 
 struct TextureDimensions
 {
@@ -46,6 +71,12 @@ class IResourceProvider
                                                   VertexAttributeFlags sourceAttributes =
                                                       LegacyUnlitVertexAttributes) = 0;
         virtual void releaseProceduralMesh(mesh_id_type id) = 0;
+        virtual void beginProceduralMeshUpdateBatch(uint32_t) {}
+        virtual void endProceduralMeshUpdateBatch() {}
+        virtual ProceduralMeshUploadMetrics takeProceduralMeshUploadMetrics()
+        {
+            return {};
+        }
 
         // request a texture from the resource provider, no nearest neighbor
         virtual texture_id_type requestTexture(const std::string& path) = 0;

@@ -238,7 +238,8 @@ namespace gts::debugdraw
             material.vertexColorOnly = true;
 
             markExtractionDirty(world, entity);
-            gts::rendering::queueDynamicMeshRefresh(world, entity);
+            gts::rendering::queueDynamicMeshGeometryRefresh(world, entity);
+            gts::rendering::queueMaterialRefresh(world, entity);
         }
 
         static void markExtractionDirty(ECSWorld& world, Entity entity)

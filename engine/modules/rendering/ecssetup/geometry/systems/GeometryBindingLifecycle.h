@@ -1,5 +1,6 @@
 #pragma once
 
+#include <limits>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -230,6 +231,26 @@ namespace gts::rendering
         state.dynamicMeshRefreshEntities.insert(entity.id);
         state.materialRefreshEntities.insert(entity.id);
         state.renderObjectRefreshEntities.insert(entity.id);
+    }
+
+    inline void queueDynamicMeshGeometryRefresh(ECSWorld& world, Entity entity)
+    {
+        geometryBindingLifecycleState(world).dynamicMeshRefreshEntities.insert(entity.id);
+    }
+
+    inline uint64_t nextDynamicMeshGeometryVersion(uint64_t version)
+    {
+        return version == std::numeric_limits<uint64_t>::max() ? 1 : version + 1;
+    }
+
+    inline void markDynamicMeshChanged(ECSWorld& world, Entity entity)
+    {
+        if (world.hasComponent<DynamicMeshComponent>(entity))
+        {
+            DynamicMeshComponent& mesh = world.getComponent<DynamicMeshComponent>(entity);
+            mesh.geometryVersion = nextDynamicMeshGeometryVersion(mesh.geometryVersion);
+        }
+        queueDynamicMeshGeometryRefresh(world, entity);
     }
 
     inline void queueRenderableCleanup(ECSWorld& world, Entity entity)

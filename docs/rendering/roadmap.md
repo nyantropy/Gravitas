@@ -28,13 +28,18 @@ The renderer currently has:
   and UI stages when supported by the selected device
 - per-controller benchmark attribution, command-flush timing, render-prep
   substages, and logical-versus-physical object upload counters
+- incremental dynamic mesh synchronization with version-scheduled work,
+  failed-version suppression, capacity-stable procedural buffer reuse, and
+  dynamic mesh benchmark attribution
 - retained UI extraction and Vulkan overlay composition
 - screenshot capture with async PNG writes
 
 ## Future Rendering Work
 
-- Run the full benchmark matrix on fixed hardware and establish versioned CI
-  baselines before starting the next renderer optimization phase.
+- Establish versioned fixed-hardware performance baselines for the full CPU/GPU
+  benchmark matrix.
+- Use the updated benchmark matrix to choose the next renderer optimization
+  target after dynamic mesh binding.
 - Add alpha-cutoff shader support for `RenderQueue::AlphaMasked`.
 - Add sky/background rendering that consumes selected environment state without
   coupling sky draw commands to material draw commands.

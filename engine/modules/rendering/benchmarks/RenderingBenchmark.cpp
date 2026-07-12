@@ -19,6 +19,7 @@
 #include "CameraDescriptionComponent.h"
 #include "DirectionalLightComponent.h"
 #include "DynamicMeshComponent.h"
+#include "DynamicMeshBindingSystem.hpp"
 #include "ECSWorld.hpp"
 #include "EcsControllerContext.hpp"
 #include "FrustumCullingStrategy.h"
@@ -385,6 +386,71 @@ namespace gts::rendering::benchmarks
             };
         }
 
+        std::vector<Vertex> benchmarkQuadVertices(uint32_t frame)
+        {
+            const float offset = static_cast<float>(frame % 17u) * 0.001f;
+            const glm::vec3 normal = {0.0f, 0.0f, 1.0f};
+            const glm::vec4 tangent = {1.0f, 0.0f, 0.0f, 1.0f};
+            const glm::vec4 color = {1.0f, 1.0f, 1.0f, 1.0f};
+            return {
+                Vertex{{-0.5f, -0.5f + offset, 0.0f}, normal, tangent, color, {0.0f, 0.0f}},
+                Vertex{{ 0.5f, -0.5f,          0.0f}, normal, tangent, color, {1.0f, 0.0f}},
+                Vertex{{ 0.5f,  0.5f,          0.0f}, normal, tangent, color, {1.0f, 1.0f}},
+                Vertex{{-0.5f,  0.5f,          0.0f}, normal, tangent, color, {0.0f, 1.0f}}
+            };
+        }
+
+        std::vector<Vertex> benchmarkDoubleQuadVertices(uint32_t frame)
+        {
+            std::vector<Vertex> vertices = benchmarkQuadVertices(frame);
+            std::vector<Vertex> second = benchmarkQuadVertices(frame + 3u);
+            for (Vertex& vertex : second)
+                vertex.pos.x += 0.8f;
+            vertices.insert(vertices.end(), second.begin(), second.end());
+            return vertices;
+        }
+
+        bool dynamicMeshGrowthPreset(const RenderingBenchmarkConfig& config)
+        {
+            return config.presetName == "dynamic_mesh_growth";
+        }
+
+        bool dynamicMeshAttributeGenerationPreset(const RenderingBenchmarkConfig& config)
+        {
+            return config.presetName == "dynamic_mesh_attribute_generation";
+        }
+
+        bool dynamicMeshGrowthExpanded(const RenderingBenchmarkConfig& config,
+                                       uint32_t frame)
+        {
+            if (!dynamicMeshGrowthPreset(config) || frame < config.warmupFrames)
+                return false;
+            return (((frame - config.warmupFrames) / 30u) % 2u) != 0u;
+        }
+
+        VertexAttributeFlags dynamicMeshSourceAttributes(const RenderingBenchmarkConfig& config)
+        {
+            return dynamicMeshAttributeGenerationPreset(config)
+                ? LegacyUnlitVertexAttributes
+                : StandardVertexAttributes;
+        }
+
+        std::vector<Vertex> dynamicMeshVerticesForFrame(const RenderingBenchmarkConfig& config,
+                                                        uint32_t frame)
+        {
+            if (dynamicMeshGrowthExpanded(config, frame))
+                return benchmarkDoubleQuadVertices(frame);
+            return benchmarkTriangleVertices(frame);
+        }
+
+        std::vector<uint32_t> dynamicMeshIndicesForFrame(const RenderingBenchmarkConfig& config,
+                                                         uint32_t frame)
+        {
+            if (dynamicMeshGrowthExpanded(config, frame))
+                return {0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7};
+            return {0, 1, 2};
+        }
+
         void installBenchmarkFeatures(BenchmarkSceneState& state, const RenderingBenchmarkConfig& config)
         {
             gts::transform::installTransformRuntime(state.world);
@@ -524,10 +590,10 @@ namespace gts::rendering::benchmarks
                 if (i < config.dynamicMeshCount)
                 {
                     DynamicMeshComponent dynamicMesh;
-                    dynamicMesh.vertices = benchmarkTriangleVertices(0);
-                    dynamicMesh.indices = {0, 1, 2};
+                    dynamicMesh.vertices = dynamicMeshVerticesForFrame(config, 0);
+                    dynamicMesh.indices = dynamicMeshIndicesForFrame(config, 0);
                     dynamicMesh.geometryVersion = 1;
-                    dynamicMesh.sourceAttributes = StandardVertexAttributes;
+                    dynamicMesh.sourceAttributes = dynamicMeshSourceAttributes(config);
                     state.world.addComponent(entity, dynamicMesh);
                 }
                 else
@@ -739,7 +805,9 @@ namespace gts::rendering::benchmarks
             }
 
             const uint32_t dynamicMeshes =
-                std::min<uint32_t>(config.dynamicMeshCount, static_cast<uint32_t>(state.renderables.size()));
+                std::min<uint32_t>(config.dynamicMeshMutationCountPerFrame,
+                                   std::min<uint32_t>(config.dynamicMeshCount,
+                                                      static_cast<uint32_t>(state.renderables.size())));
             for (uint32_t i = 0; i < dynamicMeshes; ++i)
             {
                 Entity entity = state.renderables[i];
@@ -747,9 +815,9 @@ namespace gts::rendering::benchmarks
                     continue;
 
                 DynamicMeshComponent& mesh = state.world.getComponent<DynamicMeshComponent>(entity);
-                mesh.vertices = benchmarkTriangleVertices(static_cast<uint32_t>(frameIndex + i));
-                mesh.geometryVersion += 1;
-                queueDynamicMeshRefresh(state.world, entity);
+                mesh.vertices = dynamicMeshVerticesForFrame(config, static_cast<uint32_t>(frameIndex + i));
+                mesh.indices = dynamicMeshIndicesForFrame(config, static_cast<uint32_t>(frameIndex + i));
+                markDynamicMeshChanged(state.world, entity);
             }
         }
 
@@ -804,6 +872,7 @@ namespace gts::rendering::benchmarks
         void recordRenderPrepSubstages(
             const gts::transform::TransformResolveMetrics& transformMetrics,
             const RenderGpuSystem::Metrics& renderGpuMetrics,
+            const DynamicMeshBindingSystem::Metrics& dynamicMeshMetrics,
             std::map<std::string, std::vector<double>>& substages)
         {
             addSubstageSample(substages,
@@ -821,6 +890,42 @@ namespace gts::rendering::benchmarks
             addSubstageSample(substages,
                               "RenderGpuSystem.model_sync_enqueue",
                               renderGpuMetrics.modelSyncCpuMs);
+            addSubstageSample(substages,
+                              "DynamicMeshBindingSystem.candidate_discovery",
+                              dynamicMeshMetrics.candidateDiscoveryCpuMs);
+            addSubstageSample(substages,
+                              "DynamicMeshBindingSystem.version_checks",
+                              dynamicMeshMetrics.versionCheckCpuMs);
+            addSubstageSample(substages,
+                              "DynamicMeshBindingSystem.validation",
+                              dynamicMeshMetrics.validationCpuMs);
+            addSubstageSample(substages,
+                              "DynamicMeshBindingSystem.bounds",
+                              dynamicMeshMetrics.boundsCpuMs);
+            addSubstageSample(substages,
+                              "DynamicMeshBindingSystem.geometry_preparation",
+                              dynamicMeshMetrics.geometryPreparationCpuMs);
+            addSubstageSample(substages,
+                              "DynamicMeshBindingSystem.temporary_copy",
+                              dynamicMeshMetrics.temporaryCopyCpuMs);
+            addSubstageSample(substages,
+                              "DynamicMeshBindingSystem.resource_allocation",
+                              dynamicMeshMetrics.resourceAllocationCpuMs);
+            addSubstageSample(substages,
+                              "DynamicMeshBindingSystem.vertex_upload",
+                              dynamicMeshMetrics.vertexUploadCpuMs);
+            addSubstageSample(substages,
+                              "DynamicMeshBindingSystem.index_upload",
+                              dynamicMeshMetrics.indexUploadCpuMs);
+            addSubstageSample(substages,
+                              "DynamicMeshBindingSystem.publication",
+                              dynamicMeshMetrics.publicationCpuMs);
+            addSubstageSample(substages,
+                              "DynamicMeshBindingSystem.invalidation",
+                              dynamicMeshMetrics.invalidationCpuMs);
+            addSubstageSample(substages,
+                              "DynamicMeshBindingSystem.cleanup",
+                              dynamicMeshMetrics.cleanupCpuMs);
         }
 
         void recordFrame(BenchmarkSceneState& state,
@@ -872,6 +977,7 @@ namespace gts::rendering::benchmarks
             const auto snapshotMetrics = state.pipeline.getSnapshotBuilder().getLastMetrics();
             const auto extractorMetrics = state.pipeline.getExtractor().getLastMetrics();
             const auto renderGpuMetrics = RenderGpuSystem::getLastMetrics();
+            const auto dynamicMeshMetrics = DynamicMeshBindingSystem::getLastMetrics();
             const auto transformMetrics = gts::transform::TransformSystem::getLastMetrics();
             const auto materialMetrics = MaterialBindingSystem::getLastMetrics();
             const RenderExtractionSnapshot& snapshot = state.pipeline.getLatestSnapshot();
@@ -891,7 +997,10 @@ namespace gts::rendering::benchmarks
             addSample(timings, counters, "command_sort_cpu", extractorMetrics.sortCpuMs);
             addSample(timings, counters, "render_gpu_sync_cpu", renderGpuMetrics.cpuTimeMs);
             addSample(timings, counters, "transform_resolve_cpu", transformMetrics.cpuTimeMs);
-            recordRenderPrepSubstages(transformMetrics, renderGpuMetrics, controllerSubstages);
+            recordRenderPrepSubstages(transformMetrics,
+                                      renderGpuMetrics,
+                                      dynamicMeshMetrics,
+                                      controllerSubstages);
 
             uint64_t transparent = 0;
             for (const RenderableSnapshot& renderable : snapshot.renderables)
@@ -939,6 +1048,27 @@ namespace gts::rendering::benchmarks
             addCounter(counters, "mesh_requests", meshRequestDelta);
             addCounter(counters, "texture_requests", textureRequestDelta);
             addCounter(counters, "mesh_uploads", proceduralUploadDelta);
+            addCounter(counters, "dynamic_mesh_queued", dynamicMeshMetrics.queuedMeshes);
+            addCounter(counters, "dynamic_mesh_candidates", dynamicMeshMetrics.candidateEntities);
+            addCounter(counters, "dynamic_mesh_unchanged_skipped", dynamicMeshMetrics.unchangedMeshesSkipped);
+            addCounter(counters, "dynamic_mesh_failed_version_skipped", dynamicMeshMetrics.failedVersionsSkipped);
+            addCounter(counters, "dynamic_mesh_changed", dynamicMeshMetrics.changedMeshesProcessed);
+            addCounter(counters, "dynamic_mesh_invalid", dynamicMeshMetrics.invalidMeshes);
+            addCounter(counters, "dynamic_mesh_gpu_allocations", dynamicMeshMetrics.gpuMeshAllocations);
+            addCounter(counters, "dynamic_mesh_gpu_reallocations", dynamicMeshMetrics.gpuMeshReallocations);
+            addCounter(counters, "dynamic_mesh_in_place_updates", dynamicMeshMetrics.inPlaceGpuUpdates);
+            addCounter(counters, "dynamic_mesh_resources_recreated", dynamicMeshMetrics.meshResourcesRecreated);
+            addCounter(counters, "dynamic_mesh_renderable_invalidations", dynamicMeshMetrics.renderablesInvalidated);
+            addCounter(counters, "dynamic_mesh_bounds_recomputed", dynamicMeshMetrics.boundsRecomputed);
+            addCounter(counters, "dynamic_mesh_normals_generated", dynamicMeshMetrics.normalsGenerated);
+            addCounter(counters, "dynamic_mesh_tangents_generated", dynamicMeshMetrics.tangentsGenerated);
+            addCounter(counters, "dynamic_mesh_vertices_processed", dynamicMeshMetrics.verticesProcessed);
+            addCounter(counters, "dynamic_mesh_indices_processed", dynamicMeshMetrics.indicesProcessed);
+            addCounter(counters, "dynamic_mesh_cpu_bytes_copied", dynamicMeshMetrics.cpuBytesCopied);
+            addCounter(counters, "dynamic_mesh_vertex_bytes_uploaded", dynamicMeshMetrics.vertexBytesUploaded);
+            addCounter(counters, "dynamic_mesh_index_bytes_uploaded", dynamicMeshMetrics.indexBytesUploaded);
+            addCounter(counters, "dynamic_mesh_vertex_bytes_allocated", dynamicMeshMetrics.vertexBytesAllocated);
+            addCounter(counters, "dynamic_mesh_index_bytes_allocated", dynamicMeshMetrics.indexBytesAllocated);
             addCounter(counters, "object_slot_allocations", objectSlotDelta);
             addCounter(counters, "camera_buffer_allocations", cameraBufferDelta);
             addCounter(counters, "bytes_uploaded_object",
@@ -1139,6 +1269,67 @@ namespace gts::rendering::benchmarks
                      uploadPressure,
                      presets);
 
+        RenderingBenchmarkConfig dynamicStatic = movingStaticControl;
+        dynamicStatic.renderableCount = 4000;
+        dynamicStatic.visibleRenderableCount = 4000;
+        dynamicStatic.dynamicMeshCount = 4000;
+        dynamicStatic.dynamicMeshMutationCountPerFrame = 0;
+        presetConfig("dynamic_mesh_static_control",
+                     "Many dynamic mesh descriptors with no geometry changes after warmup.",
+                     1,
+                     dynamicStatic,
+                     presets);
+
+        RenderingBenchmarkConfig dynamicSparse = dynamicStatic;
+        dynamicSparse.dynamicMeshMutationCountPerFrame = 32;
+        presetConfig("dynamic_mesh_sparse_mutation",
+                     "Many dynamic meshes with a small deterministic mutation subset each frame.",
+                     1,
+                     dynamicSparse,
+                     presets);
+
+        RenderingBenchmarkConfig dynamicDense = dynamicStatic;
+        dynamicDense.renderableCount = 2000;
+        dynamicDense.visibleRenderableCount = 2000;
+        dynamicDense.dynamicMeshCount = 2000;
+        dynamicDense.dynamicMeshMutationCountPerFrame = 2000;
+        presetConfig("dynamic_mesh_dense_mutation",
+                     "Dense dynamic geometry mutation throughput.",
+                     1,
+                     dynamicDense,
+                     presets);
+
+        RenderingBenchmarkConfig dynamicCapacityStable = dynamicStatic;
+        dynamicCapacityStable.dynamicMeshMutationCountPerFrame = 512;
+        presetConfig("dynamic_mesh_capacity_stable",
+                     "Dynamic geometry content changes without vertex/index capacity growth.",
+                     1,
+                     dynamicCapacityStable,
+                     presets);
+
+        RenderingBenchmarkConfig dynamicGrowth = dynamicStatic;
+        dynamicGrowth.dynamicMeshCount = 512;
+        dynamicGrowth.dynamicMeshMutationCountPerFrame = 512;
+        presetConfig("dynamic_mesh_growth",
+                     "Dynamic geometry periodically exceeds existing vertex/index capacity.",
+                     1,
+                     dynamicGrowth,
+                     presets);
+
+        RenderingBenchmarkConfig dynamicGeneratedAttributes = dynamicSparse;
+        presetConfig("dynamic_mesh_attribute_generation",
+                     "Dynamic meshes missing normals/tangents so preparation generates attributes.",
+                     1,
+                     dynamicGeneratedAttributes,
+                     presets);
+
+        RenderingBenchmarkConfig dynamicPrecomputedAttributes = dynamicSparse;
+        presetConfig("dynamic_mesh_precomputed_attributes",
+                     "Dynamic meshes with complete precomputed standard vertex attributes.",
+                     1,
+                     dynamicPrecomputedAttributes,
+                     presets);
+
         RenderingBenchmarkConfig visibilitySparse = base;
         visibilitySparse.renderableCount = 15000;
         visibilitySparse.visibleRenderableCount = 1200;
@@ -1229,6 +1420,7 @@ namespace gts::rendering::benchmarks
         combined.spotLightCount = 24;
         combined.movingLightCount = 24;
         combined.dynamicMeshCount = 32;
+        combined.dynamicMeshMutationCountPerFrame = 32;
         combined.particleEmitterCount = 16;
         combined.worldTextCount = 24;
         combined.enableUi = true;
@@ -1276,6 +1468,8 @@ namespace gts::rendering::benchmarks
             config.movingLightCount,
             config.directionalLightCount + config.pointLightCount + config.spotLightCount);
         config.dynamicMeshCount = std::min(config.dynamicMeshCount, config.renderableCount);
+        config.dynamicMeshMutationCountPerFrame =
+            std::min(config.dynamicMeshMutationCountPerFrame, config.dynamicMeshCount);
         config.renderWidth = std::clamp(config.renderWidth, 16u, 16384u);
         config.renderHeight = std::clamp(config.renderHeight, 16u, 16384u);
         if (config.seed == 0)
@@ -1328,6 +1522,7 @@ namespace gts::rendering::benchmarks
         else if (key == "spot-lights" || key == "spot_lights") ok = unsignedValue(config.spotLightCount);
         else if (key == "moving-lights" || key == "moving_lights") ok = unsignedValue(config.movingLightCount);
         else if (key == "dynamic-mesh-count" || key == "dynamic_mesh_count") ok = unsignedValue(config.dynamicMeshCount);
+        else if (key == "dynamic-mesh-mutations" || key == "dynamic_mesh_mutations") ok = unsignedValue(config.dynamicMeshMutationCountPerFrame);
         else if (key == "particle-emitter-count" || key == "particle_emitter_count") ok = unsignedValue(config.particleEmitterCount);
         else if (key == "world-text-count" || key == "world_text_count") ok = unsignedValue(config.worldTextCount);
         else if (key == "render-width" || key == "render_width") ok = unsignedValue(config.renderWidth);
@@ -1409,6 +1604,7 @@ namespace gts::rendering::benchmarks
         generateScene(state, result.config);
         gts::transform::TransformSystem::setDetailedMetricsEnabled(true);
         RenderGpuSystem::setDetailedMetricsEnabled(true);
+        DynamicMeshBindingSystem::setDetailedMetricsEnabled(true);
 
         std::map<std::string, std::vector<double>> timingSamples;
         std::map<std::string, std::vector<double>> controllerTimingSamples;
@@ -1462,6 +1658,7 @@ namespace gts::rendering::benchmarks
         result.invariantFailures = checkBenchmarkInvariants(result);
         gts::transform::TransformSystem::setDetailedMetricsEnabled(false);
         RenderGpuSystem::setDetailedMetricsEnabled(false);
+        DynamicMeshBindingSystem::setDetailedMetricsEnabled(false);
         return result;
     }
 
@@ -1626,6 +1823,43 @@ namespace gts::rendering::benchmarks
                 failures.push_back("hierarchy moving-object preset upload commands do not match logical updates");
         }
 
+        if (result.config.presetName == "dynamic_mesh_static_control")
+        {
+            if (counter("dynamic_mesh_changed") != 0)
+                failures.push_back("dynamic mesh static control processed changed meshes after warmup");
+            if (counter("mesh_uploads") != 0)
+                failures.push_back("dynamic mesh static control uploaded meshes after warmup");
+            if (counter("dynamic_mesh_vertex_bytes_uploaded") != 0 ||
+                counter("dynamic_mesh_index_bytes_uploaded") != 0)
+            {
+                failures.push_back("dynamic mesh static control uploaded geometry bytes after warmup");
+            }
+        }
+
+        if (result.config.dynamicMeshMutationCountPerFrame > 0 &&
+            result.config.dynamicMeshCount > 0 &&
+            result.config.presetName.rfind("dynamic_mesh_", 0) == 0)
+        {
+            const uint64_t expectedChanged =
+                static_cast<uint64_t>(result.config.dynamicMeshMutationCountPerFrame) * frames;
+            if (counter("dynamic_mesh_changed") != expectedChanged)
+                failures.push_back("dynamic mesh mutation preset changed count does not match configuration");
+        }
+
+        if (result.config.presetName == "dynamic_mesh_capacity_stable")
+        {
+            if (counter("dynamic_mesh_gpu_reallocations") != 0)
+                failures.push_back("capacity-stable dynamic mesh preset reallocated after warmup");
+        }
+
+        if (result.config.presetName == "dynamic_mesh_growth" &&
+            result.config.dynamicMeshMutationCountPerFrame > 0 &&
+            result.config.measuredFrames >= 60 &&
+            counter("dynamic_mesh_gpu_reallocations") == 0)
+        {
+            failures.push_back("dynamic mesh growth preset did not reallocate after warmup");
+        }
+
         if (counter("snapshot_renderables") < counter("visible_renderables"))
             failures.push_back("visible renderable count exceeds snapshot renderable count");
 
@@ -1687,6 +1921,7 @@ namespace gts::rendering::benchmarks
         out << "    \"spot_light_count\": " << result.config.spotLightCount << ",\n";
         out << "    \"moving_light_count\": " << result.config.movingLightCount << ",\n";
         out << "    \"dynamic_mesh_count\": " << result.config.dynamicMeshCount << ",\n";
+        out << "    \"dynamic_mesh_mutation_count_per_frame\": " << result.config.dynamicMeshMutationCountPerFrame << ",\n";
         out << "    \"particle_emitter_count\": " << result.config.particleEmitterCount << ",\n";
         out << "    \"world_text_count\": " << result.config.worldTextCount << ",\n";
         out << "    \"enable_pbr\": " << (result.config.enablePbr ? "true" : "false") << ",\n";
@@ -1907,6 +2142,64 @@ namespace gts::rendering::benchmarks
             << static_cast<double>(counter("physical_object_buffer_writes")) / static_cast<double>(frames) << "\n";
         out << "bytes_written_object_buffer/frame: "
             << static_cast<double>(counter("bytes_written_object_buffer")) / static_cast<double>(frames) << "\n";
+        if (result.config.dynamicMeshCount != 0 ||
+            counter("dynamic_mesh_changed") != 0 ||
+            counter("dynamic_mesh_candidates") != 0)
+        {
+            out << "Dynamic Mesh\n";
+            out << "changed/frame: "
+                << static_cast<double>(counter("dynamic_mesh_changed")) / static_cast<double>(frames) << "\n";
+            out << "unchanged_skipped/frame: "
+                << static_cast<double>(counter("dynamic_mesh_unchanged_skipped")) / static_cast<double>(frames) << "\n";
+            out << "failed_versions_skipped/frame: "
+                << static_cast<double>(counter("dynamic_mesh_failed_version_skipped")) / static_cast<double>(frames) << "\n";
+            out << "gpu_reallocations total: " << counter("dynamic_mesh_gpu_reallocations") << "\n";
+            out << "in_place_updates/frame: "
+                << static_cast<double>(counter("dynamic_mesh_in_place_updates")) / static_cast<double>(frames) << "\n";
+            out << "vertices_processed/frame: "
+                << static_cast<double>(counter("dynamic_mesh_vertices_processed")) / static_cast<double>(frames) << "\n";
+            out << "indices_processed/frame: "
+                << static_cast<double>(counter("dynamic_mesh_indices_processed")) / static_cast<double>(frames) << "\n";
+            out << "bounds_recomputed/frame: "
+                << static_cast<double>(counter("dynamic_mesh_bounds_recomputed")) / static_cast<double>(frames) << "\n";
+            out << "cpu_bytes_copied/frame: "
+                << static_cast<double>(counter("dynamic_mesh_cpu_bytes_copied")) / static_cast<double>(frames) << "\n";
+            out << "vertex_bytes_uploaded/frame: "
+                << static_cast<double>(counter("dynamic_mesh_vertex_bytes_uploaded")) / static_cast<double>(frames) << "\n";
+            out << "index_bytes_uploaded/frame: "
+                << static_cast<double>(counter("dynamic_mesh_index_bytes_uploaded")) / static_cast<double>(frames) << "\n";
+
+            const std::vector<std::string> dynamicSubstages = {
+                "DynamicMeshBindingSystem.candidate_discovery",
+                "DynamicMeshBindingSystem.version_checks",
+                "DynamicMeshBindingSystem.validation",
+                "DynamicMeshBindingSystem.bounds",
+                "DynamicMeshBindingSystem.geometry_preparation",
+                "DynamicMeshBindingSystem.temporary_copy",
+                "DynamicMeshBindingSystem.resource_allocation",
+                "DynamicMeshBindingSystem.vertex_upload",
+                "DynamicMeshBindingSystem.index_upload",
+                "DynamicMeshBindingSystem.publication",
+                "DynamicMeshBindingSystem.invalidation",
+                "DynamicMeshBindingSystem.cleanup"
+            };
+            bool printedSubstageHeader = false;
+            for (const std::string& key : dynamicSubstages)
+            {
+                auto it = result.controllerSubstageTimingsMs.find(key);
+                if (it == result.controllerSubstageTimingsMs.end())
+                    continue;
+                if (it->second.median == 0.0 && it->second.p95 == 0.0)
+                    continue;
+                if (!printedSubstageHeader)
+                {
+                    out << "Dynamic Mesh Substages\n";
+                    printedSubstageHeader = true;
+                }
+                out << key.substr(std::string("DynamicMeshBindingSystem.").size())
+                    << " median/p95: " << it->second.median << " / " << it->second.p95 << " ms\n";
+            }
+        }
         if (!result.invariantFailures.empty())
             out << "invariant_failures: " << result.invariantFailures.size() << "\n";
         return out.str();

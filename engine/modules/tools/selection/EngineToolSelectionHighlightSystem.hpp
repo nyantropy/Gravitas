@@ -130,7 +130,7 @@ namespace gts::tools
             BoundsComponent& bounds = world.getComponent<BoundsComponent>(highlight.highlightEntity);
             rebuildWireBox(mesh, bounds, targetBounds, ++highlight.geometryVersion);
             highlight.targetEntity = target;
-            gts::rendering::queueDynamicMeshRefresh(world, highlight.highlightEntity);
+            gts::rendering::queueDynamicMeshGeometryRefresh(world, highlight.highlightEntity);
         }
 
         static void rebuildWireBox(DynamicMeshComponent& mesh,

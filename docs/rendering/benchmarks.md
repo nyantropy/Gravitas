@@ -98,6 +98,13 @@ Current presets:
 - `moving_deep_hierarchy`
 - `moving_wide_hierarchy`
 - `upload_only_pressure`
+- `dynamic_mesh_static_control`
+- `dynamic_mesh_sparse_mutation`
+- `dynamic_mesh_dense_mutation`
+- `dynamic_mesh_capacity_stable`
+- `dynamic_mesh_growth`
+- `dynamic_mesh_attribute_generation`
+- `dynamic_mesh_precomputed_attributes`
 - `visibility_sparse`
 - `visibility_dense`
 - `lighting_at_capacity`
@@ -165,9 +172,21 @@ Selected low-cardinality substages are emitted in `controller_substages_ms`:
 - `RenderGpuSystem.scan_compare`
 - `RenderGpuSystem.model_sync_enqueue`
 - `ForwardRenderer.object_buffer_writes`
+- `DynamicMeshBindingSystem.candidate_discovery`
+- `DynamicMeshBindingSystem.version_checks`
+- `DynamicMeshBindingSystem.validation`
+- `DynamicMeshBindingSystem.bounds`
+- `DynamicMeshBindingSystem.geometry_preparation`
+- `DynamicMeshBindingSystem.temporary_copy`
+- `DynamicMeshBindingSystem.resource_allocation`
+- `DynamicMeshBindingSystem.vertex_upload`
+- `DynamicMeshBindingSystem.index_upload`
+- `DynamicMeshBindingSystem.publication`
+- `DynamicMeshBindingSystem.invalidation`
+- `DynamicMeshBindingSystem.cleanup`
 
-Detailed transform and render-GPU substage timers are enabled by benchmark runs
-and disabled by default for normal engine execution.
+Detailed transform, render-GPU, and dynamic-mesh substage timers are enabled by
+benchmark runs and disabled by default for normal engine execution.
 
 ## Vulkan Timestamp Architecture
 
@@ -201,6 +220,11 @@ Representative counters include:
 - transform and render-GPU synchronization counts
 - logical object updates, object-upload commands, physical object-buffer
   writes, object write bytes, and contiguous write runs
+- dynamic mesh queued candidates, unchanged skips, failed-version skips,
+  changed meshes, invalid meshes, GPU allocations, GPU reallocations,
+  in-place updates, processed vertices/indices, copied CPU bytes, uploaded
+  vertex/index bytes, bounds recomputes, generated normal/tangent counts, and
+  renderable invalidations
 - particle emitter and world text counts
 
 `object_uploads` and `object_upload_commands` are logical upload commands
@@ -257,6 +281,13 @@ Benchmarks assert architectural expectations in addition to timings:
   commands
 - moving-object attribution presets must produce the configured logical update
   and object-upload command counts
+- `dynamic_mesh_static_control` must process and upload zero geometry after
+  warmup
+- dynamic mesh mutation presets must process exactly
+  `dynamic_mesh_mutation_count_per_frame * measured_frames`
+- `dynamic_mesh_capacity_stable` must perform zero GPU reallocations after
+  warmup
+- `dynamic_mesh_growth` must reallocate during sufficiently long measured runs
 - GPU timing metadata and counters must agree
 
 These checks are stronger than noisy timing thresholds for many renderer
@@ -339,6 +370,19 @@ to isolate specific paths:
 - `moving_wide_hierarchy`: attaches most objects directly under a smaller root
   set and moves the centered roots to isolate fan-out propagation.
 - `upload_only_pressure`: maximizes transform-driven object upload pressure.
+- `dynamic_mesh_static_control`: confirms unchanged dynamic meshes do no
+  preparation or upload work after warmup.
+- `dynamic_mesh_sparse_mutation`: confirms dynamic mesh cost scales with a
+  small changed subset rather than all authored dynamic meshes.
+- `dynamic_mesh_dense_mutation`: measures worst-case mutation throughput.
+- `dynamic_mesh_capacity_stable`: validates the in-place update path when
+  vertex/index counts fit existing capacity.
+- `dynamic_mesh_growth`: measures reallocation policy when geometry exceeds
+  capacity.
+- `dynamic_mesh_attribute_generation`: isolates preparation cost for meshes
+  missing normals/tangents.
+- `dynamic_mesh_precomputed_attributes`: separates upload and lifecycle cost
+  from attribute generation.
 
 Use counters to distinguish logical object changes from backend work. If
 `logical_object_updates` matches `object_upload_commands` but
@@ -346,6 +390,12 @@ Use counters to distinguish logical object changes from backend work. If
 frames-in-flight replication or mapped-buffer writes. If
 `RenderGpuSystem` dominates while transform substages are low, focus the next
 optimization on render transform synchronization and upload-command enqueueing.
+If `DynamicMeshBindingSystem` dominates, inspect the dynamic mesh substage
+timings and counters. Static-control work should be near zero after warmup;
+sparse mutation should report changed meshes equal to the configured mutation
+count; capacity-stable updates should report in-place updates and zero
+reallocations. A high `geometry_preparation` bucket points at CPU vertex/index
+processing, while high upload buckets point at backend buffer writes.
 
 ## Current Limitations
 

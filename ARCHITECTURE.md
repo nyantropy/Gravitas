@@ -212,6 +212,16 @@ Material versions are authoritative; material queues only schedule work, and
 the scene-local material user index limits invalidation to entities that
 actually reference a changed material.
 
+Dynamic mesh geometry is also version-authoritative. `DynamicMeshComponent`
+owns authored CPU geometry, `markDynamicMeshChanged(...)` increments
+`geometryVersion` and schedules work, and `DynamicMeshBindingSystem` processes
+only queued changed versions. `MeshGpuComponent` stores the uploaded version,
+last attempted version, used byte counts, and GPU allocation capacities. Unchanged
+dynamic meshes do no geometry preparation or upload work; capacity-stable
+updates reuse the existing procedural mesh allocation. Detailed dynamic mesh
+lifetime and failure behavior is documented in
+[docs/rendering/architecture.md](docs/rendering/architecture.md).
+
 Rendering performance work should use the benchmark suite documented in
 [docs/rendering/benchmarks.md](docs/rendering/benchmarks.md). Smoke benchmarks
 run deterministic ECS/extraction workloads in ordinary CI and emit JSON

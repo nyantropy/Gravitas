@@ -202,6 +202,42 @@ Material/mesh compatibility:
 Incompatible lit batches fall back deterministically and emit bounded
 diagnostics rather than consuming undefined surface data.
 
+## Dynamic Mesh Runtime Contract
+
+`DynamicMeshComponent` is authored CPU geometry. Its `geometryVersion` is the
+authoritative change signal. Application code should mutate the descriptor and
+call `markDynamicMeshChanged(...)`, which increments the version and schedules
+dynamic-mesh work once through the scene-local geometry lifecycle queue.
+
+`DynamicMeshBindingSystem` drains that queue. An unchanged dynamic mesh performs
+only a version comparison and does no geometry processing, vertex/index copying,
+GPU upload, resource recreation, material synchronization, or object-slot work.
+If a geometry version was already attempted and failed, it is not retried until
+the authored version changes.
+
+`MeshGpuComponent` stores the cached dynamic mesh state:
+
+- uploaded geometry version
+- last attempted geometry version
+- current GPU mesh identity
+- used vertex/index byte counts
+- allocated vertex/index capacities
+
+Changed geometry is validated, prepared, uploaded, and published once per
+version. Generated normals/tangents and bounds are owned by runtime preparation,
+not by the authored descriptor. Invalid meshes leave the renderable unready and
+record the attempted version so the same bad data is not retried every frame.
+
+The Vulkan procedural mesh backend keeps mesh identity stable where possible.
+Capacity-stable updates reuse the existing host-visible vertex and index
+buffers and upload only used bytes. If vertex or index data exceeds capacity,
+that buffer grows independently with a doubling policy. Buffers do not shrink
+automatically in this phase; smaller later updates reuse the existing capacity.
+Old procedural resources are released through the existing mesh lifetime path.
+
+Dynamic mesh content changes invalidate only mesh-derived render state. They do
+not alter material identity, object slots, or shared material GPU state.
+
 ## Material Runtime
 
 `MaterialRuntime` owns:

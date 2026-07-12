@@ -21,6 +21,7 @@
 #include "MaterialBindingSystem.hpp"
 #include "ParticleFrameData.h"
 #include "ProfileAccumulator.h"
+#include "DynamicMeshBindingSystem.hpp"
 #include "RenderEngineCommands.h"
 #include "RenderGpuSystem.hpp"
 #include "RenderPassVisibilityComponent.h"
@@ -227,6 +228,7 @@ namespace gts::rendering
         stats.simulationSystemCount = static_cast<uint32_t>(world.getSimulationSystemCount());
         const auto renderMetrics    = RenderGpuSystem::getLastMetrics();
         const auto transformMetrics = gts::transform::TransformSystem::getLastMetrics();
+        const auto dynamicMeshMetrics = DynamicMeshBindingSystem::getLastMetrics();
         stats.renderGpuUpdatedCount = renderMetrics.updatedRenderables;
         stats.renderGpuTotalCount = renderMetrics.totalRenderables;
         stats.renderGpuVersionMatchCount = renderMetrics.readyVersionMatches;
@@ -235,6 +237,39 @@ namespace gts::rendering
         stats.renderGpuCpuMs        = renderMetrics.cpuTimeMs;
         stats.renderGpuScanCompareCpuMs = renderMetrics.scanAndCompareCpuMs;
         stats.renderGpuModelSyncCpuMs = renderMetrics.modelSyncCpuMs;
+        stats.dynamicMeshQueuedCount = dynamicMeshMetrics.queuedMeshes;
+        stats.dynamicMeshCandidateCount = dynamicMeshMetrics.candidateEntities;
+        stats.dynamicMeshUnchangedSkippedCount = dynamicMeshMetrics.unchangedMeshesSkipped;
+        stats.dynamicMeshFailedVersionSkippedCount = dynamicMeshMetrics.failedVersionsSkipped;
+        stats.dynamicMeshChangedCount = dynamicMeshMetrics.changedMeshesProcessed;
+        stats.dynamicMeshInvalidCount = dynamicMeshMetrics.invalidMeshes;
+        stats.dynamicMeshGpuAllocationCount = dynamicMeshMetrics.gpuMeshAllocations;
+        stats.dynamicMeshGpuReallocationCount = dynamicMeshMetrics.gpuMeshReallocations;
+        stats.dynamicMeshInPlaceUpdateCount = dynamicMeshMetrics.inPlaceGpuUpdates;
+        stats.dynamicMeshResourceRecreatedCount = dynamicMeshMetrics.meshResourcesRecreated;
+        stats.dynamicMeshInvalidationCount = dynamicMeshMetrics.renderablesInvalidated;
+        stats.dynamicMeshBoundsRecomputedCount = dynamicMeshMetrics.boundsRecomputed;
+        stats.dynamicMeshNormalsGeneratedCount = dynamicMeshMetrics.normalsGenerated;
+        stats.dynamicMeshTangentsGeneratedCount = dynamicMeshMetrics.tangentsGenerated;
+        stats.dynamicMeshVerticesProcessed = dynamicMeshMetrics.verticesProcessed;
+        stats.dynamicMeshIndicesProcessed = dynamicMeshMetrics.indicesProcessed;
+        stats.dynamicMeshCpuBytesCopied = dynamicMeshMetrics.cpuBytesCopied;
+        stats.dynamicMeshVertexBytesUploaded = dynamicMeshMetrics.vertexBytesUploaded;
+        stats.dynamicMeshIndexBytesUploaded = dynamicMeshMetrics.indexBytesUploaded;
+        stats.dynamicMeshVertexBytesAllocated = dynamicMeshMetrics.vertexBytesAllocated;
+        stats.dynamicMeshIndexBytesAllocated = dynamicMeshMetrics.indexBytesAllocated;
+        stats.dynamicMeshCandidateDiscoveryCpuMs = dynamicMeshMetrics.candidateDiscoveryCpuMs;
+        stats.dynamicMeshVersionCheckCpuMs = dynamicMeshMetrics.versionCheckCpuMs;
+        stats.dynamicMeshValidationCpuMs = dynamicMeshMetrics.validationCpuMs;
+        stats.dynamicMeshBoundsCpuMs = dynamicMeshMetrics.boundsCpuMs;
+        stats.dynamicMeshGeometryPreparationCpuMs = dynamicMeshMetrics.geometryPreparationCpuMs;
+        stats.dynamicMeshTemporaryCopyCpuMs = dynamicMeshMetrics.temporaryCopyCpuMs;
+        stats.dynamicMeshResourceAllocationCpuMs = dynamicMeshMetrics.resourceAllocationCpuMs;
+        stats.dynamicMeshVertexUploadCpuMs = dynamicMeshMetrics.vertexUploadCpuMs;
+        stats.dynamicMeshIndexUploadCpuMs = dynamicMeshMetrics.indexUploadCpuMs;
+        stats.dynamicMeshPublicationCpuMs = dynamicMeshMetrics.publicationCpuMs;
+        stats.dynamicMeshInvalidationCpuMs = dynamicMeshMetrics.invalidationCpuMs;
+        stats.dynamicMeshCleanupCpuMs = dynamicMeshMetrics.cleanupCpuMs;
         stats.transformQueuedCount = transformMetrics.queuedTransforms;
         stats.transformProcessedCount = transformMetrics.processedTransforms;
         stats.transformUpdatedCount = transformMetrics.updatedWorldTransforms;

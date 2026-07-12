@@ -38,6 +38,7 @@ namespace gts::rendering::benchmarks
         uint32_t movingLightCount = 0;
 
         uint32_t dynamicMeshCount = 0;
+        uint32_t dynamicMeshMutationCountPerFrame = 0;
         uint32_t particleEmitterCount = 0;
         uint32_t worldTextCount = 0;
 

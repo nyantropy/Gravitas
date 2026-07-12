@@ -48,6 +48,7 @@ namespace
         uint32_t textureRequests = 0;
         uint32_t objectSlotRequests = 0;
         uint32_t objectSlotReleases = 0;
+        bool failProceduralUploads = false;
 
         std::unordered_map<std::string, mesh_id_type> meshes;
         std::unordered_map<std::string, texture_id_type> textures;
@@ -75,6 +76,8 @@ namespace
                                           VertexAttributeFlags = LegacyUnlitVertexAttributes) override
         {
             ++proceduralUploads;
+            if (failProceduralUploads)
+                return 0;
             if (existingId != 0)
                 return existingId;
             return nextMesh++;
@@ -363,13 +366,177 @@ namespace
         const texture_id_type textureId = materialTextureID(world, entity);
         DynamicMeshComponent& mesh = world.getComponent<DynamicMeshComponent>(entity);
         mesh = triangleMesh(2);
-        gts::rendering::queueDynamicMeshRefresh(world, entity);
+        gts::rendering::queueDynamicMeshGeometryRefresh(world, entity);
         update(world, resources);
 
         return require(materialTextureID(world, entity) == textureId,
                        "dynamic mesh update preserves material")
             && require(resources.proceduralUploads == 2, "dynamic mesh version uploads new geometry")
             && require(resources.textureRequests == 5, "dynamic mesh update does not request material texture roles again");
+    }
+
+    bool dynamicMeshUnchangedVersionSkipsUpload()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        Entity entity = world.createEntity();
+        world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
+        world.addComponent(entity, triangleMesh(1));
+        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        update(world, resources);
+
+        gts::rendering::queueDynamicMeshGeometryRefresh(world, entity);
+        update(world, resources);
+
+        const MeshGpuComponent& meshGpu = world.getComponent<MeshGpuComponent>(entity);
+        return require(resources.proceduralUploads == 1, "unchanged dynamic mesh version skips upload")
+            && require(meshGpu.boundDynamicGeometryVersion == 1, "unchanged dynamic mesh keeps uploaded version");
+    }
+
+    bool dynamicMeshMutationHelperDeduplicatesAndAvoidsMaterialRefresh()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        Entity entity = world.createEntity();
+        world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
+        world.addComponent(entity, triangleMesh(1));
+        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        update(world, resources);
+
+        DynamicMeshComponent& mesh = world.getComponent<DynamicMeshComponent>(entity);
+        mesh.vertices[1].pos.x += 0.25f;
+        gts::rendering::markDynamicMeshChanged(world, entity);
+        mesh.vertices[1].pos.x += 0.25f;
+        gts::rendering::markDynamicMeshChanged(world, entity);
+        update(world, resources);
+
+        const MeshGpuComponent& meshGpu = world.getComponent<MeshGpuComponent>(entity);
+        return require(resources.proceduralUploads == 2, "repeated dynamic mesh mutations queue one upload")
+            && require(meshGpu.boundDynamicGeometryVersion == mesh.geometryVersion,
+                       "dynamic mesh mutation publishes final geometry version")
+            && require(resources.textureRequests == 5,
+                       "dynamic mesh mutation does not refresh material textures");
+    }
+
+    bool dynamicMeshCapacityMetadataReusesExistingMesh()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        Entity entity = world.createEntity();
+        world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
+        world.addComponent(entity, triangleMesh(1));
+        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        update(world, resources);
+
+        const MeshGpuComponent initialGpu = world.getComponent<MeshGpuComponent>(entity);
+        DynamicMeshComponent& mesh = world.getComponent<DynamicMeshComponent>(entity);
+        mesh.vertices[2].pos.y += 0.5f;
+        gts::rendering::markDynamicMeshChanged(world, entity);
+        update(world, resources);
+
+        const MeshGpuComponent& updatedGpu = world.getComponent<MeshGpuComponent>(entity);
+        return require(updatedGpu.meshID == initialGpu.meshID,
+                       "capacity-stable dynamic mesh update reuses mesh identity")
+            && require(updatedGpu.dynamicVertexCapacityBytes == initialGpu.dynamicVertexCapacityBytes,
+                       "capacity-stable dynamic mesh update keeps vertex capacity")
+            && require(updatedGpu.dynamicIndexCapacityBytes == initialGpu.dynamicIndexCapacityBytes,
+                       "capacity-stable dynamic mesh update keeps index capacity")
+            && require(updatedGpu.dynamicVertexUsedBytes == initialGpu.dynamicVertexUsedBytes,
+                       "capacity-stable dynamic mesh update tracks used vertex bytes")
+            && require(updatedGpu.dynamicIndexUsedBytes == initialGpu.dynamicIndexUsedBytes,
+                       "capacity-stable dynamic mesh update tracks used index bytes");
+    }
+
+    bool dynamicMeshMutationUpdatesBounds()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        Entity entity = world.createEntity();
+        world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
+        world.addComponent(entity, triangleMesh(1));
+        world.addComponent(entity, BoundsComponent{});
+        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        update(world, resources);
+
+        DynamicMeshComponent& mesh = world.getComponent<DynamicMeshComponent>(entity);
+        mesh.vertices[1].pos.x = 2.0f;
+        gts::rendering::markDynamicMeshChanged(world, entity);
+        update(world, resources);
+
+        const BoundsComponent& bounds = world.getComponent<BoundsComponent>(entity);
+        return require(bounds.min.x == 0.0f, "dynamic mesh bounds min is recomputed")
+            && require(bounds.max.x == 2.0f, "dynamic mesh bounds max is recomputed");
+    }
+
+    bool dynamicMeshInvalidVersionDoesNotRetry()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        Entity entity = world.createEntity();
+        world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
+        world.addComponent(entity, triangleMesh(1));
+        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        update(world, resources);
+
+        DynamicMeshComponent& mesh = world.getComponent<DynamicMeshComponent>(entity);
+        mesh.indices = {0, 1, 99};
+        gts::rendering::markDynamicMeshChanged(world, entity);
+        const uint64_t failedVersion = mesh.geometryVersion;
+        update(world, resources);
+
+        const uint32_t releasesAfterFailure = resources.proceduralReleases;
+        gts::rendering::queueDynamicMeshGeometryRefresh(world, entity);
+        update(world, resources);
+
+        const MeshGpuComponent& meshGpu = world.getComponent<MeshGpuComponent>(entity);
+        return require(meshGpu.meshID == 0, "invalid dynamic mesh version leaves mesh unready")
+            && require(meshGpu.attemptedDynamicGeometryVersion == failedVersion,
+                       "invalid dynamic mesh records attempted version")
+            && require(resources.proceduralUploads == 1,
+                       "invalid dynamic mesh version does not upload geometry")
+            && require(resources.proceduralReleases == releasesAfterFailure,
+                       "invalid dynamic mesh version does not retry cleanup");
+    }
+
+    bool dynamicMeshUploadFailureDoesNotRetry()
+    {
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        Entity entity = world.createEntity();
+        world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
+        world.addComponent(entity, triangleMesh(1));
+        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        update(world, resources);
+
+        DynamicMeshComponent& mesh = world.getComponent<DynamicMeshComponent>(entity);
+        mesh.vertices[1].pos.x += 0.25f;
+        resources.failProceduralUploads = true;
+        gts::rendering::markDynamicMeshChanged(world, entity);
+        const uint64_t failedVersion = mesh.geometryVersion;
+        update(world, resources);
+
+        const uint32_t uploadsAfterFailure = resources.proceduralUploads;
+        gts::rendering::queueDynamicMeshGeometryRefresh(world, entity);
+        update(world, resources);
+
+        const MeshGpuComponent& meshGpu = world.getComponent<MeshGpuComponent>(entity);
+        return require(meshGpu.meshID == 0, "failed dynamic mesh upload leaves mesh unready")
+            && require(meshGpu.attemptedDynamicGeometryVersion == failedVersion,
+                       "failed dynamic mesh upload records attempted version")
+            && require(resources.proceduralUploads == uploadsAfterFailure,
+                       "failed dynamic mesh upload is not retried without a new version");
     }
 
     bool geometryDescriptorTypeChangeKeepsObjectSlot()
@@ -439,6 +606,12 @@ int main()
     ok &= renderObjectWaitsForMaterialCompanion();
     ok &= descriptorRemovalReleasesObjectSlotOnce();
     ok &= dynamicMeshVersionPreservesMaterial();
+    ok &= dynamicMeshUnchangedVersionSkipsUpload();
+    ok &= dynamicMeshMutationHelperDeduplicatesAndAvoidsMaterialRefresh();
+    ok &= dynamicMeshCapacityMetadataReusesExistingMesh();
+    ok &= dynamicMeshMutationUpdatesBounds();
+    ok &= dynamicMeshInvalidVersionDoesNotRetry();
+    ok &= dynamicMeshUploadFailureDoesNotRetry();
     ok &= geometryDescriptorTypeChangeKeepsObjectSlot();
     ok &= worldTextUsesMeshAndMaterialLifecycle();
 

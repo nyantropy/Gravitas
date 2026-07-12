@@ -24,4 +24,9 @@ struct MeshGpuComponent
 
     // Internal tracking for DynamicMeshBindingSystem
     uint64_t     boundDynamicGeometryVersion = 0;
+    uint64_t     attemptedDynamicGeometryVersion = 0;
+    uint32_t     dynamicVertexCapacityBytes = 0;
+    uint32_t     dynamicIndexCapacityBytes = 0;
+    uint32_t     dynamicVertexUsedBytes = 0;
+    uint32_t     dynamicIndexUsedBytes = 0;
 };
