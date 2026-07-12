@@ -275,6 +275,106 @@ only schedules a check; it is not proof that authored state changed. Static
 steady state therefore drains no render-transform work, performs no full
 renderable scan, copies no matrices, and emits no object uploads.
 
+## Batch-Ready Hot Paths
+
+The transform, render-sync, and snapshot hot paths are structured as
+single-threaded batch pipelines. No worker pool, render thread, physics thread,
+lock, atomic hot path, or concurrent ECS mutation exists yet. The current
+implementation is the single-thread reference path that a future executor must
+reuse.
+
+Transform resolution phases:
+
+```text
+dirty transform queue
+  -> collect TransformWorkItem records
+  -> assign hierarchy depths and deterministic batch ranges
+  -> calculate world matrices into a result buffer
+  -> publish WorldTransformComponent versions
+  -> emit the canonical world-transform published callbacks
+```
+
+Hierarchy depth is derived for changed work, not rebuilt globally for ordinary
+local transform edits. Parents are scheduled before children by depth. Within a
+depth level, work items are stored contiguously and partitioned into fixed-size
+ranges. Publication is a barrier: component writes and callback emission happen
+after matrix calculation, and each entity has at most one destination write.
+
+Render-transform synchronization phases:
+
+```text
+render-transform sync queue
+  -> validate ECS readiness and compact RenderTransformSyncItem records
+  -> process batch ranges into isolated RenderStateUpdate outputs
+  -> publish RenderGpuComponent state and RenderDirtyComponent flags
+  -> queue snapshot dirty entries
+```
+
+The batch records contain copied entity, version, object-slot, and model-matrix
+data. They do not contain Vulkan state or long-lived component pointers. The
+publish barrier remains the only phase that mutates render ECS state.
+
+Snapshot extraction phases:
+
+```text
+snapshot dirty queue
+  -> gather SnapshotUpdateItem records for valid dirty renderables
+  -> refresh independent dense snapshot slots by batch range
+  -> emit object upload commands from refreshed entries
+  -> run serial aggregate work such as camera-depth refresh and material-frame population
+```
+
+Dense snapshot storage remains stable by object slot. Per-entry refresh is the
+parallelizable unit; camera changes, material-frame aggregation, content-version
+publication, and invalidation-queue clearing are aggregate merge work.
+
+Future task-graph barriers are therefore explicit:
+
+```text
+hierarchy topology ready
+  -> parent transform levels complete
+  -> world-transform publication complete
+  -> render-sync outputs complete
+  -> snapshot entry refresh complete
+  -> aggregate extraction and backend submission may begin
+```
+
+Structural ECS mutation is not allowed inside batch-processing loops. Creation,
+component add/remove, object-slot allocation, material/mesh lifecycle, and
+resource cleanup stay in lifecycle systems or publish/cleanup barriers.
+
+The minimal future executor requirement is range execution with a single-thread
+fallback:
+
+```text
+parallelFor(itemCount, batchSize, processRange)
+  -> one output buffer per range
+  -> deterministic merge in range-index order
+  -> profiling context per range
+```
+
+A real executor must provide dependency barriers and per-task scratch/output
+storage, but it should not change the algorithms above.
+
+Render-thread readiness depends on extraction producing a complete immutable
+frame package: render commands, material frame data, object uploads,
+camera/light/environment uploads, particles, UI commands, and resource lifetime
+commands. The current extraction boundary is close to that shape, but backend
+submission still runs on the main thread and uses live renderer/runtime owners.
+No render thread is installed.
+
+Physics-thread readiness is separate. The future boundary should be:
+
+```text
+immutable physics input snapshot
+  -> fixed-step physics execution
+  -> deterministic result publication
+  -> gameplay/render-prep consumption barrier
+```
+
+Current physics remains a main-thread ECS system and does not own a worker or
+double-buffered publication path.
+
 Object uploads remain object-owned data:
 
 ```text

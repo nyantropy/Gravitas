@@ -230,6 +230,12 @@ bridge schedules affected renderables, and `RenderGpuSystem` validates
 matrices or requesting object uploads. Static steady state performs no full
 renderable scan and emits no transform-driven object uploads.
 
+The transform, render-sync, and snapshot hot paths are now single-threaded
+batch pipelines: they collect deterministic work records, partition contiguous
+ranges, process without structural ECS mutation, and publish at explicit
+barriers. No worker pool or render thread exists yet; the batch path is the
+reference implementation a future executor should run.
+
 Rendering performance work should use the benchmark suite documented in
 [docs/rendering/benchmarks.md](docs/rendering/benchmarks.md). Smoke benchmarks
 run deterministic ECS/extraction workloads in ordinary CI and emit JSON

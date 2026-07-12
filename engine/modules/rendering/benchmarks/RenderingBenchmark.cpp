@@ -363,7 +363,9 @@ namespace gts::rendering::benchmarks
 
         bool isGtsScene3StressPreset(const RenderingBenchmarkConfig& config)
         {
-            return config.presetName == "gtsscene3_64k_moving_cubes";
+            return config.presetName == "gtsscene3_64k_moving_cubes" ||
+                config.presetName == "moving_64k_independent" ||
+                config.presetName == "static_64k_control";
         }
 
         glm::vec3 gtsScene3CubePosition(uint32_t index)
@@ -703,12 +705,14 @@ namespace gts::rendering::benchmarks
 
         bool isDeepHierarchyPreset(const RenderingBenchmarkConfig& config)
         {
-            return config.presetName == "moving_deep_hierarchy";
+            return config.presetName == "moving_deep_hierarchy" ||
+                config.presetName == "deep_hierarchy";
         }
 
         bool isWideHierarchyPreset(const RenderingBenchmarkConfig& config)
         {
-            return config.presetName == "moving_wide_hierarchy";
+            return config.presetName == "moving_wide_hierarchy" ||
+                config.presetName == "moving_64k_wide_hierarchy";
         }
 
         void attachBenchmarkHierarchy(BenchmarkSceneState& state, const RenderingBenchmarkConfig& config)
@@ -979,8 +983,24 @@ namespace gts::rendering::benchmarks
             const gts::transform::TransformResolveMetrics& transformMetrics,
             const RenderGpuSystem::Metrics& renderGpuMetrics,
             const DynamicMeshBindingSystem::Metrics& dynamicMeshMetrics,
+            const RenderExtractionSnapshotBuilder::Metrics& snapshotMetrics,
             std::map<std::string, std::vector<double>>& substages)
         {
+            addSubstageSample(substages,
+                              "TransformSystem.work_collection",
+                              transformMetrics.workCollectionCpuMs);
+            addSubstageSample(substages,
+                              "TransformSystem.hierarchy_scheduling",
+                              transformMetrics.hierarchySchedulingCpuMs);
+            addSubstageSample(substages,
+                              "TransformSystem.input_gather",
+                              transformMetrics.inputGatherCpuMs);
+            addSubstageSample(substages,
+                              "TransformSystem.matrix_calculation",
+                              transformMetrics.matrixCalculationCpuMs);
+            addSubstageSample(substages,
+                              "TransformSystem.changed_list_emission",
+                              transformMetrics.changedListEmissionCpuMs);
             addSubstageSample(substages,
                               "TransformSystem.queue_children",
                               transformMetrics.queueChildrenCpuMs);
@@ -1000,11 +1020,20 @@ namespace gts::rendering::benchmarks
                               "RenderGpuSystem.candidate_discovery",
                               renderGpuMetrics.candidateDiscoveryCpuMs);
             addSubstageSample(substages,
+                              "RenderGpuSystem.input_gather",
+                              renderGpuMetrics.inputGatherCpuMs);
+            addSubstageSample(substages,
                               "RenderGpuSystem.validation",
                               renderGpuMetrics.validationCpuMs);
             addSubstageSample(substages,
                               "RenderGpuSystem.version_checks",
                               renderGpuMetrics.versionCheckCpuMs);
+            addSubstageSample(substages,
+                              "RenderGpuSystem.batch_processing",
+                              renderGpuMetrics.batchProcessingCpuMs);
+            addSubstageSample(substages,
+                              "RenderGpuSystem.output_merge",
+                              renderGpuMetrics.outputMergeCpuMs);
             addSubstageSample(substages,
                               "RenderGpuSystem.model_matrix_copy",
                               renderGpuMetrics.matrixCopyCpuMs);
@@ -1053,6 +1082,18 @@ namespace gts::rendering::benchmarks
             addSubstageSample(substages,
                               "DynamicMeshBindingSystem.cleanup",
                               dynamicMeshMetrics.cleanupCpuMs);
+            addSubstageSample(substages,
+                              "RenderExtractionSnapshotBuilder.dirty_collection",
+                              snapshotMetrics.dirtyCollectionCpuMs);
+            addSubstageSample(substages,
+                              "RenderExtractionSnapshotBuilder.input_gather",
+                              snapshotMetrics.inputGatherCpuMs);
+            addSubstageSample(substages,
+                              "RenderExtractionSnapshotBuilder.entry_refresh",
+                              snapshotMetrics.entryRefreshCpuMs);
+            addSubstageSample(substages,
+                              "RenderExtractionSnapshotBuilder.aggregate_merge",
+                              snapshotMetrics.aggregateMergeCpuMs);
         }
 
         void recordFrame(BenchmarkSceneState& state,
@@ -1127,6 +1168,7 @@ namespace gts::rendering::benchmarks
             recordRenderPrepSubstages(transformMetrics,
                                       renderGpuMetrics,
                                       dynamicMeshMetrics,
+                                      snapshotMetrics,
                                       controllerSubstages);
 
             uint64_t transparent = 0;
@@ -1218,9 +1260,21 @@ namespace gts::rendering::benchmarks
             addCounter(counters, "snapshot_reused_entries", snapshotMetrics.reusedCount);
             addCounter(counters, "snapshot_static_renderables", snapshotMetrics.staticRenderableCount);
             addCounter(counters, "snapshot_dynamic_renderables", snapshotMetrics.dynamicRenderableCount);
+            addCounter(counters, "snapshot_update_work_items", snapshotMetrics.updateWorkItems);
+            addCounter(counters, "snapshot_update_batches", snapshotMetrics.updateBatches);
+            addCounter(counters, "snapshot_refreshed_entries", snapshotMetrics.refreshedEntries);
+            addCounter(counters, "snapshot_full_rebuilds", snapshotMetrics.fullRebuilds);
+            addCounter(counters, "snapshot_storage_reallocations", snapshotMetrics.storageReallocations);
+            addCounter(counters, "snapshot_max_batch_size", snapshotMetrics.maxBatchSize);
             addCounter(counters, "transform_queued", transformMetrics.queuedTransforms);
             addCounter(counters, "transform_processed", transformMetrics.processedTransforms);
             addCounter(counters, "transform_updates", transformMetrics.updatedWorldTransforms);
+            addCounter(counters, "transform_changed_roots", transformMetrics.changedRoots);
+            addCounter(counters, "transform_work_items", transformMetrics.workItems);
+            addCounter(counters, "transform_batches", transformMetrics.batches);
+            addCounter(counters, "transform_hierarchy_levels", transformMetrics.hierarchyLevels);
+            addCounter(counters, "transform_max_batch_size", transformMetrics.maxBatchSize);
+            addCounter(counters, "transform_duplicate_work_removed", transformMetrics.duplicateWorkRemoved);
             addCounter(counters, "render_gpu_updated", renderGpuMetrics.updatedRenderables);
             addCounter(counters, "render_gpu_total", renderGpuMetrics.totalRenderables);
             addCounter(counters, "render_gpu_version_matches", renderGpuMetrics.readyVersionMatches);
@@ -1245,6 +1299,15 @@ namespace gts::rendering::benchmarks
             addCounter(counters,
                        "render_gpu_object_slot_lookup_failures",
                        renderGpuMetrics.objectSlotLookupFailures);
+            addCounter(counters, "render_gpu_sync_work_items", renderGpuMetrics.syncWorkItems);
+            addCounter(counters, "render_gpu_sync_batches", renderGpuMetrics.syncBatches);
+            addCounter(counters, "render_gpu_sync_max_batch_size", renderGpuMetrics.syncMaxBatchSize);
+            addCounter(counters, "render_gpu_sync_state_updates", renderGpuMetrics.syncStateUpdates);
+            addCounter(counters,
+                       "render_gpu_sync_snapshot_invalidations",
+                       renderGpuMetrics.syncSnapshotInvalidations);
+            addCounter(counters, "render_gpu_ecs_lookups_gather", renderGpuMetrics.ecsLookupsDuringGather);
+            addCounter(counters, "render_gpu_ecs_lookups_publish", renderGpuMetrics.ecsLookupsDuringPublish);
             addCounter(counters, "lights_total_directional", lighting.diagnostics.totalDirectionalLights);
             addCounter(counters, "lights_total_point", lighting.diagnostics.totalPointLights);
             addCounter(counters, "lights_total_spot", lighting.diagnostics.totalSpotLights);
@@ -1260,6 +1323,13 @@ namespace gts::rendering::benchmarks
             addCounter(counters, "prepared_batches", 0);
             addCounter(counters, "pipeline_switches", 0);
             addCounter(counters, "descriptor_binds", 0);
+            addCounter(counters, "screenshot_requested", 0);
+            addCounter(counters, "screenshot_scheduled", 0);
+            addCounter(counters, "screenshot_completed", 0);
+            addCounter(counters, "screenshot_skipped", 0);
+            addCounter(counters, "screenshot_pending_gpu", 0);
+            addCounter(counters, "screenshot_pending_write", 0);
+            addCounter(counters, "screenshot_readback_bytes", 0);
             addCounter(counters, "gpu_timing_available", 0);
         }
 
@@ -1315,6 +1385,22 @@ namespace gts::rendering::benchmarks
                      "Static renderables sharing a small mesh/material set.",
                      1,
                      staticSmall,
+                     presets);
+
+        RenderingBenchmarkConfig screenshotSmoke = staticSmall;
+        screenshotSmoke.mode = BenchmarkRunMode::GpuRuntime;
+        screenshotSmoke.warmupFrames = 4;
+        screenshotSmoke.measuredFrames = 12;
+        screenshotSmoke.renderableCount = 256;
+        screenshotSmoke.visibleRenderableCount = 256;
+        screenshotSmoke.uniqueMeshCount = 4;
+        screenshotSmoke.uniqueMaterialCount = 4;
+        screenshotSmoke.requestScreenshot = true;
+        screenshotSmoke.screenshotMeasuredFrame = 0;
+        presetConfig("screenshot_capture_smoke",
+                     "Small GPU runtime workload that requests one deferred screenshot capture.",
+                     1,
+                     screenshotSmoke,
                      presets);
 
         RenderingBenchmarkConfig staticLarge = base;
@@ -1452,6 +1538,40 @@ namespace gts::rendering::benchmarks
                      "GtsScene3-style 40x40x40 moving cube stress scene with hitch capture enabled.",
                      1,
                      gtsScene3Stress,
+                     presets);
+
+        RenderingBenchmarkConfig moving64kIndependent = gtsScene3Stress;
+        presetConfig("moving_64k_independent",
+                     "M1 readiness preset: 64k independent moving renderables for maximum batchability.",
+                     1,
+                     moving64kIndependent,
+                     presets);
+
+        RenderingBenchmarkConfig static64kControl = gtsScene3Stress;
+        static64kControl.movingObjectCount = 0;
+        static64kControl.hitchThresholdMs = 0.0;
+        presetConfig("static_64k_control",
+                     "M1 readiness preset: 64k static renderables with empty steady-state transform/render queues.",
+                     1,
+                     static64kControl,
+                     presets);
+
+        RenderingBenchmarkConfig moving64kWide = movingStaticControl;
+        moving64kWide.renderableCount = GtsScene3CubeCount;
+        moving64kWide.visibleRenderableCount = GtsScene3CubeCount;
+        moving64kWide.uniqueMeshCount = 1;
+        moving64kWide.uniqueMaterialCount = 1;
+        moving64kWide.movingObjectCount = 256;
+        moving64kWide.directionalLightCount = 0;
+        moving64kWide.pointLightCount = 0;
+        moving64kWide.spotLightCount = 0;
+        moving64kWide.enablePbr = false;
+        moving64kWide.enableNormalMaps = false;
+        moving64kWide.enableIbl = false;
+        presetConfig("moving_64k_wide_hierarchy",
+                     "M1 readiness preset: few moving roots fan out through 64k renderable descendants.",
+                     1,
+                     moving64kWide,
                      presets);
 
         RenderingBenchmarkConfig dynamicStatic = movingStaticControl;
@@ -1662,6 +1782,11 @@ namespace gts::rendering::benchmarks
         config.hitchThresholdMs = std::min(config.hitchThresholdMs, 10000.0);
         config.hitchContextFrames = std::min(config.hitchContextFrames, 16u);
         config.maxHitchEvents = std::min(config.maxHitchEvents, 64u);
+        if (config.measuredFrames > 0)
+        {
+            config.screenshotMeasuredFrame =
+                std::min(config.screenshotMeasuredFrame, config.measuredFrames - 1u);
+        }
         if (config.seed == 0)
             config.seed = 1;
     }
@@ -1729,6 +1854,8 @@ namespace gts::rendering::benchmarks
         else if (key == "hitch-threshold-ms" || key == "hitch_threshold_ms") ok = doubleValue(config.hitchThresholdMs);
         else if (key == "hitch-context-frames" || key == "hitch_context_frames") ok = unsignedValue(config.hitchContextFrames);
         else if (key == "max-hitch-events" || key == "max_hitch_events") ok = unsignedValue(config.maxHitchEvents);
+        else if (key == "request-screenshot" || key == "request_screenshot") ok = boolValue(config.requestScreenshot);
+        else if (key == "screenshot-measured-frame" || key == "screenshot_measured_frame") ok = unsignedValue(config.screenshotMeasuredFrame);
         else if (key == "enable-pbr" || key == "enable_pbr") ok = boolValue(config.enablePbr);
         else if (key == "enable-normal-maps" || key == "enable_normal_maps") ok = boolValue(config.enableNormalMaps);
         else if (key == "enable-ibl" || key == "enable_ibl") ok = boolValue(config.enableIbl);
@@ -2005,7 +2132,8 @@ namespace gts::rendering::benchmarks
             failures.push_back("static workload produced object uploads after warmup");
         }
 
-        if (result.config.presetName == "moving_static_control")
+        if (result.config.presetName == "moving_static_control" ||
+            result.config.presetName == "static_64k_control")
         {
             if (counter("render_gpu_queued") != 0)
                 failures.push_back("static moving-control workload queued render-transform sync after warmup");
@@ -2017,7 +2145,8 @@ namespace gts::rendering::benchmarks
              result.config.presetName == "moving_sparse" ||
              result.config.presetName == "moving_dense" ||
              result.config.presetName == "upload_only_pressure" ||
-             result.config.presetName == "gtsscene3_64k_moving_cubes") &&
+             result.config.presetName == "gtsscene3_64k_moving_cubes" ||
+             result.config.presetName == "moving_64k_independent") &&
             result.config.movingObjectCount > 0)
         {
             const uint64_t expectedUpdates =
@@ -2033,7 +2162,8 @@ namespace gts::rendering::benchmarks
         }
 
         if ((result.config.presetName == "moving_deep_hierarchy" ||
-             result.config.presetName == "moving_wide_hierarchy") &&
+             result.config.presetName == "moving_wide_hierarchy" ||
+             result.config.presetName == "moving_64k_wide_hierarchy") &&
             result.config.movingObjectCount > 0)
         {
             const uint64_t rootUpdates =
@@ -2109,6 +2239,20 @@ namespace gts::rendering::benchmarks
         if (!result.gpuTimingAvailable && counter("gpu_timing_available") != 0)
             failures.push_back("gpu_timing_available counter contradicts result metadata");
 
+        if (result.config.requestScreenshot)
+        {
+            if (counter("screenshot_requested") != 1)
+                failures.push_back("screenshot benchmark did not request exactly one capture");
+            if (counter("screenshot_scheduled") != 1)
+                failures.push_back("screenshot benchmark did not schedule exactly one capture");
+            if (counter("screenshot_completed") != 1)
+                failures.push_back("screenshot benchmark did not complete exactly one capture");
+            if (counter("screenshot_skipped") != 0)
+                failures.push_back("screenshot benchmark skipped a capture request");
+            if (counter("screenshot_readback_bytes") == 0)
+                failures.push_back("screenshot benchmark completed without readback bytes");
+        }
+
         return failures;
     }
 
@@ -2156,7 +2300,11 @@ namespace gts::rendering::benchmarks
         out << "    \"enable_frustum_culling\": " << (result.config.enableFrustumCulling ? "true" : "false") << ",\n";
         out << "    \"hitch_threshold_ms\": " << result.config.hitchThresholdMs << ",\n";
         out << "    \"hitch_context_frames\": " << result.config.hitchContextFrames << ",\n";
-        out << "    \"max_hitch_events\": " << result.config.maxHitchEvents << "\n";
+        out << "    \"max_hitch_events\": " << result.config.maxHitchEvents << ",\n";
+        out << "    \"request_screenshot\": " << (result.config.requestScreenshot ? "true" : "false") << ",\n";
+        out << "    \"screenshot_measured_frame\": " << result.config.screenshotMeasuredFrame << ",\n";
+        out << "    \"screenshot_output_directory\": \""
+            << escapedJson(result.config.screenshotOutputDirectory) << "\"\n";
         out << "  },\n";
         out << "  \"environment\": {\n";
         size_t index = 0;
@@ -2443,6 +2591,18 @@ namespace gts::rendering::benchmarks
             << static_cast<double>(counter("render_gpu_changed_syncs")) / static_cast<double>(frames) << "\n";
         out << "render_gpu_object_upload_requests/frame: "
             << static_cast<double>(counter("render_gpu_object_upload_requests")) / static_cast<double>(frames) << "\n";
+        out << "transform_work_items/batches per frame: "
+            << static_cast<double>(counter("transform_work_items")) / static_cast<double>(frames)
+            << " / "
+            << static_cast<double>(counter("transform_batches")) / static_cast<double>(frames) << "\n";
+        out << "render_sync_work_items/batches per frame: "
+            << static_cast<double>(counter("render_gpu_sync_work_items")) / static_cast<double>(frames)
+            << " / "
+            << static_cast<double>(counter("render_gpu_sync_batches")) / static_cast<double>(frames) << "\n";
+        out << "snapshot_work_items/batches per frame: "
+            << static_cast<double>(counter("snapshot_update_work_items")) / static_cast<double>(frames)
+            << " / "
+            << static_cast<double>(counter("snapshot_update_batches")) / static_cast<double>(frames) << "\n";
         out << "logical_object_updates/frame: "
             << static_cast<double>(counter("logical_object_updates")) / static_cast<double>(frames) << "\n";
         out << "object_upload_commands/frame: "
@@ -2451,6 +2611,23 @@ namespace gts::rendering::benchmarks
             << static_cast<double>(counter("physical_object_buffer_writes")) / static_cast<double>(frames) << "\n";
         out << "bytes_written_object_buffer/frame: "
             << static_cast<double>(counter("bytes_written_object_buffer")) / static_cast<double>(frames) << "\n";
+        if (result.config.requestScreenshot ||
+            counter("screenshot_requested") != 0 ||
+            counter("screenshot_scheduled") != 0 ||
+            counter("screenshot_completed") != 0 ||
+            counter("screenshot_skipped") != 0)
+        {
+            out << "Screenshot\n";
+            out << "requested/scheduled/completed/skipped: "
+                << counter("screenshot_requested") << " / "
+                << counter("screenshot_scheduled") << " / "
+                << counter("screenshot_completed") << " / "
+                << counter("screenshot_skipped") << "\n";
+            out << "pending_gpu/pending_write observations: "
+                << counter("screenshot_pending_gpu") << " / "
+                << counter("screenshot_pending_write") << "\n";
+            out << "readback_bytes total: " << counter("screenshot_readback_bytes") << "\n";
+        }
         if (result.config.dynamicMeshCount != 0 ||
             counter("dynamic_mesh_changed") != 0 ||
             counter("dynamic_mesh_candidates") != 0)

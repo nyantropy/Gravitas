@@ -37,6 +37,9 @@ The renderer currently has:
 - incremental render-transform synchronization through a scene-local queue so
   `RenderGpuSystem` scales with changed world transforms instead of total
   renderable count
+- single-threaded batch-ready transform, render-sync, and snapshot hot paths
+  with deterministic work records, contiguous ranges, isolated outputs, and
+  explicit publish/merge barriers for a future job executor
 - retained UI extraction and Vulkan overlay composition
 - screenshot capture with async PNG writes
 
@@ -44,9 +47,9 @@ The renderer currently has:
 
 - Establish versioned fixed-hardware performance baselines for the full CPU/GPU
   benchmark matrix.
-- Use the GtsScene3 64k moving-cube hitch benchmark to identify whether the
-  next optimization target is transform fan-out, snapshot rebuild, render-sync
-  enqueue, object-buffer writes, fixed-step catch-up, or backend submit stalls.
+- Add the first single-thread fallback job executor interface and run the
+  existing batch-ready transform, render-sync, and snapshot ranges through that
+  executor before introducing real worker threads.
 - Add alpha-cutoff shader support for `RenderQueue::AlphaMasked`.
 - Add sky/background rendering that consumes selected environment state without
   coupling sky draw commands to material draw commands.

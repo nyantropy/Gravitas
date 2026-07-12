@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <deque>
 #include <exception>
+#include <filesystem>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -117,6 +118,8 @@ namespace
             << "  --hitch-threshold-ms <ms>\n"
             << "  --hitch-context-frames <n>\n"
             << "  --max-hitch-events <n>\n"
+            << "  --set request-screenshot=true\n"
+            << "  --set screenshot-measured-frame=<n>\n"
             << "  --seed <n>\n";
     }
 
@@ -779,6 +782,9 @@ namespace
         addSample(collector.cpuSamples, "backend_cmd_record_cpu", stats.backendCmdRecordCpuMs);
         addSample(collector.cpuSamples, "backend_queue_submit_cpu", stats.backendQueueSubmitCpuMs);
         addSample(collector.cpuSamples, "backend_present_cpu", stats.backendPresentCpuMs);
+        addSample(collector.cpuSamples, "screenshot_schedule_cpu", stats.screenshotScheduleCpuMs);
+        addSample(collector.cpuSamples, "screenshot_poll_cpu", stats.screenshotPollCpuMs);
+        addSample(collector.cpuSamples, "screenshot_readback_cpu", stats.screenshotReadbackCpuMs);
         addSample(collector.cpuSamples, "render_submit_cpu", stats.renderSubmitCpuMs);
         addSample(collector.cpuSamples, "ui_cpu", stats.uiCpuMs);
 
@@ -795,6 +801,21 @@ namespace
             collector.controllerGroups.emplace(key, ecsSystemGroupName(sample.group));
         }
 
+        addSample(collector.controllerSubstageSamples,
+                  "TransformSystem.work_collection",
+                  stats.transformWorkCollectionCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "TransformSystem.hierarchy_scheduling",
+                  stats.transformHierarchySchedulingCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "TransformSystem.input_gather",
+                  stats.transformInputGatherCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "TransformSystem.matrix_calculation",
+                  stats.transformMatrixCalculationCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "TransformSystem.changed_list_emission",
+                  stats.transformChangedListEmissionCpuMs);
         addSample(collector.controllerSubstageSamples,
                   "TransformSystem.queue_children",
                   stats.transformQueueChildrenCpuMs);
@@ -814,11 +835,20 @@ namespace
                   "RenderGpuSystem.candidate_discovery",
                   stats.renderGpuCandidateDiscoveryCpuMs);
         addSample(collector.controllerSubstageSamples,
+                  "RenderGpuSystem.input_gather",
+                  stats.renderGpuInputGatherCpuMs);
+        addSample(collector.controllerSubstageSamples,
                   "RenderGpuSystem.validation",
                   stats.renderGpuValidationCpuMs);
         addSample(collector.controllerSubstageSamples,
                   "RenderGpuSystem.version_checks",
                   stats.renderGpuVersionCheckCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "RenderGpuSystem.batch_processing",
+                  stats.renderGpuBatchProcessingCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "RenderGpuSystem.output_merge",
+                  stats.renderGpuOutputMergeCpuMs);
         addSample(collector.controllerSubstageSamples,
                   "RenderGpuSystem.model_matrix_copy",
                   stats.renderGpuMatrixCopyCpuMs);
@@ -870,6 +900,18 @@ namespace
         addSample(collector.controllerSubstageSamples,
                   "DynamicMeshBindingSystem.cleanup",
                   stats.dynamicMeshCleanupCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "RenderExtractionSnapshotBuilder.dirty_collection",
+                  stats.snapshotDirtyCollectionCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "RenderExtractionSnapshotBuilder.input_gather",
+                  stats.snapshotInputGatherCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "RenderExtractionSnapshotBuilder.entry_refresh",
+                  stats.snapshotEntryRefreshCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "RenderExtractionSnapshotBuilder.aggregate_merge",
+                  stats.snapshotAggregateMergeCpuMs);
 
         if (stats.gpuTimingAvailable != 0)
         {
@@ -912,6 +954,12 @@ namespace
         addCounter(collector.counters, "snapshot_reused_entries", stats.snapshotReusedCount);
         addCounter(collector.counters, "snapshot_static_renderables", stats.snapshotStaticCount);
         addCounter(collector.counters, "snapshot_dynamic_renderables", stats.snapshotDynamicCount);
+        addCounter(collector.counters, "snapshot_update_work_items", stats.snapshotUpdateWorkItemCount);
+        addCounter(collector.counters, "snapshot_update_batches", stats.snapshotUpdateBatchCount);
+        addCounter(collector.counters, "snapshot_refreshed_entries", stats.snapshotRefreshedEntryCount);
+        addCounter(collector.counters, "snapshot_full_rebuilds", stats.snapshotFullRebuildCount);
+        addCounter(collector.counters, "snapshot_storage_reallocations", stats.snapshotStorageReallocationCount);
+        addCounter(collector.counters, "snapshot_max_batch_size", stats.snapshotMaxBatchSize);
         addCounter(collector.counters, "render_gpu_updated", stats.renderGpuUpdatedCount);
         addCounter(collector.counters, "render_gpu_total", stats.renderGpuTotalCount);
         addCounter(collector.counters, "render_gpu_version_matches", stats.renderGpuVersionMatchCount);
@@ -936,6 +984,26 @@ namespace
         addCounter(collector.counters,
                    "render_gpu_object_slot_lookup_failures",
                    stats.renderGpuObjectSlotLookupFailureCount);
+        addCounter(collector.counters, "render_gpu_sync_work_items", stats.renderGpuSyncWorkItemCount);
+        addCounter(collector.counters, "render_gpu_sync_batches", stats.renderGpuSyncBatchCount);
+        addCounter(collector.counters, "render_gpu_sync_max_batch_size", stats.renderGpuSyncMaxBatchSize);
+        addCounter(collector.counters, "render_gpu_sync_state_updates", stats.renderGpuSyncStateUpdateCount);
+        addCounter(collector.counters,
+                   "render_gpu_sync_snapshot_invalidations",
+                   stats.renderGpuSyncSnapshotInvalidationCount);
+        addCounter(collector.counters, "render_gpu_ecs_lookups_gather", stats.renderGpuEcsLookupGatherCount);
+        addCounter(collector.counters, "render_gpu_ecs_lookups_publish", stats.renderGpuEcsLookupPublishCount);
+        addCounter(collector.counters, "transform_queued", stats.transformQueuedCount);
+        addCounter(collector.counters, "transform_processed", stats.transformProcessedCount);
+        addCounter(collector.counters, "transform_updates", stats.transformUpdatedCount);
+        addCounter(collector.counters, "transform_changed_roots", stats.transformChangedRootCount);
+        addCounter(collector.counters, "transform_work_items", stats.transformWorkItemCount);
+        addCounter(collector.counters, "transform_batches", stats.transformBatchCount);
+        addCounter(collector.counters, "transform_hierarchy_levels", stats.transformHierarchyLevelCount);
+        addCounter(collector.counters, "transform_max_batch_size", stats.transformMaxBatchSize);
+        addCounter(collector.counters,
+                   "transform_duplicate_work_removed",
+                   stats.transformDuplicateWorkRemovedCount);
         addCounter(collector.counters, "dynamic_mesh_queued", stats.dynamicMeshQueuedCount);
         addCounter(collector.counters, "dynamic_mesh_candidates", stats.dynamicMeshCandidateCount);
         addCounter(collector.counters, "dynamic_mesh_unchanged_skipped", stats.dynamicMeshUnchangedSkippedCount);
@@ -966,6 +1034,13 @@ namespace
         addCounter(collector.counters, "pipeline_switches", stats.pipelineSwitches);
         addCounter(collector.counters, "descriptor_binds", stats.descriptorBinds);
         addCounter(collector.counters, "texture_switches", stats.textureSwitches);
+        addCounter(collector.counters, "screenshot_requested", stats.screenshotRequestedCount);
+        addCounter(collector.counters, "screenshot_scheduled", stats.screenshotScheduledCount);
+        addCounter(collector.counters, "screenshot_completed", stats.screenshotCompletedCount);
+        addCounter(collector.counters, "screenshot_skipped", stats.screenshotSkippedCount);
+        addCounter(collector.counters, "screenshot_pending_gpu", stats.screenshotPendingGpuCount);
+        addCounter(collector.counters, "screenshot_pending_write", stats.screenshotPendingWriteCount);
+        addCounter(collector.counters, "screenshot_readback_bytes", stats.screenshotReadbackBytes);
         addCounter(collector.counters, "gpu_timing_available", stats.gpuTimingAvailable != 0 ? 1u : 0u);
     }
 
@@ -999,6 +1074,9 @@ namespace
             {"backend_command_record_cpu", stats.backendCmdRecordCpuMs},
             {"backend_queue_submit_cpu", stats.backendQueueSubmitCpuMs},
             {"backend_present_cpu", stats.backendPresentCpuMs},
+            {"screenshot_schedule_cpu", stats.screenshotScheduleCpuMs},
+            {"screenshot_poll_cpu", stats.screenshotPollCpuMs},
+            {"screenshot_readback_cpu", stats.screenshotReadbackCpuMs},
             {"gpu_frame", stats.gpuFrameMs},
             {"gpu_scene", stats.sceneGpuMs},
             {"gpu_particles", stats.particleGpuMs},
@@ -1028,6 +1106,13 @@ namespace
             {"descriptor_binds", stats.descriptorBinds},
             {"dynamic_mesh_changed", stats.dynamicMeshChangedCount},
             {"material_synchronized", stats.materialSynchronizedCount},
+            {"screenshot_requested", stats.screenshotRequestedCount},
+            {"screenshot_scheduled", stats.screenshotScheduledCount},
+            {"screenshot_completed", stats.screenshotCompletedCount},
+            {"screenshot_skipped", stats.screenshotSkippedCount},
+            {"screenshot_pending_gpu", stats.screenshotPendingGpuCount},
+            {"screenshot_pending_write", stats.screenshotPendingWriteCount},
+            {"screenshot_readback_bytes", stats.screenshotReadbackBytes},
             {"gpu_timing_available", stats.gpuTimingAvailable}
         };
 
@@ -1191,6 +1276,8 @@ namespace
             ecsWorld.updateControllers(ctx);
             lastControllerTimings = ecsWorld.getLastControllerTimingSamples();
 
+            maybeRequestScreenshot(ctx);
+
             if (requestQuit && ctx.engineCommands != nullptr)
                 ctx.engineCommands->requestQuit();
         }
@@ -1249,6 +1336,20 @@ namespace
         std::vector<EcsSystemTimingSample> lastControllerTimings;
         bool requestQuit = false;
         bool timeoutWarningAdded = false;
+        bool screenshotRequested = false;
+
+        void maybeRequestScreenshot(const EcsControllerContext& ctx)
+        {
+            if (screenshotRequested || !config.requestScreenshot || ctx.engineCommands == nullptr || !collector)
+                return;
+            if (collector->renderedFrames < config.warmupFrames)
+                return;
+            if (collector->measuredFrames != config.screenshotMeasuredFrame)
+                return;
+
+            ctx.engineCommands->requestScreenshot(config.screenshotOutputDirectory);
+            screenshotRequested = true;
+        }
     };
 
     BenchmarkRunResult runGpuRuntimeBenchmark(const RenderingBenchmarkConfig& inputConfig)
@@ -1256,6 +1357,15 @@ namespace
         RenderingBenchmarkConfig config = inputConfig;
         gts::rendering::benchmarks::sanitizeConfig(config);
         config.mode = BenchmarkRunMode::GpuRuntime;
+        if (config.requestScreenshot)
+        {
+            namespace fs = std::filesystem;
+            fs::path screenshotDirectory =
+                fs::temp_directory_path() / "gts_rendering_benchmark_screenshots" / config.presetName;
+            fs::remove_all(screenshotDirectory);
+            fs::create_directories(screenshotDirectory);
+            config.screenshotOutputDirectory = screenshotDirectory.string();
+        }
 
         auto collector = std::make_shared<RuntimeBenchmarkCollector>();
         collector->config = config;
@@ -1274,6 +1384,11 @@ namespace
         engineConfig.graphics.presentModePreference = PresentModePreference::Immediate;
         engineConfig.graphics.maxFrameRate = 0;
         engineConfig.graphics.enableGpuTimestamps = true;
+        if (config.requestScreenshot)
+        {
+            engineConfig.graphics.maxScreenshotsPerRun = 1;
+            engineConfig.graphics.minSecondsBetweenScreenshots = 0.0f;
+        }
         gts::transform::TransformSystem::setDetailedMetricsEnabled(true);
         RenderGpuSystem::setDetailedMetricsEnabled(true);
         DynamicMeshBindingSystem::setDetailedMetricsEnabled(true);

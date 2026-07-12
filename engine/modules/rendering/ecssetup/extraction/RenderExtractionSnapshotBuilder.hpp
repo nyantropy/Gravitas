@@ -36,6 +36,18 @@ class RenderExtractionSnapshotBuilder
         uint32_t dynamicRenderableCount = 0;
         uint32_t staticUpdatedCount     = 0;
         uint32_t dynamicUpdatedCount    = 0;
+        uint32_t dirtyEntries           = 0;
+        uint32_t updateWorkItems        = 0;
+        uint32_t updateBatches          = 0;
+        uint32_t refreshedEntries       = 0;
+        uint32_t fullRebuilds           = 0;
+        uint32_t storageReallocations   = 0;
+        uint32_t maxBatchSize           = 0;
+        float    averageBatchSize       = 0.0f;
+        float    dirtyCollectionCpuMs   = 0.0f;
+        float    inputGatherCpuMs       = 0.0f;
+        float    entryRefreshCpuMs      = 0.0f;
+        float    aggregateMergeCpuMs    = 0.0f;
     };
 
     RenderExtractionSnapshotBuilder() : slotToIndex(GraphicsConstants::MAX_RENDERABLE_OBJECTS, InvalidIndex)
@@ -70,6 +82,8 @@ class RenderExtractionSnapshotBuilder
         uint32_t                                 staticUpdatedCount  = 0;
         uint32_t                                 dynamicUpdatedCount = 0;
         gts::rendering::RenderInvalidationState& invalidation        = gts::rendering::renderInvalidationState(world);
+        const uint32_t                           dirtyEntryCount =
+            static_cast<uint32_t>(invalidation.snapshotDirtyEntities.size());
         snapshot.objectUploads.reserve(invalidation.snapshotDirtyEntities.size());
 
         world.forEach<CameraGpuComponent>(
@@ -100,6 +114,16 @@ class RenderExtractionSnapshotBuilder
         }
         const bool cameraChanged = updateCameraVersion();
 
+        const auto dirtyCollectionStart = std::chrono::steady_clock::now();
+        const size_t renderableCapacityBefore = snapshot.renderables.capacity();
+        const size_t occupiedSlotCapacityBefore = snapshot.occupiedSlots.capacity();
+        const size_t metadataCapacityBefore = entryMetadata.capacity();
+        snapshotUpdateItems.clear();
+        snapshotUpdateItems.reserve(invalidation.snapshotDirtyEntities.size());
+        snapshotBatchRanges.clear();
+        const auto dirtyCollectionEnd = std::chrono::steady_clock::now();
+
+        const auto inputGatherStart = std::chrono::steady_clock::now();
         for (entity_id_type entityId : invalidation.snapshotDirtyEntities)
         {
             Entity e{entityId};
@@ -173,55 +197,102 @@ class RenderExtractionSnapshotBuilder
                     dynamicUpdatedCount += 1;
             }
 
-            RenderableSnapshot& renderable = snapshot.renderables[index];
-            if (!inserted && !anyDirty)
-                continue;
-
-            renderable.id             = id;
-            renderable.entity         = e;
-            renderable.objectSSBOSlot = rc.objectSSBOSlot;
-            renderable.visible        = true;
-
-            if (inserted || transformDirty)
-            {
-                renderable.modelMatrix = rc.modelMatrix;
-                updateBounds(world, e, renderable);
-                updateCameraDepth(renderable);
-            }
-
-            if (inserted || objectDataDirty)
-                renderable.uvTransform = rc.uvTransform;
-
-            bool sortKeyNeedsUpdate = inserted;
-            if (inserted || meshDirty)
-            {
-                renderable.meshID  = meshGpu.meshID;
-                sortKeyNeedsUpdate = true;
-            }
-
-            if (inserted || materialDirty)
-            {
-                renderable.material    = materialGpu->instance;
-                renderable.materialGpu = materialGpu->gpuHandle;
-                renderable.variantKey  = materialGpu->variantKey;
-                renderable.renderQueue = renderQueueForAlphaMode(materialGpu->renderState.alphaMode);
-                sortKeyNeedsUpdate     = true;
-            }
-
-            if (inserted || transformDirty || objectDataDirty)
-            {
-                snapshot.objectUploads.push_back(
-                    {rc.objectSSBOSlot, renderable.modelMatrix, renderable.uvTransform});
-            }
-
-            if (sortKeyNeedsUpdate)
-                renderable.sortKey = makeSortKey(renderable);
-
-            dirty.transformDirty  = false;
-            dirty.materialDirty   = false;
-            dirty.meshDirty       = false;
-            dirty.objectDataDirty = false;
+            snapshotUpdateItems.push_back({
+                e,
+                id,
+                index,
+                rc.objectSSBOSlot,
+                inserted,
+                isStatic,
+                transformDirty,
+                materialDirty,
+                meshDirty,
+                objectDataDirty,
+                rc.modelMatrix,
+                rc.uvTransform,
+                meshGpu.meshID,
+                materialGpu->instance,
+                materialGpu->gpuHandle,
+                materialGpu->variantKey,
+                renderQueueForAlphaMode(materialGpu->renderState.alphaMode)
+            });
         }
+        const auto inputGatherEnd = std::chrono::steady_clock::now();
+
+        for (size_t begin = 0; begin < snapshotUpdateItems.size(); begin += TargetBatchSize)
+        {
+            const size_t end = std::min(begin + TargetBatchSize, snapshotUpdateItems.size());
+            snapshotBatchRanges.push_back({
+                static_cast<uint32_t>(begin),
+                static_cast<uint32_t>(end)
+            });
+        }
+
+        const auto entryRefreshStart = std::chrono::steady_clock::now();
+        uint32_t refreshedEntries = 0;
+        uint32_t maxBatchSize = 0;
+        for (const SnapshotBatchRange& range : snapshotBatchRanges)
+        {
+            maxBatchSize = std::max(maxBatchSize, range.end - range.begin);
+            for (uint32_t itemIndex = range.begin; itemIndex < range.end; ++itemIndex)
+            {
+                const SnapshotUpdateItem& item = snapshotUpdateItems[itemIndex];
+                RenderableSnapshot& renderable = snapshot.renderables[item.index];
+
+                renderable.id             = item.id;
+                renderable.entity         = item.entity;
+                renderable.objectSSBOSlot = item.objectSlot;
+                renderable.visible        = true;
+
+                if (item.inserted || item.transformDirty)
+                {
+                    renderable.modelMatrix = item.modelMatrix;
+                    updateBounds(world, item.entity, renderable);
+                    updateCameraDepth(renderable);
+                }
+
+                if (item.inserted || item.objectDataDirty)
+                    renderable.uvTransform = item.uvTransform;
+
+                bool sortKeyNeedsUpdate = item.inserted;
+                if (item.inserted || item.meshDirty)
+                {
+                    renderable.meshID = item.meshID;
+                    sortKeyNeedsUpdate = true;
+                }
+
+                if (item.inserted || item.materialDirty)
+                {
+                    renderable.material    = item.material;
+                    renderable.materialGpu = item.materialGpu;
+                    renderable.variantKey  = item.variantKey;
+                    renderable.renderQueue = item.renderQueue;
+                    sortKeyNeedsUpdate     = true;
+                }
+
+                if (item.inserted || item.transformDirty || item.objectDataDirty)
+                {
+                    snapshot.objectUploads.push_back(
+                        {item.objectSlot, renderable.modelMatrix, renderable.uvTransform});
+                }
+
+                if (sortKeyNeedsUpdate)
+                    renderable.sortKey = makeSortKey(renderable);
+
+                if (world.hasComponent<RenderDirtyComponent>(item.entity))
+                {
+                    RenderDirtyComponent& dirty = world.getComponent<RenderDirtyComponent>(item.entity);
+                    dirty.transformDirty  = false;
+                    dirty.materialDirty   = false;
+                    dirty.meshDirty       = false;
+                    dirty.objectDataDirty = false;
+                }
+                refreshedEntries += 1;
+            }
+        }
+        const auto entryRefreshEnd = std::chrono::steady_clock::now();
+
+        const auto aggregateStart = std::chrono::steady_clock::now();
         if (cameraChanged)
         {
             for (RenderableSnapshot& renderable : snapshot.renderables)
@@ -231,6 +302,7 @@ class RenderExtractionSnapshotBuilder
         gts::rendering::clearSnapshotDirtyQueue(invalidation);
         if (m_snapshotDirty)
             snapshot.contentVersion = ++contentVersion;
+        const auto aggregateEnd = std::chrono::steady_clock::now();
 
         const auto end                     = std::chrono::steady_clock::now();
         lastMetrics.buildCpuMs             = std::chrono::duration<float, std::milli>(end - start).count();
@@ -243,6 +315,32 @@ class RenderExtractionSnapshotBuilder
         lastMetrics.dynamicRenderableCount = dynamicRenderableCount;
         lastMetrics.staticUpdatedCount     = staticUpdatedCount;
         lastMetrics.dynamicUpdatedCount    = dynamicUpdatedCount;
+        lastMetrics.dirtyEntries           = dirtyEntryCount;
+        lastMetrics.updateWorkItems        = static_cast<uint32_t>(snapshotUpdateItems.size());
+        lastMetrics.updateBatches          = static_cast<uint32_t>(snapshotBatchRanges.size());
+        lastMetrics.refreshedEntries       = refreshedEntries;
+        lastMetrics.fullRebuilds           = 0;
+        lastMetrics.storageReallocations   =
+            (snapshot.renderables.capacity() != renderableCapacityBefore ? 1u : 0u) +
+            (snapshot.occupiedSlots.capacity() != occupiedSlotCapacityBefore ? 1u : 0u) +
+            (entryMetadata.capacity() != metadataCapacityBefore ? 1u : 0u);
+        lastMetrics.maxBatchSize           = maxBatchSize;
+        lastMetrics.averageBatchSize       = snapshotBatchRanges.empty()
+            ? 0.0f
+            : static_cast<float>(snapshotUpdateItems.size()) /
+                static_cast<float>(snapshotBatchRanges.size());
+        lastMetrics.dirtyCollectionCpuMs   =
+            std::chrono::duration<float, std::milli>(
+                dirtyCollectionEnd - dirtyCollectionStart).count();
+        lastMetrics.inputGatherCpuMs       =
+            std::chrono::duration<float, std::milli>(
+                inputGatherEnd - inputGatherStart).count();
+        lastMetrics.entryRefreshCpuMs      =
+            std::chrono::duration<float, std::milli>(
+                entryRefreshEnd - entryRefreshStart).count();
+        lastMetrics.aggregateMergeCpuMs    =
+            std::chrono::duration<float, std::milli>(
+                aggregateEnd - aggregateStart).count();
         return snapshot;
     }
 
@@ -294,6 +392,34 @@ class RenderExtractionSnapshotBuilder
     };
 
     static constexpr uint32_t InvalidIndex = std::numeric_limits<uint32_t>::max();
+    static constexpr uint32_t TargetBatchSize = 1024;
+
+    struct SnapshotUpdateItem
+    {
+        Entity                entity = INVALID_ENTITY;
+        RenderableID          id = 0;
+        uint32_t              index = InvalidIndex;
+        ssbo_id_type          objectSlot = RENDERABLE_SLOT_UNALLOCATED;
+        bool                  inserted = false;
+        bool                  isStatic = false;
+        bool                  transformDirty = false;
+        bool                  materialDirty = false;
+        bool                  meshDirty = false;
+        bool                  objectDataDirty = false;
+        glm::mat4             modelMatrix = glm::mat4(1.0f);
+        glm::vec4             uvTransform = {1.0f, 1.0f, 0.0f, 0.0f};
+        mesh_id_type          meshID = 0;
+        MaterialInstanceHandle material;
+        MaterialGpuHandle     materialGpu;
+        MaterialVariantKey    variantKey{};
+        RenderQueue           renderQueue = RenderQueue::Opaque;
+    };
+
+    struct SnapshotBatchRange
+    {
+        uint32_t begin = 0;
+        uint32_t end = 0;
+    };
 
     RenderExtractionSnapshot snapshot;
     Metrics                  lastMetrics;
@@ -311,6 +437,8 @@ class RenderExtractionSnapshotBuilder
     //   - m_snapshotDirty is raised on add/remove/update so downstream stages can
     //     skip command regeneration when the extraction snapshot is unchanged.
     std::vector<SnapshotEntryMetadata>         entryMetadata;
+    std::vector<SnapshotUpdateItem>            snapshotUpdateItems;
+    std::vector<SnapshotBatchRange>            snapshotBatchRanges;
     std::vector<uint32_t>                      slotToIndex;
     std::unordered_map<RenderableID, uint32_t> entityToIndex;
     ECSWorld*                                  registeredWorld = nullptr;

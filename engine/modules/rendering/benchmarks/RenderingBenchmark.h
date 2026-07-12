@@ -55,6 +55,10 @@ namespace gts::rendering::benchmarks
         double hitchThresholdMs = 0.0;
         uint32_t hitchContextFrames = 2;
         uint32_t maxHitchEvents = 8;
+
+        bool requestScreenshot = false;
+        uint32_t screenshotMeasuredFrame = 0;
+        std::string screenshotOutputDirectory;
     };
 
     struct BenchmarkPreset

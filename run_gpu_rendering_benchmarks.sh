@@ -63,6 +63,13 @@ echo "== GPU GtsScene3 hitch benchmark =="
     --output "$OUT_DIR/gtsscene3_64k_moving_cubes_gpu.json" \
     --check-invariants
 
+echo
+echo "== GPU screenshot capture benchmark =="
+"$BENCHMARK_EXE" \
+    --preset screenshot_capture_smoke \
+    --output "$OUT_DIR/screenshot_capture_smoke_gpu.json" \
+    --check-invariants
+
 for preset in \
     moving_static_control \
     moving_independent \
@@ -70,6 +77,9 @@ for preset in \
     moving_dense \
     moving_deep_hierarchy \
     moving_wide_hierarchy \
+    moving_64k_independent \
+    static_64k_control \
+    moving_64k_wide_hierarchy \
     upload_only_pressure \
     dynamic_mesh_static_control \
     dynamic_mesh_sparse_mutation \
@@ -95,12 +105,16 @@ echo "Benchmark JSON written to:"
 echo "  $OUT_DIR/static_geometry_small_gpu.json"
 echo "  $OUT_DIR/combined_game_like_gpu.json"
 echo "  $OUT_DIR/gtsscene3_64k_moving_cubes_gpu.json"
+echo "  $OUT_DIR/screenshot_capture_smoke_gpu.json"
 echo "  $OUT_DIR/moving_static_control_gpu.json"
 echo "  $OUT_DIR/moving_independent_gpu.json"
 echo "  $OUT_DIR/moving_sparse_gpu.json"
 echo "  $OUT_DIR/moving_dense_gpu.json"
 echo "  $OUT_DIR/moving_deep_hierarchy_gpu.json"
 echo "  $OUT_DIR/moving_wide_hierarchy_gpu.json"
+echo "  $OUT_DIR/moving_64k_independent_gpu.json"
+echo "  $OUT_DIR/static_64k_control_gpu.json"
+echo "  $OUT_DIR/moving_64k_wide_hierarchy_gpu.json"
 echo "  $OUT_DIR/upload_only_pressure_gpu.json"
 echo "  $OUT_DIR/dynamic_mesh_static_control_gpu.json"
 echo "  $OUT_DIR/dynamic_mesh_sparse_mutation_gpu.json"

@@ -224,6 +224,21 @@ set_tests_properties(rendering_benchmark_static_geometry_smoke
         LABELS "gravitas;rendering;benchmark;benchmark_smoke"
 )
 
+add_test(
+    NAME rendering_benchmark_screenshot_capture_smoke
+    COMMAND GtsRenderingBenchmarks
+        --preset screenshot_capture_smoke
+        --output "${CMAKE_CURRENT_BINARY_DIR}/screenshot_capture_smoke.json"
+        --check-invariants
+        --quiet
+)
+
+set_tests_properties(rendering_benchmark_screenshot_capture_smoke
+    PROPERTIES
+        LABELS "gravitas;rendering;benchmark;benchmark_gpu;screenshot"
+        SKIP_RETURN_CODE 77
+)
+
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(

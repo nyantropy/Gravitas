@@ -39,6 +39,24 @@ int main()
                   "GtsScene3 hitch preset moves every cube");
     ok &= require(near(gtsScene3Preset->config.hitchThresholdMs, 8.0),
                   "GtsScene3 hitch preset has an 8 ms capture threshold");
+    const BenchmarkPreset* moving64k = findBenchmarkPreset("moving_64k_independent");
+    ok &= require(moving64k != nullptr, "M1 64k independent readiness preset exists");
+    ok &= require(moving64k->config.renderableCount == 64000,
+                  "M1 64k independent readiness preset keeps the 64k count");
+    const BenchmarkPreset* static64k = findBenchmarkPreset("static_64k_control");
+    ok &= require(static64k != nullptr, "M1 static 64k readiness preset exists");
+    ok &= require(static64k->config.movingObjectCount == 0,
+                  "M1 static 64k readiness preset has no measured movement");
+    ok &= require(findBenchmarkPreset("moving_64k_wide_hierarchy") != nullptr,
+                  "M1 wide hierarchy readiness preset exists");
+    const BenchmarkPreset* screenshotPreset = findBenchmarkPreset("screenshot_capture_smoke");
+    ok &= require(screenshotPreset != nullptr, "screenshot capture smoke preset exists");
+    ok &= require(screenshotPreset->config.mode == BenchmarkRunMode::GpuRuntime,
+                  "screenshot capture smoke uses the GPU runtime path");
+    ok &= require(screenshotPreset->config.requestScreenshot,
+                  "screenshot capture smoke requests a screenshot");
+    ok &= require(screenshotPreset->config.screenshotMeasuredFrame == 0,
+                  "screenshot capture smoke requests during the measured window");
 
     RenderingBenchmarkConfig config = preset->config;
     std::string error;
@@ -49,6 +67,10 @@ int main()
     ok &= require(applyConfigOverride(config, "unique-material-count", "3", &error), "material override parses");
     ok &= require(applyConfigOverride(config, "dynamic-mesh-mutations", "2", &error),
                   "dynamic mesh mutation override parses");
+    ok &= require(applyConfigOverride(config, "request-screenshot", "true", &error),
+                  "screenshot request override parses");
+    ok &= require(applyConfigOverride(config, "screenshot-measured-frame", "2", &error),
+                  "screenshot measured frame override parses");
     ok &= require(config.warmupFrames == 2, "warmup override applied");
     ok &= require(config.measuredFrames == 4, "measured override applied");
     ok &= require(config.renderableCount == 12, "renderable override applied");
@@ -56,6 +78,9 @@ int main()
     ok &= require(config.uniqueMaterialCount == 3, "material override applied");
     ok &= require(config.dynamicMeshMutationCountPerFrame == 0,
                   "dynamic mesh mutation override is clamped by dynamic mesh count");
+    ok &= require(config.requestScreenshot, "screenshot request override applied");
+    ok &= require(config.screenshotMeasuredFrame == 2,
+                  "screenshot measured frame override applied");
     ok &= require(!applyConfigOverride(config, "unknown-key", "1", &error), "unknown override fails");
 
     StatisticSummary stats = summarizeSamples({4.0, 1.0, 3.0, 2.0});
@@ -72,6 +97,8 @@ int main()
     config.dynamicMeshCount = 0;
     config.materialMutationCountPerFrame = 0;
     config.topologyMutationCountPerFrame = 0;
+    config.requestScreenshot = false;
+    config.screenshotMeasuredFrame = 0;
     BenchmarkRunResult result = runRenderingBenchmark(config);
 
     const std::vector<std::string> validationFailures = validateBenchmarkResult(result);
@@ -91,8 +118,21 @@ int main()
                   "controller timing group metadata is preserved");
     ok &= require(result.controllerSubstageTimingsMs.count("TransformSystem.resolve_world") != 0,
                   "transform substage timing is emitted");
+    ok &= require(result.controllerSubstageTimingsMs.count("TransformSystem.work_collection") != 0,
+                  "transform batch-readiness substage timing is emitted");
+    ok &= require(result.controllerSubstageTimingsMs.count("RenderGpuSystem.batch_processing") != 0,
+                  "render sync batch-processing timing is emitted");
+    ok &= require(result.controllerSubstageTimingsMs.count(
+                      "RenderExtractionSnapshotBuilder.entry_refresh") != 0,
+                  "snapshot entry-refresh timing is emitted");
     ok &= require(result.counters.at("material_full_scans") == 0,
                   "material full scans stay zero");
+    ok &= require(result.counters.count("transform_batches") != 0,
+                  "transform batch counter is emitted");
+    ok &= require(result.counters.count("render_gpu_sync_batches") != 0,
+                  "render sync batch counter is emitted");
+    ok &= require(result.counters.count("snapshot_update_batches") != 0,
+                  "snapshot batch counter is emitted");
 
     const std::string json = benchmarkResultToJson(result);
     ok &= require(json.find("\"benchmark\": \"static_geometry_small\"") != std::string::npos,
@@ -109,8 +149,18 @@ int main()
                   "json contains controller substage object");
     ok &= require(json.find("\"dynamic_mesh_mutation_count_per_frame\"") != std::string::npos,
                   "json contains dynamic mesh mutation config");
+    ok &= require(json.find("\"request_screenshot\"") != std::string::npos,
+                  "json contains screenshot request config");
+    ok &= require(json.find("\"screenshot_output_directory\"") != std::string::npos,
+                  "json contains screenshot output directory config");
     ok &= require(json.find("\"dynamic_mesh_changed\"") != std::string::npos,
                   "json contains dynamic mesh counters");
+    ok &= require(json.find("\"screenshot_requested\"") != std::string::npos,
+                  "json contains screenshot counters");
+    ok &= require(json.find("\"render_gpu_sync_work_items\"") != std::string::npos,
+                  "json contains render sync work item counters");
+    ok &= require(json.find("\"snapshot_update_work_items\"") != std::string::npos,
+                  "json contains snapshot work item counters");
     ok &= require(json.find("\"gpu_supported\": false") != std::string::npos,
                   "json contains gpu support flag");
     ok &= require(json.find("\"counters\"") != std::string::npos,
@@ -121,6 +171,22 @@ int main()
     std::string outputError;
     ok &= require(writeBenchmarkResultJson(result, "/tmp/gts_rendering_benchmark_support_test.json", &outputError),
                   "json output file can be written");
+
+    BenchmarkRunResult screenshotInvariant;
+    screenshotInvariant.config = screenshotPreset->config;
+    screenshotInvariant.config.measuredFrames = 4;
+    screenshotInvariant.config.renderableCount = 0;
+    screenshotInvariant.config.visibleRenderableCount = 0;
+    screenshotInvariant.counters["screenshot_requested"] = 1;
+    screenshotInvariant.counters["screenshot_scheduled"] = 1;
+    screenshotInvariant.counters["screenshot_completed"] = 1;
+    screenshotInvariant.counters["screenshot_skipped"] = 0;
+    screenshotInvariant.counters["screenshot_readback_bytes"] = 64 * 64 * 4;
+    ok &= require(checkBenchmarkInvariants(screenshotInvariant).empty(),
+                  "screenshot benchmark invariant accepts one completed capture");
+    screenshotInvariant.counters["screenshot_completed"] = 0;
+    ok &= require(!checkBenchmarkInvariants(screenshotInvariant).empty(),
+                  "screenshot benchmark invariant rejects missing completion");
 
     RenderingBenchmarkConfig mutating = config;
     mutating.materialMutationCountPerFrame = 1;
@@ -143,6 +209,12 @@ int main()
     ok &= require(movingResult.counters.at("object_upload_commands") ==
                       moving.measuredFrames * moving.movingObjectCount,
                   "moving independent upload command count is deterministic");
+    ok &= require(movingResult.counters.at("transform_work_items") ==
+                      moving.measuredFrames * moving.movingObjectCount,
+                  "moving independent transform work items match changed objects");
+    ok &= require(movingResult.counters.at("render_gpu_sync_work_items") ==
+                      moving.measuredFrames * moving.movingObjectCount,
+                  "moving independent render-sync work items match changed objects");
 
     RenderingBenchmarkConfig gtsSmall = gtsScene3Preset->config;
     gtsSmall.mode = BenchmarkRunMode::CpuSmoke;

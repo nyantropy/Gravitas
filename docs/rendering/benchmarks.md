@@ -113,6 +113,9 @@ Current presets:
 - `moving_wide_hierarchy`
 - `upload_only_pressure`
 - `gtsscene3_64k_moving_cubes`
+- `moving_64k_independent`
+- `static_64k_control`
+- `moving_64k_wide_hierarchy`
 - `dynamic_mesh_static_control`
 - `dynamic_mesh_sparse_mutation`
 - `dynamic_mesh_dense_mutation`
@@ -134,6 +137,15 @@ grid of 64,000 textured static-mesh cubes, eight shared materials, the
 GtsScene3 camera, and all cubes moving every measured frame. It enables an
 8 ms hitch threshold by default and is intended for transform, snapshot,
 render-sync, object-upload, and submit tail-latency diagnosis.
+
+M1 parallel-readiness presets isolate the same hot path without adding threads:
+
+- `moving_64k_independent`: 64,000 independent moving renderables, the maximum
+  contiguous transform/render-sync/snapshot batchability case.
+- `static_64k_control`: same object count with no post-warmup movement; steady
+  state should keep transform, render-sync, and object-upload work arrays empty.
+- `moving_64k_wide_hierarchy`: a small set of moving roots fan out through
+  64,000 renderable descendants to validate hierarchy-level scheduling.
 
 Each preset has a version. Increment the version when changing generation,
 object counts, camera paths, mutation schedules, render settings, or measured
@@ -187,14 +199,22 @@ tooling enabled by default.
 
 Selected low-cardinality substages are emitted in `controller_substages_ms`:
 
+- `TransformSystem.work_collection`
+- `TransformSystem.hierarchy_scheduling`
+- `TransformSystem.input_gather`
+- `TransformSystem.matrix_calculation`
+- `TransformSystem.changed_list_emission`
 - `TransformSystem.queue_children`
 - `TransformSystem.resolve_world`
 - `TransformSystem.publish_world_transform`
 - `RenderGpuSystem.scan_compare`
 - `RenderGpuSystem.model_sync_enqueue`
 - `RenderGpuSystem.candidate_discovery`
+- `RenderGpuSystem.input_gather`
 - `RenderGpuSystem.validation`
 - `RenderGpuSystem.version_checks`
+- `RenderGpuSystem.batch_processing`
+- `RenderGpuSystem.output_merge`
 - `RenderGpuSystem.model_matrix_copy`
 - `RenderGpuSystem.object_upload_enqueue`
 - `RenderGpuSystem.snapshot_invalidation`
@@ -212,9 +232,13 @@ Selected low-cardinality substages are emitted in `controller_substages_ms`:
 - `DynamicMeshBindingSystem.publication`
 - `DynamicMeshBindingSystem.invalidation`
 - `DynamicMeshBindingSystem.cleanup`
+- `RenderExtractionSnapshotBuilder.dirty_collection`
+- `RenderExtractionSnapshotBuilder.input_gather`
+- `RenderExtractionSnapshotBuilder.entry_refresh`
+- `RenderExtractionSnapshotBuilder.aggregate_merge`
 
-Detailed transform, render-GPU, and dynamic-mesh substage timers are enabled by
-benchmark runs and disabled by default for normal engine execution.
+Detailed transform, render-GPU, snapshot, and dynamic-mesh substage timers are
+enabled by benchmark runs and disabled by default for normal engine execution.
 
 ## Vulkan Timestamp Architecture
 
@@ -246,10 +270,16 @@ Representative counters include:
   substitutions, material reference adds/removes, and full material scans
 - authored, selected, and dropped lights by type
 - transform and render-GPU synchronization counts
+- transform work items, hierarchy levels, batch counts, max batch size, and
+  duplicate work removal
 - render-GPU full-scan visits, queued entries, drained entries, stale skips,
   missing-component skips, unchanged-version skips, changed syncs, matrix
   copies, object-upload requests, duplicate queue attempts, queue
-  deduplications, and object-slot lookup failures
+  deduplications, object-slot lookup failures, sync work items, batch counts,
+  state updates, snapshot invalidations, and ECS lookup counts during gather and
+  publish
+- snapshot dirty entries, update work items, update batches, refreshed entries,
+  full rebuild markers, storage reallocations, and max batch size
 - logical object updates, object-upload commands, physical object-buffer
   writes, object write bytes, and contiguous write runs
 - dynamic mesh queued candidates, unchanged skips, failed-version skips,
