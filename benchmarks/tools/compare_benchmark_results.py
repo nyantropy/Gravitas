@@ -43,15 +43,23 @@ def compatible(current, baseline, allow_hardware_mismatch):
     return failures
 
 
-def compare_timings(current, baseline, metric, fail_relative, fail_absolute, warn_relative):
+def compare_timing_section(current, baseline, section, metric, fail_relative, fail_absolute, warn_relative):
     failures = []
     warnings = []
     improvements = []
-    current_timings = current.get("timings_ms", {})
-    baseline_timings = baseline.get("timings_ms", {})
+    current_timings = current.get(section, {})
+    baseline_timings = baseline.get(section, {})
+
+    missing_current = sorted(set(baseline_timings) - set(current_timings))
+    missing_baseline = sorted(set(current_timings) - set(baseline_timings))
+    for bucket in missing_current:
+        warnings.append(f"{section}.{bucket} missing from current result")
+    for bucket in missing_baseline:
+        warnings.append(f"{section}.{bucket} missing from baseline result")
+
     for bucket in sorted(set(current_timings) & set(baseline_timings)):
-        current_value = timing_value(current, bucket, metric)
-        baseline_value = timing_value(baseline, bucket, metric)
+        current_value = current_timings.get(bucket, {}).get(metric)
+        baseline_value = baseline_timings.get(bucket, {}).get(metric)
         if current_value is None or baseline_value is None:
             continue
         if not math.isfinite(current_value) or not math.isfinite(baseline_value):
@@ -61,19 +69,45 @@ def compare_timings(current, baseline, metric, fail_relative, fail_absolute, war
         relative = 0.0 if baseline_value == 0 else delta / baseline_value
         if delta > fail_absolute and relative > fail_relative:
             failures.append(
-                f"{bucket}.{metric} regressed by {relative * 100:.1f}% "
+                f"{section}.{bucket}.{metric} regressed by {relative * 100:.1f}% "
                 f"({baseline_value:.6f} -> {current_value:.6f} ms)"
             )
         elif relative > warn_relative:
             warnings.append(
-                f"{bucket}.{metric} warning regression {relative * 100:.1f}% "
+                f"{section}.{bucket}.{metric} warning regression {relative * 100:.1f}% "
                 f"({baseline_value:.6f} -> {current_value:.6f} ms)"
             )
         elif relative < -warn_relative:
             improvements.append(
-                f"{bucket}.{metric} improved {-relative * 100:.1f}% "
+                f"{section}.{bucket}.{metric} improved {-relative * 100:.1f}% "
                 f"({baseline_value:.6f} -> {current_value:.6f} ms)"
             )
+    return failures, warnings, improvements
+
+
+def compare_timings(current, baseline, metric, fail_relative, fail_absolute, warn_relative):
+    failures = []
+    warnings = []
+    improvements = []
+    for section in (
+        "timings_ms",
+        "gpu_timings_ms",
+        "controller_timings_ms",
+        "controller_flush_timings_ms",
+        "controller_substages_ms",
+    ):
+        section_failures, section_warnings, section_improvements = compare_timing_section(
+            current,
+            baseline,
+            section,
+            metric,
+            fail_relative,
+            fail_absolute,
+            warn_relative,
+        )
+        failures.extend(section_failures)
+        warnings.extend(section_warnings)
+        improvements.extend(section_improvements)
     return failures, warnings, improvements
 
 

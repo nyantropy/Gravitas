@@ -71,6 +71,13 @@ int main()
     ok &= require(result.gpuTimingsMs.empty(), "cpu smoke emits no gpu timing summaries");
     ok &= require(result.timingsMs.at("frame_cpu").sampleCount == config.measuredFrames,
                   "warmup frames excluded from samples");
+    ok &= require(!result.controllerTimingsMs.empty(), "controller timing samples are emitted");
+    ok &= require(result.controllerTimingsMs.count("TransformSystem") != 0,
+                  "transform system timing is emitted with stable name");
+    ok &= require(result.controllerTimingGroups.at("TransformSystem") == "RenderPrep",
+                  "controller timing group metadata is preserved");
+    ok &= require(result.controllerSubstageTimingsMs.count("TransformSystem.resolve_world") != 0,
+                  "transform substage timing is emitted");
     ok &= require(result.counters.at("material_full_scans") == 0,
                   "material full scans stay zero");
 
@@ -81,6 +88,10 @@ int main()
                   "json contains timing object");
     ok &= require(json.find("\"gpu_timings_ms\"") != std::string::npos,
                   "json contains gpu timing object");
+    ok &= require(json.find("\"controller_timings_ms\"") != std::string::npos,
+                  "json contains controller timing object");
+    ok &= require(json.find("\"controller_substages_ms\"") != std::string::npos,
+                  "json contains controller substage object");
     ok &= require(json.find("\"gpu_supported\": false") != std::string::npos,
                   "json contains gpu support flag");
     ok &= require(json.find("\"counters\"") != std::string::npos,
@@ -95,6 +106,38 @@ int main()
     BenchmarkRunResult mutatingResult = runRenderingBenchmark(mutating);
     ok &= require(mutatingResult.counters.at("material_synchronized") == mutating.measuredFrames,
                   "one shared material mutation synchronizes once per measured frame");
+
+    RenderingBenchmarkConfig moving = findBenchmarkPreset("moving_independent")->config;
+    moving.warmupFrames = 2;
+    moving.measuredFrames = 4;
+    moving.renderableCount = 8;
+    moving.visibleRenderableCount = 8;
+    moving.movingObjectCount = 3;
+    BenchmarkRunResult movingResult = runRenderingBenchmark(moving);
+    ok &= require(movingResult.invariantFailures.empty(),
+                  "moving independent invariants pass");
+    ok &= require(movingResult.counters.at("logical_object_updates") ==
+                      moving.measuredFrames * moving.movingObjectCount,
+                  "moving independent logical update count is deterministic");
+    ok &= require(movingResult.counters.at("object_upload_commands") ==
+                      moving.measuredFrames * moving.movingObjectCount,
+                  "moving independent upload command count is deterministic");
+
+    RenderingBenchmarkConfig hierarchy = findBenchmarkPreset("moving_wide_hierarchy")->config;
+    hierarchy.warmupFrames = 2;
+    hierarchy.measuredFrames = 4;
+    hierarchy.renderableCount = 12;
+    hierarchy.visibleRenderableCount = 12;
+    hierarchy.movingObjectCount = 3;
+    BenchmarkRunResult hierarchyResult = runRenderingBenchmark(hierarchy);
+    ok &= require(hierarchyResult.invariantFailures.empty(),
+                  "moving hierarchy invariants pass");
+    ok &= require(hierarchyResult.counters.at("logical_object_updates") >
+                      hierarchy.measuredFrames * hierarchy.movingObjectCount,
+                  "moving hierarchy fans out logical transform updates");
+    ok &= require(hierarchyResult.counters.at("object_upload_commands") ==
+                      hierarchyResult.counters.at("logical_object_updates"),
+                  "moving hierarchy uploads each changed render object once");
 
     return ok ? 0 : 1;
 }

@@ -21,11 +21,21 @@ namespace gts::transform
         uint32_t processedTransforms;
         uint32_t updatedWorldTransforms;
         float    cpuTimeMs;
+        float    queueChildrenCpuMs = 0.0f;
+        float    resolveWorldCpuMs = 0.0f;
+        float    publishWorldCpuMs = 0.0f;
     };
 
     class TransformWorldResolver
     {
+        using TimePoint = std::chrono::steady_clock::time_point;
+
     public:
+        static void setDetailedMetricsEnabled(bool enabled)
+        {
+            detailedMetricsEnabled = enabled;
+        }
+
         TransformResolveMetrics resolve(ECSWorld& world)
         {
             const auto startTime = std::chrono::steady_clock::now();
@@ -40,6 +50,10 @@ namespace gts::transform
             visiting.clear();
             uint32_t processedTransforms = 0;
             uint32_t updatedWorldTransforms = 0;
+            float queueChildrenCpuMs = 0.0f;
+            float resolveWorldCpuMs = 0.0f;
+            float publishWorldCpuMs = 0.0f;
+            const bool detailed = detailedMetricsEnabled;
 
             for (size_t dirtyIndex = 0;
                  dirtyIndex < invalidation.transformDirtyEntities.size();
@@ -47,18 +61,46 @@ namespace gts::transform
             {
                 Entity entity{invalidation.transformDirtyEntities[dirtyIndex]};
                 processedTransforms += 1;
+                const auto queueStart = detailed ? std::chrono::steady_clock::now() : TimePoint{};
                 queueChildren(world, entity);
+                if (detailed)
+                {
+                    const auto queueEnd = std::chrono::steady_clock::now();
+                    queueChildrenCpuMs +=
+                        std::chrono::duration<float, std::milli>(queueEnd - queueStart).count();
+                }
 
                 if (!world.hasComponent<TransformComponent>(entity))
                     continue;
 
+                const auto resolveStart = detailed ? std::chrono::steady_clock::now() : TimePoint{};
                 const ResolvedTransform resolved = resolveWorldTransform(world, entity);
+                if (detailed)
+                {
+                    const auto resolveEnd = std::chrono::steady_clock::now();
+                    resolveWorldCpuMs +=
+                        std::chrono::duration<float, std::milli>(resolveEnd - resolveStart).count();
+                }
+
+                const auto publishStart = detailed ? std::chrono::steady_clock::now() : TimePoint{};
                 syncWorldTransform(world, entity, resolved.matrix);
+                if (detailed)
+                {
+                    const auto publishEnd = std::chrono::steady_clock::now();
+                    publishWorldCpuMs +=
+                        std::chrono::duration<float, std::milli>(publishEnd - publishStart).count();
+                }
                 updatedWorldTransforms += 1;
             }
 
             clearTransformDirtyQueue(invalidation);
-            return metrics(startTime, queuedTransforms, processedTransforms, updatedWorldTransforms);
+            return metrics(startTime,
+                           queuedTransforms,
+                           processedTransforms,
+                           updatedWorldTransforms,
+                           queueChildrenCpuMs,
+                           resolveWorldCpuMs,
+                           publishWorldCpuMs);
         }
 
     private:
@@ -66,9 +108,9 @@ namespace gts::transform
         {
             glm::mat4 matrix = glm::mat4(1.0f);
         };
-
         std::unordered_map<entity_id_type, ResolvedTransform> resolveCache;
         std::unordered_set<entity_id_type> visiting;
+        static inline bool detailedMetricsEnabled = false;
 
         ResolvedTransform resolveWorldTransform(ECSWorld& world, Entity entity)
         {
@@ -132,14 +174,20 @@ namespace gts::transform
         static TransformResolveMetrics metrics(const std::chrono::steady_clock::time_point& startTime,
                                                uint32_t queuedTransforms,
                                                uint32_t processedTransforms,
-                                               uint32_t updatedWorldTransforms)
+                                               uint32_t updatedWorldTransforms,
+                                               float queueChildrenCpuMs = 0.0f,
+                                               float resolveWorldCpuMs = 0.0f,
+                                               float publishWorldCpuMs = 0.0f)
         {
             const auto endTime = std::chrono::steady_clock::now();
             return {
                 queuedTransforms,
                 processedTransforms,
                 updatedWorldTransforms,
-                std::chrono::duration<float, std::milli>(endTime - startTime).count()
+                std::chrono::duration<float, std::milli>(endTime - startTime).count(),
+                queueChildrenCpuMs,
+                resolveWorldCpuMs,
+                publishWorldCpuMs
             };
         }
     };

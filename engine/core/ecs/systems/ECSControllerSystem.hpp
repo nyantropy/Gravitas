@@ -31,6 +31,23 @@ namespace gts::detail
         return "ECSControllerSystem";
 #endif
     }
+
+    template<typename T>
+    constexpr std::string_view stableTypeName()
+    {
+        std::string_view name = typeName<T>();
+        constexpr std::string_view classPrefix = "class ";
+        constexpr std::string_view structPrefix = "struct ";
+        if (name.rfind(classPrefix, 0) == 0)
+            name.remove_prefix(classPrefix.size());
+        if (name.rfind(structPrefix, 0) == 0)
+            name.remove_prefix(structPrefix.size());
+
+        const size_t namespaceSeparator = name.rfind("::");
+        if (namespaceSeparator != std::string_view::npos)
+            name.remove_prefix(namespaceSeparator + 2);
+        return name;
+    }
 }
 
 // Per-frame system with access to all frame-dependent dependencies.

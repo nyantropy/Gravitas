@@ -27,6 +27,7 @@
 #include "RenderPipeline.h"
 #include "RenderViewportComponent.h"
 #include "TimeContext.h"
+#include "TransformSystem.hpp"
 #include "UiCommand.h"
 #include "UiSystem.h"
 
@@ -225,8 +226,22 @@ namespace gts::rendering
             static_cast<uint32_t>(world.getControllerSystemCount()) + extraControllerSystemCount;
         stats.simulationSystemCount = static_cast<uint32_t>(world.getSimulationSystemCount());
         const auto renderMetrics    = RenderGpuSystem::getLastMetrics();
+        const auto transformMetrics = gts::transform::TransformSystem::getLastMetrics();
         stats.renderGpuUpdatedCount = renderMetrics.updatedRenderables;
+        stats.renderGpuTotalCount = renderMetrics.totalRenderables;
+        stats.renderGpuVersionMatchCount = renderMetrics.readyVersionMatches;
+        stats.renderGpuUnallocatedSlotCount = renderMetrics.skippedUnallocatedSlots;
+        stats.renderGpuSnapshotDirtyEnqueueCount = renderMetrics.snapshotDirtyEnqueues;
         stats.renderGpuCpuMs        = renderMetrics.cpuTimeMs;
+        stats.renderGpuScanCompareCpuMs = renderMetrics.scanAndCompareCpuMs;
+        stats.renderGpuModelSyncCpuMs = renderMetrics.modelSyncCpuMs;
+        stats.transformQueuedCount = transformMetrics.queuedTransforms;
+        stats.transformProcessedCount = transformMetrics.processedTransforms;
+        stats.transformUpdatedCount = transformMetrics.updatedWorldTransforms;
+        stats.transformResolveCpuMs = transformMetrics.cpuTimeMs;
+        stats.transformQueueChildrenCpuMs = transformMetrics.queueChildrenCpuMs;
+        stats.transformResolveWorldCpuMs = transformMetrics.resolveWorldCpuMs;
+        stats.transformPublishWorldCpuMs = transformMetrics.publishWorldCpuMs;
         stats.simulationCpuMs       = simulationCpuMs;
         stats.controllerCpuMs       = controllerCpuMs;
         stats.frameCpuMs            = frameCpuMs;

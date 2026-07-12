@@ -84,6 +84,10 @@ namespace gts::rendering::benchmarks
         BenchmarkEnvironment environment;
         std::map<std::string, StatisticSummary> timingsMs;
         std::map<std::string, StatisticSummary> gpuTimingsMs;
+        std::map<std::string, StatisticSummary> controllerTimingsMs;
+        std::map<std::string, StatisticSummary> controllerFlushTimingsMs;
+        std::map<std::string, StatisticSummary> controllerSubstageTimingsMs;
+        std::map<std::string, std::string> controllerTimingGroups;
         std::map<std::string, uint64_t> counters;
         std::vector<std::string> warnings;
         std::vector<std::string> invariantFailures;

@@ -15,6 +15,11 @@ namespace gts::transform
             return lastMetrics;
         }
 
+        static void setDetailedMetricsEnabled(bool enabled)
+        {
+            TransformWorldResolver::setDetailedMetricsEnabled(enabled);
+        }
+
         void update(const EcsControllerContext& ctx) override
         {
             lastMetrics = resolver.resolve(ctx.world);

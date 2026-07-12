@@ -40,6 +40,7 @@
 #include "TimeContext.h"
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
+#include "TransformHierarchyHelpers.h"
 #include "TransformSceneFeature.h"
 #include "TransformSystem.hpp"
 #include "Vertex.h"
@@ -545,6 +546,57 @@ namespace gts::rendering::benchmarks
             }
         }
 
+        bool isDeepHierarchyPreset(const RenderingBenchmarkConfig& config)
+        {
+            return config.presetName == "moving_deep_hierarchy";
+        }
+
+        bool isWideHierarchyPreset(const RenderingBenchmarkConfig& config)
+        {
+            return config.presetName == "moving_wide_hierarchy";
+        }
+
+        void attachBenchmarkHierarchy(BenchmarkSceneState& state, const RenderingBenchmarkConfig& config)
+        {
+            if ((!isDeepHierarchyPreset(config) && !isWideHierarchyPreset(config)) ||
+                state.renderables.size() < 2)
+            {
+                return;
+            }
+
+            const uint32_t movingRoots =
+                std::clamp<uint32_t>(config.movingObjectCount, 1u, static_cast<uint32_t>(state.renderables.size()));
+
+            if (isDeepHierarchyPreset(config))
+            {
+                for (uint32_t i = movingRoots; i < state.renderables.size(); ++i)
+                {
+                    Entity child = state.renderables[i];
+                    Entity parent = state.renderables[i - movingRoots];
+                    TransformComponent& transform = state.world.getComponent<TransformComponent>(child);
+                    transform.position = {0.0f, 0.85f, 0.0f};
+                    gts::transform::attachToParent(state.world, child, parent);
+                }
+                return;
+            }
+
+            for (uint32_t i = movingRoots; i < state.renderables.size(); ++i)
+            {
+                Entity child = state.renderables[i];
+                Entity parent = state.renderables[i % movingRoots];
+                const uint32_t childOrdinal = i / movingRoots;
+                const float angle = static_cast<float>(i % movingRoots) * 0.37f +
+                    static_cast<float>(childOrdinal) * 0.19f;
+                TransformComponent& transform = state.world.getComponent<TransformComponent>(child);
+                transform.position = {
+                    std::cos(angle) * (1.1f + 0.12f * static_cast<float>(childOrdinal % 5u)),
+                    std::sin(angle) * (1.1f + 0.12f * static_cast<float>(childOrdinal % 5u)),
+                    0.0f
+                };
+                gts::transform::attachToParent(state.world, child, parent);
+            }
+        }
+
         void createBenchmarkWorldText(BenchmarkSceneState& state, const RenderingBenchmarkConfig& config)
         {
             for (uint32_t i = 0; i < config.worldTextCount; ++i)
@@ -596,6 +648,7 @@ namespace gts::rendering::benchmarks
             createBenchmarkCamera(state, config);
             createBenchmarkLights(state, config);
             createBenchmarkRenderables(state, config);
+            attachBenchmarkHierarchy(state, config);
             createBenchmarkWorldText(state, config);
             createBenchmarkParticles(state, config);
         }
@@ -701,10 +754,69 @@ namespace gts::rendering::benchmarks
             counters[key] += value;
         }
 
+        std::string controllerTimingKey(const EcsSystemTimingSample& sample)
+        {
+            std::string key(sample.name);
+            if (sample.instanceIndex > 0)
+            {
+                key += "#";
+                key += std::to_string(sample.instanceIndex);
+            }
+            return key;
+        }
+
+        void recordControllerTimingSamples(
+            const std::vector<EcsSystemTimingSample>& samples,
+            std::map<std::string, std::vector<double>>& controllerTimings,
+            std::map<std::string, std::vector<double>>& controllerFlushTimings,
+            std::map<std::string, std::string>& controllerGroups)
+        {
+            for (const EcsSystemTimingSample& sample : samples)
+            {
+                const std::string key = controllerTimingKey(sample);
+                controllerTimings[key].push_back(sample.updateMs);
+                controllerFlushTimings[key].push_back(sample.commandFlushMs);
+                controllerGroups.emplace(key, ecsSystemGroupName(sample.group));
+            }
+        }
+
+        void addSubstageSample(std::map<std::string, std::vector<double>>& substages,
+                               const std::string& key,
+                               double value)
+        {
+            substages[key].push_back(value);
+        }
+
+        void recordRenderPrepSubstages(
+            const gts::transform::TransformResolveMetrics& transformMetrics,
+            const RenderGpuSystem::Metrics& renderGpuMetrics,
+            std::map<std::string, std::vector<double>>& substages)
+        {
+            addSubstageSample(substages,
+                              "TransformSystem.queue_children",
+                              transformMetrics.queueChildrenCpuMs);
+            addSubstageSample(substages,
+                              "TransformSystem.resolve_world",
+                              transformMetrics.resolveWorldCpuMs);
+            addSubstageSample(substages,
+                              "TransformSystem.publish_world_transform",
+                              transformMetrics.publishWorldCpuMs);
+            addSubstageSample(substages,
+                              "RenderGpuSystem.scan_compare",
+                              renderGpuMetrics.scanAndCompareCpuMs);
+            addSubstageSample(substages,
+                              "RenderGpuSystem.model_sync_enqueue",
+                              renderGpuMetrics.modelSyncCpuMs);
+        }
+
         void recordFrame(BenchmarkSceneState& state,
                          const RenderingBenchmarkConfig& config,
                          uint64_t frameIndex,
                          std::map<std::string, std::vector<double>>& timings,
+                         std::map<std::string, std::vector<double>>& controllerTimings,
+                         std::map<std::string, std::vector<double>>& controllerFlushTimings,
+                         std::map<std::string, std::vector<double>>& controllerSubstages,
+                         std::map<std::string, std::string>& controllerGroups,
                          std::map<std::string, uint64_t>& counters)
         {
             TimeContext time;
@@ -734,6 +846,10 @@ namespace gts::rendering::benchmarks
             const auto controllerStart = std::chrono::steady_clock::now();
             state.world.updateControllers(ctx);
             const auto controllerEnd = std::chrono::steady_clock::now();
+            recordControllerTimingSamples(state.world.getLastControllerTimingSamples(),
+                                          controllerTimings,
+                                          controllerFlushTimings,
+                                          controllerGroups);
 
             const auto& commands = state.pipeline.build(state.world);
             const auto frameEnd = std::chrono::steady_clock::now();
@@ -761,6 +877,7 @@ namespace gts::rendering::benchmarks
             addSample(timings, counters, "command_sort_cpu", extractorMetrics.sortCpuMs);
             addSample(timings, counters, "render_gpu_sync_cpu", renderGpuMetrics.cpuTimeMs);
             addSample(timings, counters, "transform_resolve_cpu", transformMetrics.cpuTimeMs);
+            recordRenderPrepSubstages(transformMetrics, renderGpuMetrics, controllerSubstages);
 
             uint64_t transparent = 0;
             for (const RenderableSnapshot& renderable : snapshot.renderables)
@@ -800,6 +917,8 @@ namespace gts::rendering::benchmarks
             addCounter(counters, "command_updates", extractorMetrics.updatedCommands);
             addCounter(counters, "command_sorts", extractorMetrics.sortedThisFrame ? 1u : 0u);
             addCounter(counters, "object_uploads", static_cast<uint64_t>(snapshot.objectUploads.size()));
+            addCounter(counters, "object_upload_commands", static_cast<uint64_t>(snapshot.objectUploads.size()));
+            addCounter(counters, "logical_object_updates", renderGpuMetrics.updatedRenderables);
             addCounter(counters, "camera_uploads", static_cast<uint64_t>(snapshot.cameraUploads.size()));
             addCounter(counters, "material_frame_entries",
                        static_cast<uint64_t>(snapshot.materialFrameData.materials.size()));
@@ -810,6 +929,9 @@ namespace gts::rendering::benchmarks
             addCounter(counters, "camera_buffer_allocations", cameraBufferDelta);
             addCounter(counters, "bytes_uploaded_object",
                        static_cast<uint64_t>(snapshot.objectUploads.size() * sizeof(ObjectUploadCommand)));
+            addCounter(counters, "physical_object_buffer_writes", 0);
+            addCounter(counters, "bytes_written_object_buffer", 0);
+            addCounter(counters, "object_write_contiguous_runs", 0);
             addCounter(counters, "bytes_uploaded_camera",
                        static_cast<uint64_t>(snapshot.cameraUploads.size() * sizeof(CameraUploadCommand)));
             addCounter(counters, "material_queued", materialMetrics.queuedMaterials);
@@ -828,6 +950,9 @@ namespace gts::rendering::benchmarks
             addCounter(counters, "transform_processed", transformMetrics.processedTransforms);
             addCounter(counters, "transform_updates", transformMetrics.updatedWorldTransforms);
             addCounter(counters, "render_gpu_updated", renderGpuMetrics.updatedRenderables);
+            addCounter(counters, "render_gpu_total", renderGpuMetrics.totalRenderables);
+            addCounter(counters, "render_gpu_version_matches", renderGpuMetrics.readyVersionMatches);
+            addCounter(counters, "render_gpu_snapshot_dirty_enqueues", renderGpuMetrics.snapshotDirtyEnqueues);
             addCounter(counters, "lights_total_directional", lighting.diagnostics.totalDirectionalLights);
             addCounter(counters, "lights_total_point", lighting.diagnostics.totalPointLights);
             addCounter(counters, "lights_total_spot", lighting.diagnostics.totalSpotLights);
@@ -947,6 +1072,57 @@ namespace gts::rendering::benchmarks
                      "Many independent moving roots for transform and object-upload stress.",
                      1,
                      transformWide,
+                     presets);
+
+        RenderingBenchmarkConfig movingStaticControl = base;
+        movingStaticControl.renderableCount = 4000;
+        movingStaticControl.visibleRenderableCount = 4000;
+        movingStaticControl.uniqueMeshCount = 1;
+        movingStaticControl.uniqueMaterialCount = 1;
+        movingStaticControl.pointLightCount = 0;
+        movingStaticControl.movingObjectCount = 0;
+        presetConfig("moving_static_control",
+                     "Static control with matching object count and no movement after warmup.",
+                     1,
+                     movingStaticControl,
+                     presets);
+
+        RenderingBenchmarkConfig movingIndependent = movingStaticControl;
+        movingIndependent.movingObjectCount = 1600;
+        presetConfig("moving_independent",
+                     "Independent moving roots with shared mesh/material and minimal lighting.",
+                     1,
+                     movingIndependent,
+                     presets);
+
+        RenderingBenchmarkConfig movingDeep = movingStaticControl;
+        movingDeep.renderableCount = 2048;
+        movingDeep.visibleRenderableCount = 2048;
+        movingDeep.movingObjectCount = 512;
+        presetConfig("moving_deep_hierarchy",
+                     "Moving-object attribution preset reserved for deep hierarchy propagation.",
+                     1,
+                     movingDeep,
+                     presets);
+
+        RenderingBenchmarkConfig movingWide = movingStaticControl;
+        movingWide.renderableCount = 4096;
+        movingWide.visibleRenderableCount = 4096;
+        movingWide.movingObjectCount = 256;
+        presetConfig("moving_wide_hierarchy",
+                     "Moving-object attribution preset reserved for wide hierarchy propagation.",
+                     1,
+                     movingWide,
+                     presets);
+
+        RenderingBenchmarkConfig uploadPressure = movingStaticControl;
+        uploadPressure.renderableCount = 6000;
+        uploadPressure.visibleRenderableCount = 6000;
+        uploadPressure.movingObjectCount = 6000;
+        presetConfig("upload_only_pressure",
+                     "Maximizes ordinary transform-driven object upload pressure.",
+                     1,
+                     uploadPressure,
                      presets);
 
         RenderingBenchmarkConfig visibilitySparse = base;
@@ -1217,24 +1393,61 @@ namespace gts::rendering::benchmarks
 
         BenchmarkSceneState state;
         generateScene(state, result.config);
+        gts::transform::TransformSystem::setDetailedMetricsEnabled(true);
+        RenderGpuSystem::setDetailedMetricsEnabled(true);
 
         std::map<std::string, std::vector<double>> timingSamples;
+        std::map<std::string, std::vector<double>> controllerTimingSamples;
+        std::map<std::string, std::vector<double>> controllerFlushTimingSamples;
+        std::map<std::string, std::vector<double>> controllerSubstageSamples;
+        std::map<std::string, std::string> controllerGroups;
         std::map<std::string, uint64_t> counters;
 
         for (uint32_t i = 0; i < result.config.warmupFrames; ++i)
         {
             std::map<std::string, std::vector<double>> ignoredTimings;
+            std::map<std::string, std::vector<double>> ignoredControllerTimings;
+            std::map<std::string, std::vector<double>> ignoredControllerFlushTimings;
+            std::map<std::string, std::vector<double>> ignoredControllerSubstages;
+            std::map<std::string, std::string> ignoredControllerGroups;
             std::map<std::string, uint64_t> ignoredCounters;
-            recordFrame(state, result.config, i, ignoredTimings, ignoredCounters);
+            recordFrame(state,
+                        result.config,
+                        i,
+                        ignoredTimings,
+                        ignoredControllerTimings,
+                        ignoredControllerFlushTimings,
+                        ignoredControllerSubstages,
+                        ignoredControllerGroups,
+                        ignoredCounters);
         }
 
         for (uint32_t i = 0; i < result.config.measuredFrames; ++i)
-            recordFrame(state, result.config, result.config.warmupFrames + i, timingSamples, counters);
+        {
+            recordFrame(state,
+                        result.config,
+                        result.config.warmupFrames + i,
+                        timingSamples,
+                        controllerTimingSamples,
+                        controllerFlushTimingSamples,
+                        controllerSubstageSamples,
+                        controllerGroups,
+                        counters);
+        }
 
         for (auto& [key, samples] : timingSamples)
             result.timingsMs[key] = summarizeSamples(std::move(samples));
+        for (auto& [key, samples] : controllerTimingSamples)
+            result.controllerTimingsMs[key] = summarizeSamples(std::move(samples));
+        for (auto& [key, samples] : controllerFlushTimingSamples)
+            result.controllerFlushTimingsMs[key] = summarizeSamples(std::move(samples));
+        for (auto& [key, samples] : controllerSubstageSamples)
+            result.controllerSubstageTimingsMs[key] = summarizeSamples(std::move(samples));
+        result.controllerTimingGroups = std::move(controllerGroups);
         result.counters = std::move(counters);
         result.invariantFailures = checkBenchmarkInvariants(result);
+        gts::transform::TransformSystem::setDetailedMetricsEnabled(false);
+        RenderGpuSystem::setDetailedMetricsEnabled(false);
         return result;
     }
 
@@ -1304,6 +1517,38 @@ namespace gts::rendering::benchmarks
             }
         }
 
+        auto validateTimingMap =
+            [&](const std::map<std::string, StatisticSummary>& timings,
+                const std::string& label)
+            {
+                for (const auto& [key, summary] : timings)
+                {
+                    if (summary.sampleCount != result.config.measuredFrames)
+                        failures.push_back(label + "." + key + " sample count does not match measuredFrames");
+                    const double values[] = {
+                        summary.minimum,
+                        summary.median,
+                        summary.mean,
+                        summary.p90,
+                        summary.p95,
+                        summary.p99,
+                        summary.maximum,
+                        summary.standardDeviation
+                    };
+                    for (double value : values)
+                    {
+                        if (!std::isfinite(value))
+                        {
+                            failures.push_back(label + "." + key + " contains NaN or infinity");
+                            break;
+                        }
+                    }
+                }
+            };
+        validateTimingMap(result.controllerTimingsMs, "controller_timings_ms");
+        validateTimingMap(result.controllerFlushTimingsMs, "controller_flush_timings_ms");
+        validateTimingMap(result.controllerSubstageTimingsMs, "controller_substages_ms");
+
         return failures;
     }
 
@@ -1341,8 +1586,46 @@ namespace gts::rendering::benchmarks
             failures.push_back("static workload produced object uploads after warmup");
         }
 
+        if ((result.config.presetName == "moving_independent" ||
+             result.config.presetName == "upload_only_pressure") &&
+            result.config.movingObjectCount > 0)
+        {
+            const uint64_t expectedUpdates =
+                static_cast<uint64_t>(result.config.movingObjectCount) * frames;
+            if (counter("logical_object_updates") != expectedUpdates)
+                failures.push_back("moving-object preset logical update count does not match movingObjectCount");
+            if (counter("object_upload_commands") != expectedUpdates)
+                failures.push_back("moving-object preset upload command count does not match movingObjectCount");
+        }
+
+        if ((result.config.presetName == "moving_deep_hierarchy" ||
+             result.config.presetName == "moving_wide_hierarchy") &&
+            result.config.movingObjectCount > 0)
+        {
+            const uint64_t rootUpdates =
+                static_cast<uint64_t>(result.config.movingObjectCount) * frames;
+            const uint64_t logicalUpdates = counter("logical_object_updates");
+            const uint64_t uploadCommands = counter("object_upload_commands");
+            if (logicalUpdates <= rootUpdates)
+                failures.push_back("hierarchy moving-object preset did not fan out transform updates");
+            if (uploadCommands != logicalUpdates)
+                failures.push_back("hierarchy moving-object preset upload commands do not match logical updates");
+        }
+
         if (counter("snapshot_renderables") < counter("visible_renderables"))
             failures.push_back("visible renderable count exceeds snapshot renderable count");
+
+        if (result.config.renderableCount > 0 && result.config.visibleRenderableCount > 0 &&
+            counter("visible_renderables") == 0)
+        {
+            failures.push_back("visible renderable workload produced zero visible renderables");
+        }
+
+        if (result.config.renderableCount > 0 && result.config.visibleRenderableCount > 0 &&
+            counter("render_commands") == 0)
+        {
+            failures.push_back("visible renderable workload produced zero render commands");
+        }
 
         if (counter("authored_renderables") !=
             static_cast<uint64_t>(result.config.renderableCount) * frames)
@@ -1440,6 +1723,49 @@ namespace gts::rendering::benchmarks
             out << "    }" << (++index < result.gpuTimingsMs.size() ? ",\n" : "\n");
         }
         out << "  },\n";
+        out << "  \"controller_timings_ms\": {\n";
+        index = 0;
+        for (const auto& [key, summary] : result.controllerTimingsMs)
+        {
+            const auto groupIt = result.controllerTimingGroups.find(key);
+            out << "    \"" << escapedJson(key) << "\": {\n";
+            out << "      \"group\": \"" << escapedJson(groupIt == result.controllerTimingGroups.end()
+                                                        ? "Unknown"
+                                                        : groupIt->second) << "\",\n";
+            out << "      \"min\": " << summary.minimum << ",\n";
+            out << "      \"median\": " << summary.median << ",\n";
+            out << "      \"mean\": " << summary.mean << ",\n";
+            out << "      \"p90\": " << summary.p90 << ",\n";
+            out << "      \"p95\": " << summary.p95 << ",\n";
+            out << "      \"p99\": " << summary.p99 << ",\n";
+            out << "      \"max\": " << summary.maximum << ",\n";
+            out << "      \"stddev\": " << summary.standardDeviation << ",\n";
+            out << "      \"sample_count\": " << summary.sampleCount << "\n";
+            out << "    }" << (++index < result.controllerTimingsMs.size() ? ",\n" : "\n");
+        }
+        out << "  },\n";
+        out << "  \"controller_flush_timings_ms\": {\n";
+        index = 0;
+        for (const auto& [key, summary] : result.controllerFlushTimingsMs)
+        {
+            out << "    \"" << escapedJson(key) << "\": {\n";
+            out << "      \"median\": " << summary.median << ",\n";
+            out << "      \"p95\": " << summary.p95 << ",\n";
+            out << "      \"sample_count\": " << summary.sampleCount << "\n";
+            out << "    }" << (++index < result.controllerFlushTimingsMs.size() ? ",\n" : "\n");
+        }
+        out << "  },\n";
+        out << "  \"controller_substages_ms\": {\n";
+        index = 0;
+        for (const auto& [key, summary] : result.controllerSubstageTimingsMs)
+        {
+            out << "    \"" << escapedJson(key) << "\": {\n";
+            out << "      \"median\": " << summary.median << ",\n";
+            out << "      \"p95\": " << summary.p95 << ",\n";
+            out << "      \"sample_count\": " << summary.sampleCount << "\n";
+            out << "    }" << (++index < result.controllerSubstageTimingsMs.size() ? ",\n" : "\n");
+        }
+        out << "  },\n";
         out << "  \"counters\": {\n";
         index = 0;
         for (const auto& [key, value] : result.counters)
@@ -1512,6 +1838,32 @@ namespace gts::rendering::benchmarks
             out << "snapshot median/p95: " << snapshot->median << " / " << snapshot->p95 << " ms\n";
         if (const StatisticSummary* extract = timing("command_extract_cpu"))
             out << "commands median/p95: " << extract->median << " / " << extract->p95 << " ms\n";
+        if (!result.controllerTimingsMs.empty())
+        {
+            std::vector<std::pair<std::string, StatisticSummary>> rows(
+                result.controllerTimingsMs.begin(),
+                result.controllerTimingsMs.end());
+            std::sort(rows.begin(),
+                      rows.end(),
+                      [](const auto& lhs, const auto& rhs)
+                      {
+                          if (lhs.second.median != rhs.second.median)
+                              return lhs.second.median > rhs.second.median;
+                          return lhs.first < rhs.first;
+                      });
+
+            out << "Controller Systems\n";
+            const size_t rowCount = std::min<size_t>(rows.size(), 8u);
+            for (size_t i = 0; i < rowCount; ++i)
+            {
+                const auto& [name, summary] = rows[i];
+                const auto groupIt = result.controllerTimingGroups.find(name);
+                out << name;
+                if (groupIt != result.controllerTimingGroups.end())
+                    out << " [" << groupIt->second << "]";
+                out << " median/p95: " << summary.median << " / " << summary.p95 << " ms\n";
+            }
+        }
         out << "GPU\n";
         if (result.gpuTimingAvailable)
         {
@@ -1532,6 +1884,15 @@ namespace gts::rendering::benchmarks
         out << "visible_renderables total: " << counter("visible_renderables") << "\n";
         out << "material_synchronized total: " << counter("material_synchronized") << "\n";
         out << "object_uploads total: " << counter("object_uploads") << "\n";
+        const uint64_t frames = std::max<uint64_t>(1u, result.config.measuredFrames);
+        out << "logical_object_updates/frame: "
+            << static_cast<double>(counter("logical_object_updates")) / static_cast<double>(frames) << "\n";
+        out << "object_upload_commands/frame: "
+            << static_cast<double>(counter("object_upload_commands")) / static_cast<double>(frames) << "\n";
+        out << "physical_object_buffer_writes/frame: "
+            << static_cast<double>(counter("physical_object_buffer_writes")) / static_cast<double>(frames) << "\n";
+        out << "bytes_written_object_buffer/frame: "
+            << static_cast<double>(counter("bytes_written_object_buffer")) / static_cast<double>(frames) << "\n";
         if (!result.invariantFailures.empty())
             out << "invariant_failures: " << result.invariantFailures.size() << "\n";
         return out.str();

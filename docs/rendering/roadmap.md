@@ -26,6 +26,8 @@ The renderer currently has:
   summaries, invariant checks, baseline comparison tooling, and CTest labels
 - Vulkan GPU timestamp-query benchmarking for total frame, scene, particles,
   and UI stages when supported by the selected device
+- per-controller benchmark attribution, command-flush timing, render-prep
+  substages, and logical-versus-physical object upload counters
 - retained UI extraction and Vulkan overlay composition
 - screenshot capture with async PNG writes
 

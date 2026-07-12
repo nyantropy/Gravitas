@@ -34,6 +34,7 @@
 
 #include "GtsFrameGraph.h"
 #include "ForwardFrameGraphBuilder.h"
+#include "ObjectUBO.h"
 #include "output/HeadlessFrameOutputTarget.hpp"
 #include "output/WindowedFrameOutputTarget.hpp"
 
@@ -721,7 +722,28 @@ class ForwardRenderer : Renderer
             // Object data is double/triple-buffered, so changed transforms or
             // per-object presentation state must be propagated to every
             // in-flight SSBO copy before we clear the dirty state.
+            auto countContiguousRuns = [](const std::vector<ObjectUploadCommand>& uploads) -> uint32_t
+            {
+                if (uploads.empty())
+                    return 0;
+
+                uint32_t runs = 1;
+                ssbo_id_type previous = uploads.front().objectSSBOSlot;
+                for (size_t i = 1; i < uploads.size(); ++i)
+                {
+                    const ssbo_id_type current = uploads[i].objectSSBOSlot;
+                    if (current != previous + 1u)
+                        runs += 1;
+                    previous = current;
+                }
+                return runs;
+            };
+
             const auto objectWriteStart = std::chrono::steady_clock::now();
+            frameStats.objectUploadCommandCount = static_cast<uint32_t>(objectUploads.size());
+            frameStats.objectUploadBytes =
+                static_cast<uint32_t>(objectUploads.size() * sizeof(ObjectUBO));
+            frameStats.backendObjectWriteContiguousRuns = countContiguousRuns(objectUploads);
             frameStats.backendObjectWrites = 0;
             frameStats.backendObjectWritesSkipped = 0;
             for (const auto& upload : objectUploads)
@@ -737,6 +759,12 @@ class ForwardRenderer : Renderer
             }
             if (editorPreview.enabled)
             {
+                frameStats.objectUploadCommandCount +=
+                    static_cast<uint32_t>(editorPreview.objectUploads.size());
+                frameStats.objectUploadBytes +=
+                    static_cast<uint32_t>(editorPreview.objectUploads.size() * sizeof(ObjectUBO));
+                frameStats.backendObjectWriteContiguousRuns +=
+                    countContiguousRuns(editorPreview.objectUploads);
                 for (const auto& upload : editorPreview.objectUploads)
                 {
                     const uint32_t writes =
@@ -750,6 +778,8 @@ class ForwardRenderer : Renderer
                 }
             }
             resourceSystem->flushAllObjectSSBO();
+            frameStats.backendObjectWriteBytes =
+                static_cast<uint32_t>(frameStats.backendObjectWrites * sizeof(ObjectUBO));
             const auto objectWriteEnd = std::chrono::steady_clock::now();
             frameStats.backendObjectWriteCpuMs =
                 std::chrono::duration<float, std::milli>(objectWriteEnd - objectWriteStart).count();

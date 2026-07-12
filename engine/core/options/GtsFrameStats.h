@@ -37,6 +37,10 @@ struct GtsFrameStats
     uint32_t particleCount          = 0;
     uint32_t particleDrawCalls      = 0;
     uint32_t renderGpuUpdatedCount  = 0;
+    uint32_t renderGpuTotalCount    = 0;
+    uint32_t renderGpuVersionMatchCount = 0;
+    uint32_t renderGpuUnallocatedSlotCount = 0;
+    uint32_t renderGpuSnapshotDirtyEnqueueCount = 0;
     uint32_t renderCommandVisitedCount = 0;
     uint32_t renderCommandTotalCount   = 0;
     uint32_t renderCommandUpdatedCount = 0;
@@ -50,6 +54,10 @@ struct GtsFrameStats
     uint32_t materialFullScanCount     = 0;
     uint32_t backendObjectWrites       = 0;
     uint32_t backendObjectWritesSkipped = 0;
+    uint32_t objectUploadCommandCount  = 0;
+    uint32_t objectUploadBytes         = 0;
+    uint32_t backendObjectWriteBytes   = 0;
+    uint32_t backendObjectWriteContiguousRuns = 0;
     uint32_t sceneEntityCount          = 0;
     uint32_t controllerSystemCount  = 0;
     uint32_t simulationSystemCount  = 0;
@@ -73,6 +81,12 @@ struct GtsFrameStats
     float    visibilityCpuMs    = 0.0f;
     float    uiCpuMs            = 0.0f;   // layout + visual + command total
     float    frameCpuMs         = 0.0f;   // total main-loop iteration time
+    float    transformResolveCpuMs = 0.0f;
+    float    transformQueueChildrenCpuMs = 0.0f;
+    float    transformResolveWorldCpuMs = 0.0f;
+    float    transformPublishWorldCpuMs = 0.0f;
+    float    renderGpuScanCompareCpuMs = 0.0f;
+    float    renderGpuModelSyncCpuMs = 0.0f;
     float    gpuFrameMs         = 0.0f;
     float    sceneGpuMs         = 0.0f;
     float    particleGpuMs      = 0.0f;
@@ -88,4 +102,7 @@ struct GtsFrameStats
     uint32_t snapshotDynamicCount = 0;
     uint32_t snapshotDirtyCount   = 0;
     uint32_t snapshotReusedCount  = 0;
+    uint32_t transformQueuedCount = 0;
+    uint32_t transformProcessedCount = 0;
+    uint32_t transformUpdatedCount = 0;
 };

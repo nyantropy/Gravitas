@@ -20,6 +20,35 @@ enum class EcsSystemGroup : uint64_t
     Tools     = 1ull << 11
 };
 
+inline const char* ecsSystemGroupName(EcsSystemGroup group)
+{
+    switch (group)
+    {
+        case EcsSystemGroup::Always: return "Always";
+        case EcsSystemGroup::Gameplay: return "Gameplay";
+        case EcsSystemGroup::Physics: return "Physics";
+        case EcsSystemGroup::Camera: return "Camera";
+        case EcsSystemGroup::RenderPrep: return "RenderPrep";
+        case EcsSystemGroup::Particles: return "Particles";
+        case EcsSystemGroup::Animation: return "Animation";
+        case EcsSystemGroup::Audio: return "Audio";
+        case EcsSystemGroup::Ui: return "Ui";
+        case EcsSystemGroup::Dialogue: return "Dialogue";
+        case EcsSystemGroup::VN: return "VN";
+        case EcsSystemGroup::Tools: return "Tools";
+    }
+    return "Unknown";
+}
+
+struct EcsSystemTimingSample
+{
+    std::string_view name;
+    EcsSystemGroup group = EcsSystemGroup::Gameplay;
+    uint32_t instanceIndex = 0;
+    float updateMs = 0.0f;
+    float commandFlushMs = 0.0f;
+};
+
 using EcsSystemMask = uint64_t;
 
 constexpr EcsSystemMask toMask(EcsSystemGroup group)

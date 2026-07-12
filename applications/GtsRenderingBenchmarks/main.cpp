@@ -30,10 +30,13 @@
 #include "PointLightComponent.h"
 #include "QuadMeshComponent.h"
 #include "RendererSceneFeature.h"
+#include "RenderGpuSystem.hpp"
 #include "RenderingBenchmark.h"
 #include "SpotLightComponent.h"
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
+#include "TransformHierarchyHelpers.h"
+#include "TransformSystem.hpp"
 #include "Vertex.h"
 #include "WorldTextComponent.h"
 
@@ -70,6 +73,10 @@ namespace
         RenderingBenchmarkConfig config;
         std::map<std::string, std::vector<double>> cpuSamples;
         std::map<std::string, std::vector<double>> gpuSamples;
+        std::map<std::string, std::vector<double>> controllerSamples;
+        std::map<std::string, std::vector<double>> controllerFlushSamples;
+        std::map<std::string, std::vector<double>> controllerSubstageSamples;
+        std::map<std::string, std::string> controllerGroups;
         std::map<std::string, uint64_t> counters;
         std::vector<std::string> warnings;
         bool gpuTimingSupported = false;
@@ -364,6 +371,59 @@ namespace
         }
     }
 
+    bool isDeepHierarchyPreset(const RenderingBenchmarkConfig& config)
+    {
+        return config.presetName == "moving_deep_hierarchy";
+    }
+
+    bool isWideHierarchyPreset(const RenderingBenchmarkConfig& config)
+    {
+        return config.presetName == "moving_wide_hierarchy";
+    }
+
+    void attachRuntimeHierarchy(ECSWorld& world,
+                                RuntimeBenchmarkWorld& generated,
+                                const RenderingBenchmarkConfig& config)
+    {
+        if ((!isDeepHierarchyPreset(config) && !isWideHierarchyPreset(config)) ||
+            generated.renderables.size() < 2)
+        {
+            return;
+        }
+
+        const uint32_t movingRoots =
+            std::clamp<uint32_t>(config.movingObjectCount, 1u, static_cast<uint32_t>(generated.renderables.size()));
+
+        if (isDeepHierarchyPreset(config))
+        {
+            for (uint32_t i = movingRoots; i < generated.renderables.size(); ++i)
+            {
+                Entity child = generated.renderables[i];
+                Entity parent = generated.renderables[i - movingRoots];
+                TransformComponent& transform = world.getComponent<TransformComponent>(child);
+                transform.position = {0.0f, 0.85f, 0.0f};
+                gts::transform::attachToParent(world, child, parent);
+            }
+            return;
+        }
+
+        for (uint32_t i = movingRoots; i < generated.renderables.size(); ++i)
+        {
+            Entity child = generated.renderables[i];
+            Entity parent = generated.renderables[i % movingRoots];
+            const uint32_t childOrdinal = i / movingRoots;
+            const float angle = static_cast<float>(i % movingRoots) * 0.37f +
+                static_cast<float>(childOrdinal) * 0.19f;
+            TransformComponent& transform = world.getComponent<TransformComponent>(child);
+            transform.position = {
+                std::cos(angle) * (1.1f + 0.12f * static_cast<float>(childOrdinal % 5u)),
+                std::sin(angle) * (1.1f + 0.12f * static_cast<float>(childOrdinal % 5u)),
+                0.0f
+            };
+            gts::transform::attachToParent(world, child, parent);
+        }
+    }
+
     void createRuntimeWorldText(ECSWorld& world,
                                 const RenderingBenchmarkConfig& config)
     {
@@ -421,6 +481,7 @@ namespace
         createRuntimeCamera(world, config);
         createRuntimeLights(world, config, generated);
         createRuntimeRenderables(world, config, generated);
+        attachRuntimeHierarchy(world, generated, config);
         createRuntimeWorldText(world, config);
         createRuntimeParticles(world, config);
         return generated;
@@ -531,7 +592,8 @@ namespace
     }
 
     void recordRuntimeFrameStats(RuntimeBenchmarkCollector& collector,
-                                 const GtsFrameStats& stats)
+                                 const GtsFrameStats& stats,
+                                 const std::vector<EcsSystemTimingSample>& controllerTimings)
     {
         const RenderingBenchmarkConfig& config = collector.config;
 
@@ -549,6 +611,38 @@ namespace
         addSample(collector.cpuSamples, "backend_present_cpu", stats.backendPresentCpuMs);
         addSample(collector.cpuSamples, "render_submit_cpu", stats.renderSubmitCpuMs);
         addSample(collector.cpuSamples, "ui_cpu", stats.uiCpuMs);
+
+        for (const EcsSystemTimingSample& sample : controllerTimings)
+        {
+            std::string key(sample.name);
+            if (sample.instanceIndex > 0)
+            {
+                key += "#";
+                key += std::to_string(sample.instanceIndex);
+            }
+            addSample(collector.controllerSamples, key, sample.updateMs);
+            addSample(collector.controllerFlushSamples, key, sample.commandFlushMs);
+            collector.controllerGroups.emplace(key, ecsSystemGroupName(sample.group));
+        }
+
+        addSample(collector.controllerSubstageSamples,
+                  "TransformSystem.queue_children",
+                  stats.transformQueueChildrenCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "TransformSystem.resolve_world",
+                  stats.transformResolveWorldCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "TransformSystem.publish_world_transform",
+                  stats.transformPublishWorldCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "RenderGpuSystem.scan_compare",
+                  stats.renderGpuScanCompareCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "RenderGpuSystem.model_sync_enqueue",
+                  stats.renderGpuModelSyncCpuMs);
+        addSample(collector.controllerSubstageSamples,
+                  "ForwardRenderer.object_buffer_writes",
+                  stats.backendObjectWriteCpuMs);
 
         if (stats.gpuTimingAvailable != 0)
         {
@@ -572,7 +666,12 @@ namespace
         addCounter(collector.counters, "command_cache_hits", stats.renderCommandTotalCount);
         addCounter(collector.counters, "command_updates", stats.renderCommandUpdatedCount);
         addCounter(collector.counters, "command_sorts", stats.renderCommandSortedCount);
-        addCounter(collector.counters, "object_uploads", stats.backendObjectWrites);
+        addCounter(collector.counters, "object_uploads", stats.objectUploadCommandCount);
+        addCounter(collector.counters, "object_upload_commands", stats.objectUploadCommandCount);
+        addCounter(collector.counters, "logical_object_updates", stats.renderGpuUpdatedCount);
+        addCounter(collector.counters, "physical_object_buffer_writes", stats.backendObjectWrites);
+        addCounter(collector.counters, "bytes_written_object_buffer", stats.backendObjectWriteBytes);
+        addCounter(collector.counters, "object_write_contiguous_runs", stats.backendObjectWriteContiguousRuns);
         addCounter(collector.counters, "material_queued", stats.materialQueuedCount);
         addCounter(collector.counters, "material_synchronized", stats.materialSynchronizedCount);
         addCounter(collector.counters, "material_user_invalidations", stats.materialUserInvalidationCount);
@@ -586,6 +685,12 @@ namespace
         addCounter(collector.counters, "snapshot_static_renderables", stats.snapshotStaticCount);
         addCounter(collector.counters, "snapshot_dynamic_renderables", stats.snapshotDynamicCount);
         addCounter(collector.counters, "render_gpu_updated", stats.renderGpuUpdatedCount);
+        addCounter(collector.counters, "render_gpu_total", stats.renderGpuTotalCount);
+        addCounter(collector.counters, "render_gpu_version_matches", stats.renderGpuVersionMatchCount);
+        addCounter(collector.counters, "render_gpu_snapshot_dirty_enqueues", stats.renderGpuSnapshotDirtyEnqueueCount);
+        addCounter(collector.counters, "transform_queued", stats.transformQueuedCount);
+        addCounter(collector.counters, "transform_processed", stats.transformProcessedCount);
+        addCounter(collector.counters, "transform_updates", stats.transformUpdatedCount);
         addCounter(collector.counters, "particle_emitters", config.particleEmitterCount);
         addCounter(collector.counters, "world_text_blocks", config.worldTextCount);
         addCounter(collector.counters, "draw_calls", stats.drawCalls);
@@ -609,6 +714,13 @@ namespace
             result.timingsMs[key] = gts::rendering::benchmarks::summarizeSamples(std::move(samples));
         for (auto [key, samples] : collector.gpuSamples)
             result.gpuTimingsMs[key] = gts::rendering::benchmarks::summarizeSamples(std::move(samples));
+        for (auto [key, samples] : collector.controllerSamples)
+            result.controllerTimingsMs[key] = gts::rendering::benchmarks::summarizeSamples(std::move(samples));
+        for (auto [key, samples] : collector.controllerFlushSamples)
+            result.controllerFlushTimingsMs[key] = gts::rendering::benchmarks::summarizeSamples(std::move(samples));
+        for (auto [key, samples] : collector.controllerSubstageSamples)
+            result.controllerSubstageTimingsMs[key] = gts::rendering::benchmarks::summarizeSamples(std::move(samples));
+        result.controllerTimingGroups = collector.controllerGroups;
 
         result.counters = collector.counters;
         result.invariantFailures = gts::rendering::benchmarks::checkBenchmarkInvariants(result);
@@ -632,14 +744,18 @@ namespace
             generated = populateRuntimeBenchmarkWorld(ecsWorld, config);
         }
 
-        void onUpdateSimulation(const EcsSimulationContext&) override
+        void onUpdateSimulation(const EcsSimulationContext& ctx) override
         {
+            ecsWorld.updateSimulation(ctx);
         }
 
         void onUpdateControllers(const EcsControllerContext& ctx) override
         {
             if (ctx.time != nullptr)
                 mutateRuntimeBenchmarkWorld(ecsWorld, generated, config, ctx.time->frame);
+
+            ecsWorld.updateControllers(ctx);
+            lastControllerTimings = ecsWorld.getLastControllerTimingSamples();
 
             if (requestQuit && ctx.engineCommands != nullptr)
                 ctx.engineCommands->requestQuit();
@@ -684,7 +800,7 @@ namespace
                 timeoutWarningAdded = true;
             }
 
-            recordRuntimeFrameStats(*collector, stats);
+            recordRuntimeFrameStats(*collector, stats, lastControllerTimings);
             collector->measuredFrames += 1;
 
             if (collector->measuredFrames >= config.measuredFrames)
@@ -695,6 +811,7 @@ namespace
         RenderingBenchmarkConfig config;
         std::shared_ptr<RuntimeBenchmarkCollector> collector;
         RuntimeBenchmarkWorld generated;
+        std::vector<EcsSystemTimingSample> lastControllerTimings;
         bool requestQuit = false;
         bool timeoutWarningAdded = false;
     };
@@ -721,6 +838,8 @@ namespace
         engineConfig.graphics.presentModePreference = PresentModePreference::Immediate;
         engineConfig.graphics.maxFrameRate = 0;
         engineConfig.graphics.enableGpuTimestamps = true;
+        gts::transform::TransformSystem::setDetailedMetricsEnabled(true);
+        RenderGpuSystem::setDetailedMetricsEnabled(true);
 
         GravitasEngine engine(engineConfig);
         engine.registerScene(
@@ -732,6 +851,8 @@ namespace
         engine.setActiveScene("rendering_benchmark");
         engine.start();
 
+        gts::transform::TransformSystem::setDetailedMetricsEnabled(false);
+        RenderGpuSystem::setDetailedMetricsEnabled(false);
         return finishRuntimeBenchmarkResult(*collector);
     }
 }

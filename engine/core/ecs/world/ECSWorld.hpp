@@ -178,6 +178,8 @@ class ECSWorld
         std::vector<std::pair<std::string_view, SystemProfile>> simulationProfilePrintScratch;
         std::unordered_map<std::string_view, SystemProfile> controllerProfiles;
         std::vector<std::pair<std::string_view, SystemProfile>> controllerProfilePrintScratch;
+        std::vector<EcsSystemTimingSample> lastControllerTimingSamples;
+        std::unordered_map<std::string_view, uint32_t> controllerInstanceScratch;
 
         void invokeRemoveCallback(const std::type_index& type, Entity entity, void* componentData)
         {
@@ -654,7 +656,7 @@ class ECSWorld
                             "SystemType must derive from ECSSimulationSystem");
 
             auto system = std::make_unique<SystemType>(std::forward<Args>(args)...);
-            system->setDebugName(gts::detail::typeName<SystemType>());
+            system->setDebugName(gts::detail::stableTypeName<SystemType>());
             SystemType& ref = *system;
             simulationSystems.push_back(RegisteredSimulationSystem{std::move(system), group});
             return ref;
@@ -667,7 +669,7 @@ class ECSWorld
                             "SystemType must derive from ECSControllerSystem");
 
             auto system = std::make_unique<SystemType>(std::forward<Args>(args)...);
-            system->setDebugName(gts::detail::typeName<SystemType>());
+            system->setDebugName(gts::detail::stableTypeName<SystemType>());
             SystemType& ref = *system;
             controllerSystems.push_back(RegisteredControllerSystem{std::move(system), group});
             return ref;
@@ -780,20 +782,39 @@ class ECSWorld
 
         void updateControllers(const EcsControllerContext& ctx)
         {
+            lastControllerTimingSamples.clear();
+            lastControllerTimingSamples.reserve(controllerSystems.size());
+            controllerInstanceScratch.clear();
+
             for (auto& entry : controllerSystems)
             {
                 if (!shouldExecuteGroup(entry.group))
                     continue;
+
+                const std::string_view name = entry.system->getName();
+                const uint32_t instanceIndex = controllerInstanceScratch[name]++;
 
                 const auto start = std::chrono::steady_clock::now();
                 entry.system->update(ctx);
                 const auto end = std::chrono::steady_clock::now();
                 const float ms = std::chrono::duration<float, std::milli>(end - start).count();
 
-                recordControllerProfile(entry.system->getName(), ms);
+                recordControllerProfile(name, ms);
 
+                const auto flushStart = std::chrono::steady_clock::now();
                 flushDeferredStructuralCommands();
+                const auto flushEnd = std::chrono::steady_clock::now();
+                const float flushMs =
+                    std::chrono::duration<float, std::milli>(flushEnd - flushStart).count();
+
+                lastControllerTimingSamples.push_back(
+                    EcsSystemTimingSample{name, entry.group, instanceIndex, ms, flushMs});
             }
+        }
+
+        const std::vector<EcsSystemTimingSample>& getLastControllerTimingSamples() const
+        {
+            return lastControllerTimingSamples;
         }
 
         void recordControllerProfile(std::string_view name, float ms)
@@ -938,6 +959,8 @@ class ECSWorld
             simulationProfilePrintScratch.clear();
             controllerProfiles.clear();
             controllerProfilePrintScratch.clear();
+            lastControllerTimingSamples.clear();
+            controllerInstanceScratch.clear();
             executionProfileStack.clear();
             executionProfileStack.push_back(SceneExecutionProfile::gameplay());
             forEachScratch.clear();
