@@ -16,7 +16,8 @@
 #include "EngineConfig.h"
 #include "Entity.h"
 #include "GraphicsConstants.h"
-#include "MaterialComponent.h"
+#include "MaterialReferenceComponent.h"
+#include "MaterialRuntime.h"
 #include "RendererSceneFeature.h"
 #include "StaticMeshComponent.h"
 #include "TransformComponent.h"
@@ -42,8 +43,11 @@ private:
     static constexpr uint32_t RandomSeed = 1337u;
 
     std::vector<std::string> texturePaths;
+    std::vector<MaterialInstanceHandle> materialHandles;
 
     void buildTextureSet();
+    void buildMaterialSet();
+    MaterialInstanceHandle materialForTexture(const std::string& texturePath);
     void spawnStressCubes();
     glm::vec3 computeCubePosition(uint32_t index) const;
     void spawnCamera(float aspectRatio);
@@ -55,6 +59,7 @@ inline void GtsScene3::onLoad(EcsControllerContext& ctx, const GtsSceneTransitio
     buildTextureSet();
     ecsWorld.addSimulationSystem<CubeAnimationSystem>(EcsSystemGroup::Animation);
     gts::rendering::installRendererFeature(*this, ctx);
+    buildMaterialSet();
 
     const auto loadStart = std::chrono::steady_clock::now();
     spawnStressCubes();
@@ -94,9 +99,30 @@ inline void GtsScene3::buildTextureSet()
     };
 }
 
+inline MaterialInstanceHandle GtsScene3::materialForTexture(const std::string& texturePath)
+{
+    auto& materials = gts::rendering::materialRuntime(ecsWorld);
+    MaterialInstance instance;
+    if (const MaterialInstance* defaultMaterial = materials.getInstance(materials.defaultMaterial()))
+        instance.definition = defaultMaterial->definition;
+    instance.baseColorTexture = MaterialTextureBinding::assetPath(texturePath);
+    instance.renderState.legacyBlendMode = MaterialBlendMode::Alpha;
+    instance.renderState.alphaMode =
+        alphaModeForLegacyMaterial(MaterialBlendMode::Alpha, instance.baseColor.a, true);
+    return materials.createInstance(instance);
+}
+
+inline void GtsScene3::buildMaterialSet()
+{
+    materialHandles.clear();
+    materialHandles.reserve(texturePaths.size());
+    for (const std::string& texturePath : texturePaths)
+        materialHandles.push_back(materialForTexture(texturePath));
+}
+
 inline void GtsScene3::spawnStressCubes()
 {
-    if (texturePaths.empty())
+    if (materialHandles.empty())
         return;
 
     static_assert(GridColumns * GridRows * GridLayers == CubeCount,
@@ -109,7 +135,7 @@ inline void GtsScene3::spawnStressCubes()
 
     std::mt19937 rng(RandomSeed);
     std::uniform_int_distribution<int> animationTypeDist(0, 3);
-    std::uniform_int_distribution<size_t> textureDist(0, texturePaths.size() - 1);
+    std::uniform_int_distribution<size_t> materialDist(0, materialHandles.size() - 1);
     std::uniform_real_distribution<float> phaseDist(0.0f, pi * 2.0f);
     std::uniform_real_distribution<float> speedDist(0.7f, 1.8f);
     std::uniform_real_distribution<float> amplitudeDist(0.35f, 1.05f);
@@ -131,9 +157,7 @@ inline void GtsScene3::spawnStressCubes()
         mesh.meshPath = cubeMesh;
         ecsWorld.addComponent(entity, mesh);
 
-        MaterialComponent material;
-        material.texturePath = texturePaths[textureDist(rng)];
-        ecsWorld.addComponent(entity, material);
+        ecsWorld.addComponent(entity, MaterialReferenceComponent{materialHandles[materialDist(rng)]});
 
         CubeAnimationComponent animation;
         animation.animationType = animationTypeDist(rng);

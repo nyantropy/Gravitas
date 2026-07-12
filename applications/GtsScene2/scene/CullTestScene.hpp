@@ -2,12 +2,14 @@
 
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 #include "GtsScene.hpp"
 #include "ECSWorld.hpp"
 #include "TransformComponent.h"
 #include "StaticMeshComponent.h"
-#include "MaterialComponent.h"
+#include "MaterialReferenceComponent.h"
+#include "MaterialRuntime.h"
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
 #include "CameraControlOverrideComponent.h"
@@ -39,8 +41,24 @@ class CullTestScene : public GtsScene
     bool       cullingEnabled = true;
     bool       frustumFrozen = false;
 
+    MaterialInstanceHandle materialForTexture(const std::string& texturePath)
+    {
+        auto& materials = gts::rendering::materialRuntime(ecsWorld);
+        MaterialInstance instance;
+        if (const MaterialInstance* defaultMaterial = materials.getInstance(materials.defaultMaterial()))
+            instance.definition = defaultMaterial->definition;
+        instance.baseColorTexture = MaterialTextureBinding::assetPath(texturePath);
+        instance.renderState.legacyBlendMode = MaterialBlendMode::Alpha;
+        instance.renderState.alphaMode =
+            alphaModeForLegacyMaterial(MaterialBlendMode::Alpha, instance.baseColor.a, true);
+        return materials.createInstance(instance);
+    }
+
     void spawnGrid()
     {
+        const MaterialInstanceHandle gridMaterial = materialForTexture(
+            GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_moss_floor.png");
+
         for (int x = 0; x < GRID_DIM; ++x)
         {
             for (int z = 0; z < GRID_DIM; ++z)
@@ -58,9 +76,7 @@ class CullTestScene : public GtsScene
                 mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
                 ecsWorld.addComponent(e, mesh);
 
-                MaterialComponent mat;
-                mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_moss_floor.png";
-                ecsWorld.addComponent(e, mat);
+                ecsWorld.addComponent(e, MaterialReferenceComponent{gridMaterial});
 
                 ecsWorld.addComponent(e, BoundsComponent{});
             }

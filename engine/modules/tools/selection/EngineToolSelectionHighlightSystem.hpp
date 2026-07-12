@@ -15,7 +15,7 @@
 #include "GeometryBindingLifecycle.h"
 #include "GraphicsConstants.h"
 #include "DynamicMeshComponent.h"
-#include "MaterialComponent.h"
+#include "MaterialReferenceHelpers.h"
 #include "ToolEntityLabelComponent.h"
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
@@ -84,9 +84,9 @@ namespace gts::tools
             highlight.highlightEntity = entity;
             highlight.targetEntity = invalidToolEntity();
 
-            MaterialComponent material;
+            gts::rendering::UnlitMaterialDescriptor material;
             material.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_debug_neutral.png";
-            material.tint = {1.0f, 1.0f, 1.0f, 0.92f};
+            material.baseColor = {1.0f, 1.0f, 1.0f, 0.92f};
             material.doubleSided = true;
             material.vertexColorOnly = true;
 
@@ -96,7 +96,7 @@ namespace gts::tools
             label.selectable = false;
 
             world.addComponent(entity, TransformComponent{});
-            world.addComponent(entity, material);
+            world.addComponent(entity, gts::rendering::sharedUnlitMaterialReference(world, material));
             world.addComponent(entity, DynamicMeshComponent{});
             world.addComponent(entity, BoundsComponent{});
             world.addComponent(entity, label);

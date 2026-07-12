@@ -22,9 +22,11 @@ and `RenderGpuComponent` are engine-managed.
 
 ## Materials
 
-Prefer shared material instances through `MaterialReferenceComponent` for new
-sharing-oriented code. `MaterialComponent` is a legacy convenience adapter and
-is still valid for simple or migrating code.
+Create material instances through `MaterialRuntime` and attach
+`MaterialReferenceComponent` to renderable entities. For simple unlit props,
+tools, and tests, use `UnlitMaterialDescriptor` with
+`createUnlitMaterial(...)` when the entity needs a unique mutable material, or
+`sharedUnlitMaterialReference(...)` when the material should be shared.
 
 Use `LegacyUnlit` for:
 

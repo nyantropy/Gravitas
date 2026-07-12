@@ -11,7 +11,6 @@
 #include "EcsControllerContext.hpp"
 #include "IResourceProvider.hpp"
 #include "MaterialBindingSystem.hpp"
-#include "MaterialComponent.h"
 #include "MaterialReferenceComponent.h"
 #include "MaterialRuntime.h"
 #include "MeshGpuComponent.h"
@@ -412,22 +411,23 @@ namespace
             && require(removed, "entity destruction removes material user");
     }
 
-    bool legacyAndWorldTextDescriptorsQueueMaterialSync()
+    bool materialReferencesAndWorldTextQueueMaterialSync()
     {
         ECSWorld world;
         FakeResourceProvider resources;
         install(world, resources);
 
-        Entity legacy = world.createEntity();
+        auto& materials = gts::rendering::materialRuntime(world);
+        const MaterialInstanceHandle material = materials.createInstance(
+            makeTexturedInstance(materials, "textures/direct.png", {1.0f, 1.0f, 1.0f, 1.0f}));
+        Entity direct = world.createEntity();
         StaticMeshComponent mesh;
-        mesh.meshPath = "mesh/legacy.obj";
-        MaterialComponent material;
-        material.texturePath = "textures/legacy.png";
-        world.addComponent(legacy, TransformComponent{});
-        world.addComponent(legacy, mesh);
-        world.addComponent(legacy, material);
+        mesh.meshPath = "mesh/direct.obj";
+        world.addComponent(direct, TransformComponent{});
+        world.addComponent(direct, mesh);
+        world.addComponent(direct, MaterialReferenceComponent{material});
         update(world, resources);
-        const auto legacyMetrics = MaterialBindingSystem::getLastMetrics();
+        const auto directMetrics = MaterialBindingSystem::getLastMetrics();
 
         update(world, resources);
         const auto steadyMetrics = MaterialBindingSystem::getLastMetrics();
@@ -441,14 +441,14 @@ namespace
         update(world, resources);
         const auto textMetrics = MaterialBindingSystem::getLastMetrics();
 
-        return require(legacyMetrics.queuedMaterials == 1 &&
-                       legacyMetrics.synchronizedMaterials == 1 &&
-                       legacyMetrics.fullMaterialScans == 0,
-                       "legacy material descriptor queues one material sync without a scan")
+        return require(directMetrics.queuedMaterials == 1 &&
+                       directMetrics.synchronizedMaterials == 1 &&
+                       directMetrics.fullMaterialScans == 0,
+                       "material reference queues one material sync without a scan")
             && require(steadyMetrics.queuedMaterials == 0 &&
                        steadyMetrics.synchronizedMaterials == 0 &&
                        steadyMetrics.fullMaterialScans == 0,
-                       "legacy material steady state performs no material sync work")
+                       "material reference steady state performs no material sync work")
             && require(textMetrics.queuedMaterials == 1 &&
                        textMetrics.synchronizedMaterials == 1 &&
                        textMetrics.fullMaterialScans == 0,
@@ -1006,7 +1006,7 @@ int main()
     ok &= materialReferenceCallbacksMaintainUserIndex();
     ok &= sharedMaterialUpdatesAllReferencingRenderables();
     ok &= steadyStateMaterialBindingDoesNoSynchronizationWork();
-    ok &= legacyAndWorldTextDescriptorsQueueMaterialSync();
+    ok &= materialReferencesAndWorldTextQueueMaterialSync();
     ok &= topologyChangeInvalidatesOnlyIndexedUsers();
     ok &= extractionCarriesStableMaterialIdentity();
     ok &= renderCommandsUseMaterialIdentity();

@@ -10,7 +10,7 @@
 #include "EcsControllerContext.hpp"
 #include "GeometryBindingLifecycle.h"
 #include "IResourceProvider.hpp"
-#include "MaterialComponent.h"
+#include "MaterialReferenceHelpers.h"
 #include "MaterialReferenceComponent.h"
 #include "MaterialRuntime.h"
 #include "MeshGpuComponent.h"
@@ -188,11 +188,11 @@ namespace
         return transform;
     }
 
-    MaterialComponent materialWithTexture(const std::string& path)
+    MaterialReferenceComponent materialWithTexture(ECSWorld& world, const std::string& path)
     {
-        MaterialComponent material;
+        gts::rendering::UnlitMaterialDescriptor material;
         material.texturePath = path;
-        return material;
+        return MaterialReferenceComponent{gts::rendering::createUnlitMaterial(world, material)};
     }
 
     const MaterialGpuState* materialState(ECSWorld& world, Entity entity)
@@ -231,7 +231,7 @@ namespace
 
     Entity createRenderable(ECSWorld& world,
                             const StaticMeshComponent& mesh,
-                            const MaterialComponent& material)
+                            const MaterialReferenceComponent& material)
     {
         Entity entity = world.createEntity();
         world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
@@ -248,7 +248,7 @@ namespace
 
         StaticMeshComponent mesh;
         mesh.meshPath = "mesh/a.obj";
-        const Entity entity = createRenderable(world, mesh, materialWithTexture("textures/a.png"));
+        const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         return require(world.hasComponent<MeshGpuComponent>(entity), "static mesh creates MeshGpuComponent")
@@ -269,13 +269,18 @@ namespace
 
         StaticMeshComponent mesh;
         mesh.meshPath = "mesh/a.obj";
-        const Entity entity = createRenderable(world, mesh, materialWithTexture("textures/a.png"));
+        const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         const mesh_id_type meshId = world.getComponent<MeshGpuComponent>(entity).meshID;
-        MaterialComponent& material = world.getComponent<MaterialComponent>(entity);
-        material.tint = {0.25f, 0.5f, 0.75f, 1.0f};
-        gts::rendering::queueMaterialRefresh(world, entity);
+        MaterialReferenceComponent& material = world.getComponent<MaterialReferenceComponent>(entity);
+        gts::rendering::materialRuntime(world).modifyInstance(
+            material.material,
+            [](MaterialInstance& instance)
+            {
+                instance.baseColor = {0.25f, 0.5f, 0.75f, 1.0f};
+                return true;
+            });
         update(world, resources);
 
         return require(world.getComponent<MeshGpuComponent>(entity).meshID == meshId,
@@ -292,7 +297,7 @@ namespace
 
         StaticMeshComponent mesh;
         mesh.meshPath = "mesh/a.obj";
-        const Entity entity = createRenderable(world, mesh, materialWithTexture("textures/a.png"));
+        const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         const texture_id_type textureId = materialTextureID(world, entity);
@@ -325,7 +330,7 @@ namespace
             && !world.hasComponent<MaterialReferenceComponent>(entity)
             && !world.hasComponent<RenderGpuComponent>(entity);
 
-        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        world.addComponent(entity, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         return require(meshReadyWithoutRenderObject, "mesh alone does not create render object")
@@ -340,7 +345,7 @@ namespace
 
         StaticMeshComponent mesh;
         mesh.meshPath = "mesh/a.obj";
-        const Entity entity = createRenderable(world, mesh, materialWithTexture("textures/a.png"));
+        const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         world.removeComponent<StaticMeshComponent>(entity);
@@ -363,7 +368,7 @@ namespace
         Entity entity = world.createEntity();
         world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
         world.addComponent(entity, triangleMesh(1));
-        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        world.addComponent(entity, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         const texture_id_type textureId = materialTextureID(world, entity);
@@ -387,7 +392,7 @@ namespace
         Entity entity = world.createEntity();
         world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
         world.addComponent(entity, triangleMesh(1));
-        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        world.addComponent(entity, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         gts::rendering::queueDynamicMeshGeometryRefresh(world, entity);
@@ -407,7 +412,7 @@ namespace
         Entity entity = world.createEntity();
         world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
         world.addComponent(entity, triangleMesh(1));
-        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        world.addComponent(entity, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         DynamicMeshComponent& mesh = world.getComponent<DynamicMeshComponent>(entity);
@@ -434,7 +439,7 @@ namespace
         Entity entity = world.createEntity();
         world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
         world.addComponent(entity, triangleMesh(1));
-        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        world.addComponent(entity, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         const MeshGpuComponent initialGpu = world.getComponent<MeshGpuComponent>(entity);
@@ -466,7 +471,7 @@ namespace
         world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
         world.addComponent(entity, triangleMesh(1));
         world.addComponent(entity, BoundsComponent{});
-        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        world.addComponent(entity, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         DynamicMeshComponent& mesh = world.getComponent<DynamicMeshComponent>(entity);
@@ -488,7 +493,7 @@ namespace
         Entity entity = world.createEntity();
         world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
         world.addComponent(entity, triangleMesh(1));
-        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        world.addComponent(entity, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         DynamicMeshComponent& mesh = world.getComponent<DynamicMeshComponent>(entity);
@@ -520,7 +525,7 @@ namespace
         Entity entity = world.createEntity();
         world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
         world.addComponent(entity, triangleMesh(1));
-        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        world.addComponent(entity, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         DynamicMeshComponent& mesh = world.getComponent<DynamicMeshComponent>(entity);
@@ -550,7 +555,7 @@ namespace
 
         StaticMeshComponent mesh;
         mesh.meshPath = "mesh/a.obj";
-        const Entity entity = createRenderable(world, mesh, materialWithTexture("textures/a.png"));
+        const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
         const ssbo_id_type slot = world.getComponent<RenderGpuComponent>(entity).objectSSBOSlot;
 
@@ -576,7 +581,7 @@ namespace
 
         StaticMeshComponent mesh;
         mesh.meshPath = "mesh/a.obj";
-        const Entity entity = createRenderable(world, mesh, materialWithTexture("textures/a.png"));
+        const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
         update(world, resources);
 
@@ -595,7 +600,7 @@ namespace
 
         StaticMeshComponent mesh;
         mesh.meshPath = "mesh/a.obj";
-        const Entity entity = createRenderable(world, mesh, materialWithTexture("textures/a.png"));
+        const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         TransformComponent& transform = world.getComponent<TransformComponent>(entity);
@@ -623,7 +628,7 @@ namespace
 
         StaticMeshComponent mesh;
         mesh.meshPath = "mesh/a.obj";
-        const Entity entity = createRenderable(world, mesh, materialWithTexture("textures/a.png"));
+        const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         gts::rendering::queueRenderTransformSync(world, entity);
@@ -650,7 +655,7 @@ namespace
         world.addComponent(entity, mesh);
         update(world, resources);
 
-        world.addComponent(entity, materialWithTexture("textures/a.png"));
+        world.addComponent(entity, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         const RenderGpuSystem::Metrics metrics = RenderGpuSystem::getLastMetrics();

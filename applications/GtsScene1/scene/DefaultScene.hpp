@@ -1,10 +1,13 @@
 #pragma once
 
+#include <string>
+
 #include "ECSWorld.hpp"
 #include "GtsScene.hpp"
 
 #include "StaticMeshComponent.h"
-#include "MaterialComponent.h"
+#include "MaterialReferenceComponent.h"
+#include "MaterialRuntime.h"
 #include "CameraDescriptionComponent.h"
 #include "RendererSceneFeature.h"
 #include "TransformComponent.h"
@@ -19,6 +22,26 @@ class DefaultScene : public GtsScene
 {
     private:
         Entity controlledCube;
+        MaterialInstanceHandle materialForTexture(const std::string& texturePath)
+        {
+            auto& materials = gts::rendering::materialRuntime(ecsWorld);
+            MaterialInstance instance;
+            if (const MaterialInstance* defaultMaterial = materials.getInstance(materials.defaultMaterial()))
+                instance.definition = defaultMaterial->definition;
+            instance.baseColorTexture = MaterialTextureBinding::assetPath(texturePath);
+            instance.renderState.legacyBlendMode = MaterialBlendMode::Alpha;
+            instance.renderState.alphaMode =
+                alphaModeForLegacyMaterial(MaterialBlendMode::Alpha, instance.baseColor.a, true);
+            return materials.createInstance(instance);
+        }
+
+        void addMaterialReference(Entity entity, const std::string& texturePath)
+        {
+            ecsWorld.addComponent<MaterialReferenceComponent>(
+                entity,
+                MaterialReferenceComponent{materialForTexture(texturePath)});
+        }
+
     public:
         void firstCube()
         {
@@ -28,9 +51,8 @@ class DefaultScene : public GtsScene
             mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
             ecsWorld.addComponent<StaticMeshComponent>(controlledCube, mesh);
 
-            MaterialComponent mat;
-            mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_moss_floor.png";
-            ecsWorld.addComponent<MaterialComponent>(controlledCube, mat);
+            addMaterialReference(controlledCube,
+                                 GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_moss_floor.png");
 
             TransformComponent tc;
             ecsWorld.addComponent<TransformComponent>(controlledCube, tc);
@@ -50,9 +72,8 @@ class DefaultScene : public GtsScene
             mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
             ecsWorld.addComponent<StaticMeshComponent>(cube2, mesh);
 
-            MaterialComponent mat;
-            mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_cool_stone.png";
-            ecsWorld.addComponent<MaterialComponent>(cube2, mat);
+            addMaterialReference(cube2,
+                                 GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_cool_stone.png");
 
             TransformComponent tc2;
             tc2.position = glm::vec3(2.0f, 2.0f, 2.0f);
@@ -77,9 +98,8 @@ class DefaultScene : public GtsScene
             mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
             ecsWorld.addComponent<StaticMeshComponent>(cube3, mesh);
 
-            MaterialComponent mat;
-            mat.texturePath = GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_arcane_stone.png";
-            ecsWorld.addComponent<MaterialComponent>(cube3, mat);
+            addMaterialReference(cube3,
+                                 GraphicsConstants::ENGINE_RESOURCES + "/textures/engine_demo_arcane_stone.png");
 
             TransformComponent tc3;
             tc3.position = glm::vec3(-2.0f, -2.0f, -2.0f);

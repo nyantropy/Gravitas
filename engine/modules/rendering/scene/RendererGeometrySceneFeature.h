@@ -6,8 +6,8 @@
 #include "GeometryBindingLifecycle.h"
 #include "IResourceProvider.hpp"
 #include "MaterialBindingSystem.hpp"
-#include "MaterialComponent.h"
 #include "MaterialReferenceComponent.h"
+#include "MaterialReferenceHelpers.h"
 #include "MaterialRuntime.h"
 #include "MeshGpuComponent.h"
 #include "QuadMeshBindingSystem.hpp"
@@ -40,6 +40,7 @@ namespace gts::rendering
     inline void resetRendererGeometrySceneFeature(ECSWorld& world)
     {
         resetGeometryBindingLifecycleState(world);
+        resetSharedUnlitMaterialCache(world);
         resetMaterialRuntime(world);
     }
 
@@ -100,18 +101,6 @@ namespace gts::rendering
             });
         world.registerRemoveCallback<DynamicMeshComponent>(
             [](ECSWorld& world, Entity entity, DynamicMeshComponent&)
-            {
-                queueMaterialRefresh(world, entity);
-                queueRenderableCleanup(world, entity);
-            });
-        world.registerAddCallback<MaterialComponent>(
-            [](ECSWorld& world, Entity entity, MaterialComponent&)
-            {
-                queueMaterialRefresh(world, entity);
-                queueRenderObjectRefresh(world, entity);
-            });
-        world.registerRemoveCallback<MaterialComponent>(
-            [](ECSWorld& world, Entity entity, MaterialComponent&)
             {
                 queueMaterialRefresh(world, entity);
                 queueRenderableCleanup(world, entity);
@@ -216,29 +205,6 @@ namespace gts::rendering
         world.addControllerSystem<RenderGpuSystem>(EcsSystemGroup::RenderPrep);
         world.addControllerSystem<TextureAnimationSystem>(EcsSystemGroup::Animation);
 
-        world.forEachSnapshot<StaticMeshComponent, MaterialComponent>(
-            [&world](Entity entity, StaticMeshComponent&, MaterialComponent&)
-            {
-                queueStaticMeshRefresh(world, entity);
-                queueMaterialRefresh(world, entity);
-            });
-        world.forEachSnapshot<QuadMeshComponent, MaterialComponent>(
-            [&world](Entity entity, QuadMeshComponent&, MaterialComponent&)
-            {
-                queueQuadMeshRefresh(world, entity);
-                queueMaterialRefresh(world, entity);
-            });
-        world.forEachSnapshot<DynamicMeshComponent, MaterialComponent>(
-            [&world](Entity entity, DynamicMeshComponent&, MaterialComponent&)
-            {
-                queueDynamicMeshRefresh(world, entity);
-                queueMaterialRefresh(world, entity);
-            });
-        world.forEachSnapshot<MaterialComponent>(
-            [&world](Entity entity, MaterialComponent&)
-            {
-                queueMaterialRefresh(world, entity);
-            });
         world.forEachSnapshot<MaterialReferenceComponent>(
             [&world](Entity entity, MaterialReferenceComponent& reference)
             {

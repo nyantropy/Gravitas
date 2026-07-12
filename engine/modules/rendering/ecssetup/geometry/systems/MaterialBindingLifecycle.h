@@ -4,8 +4,6 @@
 #include "ECSWorld.hpp"
 #include "GeometryBindingLifecycle.h"
 #include "IResourceProvider.hpp"
-#include "LegacyMaterialRuntimeComponent.h"
-#include "MaterialComponent.h"
 #include "MaterialReferenceComponent.h"
 #include "MaterialRuntime.h"
 #include "WorldTextComponent.h"
@@ -13,35 +11,6 @@
 
 namespace gts::rendering
 {
-    inline bool materialDescriptorDiffers(const MaterialComponent& lhs,
-                                          const MaterialComponent& rhs)
-    {
-        return lhs.texturePath != rhs.texturePath
-            || lhs.tint != rhs.tint
-            || lhs.blendMode != rhs.blendMode
-            || lhs.doubleSided != rhs.doubleSided
-            || lhs.vertexColorOnly != rhs.vertexColorOnly
-            || lhs.depthWrite != rhs.depthWrite;
-    }
-
-    inline MaterialInstance makeLegacyMaterialInstance(MaterialRuntime& runtime,
-                                                       const MaterialComponent& material)
-    {
-        MaterialInstance instance;
-        instance.definition = runtime.defaultMaterial().valid()
-            ? runtime.getInstance(runtime.defaultMaterial())->definition
-            : MaterialDefinitionHandle{};
-        instance.baseColor = material.tint;
-        instance.baseColorTexture = MaterialTextureBinding::assetPath(material.texturePath);
-        instance.vertexColorOnly = material.vertexColorOnly;
-        instance.renderState.doubleSided = material.doubleSided;
-        instance.renderState.depthWrite = material.depthWrite;
-        instance.renderState.legacyBlendMode = material.blendMode;
-        instance.renderState.alphaMode =
-            alphaModeForLegacyMaterial(material.blendMode, material.tint.a, material.depthWrite);
-        return instance;
-    }
-
     inline MaterialInstance makeWorldTextMaterialInstance(MaterialRuntime& runtime,
                                                           const WorldTextComponent& text,
                                                           texture_id_type atlasTexture)
@@ -84,29 +53,6 @@ namespace gts::rendering
         return changed;
     }
 
-    inline void cleanupLegacyMaterialBinding(ECSWorld& world,
-                                             Entity entity,
-                                             ECSWorld::EntityCommandBuffer& commands)
-    {
-        if (!world.hasComponent<LegacyMaterialRuntimeComponent>(entity))
-            return;
-
-        LegacyMaterialRuntimeComponent& runtime = world.getComponent<LegacyMaterialRuntimeComponent>(entity);
-        MaterialInstanceHandle material = runtime.material;
-        unregisterMaterialUser(world, entity);
-        materialRuntime(world).destroyInstance(material);
-
-        if (world.hasComponent<MaterialReferenceComponent>(entity) &&
-            world.getComponent<MaterialReferenceComponent>(entity).material == material)
-        {
-            commands.removeComponent<MaterialReferenceComponent>(entity);
-        }
-
-        commands.removeComponent<LegacyMaterialRuntimeComponent>(entity);
-        markMaterialRepresentationDirty(world, entity);
-        queueRenderObjectRefresh(world, entity);
-    }
-
     inline void cleanupWorldTextMaterialBinding(ECSWorld& world,
                                                 Entity entity,
                                                 WorldTextRuntimeComponent& runtime,
@@ -129,57 +75,6 @@ namespace gts::rendering
         runtime.materialInitialized = false;
         markMaterialRepresentationDirty(world, entity);
         queueRenderObjectRefresh(world, entity);
-    }
-
-    inline void syncLegacyMaterialBinding(ECSWorld& world,
-                                          Entity entity,
-                                          IResourceProvider* resources,
-                                          ECSWorld::EntityCommandBuffer& commands)
-    {
-        (void)resources;
-        MaterialRuntime& materials = materialRuntime(world);
-        if (!world.hasComponent<MaterialComponent>(entity) ||
-            !legacyMaterialDescriptorUsable(world, entity))
-        {
-            cleanupLegacyMaterialBinding(world, entity, commands);
-            return;
-        }
-
-        const MaterialComponent& material = world.getComponent<MaterialComponent>(entity);
-        MaterialInstanceHandle handle;
-        bool descriptorChanged = true;
-
-        if (world.hasComponent<LegacyMaterialRuntimeComponent>(entity))
-        {
-            LegacyMaterialRuntimeComponent& runtime = world.getComponent<LegacyMaterialRuntimeComponent>(entity);
-            handle = runtime.material;
-            descriptorChanged =
-                !runtime.initialized || materialDescriptorDiffers(runtime.lastDescriptor, material);
-
-            if (!materials.isInstanceAlive(handle))
-            {
-                handle = materials.createInstance(makeLegacyMaterialInstance(materials, material));
-                runtime.material = handle;
-                runtime.lastDescriptor = material;
-                runtime.initialized = true;
-                descriptorChanged = true;
-            }
-            else if (descriptorChanged)
-            {
-                materials.setInstance(handle, makeLegacyMaterialInstance(materials, material));
-                runtime.lastDescriptor = material;
-                runtime.initialized = true;
-            }
-        }
-        else
-        {
-            handle = materials.createInstance(makeLegacyMaterialInstance(materials, material));
-            commands.addComponent<LegacyMaterialRuntimeComponent>(
-                entity,
-                LegacyMaterialRuntimeComponent{handle, material, true});
-        }
-
-        writeMaterialReference(world, commands, entity, handle);
     }
 
     inline void syncWorldTextMaterialBinding(ECSWorld& world,

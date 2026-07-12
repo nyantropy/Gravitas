@@ -17,7 +17,7 @@
 #include "GeometryBindingLifecycle.h"
 #include "GraphicsConstants.h"
 #include "DynamicMeshComponent.h"
-#include "MaterialComponent.h"
+#include "MaterialReferenceHelpers.h"
 #include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
 #include "TransformComponent.h"
@@ -135,9 +135,9 @@ namespace gts::debugdraw
             Entity entity = world.createEntity();
             batchEntities[index] = entity;
 
-            MaterialComponent material;
+            gts::rendering::UnlitMaterialDescriptor material;
             material.texturePath = texturePath();
-            material.tint = {1.0f, 1.0f, 1.0f, opacity(color)};
+            material.baseColor = {1.0f, 1.0f, 1.0f, opacity(color)};
             material.doubleSided = true;
             material.vertexColorOnly = true;
 
@@ -151,7 +151,7 @@ namespace gts::debugdraw
             bounds.max = { 0.01f,  0.01f,  0.01f};
 
             world.addComponent(entity, TransformComponent{});
-            world.addComponent(entity, material);
+            world.addComponent(entity, gts::rendering::sharedUnlitMaterialReference(world, material));
             world.addComponent(entity, mesh);
             world.addComponent(entity, bounds);
             world.addComponent(entity, renderable);
@@ -207,7 +207,6 @@ namespace gts::debugdraw
             DynamicMeshComponent& mesh = world.getComponent<DynamicMeshComponent>(entity);
             BoundsComponent& bounds = world.getComponent<BoundsComponent>(entity);
             DebugDrawRenderableComponent& renderable = world.getComponent<DebugDrawRenderableComponent>(entity);
-            MaterialComponent& material = world.getComponent<MaterialComponent>(entity);
 
             mesh.vertices.clear();
             mesh.indices.clear();
@@ -232,14 +231,9 @@ namespace gts::debugdraw
 
             ++renderable.geometryVersion;
             mesh.geometryVersion = renderable.geometryVersion;
-            material.texturePath = texturePath();
-            material.tint = {1.0f, 1.0f, 1.0f, opacity(color)};
-            material.doubleSided = true;
-            material.vertexColorOnly = true;
 
             markExtractionDirty(world, entity);
             gts::rendering::queueDynamicMeshGeometryRefresh(world, entity);
-            gts::rendering::queueMaterialRefresh(world, entity);
         }
 
         static void markExtractionDirty(ECSWorld& world, Entity entity)
@@ -248,7 +242,6 @@ namespace gts::debugdraw
             {
                 RenderDirtyComponent& dirty = world.getComponent<RenderDirtyComponent>(entity);
                 dirty.meshDirty = true;
-                dirty.materialDirty = true;
             }
 
             gts::rendering::queueRenderSnapshotDirty(world, entity);

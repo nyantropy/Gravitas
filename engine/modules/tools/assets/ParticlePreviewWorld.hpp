@@ -20,7 +20,7 @@
 #include "FrustumCullingStrategy.h"
 #include "GlmConfig.h"
 #include "IResourceProvider.hpp"
-#include "MaterialComponent.h"
+#include "MaterialReferenceHelpers.h"
 #include "ParticleEffectAsset.h"
 #include "ParticleEmitterComponent.h"
 #include "ParticleEmitterRuntimeComponent.h"
@@ -320,8 +320,8 @@ namespace gts::tools
             addLineRect(mesh.vertices, mesh.indices, {-0.8f, 0.012f, 0.0f}, {0.8f, 0.012f, 0.0f}, 0.040f, {0.22f, 0.42f, 0.78f});
             addLineRect(mesh.vertices, mesh.indices, {0.0f, 0.016f, -0.8f}, {0.0f, 0.016f, 0.8f}, 0.040f, {0.26f, 0.62f, 0.48f});
 
-            MaterialComponent material;
-            material.tint = {1.0f, 1.0f, 1.0f, 0.85f};
+            gts::rendering::UnlitMaterialDescriptor material;
+            material.baseColor = {1.0f, 1.0f, 1.0f, 0.85f};
             material.vertexColorOnly = true;
             material.doubleSided = true;
             material.depthWrite = true;
@@ -329,7 +329,7 @@ namespace gts::tools
             TransformComponent transform;
             world.addComponent(gridEntity, transform);
             world.addComponent(gridEntity, mesh);
-            world.addComponent(gridEntity, material);
+            world.addComponent(gridEntity, gts::rendering::sharedUnlitMaterialReference(world, material));
         }
 
         Entity entityForEmitter(const std::string& stableId)

@@ -82,8 +82,9 @@ Renderable geometry should use one geometry descriptor at a time:
 Materials are referenced through shared material identity:
 
 - `MaterialReferenceComponent` points to a `MaterialInstanceHandle`.
-- `MaterialComponent` remains a bounded legacy authoring adapter converted into
-  a unique material instance.
+- Scene authoring creates material instances through `MaterialRuntime` and
+  attaches `MaterialReferenceComponent`; there is no descriptor compatibility
+  adapter in the render lifecycle.
 - `MaterialGpuState` is stored in `MaterialRuntime`, not as an ECS component.
 
 GPU/runtime companions include:

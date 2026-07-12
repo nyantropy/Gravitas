@@ -7,7 +7,6 @@
 
 #include "DynamicMeshComponent.h"
 #include "ECSWorld.hpp"
-#include "MaterialComponent.h"
 #include "MaterialReferenceComponent.h"
 #include "MaterialRuntime.h"
 #include "MeshGpuComponent.h"
@@ -385,15 +384,6 @@ namespace gts::rendering
         return false;
     }
 
-    inline bool legacyMaterialDescriptorUsable(ECSWorld& world, Entity entity)
-    {
-        if (!world.hasComponent<MaterialComponent>(entity))
-            return false;
-
-        const MaterialComponent& material = world.getComponent<MaterialComponent>(entity);
-        return !material.texturePath.empty() || world.hasComponent<StaticMeshComponent>(entity);
-    }
-
     inline bool worldTextMaterialDescriptorUsable(ECSWorld& world, Entity entity)
     {
         if (!world.hasComponent<WorldTextComponent>(entity))
@@ -405,8 +395,7 @@ namespace gts::rendering
 
     inline bool hasAnyMaterialSource(ECSWorld& world, Entity entity)
     {
-        return world.hasComponent<MaterialComponent>(entity)
-            || world.hasComponent<MaterialReferenceComponent>(entity)
+        return world.hasComponent<MaterialReferenceComponent>(entity)
             || world.hasComponent<WorldTextComponent>(entity);
     }
 
@@ -415,8 +404,7 @@ namespace gts::rendering
         if (world.hasComponent<MaterialReferenceComponent>(entity))
             return true;
 
-        return legacyMaterialDescriptorUsable(world, entity)
-            || worldTextMaterialDescriptorUsable(world, entity);
+        return worldTextMaterialDescriptorUsable(world, entity);
     }
 
     inline bool hasRenderableDescriptor(ECSWorld& world, Entity entity)

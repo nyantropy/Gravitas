@@ -21,7 +21,6 @@ public:
         for (entity_id_type entityId : pendingMaterials)
         {
             Entity entity{entityId};
-            gts::rendering::syncLegacyMaterialBinding(ctx.world, entity, ctx.resources, commands);
             gts::rendering::syncWorldTextMaterialBinding(ctx.world, entity, ctx.resources, commands);
         }
 

@@ -11,7 +11,7 @@
 #include "DynamicMeshComponent.h"
 #include "ECSWorld.hpp"
 #include "Entity.h"
-#include "MaterialComponent.h"
+#include "MaterialReferenceComponent.h"
 #include "ParticleEmitterComponent.h"
 #include "PhysicsBodyComponent.h"
 #include "QuadMeshComponent.h"
@@ -91,7 +91,7 @@ namespace gts::tools
         if (world.hasComponent<StaticMeshComponent>(entity)) badges.push_back("MESH");
         if (world.hasComponent<QuadMeshComponent>(entity)) badges.push_back("QUAD");
         if (world.hasComponent<DynamicMeshComponent>(entity)) badges.push_back("DYN");
-        if (world.hasComponent<MaterialComponent>(entity)) badges.push_back("MAT");
+        if (world.hasComponent<MaterialReferenceComponent>(entity)) badges.push_back("MAT");
         if (world.hasComponent<ParticleEmitterComponent>(entity)) badges.push_back("PART");
         if (world.hasComponent<CameraDescriptionComponent>(entity)) badges.push_back("CAM");
         if (world.hasComponent<PhysicsBodyComponent>(entity)) badges.push_back("BODY");
