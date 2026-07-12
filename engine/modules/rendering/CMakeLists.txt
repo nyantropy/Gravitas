@@ -15,6 +15,9 @@ file(GLOB_RECURSE RENDERING_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/runtime/*.cpp"
 )
+list(APPEND RENDERING_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/tiny_obj_loader_impl.cpp"
+)
 add_library(gravitas_rendering STATIC ${RENDERING_SOURCES})
 
 target_compile_features(gravitas_rendering PUBLIC cxx_std_20)
@@ -39,6 +42,7 @@ target_include_directories(gravitas_rendering PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/core/init"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/lighting"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/material"
+    "${CMAKE_CURRENT_SOURCE_DIR}/core/assets"
 
     # Abstract interfaces (IGtsGraphicsModule, IResourceProvider)
     "${CMAKE_CURRENT_SOURCE_DIR}/core/interface"
@@ -88,6 +92,9 @@ target_include_directories(gravitas_rendering PUBLIC
 
     # Engine UI system + renderer-side UI extraction
     "${CMAKE_CURRENT_SOURCE_DIR}/core/ui"
+
+    # Bundled external headers used by CPU-only asset importers.
+    "${GTS_ENGINE_ROOT}/external/stb"
 )
 
 target_link_libraries(gravitas_rendering PUBLIC

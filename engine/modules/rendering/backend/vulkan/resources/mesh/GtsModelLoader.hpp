@@ -1,13 +1,7 @@
 #pragma once
 
 #include <vector>
-#include <unordered_map>
-#include <stdexcept>
 #include <string>
-
-#include "GlmConfig.h"
-
-#include <tiny_obj_loader.h>
 
 #include "MeshGeometryProcessor.h"
 #include "Vertex.h"

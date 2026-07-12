@@ -2,7 +2,7 @@
 add_subdirectory(vksetup)
 
 # ── gravitas_vulkan_backend ────────────────────────────────────────────────────
-# All Vulkan rendering, resource management, texture loading, and model loading.
+# All Vulkan rendering, resource management, texture loading, and runtime mesh upload.
 # Collapses the former per-folder sub-targets into one logical library.
 #
 # rendering/, resources/, texture/, and util/ are entirely owned by this target.
@@ -18,7 +18,6 @@ file(GLOB_RECURSE VULKAN_BACKEND_SOURCES
 list(APPEND VULKAN_BACKEND_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stb_image_impl.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../external/stb_image_write_impl.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../external/tiny_obj_loader_impl.cpp"
 )
 add_library(gravitas_vulkan_backend STATIC ${VULKAN_BACKEND_SOURCES})
 
@@ -70,7 +69,7 @@ target_include_directories(gravitas_vulkan_backend PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/util/image_util"
     "${CMAKE_CURRENT_SOURCE_DIR}/util/memory_util"
 
-    # Bundled external headers (stb_image, tiny_obj_loader)
+    # Bundled external headers (stb_image)
     "${GTS_ENGINE_ROOT}/external/stb"
 
     # Bundled GLM (needed by vertex types, model loader, texture loader)

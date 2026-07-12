@@ -144,6 +144,24 @@ set_tests_properties(geometry_pbr_preparation
         LABELS "gravitas;rendering;geometry"
 )
 
+add_executable(ObjAssetImporterTest
+    assets/ObjAssetImporterTest.cpp
+)
+
+target_compile_features(ObjAssetImporterTest PRIVATE cxx_std_20)
+
+target_link_libraries(ObjAssetImporterTest PRIVATE gravitas_rendering)
+
+add_test(
+    NAME obj_asset_importer
+    COMMAND ObjAssetImporterTest
+)
+
+set_tests_properties(obj_asset_importer
+    PROPERTIES
+        LABELS "gravitas;assets;importer"
+)
+
 add_executable(FirstLitRendererArchitectureTest
     rendering/FirstLitRendererArchitectureTest.cpp
 )
