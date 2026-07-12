@@ -1,0 +1,28 @@
+{
+  "benchmark": "static_geometry_small",
+  "preset_version": 1,
+  "mode": "cpu_smoke",
+  "render_resolution": {
+    "width": 1280,
+    "height": 720
+  },
+  "environment": {
+    "cpu": "fixture",
+    "gpu": "unavailable in cpu_smoke mode",
+    "build_type": "Release"
+  },
+  "timings_ms": {
+    "frame_cpu": {
+      "median": 1.04,
+      "p95": 1.25
+    }
+  },
+  "counters": {
+    "render_commands": 100,
+    "object_uploads": 0,
+    "material_synchronized": 0,
+    "material_full_scans": 0,
+    "draw_calls": 0,
+    "prepared_batches": 0
+  }
+}

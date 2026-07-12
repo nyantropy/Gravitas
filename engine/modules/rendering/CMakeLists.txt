@@ -10,6 +10,7 @@ endif()
 # core/ and ecssetup/ are entirely owned by this target — GLOB_RECURSE is safe.
 # Currently only GLFWOutputWindow.cpp exists; all other files are header-only.
 file(GLOB_RECURSE RENDERING_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/runtime/*.cpp"
@@ -27,6 +28,7 @@ endif()
 target_include_directories(gravitas_rendering PUBLIC
     # Rendering module root
     "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks"
 
     # Font loader utilities (BitmapFont, BitmapFontLoader, GlyphLayoutEngine)
     "${CMAKE_CURRENT_SOURCE_DIR}/core/fontloader"

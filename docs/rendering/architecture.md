@@ -61,6 +61,13 @@ as fullscreen VN can keep the scene loaded but asleep.
 `RenderPassVisibilityComponent` is narrower: it can submit empty scene and/or
 particle lists without masking ECS system execution or render extraction.
 
+Performance validation for this flow is owned by the rendering benchmark suite
+documented in [benchmarks.md](benchmarks.md). Benchmarks generate deterministic
+descriptor-driven ECS worlds, run normal lifecycle and extraction systems,
+emit JSON timing/counter data, and check invariants such as zero steady-state
+material full scans. The benchmark suite is the required measurement gate for
+future renderer optimization work.
+
 ## Descriptor To GPU Split
 
 Renderable geometry should use one geometry descriptor at a time:

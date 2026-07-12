@@ -64,6 +64,9 @@ vendored documentation and should not be rewritten as first-party engine docs.
   rendering authoring rules.
 - [docs/rendering/roadmap.md](docs/rendering/roadmap.md): future rendering work
   only.
+- [docs/rendering/benchmarks.md](docs/rendering/benchmarks.md): deterministic
+  rendering benchmark suite, JSON results, counters, baselines, and CI
+  regression checks.
 - [docs/physics/architecture.md](docs/physics/architecture.md): physics module
   current state.
 - [docs/physics/authoring-guide.md](docs/physics/authoring-guide.md): physics
@@ -208,6 +211,13 @@ the scene material binding path rather than being copied into every object.
 Material versions are authoritative; material queues only schedule work, and
 the scene-local material user index limits invalidation to entities that
 actually reference a changed material.
+
+Rendering performance work should use the benchmark suite documented in
+[docs/rendering/benchmarks.md](docs/rendering/benchmarks.md). Smoke benchmarks
+run deterministic ECS/extraction workloads in ordinary CI and emit JSON
+timings, counters, environment metadata, and invariant failures. GPU timing is
+reported unavailable until Vulkan timestamp queries are implemented; CPU
+queue-submit time must not be treated as GPU frame time.
 
 Runtime graphics changes are engine-owned and travel through engine-facing
 types. Applications request changes through

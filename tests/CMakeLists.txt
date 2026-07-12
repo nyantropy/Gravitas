@@ -148,6 +148,61 @@ set_tests_properties(object_material_color_ownership
         LABELS "gravitas;rendering;materials"
 )
 
+add_executable(RenderingBenchmarkSupportTest
+    benchmarks/RenderingBenchmarkSupportTest.cpp
+)
+
+target_compile_features(RenderingBenchmarkSupportTest PRIVATE cxx_std_20)
+
+target_link_libraries(RenderingBenchmarkSupportTest PRIVATE gravitas_rendering)
+
+add_test(
+    NAME rendering_benchmark_support
+    COMMAND RenderingBenchmarkSupportTest
+)
+
+set_tests_properties(rendering_benchmark_support
+    PROPERTIES
+        LABELS "gravitas;rendering;benchmark;benchmark_smoke"
+)
+
+add_test(
+    NAME rendering_benchmark_static_geometry_smoke
+    COMMAND GtsRenderingBenchmarks
+        --preset static_geometry_small
+        --mode cpu_smoke
+        --warmup-frames 2
+        --measured-frames 4
+        --renderable-count 16
+        --visible-renderable-count 8
+        --unique-mesh-count 2
+        --unique-material-count 2
+        --output "${CMAKE_CURRENT_BINARY_DIR}/static_geometry_small_smoke.json"
+        --check-invariants
+        --quiet
+)
+
+set_tests_properties(rendering_benchmark_static_geometry_smoke
+    PROPERTIES
+        LABELS "gravitas;rendering;benchmark;benchmark_smoke"
+)
+
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(
+        NAME rendering_benchmark_compare_tool
+        COMMAND "${Python3_EXECUTABLE}"
+            "${GTS_ENGINE_ROOT}/benchmarks/tools/compare_benchmark_results.py"
+            --baseline "${GTS_ENGINE_ROOT}/benchmarks/fixtures/static_geometry_small_baseline.json"
+            --current "${GTS_ENGINE_ROOT}/benchmarks/fixtures/static_geometry_small_current.json"
+    )
+
+    set_tests_properties(rendering_benchmark_compare_tool
+        PROPERTIES
+            LABELS "gravitas;rendering;benchmark;benchmark_smoke"
+    )
+endif()
+
 add_executable(UiLayerRuntimeTest
     ui/UiLayerRuntimeTest.cpp
 )

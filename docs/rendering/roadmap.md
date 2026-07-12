@@ -22,11 +22,17 @@ The renderer currently has:
   base color owned by shared material GPU state instead of object tint writes
 - incremental material synchronization through a scene-local material user
   index and deduplicated material change queue
+- deterministic rendering benchmark smoke suite with JSON output, statistical
+  summaries, invariant checks, baseline comparison tooling, and CTest labels
 - retained UI extraction and Vulkan overlay composition
 - screenshot capture with async PNG writes
 
 ## Future Rendering Work
 
+- Add Vulkan GPU timestamp-query timing for total frame, scene/PBR, particles,
+  UI, environment, and future post-processing stages.
+- Run the full benchmark matrix on fixed hardware and establish versioned CI
+  baselines before starting the next renderer optimization phase.
 - Add alpha-cutoff shader support for `RenderQueue::AlphaMasked`.
 - Add sky/background rendering that consumes selected environment state without
   coupling sky draw commands to material draw commands.

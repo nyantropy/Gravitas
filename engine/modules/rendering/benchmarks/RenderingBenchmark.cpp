@@ -1,0 +1,1468 @@
+#include "RenderingBenchmark.h"
+
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <cstdlib>
+#include <fstream>
+#include <iomanip>
+#include <limits>
+#include <numeric>
+#include <optional>
+#include <random>
+#include <sstream>
+#include <thread>
+#include <unordered_map>
+
+#include "BitmapFont.h"
+#include "BoundsComponent.h"
+#include "CameraDescriptionComponent.h"
+#include "DirectionalLightComponent.h"
+#include "DynamicMeshComponent.h"
+#include "ECSWorld.hpp"
+#include "EcsControllerContext.hpp"
+#include "FrustumCullingStrategy.h"
+#include "IResourceProvider.hpp"
+#include "MaterialBindingSystem.hpp"
+#include "MaterialReferenceComponent.h"
+#include "MaterialRuntime.h"
+#include "ParticleEmitterComponent.h"
+#include "PointLightComponent.h"
+#include "RenderCommandExtractor.hpp"
+#include "RenderExtractionSnapshotBuilder.hpp"
+#include "RenderGpuSystem.hpp"
+#include "RenderPipeline.h"
+#include "RendererCameraSceneFeature.h"
+#include "RendererGeometrySceneFeature.h"
+#include "RendererParticleSceneFeature.h"
+#include "SpotLightComponent.h"
+#include "StaticMeshComponent.h"
+#include "TimeContext.h"
+#include "TransformComponent.h"
+#include "TransformDirtyHelpers.h"
+#include "TransformSceneFeature.h"
+#include "TransformSystem.hpp"
+#include "Vertex.h"
+#include "WorldTextComponent.h"
+
+namespace gts::rendering::benchmarks
+{
+    namespace
+    {
+        constexpr uint32_t MaxBenchmarkRenderables = 60000;
+        constexpr uint32_t MaxBenchmarkMaterials = 60000;
+        constexpr uint32_t MaxBenchmarkMeshes = 4096;
+        constexpr uint32_t MaxBenchmarkLights = 20000;
+        constexpr float FixedDeltaSeconds = 1.0f / 60.0f;
+
+        struct BenchmarkResourceProvider : IResourceProvider
+        {
+            mesh_id_type nextMesh = 100;
+            texture_id_type nextTexture = 200;
+            ssbo_id_type nextSlot = 0;
+            font_id_type nextFont = 300;
+            view_id_type nextView = 400;
+
+            uint64_t meshRequests = 0;
+            uint64_t textureRequests = 0;
+            uint64_t proceduralMeshUploads = 0;
+            uint64_t releasedProceduralMeshes = 0;
+            uint64_t objectSlotRequests = 0;
+            uint64_t objectSlotReleases = 0;
+            uint64_t cameraBufferRequests = 0;
+            uint64_t cameraBufferReleases = 0;
+
+            std::unordered_map<std::string, mesh_id_type> meshes;
+            std::unordered_map<std::string, texture_id_type> textures;
+            std::unordered_map<std::string, font_id_type> fontsByPath;
+            std::unordered_map<font_id_type, BitmapFont> fonts;
+
+            mesh_id_type requestMesh(const std::string& path) override
+            {
+                ++meshRequests;
+                auto [it, inserted] = meshes.emplace(path, nextMesh);
+                if (inserted)
+                    ++nextMesh;
+                return it->second;
+            }
+
+            mesh_id_type getSharedQuadMesh(float width, float height) override
+            {
+                std::ostringstream key;
+                key << "__quad/" << width << "x" << height;
+                return requestMesh(key.str());
+            }
+
+            mesh_id_type uploadProceduralMesh(mesh_id_type existingId,
+                                              const std::vector<Vertex>&,
+                                              const std::vector<uint32_t>&,
+                                              VertexAttributeFlags = LegacyUnlitVertexAttributes) override
+            {
+                ++proceduralMeshUploads;
+                if (existingId != 0)
+                    return existingId;
+                return nextMesh++;
+            }
+
+            void releaseProceduralMesh(mesh_id_type) override
+            {
+                ++releasedProceduralMeshes;
+            }
+
+            texture_id_type requestTexture(const std::string& path) override
+            {
+                return requestTexture(path, TextureColorSpace::SRgb);
+            }
+
+            texture_id_type requestTexture(const std::string& path, TextureColorSpace colorSpace) override
+            {
+                ++textureRequests;
+                std::string key = path;
+                key += colorSpace == TextureColorSpace::SRgb ? ":srgb" : ":linear";
+                auto [it, inserted] = textures.emplace(key, nextTexture);
+                if (inserted)
+                    ++nextTexture;
+                return it->second;
+            }
+
+            texture_id_type requestMaterialFallbackTexture(MaterialTextureRole role) override
+            {
+                return requestTexture(std::string("__fallback/") + fallbackTextureNameForRole(role),
+                                      textureColorSpaceForRole(role));
+            }
+
+            texture_id_type requestClampedTexture(const std::string& path) override
+            {
+                return requestTexture(path);
+            }
+
+            texture_id_type requestPixelTexture(const std::string& path) override
+            {
+                return requestTexture(path);
+            }
+
+            TextureDimensions getTextureDimensions(texture_id_type) const override
+            {
+                return {16, 16};
+            }
+
+            font_id_type requestFont(const std::string& path) override
+            {
+                auto [it, inserted] = fontsByPath.emplace(path, nextFont);
+                if (inserted)
+                {
+                    BitmapFont font;
+                    font.atlasTexture = 900 + nextFont;
+                    font.lineHeight = 12.0f;
+                    font.glyphs['B'] = GlyphInfo{
+                        {0.0f, 0.0f},
+                        {1.0f, 1.0f},
+                        {8.0f, 10.0f},
+                        {0.0f, 10.0f},
+                        8.0f
+                    };
+                    font.glyphs['e'] = font.glyphs['B'];
+                    font.glyphs['n'] = font.glyphs['B'];
+                    font.glyphs['c'] = font.glyphs['B'];
+                    font.glyphs['h'] = font.glyphs['B'];
+                    font.glyphs[' '] = font.glyphs['B'];
+                    fonts.emplace(nextFont, font);
+                    ++nextFont;
+                }
+                return it->second;
+            }
+
+            const BitmapFont* getFont(font_id_type id) const override
+            {
+                auto it = fonts.find(id);
+                return it == fonts.end() ? nullptr : &it->second;
+            }
+
+            view_id_type requestCameraBuffer() override
+            {
+                ++cameraBufferRequests;
+                return nextView++;
+            }
+
+            void releaseCameraBuffer(view_id_type) override
+            {
+                ++cameraBufferReleases;
+            }
+
+            void uploadCameraView(view_id_type, const glm::mat4&, const glm::mat4&) override
+            {
+            }
+
+            ssbo_id_type requestObjectSlot() override
+            {
+                ++objectSlotRequests;
+                return nextSlot++;
+            }
+
+            void releaseObjectSlot(ssbo_id_type) override
+            {
+                ++objectSlotReleases;
+            }
+        };
+
+        struct BenchmarkSceneState
+        {
+            ECSWorld world;
+            BenchmarkResourceProvider resources;
+            RenderPipeline pipeline{std::make_unique<FrustumCullingStrategy>(true)};
+            std::vector<Entity> renderables;
+            std::vector<Entity> movingLights;
+            std::vector<MaterialInstanceHandle> materials;
+            uint64_t previousMeshRequests = 0;
+            uint64_t previousTextureRequests = 0;
+            uint64_t previousProceduralUploads = 0;
+            uint64_t previousObjectSlotRequests = 0;
+            uint64_t previousCameraBufferRequests = 0;
+        };
+
+        uint32_t parseUnsigned(std::string_view text, bool& ok)
+        {
+            ok = false;
+            if (text.empty())
+                return 0;
+
+            uint64_t value = 0;
+            for (char c : text)
+            {
+                if (c < '0' || c > '9')
+                    return 0;
+                value = value * 10u + static_cast<uint32_t>(c - '0');
+                if (value > std::numeric_limits<uint32_t>::max())
+                    return 0;
+            }
+
+            ok = true;
+            return static_cast<uint32_t>(value);
+        }
+
+        bool parseBool(std::string_view text, bool& ok)
+        {
+            ok = true;
+            if (text == "1" || text == "true" || text == "yes" || text == "on")
+                return true;
+            if (text == "0" || text == "false" || text == "no" || text == "off")
+                return false;
+            ok = false;
+            return false;
+        }
+
+        double percentile(const std::vector<double>& sorted, double fraction)
+        {
+            if (sorted.empty())
+                return 0.0;
+            if (sorted.size() == 1)
+                return sorted.front();
+
+            const double rank = fraction * static_cast<double>(sorted.size() - 1u);
+            const auto lo = static_cast<size_t>(std::floor(rank));
+            const auto hi = static_cast<size_t>(std::ceil(rank));
+            if (lo == hi)
+                return sorted[lo];
+
+            const double weight = rank - static_cast<double>(lo);
+            return sorted[lo] * (1.0 - weight) + sorted[hi] * weight;
+        }
+
+        std::string escapedJson(std::string_view value)
+        {
+            std::ostringstream out;
+            for (char c : value)
+            {
+                switch (c)
+                {
+                    case '\\': out << "\\\\"; break;
+                    case '"': out << "\\\""; break;
+                    case '\n': out << "\\n"; break;
+                    case '\r': out << "\\r"; break;
+                    case '\t': out << "\\t"; break;
+                    default: out << c; break;
+                }
+            }
+            return out.str();
+        }
+
+        std::string cpuModel()
+        {
+#if defined(__linux__)
+            std::ifstream file("/proc/cpuinfo");
+            std::string line;
+            while (std::getline(file, line))
+            {
+                const std::string key = "model name";
+                if (line.rfind(key, 0) == 0)
+                {
+                    const size_t colon = line.find(':');
+                    if (colon != std::string::npos)
+                    {
+                        size_t start = colon + 1u;
+                        while (start < line.size() && line[start] == ' ')
+                            ++start;
+                        return line.substr(start);
+                    }
+                }
+            }
+#endif
+            return "unknown";
+        }
+
+        std::string compilerName()
+        {
+#if defined(__clang__)
+            return std::string("clang ") + __clang_version__;
+#elif defined(__GNUC__)
+            return std::string("gcc ") + std::to_string(__GNUC__) + "." +
+                std::to_string(__GNUC_MINOR__) + "." + std::to_string(__GNUC_PATCHLEVEL__);
+#elif defined(_MSC_VER)
+            return std::string("msvc ") + std::to_string(_MSC_VER);
+#else
+            return "unknown";
+#endif
+        }
+
+        std::string osName()
+        {
+#if defined(_WIN32)
+            return "windows";
+#elif defined(__APPLE__)
+            return "macos";
+#elif defined(__linux__)
+            return "linux";
+#else
+            return "unknown";
+#endif
+        }
+
+        std::string buildTypeName()
+        {
+#if defined(NDEBUG)
+            return "Release";
+#else
+            return "Debug";
+#endif
+        }
+
+        BenchmarkEnvironment collectEnvironment(const RenderingBenchmarkConfig& config)
+        {
+            BenchmarkEnvironment env;
+            const char* commit = std::getenv("GTS_BENCHMARK_COMMIT");
+            env.values["engine_commit"] = commit != nullptr ? commit : "unknown";
+            env.values["build_type"] = buildTypeName();
+            env.values["compiler"] = compilerName();
+            env.values["operating_system"] = osName();
+            env.values["cpu"] = cpuModel();
+            env.values["logical_core_count"] = std::to_string(std::thread::hardware_concurrency());
+            env.values["gpu"] = config.mode == BenchmarkRunMode::CpuSmoke
+                ? "unavailable in cpu_smoke mode"
+                : "not queried";
+            env.values["graphics_driver"] = "unavailable";
+            env.values["vulkan_api_version"] = "unavailable";
+            env.values["render_resolution"] =
+                std::to_string(config.renderWidth) + "x" + std::to_string(config.renderHeight);
+            env.values["vsync"] = "disabled";
+            env.values["frame_rate_cap"] = "disabled";
+            env.values["benchmark_seed"] = std::to_string(config.seed);
+            env.values["preset_version"] = std::to_string(config.presetVersion);
+            env.values["mode"] = benchmarkRunModeName(config.mode);
+            return env;
+        }
+
+        std::vector<Vertex> benchmarkTriangleVertices(uint32_t frame)
+        {
+            const float offset = static_cast<float>(frame % 17u) * 0.001f;
+            return {
+                Vertex{{-0.5f, -0.5f + offset, 0.0f}, {0.0f, 0.0f, 1.0f},
+                       {1.0f, 0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}},
+                Vertex{{ 0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f},
+                       {1.0f, 0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}},
+                Vertex{{ 0.0f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f},
+                       {1.0f, 0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, {0.5f, 1.0f}}
+            };
+        }
+
+        void installBenchmarkFeatures(BenchmarkSceneState& state, const RenderingBenchmarkConfig& config)
+        {
+            gts::transform::installTransformRuntime(state.world);
+            installRendererGeometrySceneFeature(state.world, &state.resources);
+            installRendererCameraSceneFeature(state.world, &state.resources);
+            installRendererParticleSceneFeature(state.world);
+            state.pipeline.setVisibilityEnabled(config.enableFrustumCulling);
+        }
+
+        MaterialInstanceHandle createBenchmarkMaterial(BenchmarkSceneState& state,
+                                                       const RenderingBenchmarkConfig& config,
+                                                       uint32_t index)
+        {
+            MaterialRuntime& runtime = materialRuntime(state.world);
+            const MaterialInstanceHandle source = config.enablePbr
+                ? runtime.defaultStandardSurfaceMaterial()
+                : runtime.defaultMaterial();
+            MaterialInstanceHandle handle = runtime.cloneInstance(source);
+            runtime.modifyInstance(
+                handle,
+                [&](MaterialInstance& instance)
+                {
+                    const float r = 0.35f + 0.55f * static_cast<float>((index * 17u) % 101u) / 100.0f;
+                    const float g = 0.30f + 0.60f * static_cast<float>((index * 31u) % 101u) / 100.0f;
+                    const float b = 0.25f + 0.65f * static_cast<float>((index * 47u) % 101u) / 100.0f;
+                    instance.baseColor = {r, g, b, 1.0f};
+                    instance.metallic = config.enablePbr ? 0.15f : 0.0f;
+                    instance.roughness = config.enablePbr ? 0.65f : 1.0f;
+                    if (config.enableNormalMaps && config.enablePbr)
+                        instance.normalTexture = MaterialTextureBinding::dataAssetPath(
+                            "benchmarks/generated_normal_" + std::to_string(index % 8u) + ".png");
+                    return true;
+                });
+            return handle;
+        }
+
+        void createBenchmarkCamera(BenchmarkSceneState& state, const RenderingBenchmarkConfig& config)
+        {
+            Entity camera = state.world.createEntity();
+            TransformComponent transform;
+            transform.position = {0.0f, 0.0f, 80.0f};
+            state.world.addComponent(camera, transform);
+            CameraDescriptionComponent cameraDesc;
+            cameraDesc.active = true;
+            cameraDesc.target = {0.0f, 0.0f, 0.0f};
+            cameraDesc.aspectRatio = config.renderHeight == 0
+                ? 1.0f
+                : static_cast<float>(config.renderWidth) / static_cast<float>(config.renderHeight);
+            cameraDesc.farClip = 500.0f;
+            state.world.addComponent(camera, cameraDesc);
+        }
+
+        void createBenchmarkLights(BenchmarkSceneState& state, const RenderingBenchmarkConfig& config)
+        {
+            for (uint32_t i = 0; i < config.directionalLightCount; ++i)
+            {
+                Entity light = state.world.createEntity();
+                TransformComponent transform;
+                transform.rotation = {0.2f + 0.05f * static_cast<float>(i), 0.6f, 0.0f};
+                state.world.addComponent(light, transform);
+                DirectionalLightComponent desc;
+                desc.active = true;
+                desc.priority = static_cast<int>(config.directionalLightCount - i);
+                desc.intensity = 1.0f + 0.1f * static_cast<float>(i % 4u);
+                state.world.addComponent(light, desc);
+                if (state.movingLights.size() < config.movingLightCount)
+                    state.movingLights.push_back(light);
+            }
+
+            for (uint32_t i = 0; i < config.pointLightCount; ++i)
+            {
+                Entity light = state.world.createEntity();
+                TransformComponent transform;
+                const float angle = static_cast<float>(i) * 0.37f;
+                transform.position = {std::cos(angle) * 25.0f, std::sin(angle * 0.7f) * 6.0f,
+                                      std::sin(angle) * 25.0f};
+                state.world.addComponent(light, transform);
+                PointLightComponent desc;
+                desc.priority = static_cast<int>(i % 7u);
+                desc.range = 30.0f;
+                desc.intensity = 2.0f;
+                state.world.addComponent(light, desc);
+                if (state.movingLights.size() < config.movingLightCount)
+                    state.movingLights.push_back(light);
+            }
+
+            for (uint32_t i = 0; i < config.spotLightCount; ++i)
+            {
+                Entity light = state.world.createEntity();
+                TransformComponent transform;
+                const float angle = static_cast<float>(i) * 0.51f;
+                transform.position = {std::cos(angle) * 18.0f, 10.0f, std::sin(angle) * 18.0f};
+                transform.rotation = {0.7f, angle, 0.0f};
+                state.world.addComponent(light, transform);
+                SpotLightComponent desc;
+                desc.priority = static_cast<int>(i % 9u);
+                desc.range = 28.0f;
+                desc.intensity = 3.0f;
+                state.world.addComponent(light, desc);
+                if (state.movingLights.size() < config.movingLightCount)
+                    state.movingLights.push_back(light);
+            }
+        }
+
+        void createBenchmarkRenderables(BenchmarkSceneState& state, const RenderingBenchmarkConfig& config)
+        {
+            MaterialRuntime& runtime = materialRuntime(state.world);
+            state.materials.reserve(config.uniqueMaterialCount);
+            for (uint32_t i = 0; i < config.uniqueMaterialCount; ++i)
+                state.materials.push_back(createBenchmarkMaterial(state, config, i));
+
+            if (state.materials.empty())
+                state.materials.push_back(runtime.defaultStandardSurfaceMaterial());
+
+            std::mt19937 rng(config.seed);
+            std::uniform_real_distribution<float> jitter(-0.35f, 0.35f);
+            const uint32_t gridSide = static_cast<uint32_t>(
+                std::ceil(std::sqrt(static_cast<double>(std::max(1u, config.renderableCount)))));
+            const uint32_t requestedVisible = config.visibleRenderableCount == 0
+                ? config.renderableCount
+                : std::min(config.visibleRenderableCount, config.renderableCount);
+
+            for (uint32_t i = 0; i < config.renderableCount; ++i)
+            {
+                Entity entity = state.world.createEntity();
+                TransformComponent transform;
+                const uint32_t x = i % gridSide;
+                const uint32_t y = i / gridSide;
+                const bool shouldBeVisible = i < requestedVisible;
+                transform.position = {
+                    (static_cast<float>(x) - static_cast<float>(gridSide) * 0.5f) * 2.8f + jitter(rng),
+                    (static_cast<float>(y) - static_cast<float>(gridSide) * 0.5f) * 2.8f + jitter(rng),
+                    shouldBeVisible ? jitter(rng) : 900.0f + static_cast<float>(i)
+                };
+                state.world.addComponent(entity, transform);
+
+                if (i < config.dynamicMeshCount)
+                {
+                    DynamicMeshComponent dynamicMesh;
+                    dynamicMesh.vertices = benchmarkTriangleVertices(0);
+                    dynamicMesh.indices = {0, 1, 2};
+                    dynamicMesh.geometryVersion = 1;
+                    dynamicMesh.sourceAttributes = StandardVertexAttributes;
+                    state.world.addComponent(entity, dynamicMesh);
+                }
+                else
+                {
+                    StaticMeshComponent mesh;
+                    mesh.meshPath = "benchmarks/generated_mesh_" +
+                        std::to_string(i % std::max(1u, config.uniqueMeshCount)) + ".mesh";
+                    state.world.addComponent(entity, mesh);
+                }
+
+                state.world.addComponent(entity, MaterialReferenceComponent{
+                    state.materials[i % state.materials.size()]
+                });
+                state.world.addComponent(entity, BoundsComponent{});
+                state.renderables.push_back(entity);
+            }
+        }
+
+        void createBenchmarkWorldText(BenchmarkSceneState& state, const RenderingBenchmarkConfig& config)
+        {
+            for (uint32_t i = 0; i < config.worldTextCount; ++i)
+            {
+                Entity entity = state.world.createEntity();
+                TransformComponent transform;
+                transform.position = {
+                    -20.0f + static_cast<float>(i % 20u) * 2.0f,
+                    16.0f + static_cast<float>(i / 20u) * 1.5f,
+                    0.0f
+                };
+                state.world.addComponent(entity, transform);
+                state.world.addComponent(entity, WorldTextComponent{
+                    "Bench " + std::to_string(i),
+                    "resources/fonts/benchmark.fnt",
+                    0.08f,
+                    {1.0f, 1.0f, 1.0f, 1.0f}
+                });
+                state.world.addComponent(entity, BoundsComponent{});
+            }
+        }
+
+        void createBenchmarkParticles(BenchmarkSceneState& state, const RenderingBenchmarkConfig& config)
+        {
+            for (uint32_t i = 0; i < config.particleEmitterCount; ++i)
+            {
+                Entity entity = state.world.createEntity();
+                TransformComponent transform;
+                transform.position = {
+                    -15.0f + static_cast<float>(i % 10u) * 3.0f,
+                    -12.0f,
+                    static_cast<float>(i / 10u) * 2.0f
+                };
+                state.world.addComponent(entity, transform);
+                ParticleEmitterComponent emitter;
+                emitter.effectPath.clear();
+                emitter.reloadFromEffect = false;
+                emitter.randomSeed = config.seed + i;
+                emitter.emissionRate = 24.0f;
+                emitter.maxParticles = 96;
+                emitter.texturePath = "benchmarks/generated_particle.png";
+                state.world.addComponent(entity, emitter);
+            }
+        }
+
+        void generateScene(BenchmarkSceneState& state, const RenderingBenchmarkConfig& config)
+        {
+            installBenchmarkFeatures(state, config);
+            createBenchmarkCamera(state, config);
+            createBenchmarkLights(state, config);
+            createBenchmarkRenderables(state, config);
+            createBenchmarkWorldText(state, config);
+            createBenchmarkParticles(state, config);
+        }
+
+        void mutateFrame(BenchmarkSceneState& state,
+                         const RenderingBenchmarkConfig& config,
+                         uint64_t frameIndex)
+        {
+            const uint32_t movingObjects =
+                std::min<uint32_t>(config.movingObjectCount, static_cast<uint32_t>(state.renderables.size()));
+            for (uint32_t i = 0; i < movingObjects; ++i)
+            {
+                Entity entity = state.renderables[i];
+                if (!state.world.hasComponent<TransformComponent>(entity))
+                    continue;
+
+                TransformComponent& transform = state.world.getComponent<TransformComponent>(entity);
+                const float phase = static_cast<float>(frameIndex) * 0.031f + static_cast<float>(i) * 0.13f;
+                transform.position.x += std::sin(phase) * 0.015f;
+                transform.position.y += std::cos(phase) * 0.010f;
+                gts::transform::markDirty(state.world, entity);
+            }
+
+            const uint32_t movingLights =
+                std::min<uint32_t>(config.movingLightCount, static_cast<uint32_t>(state.movingLights.size()));
+            for (uint32_t i = 0; i < movingLights; ++i)
+            {
+                Entity entity = state.movingLights[i];
+                if (!state.world.hasComponent<TransformComponent>(entity))
+                    continue;
+                TransformComponent& transform = state.world.getComponent<TransformComponent>(entity);
+                const float phase = static_cast<float>(frameIndex) * 0.021f + static_cast<float>(i);
+                transform.position.x += std::sin(phase) * 0.04f;
+                transform.position.z += std::cos(phase) * 0.04f;
+                gts::transform::markDirty(state.world, entity);
+            }
+
+            MaterialRuntime& runtime = materialRuntime(state.world);
+            const uint32_t materialMutations =
+                std::min<uint32_t>(config.materialMutationCountPerFrame,
+                                   static_cast<uint32_t>(state.materials.size()));
+            for (uint32_t i = 0; i < materialMutations; ++i)
+            {
+                MaterialInstanceHandle handle = state.materials[(frameIndex + i) % state.materials.size()];
+                runtime.modifyInstance(
+                    handle,
+                    [&](MaterialInstance& instance)
+                    {
+                        const float t = static_cast<float>((frameIndex + i * 17u) % 255u) / 255.0f;
+                        instance.baseColor.x = 0.35f + 0.55f * t;
+                        instance.baseColor.y = 0.85f - 0.45f * t;
+                        return true;
+                    });
+            }
+
+            const uint32_t topologyMutations =
+                std::min<uint32_t>(config.topologyMutationCountPerFrame,
+                                   static_cast<uint32_t>(state.materials.size()));
+            for (uint32_t i = 0; i < topologyMutations; ++i)
+            {
+                MaterialInstanceHandle handle = state.materials[(frameIndex + i * 3u) % state.materials.size()];
+                runtime.modifyInstance(
+                    handle,
+                    [&](MaterialInstance& instance)
+                    {
+                        instance.renderState.alphaMode =
+                            instance.renderState.alphaMode == MaterialAlphaMode::Opaque
+                                ? MaterialAlphaMode::Blend
+                                : MaterialAlphaMode::Opaque;
+                        instance.renderState.depthWrite =
+                            instance.renderState.alphaMode != MaterialAlphaMode::Blend;
+                        return true;
+                    });
+            }
+
+            const uint32_t dynamicMeshes =
+                std::min<uint32_t>(config.dynamicMeshCount, static_cast<uint32_t>(state.renderables.size()));
+            for (uint32_t i = 0; i < dynamicMeshes; ++i)
+            {
+                Entity entity = state.renderables[i];
+                if (!state.world.hasComponent<DynamicMeshComponent>(entity))
+                    continue;
+
+                DynamicMeshComponent& mesh = state.world.getComponent<DynamicMeshComponent>(entity);
+                mesh.vertices = benchmarkTriangleVertices(static_cast<uint32_t>(frameIndex + i));
+                mesh.geometryVersion += 1;
+                queueDynamicMeshRefresh(state.world, entity);
+            }
+        }
+
+        void addSample(std::map<std::string, std::vector<double>>& timings,
+                       std::map<std::string, uint64_t>& counters,
+                       const std::string& key,
+                       double value)
+        {
+            timings[key].push_back(value);
+        }
+
+        void addCounter(std::map<std::string, uint64_t>& counters,
+                        const std::string& key,
+                        uint64_t value)
+        {
+            counters[key] += value;
+        }
+
+        void recordFrame(BenchmarkSceneState& state,
+                         const RenderingBenchmarkConfig& config,
+                         uint64_t frameIndex,
+                         std::map<std::string, std::vector<double>>& timings,
+                         std::map<std::string, uint64_t>& counters)
+        {
+            TimeContext time;
+            time.deltaTime = FixedDeltaSeconds;
+            time.unscaledDeltaTime = FixedDeltaSeconds;
+            time.timeScale = 1.0f;
+            time.frame = frameIndex;
+
+            EcsControllerContext ctx{
+                state.world,
+                &state.resources,
+                nullptr,
+                &time
+            };
+            ctx.windowPixelWidth = static_cast<float>(config.renderWidth);
+            ctx.windowPixelHeight = static_cast<float>(config.renderHeight);
+            ctx.windowAspectRatio = config.renderHeight == 0
+                ? 1.0f
+                : static_cast<float>(config.renderWidth) / static_cast<float>(config.renderHeight);
+            ctx.sceneViewportPixelWidth = ctx.windowPixelWidth;
+            ctx.sceneViewportPixelHeight = ctx.windowPixelHeight;
+            ctx.sceneViewportAspectRatio = ctx.windowAspectRatio;
+
+            mutateFrame(state, config, frameIndex);
+
+            const auto frameStart = std::chrono::steady_clock::now();
+            const auto controllerStart = std::chrono::steady_clock::now();
+            state.world.updateControllers(ctx);
+            const auto controllerEnd = std::chrono::steady_clock::now();
+
+            const auto& commands = state.pipeline.build(state.world);
+            const auto frameEnd = std::chrono::steady_clock::now();
+
+            const auto pipelineMetrics = state.pipeline.getLastPipelineMetrics();
+            const auto snapshotMetrics = state.pipeline.getSnapshotBuilder().getLastMetrics();
+            const auto extractorMetrics = state.pipeline.getExtractor().getLastMetrics();
+            const auto renderGpuMetrics = RenderGpuSystem::getLastMetrics();
+            const auto transformMetrics = gts::transform::TransformSystem::getLastMetrics();
+            const auto materialMetrics = MaterialBindingSystem::getLastMetrics();
+            const RenderExtractionSnapshot& snapshot = state.pipeline.getLatestSnapshot();
+            const gts::rendering::LightingFrameData& lighting = snapshot.lighting;
+
+            addSample(timings,
+                      counters,
+                      "frame_cpu",
+                      std::chrono::duration<double, std::milli>(frameEnd - frameStart).count());
+            addSample(timings,
+                      counters,
+                      "controller_cpu",
+                      std::chrono::duration<double, std::milli>(controllerEnd - controllerStart).count());
+            addSample(timings, counters, "snapshot_build_cpu", pipelineMetrics.snapshotBuildCpuMs);
+            addSample(timings, counters, "visibility_cpu", pipelineMetrics.visibilityCpuMs);
+            addSample(timings, counters, "command_extract_cpu", extractorMetrics.extractCpuMs);
+            addSample(timings, counters, "command_sort_cpu", extractorMetrics.sortCpuMs);
+            addSample(timings, counters, "render_gpu_sync_cpu", renderGpuMetrics.cpuTimeMs);
+            addSample(timings, counters, "transform_resolve_cpu", transformMetrics.cpuTimeMs);
+            addSample(timings, counters, "gpu_frame", 0.0);
+
+            uint64_t transparent = 0;
+            for (const RenderableSnapshot& renderable : snapshot.renderables)
+            {
+                if (renderable.renderQueue == RenderQueue::Transparent)
+                    ++transparent;
+            }
+
+            const uint64_t meshRequestDelta =
+                state.resources.meshRequests - state.previousMeshRequests;
+            const uint64_t textureRequestDelta =
+                state.resources.textureRequests - state.previousTextureRequests;
+            const uint64_t proceduralUploadDelta =
+                state.resources.proceduralMeshUploads - state.previousProceduralUploads;
+            const uint64_t objectSlotDelta =
+                state.resources.objectSlotRequests - state.previousObjectSlotRequests;
+            const uint64_t cameraBufferDelta =
+                state.resources.cameraBufferRequests - state.previousCameraBufferRequests;
+
+            state.previousMeshRequests = state.resources.meshRequests;
+            state.previousTextureRequests = state.resources.textureRequests;
+            state.previousProceduralUploads = state.resources.proceduralMeshUploads;
+            state.previousObjectSlotRequests = state.resources.objectSlotRequests;
+            state.previousCameraBufferRequests = state.resources.cameraBufferRequests;
+
+            addCounter(counters, "authored_renderables", config.renderableCount);
+            addCounter(counters, "snapshot_renderables", snapshotMetrics.renderableCount);
+            addCounter(counters, "visible_renderables", extractorMetrics.visibleRenderables);
+            addCounter(counters,
+                       "culled_renderables",
+                       extractorMetrics.totalRenderables >= extractorMetrics.visibleRenderables
+                           ? extractorMetrics.totalRenderables - extractorMetrics.visibleRenderables
+                           : 0u);
+            addCounter(counters, "transparent_renderables", transparent);
+            addCounter(counters, "render_commands", static_cast<uint64_t>(commands.size()));
+            addCounter(counters, "command_cache_hits", extractorMetrics.cachedCommands);
+            addCounter(counters, "command_updates", extractorMetrics.updatedCommands);
+            addCounter(counters, "command_sorts", extractorMetrics.sortedThisFrame ? 1u : 0u);
+            addCounter(counters, "object_uploads", static_cast<uint64_t>(snapshot.objectUploads.size()));
+            addCounter(counters, "camera_uploads", static_cast<uint64_t>(snapshot.cameraUploads.size()));
+            addCounter(counters, "material_frame_entries",
+                       static_cast<uint64_t>(snapshot.materialFrameData.materials.size()));
+            addCounter(counters, "mesh_requests", meshRequestDelta);
+            addCounter(counters, "texture_requests", textureRequestDelta);
+            addCounter(counters, "mesh_uploads", proceduralUploadDelta);
+            addCounter(counters, "object_slot_allocations", objectSlotDelta);
+            addCounter(counters, "camera_buffer_allocations", cameraBufferDelta);
+            addCounter(counters, "bytes_uploaded_object",
+                       static_cast<uint64_t>(snapshot.objectUploads.size() * sizeof(ObjectUploadCommand)));
+            addCounter(counters, "bytes_uploaded_camera",
+                       static_cast<uint64_t>(snapshot.cameraUploads.size() * sizeof(CameraUploadCommand)));
+            addCounter(counters, "material_queued", materialMetrics.queuedMaterials);
+            addCounter(counters, "material_synchronized", materialMetrics.synchronizedMaterials);
+            addCounter(counters, "material_user_invalidations", materialMetrics.userInvalidations);
+            addCounter(counters, "material_fallback_substitutions", materialMetrics.fallbackSubstitutions);
+            addCounter(counters, "material_reference_adds", materialMetrics.referenceAdds);
+            addCounter(counters, "material_reference_removes", materialMetrics.referenceRemoves);
+            addCounter(counters, "material_full_scans", materialMetrics.fullMaterialScans);
+            addCounter(counters, "unique_referenced_materials", config.uniqueMaterialCount);
+            addCounter(counters, "snapshot_dirty_entries", snapshotMetrics.dirtyUpdatedCount);
+            addCounter(counters, "snapshot_reused_entries", snapshotMetrics.reusedCount);
+            addCounter(counters, "snapshot_static_renderables", snapshotMetrics.staticRenderableCount);
+            addCounter(counters, "snapshot_dynamic_renderables", snapshotMetrics.dynamicRenderableCount);
+            addCounter(counters, "transform_queued", transformMetrics.queuedTransforms);
+            addCounter(counters, "transform_processed", transformMetrics.processedTransforms);
+            addCounter(counters, "transform_updates", transformMetrics.updatedWorldTransforms);
+            addCounter(counters, "render_gpu_updated", renderGpuMetrics.updatedRenderables);
+            addCounter(counters, "lights_total_directional", lighting.diagnostics.totalDirectionalLights);
+            addCounter(counters, "lights_total_point", lighting.diagnostics.totalPointLights);
+            addCounter(counters, "lights_total_spot", lighting.diagnostics.totalSpotLights);
+            addCounter(counters, "lights_selected_directional", lighting.directionalCount);
+            addCounter(counters, "lights_selected_point", lighting.pointCount);
+            addCounter(counters, "lights_selected_spot", lighting.spotCount);
+            addCounter(counters, "lights_dropped_directional", lighting.diagnostics.droppedDirectionalLights);
+            addCounter(counters, "lights_dropped_point", lighting.diagnostics.droppedPointLights);
+            addCounter(counters, "lights_dropped_spot", lighting.diagnostics.droppedSpotLights);
+            addCounter(counters, "particle_emitters", config.particleEmitterCount);
+            addCounter(counters, "world_text_blocks", config.worldTextCount);
+            addCounter(counters, "draw_calls", 0);
+            addCounter(counters, "prepared_batches", 0);
+            addCounter(counters, "pipeline_switches", 0);
+            addCounter(counters, "descriptor_binds", 0);
+            addCounter(counters, "gpu_timing_available", 0);
+        }
+
+        RenderingBenchmarkConfig presetConfig(std::string name,
+                                              std::string description,
+                                              uint32_t version,
+                                              RenderingBenchmarkConfig config,
+                                              std::vector<BenchmarkPreset>& presets)
+        {
+            config.presetName = std::move(name);
+            config.presetVersion = version;
+            sanitizeConfig(config);
+            presets.push_back({config.presetName, std::move(description), version, config});
+            return config;
+        }
+    }
+
+    const char* benchmarkRunModeName(BenchmarkRunMode mode)
+    {
+        switch (mode)
+        {
+            case BenchmarkRunMode::CpuSmoke: return "cpu_smoke";
+            case BenchmarkRunMode::GpuRuntime: return "gpu_runtime";
+        }
+        return "unknown";
+    }
+
+    std::vector<BenchmarkPreset> standardBenchmarkPresets()
+    {
+        std::vector<BenchmarkPreset> presets;
+
+        RenderingBenchmarkConfig base;
+        base.renderableCount = 1000;
+        base.visibleRenderableCount = 1000;
+        base.uniqueMeshCount = 8;
+        base.uniqueMaterialCount = 16;
+        base.directionalLightCount = 1;
+        base.pointLightCount = 8;
+        base.warmupFrames = 120;
+        base.measuredFrames = 600;
+
+        RenderingBenchmarkConfig staticSmall = base;
+        staticSmall.renderableCount = 256;
+        staticSmall.visibleRenderableCount = 256;
+        staticSmall.uniqueMeshCount = 4;
+        staticSmall.uniqueMaterialCount = 4;
+        presetConfig("static_geometry_small",
+                     "Static renderables sharing a small mesh/material set.",
+                     1,
+                     staticSmall,
+                     presets);
+
+        RenderingBenchmarkConfig staticLarge = base;
+        staticLarge.renderableCount = 12000;
+        staticLarge.visibleRenderableCount = 12000;
+        staticLarge.uniqueMeshCount = 12;
+        staticLarge.uniqueMaterialCount = 24;
+        presetConfig("static_geometry_large",
+                     "Large static world for extraction, sorting, and command cache pressure.",
+                     1,
+                     staticLarge,
+                     presets);
+
+        RenderingBenchmarkConfig materialShared = base;
+        materialShared.renderableCount = 4000;
+        materialShared.visibleRenderableCount = 4000;
+        materialShared.uniqueMaterialCount = 2;
+        presetConfig("material_shared_steady",
+                     "Many renderables referencing a tiny shared material set with no mutations.",
+                     1,
+                     materialShared,
+                     presets);
+
+        RenderingBenchmarkConfig materialMutating = materialShared;
+        materialMutating.materialMutationCountPerFrame = 1;
+        presetConfig("material_shared_mutating",
+                     "Shared material parameter mutations through the material change queue.",
+                     1,
+                     materialMutating,
+                     presets);
+
+        RenderingBenchmarkConfig materialUnique = base;
+        materialUnique.renderableCount = 3000;
+        materialUnique.visibleRenderableCount = 3000;
+        materialUnique.uniqueMaterialCount = 3000;
+        presetConfig("material_unique",
+                     "Many unique materials for material-frame population pressure.",
+                     1,
+                     materialUnique,
+                     presets);
+
+        RenderingBenchmarkConfig transformWide = base;
+        transformWide.renderableCount = 6000;
+        transformWide.visibleRenderableCount = 6000;
+        transformWide.movingObjectCount = 6000;
+        presetConfig("transform_many_moving",
+                     "Many independent moving roots for transform and object-upload stress.",
+                     1,
+                     transformWide,
+                     presets);
+
+        RenderingBenchmarkConfig visibilitySparse = base;
+        visibilitySparse.renderableCount = 15000;
+        visibilitySparse.visibleRenderableCount = 1200;
+        presetConfig("visibility_sparse",
+                     "Large authored world with a small visible subset.",
+                     1,
+                     visibilitySparse,
+                     presets);
+
+        RenderingBenchmarkConfig visibilityDense = base;
+        visibilityDense.renderableCount = 8000;
+        visibilityDense.visibleRenderableCount = 7600;
+        presetConfig("visibility_dense",
+                     "Dense visible set for culling and command-cache comparison.",
+                     1,
+                     visibilityDense,
+                     presets);
+
+        RenderingBenchmarkConfig lightingCapacity = base;
+        lightingCapacity.renderableCount = 2500;
+        lightingCapacity.visibleRenderableCount = 2500;
+        lightingCapacity.directionalLightCount = 2;
+        lightingCapacity.pointLightCount = 32;
+        lightingCapacity.spotLightCount = 16;
+        presetConfig("lighting_at_capacity",
+                     "Authored lights fill current forward-renderer selected-light limits.",
+                     1,
+                     lightingCapacity,
+                     presets);
+
+        RenderingBenchmarkConfig lightingOver = lightingCapacity;
+        lightingOver.pointLightCount = 256;
+        lightingOver.spotLightCount = 128;
+        lightingOver.movingLightCount = 64;
+        presetConfig("lighting_over_capacity",
+                     "Many authored local lights for ranking, dropping, and movement stress.",
+                     1,
+                     lightingOver,
+                     presets);
+
+        RenderingBenchmarkConfig batchHigh = base;
+        batchHigh.renderableCount = 8000;
+        batchHigh.visibleRenderableCount = 8000;
+        batchHigh.uniqueMeshCount = 2;
+        batchHigh.uniqueMaterialCount = 2;
+        presetConfig("batch_high_coherence",
+                     "Highly coherent commands that should remain batch-friendly.",
+                     1,
+                     batchHigh,
+                     presets);
+
+        RenderingBenchmarkConfig batchLow = base;
+        batchLow.renderableCount = 8000;
+        batchLow.visibleRenderableCount = 8000;
+        batchLow.uniqueMeshCount = 1024;
+        batchLow.uniqueMaterialCount = 2048;
+        batchLow.topologyMutationCountPerFrame = 0;
+        presetConfig("batch_low_coherence",
+                     "Fragmented mesh/material combinations for sort and bind pressure.",
+                     1,
+                     batchLow,
+                     presets);
+
+        RenderingBenchmarkConfig pbrHeavy = base;
+        pbrHeavy.renderableCount = 3500;
+        pbrHeavy.visibleRenderableCount = 3500;
+        pbrHeavy.uniqueMeshCount = 8;
+        pbrHeavy.uniqueMaterialCount = 64;
+        pbrHeavy.directionalLightCount = 2;
+        pbrHeavy.pointLightCount = 32;
+        pbrHeavy.spotLightCount = 16;
+        pbrHeavy.enableNormalMaps = true;
+        presetConfig("pbr_fragment_heavy",
+                     "PBR material and selected-light pressure; GPU timing awaits timestamp support.",
+                     1,
+                     pbrHeavy,
+                     presets);
+
+        RenderingBenchmarkConfig combined = base;
+        combined.renderableCount = 5000;
+        combined.visibleRenderableCount = 3500;
+        combined.uniqueMeshCount = 24;
+        combined.uniqueMaterialCount = 96;
+        combined.movingObjectCount = 800;
+        combined.materialMutationCountPerFrame = 2;
+        combined.directionalLightCount = 2;
+        combined.pointLightCount = 80;
+        combined.spotLightCount = 24;
+        combined.movingLightCount = 24;
+        combined.dynamicMeshCount = 32;
+        combined.particleEmitterCount = 16;
+        combined.worldTextCount = 24;
+        combined.enableUi = true;
+        presetConfig("combined_game_like",
+                     "Mixed static, moving, material, light, dynamic mesh, particles, and text workload.",
+                     1,
+                     combined,
+                     presets);
+
+        return presets;
+    }
+
+    const BenchmarkPreset* findBenchmarkPreset(std::string_view name)
+    {
+        static const std::vector<BenchmarkPreset> presets = standardBenchmarkPresets();
+        auto it = std::find_if(
+            presets.begin(),
+            presets.end(),
+            [&](const BenchmarkPreset& preset)
+            {
+                return preset.name == name;
+            });
+        return it == presets.end() ? nullptr : &*it;
+    }
+
+    void sanitizeConfig(RenderingBenchmarkConfig& config)
+    {
+        config.warmupFrames = std::min(config.warmupFrames, 6000u);
+        config.measuredFrames = std::clamp(config.measuredFrames, 1u, 12000u);
+        config.renderableCount = std::min(config.renderableCount, MaxBenchmarkRenderables);
+        if (config.visibleRenderableCount == 0)
+            config.visibleRenderableCount = config.renderableCount;
+        config.visibleRenderableCount = std::min(config.visibleRenderableCount, config.renderableCount);
+        config.uniqueMeshCount = std::clamp(config.uniqueMeshCount, 1u, MaxBenchmarkMeshes);
+        config.uniqueMaterialCount = std::clamp(config.uniqueMaterialCount, 1u, MaxBenchmarkMaterials);
+        config.movingObjectCount = std::min(config.movingObjectCount, config.renderableCount);
+        config.materialMutationCountPerFrame =
+            std::min(config.materialMutationCountPerFrame, config.uniqueMaterialCount);
+        config.topologyMutationCountPerFrame =
+            std::min(config.topologyMutationCountPerFrame, config.uniqueMaterialCount);
+        config.directionalLightCount = std::min(config.directionalLightCount, MaxBenchmarkLights);
+        config.pointLightCount = std::min(config.pointLightCount, MaxBenchmarkLights);
+        config.spotLightCount = std::min(config.spotLightCount, MaxBenchmarkLights);
+        config.movingLightCount = std::min(
+            config.movingLightCount,
+            config.directionalLightCount + config.pointLightCount + config.spotLightCount);
+        config.dynamicMeshCount = std::min(config.dynamicMeshCount, config.renderableCount);
+        config.renderWidth = std::clamp(config.renderWidth, 16u, 16384u);
+        config.renderHeight = std::clamp(config.renderHeight, 16u, 16384u);
+        if (config.seed == 0)
+            config.seed = 1;
+    }
+
+    bool applyConfigOverride(RenderingBenchmarkConfig& config,
+                             std::string_view key,
+                             std::string_view value,
+                             std::string* error)
+    {
+        auto fail = [&](std::string message)
+        {
+            if (error != nullptr)
+                *error = std::move(message);
+            return false;
+        };
+        auto unsignedValue = [&](uint32_t& destination)
+        {
+            bool ok = false;
+            const uint32_t parsed = parseUnsigned(value, ok);
+            if (!ok)
+                return false;
+            destination = parsed;
+            return true;
+        };
+        auto boolValue = [&](bool& destination)
+        {
+            bool ok = false;
+            const bool parsed = parseBool(value, ok);
+            if (!ok)
+                return false;
+            destination = parsed;
+            return true;
+        };
+
+        bool ok = true;
+        if (key == "seed") ok = unsignedValue(config.seed);
+        else if (key == "warmup-frames" || key == "warmup_frames") ok = unsignedValue(config.warmupFrames);
+        else if (key == "measured-frames" || key == "measured_frames") ok = unsignedValue(config.measuredFrames);
+        else if (key == "renderable-count" || key == "renderable_count") ok = unsignedValue(config.renderableCount);
+        else if (key == "visible-renderable-count" || key == "visible_renderable_count") ok = unsignedValue(config.visibleRenderableCount);
+        else if (key == "unique-mesh-count" || key == "unique_mesh_count") ok = unsignedValue(config.uniqueMeshCount);
+        else if (key == "unique-material-count" || key == "unique_material_count") ok = unsignedValue(config.uniqueMaterialCount);
+        else if (key == "moving-object-count" || key == "moving_object_count") ok = unsignedValue(config.movingObjectCount);
+        else if (key == "material-mutations" || key == "material_mutations") ok = unsignedValue(config.materialMutationCountPerFrame);
+        else if (key == "topology-mutations" || key == "topology_mutations") ok = unsignedValue(config.topologyMutationCountPerFrame);
+        else if (key == "directional-lights" || key == "directional_lights") ok = unsignedValue(config.directionalLightCount);
+        else if (key == "point-lights" || key == "point_lights") ok = unsignedValue(config.pointLightCount);
+        else if (key == "spot-lights" || key == "spot_lights") ok = unsignedValue(config.spotLightCount);
+        else if (key == "moving-lights" || key == "moving_lights") ok = unsignedValue(config.movingLightCount);
+        else if (key == "dynamic-mesh-count" || key == "dynamic_mesh_count") ok = unsignedValue(config.dynamicMeshCount);
+        else if (key == "particle-emitter-count" || key == "particle_emitter_count") ok = unsignedValue(config.particleEmitterCount);
+        else if (key == "world-text-count" || key == "world_text_count") ok = unsignedValue(config.worldTextCount);
+        else if (key == "render-width" || key == "render_width") ok = unsignedValue(config.renderWidth);
+        else if (key == "render-height" || key == "render_height") ok = unsignedValue(config.renderHeight);
+        else if (key == "enable-pbr" || key == "enable_pbr") ok = boolValue(config.enablePbr);
+        else if (key == "enable-normal-maps" || key == "enable_normal_maps") ok = boolValue(config.enableNormalMaps);
+        else if (key == "enable-ibl" || key == "enable_ibl") ok = boolValue(config.enableIbl);
+        else if (key == "enable-ui" || key == "enable_ui") ok = boolValue(config.enableUi);
+        else if (key == "enable-frustum-culling" || key == "enable_frustum_culling") ok = boolValue(config.enableFrustumCulling);
+        else if (key == "mode")
+        {
+            if (value == "cpu_smoke" || value == "smoke")
+                config.mode = BenchmarkRunMode::CpuSmoke;
+            else if (value == "gpu_runtime" || value == "gpu")
+                config.mode = BenchmarkRunMode::GpuRuntime;
+            else
+                ok = false;
+        }
+        else
+        {
+            return fail("unknown benchmark override: " + std::string(key));
+        }
+
+        if (!ok)
+            return fail("invalid value for benchmark override " + std::string(key) + ": " + std::string(value));
+        sanitizeConfig(config);
+        return true;
+    }
+
+    StatisticSummary summarizeSamples(std::vector<double> samples)
+    {
+        StatisticSummary summary;
+        samples.erase(
+            std::remove_if(samples.begin(), samples.end(), [](double value) { return !std::isfinite(value); }),
+            samples.end());
+        if (samples.empty())
+            return summary;
+
+        std::sort(samples.begin(), samples.end());
+        summary.sampleCount = static_cast<uint64_t>(samples.size());
+        summary.minimum = samples.front();
+        summary.maximum = samples.back();
+        summary.median = percentile(samples, 0.50);
+        summary.p90 = percentile(samples, 0.90);
+        summary.p95 = percentile(samples, 0.95);
+        summary.p99 = percentile(samples, 0.99);
+        summary.mean = std::accumulate(samples.begin(), samples.end(), 0.0) /
+            static_cast<double>(samples.size());
+
+        double variance = 0.0;
+        for (double value : samples)
+            variance += (value - summary.mean) * (value - summary.mean);
+        variance /= static_cast<double>(samples.size());
+        summary.standardDeviation = std::sqrt(variance);
+        return summary;
+    }
+
+    BenchmarkRunResult runRenderingBenchmark(const RenderingBenchmarkConfig& inputConfig)
+    {
+        RenderingBenchmarkConfig config = inputConfig;
+        sanitizeConfig(config);
+
+        BenchmarkRunResult result;
+        result.config = config;
+        result.environment = collectEnvironment(config);
+        result.gpuTimingAvailable = false;
+        result.gpuTimingStatus =
+            config.mode == BenchmarkRunMode::GpuRuntime
+                ? "Vulkan timestamp query benchmark mode is not implemented yet"
+                : "CPU smoke mode does not create GPU timestamp queries";
+
+        if (config.mode == BenchmarkRunMode::GpuRuntime)
+        {
+            result.warnings.push_back(
+                "gpu_runtime requested; falling back to CPU smoke extraction because Vulkan timestamp support is not implemented");
+            result.config.mode = BenchmarkRunMode::CpuSmoke;
+        }
+
+        BenchmarkSceneState state;
+        generateScene(state, result.config);
+
+        std::map<std::string, std::vector<double>> timingSamples;
+        std::map<std::string, uint64_t> counters;
+
+        for (uint32_t i = 0; i < result.config.warmupFrames; ++i)
+        {
+            std::map<std::string, std::vector<double>> ignoredTimings;
+            std::map<std::string, uint64_t> ignoredCounters;
+            recordFrame(state, result.config, i, ignoredTimings, ignoredCounters);
+        }
+
+        for (uint32_t i = 0; i < result.config.measuredFrames; ++i)
+            recordFrame(state, result.config, result.config.warmupFrames + i, timingSamples, counters);
+
+        for (auto& [key, samples] : timingSamples)
+            result.timingsMs[key] = summarizeSamples(std::move(samples));
+        result.counters = std::move(counters);
+        result.invariantFailures = checkBenchmarkInvariants(result);
+        return result;
+    }
+
+    std::vector<std::string> validateBenchmarkResult(const BenchmarkRunResult& result)
+    {
+        std::vector<std::string> failures;
+        if (result.config.presetName.empty())
+            failures.push_back("preset name is empty");
+        if (result.config.measuredFrames == 0)
+            failures.push_back("measured frame count is zero");
+        if (result.timingsMs.empty())
+            failures.push_back("no timing summaries were emitted");
+        if (result.environment.values.find("build_type") == result.environment.values.end())
+            failures.push_back("environment metadata is missing build_type");
+        if (result.environment.values.find("cpu") == result.environment.values.end())
+            failures.push_back("environment metadata is missing cpu");
+
+        for (const auto& [key, summary] : result.timingsMs)
+        {
+            if (summary.sampleCount != result.config.measuredFrames)
+                failures.push_back(key + " sample count does not match measuredFrames");
+            const double values[] = {
+                summary.minimum,
+                summary.median,
+                summary.mean,
+                summary.p90,
+                summary.p95,
+                summary.p99,
+                summary.maximum,
+                summary.standardDeviation
+            };
+            for (double value : values)
+            {
+                if (!std::isfinite(value))
+                {
+                    failures.push_back(key + " contains NaN or infinity");
+                    break;
+                }
+            }
+        }
+
+        return failures;
+    }
+
+    std::vector<std::string> checkBenchmarkInvariants(const BenchmarkRunResult& result)
+    {
+        std::vector<std::string> failures;
+        auto counter = [&](const std::string& key) -> uint64_t
+        {
+            auto it = result.counters.find(key);
+            return it == result.counters.end() ? 0u : it->second;
+        };
+
+        const uint64_t frames = result.config.measuredFrames;
+        if (counter("material_full_scans") != 0)
+            failures.push_back("material_full_scans must remain zero in benchmark workloads");
+
+        if (result.config.materialMutationCountPerFrame == 0 &&
+            result.config.topologyMutationCountPerFrame == 0 &&
+            counter("material_queued") != 0)
+        {
+            failures.push_back("steady-state material workload queued material sync work");
+        }
+
+        if (result.config.materialMutationCountPerFrame == 0 &&
+            result.config.topologyMutationCountPerFrame == 0 &&
+            counter("material_synchronized") != 0)
+        {
+            failures.push_back("steady-state material workload synchronized materials after warmup");
+        }
+
+        if (result.config.movingObjectCount == 0 &&
+            result.config.dynamicMeshCount == 0 &&
+            counter("object_uploads") != 0)
+        {
+            failures.push_back("static workload produced object uploads after warmup");
+        }
+
+        if (counter("snapshot_renderables") < counter("visible_renderables"))
+            failures.push_back("visible renderable count exceeds snapshot renderable count");
+
+        if (counter("authored_renderables") !=
+            static_cast<uint64_t>(result.config.renderableCount) * frames)
+        {
+            failures.push_back("authored renderable counter does not match measured frame count");
+        }
+
+        if (!result.gpuTimingAvailable && counter("gpu_timing_available") != 0)
+            failures.push_back("gpu_timing_available counter contradicts result metadata");
+
+        return failures;
+    }
+
+    std::string benchmarkResultToJson(const BenchmarkRunResult& result)
+    {
+        std::ostringstream out;
+        out << std::fixed << std::setprecision(6);
+        out << "{\n";
+        out << "  \"benchmark\": \"" << escapedJson(result.config.presetName) << "\",\n";
+        out << "  \"preset_version\": " << result.config.presetVersion << ",\n";
+        out << "  \"mode\": \"" << escapedJson(benchmarkRunModeName(result.config.mode)) << "\",\n";
+        out << "  \"seed\": " << result.config.seed << ",\n";
+        out << "  \"warmup_frames\": " << result.config.warmupFrames << ",\n";
+        out << "  \"measured_frames\": " << result.config.measuredFrames << ",\n";
+        out << "  \"render_resolution\": {\n";
+        out << "    \"width\": " << result.config.renderWidth << ",\n";
+        out << "    \"height\": " << result.config.renderHeight << "\n";
+        out << "  },\n";
+        out << "  \"gpu_timing\": {\n";
+        out << "    \"available\": " << (result.gpuTimingAvailable ? "true" : "false") << ",\n";
+        out << "    \"status\": \"" << escapedJson(result.gpuTimingStatus) << "\"\n";
+        out << "  },\n";
+        out << "  \"config\": {\n";
+        out << "    \"renderable_count\": " << result.config.renderableCount << ",\n";
+        out << "    \"visible_renderable_count\": " << result.config.visibleRenderableCount << ",\n";
+        out << "    \"unique_mesh_count\": " << result.config.uniqueMeshCount << ",\n";
+        out << "    \"unique_material_count\": " << result.config.uniqueMaterialCount << ",\n";
+        out << "    \"moving_object_count\": " << result.config.movingObjectCount << ",\n";
+        out << "    \"material_mutation_count_per_frame\": " << result.config.materialMutationCountPerFrame << ",\n";
+        out << "    \"topology_mutation_count_per_frame\": " << result.config.topologyMutationCountPerFrame << ",\n";
+        out << "    \"directional_light_count\": " << result.config.directionalLightCount << ",\n";
+        out << "    \"point_light_count\": " << result.config.pointLightCount << ",\n";
+        out << "    \"spot_light_count\": " << result.config.spotLightCount << ",\n";
+        out << "    \"moving_light_count\": " << result.config.movingLightCount << ",\n";
+        out << "    \"dynamic_mesh_count\": " << result.config.dynamicMeshCount << ",\n";
+        out << "    \"particle_emitter_count\": " << result.config.particleEmitterCount << ",\n";
+        out << "    \"world_text_count\": " << result.config.worldTextCount << ",\n";
+        out << "    \"enable_pbr\": " << (result.config.enablePbr ? "true" : "false") << ",\n";
+        out << "    \"enable_normal_maps\": " << (result.config.enableNormalMaps ? "true" : "false") << ",\n";
+        out << "    \"enable_ibl\": " << (result.config.enableIbl ? "true" : "false") << ",\n";
+        out << "    \"enable_ui\": " << (result.config.enableUi ? "true" : "false") << ",\n";
+        out << "    \"enable_frustum_culling\": " << (result.config.enableFrustumCulling ? "true" : "false") << "\n";
+        out << "  },\n";
+        out << "  \"environment\": {\n";
+        size_t index = 0;
+        for (const auto& [key, value] : result.environment.values)
+        {
+            out << "    \"" << escapedJson(key) << "\": \"" << escapedJson(value) << "\"";
+            out << (++index < result.environment.values.size() ? ",\n" : "\n");
+        }
+        out << "  },\n";
+        out << "  \"timings_ms\": {\n";
+        index = 0;
+        for (const auto& [key, summary] : result.timingsMs)
+        {
+            out << "    \"" << escapedJson(key) << "\": {\n";
+            out << "      \"min\": " << summary.minimum << ",\n";
+            out << "      \"median\": " << summary.median << ",\n";
+            out << "      \"mean\": " << summary.mean << ",\n";
+            out << "      \"p90\": " << summary.p90 << ",\n";
+            out << "      \"p95\": " << summary.p95 << ",\n";
+            out << "      \"p99\": " << summary.p99 << ",\n";
+            out << "      \"max\": " << summary.maximum << ",\n";
+            out << "      \"stddev\": " << summary.standardDeviation << ",\n";
+            out << "      \"sample_count\": " << summary.sampleCount << "\n";
+            out << "    }" << (++index < result.timingsMs.size() ? ",\n" : "\n");
+        }
+        out << "  },\n";
+        out << "  \"counters\": {\n";
+        index = 0;
+        for (const auto& [key, value] : result.counters)
+        {
+            out << "    \"" << escapedJson(key) << "\": " << value;
+            out << (++index < result.counters.size() ? ",\n" : "\n");
+        }
+        out << "  },\n";
+        out << "  \"warnings\": [";
+        for (size_t i = 0; i < result.warnings.size(); ++i)
+        {
+            out << (i == 0 ? "\n    " : ",\n    ")
+                << "\"" << escapedJson(result.warnings[i]) << "\"";
+        }
+        out << (result.warnings.empty() ? "" : "\n  ") << "],\n";
+        out << "  \"invariant_failures\": [";
+        for (size_t i = 0; i < result.invariantFailures.size(); ++i)
+        {
+            out << (i == 0 ? "\n    " : ",\n    ")
+                << "\"" << escapedJson(result.invariantFailures[i]) << "\"";
+        }
+        out << (result.invariantFailures.empty() ? "" : "\n  ") << "]\n";
+        out << "}\n";
+        return out.str();
+    }
+
+    bool writeBenchmarkResultJson(const BenchmarkRunResult& result,
+                                  const std::string& outputPath,
+                                  std::string* error)
+    {
+        std::ofstream output(outputPath);
+        if (!output)
+        {
+            if (error != nullptr)
+                *error = "failed to open benchmark output path: " + outputPath;
+            return false;
+        }
+        output << benchmarkResultToJson(result);
+        return true;
+    }
+
+    std::string benchmarkResultSummary(const BenchmarkRunResult& result)
+    {
+        auto timing = [&](const std::string& key) -> const StatisticSummary*
+        {
+            auto it = result.timingsMs.find(key);
+            return it == result.timingsMs.end() ? nullptr : &it->second;
+        };
+        auto counter = [&](const std::string& key) -> uint64_t
+        {
+            auto it = result.counters.find(key);
+            return it == result.counters.end() ? 0u : it->second;
+        };
+
+        std::ostringstream out;
+        out << std::fixed << std::setprecision(3);
+        out << result.config.presetName << " v" << result.config.presetVersion
+            << " [" << benchmarkRunModeName(result.config.mode) << "]\n";
+        if (const StatisticSummary* frame = timing("frame_cpu"))
+            out << "frame_cpu median/p95: " << frame->median << " / " << frame->p95 << " ms\n";
+        if (const StatisticSummary* controller = timing("controller_cpu"))
+            out << "controller_cpu median/p95: " << controller->median << " / " << controller->p95 << " ms\n";
+        if (const StatisticSummary* snapshot = timing("snapshot_build_cpu"))
+            out << "snapshot_build_cpu median/p95: " << snapshot->median << " / " << snapshot->p95 << " ms\n";
+        if (const StatisticSummary* extract = timing("command_extract_cpu"))
+            out << "command_extract_cpu median/p95: " << extract->median << " / " << extract->p95 << " ms\n";
+        out << "render_commands total: " << counter("render_commands") << "\n";
+        out << "visible_renderables total: " << counter("visible_renderables") << "\n";
+        out << "material_synchronized total: " << counter("material_synchronized") << "\n";
+        out << "object_uploads total: " << counter("object_uploads") << "\n";
+        out << "gpu_timing: " << result.gpuTimingStatus << "\n";
+        if (!result.invariantFailures.empty())
+            out << "invariant_failures: " << result.invariantFailures.size() << "\n";
+        return out.str();
+    }
+}
