@@ -13,7 +13,7 @@
 
 namespace gts::particles
 {
-    inline constexpr uint32_t LegacyParticleModuleSchemaVersion  = 1u;
+    inline constexpr uint32_t V1ParticleModuleSchemaVersion  = 1u;
     inline constexpr uint32_t CurrentParticleModuleSchemaVersion = 3u;
     inline constexpr uint32_t CurrentParticleProgramSchemaVersion = 1u;
 
@@ -1327,7 +1327,7 @@ namespace gts::particles
             return;
 
         const uint32_t sourceVersion =
-            module.version == 0 ? LegacyParticleModuleSchemaVersion : module.version;
+            module.version == 0 ? V1ParticleModuleSchemaVersion : module.version;
         if (module.stableId.empty())
             module.stableId = definition->category;
         if (module.displayName.empty())

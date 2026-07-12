@@ -175,7 +175,7 @@ namespace gts::rendering
             const MaterialDefinition* definition = getDefinition(instance->definition);
             const MaterialShaderFamily shaderFamily = definition != nullptr
                 ? definition->shaderFamily
-                : MaterialShaderFamily::LegacyUnlit;
+                : MaterialShaderFamily::Unlit;
             const MaterialFeatureFlags featureFlags = materialFeatureFlagsForInstance(*instance);
 
             MaterialGpuState next = state;
@@ -211,7 +211,7 @@ namespace gts::rendering
             const bool topologyChanged =
                 state.shaderFamily != next.shaderFamily
                 || state.renderState.alphaMode != next.renderState.alphaMode
-                || state.renderState.legacyBlendMode != next.renderState.legacyBlendMode
+                || state.renderState.blendMode != next.renderState.blendMode
                 || state.renderState.doubleSided != next.renderState.doubleSided
                 || state.renderState.depthWrite != next.renderState.depthWrite
                 || state.vertexColorOnly != next.vertexColorOnly
@@ -302,7 +302,7 @@ namespace gts::rendering
         void initializeBuiltIns()
         {
             MaterialDefinition definition;
-            definition.shaderFamily = MaterialShaderFamily::LegacyUnlit;
+            definition.shaderFamily = MaterialShaderFamily::Unlit;
             defaultDefinitionHandle = createDefinition(definition);
             if (!definitions.empty())
                 definitions.back().builtIn = true;

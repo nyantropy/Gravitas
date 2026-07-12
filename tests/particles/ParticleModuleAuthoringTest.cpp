@@ -295,70 +295,70 @@ int main()
     require(renderer != nullptr, "renderer module missing");
     require(bursts != nullptr, "bursts module missing");
 
-    ParticleModuleInstance legacyColor = *color;
-    legacyColor.version                = LegacyParticleModuleSchemaVersion;
-    removeParameter(legacyColor, "colorOverLifetime");
-    removeParameter(legacyColor, "alphaOverLifetime");
-    setFloatParameter(legacyColor, "baseTintR", 0.25f);
-    setFloatParameter(legacyColor, "baseTintG", 0.50f);
-    setFloatParameter(legacyColor, "baseTintB", 0.75f);
-    setFloatParameter(legacyColor, "baseTintA", 0.90f);
-    addFloatParameter(legacyColor, "alphaPeak", 0.42f);
-    completeModuleParameters(legacyColor);
-    require(legacyColor.version == CurrentParticleModuleSchemaVersion, "legacy color module version was not upgraded");
-    require(findParameter(legacyColor, "alphaPeak") == nullptr, "legacy color parameter was not pruned");
-    const ParticleModuleParameter* migratedGradient = findParameter(legacyColor, "colorOverLifetime");
-    const ParticleModuleParameter* migratedAlpha    = findParameter(legacyColor, "alphaOverLifetime");
+    ParticleModuleInstance v1Color = *color;
+    v1Color.version                = V1ParticleModuleSchemaVersion;
+    removeParameter(v1Color, "colorOverLifetime");
+    removeParameter(v1Color, "alphaOverLifetime");
+    setFloatParameter(v1Color, "baseTintR", 0.25f);
+    setFloatParameter(v1Color, "baseTintG", 0.50f);
+    setFloatParameter(v1Color, "baseTintB", 0.75f);
+    setFloatParameter(v1Color, "baseTintA", 0.90f);
+    addFloatParameter(v1Color, "alphaPeak", 0.42f);
+    completeModuleParameters(v1Color);
+    require(v1Color.version == CurrentParticleModuleSchemaVersion, "v1 color module version was not upgraded");
+    require(findParameter(v1Color, "alphaPeak") == nullptr, "v1 color parameter was not pruned");
+    const ParticleModuleParameter* migratedGradient = findParameter(v1Color, "colorOverLifetime");
+    const ParticleModuleParameter* migratedAlpha    = findParameter(v1Color, "alphaOverLifetime");
     require(migratedGradient != nullptr && migratedGradient->colorGradientValue.size() == 2u,
-            "legacy color gradient was not synthesized");
+            "v1 color gradient was not synthesized");
     require(near(migratedGradient->colorGradientValue.front().color.b, 0.75f),
-            "legacy color gradient did not preserve base tint");
+            "v1 color gradient did not preserve base tint");
     require(migratedAlpha != nullptr && migratedAlpha->floatCurveValue.size() == 4u,
-            "legacy alpha curve was not synthesized");
-    require(near(migratedAlpha->floatCurveValue[1].value, 0.42f), "legacy alpha peak was not preserved");
+            "v1 alpha curve was not synthesized");
+    require(near(migratedAlpha->floatCurveValue[1].value, 0.42f), "v1 alpha peak was not preserved");
 
-    ParticleModuleInstance legacySize = *size;
-    legacySize.version                = LegacyParticleModuleSchemaVersion;
-    removeParameter(legacySize, "sizeOverLifetime");
-    addFloatParameter(legacySize, "sizeStart", 0.30f);
-    addFloatParameter(legacySize, "sizeEnd", 1.10f);
-    completeModuleParameters(legacySize);
-    require(legacySize.version == CurrentParticleModuleSchemaVersion, "legacy size module version was not upgraded");
-    require(findParameter(legacySize, "sizeStart") == nullptr && findParameter(legacySize, "sizeEnd") == nullptr,
-            "legacy size parameters were not pruned");
-    const ParticleModuleParameter* migratedSize = findParameter(legacySize, "sizeOverLifetime");
+    ParticleModuleInstance v1Size = *size;
+    v1Size.version                = V1ParticleModuleSchemaVersion;
+    removeParameter(v1Size, "sizeOverLifetime");
+    addFloatParameter(v1Size, "sizeStart", 0.30f);
+    addFloatParameter(v1Size, "sizeEnd", 1.10f);
+    completeModuleParameters(v1Size);
+    require(v1Size.version == CurrentParticleModuleSchemaVersion, "v1 size module version was not upgraded");
+    require(findParameter(v1Size, "sizeStart") == nullptr && findParameter(v1Size, "sizeEnd") == nullptr,
+            "v1 size parameters were not pruned");
+    const ParticleModuleParameter* migratedSize = findParameter(v1Size, "sizeOverLifetime");
     require(migratedSize != nullptr && migratedSize->floatCurveValue.size() == 2u,
-            "legacy size curve was not synthesized");
-    require(near(migratedSize->floatCurveValue.back().value, 1.10f), "legacy size end was not preserved");
+            "v1 size curve was not synthesized");
+    require(near(migratedSize->floatCurveValue.back().value, 1.10f), "v1 size end was not preserved");
 
-    ParticleModuleInstance legacyBursts = *bursts;
-    legacyBursts.version                = LegacyParticleModuleSchemaVersion;
-    removeParameter(legacyBursts, "bursts");
-    addBoolParameter(legacyBursts, "burstEnabled", true);
-    addFloatParameter(legacyBursts, "burstTime", 0.35f);
+    ParticleModuleInstance v1Bursts = *bursts;
+    v1Bursts.version                = V1ParticleModuleSchemaVersion;
+    removeParameter(v1Bursts, "bursts");
+    addBoolParameter(v1Bursts, "burstEnabled", true);
+    addFloatParameter(v1Bursts, "burstTime", 0.35f);
     gts::particles::ParticleModuleParameter burstMin;
     burstMin.id        = "burstCountMin";
     burstMin.type      = ParticleModuleParameterType::UInt;
     burstMin.uintValue = 3u;
-    legacyBursts.parameters.push_back(burstMin);
+    v1Bursts.parameters.push_back(burstMin);
     gts::particles::ParticleModuleParameter burstMax;
     burstMax.id        = "burstCountMax";
     burstMax.type      = ParticleModuleParameterType::UInt;
     burstMax.uintValue = 7u;
-    legacyBursts.parameters.push_back(burstMax);
-    addFloatParameter(legacyBursts, "repeatInterval", 0.25f);
+    v1Bursts.parameters.push_back(burstMax);
+    addFloatParameter(v1Bursts, "repeatInterval", 0.25f);
     gts::particles::ParticleModuleParameter repeatCount;
     repeatCount.id        = "repeatCount";
     repeatCount.type      = ParticleModuleParameterType::UInt;
     repeatCount.uintValue = 2u;
-    legacyBursts.parameters.push_back(repeatCount);
-    completeModuleParameters(legacyBursts);
-    require(legacyBursts.version == CurrentParticleModuleSchemaVersion, "legacy burst module version was not upgraded");
-    require(findParameter(legacyBursts, "burstEnabled") == nullptr, "legacy burst parameters were not pruned");
-    const ParticleModuleParameter* migratedBursts = findParameter(legacyBursts, "bursts");
+    v1Bursts.parameters.push_back(repeatCount);
+    completeModuleParameters(v1Bursts);
+    require(v1Bursts.version == CurrentParticleModuleSchemaVersion, "v1 burst module version was not upgraded");
+    require(findParameter(v1Bursts, "burstEnabled") == nullptr, "v1 burst parameters were not pruned");
+    const ParticleModuleParameter* migratedBursts = findParameter(v1Bursts, "bursts");
     require(migratedBursts != nullptr && migratedBursts->burstTimelineValue.size() == 1u,
-            "legacy burst timeline was not synthesized");
-    require(migratedBursts->burstTimelineValue.front().countMax == 7u, "legacy burst count was not preserved");
+            "v1 burst timeline was not synthesized");
+    require(migratedBursts->burstTimelineValue.front().countMax == 7u, "v1 burst count was not preserved");
 
     setFloatParameter(*spawn, "emissionRate", 12.5f);
     setUIntParameter(*spawn, "maxParticles", 64u);

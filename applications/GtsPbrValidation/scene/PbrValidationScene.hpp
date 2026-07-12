@@ -184,9 +184,9 @@ private:
         return entity;
     }
 
-    Entity spawnLegacyAttributeQuad(const glm::vec3& position,
-                                    const glm::vec3& scale,
-                                    MaterialInstanceHandle material)
+    Entity spawnUnlitAttributeQuad(const glm::vec3& position,
+                                   const glm::vec3& scale,
+                                   MaterialInstanceHandle material)
     {
         Entity entity = ecsWorld.createEntity();
 
@@ -199,7 +199,7 @@ private:
         };
         mesh.indices = {0, 1, 2, 0, 2, 3};
         mesh.geometryVersion = 1;
-        mesh.sourceAttributes = LegacyUnlitVertexAttributes;
+        mesh.sourceAttributes = UnlitVertexAttributes;
         ecsWorld.addComponent(entity, mesh);
 
         TransformComponent transform;
@@ -265,7 +265,7 @@ private:
         spawnCube({-0.8f, -5.4f, 0.0f}, {1.1f, 0.75f, 0.75f}, sharedNormal);
         spawnCube({1.6f, -5.4f, 0.0f}, {0.7f, 1.65f, 0.45f}, strongNormal);
         spawnCube({4.0f, -5.4f, 0.0f}, {0.9f, 0.9f, 0.9f}, aoEmissive);
-        spawnLegacyAttributeQuad(
+        spawnUnlitAttributeQuad(
             {6.4f, -5.4f, 0.0f},
             {1.25f, 1.25f, 1.25f},
             strongNormal);

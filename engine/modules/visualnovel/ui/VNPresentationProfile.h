@@ -196,31 +196,31 @@ namespace gts::vn
         return slot;
     }
 
-    inline VNInteractionLayout vnInteractionLayoutFromCompatibility(const VNLayoutProfile& legacy)
+    inline VNInteractionLayout vnInteractionLayoutFromCompatibility(const VNLayoutProfile& rectProfile)
     {
         VNInteractionLayout layout;
-        layout.dialoguePanel = vnOverlaySlot(vnNormalized(std::max(0.0f, legacy.dialogue.width)),
-                                             vnNormalized(std::max(0.0f, legacy.dialogue.height)),
+        layout.dialoguePanel = vnOverlaySlot(vnNormalized(std::max(0.0f, rectProfile.dialogue.width)),
+                                             vnNormalized(std::max(0.0f, rectProfile.dialogue.height)),
                                              UiLayoutAlignment::Center,
                                              UiLayoutAlignment::End,
                                              UiThickness{0.0f,
                                                          0.0f,
                                                          0.0f,
                                                          std::max(0.0f,
-                                                                  1.0f - legacy.dialogue.y - legacy.dialogue.height)});
-        layout.nameplateSlot = vnOverlaySlotFromCompatibilityRect(legacy.nameplate);
-        layout.speakerTextSlot = vnContentSlot(vnInsetsFromCompatibilityRect(legacy.speakerText));
-        layout.bodyTextSlot = vnContentSlot(vnInsetsFromCompatibilityRect(legacy.bodyText));
-        layout.continuePromptSlot = vnOverlaySlotFromCompatibilityRect(legacy.continueIndicator);
-        layout.choiceStack.width = vnNormalized(std::max(0.0f, legacy.choices.width));
-        layout.choiceStack.heightBudget = vnNormalized(std::max(0.0f, legacy.choices.height));
+                                                                  1.0f - rectProfile.dialogue.y - rectProfile.dialogue.height)});
+        layout.nameplateSlot = vnOverlaySlotFromCompatibilityRect(rectProfile.nameplate);
+        layout.speakerTextSlot = vnContentSlot(vnInsetsFromCompatibilityRect(rectProfile.speakerText));
+        layout.bodyTextSlot = vnContentSlot(vnInsetsFromCompatibilityRect(rectProfile.bodyText));
+        layout.continuePromptSlot = vnOverlaySlotFromCompatibilityRect(rectProfile.continueIndicator);
+        layout.choiceStack.width = vnNormalized(std::max(0.0f, rectProfile.choices.width));
+        layout.choiceStack.heightBudget = vnNormalized(std::max(0.0f, rectProfile.choices.height));
         layout.choiceStack.horizontalAlignment = UiLayoutAlignment::End;
         layout.choiceStack.verticalAlignment = UiLayoutAlignment::Center;
-        layout.choiceStack.margin.right = std::max(0.0f, 1.0f - legacy.choices.x - legacy.choices.width);
-        layout.choiceStack.gap = std::max(0.0f, legacy.choiceRowGap * legacy.choices.height);
-        layout.choiceStack.maxChoices = legacy.maxChoices;
-        layout.interactionSlot = vnOverlaySlotFromCompatibilityRect(legacy.interaction);
-        layout.maxSprites = legacy.maxSprites;
+        layout.choiceStack.margin.right = std::max(0.0f, 1.0f - rectProfile.choices.x - rectProfile.choices.width);
+        layout.choiceStack.gap = std::max(0.0f, rectProfile.choiceRowGap * rectProfile.choices.height);
+        layout.choiceStack.maxChoices = rectProfile.maxChoices;
+        layout.interactionSlot = vnOverlaySlotFromCompatibilityRect(rectProfile.interaction);
+        layout.maxSprites = rectProfile.maxSprites;
         return layout;
     }
 

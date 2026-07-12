@@ -1181,11 +1181,11 @@ public:
                 world.forEachScratch.push_back(entity.id);
         }
 
-        // Preserve the legacy forEach contract: structural changes inside the
+        // Preserve the snapshot forEach contract: structural changes inside the
         // callback must not invalidate iteration or crash the world. The
         // snapshot only stores entity IDs; component payloads are still fetched
-        // from archetype columns on demand, so the hot path stays off the legacy
-        // sparse storage while remaining mutation-safe.
+        // from archetype columns on demand, so the hot path stays off sparse
+        // storage while remaining mutation-safe.
         for (uint32_t entityId : world.forEachScratch)
         {
             Entity entity{entityId};

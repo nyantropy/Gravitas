@@ -80,7 +80,6 @@ namespace gts::rendering
         world.registerRemoveCallback<StaticMeshComponent>(
             [](ECSWorld& world, Entity entity, StaticMeshComponent&)
             {
-                queueMaterialRefresh(world, entity);
                 queueRenderableCleanup(world, entity);
             });
         world.registerAddCallback<QuadMeshComponent>(
@@ -91,7 +90,6 @@ namespace gts::rendering
         world.registerRemoveCallback<QuadMeshComponent>(
             [](ECSWorld& world, Entity entity, QuadMeshComponent&)
             {
-                queueMaterialRefresh(world, entity);
                 queueRenderableCleanup(world, entity);
             });
         world.registerAddCallback<DynamicMeshComponent>(
@@ -102,7 +100,6 @@ namespace gts::rendering
         world.registerRemoveCallback<DynamicMeshComponent>(
             [](ECSWorld& world, Entity entity, DynamicMeshComponent&)
             {
-                queueMaterialRefresh(world, entity);
                 queueRenderableCleanup(world, entity);
             });
         world.registerAddCallback<MaterialReferenceComponent>(

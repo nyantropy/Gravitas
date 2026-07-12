@@ -77,7 +77,7 @@ namespace
         mesh_id_type uploadProceduralMesh(mesh_id_type existingId,
                                           const std::vector<Vertex>&,
                                           const std::vector<uint32_t>&,
-                                          VertexAttributeFlags = LegacyUnlitVertexAttributes) override
+                                          VertexAttributeFlags = UnlitVertexAttributes) override
         {
             if (existingId != 0)
                 return existingId;
@@ -203,7 +203,7 @@ namespace
         instance.baseColor = color;
         instance.baseColorTexture = MaterialTextureBinding::assetPath(texturePath);
         instance.renderState.alphaMode =
-            alphaModeForLegacyMaterial(MaterialBlendMode::Alpha, color.a, true);
+            alphaModeForBlendMode(MaterialBlendMode::Alpha, color.a, true);
         return instance;
     }
 
@@ -229,7 +229,7 @@ namespace
         FakeResourceProvider resources;
 
         MaterialDefinition definition;
-        definition.shaderFamily = MaterialShaderFamily::LegacyUnlit;
+        definition.shaderFamily = MaterialShaderFamily::Unlit;
         const MaterialDefinitionHandle definitionHandle = materials.createDefinition(definition);
         MaterialInstance instance = makeTexturedInstance(materials, "textures/shared.png", {1.0f, 1.0f, 1.0f, 1.0f});
         instance.definition = definitionHandle;

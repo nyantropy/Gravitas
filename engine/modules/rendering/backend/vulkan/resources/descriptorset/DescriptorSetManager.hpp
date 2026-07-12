@@ -306,8 +306,8 @@ class DescriptorSetManager
             if (vkCreateDescriptorSetLayout(backendContext.device(), &ssboLayoutInfo, nullptr, &descriptorSetLayouts[1]) != VK_SUCCESS)
                 throw std::runtime_error("Failed to create object SSBO descriptor set layout!");
 
-            // set 2: material texture samplers. Binding 0 remains compatible
-            // with legacy/UI/particle shaders that only sample one texture.
+            // set 2: material texture samplers. Binding 0 is the base-color
+            // sampler used by unlit, UI, and particle shaders.
             std::array<VkDescriptorSetLayoutBinding, MaterialTextureBindingCount> samplerBindings{};
             for (uint32_t binding = 0; binding < MaterialTextureBindingCount; ++binding)
             {

@@ -106,9 +106,9 @@ inline MaterialInstanceHandle GtsScene3::materialForTexture(const std::string& t
     if (const MaterialInstance* defaultMaterial = materials.getInstance(materials.defaultMaterial()))
         instance.definition = defaultMaterial->definition;
     instance.baseColorTexture = MaterialTextureBinding::assetPath(texturePath);
-    instance.renderState.legacyBlendMode = MaterialBlendMode::Alpha;
+    instance.renderState.blendMode = MaterialBlendMode::Alpha;
     instance.renderState.alphaMode =
-        alphaModeForLegacyMaterial(MaterialBlendMode::Alpha, instance.baseColor.a, true);
+        alphaModeForBlendMode(MaterialBlendMode::Alpha, instance.baseColor.a, true);
     return materials.createInstance(instance);
 }
 

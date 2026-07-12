@@ -11,7 +11,7 @@ The renderer currently has:
   animation, world text, and particles
 - backend-independent render command extraction
 - standard vertex contract with normals, tangents, color, and UV
-- `LegacyUnlit` and `StandardSurface` shader families
+- `Unlit` and `StandardSurface` shader families
 - metallic-roughness PBR direct lighting
 - directional, point, and spot light extraction
 - texture roles for base color, metallic-roughness, normal, AO, and emissive

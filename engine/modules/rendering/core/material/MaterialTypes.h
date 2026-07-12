@@ -83,7 +83,7 @@ enum class MaterialBlendMode
 
 enum class MaterialShaderFamily
 {
-    LegacyUnlit,
+    Unlit,
     StandardSurface
 };
 
@@ -158,14 +158,13 @@ struct MaterialRenderState
     bool doubleSided = false;
     bool depthWrite = true;
 
-    // Temporary legacy compatibility until render commands stop selecting
-    // alpha/additive pipelines directly.
-    MaterialBlendMode legacyBlendMode = MaterialBlendMode::Alpha;
+    // Blend selection used by backend pipeline variants.
+    MaterialBlendMode blendMode = MaterialBlendMode::Alpha;
 };
 
 struct MaterialDefinition
 {
-    MaterialShaderFamily shaderFamily = MaterialShaderFamily::LegacyUnlit;
+    MaterialShaderFamily shaderFamily = MaterialShaderFamily::Unlit;
 };
 
 struct MaterialTextureBinding
@@ -471,7 +470,7 @@ struct MaterialGpuState
     MaterialGpuHandle gpuHandle;
     MaterialInstanceHandle instance;
     uint64_t uploadedVersion = 0;
-    MaterialShaderFamily shaderFamily = MaterialShaderFamily::LegacyUnlit;
+    MaterialShaderFamily shaderFamily = MaterialShaderFamily::Unlit;
     MaterialTextureIds textures{};
     texture_id_type baseColorTextureID = 0;
     MaterialTextureCacheState textureCache{};
@@ -497,10 +496,10 @@ struct MaterialFrameState
     MaterialVariantKey variantKey{};
     RenderQueue renderQueue = RenderQueue::Opaque;
     uint64_t uploadedVersion = 0;
-    MaterialShaderFamily shaderFamily = MaterialShaderFamily::LegacyUnlit;
+    MaterialShaderFamily shaderFamily = MaterialShaderFamily::Unlit;
 
-    // Temporary Vulkan compatibility data. These fields are material-owned
-    // cache state; render commands and object uploads must not duplicate them.
+    // Backend frame data owned by material state; render commands and object
+    // uploads must not duplicate it.
     MaterialTextureIds textures{};
     texture_id_type baseColorTextureID = 0;
     MaterialFeatureFlags featureFlags = MaterialFeatureFlags::None;
@@ -575,9 +574,9 @@ inline MaterialVariantKey makeMaterialVariantKey(MaterialShaderFamily shaderFami
 {
     const uint64_t shader = static_cast<uint64_t>(shaderFamily) & 0xFFull;
     const uint64_t alphaMode = static_cast<uint64_t>(instance.renderState.alphaMode) & 0x3ull;
-    // Temporary legacy blend mode bit until additive/alpha compatibility
-    // becomes a proper backend material realization in the PBR pipeline.
-    const uint64_t blendMode = static_cast<uint64_t>(instance.renderState.legacyBlendMode) & 0x3ull;
+    // Blend mode is part of the backend material variant key while alpha and
+    // additive rendering use separate pipeline states.
+    const uint64_t blendMode = static_cast<uint64_t>(instance.renderState.blendMode) & 0x3ull;
     const uint64_t depth = instance.renderState.depthWrite ? 1ull : 0ull;
     const uint64_t sidedness = instance.renderState.doubleSided ? 1ull : 0ull;
     const uint64_t vertexColor = instance.vertexColorOnly ? 1ull : 0ull;
@@ -621,7 +620,7 @@ inline MaterialVariantKey makeMaterialVariantKey(MaterialShaderFamily shaderFami
 
 inline MaterialVariantKey makeMaterialVariantKey(const MaterialInstance& instance)
 {
-    return makeMaterialVariantKey(MaterialShaderFamily::LegacyUnlit, instance);
+    return makeMaterialVariantKey(MaterialShaderFamily::Unlit, instance);
 }
 
 inline MaterialFrameState makeMaterialFrameState(const MaterialGpuState& state)
@@ -642,9 +641,9 @@ inline MaterialFrameState makeMaterialFrameState(const MaterialGpuState& state)
     };
 }
 
-inline MaterialAlphaMode alphaModeForLegacyMaterial(MaterialBlendMode blendMode,
-                                                    float alpha,
-                                                    bool depthWrite)
+inline MaterialAlphaMode alphaModeForBlendMode(MaterialBlendMode blendMode,
+                                               float alpha,
+                                               bool depthWrite)
 {
     if (blendMode == MaterialBlendMode::Additive)
         return MaterialAlphaMode::Blend;

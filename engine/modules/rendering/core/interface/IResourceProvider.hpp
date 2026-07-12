@@ -69,7 +69,7 @@ class IResourceProvider
                                                   const std::vector<Vertex>&    vertices,
                                                   const std::vector<uint32_t>&  indices,
                                                   VertexAttributeFlags sourceAttributes =
-                                                      LegacyUnlitVertexAttributes) = 0;
+                                                      UnlitVertexAttributes) = 0;
         virtual void releaseProceduralMesh(mesh_id_type id) = 0;
         virtual void beginProceduralMeshUpdateBatch(uint32_t) {}
         virtual void endProceduralMeshUpdateBatch() {}
@@ -105,7 +105,7 @@ class IResourceProvider
         virtual view_id_type requestCameraBuffer() = 0;
         virtual void         releaseCameraBuffer(view_id_type id) = 0;
 
-        // Legacy all-frame camera upload. Frame-loop rendering should prefer
+        // Immediate all-frame camera upload. Frame-loop rendering should prefer
         // renderer-owned per-frame uploads after the matching frame fence.
         virtual void uploadCameraView(view_id_type id, const glm::mat4& view, const glm::mat4& proj) = 0;
 

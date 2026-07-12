@@ -85,7 +85,7 @@ namespace
         mesh_id_type uploadProceduralMesh(mesh_id_type existingId,
                                           const std::vector<Vertex>&,
                                           const std::vector<uint32_t>&,
-                                          VertexAttributeFlags = LegacyUnlitVertexAttributes) override
+                                          VertexAttributeFlags = UnlitVertexAttributes) override
         {
             return existingId == 0 ? 1 : existingId;
         }
@@ -535,7 +535,7 @@ namespace
         FakeResourceProvider resources;
 
         MaterialDefinition unlitDefinition;
-        unlitDefinition.shaderFamily = MaterialShaderFamily::LegacyUnlit;
+        unlitDefinition.shaderFamily = MaterialShaderFamily::Unlit;
         const MaterialDefinitionHandle unlitDef = materials.createDefinition(unlitDefinition);
 
         MaterialDefinition litDefinition;
@@ -554,7 +554,7 @@ namespace
             : MaterialShaderFamily::StandardSurface;
         const MaterialShaderFamily litFamily = litSync.state
             ? litSync.state->shaderFamily
-            : MaterialShaderFamily::LegacyUnlit;
+            : MaterialShaderFamily::Unlit;
 
         materials.modifyInstance(
             lit,
@@ -584,8 +584,8 @@ namespace
         const MaterialSyncResult topologySync = materials.synchronizeGpuState(lit, &resources);
 
         return require(unlitSync.state != nullptr && litSync.state != nullptr, "material sync creates states")
-            && require(unlitFamily == MaterialShaderFamily::LegacyUnlit,
-                       "unlit material keeps LegacyUnlit shader family")
+            && require(unlitFamily == MaterialShaderFamily::Unlit,
+                       "unlit material keeps Unlit shader family")
             && require(litFamily == MaterialShaderFamily::StandardSurface,
                        "lit material keeps StandardSurface shader family")
             && require(unlitVariant != litVariant,
@@ -599,7 +599,7 @@ namespace
             && require(topologySync.changed && topologySync.topologyChanged,
                        "shader-family change is topology-changing")
             && require(topologySync.state != nullptr
-                       && topologySync.state->shaderFamily == MaterialShaderFamily::LegacyUnlit,
+                       && topologySync.state->shaderFamily == MaterialShaderFamily::Unlit,
                        "shader-family mutation updates GPU material family");
     }
 

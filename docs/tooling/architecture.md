@@ -7,7 +7,7 @@ tooling UI is built on the retained UI runtime:
 UiSurface -> UiLayer -> UiMount -> UiComposition -> UiWidget -> retained UiNode
 ```
 
-Tooling uses that runtime through a pane-based shell. The legacy
+Tooling uses that runtime through a pane-based shell. The previous
 `EngineToolPanel` registry must not return as the main editor shell.
 
 ## Overview

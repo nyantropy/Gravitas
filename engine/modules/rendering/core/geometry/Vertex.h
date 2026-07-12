@@ -44,7 +44,7 @@ inline constexpr VertexAttributeFlags StandardVertexAttributes =
     | VertexAttributeFlags::Color
     | VertexAttributeFlags::UV0;
 
-inline constexpr VertexAttributeFlags LegacyUnlitVertexAttributes =
+inline constexpr VertexAttributeFlags UnlitVertexAttributes =
     VertexAttributeFlags::Position
     | VertexAttributeFlags::Color
     | VertexAttributeFlags::UV0;

@@ -362,8 +362,8 @@ private:
     std::vector<BatchRange>             chunkRanges;
     std::vector<VkCommandBuffer>        secondaryExecutionBuffers;
     std::vector<ChunkStats>             chunkStats;
-    bool                                litCompatibilityWarningLogged = false;
-    bool                                normalMapCompatibilityWarningLogged = false;
+    bool                                litFallbackWarningLogged = false;
+    bool                                normalMapFallbackWarningLogged = false;
 
     const std::vector<RenderCommand>& resolveRenderList(GtsFrameGraph& graph) const
     {
@@ -553,26 +553,26 @@ private:
             batch.litCompatible = litMaterialCompatible(batch);
             batch.normalMapCompatible = normalMappedMaterialCompatible(batch);
             batch.effectiveFeatureFlags = firstMaterial->featureFlags;
-            if (!batch.litCompatible && !litCompatibilityWarningLogged)
+            if (!batch.litCompatible && !litFallbackWarningLogged)
             {
                 std::cerr
                     << "[rendering] StandardSurface material requires normals; "
-                    << "falling back to unlit shading for incompatible mesh "
+                    << "falling back to unlit shading for unsupported mesh "
                     << first.meshID << ".\n";
-                litCompatibilityWarningLogged = true;
+                litFallbackWarningLogged = true;
             }
             if (!batch.normalMapCompatible)
             {
                 batch.effectiveFeatureFlags = withoutMaterialFeature(
                     batch.effectiveFeatureFlags,
                     MaterialFeatureFlags::HasNormalTexture);
-                if (!normalMapCompatibilityWarningLogged)
+                if (!normalMapFallbackWarningLogged)
                 {
                     std::cerr
                         << "[rendering] StandardSurface normal map requires normals, tangents, and UVs; "
-                        << "disabling normal mapping for incompatible mesh "
+                        << "disabling normal mapping for unsupported mesh "
                         << first.meshID << ".\n";
-                    normalMapCompatibilityWarningLogged = true;
+                    normalMapFallbackWarningLogged = true;
                 }
             }
 
@@ -601,7 +601,7 @@ private:
     {
         const bool lit = shouldShadeLit(batch);
 
-        if (batch.material.renderState.legacyBlendMode == MaterialBlendMode::Additive)
+        if (batch.material.renderState.blendMode == MaterialBlendMode::Additive)
         {
             if (lit)
             {

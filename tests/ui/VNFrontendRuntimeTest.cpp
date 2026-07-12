@@ -201,34 +201,34 @@ namespace
 
     void testSemanticLayoutMatchesCompatibilityRects()
     {
-        gts::vn::VNDialogueUiConfig legacyConfig;
-        legacyConfig.profile.layout.dialogue = {0.045f, 0.695f, 0.910f, 0.255f};
-        legacyConfig.profile.layout.nameplate = {0.055f, -0.075f, 0.240f, 0.165f};
-        legacyConfig.profile.layout.speakerText = {0.0f, 0.0f, 1.0f, 1.0f};
-        legacyConfig.profile.layout.bodyText = {0.050f, 0.175f, 0.890f, 0.660f};
-        legacyConfig.profile.layout.continueIndicator = {0.905f, 0.765f, 0.055f, 0.145f};
-        legacyConfig.profile.layout.choices = {0.535f, 0.360f, 0.420f, 0.330f};
-        legacyConfig.profile.layout.choiceRowGap = 0.016f;
-        legacyConfig.profile.layout.maxChoices = 2;
+        gts::vn::VNDialogueUiConfig rectConfig;
+        rectConfig.profile.layout.dialogue = {0.045f, 0.695f, 0.910f, 0.255f};
+        rectConfig.profile.layout.nameplate = {0.055f, -0.075f, 0.240f, 0.165f};
+        rectConfig.profile.layout.speakerText = {0.0f, 0.0f, 1.0f, 1.0f};
+        rectConfig.profile.layout.bodyText = {0.050f, 0.175f, 0.890f, 0.660f};
+        rectConfig.profile.layout.continueIndicator = {0.905f, 0.765f, 0.055f, 0.145f};
+        rectConfig.profile.layout.choices = {0.535f, 0.360f, 0.420f, 0.330f};
+        rectConfig.profile.layout.choiceRowGap = 0.016f;
+        rectConfig.profile.layout.maxChoices = 2;
 
-        gts::vn::VNDialogueUiConfig semanticConfig = legacyConfig;
+        gts::vn::VNDialogueUiConfig semanticConfig = rectConfig;
         semanticConfig.profile.layoutAuthoring = gts::vn::VNLayoutAuthoringMode::Semantic;
         semanticConfig.profile.interactionLayout =
-            gts::vn::vnInteractionLayoutFromCompatibility(legacyConfig.profile.layout);
+            gts::vn::vnInteractionLayoutFromCompatibility(rectConfig.profile.layout);
 
-        const VNLayoutSnapshot legacy = captureVNLayout(legacyConfig);
+        const VNLayoutSnapshot rectSnapshot = captureVNLayout(rectConfig);
         const VNLayoutSnapshot semantic = captureVNLayout(semanticConfig);
 
-        requireNearRect(semantic.dialoguePanel, legacy.dialoguePanel, "semantic dialogue panel");
-        requireNearRect(semantic.nameplate, legacy.nameplate, "semantic nameplate");
-        requireNearRect(semantic.speakerText, legacy.speakerText, "semantic speaker text");
-        requireNearRect(semantic.bodyText, legacy.bodyText, "semantic body text");
-        requireNearRect(semantic.continuePrompt, legacy.continuePrompt, "semantic continue prompt");
-        requireNearRect(semantic.choiceLayer, legacy.choiceLayer, "semantic choice layer");
-        requireNearRect(semantic.firstChoice, legacy.firstChoice, "semantic first choice");
-        requireNearRect(semantic.secondChoice, legacy.secondChoice, "semantic second choice");
-        require(near(semantic.choiceGap, legacy.choiceGap), "semantic choice gap metric");
-        require(near(semantic.choiceButtonHeight, legacy.choiceButtonHeight),
+        requireNearRect(semantic.dialoguePanel, rectSnapshot.dialoguePanel, "semantic dialogue panel");
+        requireNearRect(semantic.nameplate, rectSnapshot.nameplate, "semantic nameplate");
+        requireNearRect(semantic.speakerText, rectSnapshot.speakerText, "semantic speaker text");
+        requireNearRect(semantic.bodyText, rectSnapshot.bodyText, "semantic body text");
+        requireNearRect(semantic.continuePrompt, rectSnapshot.continuePrompt, "semantic continue prompt");
+        requireNearRect(semantic.choiceLayer, rectSnapshot.choiceLayer, "semantic choice layer");
+        requireNearRect(semantic.firstChoice, rectSnapshot.firstChoice, "semantic first choice");
+        requireNearRect(semantic.secondChoice, rectSnapshot.secondChoice, "semantic second choice");
+        require(near(semantic.choiceGap, rectSnapshot.choiceGap), "semantic choice gap metric");
+        require(near(semantic.choiceButtonHeight, rectSnapshot.choiceButtonHeight),
                 "semantic choice button height metric");
     }
 

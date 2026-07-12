@@ -250,7 +250,7 @@ namespace
     VertexAttributeFlags dynamicMeshSourceAttributes(const RenderingBenchmarkConfig& config)
     {
         return dynamicMeshAttributeGenerationPreset(config)
-            ? LegacyUnlitVertexAttributes
+            ? UnlitVertexAttributes
             : StandardVertexAttributes;
     }
 

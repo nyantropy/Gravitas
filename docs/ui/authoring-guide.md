@@ -35,10 +35,10 @@ source. Treat retained handles and primitive nodes as implementation details.
 | `UiTheme` style classes, skins, metrics, typography | Preferred | Colors, spacing, text scale, padding, and state visuals come from the theme. |
 | Stack, Grid, Dock, Scroll, Constraint, Aspect layout | Preferred | Use these to express structure and flow. |
 | Overlay layout | Preferred only for stacking peers | Use for layered regions, not for manual placement of every child. |
-| Canvas and anchors | Compatibility | Use only for low-level bridging, full-fill, edge pinning, and legacy layouts. |
+| Canvas and anchors | Compatibility | Use only for low-level bridging, full-fill, edge pinning, and coordinate-authored layouts. |
 | Absolute/fixed normalized positions | Low-level exception | Allowed for primitive visualization, stage presentation, and projection adapters. |
-| Raw `createNode`, `setPayload`, handle bundles | Low-level / legacy | Prefer widgets; use raw nodes only inside widgets, tools, tests, adapters, or primitive visualizations. |
-| Direct payload colors/text scales | Legacy | Use theme style classes and widget setters/bindings instead. |
+| Raw `createNode`, `setPayload`, handle bundles | Low-level exception | Prefer widgets; use raw nodes only inside widgets, tools, tests, adapters, or primitive visualizations. |
+| Direct payload colors/text scales | Migration-only | Use theme style classes and widget setters/bindings instead. |
 | Reading `dispatchResult()` and comparing handles | Compatibility | New UI handles events in `UiComposition::onEvent(...)` and widgets. |
 | `VNInteractionLayout` semantic descriptors | Preferred | Use named overlay/content slots, choice stack intent, and interaction/modal slots. |
 | `VNLayoutProfile` coordinate rectangles | Compatibility | Runtime adapts these into `VNInteractionLayout`; do not add more coordinate rectangles. |
@@ -85,7 +85,7 @@ coordinates for ordinary UI.
 - Use Overlay for peers sharing a region: stage layers, badges, modal scrims,
   prompt hosts, floating overlays.
 - Use Canvas/anchors only for full-fill roots, edge-pinned compatibility panels,
-  projection adapters, primitive visualizations, or legacy assets.
+  projection adapters, primitive visualizations, or coordinate-authored assets.
 
 ## Theme Rules
 
@@ -112,8 +112,8 @@ feature.window.padding
 feature.action.gap
 ```
 
-Use compatibility payload values only when maintaining legacy retained nodes or
-building a primitive visualization.
+Use compatibility payload values only when maintaining coordinate-authored
+retained nodes or building a primitive visualization.
 
 ## Widget Rules
 

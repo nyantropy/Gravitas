@@ -33,7 +33,7 @@ engine/
     animation/           keyframe animation
     tween/               reusable tween/easing helpers
     narrative/           headless narrative/dialogue runtimes
-    dialogue/            legacy dialogue module surface kept in tree
+    dialogue/            dialogue module surface kept in tree
     diagnostics/         debug draw and diagnostic bridges
     physics/             sphere-collider collision detection
     tools/               in-engine inspection/editing toolchain

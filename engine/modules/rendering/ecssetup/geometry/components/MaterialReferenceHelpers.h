@@ -84,9 +84,9 @@ namespace gts::rendering
         instance.vertexColorOnly = descriptor.vertexColorOnly;
         instance.renderState.doubleSided = descriptor.doubleSided;
         instance.renderState.depthWrite = descriptor.depthWrite;
-        instance.renderState.legacyBlendMode = descriptor.blendMode;
+        instance.renderState.blendMode = descriptor.blendMode;
         instance.renderState.alphaMode =
-            alphaModeForLegacyMaterial(
+            alphaModeForBlendMode(
                 descriptor.blendMode,
                 descriptor.baseColor.a,
                 descriptor.depthWrite);

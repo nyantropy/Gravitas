@@ -83,8 +83,8 @@ Materials are referenced through shared material identity:
 
 - `MaterialReferenceComponent` points to a `MaterialInstanceHandle`.
 - Scene authoring creates material instances through `MaterialRuntime` and
-  attaches `MaterialReferenceComponent`; there is no descriptor compatibility
-  adapter in the render lifecycle.
+  attaches `MaterialReferenceComponent`; the render lifecycle consumes that
+  material identity directly.
 - `MaterialGpuState` is stored in `MaterialRuntime`, not as an ECS component.
 
 GPU/runtime companions include:
@@ -191,16 +191,16 @@ The renderer uses counter-clockwise front faces. Missing normals and tangents
 are generated deterministically where possible. Missing colors default to white;
 missing UVs default to zero.
 
-Material/mesh compatibility:
+Material/mesh requirements:
 
-- `LegacyUnlit`: requires position; UV is required only for textured materials.
-- `LegacyUnlit` with `vertexColorOnly`: requires position and meaningful color
+- `Unlit`: requires position; UV is required only for textured materials.
+- `Unlit` with `vertexColorOnly`: requires position and meaningful color
   for useful output.
 - `StandardSurface`: requires position and normal.
 - `StandardSurface` with normal mapping: requires position, normal, tangent,
   and UV0.
 
-Incompatible lit batches fall back deterministically and emit bounded
+Unsupported lit batches fall back deterministically and emit bounded
 diagnostics rather than consuming undefined surface data.
 
 ## Dynamic Mesh Runtime Contract
@@ -302,7 +302,7 @@ model matrix changed.
 - built-in fallback materials
 - default standard-surface material
 
-`LegacyUnlit` and `StandardSurface` are explicit shader families.
+`Unlit` and `StandardSurface` are explicit shader families.
 
 `StandardSurface` is a metallic-roughness material family. Authoritative
 parameters include:
@@ -443,7 +443,7 @@ Feature layout:
 - `ecssetup/particles/components/`: emitter descriptors, runtime state, and
   authoring types.
 - `ecssetup/particles/assets/`: effect asset data, schema migration,
-  load/save, legacy compatibility, module/graph authoring, and compiler.
+  load/save, module/graph authoring, and compiler.
 - `ecssetup/particles/systems/`: emitter simulation and effect hot reload.
 - `ecssetup/particles/extraction/`: per-frame particle draw data.
 - `backend/vulkan/rendering/particles/`: particle render stage.

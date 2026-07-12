@@ -275,7 +275,6 @@ namespace gts::rendering
     {
         auto& state = geometryBindingLifecycleState(world);
         state.staticMeshRefreshEntities.insert(entity.id);
-        state.materialRefreshEntities.insert(entity.id);
         state.renderObjectRefreshEntities.insert(entity.id);
     }
 
@@ -283,7 +282,6 @@ namespace gts::rendering
     {
         auto& state = geometryBindingLifecycleState(world);
         state.quadMeshRefreshEntities.insert(entity.id);
-        state.materialRefreshEntities.insert(entity.id);
         state.renderObjectRefreshEntities.insert(entity.id);
     }
 
@@ -291,7 +289,6 @@ namespace gts::rendering
     {
         auto& state = geometryBindingLifecycleState(world);
         state.dynamicMeshRefreshEntities.insert(entity.id);
-        state.materialRefreshEntities.insert(entity.id);
         state.renderObjectRefreshEntities.insert(entity.id);
     }
 
@@ -346,21 +343,6 @@ namespace gts::rendering
         queueRenderSnapshotDirty(world, entity);
     }
 
-    inline void markTransformRepresentationDirty(ECSWorld& world, Entity entity)
-    {
-        if (world.hasComponent<RenderDirtyComponent>(entity))
-            world.getComponent<RenderDirtyComponent>(entity).transformDirty = true;
-        queueRenderSnapshotDirty(world, entity);
-    }
-
-    inline bool hasAnyGeometryDescriptor(ECSWorld& world, Entity entity)
-    {
-        return world.hasComponent<StaticMeshComponent>(entity)
-            || world.hasComponent<QuadMeshComponent>(entity)
-            || world.hasComponent<DynamicMeshComponent>(entity)
-            || world.hasComponent<WorldTextComponent>(entity);
-    }
-
     inline bool hasRenderableGeometryDescriptor(ECSWorld& world, Entity entity)
     {
         if (world.hasComponent<StaticMeshComponent>(entity))
@@ -391,12 +373,6 @@ namespace gts::rendering
 
         const WorldTextComponent& text = world.getComponent<WorldTextComponent>(entity);
         return !text.fontPath.empty() && !text.text.empty();
-    }
-
-    inline bool hasAnyMaterialSource(ECSWorld& world, Entity entity)
-    {
-        return world.hasComponent<MaterialReferenceComponent>(entity)
-            || world.hasComponent<WorldTextComponent>(entity);
     }
 
     inline bool hasRenderableMaterialDescriptor(ECSWorld& world, Entity entity)
@@ -447,11 +423,4 @@ namespace gts::rendering
             commands.removeComponent<RenderGpuComponent>(entity);
     }
 
-    inline void scheduleRenderableCleanup(ECSWorld& world,
-                                          ECSWorld::EntityCommandBuffer& commands,
-                                          Entity entity)
-    {
-        scheduleMeshGpuCleanup(world, commands, entity);
-        scheduleRenderObjectCleanup(world, commands, entity);
-    }
 }

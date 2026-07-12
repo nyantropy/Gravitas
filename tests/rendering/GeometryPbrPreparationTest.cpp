@@ -97,7 +97,7 @@ namespace
         const std::vector<uint32_t> indices = {0, 1, 2};
 
         const MeshGeometryMetadata metadata =
-            gts::rendering::prepareMeshGeometry(vertices, indices, LegacyUnlitVertexAttributes);
+            gts::rendering::prepareMeshGeometry(vertices, indices, UnlitVertexAttributes);
 
         bool ok = require(metadata.generatedNormals, "missing triangle normals are generated")
             && require(metadata.generatedTangents, "missing triangle tangents are generated")
@@ -123,7 +123,7 @@ namespace
         const std::vector<uint32_t> indices = {0, 1, 2};
 
         const MeshGeometryMetadata metadata =
-            gts::rendering::prepareMeshGeometry(vertices, indices, LegacyUnlitVertexAttributes);
+            gts::rendering::prepareMeshGeometry(vertices, indices, UnlitVertexAttributes);
 
         bool ok = require(metadata.generatedTangents, "degenerate UVs still produce deterministic tangent fallback");
         for (const Vertex& vertex : vertices)
@@ -229,7 +229,7 @@ namespace
         return ok;
     }
 
-    bool dynamicMeshDefaultContractRemainsLegacyUnlit()
+    bool dynamicMeshDefaultContractRemainsUnlit()
     {
         const DynamicMeshComponent mesh;
         return require(hasVertexAttribute(mesh.sourceAttributes, VertexAttributeFlags::Position), "dynamic mesh defaults include position")
@@ -249,7 +249,7 @@ int main()
     ok = objTupleDeduplicationPreservesSplitNormals() && ok;
     ok = objMissingNormalsAreGenerated() && ok;
     ok = worldTextBuildsSurfaceFrame() && ok;
-    ok = dynamicMeshDefaultContractRemainsLegacyUnlit() && ok;
+    ok = dynamicMeshDefaultContractRemainsUnlit() && ok;
 
     if (!ok)
         return 1;

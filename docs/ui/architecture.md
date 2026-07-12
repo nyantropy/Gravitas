@@ -115,7 +115,8 @@ Preferred containers:
 - Overlay for layered peers in the same region.
 
 Canvas and anchors remain compatibility and low-level paths for full-fill roots,
-edge pinning, projection adapters, primitive visualizations, and legacy content.
+edge pinning, projection adapters, primitive visualizations, and coordinate
+authored content.
 They are not the preferred model for ordinary UI.
 
 Hidden children do not participate in layout measurement or arrangement unless
@@ -237,9 +238,9 @@ Compatibility paths:
 - raw retained nodes inside widgets, renderer/tool adapters, tests, and
   primitive visualizations
 - canvas and anchors for low-level bridging, fullscreen fill, edge pinning,
-  projection adapters, primitive visualizations, and legacy content
+  projection adapters, primitive visualizations, and coordinate authored content
 - `dispatchResult()` readback for tools, tests, and compatibility code
-- legacy `VNLayoutProfile` rectangles normalized into `VNInteractionLayout`
+- `VNLayoutProfile` rectangles normalized into `VNInteractionLayout`
 
 Historical debt that should not be copied:
 

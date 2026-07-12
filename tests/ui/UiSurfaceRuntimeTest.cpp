@@ -154,7 +154,7 @@ namespace
 
         require(ui.dispatchResult().surface == UI_DEFAULT_SURFACE, "default dispatch used wrong surface");
         require(hasEvent(state, UiEventType::PointerClick), "default surface did not deliver click");
-        require(ui.findNode(state.button) != nullptr, "legacy findNode did not use default surface");
+        require(ui.findNode(state.button) != nullptr, "default-surface findNode did not use default surface");
     }
 
     void testOverlappingSurfaceOrderingRoutesInputToTopSurface()

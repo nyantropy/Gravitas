@@ -13,5 +13,5 @@ struct DynamicMeshComponent
     std::vector<Vertex>   vertices;
     std::vector<uint32_t> indices;
     uint64_t              geometryVersion = 0;
-    VertexAttributeFlags  sourceAttributes = LegacyUnlitVertexAttributes;
+    VertexAttributeFlags  sourceAttributes = UnlitVertexAttributes;
 };

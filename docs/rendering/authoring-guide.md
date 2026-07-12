@@ -28,7 +28,7 @@ tools, and tests, use `UnlitMaterialDescriptor` with
 `createUnlitMaterial(...)` when the entity needs a unique mutable material, or
 `sharedUnlitMaterialReference(...)` when the material should be shared.
 
-Use `LegacyUnlit` for:
+Use `Unlit` for:
 
 - world text
 - debug draw

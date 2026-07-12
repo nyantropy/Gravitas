@@ -24,9 +24,9 @@ namespace gts::rendering
         instance.vertexColorOnly = false;
         instance.renderState.doubleSided = true;
         instance.renderState.depthWrite = true;
-        instance.renderState.legacyBlendMode = MaterialBlendMode::Alpha;
+        instance.renderState.blendMode = MaterialBlendMode::Alpha;
         instance.renderState.alphaMode =
-            alphaModeForLegacyMaterial(MaterialBlendMode::Alpha, text.tint.a, true);
+            alphaModeForBlendMode(MaterialBlendMode::Alpha, text.tint.a, true);
         return instance;
     }
 
