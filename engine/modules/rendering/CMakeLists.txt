@@ -17,6 +17,8 @@ file(GLOB_RECURSE RENDERING_SOURCES CONFIGURE_DEPENDS
 )
 list(APPEND RENDERING_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/external/tiny_obj_loader_impl.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/stb_image_impl.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/stb_image_write_impl.cpp"
 )
 add_library(gravitas_rendering STATIC ${RENDERING_SOURCES})
 

@@ -19,18 +19,22 @@ namespace gts::rendering
         }
 
         static MaterialInstance makeInstance(const MaterialAssetData& asset,
-                                             MaterialDefinitionHandle definition)
+                                             MaterialDefinitionHandle definition,
+                                             const std::filesystem::path& baseDirectory = {})
         {
             MaterialInstance instance;
             instance.definition = definition;
             instance.baseColor = asset.baseColor;
-            instance.baseColorTexture = textureBinding(asset.baseColorTexture, TextureColorSpace::SRgb);
+            instance.baseColorTexture =
+                textureBinding(asset.baseColorTexture, TextureColorSpace::SRgb, baseDirectory);
             instance.metallicRoughnessTexture =
-                textureBinding(asset.metallicRoughnessTexture, TextureColorSpace::Linear);
-            instance.normalTexture = textureBinding(asset.normalTexture, TextureColorSpace::Linear);
+                textureBinding(asset.metallicRoughnessTexture, TextureColorSpace::Linear, baseDirectory);
+            instance.normalTexture =
+                textureBinding(asset.normalTexture, TextureColorSpace::Linear, baseDirectory);
             instance.ambientOcclusionTexture =
-                textureBinding(asset.ambientOcclusionTexture, TextureColorSpace::Linear);
-            instance.emissiveTexture = textureBinding(asset.emissiveTexture, TextureColorSpace::SRgb);
+                textureBinding(asset.ambientOcclusionTexture, TextureColorSpace::Linear, baseDirectory);
+            instance.emissiveTexture =
+                textureBinding(asset.emissiveTexture, TextureColorSpace::SRgb, baseDirectory);
             instance.metallic = asset.metallic;
             instance.roughness = asset.roughness;
             instance.normalScale = asset.normalScale;
@@ -53,14 +57,21 @@ namespace gts::rendering
             MaterialDefinition definition;
             definition.shaderFamily = asset.shaderFamily;
             const MaterialDefinitionHandle definitionHandle = runtime.createDefinition(definition);
-            return runtime.createInstance(makeInstance(asset, definitionHandle));
+            return runtime.createInstance(makeInstance(asset, definitionHandle, path.parent_path()));
         }
 
     private:
         static MaterialTextureBinding textureBinding(const AssetReference& reference,
-                                                     TextureColorSpace colorSpace)
+                                                     TextureColorSpace colorSpace,
+                                                     const std::filesystem::path& baseDirectory)
         {
-            return MaterialTextureBinding::assetPath(reference.logicalPath, colorSpace);
+            if (reference.logicalPath.empty())
+                return MaterialTextureBinding::assetPath({}, colorSpace);
+
+            std::filesystem::path texturePath(reference.logicalPath);
+            if (!texturePath.is_absolute() && !baseDirectory.empty())
+                texturePath = baseDirectory / texturePath;
+            return MaterialTextureBinding::assetPath(texturePath.lexically_normal().generic_string(), colorSpace);
         }
     };
 }

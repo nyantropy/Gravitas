@@ -32,19 +32,31 @@ int main()
     assert(isCookedMeshAssetPath("robot.gmesh"));
     assert(isCookedMeshAssetPath("ROBOT.GMESH"));
     assert(!isCookedMeshAssetPath("robot.obj"));
+    assert(isCookedTextureAssetPath("brick.gtex"));
+    assert(isCookedTextureAssetPath("BRICK.GTEX"));
+    assert(!isCookedTextureAssetPath("brick.png"));
 
     assert(isRuntimeSourceMeshAssetPath("robot.obj"));
     assert(isRuntimeSourceMeshAssetPath("robot.gltf"));
     assert(isRuntimeSourceMeshAssetPath("robot.glb"));
     assert(!isRuntimeSourceMeshAssetPath("robot.gmesh"));
+    assert(isRuntimeSourceTextureAssetPath("brick.png"));
+    assert(isRuntimeSourceTextureAssetPath("brick.jpg"));
+    assert(isRuntimeSourceTextureAssetPath("brick.jpeg"));
+    assert(!isRuntimeSourceTextureAssetPath("brick.gtex"));
     assert(runtimeSourceMeshFallbackSupported("robot.obj"));
     assert(!runtimeSourceMeshFallbackSupported("robot.gltf"));
     assert(!runtimeSourceMeshFallbackSupported("robot.glb"));
+    assert(runtimeSourceTextureFallbackSupported("brick.png"));
 
     assert(expectedCookedMeshAssetPath("assets/robot.obj") ==
            std::filesystem::path("assets/robot.gmesh"));
     assert(expectedCookedMeshAssetPath("assets/robot.gmesh") ==
            std::filesystem::path("assets/robot.gmesh"));
+    assert(expectedCookedTextureAssetPath("assets/brick.png") ==
+           std::filesystem::path("assets/brick.gtex"));
+    assert(expectedCookedTextureAssetPath("assets/brick.gtex") ==
+           std::filesystem::path("assets/brick.gtex"));
 
     clearPolicyEnv();
     assert(runtimeSourceAssetPolicy() == RuntimeSourceAssetPolicy::DevelopmentFallback);

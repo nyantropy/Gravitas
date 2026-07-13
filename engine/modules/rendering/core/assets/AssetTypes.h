@@ -94,6 +94,10 @@ namespace gts::rendering
         std::string logicalPath;
         std::string mimeType;
         std::vector<uint8_t> embeddedBytes;
+        std::vector<uint8_t> rgba8Pixels;
+        uint32_t width = 0;
+        uint32_t height = 0;
+        uint32_t sourceChannelCount = 0;
         ImportedTextureSource source = ImportedTextureSource::ExternalFile;
         TextureColorSpace colorSpace = TextureColorSpace::SRgb;
         MaterialTextureRole intendedRole = MaterialTextureRole::BaseColor;
@@ -102,6 +106,92 @@ namespace gts::rendering
         {
             return source == ImportedTextureSource::EmbeddedBytes && !embeddedBytes.empty();
         }
+
+        bool decoded() const
+        {
+            return width > 0 && height > 0 && !rgba8Pixels.empty();
+        }
+    };
+
+    enum class TextureAssetFormat : uint16_t
+    {
+        R8 = 1,
+        RG8 = 2,
+        RGBA8_UNorm = 3,
+        RGBA8_SRgb = 4,
+        RGBA16_Float = 5,
+        BC1_UNorm = 100,
+        BC1_SRgb = 101,
+        BC3_UNorm = 102,
+        BC3_SRgb = 103,
+        BC5_UNorm = 104,
+        BC7_UNorm = 105,
+        BC7_SRgb = 106
+    };
+
+    enum class TextureFilter : uint16_t
+    {
+        Nearest = 1,
+        Linear = 2
+    };
+
+    enum class TextureMipmapMode : uint16_t
+    {
+        Nearest = 1,
+        Linear = 2
+    };
+
+    enum class TextureAddressMode : uint16_t
+    {
+        Repeat = 1,
+        ClampToEdge = 2
+    };
+
+    enum class TextureCookRole : uint16_t
+    {
+        BaseColor = 1,
+        MetallicRoughness = 2,
+        Normal = 3,
+        AmbientOcclusion = 4,
+        Emissive = 5,
+        UiColor = 6,
+        FontAtlas = 7,
+        ParticleColor = 8,
+        Data = 9
+    };
+
+    struct TextureMipData
+    {
+        uint32_t width = 0;
+        uint32_t height = 0;
+        uint32_t rowPitch = 0;
+        uint32_t slicePitch = 0;
+        std::vector<uint8_t> bytes;
+    };
+
+    struct TextureSamplerDesc
+    {
+        TextureFilter minFilter = TextureFilter::Linear;
+        TextureFilter magFilter = TextureFilter::Linear;
+        TextureMipmapMode mipmapMode = TextureMipmapMode::Linear;
+        TextureAddressMode addressU = TextureAddressMode::Repeat;
+        TextureAddressMode addressV = TextureAddressMode::Repeat;
+        TextureAddressMode addressW = TextureAddressMode::Repeat;
+        float maxAnisotropy = 1.0f;
+    };
+
+    struct TextureAssetData
+    {
+        AssetId id = InvalidAssetId;
+        std::string debugName;
+        uint32_t width = 0;
+        uint32_t height = 0;
+        uint32_t mipCount = 0;
+        TextureAssetFormat format = TextureAssetFormat::RGBA8_SRgb;
+        TextureColorSpace colorSpace = TextureColorSpace::SRgb;
+        TextureSamplerDesc defaultSampler;
+        std::vector<TextureMipData> mips;
+        std::vector<AssetReference> dependencies;
     };
 
     struct ImportedMaterial

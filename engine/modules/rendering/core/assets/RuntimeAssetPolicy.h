@@ -24,6 +24,16 @@ namespace gts::rendering
         return extension == ".gmesh";
     }
 
+    inline bool isCookedTextureAssetPath(const std::filesystem::path& path)
+    {
+        std::string extension = path.extension().string();
+        std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char ch)
+        {
+            return static_cast<char>(std::tolower(ch));
+        });
+        return extension == ".gtex";
+    }
+
     inline bool isRuntimeSourceMeshAssetPath(const std::filesystem::path& path)
     {
         std::string extension = path.extension().string();
@@ -32,6 +42,16 @@ namespace gts::rendering
             return static_cast<char>(std::tolower(ch));
         });
         return extension == ".obj" || extension == ".gltf" || extension == ".glb";
+    }
+
+    inline bool isRuntimeSourceTextureAssetPath(const std::filesystem::path& path)
+    {
+        std::string extension = path.extension().string();
+        std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char ch)
+        {
+            return static_cast<char>(std::tolower(ch));
+        });
+        return extension == ".png" || extension == ".jpg" || extension == ".jpeg";
     }
 
     inline bool runtimeSourceMeshFallbackSupported(const std::filesystem::path& path)
@@ -44,6 +64,11 @@ namespace gts::rendering
         return extension == ".obj";
     }
 
+    inline bool runtimeSourceTextureFallbackSupported(const std::filesystem::path& path)
+    {
+        return isRuntimeSourceTextureAssetPath(path);
+    }
+
     inline std::filesystem::path expectedCookedMeshAssetPath(const std::filesystem::path& sourcePath)
     {
         if (isCookedMeshAssetPath(sourcePath))
@@ -51,6 +76,16 @@ namespace gts::rendering
 
         std::filesystem::path cookedPath = sourcePath;
         cookedPath.replace_extension(".gmesh");
+        return cookedPath;
+    }
+
+    inline std::filesystem::path expectedCookedTextureAssetPath(const std::filesystem::path& sourcePath)
+    {
+        if (isCookedTextureAssetPath(sourcePath))
+            return sourcePath;
+
+        std::filesystem::path cookedPath = sourcePath;
+        cookedPath.replace_extension(".gtex");
         return cookedPath;
     }
 

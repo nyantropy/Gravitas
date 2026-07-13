@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "AssetCooker.h"
+#include "TextureCooker.h"
 
 namespace
 {
@@ -31,8 +32,10 @@ namespace
                 return "material";
             case gts::rendering::CookedAssetOutputType::Model:
                 return "model";
-            case gts::rendering::CookedAssetOutputType::TextureDependency:
+            case gts::rendering::CookedAssetOutputType::Texture:
                 return "texture";
+            case gts::rendering::CookedAssetOutputType::TextureDependency:
+                return "texture-dependency";
         }
         return "unknown";
     }
@@ -41,7 +44,8 @@ namespace
     {
         std::cerr
             << "usage: assetc import <source> [--output <directory>] "
-            << "[--importer <name>] [--base-color-texture <path>] [--vertex-color-only]\n";
+            << "[--importer <name>] [--base-color-texture <path>] [--vertex-color-only] "
+            << "[--texture-role <role>] [--single-mip]\n";
     }
 
     bool parseArguments(int argc,
@@ -71,6 +75,17 @@ namespace
             else if (arg == "--vertex-color-only")
             {
                 options.vertexColorOnly = true;
+            }
+            else if (arg == "--texture-role" && i + 1 < argc)
+            {
+                gts::rendering::TextureCookRole role{};
+                if (!gts::rendering::parseTextureCookRole(argv[++i], role))
+                    return false;
+                options.textureRole = role;
+            }
+            else if (arg == "--single-mip")
+            {
+                options.generateTextureMipmaps = false;
             }
             else
             {

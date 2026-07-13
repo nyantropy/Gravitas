@@ -14,13 +14,15 @@ namespace gts::rendering
     {
         Mesh = 1,
         Material = 2,
-        Model = 3
+        Model = 3,
+        Texture = 4
     };
 
     inline constexpr uint32_t CookedAssetMagic = 0x54534147u; // GAST, little-endian.
     inline constexpr uint16_t MeshAssetFormatVersion = 1;
     inline constexpr uint16_t MaterialAssetFormatVersion = 1;
     inline constexpr uint16_t ModelAssetFormatVersion = 1;
+    inline constexpr uint16_t TextureAssetFormatVersion = 1;
     inline constexpr uint32_t CookedAssetHeaderSize = 64;
 
     inline constexpr size_t CookedAssetMagicOffset = 0;
@@ -36,6 +38,9 @@ namespace gts::rendering
     inline constexpr uint32_t MaxCookedModelNodes = 1'000'000u;
     inline constexpr uint32_t MaxCookedAssetDependencies = 1'000'000u;
     inline constexpr uint32_t MaxCookedAssetStringBytes = 1'048'576u;
+    inline constexpr uint32_t MaxCookedTextureDimension = 16'384u;
+    inline constexpr uint32_t MaxCookedTextureMipLevels = 32u;
+    inline constexpr uint64_t MaxCookedTextureBytes = 512ull * 1024ull * 1024ull;
 
     class MeshAssetSerializer
     {
@@ -94,6 +99,26 @@ namespace gts::rendering
 
         static bool readFile(const std::filesystem::path& path,
                              ModelAssetData& asset,
+                             std::string* error = nullptr);
+    };
+
+    class TextureAssetSerializer
+    {
+    public:
+        static bool serialize(const TextureAssetData& asset,
+                              std::vector<uint8_t>& bytes,
+                              std::string* error = nullptr);
+
+        static bool deserialize(const std::vector<uint8_t>& bytes,
+                                TextureAssetData& asset,
+                                std::string* error = nullptr);
+
+        static bool writeFile(const TextureAssetData& asset,
+                              const std::filesystem::path& path,
+                              std::string* error = nullptr);
+
+        static bool readFile(const std::filesystem::path& path,
+                             TextureAssetData& asset,
                              std::string* error = nullptr);
     };
 }

@@ -1,5 +1,6 @@
 #include "AssetSerializers.h"
 
+#include <algorithm>
 #include <cstring>
 #include <fstream>
 #include <limits>
@@ -171,6 +172,11 @@ namespace
         bool consumed() const
         {
             return cursor == end;
+        }
+
+        size_t position() const
+        {
+            return cursor;
         }
 
     private:
@@ -549,6 +555,129 @@ namespace
                 return false;
             }
         }
+        return true;
+    }
+
+    uint32_t bytesPerPixel(TextureAssetFormat format)
+    {
+        switch (format)
+        {
+            case TextureAssetFormat::RGBA8_UNorm:
+            case TextureAssetFormat::RGBA8_SRgb:
+                return 4u;
+            default:
+                return 0u;
+        }
+    }
+
+    bool supportedTextureFormat(TextureAssetFormat format)
+    {
+        return format == TextureAssetFormat::RGBA8_UNorm ||
+            format == TextureAssetFormat::RGBA8_SRgb;
+    }
+
+    bool validTextureEnumValues(const TextureAssetData& asset)
+    {
+        if (!supportedTextureFormat(asset.format))
+            return false;
+        if (asset.colorSpace != TextureColorSpace::SRgb &&
+            asset.colorSpace != TextureColorSpace::Linear)
+            return false;
+        if ((asset.format == TextureAssetFormat::RGBA8_SRgb) !=
+            (asset.colorSpace == TextureColorSpace::SRgb))
+            return false;
+        if (asset.defaultSampler.minFilter != TextureFilter::Nearest &&
+            asset.defaultSampler.minFilter != TextureFilter::Linear)
+            return false;
+        if (asset.defaultSampler.magFilter != TextureFilter::Nearest &&
+            asset.defaultSampler.magFilter != TextureFilter::Linear)
+            return false;
+        if (asset.defaultSampler.mipmapMode != TextureMipmapMode::Nearest &&
+            asset.defaultSampler.mipmapMode != TextureMipmapMode::Linear)
+            return false;
+        if (asset.defaultSampler.addressU != TextureAddressMode::Repeat &&
+            asset.defaultSampler.addressU != TextureAddressMode::ClampToEdge)
+            return false;
+        if (asset.defaultSampler.addressV != TextureAddressMode::Repeat &&
+            asset.defaultSampler.addressV != TextureAddressMode::ClampToEdge)
+            return false;
+        if (asset.defaultSampler.addressW != TextureAddressMode::Repeat &&
+            asset.defaultSampler.addressW != TextureAddressMode::ClampToEdge)
+            return false;
+        return asset.defaultSampler.maxAnisotropy >= 1.0f;
+    }
+
+    bool validateTextureAsset(const TextureAssetData& asset, std::string* error)
+    {
+        if (!validTextureEnumValues(asset))
+        {
+            setError(error, "Cooked texture contains unsupported format, color space, or sampler values");
+            return false;
+        }
+        if (asset.width == 0 || asset.height == 0 ||
+            asset.width > MaxCookedTextureDimension ||
+            asset.height > MaxCookedTextureDimension)
+        {
+            setError(error, "Cooked texture dimensions are invalid");
+            return false;
+        }
+        if (asset.mipCount == 0 ||
+            asset.mipCount != asset.mips.size() ||
+            asset.mipCount > MaxCookedTextureMipLevels)
+        {
+            setError(error, "Cooked texture mip count is invalid");
+            return false;
+        }
+        if (asset.dependencies.size() > MaxCookedAssetDependencies)
+        {
+            setError(error, "Cooked texture dependency count exceeds the supported limit");
+            return false;
+        }
+
+        const uint32_t bpp = bytesPerPixel(asset.format);
+        if (bpp == 0)
+        {
+            setError(error, "Cooked texture format is not supported by this runtime");
+            return false;
+        }
+
+        uint64_t totalBytes = 0;
+        uint32_t expectedWidth = asset.width;
+        uint32_t expectedHeight = asset.height;
+        for (size_t mipIndex = 0; mipIndex < asset.mips.size(); ++mipIndex)
+        {
+            const TextureMipData& mip = asset.mips[mipIndex];
+            if (mip.width != expectedWidth || mip.height != expectedHeight)
+            {
+                setError(error, "Cooked texture mip dimensions are invalid");
+                return false;
+            }
+
+            const uint64_t expectedRowPitch =
+                static_cast<uint64_t>(mip.width) * bpp;
+            const uint64_t expectedSlicePitch =
+                expectedRowPitch * static_cast<uint64_t>(mip.height);
+            if (expectedRowPitch > std::numeric_limits<uint32_t>::max() ||
+                expectedSlicePitch > std::numeric_limits<uint32_t>::max() ||
+                mip.rowPitch != expectedRowPitch ||
+                mip.slicePitch != expectedSlicePitch ||
+                mip.bytes.size() != expectedSlicePitch)
+            {
+                setError(error, "Cooked texture mip pitch or payload size is invalid");
+                return false;
+            }
+
+            totalBytes += mip.bytes.size();
+            if (totalBytes > MaxCookedTextureBytes)
+            {
+                setError(error, "Cooked texture payload exceeds the supported limit");
+                return false;
+            }
+
+            expectedWidth = std::max(1u, expectedWidth / 2u);
+            expectedHeight = std::max(1u, expectedHeight / 2u);
+        }
+
         return true;
     }
 }
@@ -1020,6 +1149,212 @@ bool ModelAssetSerializer::writeFile(const ModelAssetData& asset,
 bool ModelAssetSerializer::readFile(const std::filesystem::path& path,
                                     ModelAssetData& asset,
                                     std::string* error)
+{
+    std::vector<uint8_t> bytes;
+    return readFileBytes(path, bytes, error) && deserialize(bytes, asset, error);
+}
+
+bool TextureAssetSerializer::serialize(const TextureAssetData& asset,
+                                       std::vector<uint8_t>& bytes,
+                                       std::string* error)
+{
+    if (!validateTextureAsset(asset, error))
+        return false;
+
+    bytes.clear();
+    ByteWriter writer(bytes);
+    writeHeader(writer, TextureAssetFormatVersion, CookedAssetType::Texture, asset.id);
+
+    const size_t payloadBegin = writer.position();
+    writer.writeU64(asset.id);
+    writer.writeString(asset.debugName);
+    writer.writeU32(asset.width);
+    writer.writeU32(asset.height);
+    writer.writeU32(asset.mipCount);
+    writer.writeU32(static_cast<uint32_t>(asset.format));
+    writer.writeU32(static_cast<uint32_t>(asset.colorSpace));
+    writer.writeU32(static_cast<uint32_t>(asset.defaultSampler.minFilter));
+    writer.writeU32(static_cast<uint32_t>(asset.defaultSampler.magFilter));
+    writer.writeU32(static_cast<uint32_t>(asset.defaultSampler.mipmapMode));
+    writer.writeU32(static_cast<uint32_t>(asset.defaultSampler.addressU));
+    writer.writeU32(static_cast<uint32_t>(asset.defaultSampler.addressV));
+    writer.writeU32(static_cast<uint32_t>(asset.defaultSampler.addressW));
+    writer.writeFloat(asset.defaultSampler.maxAnisotropy);
+
+    std::vector<size_t> mipOffsetPatchOffsets;
+    mipOffsetPatchOffsets.reserve(asset.mips.size());
+    for (const TextureMipData& mip : asset.mips)
+    {
+        writer.writeU32(mip.width);
+        writer.writeU32(mip.height);
+        writer.writeU32(mip.rowPitch);
+        writer.writeU32(mip.slicePitch);
+        mipOffsetPatchOffsets.push_back(writer.position());
+        writer.writeU64(0);
+        writer.writeU64(static_cast<uint64_t>(mip.bytes.size()));
+    }
+
+    for (size_t mipIndex = 0; mipIndex < asset.mips.size(); ++mipIndex)
+    {
+        writer.patchU64(mipOffsetPatchOffsets[mipIndex], static_cast<uint64_t>(writer.position()));
+        const std::vector<uint8_t>& mipBytes = asset.mips[mipIndex].bytes;
+        bytes.insert(bytes.end(), mipBytes.begin(), mipBytes.end());
+    }
+
+    const size_t payloadSize = writer.position() - payloadBegin;
+    const size_t dependencyBegin = writer.position();
+    writeDependencies(writer, asset.dependencies);
+    const size_t dependencySize = writer.position() - dependencyBegin;
+    finalizeHeader(writer, payloadSize, dependencyBegin, dependencySize);
+    return true;
+}
+
+bool TextureAssetSerializer::deserialize(const std::vector<uint8_t>& bytes,
+                                         TextureAssetData& asset,
+                                         std::string* error)
+{
+    Header header;
+    if (!readHeader(bytes, CookedAssetType::Texture, TextureAssetFormatVersion, header, error))
+        return false;
+
+    TextureAssetData next;
+    ByteReader reader(
+        bytes,
+        static_cast<size_t>(header.payloadOffset),
+        static_cast<size_t>(header.payloadSize));
+
+    uint32_t format = 0;
+    uint32_t colorSpace = 0;
+    uint32_t minFilter = 0;
+    uint32_t magFilter = 0;
+    uint32_t mipmapMode = 0;
+    uint32_t addressU = 0;
+    uint32_t addressV = 0;
+    uint32_t addressW = 0;
+    if (!reader.readU64(next.id) ||
+        !reader.readString(next.debugName) ||
+        !reader.readU32(next.width) ||
+        !reader.readU32(next.height) ||
+        !reader.readU32(next.mipCount) ||
+        !reader.readU32(format) ||
+        !reader.readU32(colorSpace) ||
+        !reader.readU32(minFilter) ||
+        !reader.readU32(magFilter) ||
+        !reader.readU32(mipmapMode) ||
+        !reader.readU32(addressU) ||
+        !reader.readU32(addressV) ||
+        !reader.readU32(addressW) ||
+        !reader.readFloat(next.defaultSampler.maxAnisotropy))
+    {
+        setError(error, "Cooked texture payload is truncated");
+        return false;
+    }
+
+    if (next.mipCount == 0 || next.mipCount > MaxCookedTextureMipLevels)
+    {
+        setError(error, "Cooked texture payload contains an invalid mip count");
+        return false;
+    }
+
+    next.format = static_cast<TextureAssetFormat>(format);
+    next.colorSpace = static_cast<TextureColorSpace>(colorSpace);
+    next.defaultSampler.minFilter = static_cast<TextureFilter>(minFilter);
+    next.defaultSampler.magFilter = static_cast<TextureFilter>(magFilter);
+    next.defaultSampler.mipmapMode = static_cast<TextureMipmapMode>(mipmapMode);
+    next.defaultSampler.addressU = static_cast<TextureAddressMode>(addressU);
+    next.defaultSampler.addressV = static_cast<TextureAddressMode>(addressV);
+    next.defaultSampler.addressW = static_cast<TextureAddressMode>(addressW);
+
+    struct MipRange
+    {
+        uint64_t offset = 0;
+        uint64_t size = 0;
+    };
+    std::vector<MipRange> ranges;
+    ranges.reserve(next.mipCount);
+
+    next.mips.resize(next.mipCount);
+    for (TextureMipData& mip : next.mips)
+    {
+        uint64_t mipOffset = 0;
+        uint64_t mipSize = 0;
+        if (!reader.readU32(mip.width) ||
+            !reader.readU32(mip.height) ||
+            !reader.readU32(mip.rowPitch) ||
+            !reader.readU32(mip.slicePitch) ||
+            !reader.readU64(mipOffset) ||
+            !reader.readU64(mipSize))
+        {
+            setError(error, "Cooked texture mip descriptor is truncated");
+            return false;
+        }
+
+        const uint64_t payloadEnd = header.payloadOffset + header.payloadSize;
+        if (mipOffset < header.payloadOffset ||
+            mipOffset > payloadEnd ||
+            mipSize > payloadEnd - mipOffset ||
+            mipSize > MaxCookedTextureBytes)
+        {
+            setError(error, "Cooked texture mip payload range is invalid");
+            return false;
+        }
+
+        mip.bytes.assign(bytes.begin() + static_cast<std::ptrdiff_t>(mipOffset),
+                         bytes.begin() + static_cast<std::ptrdiff_t>(mipOffset + mipSize));
+        ranges.push_back({mipOffset, mipSize});
+    }
+
+    const uint64_t minimumMipPayloadOffset = static_cast<uint64_t>(reader.position());
+    std::sort(ranges.begin(), ranges.end(), [](const MipRange& lhs, const MipRange& rhs)
+    {
+        return lhs.offset < rhs.offset;
+    });
+    if (!ranges.empty() && ranges.front().offset < minimumMipPayloadOffset)
+    {
+        setError(error, "Cooked texture mip payload overlaps texture descriptors");
+        return false;
+    }
+    for (size_t i = 1; i < ranges.size(); ++i)
+    {
+        if (ranges[i].offset < ranges[i - 1u].offset + ranges[i - 1u].size)
+        {
+            setError(error, "Cooked texture mip payload ranges overlap");
+            return false;
+        }
+    }
+
+    if (header.dependencyTableSize == 0)
+    {
+        next.dependencies.clear();
+    }
+    else
+    {
+        ByteReader dependencyReader(
+            bytes,
+            static_cast<size_t>(header.dependencyTableOffset),
+            static_cast<size_t>(header.dependencyTableSize));
+        if (!readDependencies(dependencyReader, next.dependencies, error))
+            return false;
+    }
+
+    if (!validateTextureAsset(next, error))
+        return false;
+
+    asset = std::move(next);
+    return true;
+}
+
+bool TextureAssetSerializer::writeFile(const TextureAssetData& asset,
+                                       const std::filesystem::path& path,
+                                       std::string* error)
+{
+    std::vector<uint8_t> bytes;
+    return serialize(asset, bytes, error) && writeFileBytes(path, bytes, error);
+}
+
+bool TextureAssetSerializer::readFile(const std::filesystem::path& path,
+                                      TextureAssetData& asset,
+                                      std::string* error)
 {
     std::vector<uint8_t> bytes;
     return readFileBytes(path, bytes, error) && deserialize(bytes, asset, error);

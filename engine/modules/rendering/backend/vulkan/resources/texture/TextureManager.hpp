@@ -1,15 +1,21 @@
 #pragma once
 
+#include <filesystem>
+#include <iostream>
 #include <memory>
 #include <array>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
+#include <stdexcept>
 #include <vulkan/vulkan.h>
 
 #include "DescriptorSetManager.hpp"
 #include "MaterialTypes.h"
+#include "RuntimeAssetPolicy.h"
 #include "TextureResource.h"
+#include "TextureAssetLoader.h"
 #include "VulkanTexture.hpp"
 #include "Types.h"
 #include "VulkanBackendContext.h"
@@ -23,6 +29,7 @@ class TextureManager
         std::unordered_map<std::string, texture_id_type> pathToID;
         std::unordered_map<texture_id_type, std::unique_ptr<TextureResource>> idToTexture;
         std::unordered_map<std::string, std::vector<VkDescriptorSet>> materialTextureSets;
+        std::unordered_set<std::string> sourceFallbackWarnings;
         texture_id_type nextID = 1; // 0 = invalid
 
     public:
@@ -41,22 +48,41 @@ class TextureManager
                                     bool clampToEdge = false,
                                     TextureColorSpace colorSpace = TextureColorSpace::SRgb)
         {
-            const bool effectiveClampToEdge = nearestFilter || clampToEdge;
-            const std::string key = path
-                + (nearestFilter ? ":nearest" : ":linear")
-                + (effectiveClampToEdge ? ":clamp" : ":repeat")
-                + (colorSpace == TextureColorSpace::SRgb ? ":srgb" : ":linear-data");
+            const std::filesystem::path loadPath = preferredTextureLoadPath(path);
+            const bool cookedTexture = gts::rendering::isCookedTextureAssetPath(loadPath);
+            const std::string key = cookedTexture
+                ? cookedTextureKey(loadPath)
+                : sourceTextureKey(loadPath, nearestFilter, clampToEdge, colorSpace);
 
             auto it = pathToID.find(key);
             if (it != pathToID.end())
                 return it->second;
 
             auto resource = std::make_unique<TextureResource>();
-            resource->texture =
-                std::make_unique<VulkanTexture>(backendContext, path, nearestFilter, clampToEdge, colorSpace);
-            resource->width = resource->texture->getWidth();
-            resource->height = resource->texture->getHeight();
-            resource->colorSpace = colorSpace;
+            if (cookedTexture)
+            {
+                gts::rendering::TextureAssetData textureAsset;
+                std::string error;
+                if (!gts::rendering::TextureAssetLoader::load(loadPath, textureAsset, &error))
+                    throw std::runtime_error("failed to load cooked texture asset: " + loadPath.string() + ": " + error);
+
+                resource->texture = std::make_unique<VulkanTexture>(backendContext, textureAsset);
+                resource->width = resource->texture->getWidth();
+                resource->height = resource->texture->getHeight();
+                resource->colorSpace = textureAsset.colorSpace;
+            }
+            else
+            {
+                resource->texture = std::make_unique<VulkanTexture>(
+                    backendContext,
+                    loadPath.generic_string(),
+                    nearestFilter,
+                    clampToEdge,
+                    colorSpace);
+                resource->width = resource->texture->getWidth();
+                resource->height = resource->texture->getHeight();
+                resource->colorSpace = colorSpace;
+            }
 
             resource->descriptorSets = descriptorSetManager.allocateForTexture(
                 resource->texture->getTextureImageView(),
@@ -181,4 +207,71 @@ class TextureManager
                 + ":" + std::to_string(textures.emissive);
         }
 
+        static std::string sourceTextureKey(const std::filesystem::path& path,
+                                            bool nearestFilter,
+                                            bool clampToEdge,
+                                            TextureColorSpace colorSpace)
+        {
+            const bool effectiveClampToEdge = nearestFilter || clampToEdge;
+            return path.generic_string()
+                + (nearestFilter ? ":nearest" : ":linear")
+                + (effectiveClampToEdge ? ":clamp" : ":repeat")
+                + (colorSpace == TextureColorSpace::SRgb ? ":srgb" : ":linear-data");
+        }
+
+        static std::string cookedTextureKey(const std::filesystem::path& path)
+        {
+            return path.generic_string() + ":gtex";
+        }
+
+        std::filesystem::path preferredTextureLoadPath(const std::filesystem::path& requestedPath)
+        {
+            if (requestedPath.empty() || gts::rendering::isCookedTextureAssetPath(requestedPath))
+                return requestedPath;
+
+            if (!gts::rendering::isRuntimeSourceTextureAssetPath(requestedPath))
+                return requestedPath;
+
+            const std::filesystem::path expectedCooked =
+                gts::rendering::expectedCookedTextureAssetPath(requestedPath);
+            if (std::filesystem::exists(expectedCooked))
+                return expectedCooked;
+
+            if (!gts::rendering::runtimeSourceAssetFallbackAllowed())
+            {
+                throw std::runtime_error(
+                    "Cooked texture missing; runtime source image fallback is disabled. Source asset: "
+                    + requestedPath.string()
+                    + " Expected cooked asset: "
+                    + expectedCooked.string()
+                    + " Active policy: cooked-only");
+            }
+
+            if (!gts::rendering::runtimeSourceTextureFallbackSupported(requestedPath))
+            {
+                throw std::runtime_error(
+                    "Cooked texture missing and source image fallback is unsupported: "
+                    + requestedPath.string());
+            }
+
+            const std::string warningKey = requestedPath.lexically_normal().generic_string();
+            if (sourceFallbackWarnings.insert(warningKey).second)
+            {
+                std::cerr
+                    << "warning [TEXTURE_RUNTIME_SOURCE_FALLBACK] Cooked texture missing; "
+                    << "falling back to runtime source image decode. Source asset: "
+                    << requestedPath.string()
+                    << " Expected cooked asset: "
+                    << expectedCooked.string()
+                    << " Active policy: development-fallback. Run assetc import "
+                    << requestedPath.string()
+                    << " --output "
+                    << (expectedCooked.parent_path().empty()
+                        ? std::filesystem::path(".")
+                        : expectedCooked.parent_path()).string()
+                    << '\n';
+            }
+
+            return requestedPath;
+        }
 };

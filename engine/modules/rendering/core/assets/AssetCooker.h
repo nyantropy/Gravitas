@@ -133,6 +133,7 @@ namespace gts::rendering
         Mesh,
         Material,
         Model,
+        Texture,
         TextureDependency
     };
 
@@ -149,6 +150,8 @@ namespace gts::rendering
         std::filesystem::path baseColorTextureOverride;
         bool vertexColorOnly = false;
         std::string explicitImporter;
+        TextureCookRole textureRole = TextureCookRole::BaseColor;
+        bool generateTextureMipmaps = true;
     };
 
     struct AssetCookResult
@@ -156,6 +159,7 @@ namespace gts::rendering
         std::vector<MeshAssetData> meshes;
         std::vector<MaterialAssetData> materials;
         std::vector<ModelAssetData> models;
+        std::vector<TextureAssetData> textures;
         std::vector<CookedAssetOutput> outputs;
         std::vector<AssetDiagnostic> diagnostics;
 

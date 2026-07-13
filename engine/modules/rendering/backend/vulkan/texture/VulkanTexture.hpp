@@ -10,6 +10,7 @@
 #include "MemoryUtil.hpp"
 #include "BufferUtil.hpp"
 #include "TextureColorSpace.h"
+#include "AssetTypes.h"
 
 class VulkanTexture
 {
@@ -21,6 +22,8 @@ class VulkanTexture
                       bool nearestFilter = false,
                       bool clampToEdge = false,
                       TextureColorSpace colorSpace = TextureColorSpace::SRgb);
+        VulkanTexture(VulkanBackendContext& backendContext,
+                      const gts::rendering::TextureAssetData& asset);
         ~VulkanTexture();
 
         VkImage& getTextureImage();
@@ -34,6 +37,8 @@ class VulkanTexture
         bool nearestFilter;
         bool clampToEdge;
         VkFormat textureFormat = VK_FORMAT_R8G8B8A8_SRGB;
+        uint32_t mipLevels = 1;
+        gts::rendering::TextureSamplerDesc samplerDesc{};
         VulkanBackendContext& backendContext;
         int width = 0;
         int height = 0;
@@ -45,5 +50,6 @@ class VulkanTexture
 
         void createTextureImageView();
         void createTextureImage(const std::string path);
+        void createTextureImage(const gts::rendering::TextureAssetData& asset);
         void createTextureSampler();
 };

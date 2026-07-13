@@ -2,14 +2,18 @@
 
 #include <algorithm>
 #include <cctype>
-#include <fstream>
+#include <map>
 #include <memory>
+#include <optional>
+#include <set>
 #include <system_error>
 #include <utility>
 
 #include "AssetSerializers.h"
 #include "GltfAssetImporter.h"
+#include "ImageAssetImporter.h"
 #include "ObjAssetImporter.h"
+#include "TextureCooker.h"
 
 namespace gts::rendering
 {
@@ -77,27 +81,6 @@ namespace
         return AssetReference::fromLogicalPath(logicalPathForCookedOutput(path));
     }
 
-    bool startsWithParentTraversal(const std::filesystem::path& path)
-    {
-        auto it = path.begin();
-        return it != path.end() && *it == "..";
-    }
-
-    AssetReference referenceForSourceDependency(const std::filesystem::path& path,
-                                                const std::filesystem::path& sourceDirectory)
-    {
-        if (path.empty())
-            return {};
-
-        const std::filesystem::path normalizedPath = path.lexically_normal();
-        const std::filesystem::path normalizedBase = sourceDirectory.lexically_normal();
-        const std::filesystem::path relative = normalizedPath.lexically_relative(normalizedBase);
-        if (!relative.empty() && !startsWithParentTraversal(relative))
-            return AssetReference::fromLogicalPath(relative.generic_string());
-
-        return AssetReference::fromLogicalPath(normalizedPath.generic_string());
-    }
-
     bool sameReference(const AssetReference& lhs, const AssetReference& rhs)
     {
         return lhs.id == rhs.id && lhs.logicalPath == rhs.logicalPath;
@@ -142,27 +125,182 @@ namespace
         return false;
     }
 
-    AssetReference referenceForImportedTexture(int32_t textureIndex,
-                                               const std::filesystem::path& fallbackPath,
-                                               const std::vector<ImportedTexture>& textures,
-                                               const std::filesystem::path& sourceDirectory)
+    TextureCookRole cookRoleForMaterialRole(MaterialTextureRole role)
     {
-        if (textureIndex >= 0 && static_cast<size_t>(textureIndex) < textures.size())
+        switch (role)
         {
-            const ImportedTexture& texture = textures[static_cast<size_t>(textureIndex)];
-            if (!texture.logicalPath.empty())
-                return AssetReference::fromLogicalPath(texture.logicalPath);
-            if (!texture.sourcePath.empty())
-                return referenceForSourceDependency(texture.sourcePath, sourceDirectory);
+            case MaterialTextureRole::BaseColor:
+                return TextureCookRole::BaseColor;
+            case MaterialTextureRole::MetallicRoughness:
+                return TextureCookRole::MetallicRoughness;
+            case MaterialTextureRole::Normal:
+                return TextureCookRole::Normal;
+            case MaterialTextureRole::AmbientOcclusion:
+                return TextureCookRole::AmbientOcclusion;
+            case MaterialTextureRole::Emissive:
+                return TextureCookRole::Emissive;
         }
-        return referenceForSourceDependency(fallbackPath, sourceDirectory);
+        return TextureCookRole::BaseColor;
+    }
+
+    const char* materialRoleSuffix(MaterialTextureRole role)
+    {
+        switch (role)
+        {
+            case MaterialTextureRole::BaseColor:
+                return "";
+            case MaterialTextureRole::MetallicRoughness:
+                return "_metallic_roughness";
+            case MaterialTextureRole::Normal:
+                return "_normal";
+            case MaterialTextureRole::AmbientOcclusion:
+                return "_ao";
+            case MaterialTextureRole::Emissive:
+                return "_emissive";
+        }
+        return "";
+    }
+
+    std::filesystem::path materialTexturePathForRole(const ImportedMaterial& material,
+                                                     MaterialTextureRole role)
+    {
+        switch (role)
+        {
+            case MaterialTextureRole::BaseColor:
+                return material.baseColorTexture;
+            case MaterialTextureRole::MetallicRoughness:
+                return !material.metallicTexture.empty()
+                    ? material.metallicTexture
+                    : material.roughnessTexture;
+            case MaterialTextureRole::Normal:
+                return material.normalTexture;
+            case MaterialTextureRole::AmbientOcclusion:
+                return material.ambientOcclusionTexture;
+            case MaterialTextureRole::Emissive:
+                return material.emissiveTexture;
+        }
+        return {};
+    }
+
+    int32_t materialTextureIndexForRole(const ImportedMaterial& material,
+                                        MaterialTextureRole role)
+    {
+        switch (role)
+        {
+            case MaterialTextureRole::BaseColor:
+                return material.baseColorTextureIndex;
+            case MaterialTextureRole::MetallicRoughness:
+                return material.metallicRoughnessTextureIndex;
+            case MaterialTextureRole::Normal:
+                return material.normalTextureIndex;
+            case MaterialTextureRole::AmbientOcclusion:
+                return material.ambientOcclusionTextureIndex;
+            case MaterialTextureRole::Emissive:
+                return material.emissiveTextureIndex;
+        }
+        return -1;
+    }
+
+    std::string textureIdentityFor(const ImportedTexture& texture)
+    {
+        if (texture.source == ImportedTextureSource::ExternalFile && !texture.sourcePath.empty())
+            return "file:" + texture.sourcePath.lexically_normal().generic_string();
+        if (!texture.logicalPath.empty())
+            return "logical:" + texture.logicalPath;
+        if (!texture.embeddedBytes.empty())
+        {
+            uint64_t hash = 1469598103934665603ull;
+            for (uint8_t byte : texture.embeddedBytes)
+            {
+                hash ^= byte;
+                hash *= 1099511628211ull;
+            }
+            return "embedded:" + std::to_string(texture.embeddedBytes.size()) + ":" + std::to_string(hash);
+        }
+        return "debug:" + texture.debugName;
+    }
+
+    std::string textureOutputStemFor(const ImportedTexture& texture,
+                                     const std::string& fallback)
+    {
+        std::string stem;
+        if (texture.source == ImportedTextureSource::ExternalFile && !texture.sourcePath.empty())
+            stem = texture.sourcePath.stem().string();
+        if (stem.empty() && !texture.logicalPath.empty())
+            stem = std::filesystem::path(texture.logicalPath).stem().string();
+        if (stem.empty())
+            stem = texture.debugName;
+        return sanitizedName(stem, fallback);
+    }
+
+    ImportedTexture importedTextureForPath(const std::filesystem::path& path,
+                                           MaterialTextureRole role)
+    {
+        ImportedTexture texture;
+        texture.debugName = path.stem().string();
+        texture.sourcePath = path;
+        texture.logicalPath = path.filename().generic_string();
+        texture.colorSpace = colorSpaceForTextureCookRole(cookRoleForMaterialRole(role));
+        texture.intendedRole = role;
+        texture.source = ImportedTextureSource::ExternalFile;
+        return texture;
+    }
+
+    bool sameNormalizedPath(const std::filesystem::path& lhs,
+                            const std::filesystem::path& rhs)
+    {
+        return lhs.lexically_normal() == rhs.lexically_normal();
+    }
+
+    std::optional<ImportedTexture> importedTextureForMaterialRole(
+        const AssetImportResult& importResult,
+        const ImportedMaterial& material,
+        MaterialTextureRole role)
+    {
+        const int32_t textureIndex = materialTextureIndexForRole(material, role);
+        if (textureIndex >= 0 && static_cast<size_t>(textureIndex) < importResult.textures.size())
+            return importResult.textures[static_cast<size_t>(textureIndex)];
+
+        const std::filesystem::path texturePath = materialTexturePathForRole(material, role);
+        if (texturePath.empty())
+            return std::nullopt;
+
+        const auto found = std::find_if(
+            importResult.textures.begin(),
+            importResult.textures.end(),
+            [&texturePath](const ImportedTexture& texture)
+            {
+                return !texture.sourcePath.empty() && sameNormalizedPath(texture.sourcePath, texturePath);
+            });
+        if (found != importResult.textures.end())
+            return *found;
+
+        return importedTextureForPath(texturePath, role);
+    }
+
+    struct CookedMaterialTextureReferences
+    {
+        AssetReference baseColor;
+        AssetReference metallicRoughness;
+        AssetReference normal;
+        AssetReference ambientOcclusion;
+        AssetReference emissive;
+    };
+
+    void addMaterialTextureDependencies(MaterialAssetData& asset)
+    {
+        asset.dependencies.clear();
+        addUniqueReference(asset.dependencies, asset.baseColorTexture);
+        addUniqueReference(asset.dependencies, asset.metallicRoughnessTexture);
+        addUniqueReference(asset.dependencies, asset.normalTexture);
+        addUniqueReference(asset.dependencies, asset.ambientOcclusionTexture);
+        addUniqueReference(asset.dependencies, asset.emissiveTexture);
     }
 
     MaterialAssetData makeMaterialAsset(const ImportedMaterial& imported,
                                         const AssetReference& cookedReference,
                                         const AssetCookerOptions& options,
-                                        const std::filesystem::path& sourceDirectory,
-                                        const std::vector<ImportedTexture>& textures)
+                                        const CookedMaterialTextureReferences& textures)
     {
         MaterialAssetData asset = cookImportedMaterial(imported, cookedReference.id);
         asset.debugName = imported.name.empty()
@@ -174,43 +312,12 @@ namespace
             ? MaterialShaderFamily::Unlit
             : MaterialShaderFamily::StandardSurface;
 
-        if (!options.baseColorTextureOverride.empty())
-            asset.baseColorTexture =
-                referenceForSourceDependency(options.baseColorTextureOverride, sourceDirectory);
-        else
-            asset.baseColorTexture = referenceForImportedTexture(
-                imported.baseColorTextureIndex,
-                imported.baseColorTexture,
-                textures,
-                sourceDirectory);
-
-        asset.metallicRoughnessTexture = referenceForImportedTexture(
-            imported.metallicRoughnessTextureIndex,
-            !imported.metallicTexture.empty() ? imported.metallicTexture : imported.roughnessTexture,
-            textures,
-            sourceDirectory);
-        asset.normalTexture = referenceForImportedTexture(
-            imported.normalTextureIndex,
-            imported.normalTexture,
-            textures,
-            sourceDirectory);
-        asset.ambientOcclusionTexture = referenceForImportedTexture(
-            imported.ambientOcclusionTextureIndex,
-            imported.ambientOcclusionTexture,
-            textures,
-            sourceDirectory);
-        asset.emissiveTexture = referenceForImportedTexture(
-            imported.emissiveTextureIndex,
-            imported.emissiveTexture,
-            textures,
-            sourceDirectory);
-
-        asset.dependencies.clear();
-        addUniqueReference(asset.dependencies, asset.baseColorTexture);
-        addUniqueReference(asset.dependencies, asset.metallicRoughnessTexture);
-        addUniqueReference(asset.dependencies, asset.normalTexture);
-        addUniqueReference(asset.dependencies, asset.ambientOcclusionTexture);
-        addUniqueReference(asset.dependencies, asset.emissiveTexture);
+        asset.baseColorTexture = textures.baseColor;
+        asset.metallicRoughnessTexture = textures.metallicRoughness;
+        asset.normalTexture = textures.normal;
+        asset.ambientOcclusionTexture = textures.ambientOcclusion;
+        asset.emissiveTexture = textures.emissive;
+        addMaterialTextureDependencies(asset);
         return asset;
     }
 
@@ -301,56 +408,193 @@ namespace
         return true;
     }
 
-    void writeEmbeddedTextures(const std::vector<ImportedTexture>& textures,
-                               const std::filesystem::path& outputDirectory,
-                               AssetCookResult& result,
-                               const std::filesystem::path& sourcePath)
+    bool writeTexture(TextureAssetData& texture,
+                      const std::filesystem::path& path,
+                      AssetCookResult& result,
+                      const std::filesystem::path& sourcePath)
     {
-        for (const ImportedTexture& texture : textures)
+        std::string error;
+        if (!TextureAssetSerializer::writeFile(texture, path, &error))
         {
-            if (!texture.embedded())
-                continue;
+            addCookDiagnostic(
+                result,
+                AssetDiagnosticSeverity::Error,
+                "ASSET_COOK_TEXTURE_WRITE_FAILED",
+                error,
+                sourcePath);
+            return false;
+        }
+        return true;
+    }
 
-            const std::filesystem::path outputPath =
-                outputDirectory / std::filesystem::path(
-                    texture.logicalPath.empty()
-                        ? texture.debugName
-                        : texture.logicalPath);
-            if (!outputPath.parent_path().empty())
-                std::filesystem::create_directories(outputPath.parent_path());
+    struct TextureCookCache
+    {
+        const std::filesystem::path& outputDirectory;
+        const std::string& sourceStem;
+        const AssetCookerOptions& options;
+        AssetCookResult& result;
+        const std::filesystem::path& sourcePath;
 
-            std::ofstream file(outputPath, std::ios::binary | std::ios::trunc);
-            if (!file)
+        std::map<std::string, AssetReference> referencesByKey;
+        std::map<std::string, std::string> outputOwners;
+        std::map<std::string, TextureCookRole> firstRoleByIdentity;
+        std::set<std::string> reportedRoleConflicts;
+
+        TextureCookCache(const std::filesystem::path& outputDirectory,
+                         const std::string& sourceStem,
+                         const AssetCookerOptions& options,
+                         AssetCookResult& result,
+                         const std::filesystem::path& sourcePath)
+            : outputDirectory(outputDirectory)
+            , sourceStem(sourceStem)
+            , options(options)
+            , result(result)
+            , sourcePath(sourcePath)
+        {
+        }
+
+        AssetReference cookTexture(ImportedTexture texture,
+                                   TextureCookRole role,
+                                   const std::string& outputSuffix,
+                                   const std::string& fallbackName,
+                                   const std::filesystem::path& diagnosticSource)
+        {
+            const std::string identity = textureIdentityFor(texture);
+            const auto roleFound = firstRoleByIdentity.find(identity);
+            if (roleFound == firstRoleByIdentity.end())
+            {
+                firstRoleByIdentity.emplace(identity, role);
+            }
+            else if (roleFound->second != role && reportedRoleConflicts.insert(identity).second)
             {
                 addCookDiagnostic(
                     result,
-                    AssetDiagnosticSeverity::Error,
-                    "ASSET_COOK_EMBEDDED_TEXTURE_WRITE_FAILED",
-                    "Could not write embedded texture dependency: " + outputPath.string(),
-                    sourcePath);
-                continue;
+                    AssetDiagnosticSeverity::Warning,
+                    "TEXTURE_COLOR_SPACE_CONFLICT",
+                    "The same source texture is used with multiple texture roles; cooker emitted separate cooked variants",
+                    diagnosticSource);
             }
-            file.write(
-                reinterpret_cast<const char*>(texture.embeddedBytes.data()),
-                static_cast<std::streamsize>(texture.embeddedBytes.size()));
-            if (!file.good())
+
+            const std::string key =
+                identity + "|role=" + std::to_string(static_cast<uint16_t>(role));
+            const auto referenceFound = referencesByKey.find(key);
+            if (referenceFound != referencesByKey.end())
+                return referenceFound->second;
+
+            if (!decodeTexture(texture, diagnosticSource))
+                return {};
+
+            const std::string baseStem =
+                textureOutputStemFor(texture, sourceStem + "_" + fallbackName);
+            std::string fileStem = baseStem + outputSuffix;
+            std::string fileName = fileStem + ".gtex";
+            uint32_t collisionIndex = 1;
+            while (true)
             {
-                addCookDiagnostic(
-                    result,
-                    AssetDiagnosticSeverity::Error,
-                    "ASSET_COOK_EMBEDDED_TEXTURE_WRITE_FAILED",
-                    "Could not write embedded texture dependency: " + outputPath.string(),
-                    sourcePath);
-                continue;
+                const auto ownerFound = outputOwners.find(fileName);
+                if (ownerFound == outputOwners.end() || ownerFound->second == key)
+                    break;
+                fileName = fileStem + "_" + std::to_string(collisionIndex++) + ".gtex";
             }
+            outputOwners[fileName] = key;
+
+            const std::filesystem::path outputPath = outputDirectory / fileName;
+            const AssetReference reference = referenceForCookedOutput(outputPath);
+
+            TextureCookerOptions textureOptions;
+            textureOptions.role = role;
+            textureOptions.generateMipmaps = options.generateTextureMipmaps;
+            textureOptions.sampler = defaultSamplerForTextureCookRole(role, options.generateTextureMipmaps);
+            textureOptions.debugName = baseStem;
+
+            TextureCookResult cookResult =
+                TextureCooker::cookImportedTexture(texture, reference.id, textureOptions, diagnosticSource);
+            result.diagnostics.insert(
+                result.diagnostics.end(),
+                cookResult.diagnostics.begin(),
+                cookResult.diagnostics.end());
+            if (cookResult.hasErrors())
+                return {};
+
+            result.textures.push_back(std::move(cookResult.texture));
+            if (!writeTexture(result.textures.back(), outputPath, result, sourcePath))
+                return {};
 
             result.outputs.push_back({
-                CookedAssetOutputType::TextureDependency,
+                CookedAssetOutputType::Texture,
                 outputPath,
-                AssetReference::fromLogicalPath(texture.logicalPath)
+                reference
             });
+            referencesByKey.emplace(key, reference);
+            return reference;
         }
-    }
+
+    private:
+        bool decodeTexture(ImportedTexture& texture,
+                           const std::filesystem::path& diagnosticSource)
+        {
+            if (texture.decoded())
+                return true;
+
+            std::string error;
+            ImportedTexture decoded = texture;
+            if (texture.source == ImportedTextureSource::ExternalFile)
+            {
+                if (texture.sourcePath.empty())
+                {
+                    addCookDiagnostic(
+                        result,
+                        AssetDiagnosticSeverity::Warning,
+                        "TEXTURE_SOURCE_MISSING",
+                        "Material texture reference does not contain a source path",
+                        diagnosticSource);
+                    return false;
+                }
+                if (!std::filesystem::exists(texture.sourcePath))
+                {
+                    addCookDiagnostic(
+                        result,
+                        AssetDiagnosticSeverity::Warning,
+                        "TEXTURE_SOURCE_MISSING",
+                        "Texture source is missing: " + texture.sourcePath.string(),
+                        diagnosticSource);
+                    return false;
+                }
+                if (!ImageAssetImporter::decodeFile(texture.sourcePath, decoded, &error))
+                {
+                    addCookDiagnostic(
+                        result,
+                        AssetDiagnosticSeverity::Warning,
+                        "TEXTURE_DECODE_FAILED",
+                        error,
+                        diagnosticSource);
+                    return false;
+                }
+            }
+            else
+            {
+                if (!ImageAssetImporter::decodeBytes(texture.embeddedBytes, decoded, &error))
+                {
+                    addCookDiagnostic(
+                        result,
+                        AssetDiagnosticSeverity::Warning,
+                        "GLTF_EMBEDDED_IMAGE_INVALID",
+                        error,
+                        diagnosticSource);
+                    return false;
+                }
+            }
+
+            decoded.debugName = !texture.debugName.empty() ? texture.debugName : decoded.debugName;
+            decoded.logicalPath = !texture.logicalPath.empty() ? texture.logicalPath : decoded.logicalPath;
+            decoded.mimeType = !texture.mimeType.empty() ? texture.mimeType : decoded.mimeType;
+            decoded.colorSpace = texture.colorSpace;
+            decoded.intendedRole = texture.intendedRole;
+            decoded.embeddedBytes = texture.embeddedBytes;
+            texture = std::move(decoded);
+            return true;
+        }
+    };
 
     void addModelDependencies(ModelAssetData& model)
     {
@@ -370,7 +614,13 @@ AssetCookResult AssetCooker::cookImportResult(const AssetImportResult& importRes
     if (hasError(result.diagnostics))
         return result;
 
-    if (importResult.meshes.empty())
+    const bool textureOnlyImport =
+        importResult.meshes.empty() &&
+        importResult.materials.empty() &&
+        importResult.nodes.empty() &&
+        !importResult.textures.empty();
+
+    if (importResult.meshes.empty() && !textureOnlyImport)
     {
         addCookDiagnostic(
             result,
@@ -385,10 +635,76 @@ AssetCookResult AssetCooker::cookImportResult(const AssetImportResult& importRes
     if (!ensureOutputDirectory(outputDirectory, result, sourcePath))
         return result;
 
-    const std::filesystem::path sourceDirectory = sourcePath.parent_path();
     const std::string sourceStem = sanitizedName(sourcePath.stem().string(), "asset");
 
-    writeEmbeddedTextures(importResult.textures, outputDirectory, result, sourcePath);
+    TextureCookCache textureCache(
+        outputDirectory,
+        sourceStem,
+        options,
+        result,
+        sourcePath);
+
+    if (textureOnlyImport)
+    {
+        for (size_t textureIndex = 0; textureIndex < importResult.textures.size(); ++textureIndex)
+        {
+            const ImportedTexture& texture = importResult.textures[textureIndex];
+            textureCache.cookTexture(
+                texture,
+                options.textureRole,
+                "",
+                "texture_" + std::to_string(textureIndex),
+                texture.sourcePath.empty() ? sourcePath : texture.sourcePath);
+        }
+        return result;
+    }
+
+    auto cookMaterialTextures =
+        [&](const ImportedMaterial& imported, const std::string& materialName)
+        {
+            CookedMaterialTextureReferences textures;
+            for (MaterialTextureRole role : {
+                     MaterialTextureRole::BaseColor,
+                     MaterialTextureRole::MetallicRoughness,
+                     MaterialTextureRole::Normal,
+                     MaterialTextureRole::AmbientOcclusion,
+                     MaterialTextureRole::Emissive})
+            {
+                std::optional<ImportedTexture> importedTexture =
+                    importedTextureForMaterialRole(importResult, imported, role);
+                if (!importedTexture.has_value())
+                    continue;
+
+                const std::filesystem::path diagnosticSource =
+                    importedTexture->sourcePath.empty() ? sourcePath : importedTexture->sourcePath;
+                AssetReference reference = textureCache.cookTexture(
+                    std::move(*importedTexture),
+                    cookRoleForMaterialRole(role),
+                    materialRoleSuffix(role),
+                    materialName + "_texture",
+                    diagnosticSource);
+
+                switch (role)
+                {
+                    case MaterialTextureRole::BaseColor:
+                        textures.baseColor = reference;
+                        break;
+                    case MaterialTextureRole::MetallicRoughness:
+                        textures.metallicRoughness = reference;
+                        break;
+                    case MaterialTextureRole::Normal:
+                        textures.normal = reference;
+                        break;
+                    case MaterialTextureRole::AmbientOcclusion:
+                        textures.ambientOcclusion = reference;
+                        break;
+                    case MaterialTextureRole::Emissive:
+                        textures.emissive = reference;
+                        break;
+                }
+            }
+            return textures;
+        };
 
     std::vector<AssetReference> materialReferences;
     materialReferences.reserve(importResult.materials.size());
@@ -401,8 +717,10 @@ AssetCookResult AssetCooker::cookImportResult(const AssetImportResult& importRes
         const std::filesystem::path materialPath =
             outputDirectory / (sourceStem + "_" + materialName + ".gmat");
         const AssetReference reference = referenceForCookedOutput(materialPath);
+        CookedMaterialTextureReferences textureReferences =
+            cookMaterialTextures(imported, materialName);
         MaterialAssetData material =
-            makeMaterialAsset(imported, reference, options, sourceDirectory, importResult.textures);
+            makeMaterialAsset(imported, reference, options, textureReferences);
 
         if (material.baseColorTexture.empty())
         {
@@ -441,8 +759,10 @@ AssetCookResult AssetCooker::cookImportResult(const AssetImportResult& importRes
             outputDirectory / (sourceStem + "_" + sanitizedName(defaultImported.name, "default") + ".gmat");
         defaultMaterialReference = referenceForCookedOutput(materialPath);
 
+        CookedMaterialTextureReferences textureReferences =
+            cookMaterialTextures(defaultImported, sanitizedName(defaultImported.name, "default"));
         MaterialAssetData material =
-            makeMaterialAsset(defaultImported, defaultMaterialReference, options, sourceDirectory, importResult.textures);
+            makeMaterialAsset(defaultImported, defaultMaterialReference, options, textureReferences);
         material.shaderFamily = material.vertexColorOnly
             ? MaterialShaderFamily::Unlit
             : MaterialShaderFamily::StandardSurface;
@@ -591,6 +911,7 @@ AssetCookResult AssetCooker::cookSourceAsset(const std::filesystem::path& source
     AssetImporterRegistry registry;
     registry.registerImporter(std::make_unique<ObjAssetImporter>());
     registry.registerImporter(std::make_unique<GltfAssetImporter>());
+    registry.registerImporter(std::make_unique<ImageAssetImporter>());
 
     IAssetImporter* importer = registry.findImporter(sourcePath, options.explicitImporter);
     if (importer == nullptr)

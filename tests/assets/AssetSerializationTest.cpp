@@ -128,6 +128,78 @@ namespace
         return model;
     }
 
+    gts::rendering::TextureAssetData makeTexture()
+    {
+        gts::rendering::TextureAssetData texture;
+        texture.id = 123;
+        texture.debugName = "checker";
+        texture.width = 2;
+        texture.height = 2;
+        texture.mipCount = 2;
+        texture.format = gts::rendering::TextureAssetFormat::RGBA8_SRgb;
+        texture.colorSpace = TextureColorSpace::SRgb;
+        texture.defaultSampler.minFilter = gts::rendering::TextureFilter::Linear;
+        texture.defaultSampler.magFilter = gts::rendering::TextureFilter::Linear;
+        texture.defaultSampler.mipmapMode = gts::rendering::TextureMipmapMode::Linear;
+        texture.defaultSampler.addressU = gts::rendering::TextureAddressMode::Repeat;
+        texture.defaultSampler.addressV = gts::rendering::TextureAddressMode::Repeat;
+        texture.defaultSampler.addressW = gts::rendering::TextureAddressMode::Repeat;
+        texture.defaultSampler.maxAnisotropy = 1.0f;
+        texture.mips.push_back({
+            2,
+            2,
+            8,
+            16,
+            {
+                255, 0, 0, 255,
+                0, 255, 0, 255,
+                0, 0, 255, 255,
+                255, 255, 255, 255
+            }
+        });
+        texture.mips.push_back({
+            1,
+            1,
+            4,
+            4,
+            {128, 128, 128, 255}
+        });
+        texture.dependencies.push_back(
+            gts::rendering::AssetReference::fromLogicalPath("checker.png"));
+        return texture;
+    }
+
+    size_t textureMipCountOffset(const gts::rendering::TextureAssetData& texture)
+    {
+        return gts::rendering::CookedAssetHeaderSize
+            + 8u
+            + 4u
+            + texture.debugName.size()
+            + 8u;
+    }
+
+    size_t textureFormatOffset(const gts::rendering::TextureAssetData& texture)
+    {
+        return textureMipCountOffset(texture) + 4u;
+    }
+
+    size_t textureColorSpaceOffset(const gts::rendering::TextureAssetData& texture)
+    {
+        return textureFormatOffset(texture) + 4u;
+    }
+
+    size_t textureFirstMipDescriptorOffset(const gts::rendering::TextureAssetData& texture)
+    {
+        return gts::rendering::CookedAssetHeaderSize
+            + 8u
+            + 4u
+            + texture.debugName.size()
+            + 12u
+            + 8u
+            + 24u
+            + 4u;
+    }
+
     void testMeshRoundTrip()
     {
         const gts::rendering::MeshAssetData source = makeMesh();
@@ -191,6 +263,30 @@ namespace
         assert(loaded.dependencies.size() == 4);
     }
 
+    void testTextureRoundTrip()
+    {
+        const gts::rendering::TextureAssetData source = makeTexture();
+        std::vector<uint8_t> bytes;
+        std::string error;
+        assert(gts::rendering::TextureAssetSerializer::serialize(source, bytes, &error));
+
+        gts::rendering::TextureAssetData loaded;
+        assert(gts::rendering::TextureAssetSerializer::deserialize(bytes, loaded, &error));
+        assert(loaded.id == source.id);
+        assert(loaded.debugName == source.debugName);
+        assert(loaded.width == 2);
+        assert(loaded.height == 2);
+        assert(loaded.mipCount == 2);
+        assert(loaded.format == gts::rendering::TextureAssetFormat::RGBA8_SRgb);
+        assert(loaded.colorSpace == TextureColorSpace::SRgb);
+        assert(loaded.defaultSampler.addressU == gts::rendering::TextureAddressMode::Repeat);
+        assert(loaded.mips.size() == 2);
+        assert(loaded.mips[0].bytes == source.mips[0].bytes);
+        assert(loaded.mips[1].width == 1);
+        assert(loaded.dependencies.size() == 1);
+        assert(loaded.dependencies[0].logicalPath == "checker.png");
+    }
+
     void testDeterministicOutput()
     {
         const gts::rendering::MeshAssetData mesh = makeMesh();
@@ -208,6 +304,11 @@ namespace
         const gts::rendering::ModelAssetData model = makeModel();
         assert(gts::rendering::ModelAssetSerializer::serialize(model, first));
         assert(gts::rendering::ModelAssetSerializer::serialize(model, second));
+        assert(first == second);
+
+        const gts::rendering::TextureAssetData texture = makeTexture();
+        assert(gts::rendering::TextureAssetSerializer::serialize(texture, first));
+        assert(gts::rendering::TextureAssetSerializer::serialize(texture, second));
         assert(first == second);
     }
 
@@ -274,6 +375,63 @@ namespace
         gts::rendering::ModelAssetData badParent = model;
         badParent.nodes[0].parentIndex = 99;
         assert(!gts::rendering::ModelAssetSerializer::serialize(badParent, invalid, &error));
+
+        const gts::rendering::TextureAssetData texture = makeTexture();
+        assert(gts::rendering::TextureAssetSerializer::serialize(texture, bytes, &error));
+
+        gts::rendering::TextureAssetData loadedTexture;
+        invalid = bytes;
+        patchU32(invalid, gts::rendering::CookedAssetMagicOffset, 0);
+        assert(!gts::rendering::TextureAssetSerializer::deserialize(invalid, loadedTexture, &error));
+
+        invalid = bytes;
+        patchU16(invalid, gts::rendering::CookedAssetVersionOffset, 999);
+        assert(!gts::rendering::TextureAssetSerializer::deserialize(invalid, loadedTexture, &error));
+
+        invalid = bytes;
+        invalid.resize(gts::rendering::CookedAssetHeaderSize - 1u);
+        assert(!gts::rendering::TextureAssetSerializer::deserialize(invalid, loadedTexture, &error));
+
+        invalid = bytes;
+        patchU32(invalid, textureMipCountOffset(texture), gts::rendering::MaxCookedTextureMipLevels + 1u);
+        assert(!gts::rendering::TextureAssetSerializer::deserialize(invalid, loadedTexture, &error));
+
+        invalid = bytes;
+        patchU32(invalid, textureFormatOffset(texture), 999u);
+        assert(!gts::rendering::TextureAssetSerializer::deserialize(invalid, loadedTexture, &error));
+
+        invalid = bytes;
+        patchU32(invalid, textureColorSpaceOffset(texture), 999u);
+        assert(!gts::rendering::TextureAssetSerializer::deserialize(invalid, loadedTexture, &error));
+
+        const size_t firstMipDescriptor = textureFirstMipDescriptorOffset(texture);
+        invalid = bytes;
+        patchU32(invalid, firstMipDescriptor, 4u);
+        assert(!gts::rendering::TextureAssetSerializer::deserialize(invalid, loadedTexture, &error));
+
+        invalid = bytes;
+        patchU64(invalid, firstMipDescriptor + 16u, bytes.size() + 128u);
+        assert(!gts::rendering::TextureAssetSerializer::deserialize(invalid, loadedTexture, &error));
+
+        invalid = bytes;
+        patchU64(invalid, firstMipDescriptor + 16u, gts::rendering::CookedAssetHeaderSize);
+        assert(!gts::rendering::TextureAssetSerializer::deserialize(invalid, loadedTexture, &error));
+
+        invalid = bytes;
+        const uint64_t firstMipOffset = readU64(invalid, firstMipDescriptor + 16u);
+        const size_t secondMipDescriptor = firstMipDescriptor + 32u;
+        patchU64(invalid, secondMipDescriptor + 16u, firstMipOffset);
+        assert(!gts::rendering::TextureAssetSerializer::deserialize(invalid, loadedTexture, &error));
+
+        invalid = bytes;
+        const uint64_t textureDependencyOffset =
+            readU64(invalid, gts::rendering::CookedAssetDependencyTableOffsetOffset);
+        patchU32(invalid, static_cast<size_t>(textureDependencyOffset), 2u);
+        assert(!gts::rendering::TextureAssetSerializer::deserialize(invalid, loadedTexture, &error));
+
+        gts::rendering::TextureAssetData badMipRange = texture;
+        badMipRange.mips[1].width = 2;
+        assert(!gts::rendering::TextureAssetSerializer::serialize(badMipRange, invalid, &error));
     }
 }
 
@@ -282,6 +440,7 @@ int main()
     testMeshRoundTrip();
     testMaterialRoundTrip();
     testModelRoundTrip();
+    testTextureRoundTrip();
     testDeterministicOutput();
     testMalformedFiles();
     std::printf("AssetSerializationTest passed\n");
