@@ -81,11 +81,14 @@ class RenderCommandExtractor
             const bool opacityBucketChanged = !cached.initialised || cached.opaque != opaque;
             const bool needsUpdate          = !cacheInitialised || !cached.initialised ||
                                               cached.command.meshID != renderable.meshID ||
+                                              cached.command.firstIndex != 0 ||
+                                              cached.command.indexCount != 0 ||
                                               cached.command.objectSSBOSlot != renderable.objectSSBOSlot ||
                                               cached.command.material != renderable.material ||
                                               cached.command.materialGpu != renderable.materialGpu ||
                                               cached.command.variantKey != renderable.variantKey ||
                                               cached.command.renderQueue != renderable.renderQueue ||
+                                              cached.command.submeshMaterials != renderable.submeshMaterials ||
                                               cached.command.sortKey != renderable.sortKey ||
                                               cached.command.cameraViewID != snapshot.cameraViewID;
 
@@ -107,12 +110,15 @@ class RenderCommandExtractor
                     sortOrderDirty = true;
 
                 cached.command.meshID          = renderable.meshID;
+                cached.command.firstIndex      = 0;
+                cached.command.indexCount      = 0;
                 cached.command.objectSSBOSlot  = renderable.objectSSBOSlot;
                 cached.command.cameraViewID    = snapshot.cameraViewID;
                 cached.command.material        = renderable.material;
                 cached.command.materialGpu     = renderable.materialGpu;
                 cached.command.variantKey      = renderable.variantKey;
                 cached.command.renderQueue     = renderable.renderQueue;
+                cached.command.submeshMaterials = renderable.submeshMaterials;
                 cached.command.sortKey         = renderable.sortKey;
                 cached.sortKey                 = renderable.sortKey;
                 cached.initialised             = true;

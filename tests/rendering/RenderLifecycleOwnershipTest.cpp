@@ -247,7 +247,7 @@ namespace
         install(world, resources);
 
         StaticMeshComponent mesh;
-        mesh.meshPath = "mesh/a.obj";
+        mesh.meshPath = "mesh/a.gmesh";
         const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
@@ -268,7 +268,7 @@ namespace
         install(world, resources);
 
         StaticMeshComponent mesh;
-        mesh.meshPath = "mesh/a.obj";
+        mesh.meshPath = "mesh/a.gmesh";
         const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
@@ -296,13 +296,13 @@ namespace
         install(world, resources);
 
         StaticMeshComponent mesh;
-        mesh.meshPath = "mesh/a.obj";
+        mesh.meshPath = "mesh/a.gmesh";
         const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
         const texture_id_type textureId = materialTextureID(world, entity);
         StaticMeshComponent& staticMesh = world.getComponent<StaticMeshComponent>(entity);
-        staticMesh.meshPath = "mesh/b.obj";
+        staticMesh.meshPath = "mesh/b.gmesh";
         gts::rendering::queueStaticMeshRefresh(world, entity);
         update(world, resources);
 
@@ -320,7 +320,7 @@ namespace
 
         Entity entity = world.createEntity();
         StaticMeshComponent mesh;
-        mesh.meshPath = "mesh/a.obj";
+        mesh.meshPath = "mesh/a.gmesh";
         world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
         world.addComponent(entity, mesh);
         update(world, resources);
@@ -344,7 +344,7 @@ namespace
         install(world, resources);
 
         StaticMeshComponent mesh;
-        mesh.meshPath = "mesh/a.obj";
+        mesh.meshPath = "mesh/a.gmesh";
         const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
@@ -554,7 +554,7 @@ namespace
         install(world, resources);
 
         StaticMeshComponent mesh;
-        mesh.meshPath = "mesh/a.obj";
+        mesh.meshPath = "mesh/a.gmesh";
         const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
         const ssbo_id_type slot = world.getComponent<RenderGpuComponent>(entity).objectSSBOSlot;
@@ -580,7 +580,7 @@ namespace
         install(world, resources);
 
         StaticMeshComponent mesh;
-        mesh.meshPath = "mesh/a.obj";
+        mesh.meshPath = "mesh/a.gmesh";
         const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
         update(world, resources);
@@ -599,7 +599,7 @@ namespace
         install(world, resources);
 
         StaticMeshComponent mesh;
-        mesh.meshPath = "mesh/a.obj";
+        mesh.meshPath = "mesh/a.gmesh";
         const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
@@ -627,7 +627,7 @@ namespace
         install(world, resources);
 
         StaticMeshComponent mesh;
-        mesh.meshPath = "mesh/a.obj";
+        mesh.meshPath = "mesh/a.gmesh";
         const Entity entity = createRenderable(world, mesh, materialWithTexture(world, "textures/a.png"));
         update(world, resources);
 
@@ -650,7 +650,7 @@ namespace
 
         Entity entity = world.createEntity();
         StaticMeshComponent mesh;
-        mesh.meshPath = "mesh/a.obj";
+        mesh.meshPath = "mesh/a.gmesh";
         world.addComponent(entity, transformAt({0.0f, 0.0f, 0.0f}));
         world.addComponent(entity, mesh);
         update(world, resources);

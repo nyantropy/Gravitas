@@ -452,7 +452,7 @@ namespace
             : std::min(config.visibleRenderableCount, config.renderableCount);
         const bool gtsScene3Stress = isGtsScene3StressPreset(config);
         const std::string gtsScene3CubeMesh =
-            std::string(GraphicsConstants::ENGINE_RESOURCES) + "/models/cube.obj";
+            std::string(GraphicsConstants::ENGINE_RESOURCES) + "/models/cube.gmesh";
 
         for (uint32_t i = 0; i < config.renderableCount; ++i)
         {

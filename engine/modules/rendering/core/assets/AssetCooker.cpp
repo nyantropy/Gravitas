@@ -2,11 +2,13 @@
 
 #include <algorithm>
 #include <cctype>
+#include <fstream>
 #include <memory>
 #include <system_error>
 #include <utility>
 
 #include "AssetSerializers.h"
+#include "GltfAssetImporter.h"
 #include "ObjAssetImporter.h"
 
 namespace gts::rendering
@@ -127,10 +129,40 @@ namespace
         return false;
     }
 
+    bool hasUnassignedPrimitives(const std::vector<ImportedMesh>& meshes)
+    {
+        for (const ImportedMesh& mesh : meshes)
+        {
+            for (const ImportedMeshPrimitive& primitive : mesh.primitives)
+            {
+                if (primitive.materialIndex < 0)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    AssetReference referenceForImportedTexture(int32_t textureIndex,
+                                               const std::filesystem::path& fallbackPath,
+                                               const std::vector<ImportedTexture>& textures,
+                                               const std::filesystem::path& sourceDirectory)
+    {
+        if (textureIndex >= 0 && static_cast<size_t>(textureIndex) < textures.size())
+        {
+            const ImportedTexture& texture = textures[static_cast<size_t>(textureIndex)];
+            if (!texture.logicalPath.empty())
+                return AssetReference::fromLogicalPath(texture.logicalPath);
+            if (!texture.sourcePath.empty())
+                return referenceForSourceDependency(texture.sourcePath, sourceDirectory);
+        }
+        return referenceForSourceDependency(fallbackPath, sourceDirectory);
+    }
+
     MaterialAssetData makeMaterialAsset(const ImportedMaterial& imported,
                                         const AssetReference& cookedReference,
                                         const AssetCookerOptions& options,
-                                        const std::filesystem::path& sourceDirectory)
+                                        const std::filesystem::path& sourceDirectory,
+                                        const std::vector<ImportedTexture>& textures)
     {
         MaterialAssetData asset = cookImportedMaterial(imported, cookedReference.id);
         asset.debugName = imported.name.empty()
@@ -146,16 +178,32 @@ namespace
             asset.baseColorTexture =
                 referenceForSourceDependency(options.baseColorTextureOverride, sourceDirectory);
         else
-            asset.baseColorTexture =
-                referenceForSourceDependency(imported.baseColorTexture, sourceDirectory);
+            asset.baseColorTexture = referenceForImportedTexture(
+                imported.baseColorTextureIndex,
+                imported.baseColorTexture,
+                textures,
+                sourceDirectory);
 
-        asset.metallicRoughnessTexture = referenceForSourceDependency(
+        asset.metallicRoughnessTexture = referenceForImportedTexture(
+            imported.metallicRoughnessTextureIndex,
             !imported.metallicTexture.empty() ? imported.metallicTexture : imported.roughnessTexture,
+            textures,
             sourceDirectory);
-        asset.normalTexture = referenceForSourceDependency(imported.normalTexture, sourceDirectory);
-        asset.ambientOcclusionTexture =
-            referenceForSourceDependency(imported.ambientOcclusionTexture, sourceDirectory);
-        asset.emissiveTexture = referenceForSourceDependency(imported.emissiveTexture, sourceDirectory);
+        asset.normalTexture = referenceForImportedTexture(
+            imported.normalTextureIndex,
+            imported.normalTexture,
+            textures,
+            sourceDirectory);
+        asset.ambientOcclusionTexture = referenceForImportedTexture(
+            imported.ambientOcclusionTextureIndex,
+            imported.ambientOcclusionTexture,
+            textures,
+            sourceDirectory);
+        asset.emissiveTexture = referenceForImportedTexture(
+            imported.emissiveTextureIndex,
+            imported.emissiveTexture,
+            textures,
+            sourceDirectory);
 
         asset.dependencies.clear();
         addUniqueReference(asset.dependencies, asset.baseColorTexture);
@@ -233,6 +281,84 @@ namespace
         }
         return true;
     }
+
+    bool writeModel(ModelAssetData& model,
+                    const std::filesystem::path& path,
+                    AssetCookResult& result,
+                    const std::filesystem::path& sourcePath)
+    {
+        std::string error;
+        if (!ModelAssetSerializer::writeFile(model, path, &error))
+        {
+            addCookDiagnostic(
+                result,
+                AssetDiagnosticSeverity::Error,
+                "ASSET_COOK_MODEL_WRITE_FAILED",
+                error,
+                sourcePath);
+            return false;
+        }
+        return true;
+    }
+
+    void writeEmbeddedTextures(const std::vector<ImportedTexture>& textures,
+                               const std::filesystem::path& outputDirectory,
+                               AssetCookResult& result,
+                               const std::filesystem::path& sourcePath)
+    {
+        for (const ImportedTexture& texture : textures)
+        {
+            if (!texture.embedded())
+                continue;
+
+            const std::filesystem::path outputPath =
+                outputDirectory / std::filesystem::path(
+                    texture.logicalPath.empty()
+                        ? texture.debugName
+                        : texture.logicalPath);
+            if (!outputPath.parent_path().empty())
+                std::filesystem::create_directories(outputPath.parent_path());
+
+            std::ofstream file(outputPath, std::ios::binary | std::ios::trunc);
+            if (!file)
+            {
+                addCookDiagnostic(
+                    result,
+                    AssetDiagnosticSeverity::Error,
+                    "ASSET_COOK_EMBEDDED_TEXTURE_WRITE_FAILED",
+                    "Could not write embedded texture dependency: " + outputPath.string(),
+                    sourcePath);
+                continue;
+            }
+            file.write(
+                reinterpret_cast<const char*>(texture.embeddedBytes.data()),
+                static_cast<std::streamsize>(texture.embeddedBytes.size()));
+            if (!file.good())
+            {
+                addCookDiagnostic(
+                    result,
+                    AssetDiagnosticSeverity::Error,
+                    "ASSET_COOK_EMBEDDED_TEXTURE_WRITE_FAILED",
+                    "Could not write embedded texture dependency: " + outputPath.string(),
+                    sourcePath);
+                continue;
+            }
+
+            result.outputs.push_back({
+                CookedAssetOutputType::TextureDependency,
+                outputPath,
+                AssetReference::fromLogicalPath(texture.logicalPath)
+            });
+        }
+    }
+
+    void addModelDependencies(ModelAssetData& model)
+    {
+        for (const AssetReference& mesh : model.meshes)
+            addUniqueReference(model.dependencies, mesh);
+        for (const AssetReference& material : model.materials)
+            addUniqueReference(model.dependencies, material);
+    }
 }
 
 AssetCookResult AssetCooker::cookImportResult(const AssetImportResult& importResult,
@@ -262,6 +388,8 @@ AssetCookResult AssetCooker::cookImportResult(const AssetImportResult& importRes
     const std::filesystem::path sourceDirectory = sourcePath.parent_path();
     const std::string sourceStem = sanitizedName(sourcePath.stem().string(), "asset");
 
+    writeEmbeddedTextures(importResult.textures, outputDirectory, result, sourcePath);
+
     std::vector<AssetReference> materialReferences;
     materialReferences.reserve(importResult.materials.size());
 
@@ -274,7 +402,7 @@ AssetCookResult AssetCooker::cookImportResult(const AssetImportResult& importRes
             outputDirectory / (sourceStem + "_" + materialName + ".gmat");
         const AssetReference reference = referenceForCookedOutput(materialPath);
         MaterialAssetData material =
-            makeMaterialAsset(imported, reference, options, sourceDirectory);
+            makeMaterialAsset(imported, reference, options, sourceDirectory, importResult.textures);
 
         if (material.baseColorTexture.empty())
         {
@@ -298,20 +426,23 @@ AssetCookResult AssetCooker::cookImportResult(const AssetImportResult& importRes
         }
     }
 
+    const bool needsUnassignedDefaultMaterial = hasUnassignedPrimitives(importResult.meshes);
     const bool needDefaultMaterial =
-        materialReferences.empty() || !options.baseColorTextureOverride.empty() || options.vertexColorOnly;
+        materialReferences.empty() || needsUnassignedDefaultMaterial;
     AssetReference defaultMaterialReference;
     bool defaultMaterialCreated = false;
-    if (needDefaultMaterial && materialReferences.empty())
+    if (needDefaultMaterial)
     {
         bool vertexColorOnly = options.vertexColorOnly;
         ImportedMaterial defaultImported = makeDefaultImportedMaterial(options, vertexColorOnly);
+        if (!materialReferences.empty())
+            defaultImported.name = vertexColorOnly ? "vertex_color_unassigned" : "default_unassigned";
         const std::filesystem::path materialPath =
             outputDirectory / (sourceStem + "_" + sanitizedName(defaultImported.name, "default") + ".gmat");
         defaultMaterialReference = referenceForCookedOutput(materialPath);
 
         MaterialAssetData material =
-            makeMaterialAsset(defaultImported, defaultMaterialReference, options, sourceDirectory);
+            makeMaterialAsset(defaultImported, defaultMaterialReference, options, sourceDirectory, importResult.textures);
         material.shaderFamily = material.vertexColorOnly
             ? MaterialShaderFamily::Unlit
             : MaterialShaderFamily::StandardSurface;
@@ -320,7 +451,9 @@ AssetCookResult AssetCooker::cookImportResult(const AssetImportResult& importRes
             result,
             AssetDiagnosticSeverity::Warning,
             "ASSET_COOK_DEFAULT_MATERIAL",
-            "No source materials were imported; cooker emitted a default material",
+            materialReferences.empty()
+                ? "No source materials were imported; cooker emitted a default material"
+                : "Some source primitives had no material assignment; cooker emitted a default material",
             sourcePath);
 
         result.materials.push_back(material);
@@ -336,6 +469,9 @@ AssetCookResult AssetCooker::cookImportResult(const AssetImportResult& importRes
         }
     }
 
+    std::vector<AssetReference> meshReferences;
+    meshReferences.reserve(importResult.meshes.size());
+
     for (size_t meshIndex = 0; meshIndex < importResult.meshes.size(); ++meshIndex)
     {
         const ImportedMesh& imported = importResult.meshes[meshIndex];
@@ -348,14 +484,14 @@ AssetCookResult AssetCooker::cookImportResult(const AssetImportResult& importRes
         MeshAssetData mesh = cookImportedMesh(imported, materialReferences, meshReference.id);
         mesh.debugName = imported.debugName.empty() ? meshName : imported.debugName;
 
-        if (defaultMaterialCreated && materialReferences.size() == 1)
+        if (defaultMaterialCreated)
         {
             for (SubmeshAssetData& submesh : mesh.submeshes)
             {
                 if (submesh.material.empty())
-                    submesh.material = materialReferences.front();
+                    submesh.material = defaultMaterialReference;
             }
-            addUniqueReference(mesh.dependencies, materialReferences.front());
+            addUniqueReference(mesh.dependencies, defaultMaterialReference);
         }
 
         if (!options.vertexColorOnly && materialReferences.size() == 1 && hasNonWhiteVertexColor(mesh))
@@ -390,10 +526,58 @@ AssetCookResult AssetCooker::cookImportResult(const AssetImportResult& importRes
         result.meshes.push_back(std::move(mesh));
         if (writeMesh(result.meshes.back(), meshPath, result, sourcePath))
         {
+            meshReferences.push_back(meshReference);
             result.outputs.push_back({
                 CookedAssetOutputType::Mesh,
                 meshPath,
                 meshReference
+            });
+        }
+    }
+
+    if (!meshReferences.empty() && (!importResult.nodes.empty() || meshReferences.size() > 1u))
+    {
+        const std::filesystem::path modelPath = outputDirectory / (sourceStem + ".gmodel");
+        const AssetReference modelReference = referenceForCookedOutput(modelPath);
+        ModelAssetData model;
+        model.id = modelReference.id;
+        model.debugName = sourceStem;
+        model.meshes = meshReferences;
+        model.materials = materialReferences;
+
+        if (!importResult.nodes.empty())
+        {
+            model.nodes.reserve(importResult.nodes.size());
+            for (const ImportedNode& node : importResult.nodes)
+            {
+                ModelNodeAssetData cookedNode;
+                cookedNode.name = node.name;
+                cookedNode.parentIndex = node.parentIndex;
+                cookedNode.localTransform = node.localTransform;
+                if (node.meshIndex >= 0 && static_cast<size_t>(node.meshIndex) < meshReferences.size())
+                    cookedNode.mesh = meshReferences[static_cast<size_t>(node.meshIndex)];
+                model.nodes.push_back(std::move(cookedNode));
+            }
+        }
+        else
+        {
+            for (size_t meshIndex = 0; meshIndex < meshReferences.size(); ++meshIndex)
+            {
+                ModelNodeAssetData node;
+                node.name = sourceStem + "_node_" + std::to_string(meshIndex);
+                node.mesh = meshReferences[meshIndex];
+                model.nodes.push_back(std::move(node));
+            }
+        }
+
+        addModelDependencies(model);
+        result.models.push_back(std::move(model));
+        if (writeModel(result.models.back(), modelPath, result, sourcePath))
+        {
+            result.outputs.push_back({
+                CookedAssetOutputType::Model,
+                modelPath,
+                modelReference
             });
         }
     }
@@ -406,15 +590,28 @@ AssetCookResult AssetCooker::cookSourceAsset(const std::filesystem::path& source
 {
     AssetImporterRegistry registry;
     registry.registerImporter(std::make_unique<ObjAssetImporter>());
+    registry.registerImporter(std::make_unique<GltfAssetImporter>());
+
+    IAssetImporter* importer = registry.findImporter(sourcePath, options.explicitImporter);
+    if (importer == nullptr)
+    {
+        AssetImportResult missingImporter;
+        missingImporter.diagnostics.push_back({
+            AssetDiagnosticSeverity::Error,
+            "ASSET_IMPORTER_NOT_FOUND",
+            "No importer is registered for source asset: " + sourcePath.string(),
+            sourcePath,
+            0
+        });
+        return cookImportResult(missingImporter, sourcePath, options);
+    }
 
     AssetImportRequest request;
     request.sourcePath = sourcePath;
     request.explicitImporter = options.explicitImporter;
-    request.requestedCapabilities = AssetImportCapability::Meshes
-        | AssetImportCapability::Materials
-        | AssetImportCapability::Textures;
+    request.requestedCapabilities = importer->capabilities() & AssetImportCapability::All;
 
-    AssetImportResult importResult = registry.importAsset(request);
+    AssetImportResult importResult = importer->importAsset(request);
     return cookImportResult(importResult, sourcePath, options);
 }
 }

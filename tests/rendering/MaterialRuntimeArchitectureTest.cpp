@@ -1,10 +1,13 @@
 #include <cstdio>
 #include <cmath>
+#include <filesystem>
 #include <limits>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "AssetSerializers.h"
+#include "AssetTypes.h"
 #include "BitmapFont.h"
 #include "BoundsComponent.h"
 #include "ECSWorld.hpp"
@@ -55,6 +58,8 @@ namespace
         uint32_t objectSlotRequests = 0;
 
         std::unordered_map<std::string, mesh_id_type> meshes;
+        std::unordered_map<std::string, std::vector<gts::rendering::SubmeshAssetData>> submeshesByPath;
+        std::unordered_map<mesh_id_type, std::vector<gts::rendering::SubmeshAssetData>> submeshesByMesh;
         std::unordered_map<std::string, texture_id_type> textures;
         std::unordered_map<std::string, TextureColorSpace> textureColorSpaces;
         std::unordered_map<std::string, font_id_type> fontsByPath;
@@ -65,8 +70,19 @@ namespace
             ++meshRequests;
             auto [it, inserted] = meshes.emplace(path, nextMesh);
             if (inserted)
+            {
+                auto submeshes = submeshesByPath.find(path);
+                if (submeshes != submeshesByPath.end())
+                    submeshesByMesh.emplace(nextMesh, submeshes->second);
                 ++nextMesh;
+            }
             return it->second;
+        }
+
+        const std::vector<gts::rendering::SubmeshAssetData>* getMeshSubmeshes(mesh_id_type id) override
+        {
+            auto it = submeshesByMesh.find(id);
+            return it == submeshesByMesh.end() ? nullptr : &it->second;
         }
 
         mesh_id_type getSharedQuadMesh(float, float) override
@@ -289,8 +305,8 @@ namespace
         auto& materials = gts::rendering::materialRuntime(world);
         const MaterialInstanceHandle shared = materials.createInstance(
             makeTexturedInstance(materials, "textures/shared.png", {1.0f, 1.0f, 1.0f, 1.0f}));
-        const Entity a = createStaticRenderable(world, "mesh/a.obj", shared);
-        const Entity b = createStaticRenderable(world, "mesh/b.obj", shared);
+        const Entity a = createStaticRenderable(world, "mesh/a.gmesh", shared);
+        const Entity b = createStaticRenderable(world, "mesh/b.gmesh", shared);
         update(world, resources);
         RenderExtractionSnapshotBuilder builder;
         builder.build(world);
@@ -422,7 +438,7 @@ namespace
             makeTexturedInstance(materials, "textures/direct.png", {1.0f, 1.0f, 1.0f, 1.0f}));
         Entity direct = world.createEntity();
         StaticMeshComponent mesh;
-        mesh.meshPath = "mesh/direct.obj";
+        mesh.meshPath = "mesh/direct.gmesh";
         world.addComponent(direct, TransformComponent{});
         world.addComponent(direct, mesh);
         world.addComponent(direct, MaterialReferenceComponent{material});
@@ -464,8 +480,8 @@ namespace
         auto& materials = gts::rendering::materialRuntime(world);
         const MaterialInstanceHandle shared = materials.createInstance(
             makeTexturedInstance(materials, "textures/shared.png", {1.0f, 1.0f, 1.0f, 1.0f}));
-        createStaticRenderable(world, "mesh/a.obj", shared);
-        createStaticRenderable(world, "mesh/b.obj", shared);
+        createStaticRenderable(world, "mesh/a.gmesh", shared);
+        createStaticRenderable(world, "mesh/b.gmesh", shared);
         update(world, resources);
         update(world, resources);
 
@@ -491,9 +507,9 @@ namespace
             makeTexturedInstance(materials, "textures/shared.png", {1.0f, 1.0f, 1.0f, 1.0f}));
         const MaterialInstanceHandle other = materials.createInstance(
             makeTexturedInstance(materials, "textures/other.png", {1.0f, 1.0f, 1.0f, 1.0f}));
-        const Entity a = createStaticRenderable(world, "mesh/a.obj", shared);
-        const Entity b = createStaticRenderable(world, "mesh/b.obj", shared);
-        const Entity c = createStaticRenderable(world, "mesh/c.obj", other);
+        const Entity a = createStaticRenderable(world, "mesh/a.gmesh", shared);
+        const Entity b = createStaticRenderable(world, "mesh/b.gmesh", shared);
+        const Entity c = createStaticRenderable(world, "mesh/c.gmesh", other);
         update(world, resources);
         RenderExtractionSnapshotBuilder builder;
         builder.build(world);
@@ -533,8 +549,8 @@ namespace
         auto& materials = gts::rendering::materialRuntime(world);
         const MaterialInstanceHandle shared = materials.createInstance(
             makeTexturedInstance(materials, "textures/shared.png", {0.8f, 0.9f, 1.0f, 1.0f}));
-        createStaticRenderable(world, "mesh/a.obj", shared);
-        createStaticRenderable(world, "mesh/b.obj", shared);
+        createStaticRenderable(world, "mesh/a.gmesh", shared);
+        createStaticRenderable(world, "mesh/b.gmesh", shared);
         update(world, resources);
 
         RenderExtractionSnapshotBuilder builder;
@@ -570,8 +586,8 @@ namespace
         auto& materials = gts::rendering::materialRuntime(world);
         const MaterialInstanceHandle shared = materials.createInstance(
             makeTexturedInstance(materials, "textures/shared.png", {1.0f, 1.0f, 1.0f, 1.0f}));
-        createStaticRenderable(world, "mesh/a.obj", shared);
-        createStaticRenderable(world, "mesh/b.obj", shared);
+        createStaticRenderable(world, "mesh/a.gmesh", shared);
+        createStaticRenderable(world, "mesh/b.gmesh", shared);
         update(world, resources);
 
         RenderExtractionSnapshotBuilder builder;
@@ -597,6 +613,104 @@ namespace
                        "shared commands resolve one material frame state")
             && require(snapshot.objectUploads.size() == 2,
                        "object uploads remain per-object model/UV data");
+    }
+
+    bool cookedSubmeshMaterialsReachRenderCommands()
+    {
+        const std::filesystem::path tempRoot =
+            std::filesystem::temp_directory_path() / "gts_submesh_material_resolution_test";
+        std::error_code errorCode;
+        std::filesystem::remove_all(tempRoot, errorCode);
+        std::filesystem::create_directories(tempRoot, errorCode);
+        if (!require(!errorCode, "temporary material directory can be created"))
+            return false;
+
+        auto writeMaterial = [&](const char* fileName, const glm::vec4& color) -> bool
+        {
+            gts::rendering::MaterialAssetData material;
+            material.id = gts::rendering::stableAssetIdFromLogicalPath(fileName);
+            material.debugName = fileName;
+            material.shaderFamily = MaterialShaderFamily::Unlit;
+            material.baseColor = color;
+            material.renderState.alphaMode =
+                alphaModeForBlendMode(MaterialBlendMode::Alpha, color.a, true);
+            material.renderState.blendMode = MaterialBlendMode::Alpha;
+
+            std::string error;
+            const bool written =
+                gts::rendering::MaterialAssetSerializer::writeFile(
+                    material,
+                    tempRoot / fileName,
+                    &error);
+            return require(written, error.c_str());
+        };
+
+        if (!writeMaterial("red.gmat", {1.0f, 0.0f, 0.0f, 1.0f}) ||
+            !writeMaterial("blue.gmat", {0.0f, 0.0f, 1.0f, 1.0f}))
+        {
+            return false;
+        }
+
+        ECSWorld world;
+        FakeResourceProvider resources;
+        install(world, resources);
+
+        const std::string meshPath = (tempRoot / "split_mesh.gmesh").string();
+        resources.submeshesByPath[meshPath] = {
+            {0, 3, gts::rendering::AssetReference::fromLogicalPath("red.gmat"), "red"},
+            {3, 3, gts::rendering::AssetReference::fromLogicalPath("blue.gmat"), "blue"}
+        };
+
+        auto& materials = gts::rendering::materialRuntime(world);
+        const MaterialInstanceHandle fallback = materials.createInstance(
+            makeTexturedInstance(materials, "textures/fallback.png", {1.0f, 1.0f, 1.0f, 1.0f}));
+
+        Entity entity = world.createEntity();
+        world.addComponent(entity, TransformComponent{});
+        StaticMeshComponent mesh;
+        mesh.meshPath = meshPath;
+        mesh.useMeshMaterials = true;
+        world.addComponent(entity, mesh);
+        world.addComponent(entity, MaterialReferenceComponent{fallback});
+        world.addComponent(entity, BoundsComponent{});
+
+        update(world, resources);
+
+        const MeshGpuComponent& meshGpu = world.getComponent<MeshGpuComponent>(entity);
+        const bool meshGpuResolved =
+            meshGpu.submeshMaterials.size() == 2
+            && meshGpu.submeshMaterials[0].valid()
+            && meshGpu.submeshMaterials[1].valid()
+            && meshGpu.submeshMaterials[0] != fallback
+            && meshGpu.submeshMaterials[1] != fallback;
+
+        RenderExtractionSnapshotBuilder builder;
+        RenderExtractionSnapshot& snapshot = builder.build(world);
+        RenderCommandExtractor extractor;
+        const std::vector<RenderCommand>& commands = extractor.extract(snapshot);
+
+        const bool snapshotResolved =
+            snapshot.renderables.size() == 1
+            && snapshot.renderables.front().submeshMaterials.size() == 2
+            && snapshot.renderables.front().submeshMaterials[0].valid()
+            && snapshot.renderables.front().submeshMaterials[1].valid()
+            && snapshot.materialFrameData.find(
+                snapshot.renderables.front().submeshMaterials[0].materialGpu) != nullptr
+            && snapshot.materialFrameData.find(
+                snapshot.renderables.front().submeshMaterials[1].materialGpu) != nullptr;
+
+        const bool commandResolved =
+            commands.size() == 1
+            && commands.front().material == fallback
+            && commands.front().submeshMaterials.size() == 2
+            && commands.front().submeshMaterials[0].valid()
+            && commands.front().submeshMaterials[1].valid();
+
+        std::filesystem::remove_all(tempRoot, errorCode);
+
+        return require(meshGpuResolved, "mesh binding resolves cooked submesh material handles")
+            && require(snapshotResolved, "render extraction carries submesh material GPU state")
+            && require(commandResolved, "render commands preserve submesh material bindings");
     }
 
     bool variantKeySeparatesTopologyFromParameters()
@@ -948,8 +1062,8 @@ namespace
         auto& materials = gts::rendering::materialRuntime(world);
         const MaterialInstanceHandle shared = materials.createInstance(
             makeTexturedInstance(materials, "textures/shared.png", {1.0f, 1.0f, 1.0f, 1.0f}));
-        const Entity animated = createStaticRenderable(world, "mesh/a.obj", shared);
-        const Entity staticEntity = createStaticRenderable(world, "mesh/b.obj", shared);
+        const Entity animated = createStaticRenderable(world, "mesh/a.gmesh", shared);
+        const Entity staticEntity = createStaticRenderable(world, "mesh/b.gmesh", shared);
         update(world, resources);
 
         const uint64_t materialVersion = materials.getGpuState(shared)->uploadedVersion;
@@ -979,7 +1093,7 @@ namespace
         auto& materials = gts::rendering::materialRuntime(world);
         const MaterialInstanceHandle shared = materials.createInstance(
             makeTexturedInstance(materials, "textures/shared.png", {1.0f, 1.0f, 1.0f, 1.0f}));
-        const Entity entity = createStaticRenderable(world, "mesh/a.obj", shared);
+        const Entity entity = createStaticRenderable(world, "mesh/a.gmesh", shared);
         update(world, resources);
 
         materials.destroyInstance(shared);
@@ -1010,6 +1124,7 @@ int main()
     ok &= topologyChangeInvalidatesOnlyIndexedUsers();
     ok &= extractionCarriesStableMaterialIdentity();
     ok &= renderCommandsUseMaterialIdentity();
+    ok &= cookedSubmeshMaterialsReachRenderCommands();
     ok &= variantKeySeparatesTopologyFromParameters();
     ok &= materialFrameDataUsesIndexedLookup();
     ok &= standardSurfaceTextureRolesResolveWithColorSpace();

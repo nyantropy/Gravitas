@@ -44,7 +44,7 @@ public:
     }
 
 private:
-    static constexpr const char* CubeMesh = "/models/cube.obj";
+    static constexpr const char* CubeMesh = "/models/cube.gmesh";
     static constexpr const char* NeutralTexture = "/textures/engine_debug_neutral.png";
     static constexpr const char* ValidationBaseTexture =
         "/textures/engine_pbr_validation_base.png";

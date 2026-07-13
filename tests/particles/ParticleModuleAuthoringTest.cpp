@@ -388,7 +388,7 @@ int main()
     setUIntParameter(*forces, "maxEventSpawnsPerFrame", 9u);
     setUIntParameter(*renderer, "blend", static_cast<uint32_t>(ParticleBlendMode::Additive));
     setStringParameter(*renderer, "texturePath", "resources/textures/engine_particle_fallback.png");
-    setStringParameter(*renderer, "meshPath", "resources/models/cube.obj");
+    setStringParameter(*renderer, "meshPath", "resources/models/cube.gmesh");
     setStringParameter(*renderer, "materialPath", "resources/materials/runtime_particle.material");
     setFloatParameter(*renderer, "meshSoftness", 18.0f);
     setFloatParameter(*renderer, "lightingInfluence", 0.25f);
@@ -417,7 +417,7 @@ int main()
     require(descriptor.blend == ParticleBlendMode::Additive, "renderer enum did not apply");
     require(descriptor.texturePath == "resources/textures/engine_particle_fallback.png",
             "texture picker path did not apply");
-    require(descriptor.meshPath == "resources/models/cube.obj", "mesh picker path did not apply");
+    require(descriptor.meshPath == "resources/models/cube.gmesh", "mesh picker path did not apply");
     require(descriptor.materialPath == "resources/materials/runtime_particle.material",
             "material path did not apply");
     require(near(descriptor.runtime.effectScale, 1.75f), "effect scale did not apply");

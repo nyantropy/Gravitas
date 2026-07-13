@@ -35,6 +35,7 @@ struct RenderableSnapshot
     MaterialGpuHandle materialGpu;
     MaterialVariantKey variantKey{};
     RenderQueue renderQueue = RenderQueue::Opaque;
+    std::vector<SubmeshMaterialRuntimeBinding> submeshMaterials;
 
     bool          visible = true;
     uint64_t      sortKey = 0;

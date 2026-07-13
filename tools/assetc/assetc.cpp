@@ -29,6 +29,10 @@ namespace
                 return "mesh";
             case gts::rendering::CookedAssetOutputType::Material:
                 return "material";
+            case gts::rendering::CookedAssetOutputType::Model:
+                return "model";
+            case gts::rendering::CookedAssetOutputType::TextureDependency:
+                return "texture";
         }
         return "unknown";
     }

@@ -6,6 +6,7 @@
 
 #include "GlmConfig.h"
 
+#include "AssetTypes.h"
 #include "MaterialTypes.h"
 #include "Types.h"
 #include "TextureColorSpace.h"
@@ -53,6 +54,10 @@ class IResourceProvider
     public:
         // request a mesh id from the resource provider
         virtual mesh_id_type requestMesh(const std::string& path) = 0;
+        virtual const std::vector<gts::rendering::SubmeshAssetData>* getMeshSubmeshes(mesh_id_type)
+        {
+            return nullptr;
+        }
 
         // Returns a shared mesh ID for an axis-aligned quad of the given dimensions.
         // Identical (width, height) → same mesh ID, enabling batched instanced drawing.

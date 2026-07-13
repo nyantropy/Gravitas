@@ -2,8 +2,8 @@
 #include <vulkan/vulkan.h>
 #include <algorithm>
 #include <chrono>
-#include <cctype>
 #include <filesystem>
+#include <iostream>
 #include <string>
 #include <memory>
 #include <stdexcept>
@@ -16,6 +16,7 @@
 #include "MeshResource.h"
 #include "GtsModelLoader.hpp"
 #include "IResourceProvider.hpp"
+#include "RuntimeAssetPolicy.h"
 #include "VulkanBackendContext.h"
 #include "BufferUtil.hpp"
 #include "Types.h"
@@ -27,6 +28,7 @@ class MeshManager
         std::unordered_map<std::string, mesh_id_type> pathToID;
         std::unordered_map<mesh_id_type, std::unique_ptr<MeshResource>> idToMesh;
         std::unordered_set<mesh_id_type> proceduralMeshIDs;
+        std::unordered_set<std::string> sourceFallbackWarnings;
         // Shared quad meshes: keyed by packed float bits (width << 32 | height).
         // These are never in proceduralMeshIDs, so destroyProceduralMesh won't free them.
         std::unordered_map<uint64_t, mesh_id_type> quadMeshCache;
@@ -35,26 +37,44 @@ class MeshManager
         uint32_t proceduralUpdateBatchDepth = 0;
         bool proceduralUpdateSafetyWaitPerformed = false;
 
-        static bool isCookedMeshPath(const std::string& path)
+        std::string preferredMeshLoadPath(const std::string& path)
         {
-            std::string extension = std::filesystem::path(path).extension().string();
-            std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char ch)
-            {
-                return static_cast<char>(std::tolower(ch));
-            });
-            return extension == ".gmesh";
-        }
-
-        static std::string preferredMeshLoadPath(const std::string& path)
-        {
-            if (isCookedMeshPath(path))
+            if (gts::rendering::isCookedMeshAssetPath(path))
                 return path;
 
-            std::filesystem::path cookedPath(path);
-            cookedPath.replace_extension(".gmesh");
+            const std::filesystem::path cookedPath =
+                gts::rendering::expectedCookedMeshAssetPath(path);
             if (std::filesystem::exists(cookedPath))
                 return cookedPath.string();
 
+            if (!gts::rendering::isRuntimeSourceMeshAssetPath(path))
+                return path;
+
+            if (!gts::rendering::runtimeSourceAssetFallbackAllowed())
+            {
+                throw std::runtime_error(
+                    "Cooked mesh asset is required by the runtime asset policy.\n"
+                    "  Source asset: " + path + "\n"
+                    "  Expected cooked asset: " + cookedPath.string());
+            }
+
+            if (!gts::rendering::runtimeSourceMeshFallbackSupported(path))
+            {
+                throw std::runtime_error(
+                    "Cooked mesh asset is missing and no runtime source loader exists for this source format.\n"
+                    "  Source asset: " + path + "\n"
+                    "  Expected cooked asset: " + cookedPath.string());
+            }
+
+            if (sourceFallbackWarnings.insert(path).second)
+            {
+                std::cerr
+                    << "[assets] Cooked mesh missing; falling back to runtime source loading.\n"
+                    << "  Source asset: " << path << "\n"
+                    << "  Expected cooked asset: " << cookedPath.string() << "\n"
+                    << "  Fix: run assetc for this source asset or enable the build-time cooker.\n"
+                    << "  Set GTS_RUNTIME_ASSET_POLICY=strict to make this a fatal error.\n";
+            }
             return path;
         }
 
@@ -231,7 +251,7 @@ class MeshManager
 
             auto mesh = std::make_unique<MeshResource>();
 
-            if (isCookedMeshPath(loadPath))
+            if (gts::rendering::isCookedMeshAssetPath(loadPath))
             {
                 gts::rendering::MeshAssetData asset;
                 std::string error;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "GlmConfig.h"
 
 #include "LightingFrameData.h"
@@ -10,15 +12,33 @@
 // All fields are value copies — no raw pointers into ECS component memory.
 // objectSSBOSlot  : SSBO slot index assigned by a mesh binding system
 // cameraViewID    : selects the camera UBO uploaded by the renderer this frame
+struct SubmeshMaterialRuntimeBinding
+{
+    MaterialInstanceHandle material;
+    MaterialGpuHandle materialGpu;
+    MaterialVariantKey variantKey{};
+    RenderQueue renderQueue = RenderQueue::Opaque;
+
+    bool valid() const
+    {
+        return material.valid() && materialGpu.valid();
+    }
+
+    bool operator==(const SubmeshMaterialRuntimeBinding&) const = default;
+};
+
 struct RenderCommand
 {
     mesh_id_type meshID = 0;
+    uint32_t firstIndex = 0;
+    uint32_t indexCount = 0;
     ssbo_id_type objectSSBOSlot = 0;
     view_id_type cameraViewID = 0;
     MaterialInstanceHandle material;
     MaterialGpuHandle materialGpu;
     MaterialVariantKey variantKey{};
     RenderQueue renderQueue = RenderQueue::Opaque;
+    std::vector<SubmeshMaterialRuntimeBinding> submeshMaterials;
     uint64_t sortKey = 0;
 };
 

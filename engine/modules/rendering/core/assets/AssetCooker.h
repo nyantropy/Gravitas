@@ -131,7 +131,9 @@ namespace gts::rendering
     enum class CookedAssetOutputType
     {
         Mesh,
-        Material
+        Material,
+        Model,
+        TextureDependency
     };
 
     struct CookedAssetOutput
@@ -153,6 +155,7 @@ namespace gts::rendering
     {
         std::vector<MeshAssetData> meshes;
         std::vector<MaterialAssetData> materials;
+        std::vector<ModelAssetData> models;
         std::vector<CookedAssetOutput> outputs;
         std::vector<AssetDiagnostic> diagnostics;
 

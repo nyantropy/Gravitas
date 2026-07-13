@@ -73,7 +73,7 @@ class CullTestScene : public GtsScene
                 ecsWorld.addComponent(e, tc);
 
                 StaticMeshComponent mesh;
-                mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+                mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.gmesh";
                 ecsWorld.addComponent(e, mesh);
 
                 ecsWorld.addComponent(e, MaterialReferenceComponent{gridMaterial});

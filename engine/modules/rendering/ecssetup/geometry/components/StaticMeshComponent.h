@@ -9,4 +9,7 @@
 struct StaticMeshComponent
 {
     std::string meshPath;
+    // When true, cooked submesh material references are resolved and used per draw range.
+    // The default preserves legacy entity-level material overrides for direct mesh usage.
+    bool useMeshMaterials = false;
 };

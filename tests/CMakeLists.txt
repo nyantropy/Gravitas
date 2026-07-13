@@ -162,6 +162,24 @@ set_tests_properties(obj_asset_importer
         LABELS "gravitas;assets;importer"
 )
 
+add_executable(GltfAssetImporterTest
+    assets/GltfAssetImporterTest.cpp
+)
+
+target_compile_features(GltfAssetImporterTest PRIVATE cxx_std_20)
+
+target_link_libraries(GltfAssetImporterTest PRIVATE gravitas_rendering)
+
+add_test(
+    NAME gltf_asset_importer
+    COMMAND GltfAssetImporterTest
+)
+
+set_tests_properties(gltf_asset_importer
+    PROPERTIES
+        LABELS "gravitas;assets;importer"
+)
+
 add_executable(AssetSerializationTest
     assets/AssetSerializationTest.cpp
 )
@@ -196,6 +214,24 @@ add_test(
 set_tests_properties(cooked_asset_pipeline
     PROPERTIES
         LABELS "gravitas;assets;cooked"
+)
+
+add_executable(RuntimeAssetPolicyTest
+    assets/RuntimeAssetPolicyTest.cpp
+)
+
+target_compile_features(RuntimeAssetPolicyTest PRIVATE cxx_std_20)
+
+target_link_libraries(RuntimeAssetPolicyTest PRIVATE gravitas_rendering)
+
+add_test(
+    NAME runtime_asset_policy
+    COMMAND RuntimeAssetPolicyTest
+)
+
+set_tests_properties(runtime_asset_policy
+    PROPERTIES
+        LABELS "gravitas;assets;runtime"
 )
 
 add_executable(FirstLitRendererArchitectureTest

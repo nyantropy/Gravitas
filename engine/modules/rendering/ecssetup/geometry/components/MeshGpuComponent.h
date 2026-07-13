@@ -1,6 +1,9 @@
 #pragma once
 
 #include <string>
+#include <vector>
+
+#include "MaterialTypes.h"
 #include "Types.h"
 
 // Engine-internal mesh GPU state. Managed exclusively by mesh binding systems.
@@ -17,6 +20,8 @@ struct MeshGpuComponent
 
     // Internal tracking for StaticMeshBindingSystem
     std::string  boundMeshPath;
+    bool         boundUseMeshMaterials = false;
+    std::vector<MaterialInstanceHandle> submeshMaterials;
 
     // Internal tracking for QuadMeshBindingSystem
     float        boundQuadWidth  = 0.0f;

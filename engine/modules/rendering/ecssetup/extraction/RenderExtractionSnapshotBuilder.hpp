@@ -4,6 +4,7 @@
 #include <chrono>
 #include <limits>
 #include <unordered_map>
+#include <utility>
 
 #include "BoundsComponent.h"
 #include "CameraGpuComponent.h"
@@ -137,7 +138,8 @@ class RenderExtractionSnapshotBuilder
             RenderGpuComponent&   rc      = world.getComponent<RenderGpuComponent>(e);
             MeshGpuComponent&     meshGpu = world.getComponent<MeshGpuComponent>(e);
             MaterialReferenceComponent& materialRef = world.getComponent<MaterialReferenceComponent>(e);
-            const MaterialGpuState* materialGpu = gts::rendering::materialRuntime(world).getGpuState(materialRef.material);
+            gts::rendering::MaterialRuntime& materials = gts::rendering::materialRuntime(world);
+            const MaterialGpuState* materialGpu = materials.getGpuState(materialRef.material);
             if (materialGpu == nullptr)
                 continue;
 
@@ -156,6 +158,31 @@ class RenderExtractionSnapshotBuilder
             const bool         anyDirty        = transformDirty || materialDirty || meshDirty || objectDataDirty;
             const uint32_t     existingIndex   = slotToIndex[rc.objectSSBOSlot];
             const bool         inserted        = existingIndex == InvalidIndex;
+
+            std::vector<SubmeshMaterialRuntimeBinding> submeshMaterials;
+            submeshMaterials.reserve(meshGpu.submeshMaterials.size());
+            for (MaterialInstanceHandle submeshMaterial : meshGpu.submeshMaterials)
+            {
+                if (!submeshMaterial.valid())
+                {
+                    submeshMaterials.push_back({});
+                    continue;
+                }
+
+                const MaterialGpuState* submeshMaterialGpu = materials.getGpuState(submeshMaterial);
+                if (submeshMaterialGpu == nullptr)
+                {
+                    submeshMaterials.push_back({});
+                    continue;
+                }
+
+                submeshMaterials.push_back({
+                    submeshMaterialGpu->instance,
+                    submeshMaterialGpu->gpuHandle,
+                    submeshMaterialGpu->variantKey,
+                    renderQueueForAlphaMode(submeshMaterialGpu->renderState.alphaMode)
+                });
+            }
 
             if (!inserted && !anyDirty)
             {
@@ -214,7 +241,8 @@ class RenderExtractionSnapshotBuilder
                 materialGpu->instance,
                 materialGpu->gpuHandle,
                 materialGpu->variantKey,
-                renderQueueForAlphaMode(materialGpu->renderState.alphaMode)
+                renderQueueForAlphaMode(materialGpu->renderState.alphaMode),
+                std::move(submeshMaterials)
             });
         }
         const auto inputGatherEnd = std::chrono::steady_clock::now();
@@ -269,6 +297,9 @@ class RenderExtractionSnapshotBuilder
                     renderable.renderQueue = item.renderQueue;
                     sortKeyNeedsUpdate     = true;
                 }
+
+                if (item.inserted || item.meshDirty || item.materialDirty)
+                    renderable.submeshMaterials = item.submeshMaterials;
 
                 if (item.inserted || item.transformDirty || item.objectDataDirty)
                 {
@@ -413,6 +444,7 @@ class RenderExtractionSnapshotBuilder
         MaterialGpuHandle     materialGpu;
         MaterialVariantKey    variantKey{};
         RenderQueue           renderQueue = RenderQueue::Opaque;
+        std::vector<SubmeshMaterialRuntimeBinding> submeshMaterials;
     };
 
     struct SnapshotBatchRange
@@ -665,10 +697,19 @@ class RenderExtractionSnapshotBuilder
         for (const RenderableSnapshot& renderable : snapshot.renderables)
         {
             const MaterialGpuState* materialGpu = materials.getGpuState(renderable.material);
-            if (materialGpu == nullptr)
-                continue;
+            if (materialGpu != nullptr)
+                snapshot.materialFrameData.upsert(makeMaterialFrameState(*materialGpu));
 
-            snapshot.materialFrameData.upsert(makeMaterialFrameState(*materialGpu));
+            for (const SubmeshMaterialRuntimeBinding& submeshMaterial : renderable.submeshMaterials)
+            {
+                if (!submeshMaterial.valid())
+                    continue;
+
+                const MaterialGpuState* submeshMaterialGpu =
+                    materials.getGpuState(submeshMaterial.material);
+                if (submeshMaterialGpu != nullptr)
+                    snapshot.materialFrameData.upsert(makeMaterialFrameState(*submeshMaterialGpu));
+            }
         }
     }
 

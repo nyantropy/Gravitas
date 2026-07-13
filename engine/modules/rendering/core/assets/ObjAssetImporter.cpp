@@ -291,12 +291,13 @@ namespace
             return;
 
         addDependency(result, texturePath, AssetDependencyType::Texture);
-        result.textures.push_back({
-            texturePath.filename().string(),
-            texturePath,
-            colorSpace,
-            role
-        });
+        ImportedTexture texture;
+        texture.debugName = texturePath.filename().string();
+        texture.sourcePath = texturePath;
+        texture.logicalPath = texturePath.lexically_normal().generic_string();
+        texture.colorSpace = colorSpace;
+        texture.intendedRole = role;
+        result.textures.push_back(std::move(texture));
 
         if (!std::filesystem::exists(texturePath))
         {

@@ -286,6 +286,8 @@ private:
         MaterialVariantKey variantKey{};
         RenderQueue renderQueue = RenderQueue::Opaque;
         MaterialFrameState material{};
+        uint32_t firstIndex = 0;
+        uint32_t indexCount = 0;
         uint32_t instanceOffset = 0;
         uint32_t instanceCount = 0;
         MeshResource* mesh = nullptr;
@@ -528,72 +530,115 @@ private:
 
         auto* instanceData = static_cast<uint32_t*>(instanceBufferMapped[currentFrame]);
         uint32_t instanceHead = 0;
-        size_t i = 0;
-
-        while (i < renderList.size())
+        for (const RenderCommand& command : renderList)
         {
-            const RenderCommand& first = renderList[i];
-            const MaterialFrameState* firstMaterial = materialFrameData.find(first.materialGpu);
-            if (firstMaterial == nullptr)
-            {
-                i += 1;
+            MeshResource* mesh = resources->getMesh(command.meshID);
+            if (mesh == nullptr)
                 continue;
-            }
 
-            PreparedBatch batch{};
-            batch.meshID = first.meshID;
-            batch.materialGpu = first.materialGpu;
-            batch.variantKey = first.variantKey;
-            batch.renderQueue = first.renderQueue;
-            batch.material = *firstMaterial;
-            batch.instanceOffset = instanceHead;
-            batch.mesh = resources->getMesh(first.meshID);
-            batch.materialTextureSets =
-                resources->getMaterialTextureDescriptorSets(firstMaterial->textures);
-            batch.litCompatible = litMaterialCompatible(batch);
-            batch.normalMapCompatible = normalMappedMaterialCompatible(batch);
-            batch.effectiveFeatureFlags = firstMaterial->featureFlags;
-            if (!batch.litCompatible && !litFallbackWarningLogged)
+            auto appendBatch = [&](uint32_t firstIndex,
+                                   uint32_t indexCount,
+                                   const SubmeshMaterialRuntimeBinding* submeshMaterial)
             {
-                std::cerr
-                    << "[rendering] StandardSurface material requires normals; "
-                    << "falling back to unlit shading for unsupported mesh "
-                    << first.meshID << ".\n";
-                litFallbackWarningLogged = true;
-            }
-            if (!batch.normalMapCompatible)
-            {
-                batch.effectiveFeatureFlags = withoutMaterialFeature(
-                    batch.effectiveFeatureFlags,
-                    MaterialFeatureFlags::HasNormalTexture);
-                if (!normalMapFallbackWarningLogged)
+                if (indexCount == 0)
+                    return;
+
+                MaterialGpuHandle materialGpu = command.materialGpu;
+                MaterialVariantKey variantKey = command.variantKey;
+                RenderQueue renderQueue = command.renderQueue;
+                if (submeshMaterial != nullptr && submeshMaterial->valid())
+                {
+                    materialGpu = submeshMaterial->materialGpu;
+                    variantKey = submeshMaterial->variantKey;
+                    renderQueue = submeshMaterial->renderQueue;
+                }
+
+                const MaterialFrameState* material = materialFrameData.find(materialGpu);
+                if (material == nullptr)
+                    return;
+
+                if (!preparedBatches.empty())
+                {
+                    PreparedBatch& previous = preparedBatches.back();
+                    if (previous.meshID == command.meshID &&
+                        previous.materialGpu == materialGpu &&
+                        previous.variantKey == variantKey &&
+                        previous.renderQueue == renderQueue &&
+                        previous.firstIndex == firstIndex &&
+                        previous.indexCount == indexCount)
+                    {
+                        instanceData[instanceHead] = command.objectSSBOSlot;
+                        instanceHead += 1;
+                        previous.instanceCount += 1;
+                        return;
+                    }
+                }
+
+                PreparedBatch batch{};
+                batch.meshID = command.meshID;
+                batch.materialGpu = materialGpu;
+                batch.variantKey = variantKey;
+                batch.renderQueue = renderQueue;
+                batch.material = *material;
+                batch.firstIndex = firstIndex;
+                batch.indexCount = indexCount;
+                batch.instanceOffset = instanceHead;
+                batch.instanceCount = 1;
+                batch.mesh = mesh;
+                batch.materialTextureSets =
+                    resources->getMaterialTextureDescriptorSets(material->textures);
+                batch.litCompatible = litMaterialCompatible(batch);
+                batch.normalMapCompatible = normalMappedMaterialCompatible(batch);
+                batch.effectiveFeatureFlags = material->featureFlags;
+
+                if (!batch.litCompatible && !litFallbackWarningLogged)
                 {
                     std::cerr
-                        << "[rendering] StandardSurface normal map requires normals, tangents, and UVs; "
-                        << "disabling normal mapping for unsupported mesh "
-                        << first.meshID << ".\n";
-                    normalMapFallbackWarningLogged = true;
+                        << "[rendering] StandardSurface material requires normals; "
+                        << "falling back to unlit shading for unsupported mesh "
+                        << command.meshID << ".\n";
+                    litFallbackWarningLogged = true;
                 }
-            }
-
-            while (i < renderList.size())
-            {
-                const RenderCommand& current = renderList[i];
-                if (current.meshID != batch.meshID
-                    || current.materialGpu != batch.materialGpu
-                    || current.variantKey != batch.variantKey
-                    || current.renderQueue != batch.renderQueue)
+                if (!batch.normalMapCompatible)
                 {
-                    break;
+                    batch.effectiveFeatureFlags = withoutMaterialFeature(
+                        batch.effectiveFeatureFlags,
+                        MaterialFeatureFlags::HasNormalTexture);
+                    if (!normalMapFallbackWarningLogged)
+                    {
+                        std::cerr
+                            << "[rendering] StandardSurface normal map requires normals, tangents, and UVs; "
+                            << "disabling normal mapping for unsupported mesh "
+                            << command.meshID << ".\n";
+                        normalMapFallbackWarningLogged = true;
+                    }
                 }
 
-                instanceData[instanceHead] = current.objectSSBOSlot;
+                instanceData[instanceHead] = command.objectSSBOSlot;
                 instanceHead += 1;
-                batch.instanceCount += 1;
-                i += 1;
-            }
+                preparedBatches.push_back(batch);
+            };
 
-            preparedBatches.push_back(batch);
+            if (command.indexCount != 0)
+            {
+                appendBatch(command.firstIndex, command.indexCount, nullptr);
+            }
+            else if (!mesh->submeshes.empty())
+            {
+                for (size_t submeshIndex = 0; submeshIndex < mesh->submeshes.size(); ++submeshIndex)
+                {
+                    const gts::rendering::SubmeshAssetData& submesh = mesh->submeshes[submeshIndex];
+                    const SubmeshMaterialRuntimeBinding* submeshMaterial =
+                        submeshIndex < command.submeshMaterials.size()
+                            ? &command.submeshMaterials[submeshIndex]
+                            : nullptr;
+                    appendBatch(submesh.firstIndex, submesh.indexCount, submeshMaterial);
+                }
+            }
+            else
+            {
+                appendBatch(0, static_cast<uint32_t>(mesh->indices.size()), nullptr);
+            }
         }
     }
 
@@ -795,10 +840,9 @@ private:
             VkDeviceSize instanceOffset = static_cast<VkDeviceSize>(batch.instanceOffset) * sizeof(uint32_t);
             vkCmdBindVertexBuffers(cmd, 1, 1, &instanceBuffers[currentFrame], &instanceOffset);
 
-            const uint32_t indexCount = static_cast<uint32_t>(mesh->indices.size());
-            vkCmdDrawIndexed(cmd, indexCount, batch.instanceCount, 0, 0, 0);
+            vkCmdDrawIndexed(cmd, batch.indexCount, batch.instanceCount, batch.firstIndex, 0, 0);
 
-            stats.triangles += (indexCount / 3) * batch.instanceCount;
+            stats.triangles += (batch.indexCount / 3) * batch.instanceCount;
             stats.drawCalls += 1;
         }
     }
@@ -826,7 +870,9 @@ private:
 
         const uint32_t desiredChunks = std::min(maxRecordingSlots, batchCount);
         uint32_t nextBatch = 0;
-        uint32_t remainingCommands = static_cast<uint32_t>(renderList.size());
+        uint32_t remainingCommands = 0;
+        for (const PreparedBatch& batch : preparedBatches)
+            remainingCommands += batch.instanceCount;
         uint32_t remainingChunks = desiredChunks;
 
         while (nextBatch < batchCount && remainingChunks > 0)

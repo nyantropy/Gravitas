@@ -48,7 +48,7 @@ class DefaultScene : public GtsScene
             controlledCube = ecsWorld.createEntity();
 
             StaticMeshComponent mesh;
-            mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+            mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.gmesh";
             ecsWorld.addComponent<StaticMeshComponent>(controlledCube, mesh);
 
             addMaterialReference(controlledCube,
@@ -69,7 +69,7 @@ class DefaultScene : public GtsScene
             Entity cube2 = ecsWorld.createEntity();
 
             StaticMeshComponent mesh;
-            mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+            mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.gmesh";
             ecsWorld.addComponent<StaticMeshComponent>(cube2, mesh);
 
             addMaterialReference(cube2,
@@ -95,7 +95,7 @@ class DefaultScene : public GtsScene
             Entity cube3 = ecsWorld.createEntity();
 
             StaticMeshComponent mesh;
-            mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+            mesh.meshPath = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.gmesh";
             ecsWorld.addComponent<StaticMeshComponent>(cube3, mesh);
 
             addMaterialReference(cube3,

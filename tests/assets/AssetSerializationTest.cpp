@@ -89,6 +89,45 @@ namespace
         return material;
     }
 
+    gts::rendering::ModelAssetData makeModel()
+    {
+        gts::rendering::ModelAssetData model;
+        model.id = 99;
+        model.debugName = "robot";
+        model.meshes = {
+            gts::rendering::AssetReference::fromLogicalPath("robot_body.gmesh"),
+            gts::rendering::AssetReference::fromLogicalPath("robot_head.gmesh")
+        };
+        model.materials = {
+            gts::rendering::AssetReference::fromLogicalPath("robot_body.gmat"),
+            gts::rendering::AssetReference::fromLogicalPath("robot_head.gmat")
+        };
+
+        gts::rendering::ModelNodeAssetData body;
+        body.name = "body";
+        body.mesh = model.meshes[0];
+        body.localTransform[3][0] = 1.0f;
+        body.localTransform[3][1] = 2.0f;
+        body.localTransform[3][2] = 3.0f;
+
+        gts::rendering::ModelNodeAssetData head;
+        head.name = "head";
+        head.parentIndex = 0;
+        head.mesh = model.meshes[1];
+        head.localTransform[0][0] = 0.5f;
+        head.localTransform[1][1] = 0.5f;
+        head.localTransform[2][2] = 0.5f;
+
+        model.nodes = {body, head};
+        model.dependencies = {
+            model.meshes[0],
+            model.meshes[1],
+            model.materials[0],
+            model.materials[1]
+        };
+        return model;
+    }
+
     void testMeshRoundTrip()
     {
         const gts::rendering::MeshAssetData source = makeMesh();
@@ -128,6 +167,30 @@ namespace
         assert(loaded.dependencies.size() == 2);
     }
 
+    void testModelRoundTrip()
+    {
+        const gts::rendering::ModelAssetData source = makeModel();
+        std::vector<uint8_t> bytes;
+        std::string error;
+        assert(gts::rendering::ModelAssetSerializer::serialize(source, bytes, &error));
+
+        gts::rendering::ModelAssetData loaded;
+        assert(gts::rendering::ModelAssetSerializer::deserialize(bytes, loaded, &error));
+        assert(loaded.id == source.id);
+        assert(loaded.debugName == source.debugName);
+        assert(loaded.meshes.size() == 2);
+        assert(loaded.materials.size() == 2);
+        assert(loaded.nodes.size() == 2);
+        assert(loaded.nodes[0].name == "body");
+        assert(loaded.nodes[0].parentIndex == -1);
+        assert(loaded.nodes[0].mesh.logicalPath == "robot_body.gmesh");
+        assert(loaded.nodes[0].localTransform[3][0] == 1.0f);
+        assert(loaded.nodes[1].parentIndex == 0);
+        assert(loaded.nodes[1].mesh.logicalPath == "robot_head.gmesh");
+        assert(loaded.nodes[1].localTransform[0][0] == 0.5f);
+        assert(loaded.dependencies.size() == 4);
+    }
+
     void testDeterministicOutput()
     {
         const gts::rendering::MeshAssetData mesh = makeMesh();
@@ -140,6 +203,11 @@ namespace
         const gts::rendering::MaterialAssetData material = makeMaterial();
         assert(gts::rendering::MaterialAssetSerializer::serialize(material, first));
         assert(gts::rendering::MaterialAssetSerializer::serialize(material, second));
+        assert(first == second);
+
+        const gts::rendering::ModelAssetData model = makeModel();
+        assert(gts::rendering::ModelAssetSerializer::serialize(model, first));
+        assert(gts::rendering::ModelAssetSerializer::serialize(model, second));
         assert(first == second);
     }
 
@@ -189,6 +257,23 @@ namespace
         badSubmesh.submeshes.front().firstIndex = 2;
         badSubmesh.submeshes.front().indexCount = 8;
         assert(!gts::rendering::MeshAssetSerializer::serialize(badSubmesh, invalid, &error));
+
+        const gts::rendering::ModelAssetData model = makeModel();
+        assert(gts::rendering::ModelAssetSerializer::serialize(model, bytes, &error));
+
+        gts::rendering::ModelAssetData loadedModel;
+        invalid = bytes;
+        const size_t nodeCountOffset =
+            gts::rendering::CookedAssetHeaderSize
+            + 8u
+            + 4u
+            + model.debugName.size();
+        patchU32(invalid, nodeCountOffset, gts::rendering::MaxCookedModelNodes + 1u);
+        assert(!gts::rendering::ModelAssetSerializer::deserialize(invalid, loadedModel, &error));
+
+        gts::rendering::ModelAssetData badParent = model;
+        badParent.nodes[0].parentIndex = 99;
+        assert(!gts::rendering::ModelAssetSerializer::serialize(badParent, invalid, &error));
     }
 }
 
@@ -196,6 +281,7 @@ int main()
 {
     testMeshRoundTrip();
     testMaterialRoundTrip();
+    testModelRoundTrip();
     testDeterministicOutput();
     testMalformedFiles();
     std::printf("AssetSerializationTest passed\n");

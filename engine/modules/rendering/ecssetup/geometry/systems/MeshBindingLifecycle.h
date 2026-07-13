@@ -3,13 +3,17 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
+#include <iostream>
 #include <limits>
 
+#include "AssetTypes.h"
 #include "BoundsComponent.h"
 #include "DynamicMeshComponent.h"
 #include "ECSWorld.hpp"
 #include "GeometryBindingLifecycle.h"
 #include "IResourceProvider.hpp"
+#include "MaterialReferenceHelpers.h"
 #include "MeshGpuComponent.h"
 #include "QuadMeshComponent.h"
 #include "StaticMeshComponent.h"
@@ -104,6 +108,66 @@ namespace gts::rendering
         return true;
     }
 
+    inline std::string resolveSubmeshMaterialPath(const std::string& meshPath,
+                                                  const AssetReference& material)
+    {
+        if (material.logicalPath.empty())
+            return {};
+
+        std::filesystem::path materialPath(material.logicalPath);
+        if (materialPath.is_absolute())
+            return materialPath.string();
+
+        const std::filesystem::path meshParent = std::filesystem::path(meshPath).parent_path();
+        if (meshParent.empty())
+            return materialPath.string();
+
+        return (meshParent / materialPath).lexically_normal().string();
+    }
+
+    inline void resolveStaticMeshSubmeshMaterials(ECSWorld& world,
+                                                  IResourceProvider* resources,
+                                                  const std::string& meshPath,
+                                                  MeshGpuComponent& meshGpu)
+    {
+        meshGpu.submeshMaterials.clear();
+        if (resources == nullptr || meshGpu.meshID == 0)
+            return;
+
+        const std::vector<SubmeshAssetData>* submeshes = resources->getMeshSubmeshes(meshGpu.meshID);
+        if (submeshes == nullptr || submeshes->empty())
+            return;
+
+        meshGpu.submeshMaterials.reserve(submeshes->size());
+        for (const SubmeshAssetData& submesh : *submeshes)
+        {
+            const std::string materialPath = resolveSubmeshMaterialPath(meshPath, submesh.material);
+            if (materialPath.empty())
+            {
+                meshGpu.submeshMaterials.push_back({});
+                continue;
+            }
+
+            try
+            {
+                MaterialInstanceHandle handle =
+                    getOrCreateSharedCookedMaterial(world, materialPath);
+                materialRuntime(world).synchronizeGpuState(handle, resources);
+                meshGpu.submeshMaterials.push_back(handle);
+            }
+            catch (const std::exception& error)
+            {
+                std::cerr
+                    << "[assets] Could not resolve cooked submesh material; "
+                    << "falling back to the entity material.\n"
+                    << "  Mesh asset: " << meshPath << "\n"
+                    << "  Material asset: " << materialPath << "\n"
+                    << "  Error: " << error.what() << "\n";
+                meshGpu.submeshMaterials.push_back({});
+            }
+        }
+    }
+
     inline void releaseOwnedProceduralMesh(IResourceProvider* resources, MeshGpuComponent& meshGpu)
     {
         if (resources == nullptr || !meshGpu.ownsProceduralMeshResource || meshGpu.meshID == 0)
@@ -138,7 +202,9 @@ namespace gts::rendering
             ? world.getComponent<MeshGpuComponent>(entity)
             : MeshGpuComponent{};
 
-        if (mesh.meshPath == meshGpu.boundMeshPath && meshGpu.meshID != 0 &&
+        if (mesh.meshPath == meshGpu.boundMeshPath &&
+            mesh.useMeshMaterials == meshGpu.boundUseMeshMaterials &&
+            meshGpu.meshID != 0 &&
             !meshGpu.ownsProceduralMeshResource)
         {
             return;
@@ -146,8 +212,13 @@ namespace gts::rendering
 
         releaseOwnedProceduralMesh(resources, meshGpu);
         meshGpu.meshID = resources->requestMesh(mesh.meshPath);
+        if (mesh.useMeshMaterials)
+            resolveStaticMeshSubmeshMaterials(world, resources, mesh.meshPath, meshGpu);
+        else
+            meshGpu.submeshMaterials.clear();
         meshGpu.ownsProceduralMeshResource = false;
         meshGpu.boundMeshPath = mesh.meshPath;
+        meshGpu.boundUseMeshMaterials = mesh.useMeshMaterials;
         meshGpu.boundQuadWidth = 0.0f;
         meshGpu.boundQuadHeight = 0.0f;
         meshGpu.boundDynamicGeometryVersion = 0;
@@ -187,6 +258,8 @@ namespace gts::rendering
         meshGpu.meshID = resources->getSharedQuadMesh(mesh.width, mesh.height);
         meshGpu.ownsProceduralMeshResource = false;
         meshGpu.boundMeshPath = {};
+        meshGpu.boundUseMeshMaterials = false;
+        meshGpu.submeshMaterials.clear();
         meshGpu.boundQuadWidth = mesh.width;
         meshGpu.boundQuadHeight = mesh.height;
         meshGpu.boundDynamicGeometryVersion = 0;
@@ -258,6 +331,8 @@ namespace gts::rendering
             const auto cleanupStart = std::chrono::steady_clock::now();
             releaseOwnedProceduralMesh(resources, meshGpu);
             meshGpu.boundMeshPath = {};
+            meshGpu.boundUseMeshMaterials = false;
+            meshGpu.submeshMaterials.clear();
             meshGpu.boundQuadWidth = 0.0f;
             meshGpu.boundQuadHeight = 0.0f;
             meshGpu.boundDynamicGeometryVersion = 0;
@@ -314,6 +389,8 @@ namespace gts::rendering
             const auto cleanupStart = std::chrono::steady_clock::now();
             releaseOwnedProceduralMesh(resources, meshGpu);
             meshGpu.boundMeshPath = {};
+            meshGpu.boundUseMeshMaterials = false;
+            meshGpu.submeshMaterials.clear();
             meshGpu.boundQuadWidth = 0.0f;
             meshGpu.boundQuadHeight = 0.0f;
             meshGpu.boundDynamicGeometryVersion = 0;
@@ -339,6 +416,8 @@ namespace gts::rendering
         meshGpu.meshID = uploadedMeshId;
         meshGpu.ownsProceduralMeshResource = true;
         meshGpu.boundMeshPath = {};
+        meshGpu.boundUseMeshMaterials = false;
+        meshGpu.submeshMaterials.clear();
         meshGpu.boundQuadWidth = 0.0f;
         meshGpu.boundQuadHeight = 0.0f;
         meshGpu.boundDynamicGeometryVersion = mesh.geometryVersion;

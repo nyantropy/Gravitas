@@ -1,15 +1,29 @@
 # Cooked Asset Pipeline
 
-This document describes the Phase 3 cooked asset implementation.
+This document describes the current cooked asset implementation through
+Phase 4. OBJ and glTF/GLB are source formats handled by tooling importers.
+Runtime rendering consumes cooked engine assets and does not parse glTF.
 
 ## Runtime Flow
 
-OBJ source assets are tooling input. Runtime rendering can now consume cooked
-engine assets:
+OBJ and GLB source assets converge on the same imported CPU data, then the same
+cooker and runtime loaders:
 
 ```text
 OBJ
   -> ObjAssetImporter
+  -> AssetImportResult
+  -> AssetCooker
+  -> .gmesh
+  -> MeshAssetLoader
+  -> MeshManager
+  -> MeshResource
+  -> Renderer
+```
+
+```text
+GLB / glTF
+  -> GltfAssetImporter
   -> AssetImportResult
   -> AssetCooker
   -> .gmesh
@@ -31,6 +45,28 @@ OBJ + MTL
   -> Renderer
 ```
 
+```text
+GLB / glTF materials
+  -> GltfAssetImporter
+  -> AssetImportResult
+  -> AssetCooker
+  -> .gmat
+  -> MaterialAssetLoader
+  -> MaterialRuntime
+  -> MaterialInstance
+  -> Renderer
+```
+
+```text
+GLB / glTF nodes and meshes
+  -> GltfAssetImporter
+  -> AssetImportResult
+  -> AssetCooker
+  -> .gmodel
+  -> ModelAssetLoader
+  -> ModelAssetData
+```
+
 `MeshManager::loadMesh` prefers an adjacent `.gmesh` when a source mesh path is
 requested and falls back to the existing OBJ path when no cooked mesh exists.
 `MaterialReferenceHelpers` treats descriptor paths ending in `.gmat` as cooked
@@ -48,6 +84,10 @@ Cooked data is stored in engine-owned CPU structures in
   name.
 - `MaterialAssetData` stores shader family, render state, scalar material
   factors, texture references, dependencies, and `vertexColorOnly`.
+- `ModelAssetData` stores package-level node hierarchy, mesh references,
+  material references, and dependencies.
+- `ModelNodeAssetData` stores a node name, parent index, mesh reference, and
+  local transform.
 
 These structures contain no Vulkan types, descriptor sets, ECS entities,
 runtime manager handles, parser-library types, or GPU cache state.
@@ -55,8 +95,8 @@ runtime manager handles, parser-library types, or GPU cache state.
 ## File Layout
 
 Serializers live in `engine/modules/rendering/core/assets/AssetSerializers.*`.
-Both `.gmesh` and `.gmat` are explicit little-endian binary formats. C++ object
-memory is not dumped directly.
+`.gmesh`, `.gmat`, and `.gmodel` are explicit little-endian binary formats.
+C++ object memory is not dumped directly.
 
 Every cooked file begins with a 64-byte header:
 
@@ -64,7 +104,7 @@ Every cooked file begins with a 64-byte header:
 offset  size  field
 0       4     magic: 0x54534147 ("GAST")
 4       2     format version
-6       2     asset type: 1 mesh, 2 material
+6       2     asset type: 1 mesh, 2 material, 3 model
 8       4     flags, currently 0
 12      4     header size, currently 64
 16      8     asset id
@@ -81,6 +121,10 @@ the vertex stream, index stream, and submesh records. Material payloads contain
 ID, name, shader family, material factors, render state, `vertexColorOnly`, and
 texture references.
 
+Model payloads contain ID, name, node count, mesh count, material count, node
+records, mesh references, and material references. A node record contains name,
+parent index, mesh reference, and a column-major `glm::mat4` local transform.
+
 The dependency table is a counted list of `AssetReference` values. It is stored
 outside the payload and referenced by validated header offsets.
 
@@ -90,10 +134,73 @@ The first supported versions are:
 
 - `.gmesh`: `MeshAssetFormatVersion = 1`
 - `.gmat`: `MaterialAssetFormatVersion = 1`
+- `.gmodel`: `ModelAssetFormatVersion = 1`
 
 Deserializers reject unsupported versions, invalid magic, wrong asset type,
 truncated files, invalid payload/dependency offsets, invalid counts, corrupted
-dependency tables, and invalid submesh ranges.
+dependency tables, invalid submesh ranges, and invalid model parent indices.
+
+## glTF Import Support
+
+`GltfAssetImporter` supports static `.gltf` and `.glb` assets. It produces the
+same `AssetImportResult` contract as `ObjAssetImporter`.
+
+Imported geometry:
+
+- multiple meshes
+- multiple triangle primitives
+- positions
+- normals
+- tangents
+- vertex colors
+- UV0
+- indices
+- material assignments
+- node names
+- node parent relationships
+- node local transforms from matrix or TRS
+
+Imported materials:
+
+- base color factor
+- base color texture
+- metallic factor
+- roughness factor
+- metallic/roughness texture
+- normal texture and normal scale
+- ambient occlusion texture and strength
+- emissive texture
+- emissive factor
+- `KHR_materials_emissive_strength`
+- alpha mode and cutoff
+- double sided state
+
+Texture import records external image URIs as dependencies and embedded images
+as engine-owned byte arrays. Because `.gtex` does not exist yet, the cooker
+writes embedded image bytes as ordinary texture dependency files beside the
+cooked outputs.
+
+Unsupported glTF features emit diagnostics instead of silently becoming runtime
+concepts: skins, joints/weights, animations, morph targets, cameras, lights,
+additional UV sets, unsupported optional extensions, and unsupported required
+extensions. Unsupported required extensions are fatal.
+
+## Import Convention
+
+The engine import convention is:
+
+- right-handed coordinates
+- +Y up
+- -Z forward
+- unit scale 1.0
+- triangle winding preserved
+- positions, normals, and tangent XYZ are not axis-converted
+- UV0 is converted to the engine texture convention by flipping V when
+  `AssetImportOptions::flipTexCoordV` is true
+- tangent handedness W is negated when V is flipped
+
+glTF already uses the engine axis convention. OBJ files are assumed to be
+authored in the same convention; the OBJ importer applies the same UV V policy.
 
 ## Cooker
 
@@ -101,6 +208,7 @@ dependency tables, and invalid submesh ranges.
 
 ```text
 assetc import robot.obj --output build/assets
+assetc import robot.glb --output build/assets
 ```
 
 Supported options:
@@ -109,11 +217,26 @@ Supported options:
 - `--base-color-texture <path>`
 - `--vertex-color-only`
 
-The cooker selects an importer, imports source data, converts imported CPU data
+The cooker selects an importer by source format or explicit importer override,
+imports source data, converts imported CPU data
 to cooked `MeshAssetData`/`MaterialAssetData`, computes bounds, preserves OBJ
-primitive/submesh material assignments, serializes `.gmesh` and `.gmat`, and
-emits structured diagnostics. It does not create Vulkan resources or ECS
-entities.
+and glTF primitive/submesh material assignments, serializes `.gmesh`, `.gmat`,
+and `.gmodel`, and emits structured diagnostics. It does not create Vulkan
+resources or ECS entities.
+
+One source asset can now produce multiple cooked assets. A GLB with two meshes
+and two materials can produce:
+
+```text
+robot_body.gmesh
+robot_head.gmesh
+robot_red.gmat
+robot_blue.gmat
+robot.gmodel
+```
+
+No source-format branches exist in the cooker output path; OBJ and glTF both
+flow through `AssetImportResult`.
 
 ## Dependency Handling
 
@@ -123,14 +246,42 @@ path lookup without changing the cooked structures.
 
 Generated material references use cooked output filenames as logical paths.
 Texture references use source-relative logical paths when possible and retain a
-logical path fallback otherwise. Texture cooking is not implemented in Phase 3.
+logical path fallback otherwise. Embedded glTF image references use generated
+logical paths such as `robot_image_0.png`. Texture cooking is not implemented
+yet.
+
+## Runtime Submesh Ranges
+
+Cooked meshes preserve submesh ranges in `MeshAssetData::submeshes` and
+`MeshResource::submeshes`. `SceneRenderStage` expands a mesh with submeshes into
+one prepared draw batch per submesh and calls:
+
+```text
+vkCmdDrawIndexed(indexCount, instanceCount, firstIndex, 0, 0)
+```
+
+This allows cooked OBJ and GLB meshes to draw the recorded index ranges.
+Direct `StaticMeshComponent` usage preserves the entity-level
+`MaterialReferenceComponent` material by default for compatibility. When
+`StaticMeshComponent::useMeshMaterials` is enabled, static mesh binding resolves
+cooked submesh `.gmat` references into runtime `MaterialInstanceHandle`s and the
+renderer uses the matching material for each submesh draw range.
 
 ## Remaining Direct Source Loads
 
 These runtime paths still load source assets directly for compatibility:
 
-- `MeshManager::loadMesh` falls back to `GtsModelLoader`/`ObjAssetImporter` when
-  no cooked `.gmesh` exists.
+- In development policy, `MeshManager::loadMesh` can fall back to
+  `GtsModelLoader`/`ObjAssetImporter` when no cooked `.gmesh` exists. This is
+  logged with the source path and expected cooked path.
+- Development source fallback currently supports OBJ only. Missing cooked
+  `.gltf`/`.glb` requests fail clearly because the runtime has no source glTF
+  loader.
+- `GTS_RUNTIME_ASSET_POLICY=strict`, `GTS_SHIPPING_BUILD`, or
+  `GTS_DISABLE_RUNTIME_SOURCE_ASSET_FALLBACK` reject missing cooked meshes
+  instead of falling back.
+- Runtime code can still request an OBJ path for compatibility. There is no
+  runtime glTF parser path.
 - Texture loading still goes through `TextureManager` and reads image files
   directly; cooked `.gtex` does not exist yet.
 - Game-side material descriptors that name PNG files still create runtime

@@ -139,6 +139,12 @@ namespace gts::rendering
         return handle;
     }
 
+    inline MaterialInstanceHandle getOrCreateSharedCookedMaterial(ECSWorld& world,
+                                                                  const std::string& path)
+    {
+        return getOrCreateSharedUnlitMaterial(world, UnlitMaterialDescriptor{path});
+    }
+
     inline MaterialReferenceComponent sharedUnlitMaterialReference(
         ECSWorld& world,
         const UnlitMaterialDescriptor& descriptor)

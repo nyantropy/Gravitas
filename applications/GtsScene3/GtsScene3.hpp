@@ -131,7 +131,7 @@ inline void GtsScene3::spawnStressCubes()
                   "CubeCount exceeds the renderer object budget");
 
     constexpr float pi = 3.14159265358979323846f;
-    const std::string cubeMesh = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.obj";
+    const std::string cubeMesh = GraphicsConstants::ENGINE_RESOURCES + "/models/cube.gmesh";
 
     std::mt19937 rng(RandomSeed);
     std::uniform_int_distribution<int> animationTypeDist(0, 3);

@@ -81,12 +81,27 @@ namespace gts::rendering
         bool required = true;
     };
 
+    enum class ImportedTextureSource
+    {
+        ExternalFile,
+        EmbeddedBytes
+    };
+
     struct ImportedTexture
     {
         std::string debugName;
         std::filesystem::path sourcePath;
+        std::string logicalPath;
+        std::string mimeType;
+        std::vector<uint8_t> embeddedBytes;
+        ImportedTextureSource source = ImportedTextureSource::ExternalFile;
         TextureColorSpace colorSpace = TextureColorSpace::SRgb;
         MaterialTextureRole intendedRole = MaterialTextureRole::BaseColor;
+
+        bool embedded() const
+        {
+            return source == ImportedTextureSource::EmbeddedBytes && !embeddedBytes.empty();
+        }
     };
 
     struct ImportedMaterial
@@ -107,6 +122,12 @@ namespace gts::rendering
         std::filesystem::path normalTexture;
         std::filesystem::path ambientOcclusionTexture;
         std::filesystem::path emissiveTexture;
+
+        int32_t baseColorTextureIndex = -1;
+        int32_t metallicRoughnessTextureIndex = -1;
+        int32_t normalTextureIndex = -1;
+        int32_t ambientOcclusionTextureIndex = -1;
+        int32_t emissiveTextureIndex = -1;
 
         MaterialRenderState renderState{};
         bool vertexColorOnly = false;
@@ -134,11 +155,20 @@ namespace gts::rendering
         bool hadMissingTexCoords = false;
     };
 
+    struct ImportedNode
+    {
+        std::string name;
+        int32_t parentIndex = -1;
+        int32_t meshIndex = -1;
+        glm::mat4 localTransform = glm::mat4(1.0f);
+    };
+
     struct AssetImportResult
     {
         std::vector<ImportedMesh> meshes;
         std::vector<ImportedMaterial> materials;
         std::vector<ImportedTexture> textures;
+        std::vector<ImportedNode> nodes;
         std::vector<AssetDependency> dependencies;
         std::vector<AssetDiagnostic> diagnostics;
 
@@ -212,5 +242,23 @@ namespace gts::rendering
 
         MaterialRenderState renderState{};
         bool vertexColorOnly = false;
+    };
+
+    struct ModelNodeAssetData
+    {
+        std::string name;
+        int32_t parentIndex = -1;
+        AssetReference mesh;
+        glm::mat4 localTransform = glm::mat4(1.0f);
+    };
+
+    struct ModelAssetData
+    {
+        AssetId id = InvalidAssetId;
+        std::string debugName;
+        std::vector<ModelNodeAssetData> nodes;
+        std::vector<AssetReference> meshes;
+        std::vector<AssetReference> materials;
+        std::vector<AssetReference> dependencies;
     };
 }

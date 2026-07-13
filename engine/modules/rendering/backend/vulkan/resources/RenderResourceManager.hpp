@@ -68,6 +68,12 @@ class RenderResourceManager : public IResourceProvider
             return meshManager->loadMesh(path);
         }
 
+        const std::vector<gts::rendering::SubmeshAssetData>* getMeshSubmeshes(mesh_id_type id) override
+        {
+            MeshResource* mesh = meshManager->getMesh(id);
+            return mesh != nullptr ? &mesh->submeshes : nullptr;
+        }
+
         mesh_id_type getSharedQuadMesh(float w, float h) override
         {
             return meshManager->getOrCreateQuadMesh(w, h);
