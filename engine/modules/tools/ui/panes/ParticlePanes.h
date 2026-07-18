@@ -346,34 +346,6 @@ namespace gts::tools
                                     ToolTheme::panelRadius);
 
             previewImage.build(context, previewPanel.content(), image(toolui::rect(0.018f, 0.025f, 0.964f, 0.950f)));
-            for (size_t i = 0; i < previewGridVertical.size(); ++i)
-            {
-                const float x = 0.140f + static_cast<float>(i) * 0.120f;
-                buildPanel(context,
-                           previewGridVertical[i],
-                           previewPanel.content(),
-                           toolui::rect(x, 0.455f, 0.0011f, 0.365f),
-                           previewGridColor());
-            }
-            for (size_t i = 0; i < previewGridHorizontal.size(); ++i)
-            {
-                const float y = 0.510f + static_cast<float>(i) * 0.060f;
-                buildPanel(context,
-                           previewGridHorizontal[i],
-                           previewPanel.content(),
-                           toolui::rect(0.085f, y, 0.830f, 0.0014f),
-                           previewGridColor());
-            }
-            buildPanel(context,
-                       originHorizontal,
-                       previewPanel.content(),
-                       toolui::rect(0.450f, 0.505f, 0.100f, 0.0020f),
-                       previewOriginColor());
-            buildPanel(context,
-                       originVertical,
-                       previewPanel.content(),
-                       toolui::rect(0.499f, 0.455f, 0.0020f, 0.100f),
-                       previewOriginColor());
             buildPanel(context,
                        previewTopBar,
                        previewPanel.content(),
@@ -538,12 +510,6 @@ namespace gts::tools
             previewTarget.setVisible(context, visible);
             actionBar.setVisible(context, false);
             const bool overlayVisible = visible && dominantPreview && hasPreview;
-            for (auto& line : previewGridVertical)
-                line.setVisible(context, overlayVisible);
-            for (auto& line : previewGridHorizontal)
-                line.setVisible(context, overlayVisible);
-            originHorizontal.setVisible(context, overlayVisible);
-            originVertical.setVisible(context, overlayVisible);
             previewTopBar.setVisible(context, overlayVisible);
             previewBottomBar.setVisible(context, overlayVisible);
             previewStatsChip.setVisible(context, overlayVisible);
@@ -606,12 +572,6 @@ namespace gts::tools
             previewStatsChip.destroy(context);
             previewBottomBar.destroy(context);
             previewTopBar.destroy(context);
-            originVertical.destroy(context);
-            originHorizontal.destroy(context);
-            for (auto& line : previewGridHorizontal)
-                line.destroy(context);
-            for (auto& line : previewGridVertical)
-                line.destroy(context);
             previewImage.destroy(context);
             previewPanel.destroy(context);
             previewTarget.destroy(context);
@@ -624,25 +584,11 @@ namespace gts::tools
         }
 
     private:
-        static UiColor previewGridColor()
-        {
-            return {0.120f, 0.170f, 0.210f, 0.155f};
-        }
-
-        static UiColor previewOriginColor()
-        {
-            return {0.210f, 0.550f, 0.780f, 0.340f};
-        }
-
         gts::ui::UiPanelWidget headerPanel;
         gts::ui::UiLabelWidget title;
         gts::ui::UiLabelWidget path;
         gts::ui::UiPanelWidget previewPanel;
         gts::ui::UiImageWidget previewImage;
-        std::array<gts::ui::UiPanelWidget, 7> previewGridVertical;
-        std::array<gts::ui::UiPanelWidget, 6> previewGridHorizontal;
-        gts::ui::UiPanelWidget originHorizontal;
-        gts::ui::UiPanelWidget originVertical;
         gts::ui::UiPanelWidget previewTopBar;
         gts::ui::UiPanelWidget previewBottomBar;
         gts::ui::UiPanelWidget previewStatsChip;
