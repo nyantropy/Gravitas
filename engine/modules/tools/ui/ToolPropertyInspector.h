@@ -52,17 +52,23 @@ namespace gts::tools
                        rowPanel.content(),
                        toolLabel(font,
                                  "",
-                                 toolui::rect(0.035f, 0.120f, 0.385f, 0.760f),
+                                 nameLayout(),
                                  ToolTheme::mutedText,
-                                 ToolTheme::smallTextScale));
+                                 ToolTheme::smallTextScale,
+                                 UiHorizontalAlign::Left,
+                                 1));
+            gts::ui::UiLabelDesc valueDesc =
+                toolLabel(font,
+                          "",
+                          valueLayout(false),
+                          ToolTheme::text,
+                          ToolTheme::smallTextScale,
+                          UiHorizontalAlign::Right,
+                          1);
+            valueDesc.wrapMode = UiTextWrapMode::None;
             value.build(context,
                         rowPanel.content(),
-                        toolLabel(font,
-                                  "",
-                                  toolui::rect(0.430f, 0.120f, 0.275f, 0.760f),
-                                  ToolTheme::text,
-                                  ToolTheme::smallTextScale,
-                                  UiHorizontalAlign::Right));
+                        valueDesc);
 
             std::array<ToolToolbarButtonSlot, 1> toggleSlots;
             toggleSlots[0] = {"--", toolui::rect(0.735f, 0.130f, 0.235f, 0.740f)};
@@ -83,13 +89,22 @@ namespace gts::tools
             rail.setVisible(context, visible);
             name.setVisible(context, visible);
             value.setVisible(context, visible);
+            const bool editable = visible && property.enabled && !property.readOnly;
+            const bool showToggle = editable && (property.kind == ToolPropertyKind::Bool ||
+                                                 property.kind == ToolPropertyKind::Enum);
+            const bool showStepper = editable && (property.kind == ToolPropertyKind::Float ||
+                                                  property.kind == ToolPropertyKind::Int ||
+                                                  property.kind == ToolPropertyKind::UInt);
+            const bool showControls = showToggle || showStepper;
+
             if (visible)
             {
+                context.ui.setLayout(context.surface, name.root(), nameLayout());
+                context.ui.setLayout(context.surface, value.root(), valueLayout(showControls));
                 name.setText(context, property.displayName.empty() ? property.id : property.displayName);
                 value.setText(context, valueText(property));
             }
 
-            const bool editable = visible && property.enabled && !property.readOnly;
             const UiColor fill = editable ? ToolTheme::cardBackground : ToolTheme::inspectorRowBackground;
             const UiColor railColor = editable ? ToolTheme::rowAccent : ToolTheme::borderSubtle;
             toolui::setPanelPayload(context.ui,
@@ -104,12 +119,6 @@ namespace gts::tools
             toolui::setRectPayload(context.ui, context.surface, rail.root(), railColor);
             toolui::setTextColor(context.ui, context.surface, name.root(), editable ? ToolTheme::text : ToolTheme::mutedText);
             toolui::setTextColor(context.ui, context.surface, value.root(), property.enabled ? ToolTheme::text : ToolTheme::disabledText);
-
-            const bool showToggle = editable && (property.kind == ToolPropertyKind::Bool ||
-                                                 property.kind == ToolPropertyKind::Enum);
-            const bool showStepper = editable && (property.kind == ToolPropertyKind::Float ||
-                                                  property.kind == ToolPropertyKind::Int ||
-                                                  property.kind == ToolPropertyKind::UInt);
 
             toggle.sync(context,
                         0,
@@ -158,13 +167,25 @@ namespace gts::tools
         }
 
     private:
+        static UiLayoutSpec nameLayout()
+        {
+            return toolui::rect(0.035f, 0.160f, 0.345f, 0.680f);
+        }
+
+        static UiLayoutSpec valueLayout(bool hasControls)
+        {
+            return hasControls
+                ? toolui::rect(0.405f, 0.160f, 0.300f, 0.680f)
+                : toolui::rect(0.405f, 0.160f, 0.555f, 0.680f);
+        }
+
         static std::string valueText(const ToolPropertyDescriptor& descriptor)
         {
             switch (descriptor.kind)
             {
                 case ToolPropertyKind::Label:
                 case ToolPropertyKind::ReadOnlyText:
-                    return descriptor.textValue;
+                    return toolui::compact(descriptor.textValue, 56);
                 case ToolPropertyKind::Bool:
                     return descriptor.boolValue ? "true" : "false";
                 case ToolPropertyKind::Float:

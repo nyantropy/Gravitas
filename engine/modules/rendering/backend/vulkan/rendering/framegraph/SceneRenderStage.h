@@ -478,7 +478,9 @@ private:
         renderPassInfo.renderArea.offset = {0, 0};
         renderPassInfo.renderArea.extent = renderExtent;
 
-        clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        clearValues[0].color = dataSource == DataSource::EditorPreview
+            ? VkClearColorValue{{0.010f, 0.014f, 0.020f, 1.0f}}
+            : VkClearColorValue{{0.0f, 0.0f, 0.0f, 1.0f}};
         clearValues[1].depthStencil = {1.0f, 0};
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         renderPassInfo.pClearValues = clearValues.data();

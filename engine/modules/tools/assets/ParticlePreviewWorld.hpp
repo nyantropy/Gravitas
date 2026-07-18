@@ -307,21 +307,21 @@ namespace gts::tools
             DynamicMeshComponent mesh;
             const int halfCells = 6;
             const float extent = static_cast<float>(halfCells);
-            const float thickness = 0.0180f;
-            addFloorQuad(mesh.vertices, mesh.indices, 2.85f, -0.035f, {0.030f, 0.040f, 0.052f});
+            const float thickness = 0.0120f;
+            addFloorQuad(mesh.vertices, mesh.indices, 2.85f, -0.035f, {0.020f, 0.027f, 0.036f});
             for (int i = -halfCells; i <= halfCells; ++i)
             {
                 const float p = static_cast<float>(i);
-                const glm::vec3 color = i == 0 ? glm::vec3(0.38f, 0.52f, 0.62f)
-                                               : glm::vec3(0.115f, 0.145f, 0.175f);
+                const glm::vec3 color = i == 0 ? glm::vec3(0.240f, 0.340f, 0.410f)
+                                               : glm::vec3(0.075f, 0.098f, 0.125f);
                 addLineRect(mesh.vertices, mesh.indices, {-extent, 0.0f, p}, {extent, 0.0f, p}, thickness, color);
                 addLineRect(mesh.vertices, mesh.indices, {p, 0.0f, -extent}, {p, 0.0f, extent}, thickness, color);
             }
-            addLineRect(mesh.vertices, mesh.indices, {-0.8f, 0.012f, 0.0f}, {0.8f, 0.012f, 0.0f}, 0.040f, {0.22f, 0.42f, 0.78f});
-            addLineRect(mesh.vertices, mesh.indices, {0.0f, 0.016f, -0.8f}, {0.0f, 0.016f, 0.8f}, 0.040f, {0.26f, 0.62f, 0.48f});
+            addLineRect(mesh.vertices, mesh.indices, {-0.8f, 0.012f, 0.0f}, {0.8f, 0.012f, 0.0f}, 0.030f, {0.180f, 0.330f, 0.620f});
+            addLineRect(mesh.vertices, mesh.indices, {0.0f, 0.016f, -0.8f}, {0.0f, 0.016f, 0.8f}, 0.030f, {0.200f, 0.470f, 0.370f});
 
             gts::rendering::UnlitMaterialDescriptor material;
-            material.baseColor = {1.0f, 1.0f, 1.0f, 0.85f};
+            material.baseColor = {1.0f, 1.0f, 1.0f, 0.72f};
             material.vertexColorOnly = true;
             material.doubleSided = true;
             material.depthWrite = true;

@@ -299,19 +299,19 @@ namespace gts::tools
             DynamicMeshComponent mesh;
             const int halfCells = 4;
             const float extent = static_cast<float>(halfCells);
-            const float thickness = 0.014f;
-            addFloorQuad(mesh.vertices, mesh.indices, 2.65f, -0.035f, {0.028f, 0.034f, 0.040f});
+            const float thickness = 0.010f;
+            addFloorQuad(mesh.vertices, mesh.indices, 2.65f, -0.035f, {0.020f, 0.026f, 0.033f});
             for (int i = -halfCells; i <= halfCells; ++i)
             {
                 const float p = static_cast<float>(i);
-                const glm::vec3 color = i == 0 ? glm::vec3(0.33f, 0.48f, 0.56f)
-                                               : glm::vec3(0.105f, 0.125f, 0.145f);
+                const glm::vec3 color = i == 0 ? glm::vec3(0.210f, 0.310f, 0.370f)
+                                               : glm::vec3(0.070f, 0.088f, 0.108f);
                 addLineRect(mesh.vertices, mesh.indices, {-extent, 0.0f, p}, {extent, 0.0f, p}, thickness, color);
                 addLineRect(mesh.vertices, mesh.indices, {p, 0.0f, -extent}, {p, 0.0f, extent}, thickness, color);
             }
 
             gts::rendering::UnlitMaterialDescriptor material;
-            material.baseColor = {1.0f, 1.0f, 1.0f, 0.80f};
+            material.baseColor = {1.0f, 1.0f, 1.0f, 0.72f};
             material.vertexColorOnly = true;
             material.doubleSided = true;
             material.depthWrite = true;

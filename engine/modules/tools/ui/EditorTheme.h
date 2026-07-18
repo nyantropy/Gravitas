@@ -6,7 +6,7 @@ namespace gts::tools
 {
     struct EditorTypography
     {
-        const char* fontAsset = "resources/fonts/gravitasfont.font.json";
+        const char* fontAsset = "resources/fonts/editor_sans.font.json";
 
         int regularWeight = 400;
         int mediumWeight  = 500;
@@ -108,10 +108,10 @@ namespace gts::tools
         UiColor toolbarBackground   = {0.018f, 0.023f, 0.030f, 0.996f};
         UiColor statusBarBackground = {0.011f, 0.014f, 0.018f, 0.998f};
         UiColor sidebarBackground   = {0.018f, 0.024f, 0.032f, 1.000f};
-        UiColor panelBackground     = {0.025f, 0.032f, 0.041f, 0.988f};
-        UiColor panelSurface        = {0.036f, 0.044f, 0.055f, 0.992f};
-        UiColor panelSurfaceRaised  = {0.052f, 0.063f, 0.077f, 0.998f};
-        UiColor panelInset          = {0.012f, 0.016f, 0.023f, 0.998f};
+        UiColor panelBackground     = {0.026f, 0.033f, 0.042f, 0.988f};
+        UiColor panelSurface        = {0.038f, 0.047f, 0.058f, 0.992f};
+        UiColor panelSurfaceRaised  = {0.056f, 0.067f, 0.081f, 0.998f};
+        UiColor panelInset          = {0.010f, 0.014f, 0.020f, 0.998f};
         UiColor cardBackground      = {0.039f, 0.048f, 0.060f, 0.992f};
         UiColor groupBackground     = {0.025f, 0.032f, 0.041f, 0.970f};
         UiColor overlay             = {0.010f, 0.013f, 0.019f, 0.900f};
@@ -121,12 +121,12 @@ namespace gts::tools
         UiColor headerBackground      = {0.031f, 0.039f, 0.050f, 0.998f};
         UiColor headerActive          = {0.048f, 0.061f, 0.076f, 1.000f};
         UiColor footerBackground      = statusBarBackground;
-        UiColor separator             = {0.155f, 0.178f, 0.205f, 0.840f};
-        UiColor border                = {0.305f, 0.345f, 0.395f, 0.940f};
-        UiColor borderSubtle          = {0.165f, 0.195f, 0.230f, 0.840f};
+        UiColor separator             = {0.100f, 0.122f, 0.148f, 0.600f};
+        UiColor border                = {0.190f, 0.225f, 0.270f, 0.760f};
+        UiColor borderSubtle          = {0.090f, 0.112f, 0.138f, 0.620f};
         UiColor highlight             = {0.640f, 0.760f, 0.880f, 0.145f};
 
-        UiColor button          = {0.038f, 0.047f, 0.058f, 0.985f};
+        UiColor button          = {0.034f, 0.043f, 0.054f, 0.985f};
         UiColor buttonSecondary = {0.026f, 0.033f, 0.042f, 0.930f};
         UiColor buttonHover     = {0.064f, 0.079f, 0.096f, 1.000f};
         UiColor buttonPressed   = {0.090f, 0.112f, 0.136f, 1.000f};
@@ -135,24 +135,24 @@ namespace gts::tools
         UiColor toggleHover     = {0.070f, 0.300f, 0.455f, 1.000f};
         UiColor disabled        = {0.020f, 0.024f, 0.030f, 0.660f};
 
-        UiColor inputBackground    = {0.016f, 0.021f, 0.028f, 1.000f};
+        UiColor inputBackground    = {0.014f, 0.019f, 0.026f, 1.000f};
         UiColor inputHover         = {0.041f, 0.050f, 0.061f, 1.000f};
         UiColor inputActive        = {0.050f, 0.065f, 0.082f, 1.000f};
         UiColor sliderTrack        = {0.026f, 0.032f, 0.039f, 1.000f};
         UiColor sliderTrackHover   = {0.048f, 0.059f, 0.071f, 1.000f};
         UiColor scrollbarTrack     = {0.020f, 0.025f, 0.031f, 0.760f};
         UiColor scrollbarThumb     = {0.160f, 0.190f, 0.220f, 0.940f};
-        UiColor sectionHeader      = {0.032f, 0.040f, 0.051f, 1.000f};
+        UiColor sectionHeader      = {0.030f, 0.038f, 0.049f, 1.000f};
         UiColor sectionHeaderHover = {0.050f, 0.062f, 0.077f, 1.000f};
 
         UiColor focus         = {0.260f, 0.610f, 0.880f, 1.000f};
         UiColor selection     = {0.040f, 0.180f, 0.285f, 1.000f};
         UiColor selectionSoft = {0.035f, 0.120f, 0.185f, 0.860f};
-        UiColor rowBackground = {0.030f, 0.037f, 0.047f, 0.985f};
+        UiColor rowBackground = {0.028f, 0.035f, 0.045f, 0.985f};
         UiColor rowHover      = {0.055f, 0.068f, 0.084f, 1.000f};
         UiColor rowSelected   = {0.052f, 0.195f, 0.310f, 1.000f};
         UiColor rowAccent     = {0.230f, 0.590f, 0.880f, 1.000f};
-        UiColor inspectorRowBackground = {0.030f, 0.037f, 0.047f, 0.980f};
+        UiColor inspectorRowBackground = {0.027f, 0.034f, 0.044f, 0.980f};
         UiColor hover         = {0.068f, 0.082f, 0.100f, 1.000f};
         UiColor pressed       = {0.095f, 0.116f, 0.140f, 1.000f};
         UiColor accent        = {0.230f, 0.590f, 0.880f, 1.000f};
