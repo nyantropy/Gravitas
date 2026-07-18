@@ -57,6 +57,17 @@ namespace gts::tools
             return UI_INVALID_HANDLE;
         }
 
+        UiHandle assetPreviewImageHandle() const
+        {
+            for (const auto& pane : panes)
+            {
+                const UiHandle previewHandle = pane->assetPreviewImageHandle();
+                if (previewHandle != UI_INVALID_HANDLE)
+                    return previewHandle;
+            }
+            return UI_INVALID_HANDLE;
+        }
+
         void build(UiCompositionContext& context) override
         {
             gts::ui::UiWidgetContext widgetContext(context);

@@ -73,9 +73,9 @@ are not a replacement UI framework.
 The central world viewport is the active runtime scene viewport. It is
 published through `RenderViewportComponent::sceneViewport`.
 
-Particle preview is a separate preview render path. Keep preview measurement,
-preview world sync, and `EditorPreviewRenderComponent` publication in
-`EngineToolShellSystem` or owning preview systems, not panes.
+Particle and asset previews are separate preview render paths. Keep preview
+measurement, preview world sync, and `EditorPreviewRenderComponent`
+publication in `EngineToolShellSystem` or owning preview systems, not panes.
 
 ## Visual QA Rules
 

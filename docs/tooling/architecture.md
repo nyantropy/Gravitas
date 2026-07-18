@@ -33,7 +33,7 @@ The first-class workspaces are:
 - Particles: particle asset/effect hierarchy, live runtime scene viewport,
   separate particle preview viewport, property inspector, diagnostics, and
   timeline placeholder.
-- Assets: manifest browser, selected asset metadata preview, property inspector,
+- Assets: manifest browser, selected asset model preview, property inspector,
   and diagnostics.
 
 Workspace switching filters pane descriptors. It does not change engine mode.
@@ -46,8 +46,8 @@ Workspace switching filters pane descriptors. It does not change engine mode.
 - `modules/tools/runtime/`: global tool runtime and scene-change state handoff.
 - `modules/tools/workspace/`: per-frame workspace layout and scene viewport
   publication.
-- `modules/tools/assets/`: asset manifests, asset browser session state, and
-  particle preview world integration.
+- `modules/tools/assets/`: asset manifests, asset browser session state, asset
+  preview world integration, and particle preview world integration.
 - `modules/tools/selection/`: input capture, world picking, selection labels,
   selection highlight, and shared raycast helpers.
 - `modules/tools/gizmos/`: translation gizmo state, picking, snapping, and
@@ -89,8 +89,8 @@ include `ToolSelectableRow`, `ToolListSection`, `ToolPager`,
 `ToolInspectorSection`, `ToolToolbarRow`, and `ToolPropertyInspector`.
 
 `EngineToolShellSystem` owns engine integration: ECS integration, renderer
-integration, viewport publication, particle preview rendering, asset IO, scene
-commands, input capture, and applying `ToolCommand`s.
+integration, viewport publication, particle and asset preview rendering, asset
+IO, scene commands, input capture, and applying `ToolCommand`s.
 
 ## Command Flow
 
@@ -155,6 +155,15 @@ scene placement. Game code may consume the same manifest type for runtime
 spawning, but asset discovery, validation, preview, and future import/cook
 commands belong to engine tooling.
 
+`AssetPreviewPane` owns the retained UI image handle for the selected asset.
+`EngineToolShellSystem` measures that handle after composition update, routes
+`AssetPreviewWorld` rendering into the preview target, and publishes
+`EditorPreviewRenderComponent`. The preview world is engine-tool owned and
+loads the manifest model path through the same mesh/material binding systems as
+runtime scenes. `unlit_texture_override` manifests use a shared unlit material
+with the fallback texture; `cooked_mesh_materials` manifests enable submesh
+material bindings from the cooked mesh and use the standard lit material path.
+
 ## Tooling Launch Presets
 
 Tooling launch presets configure the engine into a deterministic startup state
@@ -173,9 +182,9 @@ publishes it through `RenderViewportComponent::sceneViewport`, and render
 systems use that viewport to constrain scene rendering so tool chrome is not
 covered.
 
-The particle preview viewport is separate. It is driven by
-`EditorPreviewRenderComponent` and must not be merged into the central world
-viewport.
+Particle and asset preview viewports are separate from the central world
+viewport. They are driven by `EditorPreviewRenderComponent` and must not be
+merged into the central world viewport.
 
 ## Current Limitations
 
@@ -193,8 +202,10 @@ These are known limits, not accidental regressions:
   widget helper layer is lightweight.
 - Theme usage is improved but not complete; some low-level payload styling
   still exists inside tooling widgets.
-- Asset browser preview is manifest metadata only; a dedicated model preview
-  world/render target is still future work.
+- Asset preview rendering is tool-owned, but the asset pane currently stays in
+  the bottom dock because the renderer still couples UI output clipping to the
+  published runtime scene viewport. A dominant center asset viewport needs that
+  renderer/UI viewport split first.
 
 ## Guardrails
 

@@ -151,6 +151,7 @@ namespace gts::tools
         std::string assetMaterialMode;
         std::string assetBounds;
         std::string assetError;
+        texture_id_type assetPreviewTexture = 0;
 
         bool particleLoaded = false;
         bool particleDirty = false;
@@ -186,6 +187,7 @@ namespace gts::tools
         virtual const PaneDescriptor& descriptor() const = 0;
         virtual UiHandle root() const = 0;
         virtual UiHandle previewImageHandle() const { return UI_INVALID_HANDLE; }
+        virtual UiHandle assetPreviewImageHandle() const { return UI_INVALID_HANDLE; }
 
         virtual void build(gts::ui::UiWidgetContext& context,
                            UiHandle parent,

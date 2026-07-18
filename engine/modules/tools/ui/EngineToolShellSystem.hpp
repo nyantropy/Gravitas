@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "AssetBrowserSession.h"
+#include "AssetPreviewWorld.hpp"
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
 #include "EditorPreviewRenderData.h"
@@ -75,16 +76,19 @@ namespace gts::tools
             processCommands(ctx, state, *shell);
             if (activeWorkspace != workspaceBeforeCommands)
                 workspace = publishWorkspace(ctx, true);
-            syncParticlePreviewWorld(ctx);
+            if (activeWorkspace == ToolWorkspace::Particles)
+                syncParticlePreviewWorld(ctx);
 
             ToolShellView view = buildView(ctx, state, workspace);
             shell->setView(view);
             ctx.ui->updateComposition(shellComposition);
 
-            publishParticlePreview(ctx, *shell);
-            if (view.previewTexture != lastPreviewTexture)
+            publishActivePreview(ctx, *shell);
+            if (view.previewTexture != lastPreviewTexture ||
+                view.assetPreviewTexture != lastAssetPreviewTexture)
             {
                 view.previewTexture = lastPreviewTexture;
+                view.assetPreviewTexture = lastAssetPreviewTexture;
                 shell->setView(view);
                 ctx.ui->updateComposition(shellComposition);
             }
@@ -103,6 +107,8 @@ namespace gts::tools
         {
             if (previewWorld)
                 previewWorld->destroy();
+            if (assetPreviewWorld)
+                assetPreviewWorld->destroy();
         }
 
         ToolWorkspace currentWorkspace() const
@@ -181,10 +187,12 @@ namespace gts::tools
         size_t effectOffset = 0;
         size_t assetOffset = 0;
         texture_id_type lastPreviewTexture = 0;
+        texture_id_type lastAssetPreviewTexture = 0;
 
         AssetBrowserSession assetSession;
         ParticleEditorSession particleSession;
         std::unique_ptr<ParticlePreviewWorld> previewWorld = std::make_unique<ParticlePreviewWorld>();
+        std::unique_ptr<AssetPreviewWorld> assetPreviewWorld = std::make_unique<AssetPreviewWorld>();
 
         static EngineToolStateComponent& ensureState(ECSWorld& world)
         {
@@ -240,6 +248,8 @@ namespace gts::tools
             clearPreviewRender(ctx.world);
             if (previewWorld)
                 previewWorld->destroy();
+            if (assetPreviewWorld)
+                assetPreviewWorld->destroy();
             if (ctx.ui != nullptr)
                 destroyComposition(*ctx.ui);
             publishWorkspace(ctx, false);
@@ -385,6 +395,7 @@ namespace gts::tools
                     case ToolCommandType::SelectAsset:
                         assetSession.select(command.value);
                         activeWorkspace = ToolWorkspace::Assets;
+                        lastAssetPreviewTexture = 0;
                         if (const AssetBrowserEntry* asset = assetSession.selected())
                         {
                             state.status = asset->valid ? "SELECTED " + assetDisplayName(*asset)
@@ -487,6 +498,7 @@ namespace gts::tools
             view.effectOffset = effectOffset;
             view.assetOffset = assetOffset;
             view.previewTexture = lastPreviewTexture;
+            view.assetPreviewTexture = lastAssetPreviewTexture;
             view.particleLoaded = particleSession.hasAsset();
             view.particleDirty = particleSession.isDirty();
             view.particlePlaying = particleSession.isPlaying();
@@ -1217,6 +1229,86 @@ namespace gts::tools
                                     particleSession.isPaused());
         }
 
+        bool syncAssetPreviewWorld(const EcsControllerContext& ctx)
+        {
+            const AssetBrowserEntry* asset = assetSession.selected();
+            if (asset == nullptr || !asset->valid || !assetPreviewWorld || ctx.resources == nullptr)
+                return false;
+
+            assetPreviewWorld->ensure(ctx.resources);
+            assetPreviewWorld->syncAsset(asset->manifestPath, asset->manifest);
+            return true;
+        }
+
+        void publishActivePreview(const EcsControllerContext& ctx, EngineToolShellComposition& shell)
+        {
+            switch (activeWorkspace)
+            {
+                case ToolWorkspace::Particles:
+                    publishParticlePreview(ctx, shell);
+                    return;
+                case ToolWorkspace::Assets:
+                    publishAssetPreview(ctx, shell);
+                    return;
+                case ToolWorkspace::World:
+                    clearPreviewRender(ctx.world);
+                    return;
+            }
+            clearPreviewRender(ctx.world);
+        }
+
+        static std::pair<uint32_t, uint32_t> previewImageSize(const EcsControllerContext& ctx,
+                                                              UiHandle imageHandle)
+        {
+            uint32_t width = 320;
+            uint32_t height = 240;
+            if (ctx.ui == nullptr)
+                return {width, height};
+
+            const UiNode* node = ctx.ui->findNode(imageHandle);
+            if (node == nullptr)
+                return {width, height};
+
+            width = std::max(1u,
+                             static_cast<uint32_t>(
+                                 std::round(node->computedLayout.bounds.width *
+                                            std::max(1.0f, ctx.windowPixelWidth))));
+            height = std::max(1u,
+                              static_cast<uint32_t>(
+                                  std::round(node->computedLayout.bounds.height *
+                                             std::max(1.0f, ctx.windowPixelHeight))));
+            return {width, height};
+        }
+
+        void publishAssetPreview(const EcsControllerContext& ctx, EngineToolShellComposition& shell)
+        {
+            if (!syncAssetPreviewWorld(ctx))
+            {
+                clearPreviewRender(ctx.world);
+                lastAssetPreviewTexture = 0;
+                return;
+            }
+
+            const auto [width, height] = previewImageSize(ctx, shell.assetPreviewImageHandle());
+
+            texture_id_type previousTexture = 0;
+            if (ctx.world.hasAny<EditorPreviewRenderComponent>())
+                previousTexture = ctx.world.getSingleton<EditorPreviewRenderComponent>().data.colorTextureID;
+
+            const float dt = ctx.time == nullptr ? 1.0f / 60.0f : ctx.time->unscaledDeltaTime;
+            EditorPreviewRenderData data = assetPreviewWorld->buildFrame(dt, width, height);
+            data.colorTextureID = previousTexture;
+
+            EditorPreviewRenderComponent* component = nullptr;
+            if (ctx.world.hasAny<EditorPreviewRenderComponent>())
+                component = &ctx.world.getSingleton<EditorPreviewRenderComponent>();
+            else
+                component = &ctx.world.createSingleton<EditorPreviewRenderComponent>();
+
+            component->data = std::move(data);
+            lastAssetPreviewTexture = component->data.enabled ? component->data.colorTextureID : 0;
+        }
+
         void publishParticlePreview(const EcsControllerContext& ctx, EngineToolShellComposition& shell)
         {
             if (!particleSession.hasAsset() || particleSession.path().empty() || !previewWorld)
@@ -1226,23 +1318,7 @@ namespace gts::tools
                 return;
             }
 
-            uint32_t width = 320;
-            uint32_t height = 240;
-            if (ctx.ui != nullptr)
-            {
-                const UiNode* node = ctx.ui->findNode(shell.particlePreviewImageHandle());
-                if (node != nullptr)
-                {
-                    width = std::max(1u,
-                                     static_cast<uint32_t>(
-                                         std::round(node->computedLayout.bounds.width *
-                                                    std::max(1.0f, ctx.windowPixelWidth))));
-                    height = std::max(1u,
-                                      static_cast<uint32_t>(
-                                          std::round(node->computedLayout.bounds.height *
-                                                     std::max(1.0f, ctx.windowPixelHeight))));
-                }
-            }
+            const auto [width, height] = previewImageSize(ctx, shell.particlePreviewImageHandle());
 
             texture_id_type previousTexture = 0;
             if (ctx.world.hasAny<EditorPreviewRenderComponent>())

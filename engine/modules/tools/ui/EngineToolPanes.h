@@ -706,6 +706,8 @@ namespace gts::tools
         {
         }
 
+        UiHandle assetPreviewImageHandle() const override { return previewImage.root(); }
+
         void build(gts::ui::UiWidgetContext& context,
                    UiHandle parent,
                    BitmapFont* font,
@@ -742,16 +744,19 @@ namespace gts::tools
                        content(),
                        toolui::rect(0.028f, 0.158f, 0.944f, 0.550f),
                        ToolTheme::panelInset);
+            previewImage.build(context,
+                               previewPanel.content(),
+                               image(toolui::rect(0.018f, 0.025f, 0.964f, 0.950f)));
             previewTitle.build(context,
                                previewPanel.content(),
-                               label("Manifest Preview",
-                                     toolui::rect(0.060f, 0.090f, 0.420f, 0.090f),
+                               label("Asset Viewport",
+                                     toolui::rect(0.060f, 0.070f, 0.420f, 0.100f),
                                      ToolTheme::text,
                                      ToolTheme::smallTextScale));
             material.build(context,
                            previewPanel.content(),
                            label("Material: --",
-                                 toolui::rect(0.540f, 0.090f, 0.400f, 0.090f),
+                                 toolui::rect(0.540f, 0.070f, 0.400f, 0.100f),
                                  ToolTheme::statusText,
                                  ToolTheme::smallTextScale,
                                  UiHorizontalAlign::Right));
@@ -808,11 +813,19 @@ namespace gts::tools
             state.setVisible(context, visible);
             previewTitle.setVisible(context, visible);
             material.setVisible(context, visible);
-            model.setVisible(context, visible);
-            texture.setVisible(context, visible);
-            bounds.setVisible(context, visible);
-            source.setVisible(context, visible);
+            const bool hasPreview = visible && view.assetPreviewTexture != 0;
+            previewImage.setVisible(context, hasPreview);
+            model.setVisible(context, visible && !hasPreview);
+            texture.setVisible(context, visible && !hasPreview);
+            bounds.setVisible(context, visible && !hasPreview);
+            source.setVisible(context, visible && !hasPreview);
             footer.setVisible(context, visible);
+
+            UiImageData imageData;
+            imageData.textureID = view.assetPreviewTexture;
+            imageData.tint = {1.0f, 1.0f, 1.0f, hasPreview ? 1.0f : 0.0f};
+            imageData.imageAspect = 1.0f;
+            context.ui.setPayload(context.surface, previewImage.root(), imageData);
 
             title.setText(context, view.assetSelected ? view.assetTitle : "No Asset");
             path.setText(context, view.assetManifestPath.empty()
@@ -842,7 +855,7 @@ namespace gts::tools
                                : "Source: " + toolui::compact(view.assetSourcePath, 72));
             footer.setText(context,
                            !view.assetSelected ? "No manifest selected"
-                           : view.assetSelectedValid ? "Manifest metadata loaded"
+                           : view.assetSelectedValid ? (hasPreview ? "Rendered preview" : "Building preview")
                                                      : toolui::compact(view.assetError, 96));
         }
 
@@ -858,6 +871,7 @@ namespace gts::tools
             model.destroy(context);
             material.destroy(context);
             previewTitle.destroy(context);
+            previewImage.destroy(context);
             previewPanel.destroy(context);
             state.destroy(context);
             path.destroy(context);
@@ -872,6 +886,7 @@ namespace gts::tools
         gts::ui::UiLabelWidget path;
         gts::ui::UiLabelWidget state;
         gts::ui::UiPanelWidget previewPanel;
+        gts::ui::UiImageWidget previewImage;
         gts::ui::UiLabelWidget previewTitle;
         gts::ui::UiLabelWidget material;
         gts::ui::UiLabelWidget model;
