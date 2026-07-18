@@ -69,8 +69,8 @@ namespace gts::tools
         if (node == nullptr)
             return;
 
-        UiColor fill = active ? ToolTheme::selection : ToolTheme::button;
-        UiColor text = ToolTheme::text;
+        UiColor fill = active ? ToolTheme::buttonActive : ToolTheme::button;
+        UiColor text = active ? ToolTheme::text : ToolTheme::mutedText;
         if (!node->state.enabled)
         {
             fill = ToolTheme::disabled;
@@ -83,6 +83,7 @@ namespace gts::tools
         else if (node->state.hovered)
         {
             fill = active ? ToolTheme::toggleHover : ToolTheme::buttonHover;
+            text = ToolTheme::text;
         }
 
         toolui::setRectPayload(context.ui, context.surface, widget.root(), fill);

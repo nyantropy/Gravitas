@@ -71,7 +71,7 @@ namespace gts::tools
                 case ToolPaneId::CurveTimeline:
                     descriptor.dockArea = ToolDockArea::Bottom;
                     descriptor.order = 0;
-                    descriptor.visibleInWorld = true;
+                    descriptor.visibleInWorld = false;
                     break;
 
                 default:
@@ -127,7 +127,7 @@ namespace gts::tools
                 case ToolPaneId::CurveTimeline:
                     descriptor.dockArea = ToolDockArea::Bottom;
                     descriptor.order = 0;
-                    descriptor.visibleInParticles = true;
+                    descriptor.visibleInParticles = false;
                     break;
 
                 default:

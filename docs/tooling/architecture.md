@@ -31,7 +31,7 @@ The first-class workspaces are:
 
 - World: scene browser and live runtime scene viewport.
 - Particles: particle asset/effect hierarchy, isolated particle preview
-  viewport, property inspector, diagnostics, and timeline placeholder.
+  viewport, property inspector, and diagnostics.
 - Assets: manifest browser, selected asset model preview, property inspector,
   and diagnostics.
 
@@ -193,7 +193,7 @@ These are known limits, not accidental regressions:
 
 - Docking is fixed, descriptor-driven, and non-resizable.
 - No floating windows or layout persistence.
-- Timeline/curve area is a visual placeholder.
+- Curve/timeline authoring is not exposed until it has real editing behavior.
 - No graph editing, curve editing, gradient editing, burst editing, or module
   add/remove/reorder.
 - Property editing is limited to the first particle fields and stepper controls.

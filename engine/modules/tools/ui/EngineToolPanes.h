@@ -149,7 +149,7 @@ namespace gts::tools
                               ToolTheme::titleTextScale));
             menuItems.build(context,
                             content(),
-                            label("File   Edit   View   Tools",
+                            label("Toolchain",
                                   toolui::rect(0.112f, 0.160f, 0.190f, 0.660f),
                                   ToolTheme::mutedText,
                                   ToolTheme::smallTextScale));
@@ -266,14 +266,14 @@ namespace gts::tools
                        ToolTheme::toolbarGroupBackground);
             viewportLabel.build(context,
                                 sceneGroup.content(),
-                                label("Scene",
-                                      toolui::rect(0.040f, 0.080f, 0.205f, 0.840f),
+                                label("Active",
+                                      toolui::rect(0.040f, 0.080f, 0.230f, 0.840f),
                                       ToolTheme::mutedText,
                                       ToolTheme::smallTextScale));
             sceneLabel.build(context,
                              sceneGroup.content(),
                              label("Scene",
-                                   toolui::rect(0.270f, 0.080f, 0.690f, 0.840f),
+                                   toolui::rect(0.295f, 0.080f, 0.665f, 0.840f),
                                    ToolTheme::text,
                                    ToolTheme::smallTextScale));
             buildPanel(context,
@@ -432,13 +432,13 @@ namespace gts::tools
                              UiHorizontalAlign::Right));
             viewMode.build(context,
                            bottomBar.content(),
-                           label("Perspective",
+                           label("Runtime view",
                                  toolui::rect(0.018f, 0.080f, 0.260f, 0.840f),
                                  ToolTheme::mutedText,
                                  ToolTheme::smallTextScale));
             cameraMode.build(context,
                              bottomBar.content(),
-                             label("Camera",
+                             label("Scene camera",
                                    toolui::rect(0.760f, 0.080f, 0.220f, 0.840f),
                                    ToolTheme::mutedText,
                                    ToolTheme::smallTextScale,
@@ -1117,9 +1117,9 @@ namespace gts::tools
                          {selectedEmitterText(view), selectedModuleText(view)});
         }
 
-        void onEvent(gts::ui::UiWidgetContext& context,
-                     UiEvent& event,
-                     ToolCommandQueue& commands,
+        void onEvent(gts::ui::UiWidgetContext&,
+                     UiEvent&,
+                     ToolCommandQueue&,
                      const ToolShellView&) override
         {
         }
@@ -1372,13 +1372,11 @@ namespace gts::tools
             context.ui.setLayout(context.surface,
                                  statusStrip.root(),
                                  dominantPreview
-                                     ? toolui::rect(0.024f, 0.895f, 0.465f, 0.055f)
+                                     ? toolui::rect(0.024f, 0.895f, 0.952f, 0.055f)
                                      : toolui::rect(0.050f, 0.705f, 0.900f, 0.060f));
             context.ui.setLayout(context.surface,
                                  actionBar.root(),
-                                 dominantPreview
-                                     ? toolui::rect(0.510f, 0.895f, 0.466f, 0.055f)
-                                     : toolui::rect(0.050f, 0.790f, 0.900f, 0.105f));
+                                 toolui::rect(0.000f, 0.000f, 0.000f, 0.000f));
             context.ui.setLayout(context.surface,
                                  previewImage.root(),
                                  dominantPreview
@@ -1405,7 +1403,7 @@ namespace gts::tools
             statusStrip.setVisible(context, visible);
             previewStatus.setVisible(context, visible);
             previewTarget.setVisible(context, visible);
-            actionBar.setVisible(context, visible);
+            actionBar.setVisible(context, false);
             const bool overlayVisible = visible && dominantPreview && hasPreview;
             for (auto& line : previewGridVertical)
                 line.setVisible(context, overlayVisible);
@@ -1447,27 +1445,17 @@ namespace gts::tools
                                   std::to_string(view.previewEmitterCount) + " emitters  |  " +
                                       std::to_string(view.previewModuleCount) + " modules");
 
-            actions.sync(context, 0, visible, "Save", view.particleLoaded, false);
-            actions.sync(context, 1, visible, "Reload", view.particleLoaded, false);
-            actions.sync(context, 2, visible, view.particlePlaying ? "Pause" : "Play", view.particleLoaded, false);
-            actions.sync(context, 3, visible, "Restart", view.particleLoaded, false);
+            actions.sync(context, 0, false, "Save", false, false);
+            actions.sync(context, 1, false, "Reload", false, false);
+            actions.sync(context, 2, false, view.particlePlaying ? "Pause" : "Play", false, false);
+            actions.sync(context, 3, false, "Restart", false, false);
         }
 
-        void onEvent(gts::ui::UiWidgetContext& context,
-                     UiEvent& event,
-                     ToolCommandQueue& commands,
+        void onEvent(gts::ui::UiWidgetContext&,
+                     UiEvent&,
+                     ToolCommandQueue&,
                      const ToolShellView&) override
         {
-            actions.onEvent(context, event);
-
-            if (actions.consumePressed(0))
-                commands.push({ToolCommandType::SaveParticleEffect});
-            if (actions.consumePressed(1))
-                commands.push({ToolCommandType::ReloadParticleEffect});
-            if (actions.consumePressed(2))
-                commands.push({ToolCommandType::ToggleParticlePlayback});
-            if (actions.consumePressed(3))
-                commands.push({ToolCommandType::RestartParticlePreview});
         }
 
         void destroy(gts::ui::UiWidgetContext& context) override
