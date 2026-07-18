@@ -36,6 +36,13 @@
 // and writing it back to the same layout.
 class UiRenderStage : public GtsRenderStage
 {
+private:
+    struct UiPushConstants
+    {
+        glm::mat4 proj;
+        float useTexture = 0.0f;
+    };
+
 public:
     UiRenderStage(RenderResourceManager* resources,
                   VulkanBackendContext&  backendContext,
@@ -92,7 +99,7 @@ public:
         pConfig.srcAlphaBlendFactor  = VK_BLEND_FACTOR_ONE;
         pConfig.dstAlphaBlendFactor  = VK_BLEND_FACTOR_ZERO;
         pConfig.alphaBlendOp         = VK_BLEND_OP_ADD;
-        pConfig.pushConstantSize     = sizeof(glm::mat4) + sizeof(float); // proj + useTexture
+        pConfig.pushConstantSize     = sizeof(UiPushConstants);
         pConfig.pushConstantStages   = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
         pConfig.descriptorSetLayouts = { descriptorSetManager.getDescriptorSetLayouts()[2] };
         pipeline = std::make_unique<VulkanPipeline>(backendContext, descriptorSetManager, pConfig);
@@ -145,6 +152,10 @@ public:
             frameStats->uiVertexCount = static_cast<uint32_t>(baseUiBuffer.vertices.size());
             frameStats->uiIndexCount = static_cast<uint32_t>(baseUiBuffer.indices.size());
             frameStats->uiRenderDrawCalls = static_cast<uint32_t>(baseUiBuffer.commands.size());
+            frameStats->uiSubmittedDrawCalls = 0;
+            frameStats->uiSubmittedColoredDrawCalls = 0;
+            frameStats->uiSubmittedTexturedDrawCalls = 0;
+            frameStats->uiSkippedDrawCalls = 0;
             frameStats->uiUploadBytes = static_cast<uint32_t>(
                 baseUiBuffer.vertices.size() * sizeof(UiVertex)
                 + baseUiBuffer.indices.size() * sizeof(uint32_t));
@@ -204,10 +215,8 @@ public:
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->getPipeline());
 
         // DONT EVER CHANGE THIS, WE HAVE TO FLIP TOP AND BOT BECAUSE OF GLM SETTINGS, SO DONT CHANGE THIS
-        glm::mat4 proj = glm::ortho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f);
-        vkCmdPushConstants(cmd, pipeline->getPipelineLayout(),
-                           VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                           0, sizeof(glm::mat4), &proj);
+        UiPushConstants pushConstants;
+        pushConstants.proj = glm::ortho(0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f);
 
         const VkDeviceSize offsets[] = {0};
         VkBuffer vb = vertexBuffer.getBuffer();
@@ -217,7 +226,6 @@ public:
 
         texture_id_type boundTextureID = 0;
         float boundUseTexture = -1.0f;
-
         // One draw call per UiDrawCommand. Adjacent commands are merged earlier
         // by UiCommandBuffer, so this loop avoids redundant state updates.
         for (const auto& drawCmd : uiBuffer->commands)
@@ -230,7 +238,12 @@ public:
 
             TextureResource* tex = resources->getTexture(resolvedID);
             if (!tex) tex = resources->getTexture(fallbackTextureID);
-            if (!tex) continue;
+            if (!tex)
+            {
+                if (frameStats)
+                    ++frameStats->uiSkippedDrawCalls;
+                continue;
+            }
 
             if (resolvedID != boundTextureID)
             {
@@ -241,16 +254,24 @@ public:
                 boundTextureID = resolvedID;
             }
 
-            float useTexture = (drawCmd.type == UiDrawType::TexturedQuad) ? 1.0f : 0.0f;
-            if (useTexture != boundUseTexture)
+            pushConstants.useTexture = (drawCmd.type == UiDrawType::TexturedQuad) ? 1.0f : 0.0f;
+            if (pushConstants.useTexture != boundUseTexture)
             {
                 vkCmdPushConstants(cmd, pipeline->getPipelineLayout(),
                                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                                   sizeof(glm::mat4), sizeof(float), &useTexture);
-                boundUseTexture = useTexture;
+                                   0, sizeof(UiPushConstants), &pushConstants);
+                boundUseTexture = pushConstants.useTexture;
             }
 
             vkCmdDrawIndexed(cmd, drawCmd.indexCount, 1, drawCmd.indexOffset, 0, 0);
+            if (frameStats)
+            {
+                ++frameStats->uiSubmittedDrawCalls;
+                if (drawCmd.type == UiDrawType::TexturedQuad)
+                    ++frameStats->uiSubmittedTexturedDrawCalls;
+                else
+                    ++frameStats->uiSubmittedColoredDrawCalls;
+            }
         }
 
         vkCmdEndRenderPass(cmd);

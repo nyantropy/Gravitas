@@ -130,6 +130,10 @@ struct GtsFrameStats
     uint32_t uiIndexCount           = 0;
     uint32_t uiCommandCacheHit      = 0;
     uint32_t uiRenderDrawCalls      = 0;
+    uint32_t uiSubmittedDrawCalls   = 0;
+    uint32_t uiSubmittedColoredDrawCalls = 0;
+    uint32_t uiSubmittedTexturedDrawCalls = 0;
+    uint32_t uiSkippedDrawCalls     = 0;
     uint32_t uiUploadBytes          = 0;
     uint32_t minimapCellCount       = 0;
     uint32_t backendPresentMode     = 0;

@@ -91,6 +91,10 @@ struct ProfileAccumulator
         sum.uiIndexCount              += s.uiIndexCount;
         sum.uiCommandCacheHit         += s.uiCommandCacheHit;
         sum.uiRenderDrawCalls         += s.uiRenderDrawCalls;
+        sum.uiSubmittedDrawCalls      += s.uiSubmittedDrawCalls;
+        sum.uiSubmittedColoredDrawCalls += s.uiSubmittedColoredDrawCalls;
+        sum.uiSubmittedTexturedDrawCalls += s.uiSubmittedTexturedDrawCalls;
+        sum.uiSkippedDrawCalls        += s.uiSkippedDrawCalls;
         sum.uiUploadBytes             += s.uiUploadBytes;
         sum.minimapCellCount          += s.minimapCellCount;
         sum.physicsCollisionCount     += s.physicsCollisionCount;
@@ -172,6 +176,10 @@ struct ProfileAccumulator
         max.uiIndexCount              = s.uiIndexCount;
         max.uiCommandCacheHit         = s.uiCommandCacheHit;
         max.uiRenderDrawCalls         = s.uiRenderDrawCalls;
+        max.uiSubmittedDrawCalls      = s.uiSubmittedDrawCalls;
+        max.uiSubmittedColoredDrawCalls = s.uiSubmittedColoredDrawCalls;
+        max.uiSubmittedTexturedDrawCalls = s.uiSubmittedTexturedDrawCalls;
+        max.uiSkippedDrawCalls        = s.uiSkippedDrawCalls;
         max.uiUploadBytes             = s.uiUploadBytes;
         max.minimapCellCount          = s.minimapCellCount;
         max.backendPresentMode        = s.backendPresentMode;

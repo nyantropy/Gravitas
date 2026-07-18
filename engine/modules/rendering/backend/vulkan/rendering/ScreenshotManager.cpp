@@ -292,14 +292,19 @@ void ScreenshotManager::recordImageCopy(VkCommandBuffer commandBuffer,
     toTransferBarrier.subresourceRange.levelCount = 1;
     toTransferBarrier.subresourceRange.baseArrayLayer = 0;
     toTransferBarrier.subresourceRange.layerCount = 1;
-    toTransferBarrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    const bool sourceWasColorAttachment =
+        currentLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL ||
+        currentLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    toTransferBarrier.srcAccessMask = sourceWasColorAttachment
+        ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+        : VK_ACCESS_MEMORY_WRITE_BIT;
     toTransferBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
     vkCmdPipelineBarrier(
         commandBuffer,
-        currentLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-            ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
-            : VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        sourceWasColorAttachment
+            ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+            : VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
         0,
         0, nullptr,

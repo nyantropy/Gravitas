@@ -454,6 +454,10 @@ class ForwardRenderer : Renderer
             if (!config.headless)
                 return;
 
+            const VkExtent2D outputExtent = frameOutputTarget
+                ? frameOutputTarget->getExtent()
+                : VkExtent2D{0, 0};
+
             std::cout
                 << "[headless] frame=" << renderedFrameCount
                 << " renderCommands=" << renderList.size()
@@ -462,6 +466,14 @@ class ForwardRenderer : Renderer
                 << " drawCalls=" << frameStats.drawCalls
                 << " pipelineBinds=" << frameStats.pipelineBinds
                 << " descriptorBinds=" << frameStats.descriptorBinds
+                << " uiCommands=" << frameStats.uiCommandCount
+                << " uiPrimitives=" << frameStats.uiPrimitiveCount
+                << " uiVertices=" << frameStats.uiVertexCount
+                << " uiSubmitted=" << frameStats.uiSubmittedDrawCalls
+                << " uiSubmittedColored=" << frameStats.uiSubmittedColoredDrawCalls
+                << " uiSubmittedTextured=" << frameStats.uiSubmittedTexturedDrawCalls
+                << " uiSkipped=" << frameStats.uiSkippedDrawCalls
+                << " output=" << outputExtent.width << "x" << outputExtent.height
                 << " triangles=" << frameStats.triangleCount
                 << std::endl;
         }
