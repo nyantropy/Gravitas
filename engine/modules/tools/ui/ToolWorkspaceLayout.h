@@ -93,23 +93,19 @@ namespace gts::tools
                     break;
 
                 case ToolPaneId::WorldViewport:
-                    descriptor.dockArea = ToolDockArea::Right;
-                    descriptor.order = 0;
-                    descriptor.visibleInParticles = true;
-                    descriptor.preferredSizeInParticles = 0.310f;
-                    descriptor.minimumSize = 0.160f;
+                    descriptor.visibleInParticles = false;
                     break;
 
                 case ToolPaneId::PropertyInspector:
                     descriptor.dockArea = ToolDockArea::Right;
-                    descriptor.order = 1;
+                    descriptor.order = 0;
                     descriptor.visibleInParticles = true;
-                    descriptor.preferredSizeInParticles = 0.500f;
+                    descriptor.preferredSizeInParticles = 0.700f;
                     break;
 
                 case ToolPaneId::Diagnostics:
                     descriptor.dockArea = ToolDockArea::Right;
-                    descriptor.order = 2;
+                    descriptor.order = 1;
                     descriptor.visibleInParticles = true;
                     descriptor.preferredSizeInParticles = 0.0f;
                     break;
@@ -158,11 +154,15 @@ namespace gts::tools
                     break;
 
                 case ToolPaneId::AssetPreview:
-                    descriptor.dockArea = ToolDockArea::Bottom;
+                    descriptor.dockArea = ToolDockArea::Center;
                     descriptor.order = 0;
                     descriptor.visibleInAssets = true;
                     descriptor.preferredSizeInAssets = 0.0f;
                     descriptor.minimumSize = 0.0f;
+                    break;
+
+                case ToolPaneId::WorldViewport:
+                    descriptor.visibleInAssets = false;
                     break;
 
                 case ToolPaneId::PropertyInspector:

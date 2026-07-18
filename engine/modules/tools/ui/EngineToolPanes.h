@@ -717,7 +717,7 @@ namespace gts::tools
             buildPanel(context,
                        headerPanel,
                        content(),
-                       toolui::rect(0.028f, 0.030f, 0.944f, 0.105f),
+                       toolui::rect(0.024f, 0.026f, 0.952f, 0.090f),
                        ToolTheme::headerBackground);
             title.build(context,
                         headerPanel.content(),
@@ -742,7 +742,7 @@ namespace gts::tools
             buildPanel(context,
                        previewPanel,
                        content(),
-                       toolui::rect(0.028f, 0.158f, 0.944f, 0.550f),
+                       toolui::rect(0.024f, 0.132f, 0.952f, 0.742f),
                        ToolTheme::panelInset);
             previewImage.build(context,
                                previewPanel.content(),
@@ -788,7 +788,7 @@ namespace gts::tools
             buildPanel(context,
                        footerPanel,
                        content(),
-                       toolui::rect(0.028f, 0.735f, 0.944f, 0.110f),
+                       toolui::rect(0.024f, 0.895f, 0.952f, 0.055f),
                        ToolTheme::viewportOverlay);
             footer.build(context,
                          footerPanel.content(),

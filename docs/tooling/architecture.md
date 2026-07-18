@@ -30,9 +30,8 @@ The active editor surface is:
 The first-class workspaces are:
 
 - World: scene browser and live runtime scene viewport.
-- Particles: particle asset/effect hierarchy, live runtime scene viewport,
-  separate particle preview viewport, property inspector, diagnostics, and
-  timeline placeholder.
+- Particles: particle asset/effect hierarchy, isolated particle preview
+  viewport, property inspector, diagnostics, and timeline placeholder.
 - Assets: manifest browser, selected asset model preview, property inspector,
   and diagnostics.
 
@@ -177,14 +176,16 @@ clicks.
 
 The editor has two viewport concepts.
 
-The central world viewport is the live runtime scene viewport. The tool runtime
+The central world viewport belongs to the World workspace. The tool runtime
 publishes it through `RenderViewportComponent::sceneViewport`, and render
-systems use that viewport to constrain scene rendering so tool chrome is not
-covered.
+systems use that viewport for runtime scene rendering while the scene viewer is
+active.
 
 Particle and asset preview viewports are separate from the central world
 viewport. They are driven by `EditorPreviewRenderComponent` and must not be
-merged into the central world viewport.
+merged into the central world viewport. Particle and asset workspaces may keep
+the runtime scene alive for engine continuity, but they do not expose a live
+scene viewport pane.
 
 ## Current Limitations
 
@@ -202,10 +203,6 @@ These are known limits, not accidental regressions:
   widget helper layer is lightweight.
 - Theme usage is improved but not complete; some low-level payload styling
   still exists inside tooling widgets.
-- Asset preview rendering is tool-owned, but the asset pane currently stays in
-  the bottom dock because the renderer still couples UI output clipping to the
-  published runtime scene viewport. A dominant center asset viewport needs that
-  renderer/UI viewport split first.
 
 ## Guardrails
 

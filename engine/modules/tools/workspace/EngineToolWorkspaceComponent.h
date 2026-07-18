@@ -72,8 +72,9 @@ namespace gts::tools
             std::clamp(particleWorkspace ? 320 : 300, 220, std::max(220, safeWidth / 3));
         const int rightPanePixels =
             std::clamp(particleWorkspace ? 380 : 340, 280, std::max(280, safeWidth / 3));
-        const int bottomDockPixels =
-            std::clamp((particleWorkspace || assetWorkspace) ? 220 : 160, 120, std::max(120, safeHeight / 3));
+        const int bottomDockPixels = assetWorkspace
+            ? 0
+            : std::clamp(particleWorkspace ? 220 : 160, 120, std::max(120, safeHeight / 3));
         const int bottomBarPixels       = std::clamp(28, 22, std::max(22, safeHeight / 16));
 
         workspace.topBarHeight          = static_cast<float>(topBarPixels) / static_cast<float>(safeHeight);
@@ -89,19 +90,13 @@ namespace gts::tools
         workspace.viewportHeight =
             std::max(0.05f, 1.0f - workspace.viewportY - workspace.bottomDockHeight - workspace.bottomBarHeight);
 
+        // Particle and asset workspaces do not expose WorldViewportPane. The
+        // runtime scene viewport remains a stable render context behind opaque
+        // tool panes; the visible center is owned by each workspace preview.
         float sceneViewportX = workspace.viewportX;
         float sceneViewportY = workspace.viewportY;
         float sceneViewportWidth = workspace.viewportWidth;
         float sceneViewportHeight = workspace.viewportHeight;
-
-        if (particleWorkspace)
-        {
-            const float sidePaneHeight = std::max(0.0f, 1.0f - workspace.bottomBarHeight - workspace.viewportY);
-            sceneViewportX = std::max(0.0f, 1.0f - workspace.rightPaneWidth);
-            sceneViewportY = workspace.viewportY;
-            sceneViewportWidth = workspace.rightPaneWidth;
-            sceneViewportHeight = sidePaneHeight * 0.310f;
-        }
 
         workspace.sceneViewport = normalizedViewportToPixels(sceneViewportX,
                                                              sceneViewportY,

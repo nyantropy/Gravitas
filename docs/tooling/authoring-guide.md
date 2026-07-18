@@ -70,8 +70,8 @@ are not a replacement UI framework.
 
 ## Viewport Rules
 
-The central world viewport is the active runtime scene viewport. It is
-published through `RenderViewportComponent::sceneViewport`.
+The central world viewport belongs to the World workspace. It is published
+through `RenderViewportComponent::sceneViewport`.
 
 Particle and asset previews are separate preview render paths. Keep preview
 measurement, preview world sync, and `EditorPreviewRenderComponent`
