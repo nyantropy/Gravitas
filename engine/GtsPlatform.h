@@ -288,6 +288,13 @@ class GtsPlatform
             bindCameraKeyAction("engine.tools", "engine.tool_camera_up", GtsKey::R);
             bindCameraKeyAction("engine.tools", "engine.tool_camera_down", GtsKey::F);
             bindCameraMouseAction("engine.tools", "engine.tool_camera_look");
+            bindingRegistry->bind(InputBinding{
+                                  "engine.tool_viewport_pan",
+                                  InputTrigger{InputTrigger::Type::MouseButton, 2},
+                                  ActivationMode::Held,
+                                  "engine.tools",
+                                  PausePolicy::AlwaysActive,
+                                  false});
         }
 
         void bindCameraKeyAction(const std::string& context,

@@ -14,6 +14,7 @@
 #include "ParticleEmitterMath.h"
 #include "ParticleEmitterRuntimeComponent.h"
 #include "ParticleFrameData.h"
+#include "RenderCameraSelectionComponent.h"
 #include "TransformMatrixHelpers.h"
 #include "WorldTransformComponent.h"
 
@@ -219,11 +220,11 @@ private:
     static CameraInfo resolveActiveCamera(ECSWorld& world)
     {
         CameraInfo info;
-        world.forEach<CameraGpuComponent>(
-            [&](Entity, CameraGpuComponent& camera)
+        const auto useCamera =
+            [&](CameraGpuComponent& camera)
             {
-                if (info.viewID != 0 || !camera.active)
-                    return;
+                if (!camera.active || camera.viewID == 0)
+                    return false;
 
                 info.viewID = camera.viewID;
                 info.viewMatrix = camera.viewMatrix;
@@ -231,6 +232,27 @@ private:
                 info.frustum = FrustumCuller::extractPlanesFromMatrix(camera.projMatrix * camera.viewMatrix);
                 const glm::mat4 inverseView = glm::inverse(camera.viewMatrix);
                 info.position = glm::vec3(inverseView[3]);
+                return true;
+            };
+
+        if (world.hasAny<RenderCameraSelectionComponent>())
+        {
+            const Entity preferred = world.getSingleton<RenderCameraSelectionComponent>().preferredCamera;
+            if (preferred.id != std::numeric_limits<entity_id_type>::max()
+                && world.hasComponent<CameraGpuComponent>(preferred))
+            {
+                CameraGpuComponent& camera = world.getComponent<CameraGpuComponent>(preferred);
+                useCamera(camera);
+            }
+        }
+
+        world.forEach<CameraGpuComponent>(
+            [&](Entity, CameraGpuComponent& camera)
+            {
+                if (info.viewID != 0)
+                    return;
+
+                useCamera(camera);
             });
         return info;
     }

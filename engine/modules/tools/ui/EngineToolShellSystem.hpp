@@ -83,6 +83,7 @@ namespace gts::tools
             shell->setView(view);
             ctx.ui->updateComposition(shellComposition);
 
+            updateInputCapture(ctx.world, ctx);
             publishActivePreview(ctx, *shell);
             if (view.previewTexture != lastPreviewTexture ||
                 view.assetPreviewTexture != lastAssetPreviewTexture)
@@ -92,8 +93,6 @@ namespace gts::tools
                 shell->setView(view);
                 ctx.ui->updateComposition(shellComposition);
             }
-
-            updateInputCapture(ctx.world, ctx);
         }
 
         void prepareVisibility(const EcsControllerContext& ctx)
@@ -161,6 +160,8 @@ namespace gts::tools
     private:
         static constexpr const char* ToolsInputContext = "engine.tools";
         static constexpr const char* ToolsSelectAction = "engine.tools_select";
+        static constexpr const char* ToolsOrbitAction = "engine.tool_camera_look";
+        static constexpr const char* ToolsPanAction = "engine.tool_viewport_pan";
 
         static constexpr size_t ScenePageSize = 10;
         static constexpr size_t EffectPageSize = 6;
@@ -178,6 +179,9 @@ namespace gts::tools
         BitmapFont font;
         bool fontReady = false;
         bool toolsContextRequested = false;
+        bool inputPointerReady = false;
+        double previousInputMouseX = 0.0;
+        double previousInputMouseY = 0.0;
         uint64_t lastVisibilityToggleFrame = std::numeric_limits<uint64_t>::max();
         UiCompositionId shellComposition = UI_INVALID_COMPOSITION;
         ToolWorkspace activeWorkspace = ToolWorkspace::Particles;
@@ -245,6 +249,7 @@ namespace gts::tools
             state.editorMode = EditorMode::Runtime;
             setToolsInputContext(ctx, false);
             clearInputCapture(ctx.world);
+            inputPointerReady = false;
             clearPreviewRender(ctx.world);
             if (previewWorld)
                 previewWorld->destroy();
@@ -293,8 +298,18 @@ namespace gts::tools
             if (ctx.resources == nullptr)
                 return false;
 
-            const font_id_type fontID =
-                ctx.resources->requestFont(GraphicsConstants::ENGINE_RESOURCES + "/fonts/editor_sans.font.json");
+            if (tryLoadFont(ctx, DefaultEditorTheme.typography.fontAsset))
+                return true;
+
+            return tryLoadFont(ctx, GraphicsConstants::ENGINE_RESOURCES + "/fonts/editor_sans.font.json");
+        }
+
+        bool tryLoadFont(const EcsControllerContext& ctx, const std::string& path)
+        {
+            if (ctx.resources == nullptr || path.empty())
+                return false;
+
+            const font_id_type fontID = ctx.resources->requestFont(path);
             const BitmapFont* loadedFont = ctx.resources->getFont(fontID);
             if (loadedFont == nullptr)
                 return false;
@@ -1256,6 +1271,13 @@ namespace gts::tools
             return {width, height};
         }
 
+        static const EngineToolInputCaptureComponent* currentInputCapture(ECSWorld& world)
+        {
+            if (!world.hasAny<EngineToolInputCaptureComponent>())
+                return nullptr;
+            return &world.getSingleton<EngineToolInputCaptureComponent>();
+        }
+
         void publishAssetPreview(const EcsControllerContext& ctx, EngineToolShellComposition& shell)
         {
             if (!syncAssetPreviewWorld(ctx))
@@ -1272,7 +1294,8 @@ namespace gts::tools
                 previousTexture = ctx.world.getSingleton<EditorPreviewRenderComponent>().data.colorTextureID;
 
             const float dt = ctx.time == nullptr ? 1.0f / 60.0f : ctx.time->unscaledDeltaTime;
-            EditorPreviewRenderData data = assetPreviewWorld->buildFrame(dt, width, height);
+            EditorPreviewRenderData data =
+                assetPreviewWorld->buildFrame(dt, width, height, currentInputCapture(ctx.world));
             data.colorTextureID = previousTexture;
 
             EditorPreviewRenderComponent* component = nullptr;
@@ -1306,7 +1329,8 @@ namespace gts::tools
                                                                      particleSession.isPlaying(),
                                                                      particleSession.timeScale(),
                                                                      width,
-                                                                     height);
+                                                                     height,
+                                                                     currentInputCapture(ctx.world));
             data.colorTextureID = previousTexture;
 
             EditorPreviewRenderComponent* component = nullptr;
@@ -1344,11 +1368,38 @@ namespace gts::tools
                 capture.primaryDown = false;
                 capture.primaryPressed = false;
                 capture.primaryReleased = false;
+                capture.orbitDown = false;
+                capture.orbitPressed = false;
+                capture.orbitReleased = false;
+                capture.panDown = false;
+                capture.panPressed = false;
+                capture.panReleased = false;
                 capture.pointerOverViewport = false;
+                capture.pointerPixelX = 0.0f;
+                capture.pointerPixelY = 0.0f;
+                capture.pointerDeltaX = 0.0f;
+                capture.pointerDeltaY = 0.0f;
                 capture.viewportPointerX = 0.0f;
                 capture.viewportPointerY = 0.0f;
+                capture.viewportPointerDeltaX = 0.0f;
+                capture.viewportPointerDeltaY = 0.0f;
+                capture.scrollX = 0.0f;
+                capture.scrollY = 0.0f;
+                inputPointerReady = false;
                 return;
             }
+
+            const double mouseX = ctx.input->mouseX();
+            const double mouseY = ctx.input->mouseY();
+            capture.pointerPixelX = static_cast<float>(mouseX);
+            capture.pointerPixelY = static_cast<float>(mouseY);
+            capture.pointerDeltaX = inputPointerReady ? static_cast<float>(mouseX - previousInputMouseX) : 0.0f;
+            capture.pointerDeltaY = inputPointerReady ? static_cast<float>(mouseY - previousInputMouseY) : 0.0f;
+            previousInputMouseX = mouseX;
+            previousInputMouseY = mouseY;
+            inputPointerReady = true;
+            capture.scrollX = static_cast<float>(ctx.input->scrollX());
+            capture.scrollY = static_cast<float>(ctx.input->scrollY());
 
             RenderViewportRect viewport =
                 RenderViewportRect::full(std::max(1, static_cast<int>(std::round(ctx.windowPixelWidth))),
@@ -1356,16 +1407,26 @@ namespace gts::tools
             if (world.hasAny<RenderViewportComponent>())
                 viewport = world.getSingleton<RenderViewportComponent>().sceneViewport;
 
-            capture.pointerOverViewport = viewport.remapPointer(static_cast<float>(ctx.input->mouseX()),
-                                                                static_cast<float>(ctx.input->mouseY()),
+            capture.pointerOverViewport = viewport.remapPointer(static_cast<float>(mouseX),
+                                                                static_cast<float>(mouseY),
                                                                 capture.viewportPointerX,
                                                                 capture.viewportPointerY);
+            capture.viewportPointerDeltaX =
+                viewport.width > 0 ? capture.pointerDeltaX / static_cast<float>(viewport.width) : 0.0f;
+            capture.viewportPointerDeltaY =
+                viewport.height > 0 ? capture.pointerDeltaY / static_cast<float>(viewport.height) : 0.0f;
 
             const char* primaryAction =
                 ctx.input->isContextActive(ToolsInputContext) ? ToolsSelectAction : "engine.ui_primary";
             capture.primaryDown = ctx.input->isHeld(primaryAction);
             capture.primaryPressed = ctx.input->isPressed(primaryAction);
             capture.primaryReleased = ctx.input->isReleased(primaryAction);
+            capture.orbitDown = ctx.input->isHeld(ToolsOrbitAction);
+            capture.orbitPressed = ctx.input->isPressed(ToolsOrbitAction);
+            capture.orbitReleased = ctx.input->isReleased(ToolsOrbitAction);
+            capture.panDown = ctx.input->isHeld(ToolsPanAction);
+            capture.panPressed = ctx.input->isPressed(ToolsPanAction);
+            capture.panReleased = ctx.input->isReleased(ToolsPanAction);
         }
     };
 } // namespace gts::tools

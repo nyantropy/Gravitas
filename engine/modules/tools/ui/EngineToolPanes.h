@@ -761,7 +761,7 @@ namespace gts::tools
                    BitmapFont* font,
                    const UiLayoutSpec& layout) override
         {
-            buildRoot(context, parent, font, layout, ToolTheme::workspaceBackground, true);
+            buildRoot(context, parent, font, layout, ToolTheme::workspaceBackground, false);
             buildPanel(context,
                        headerPanel,
                        content(),
@@ -1252,7 +1252,7 @@ namespace gts::tools
                    BitmapFont* font,
                    const UiLayoutSpec& layout) override
         {
-            buildRoot(context, parent, font, layout, ToolTheme::paneBackground, true);
+            buildRoot(context, parent, font, layout, ToolTheme::paneBackground, false);
             buildPanel(context,
                        headerPanel,
                        content(),

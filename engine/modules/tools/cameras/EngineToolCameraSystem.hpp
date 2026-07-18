@@ -16,6 +16,8 @@
 #include "EngineToolInputCaptureComponent.h"
 #include "EngineToolPreviewCameraComponent.h"
 #include "EngineToolStateComponent.h"
+#include "EngineToolViewportCameraControl.h"
+#include "RenderCameraSelectionComponent.h"
 #include "RenderViewportComponent.h"
 #include "ToolEntityLabelComponent.h"
 #include "TransformComponent.h"
@@ -32,6 +34,8 @@ namespace gts::tools
         static constexpr float MOVE_SPEED       = 11.25f;
         static constexpr float ROTATE_SPEED     = glm::radians(90.0f);
         static constexpr float MOUSE_LOOK_SPEED = 0.0025f;
+        static constexpr float MOUSE_PAN_SPEED  = 0.0120f;
+        static constexpr float SCROLL_DOLLY_SPEED = 1.85f;
         static constexpr float MIN_PITCH        = glm::radians(-89.0f);
         static constexpr float MAX_PITCH        = glm::radians(89.0f);
 
@@ -91,6 +95,7 @@ namespace gts::tools
 
             if (!toolsVisible)
             {
+                clearPreferredRenderCamera(ctx.world);
                 if (ctx.world.hasAny<EngineToolCameraStateComponent>())
                 {
                     EngineToolCameraStateComponent& cameraState =
@@ -116,6 +121,8 @@ namespace gts::tools
         double previousMouseX = 0.0;
         double previousMouseY = 0.0;
         bool   mouseLookReady = false;
+        bool   orbitDragActive = false;
+        bool   panDragActive = false;
 
         static bool isValidCameraEntity(ECSWorld& world, Entity entity)
         {
@@ -219,6 +226,24 @@ namespace gts::tools
             state->valid          = entity.id != invalidEntity().id;
         }
 
+        static void setPreferredRenderCamera(ECSWorld& world, Entity entity)
+        {
+            RenderCameraSelectionComponent* selection = nullptr;
+            if (world.hasAny<RenderCameraSelectionComponent>())
+                selection = &world.getSingleton<RenderCameraSelectionComponent>();
+            else
+                selection = &world.createSingleton<RenderCameraSelectionComponent>();
+            selection->preferredCamera = entity;
+        }
+
+        static void clearPreferredRenderCamera(ECSWorld& world)
+        {
+            if (!world.hasAny<RenderCameraSelectionComponent>())
+                return;
+
+            world.getSingleton<RenderCameraSelectionComponent>().preferredCamera = invalidEntity();
+        }
+
         static void syncActiveCameraViewFromEntity(ECSWorld& world, Entity entity)
         {
             if (entity.id == invalidEntity().id || !world.hasComponent<CameraDescriptionComponent>(entity))
@@ -251,6 +276,9 @@ namespace gts::tools
             state.previousActiveCamera = currentCamera;
             state.active               = true;
             mouseLookReady             = false;
+            orbitDragActive            = false;
+            panDragActive              = false;
+            setPreferredRenderCamera(ctx.world, toolCamera);
 
             TransformComponent&         toolTransform = ctx.world.getComponent<TransformComponent>(toolCamera);
             CameraDescriptionComponent& toolDesc      = ctx.world.getComponent<CameraDescriptionComponent>(toolCamera);
@@ -269,7 +297,6 @@ namespace gts::tools
                 toolDesc.farClip       = sourceDesc.farClip;
                 toolDesc.up            = sourceDesc.up;
                 toolDesc.target        = sourcePosition + forward;
-                setCameraActive(ctx.world, currentCamera, false, aspectRatio);
 
                 yaw   = std::atan2(-forward.x, -forward.z);
                 pitch = glm::clamp(std::asin(glm::clamp(forward.y, -1.0f, 1.0f)), MIN_PITCH, MAX_PITCH);
@@ -288,10 +315,13 @@ namespace gts::tools
             }
 
             setCameraActive(ctx.world, state.previousActiveCamera, true, aspectRatio);
+            clearPreferredRenderCamera(ctx.world);
             syncActiveCameraViewFromEntity(ctx.world, state.previousActiveCamera);
             state.active               = false;
             state.previousActiveCamera = invalidEntity();
             mouseLookReady             = false;
+            orbitDragActive            = false;
+            panDragActive              = false;
         }
 
         void updateActiveToolCamera(const EcsControllerContext&     ctx,
@@ -305,6 +335,7 @@ namespace gts::tools
             CameraDescriptionComponent& camera =
                 ctx.world.getComponent<CameraDescriptionComponent>(state.toolCameraEntity);
             const glm::vec3 previousPosition = transform.position;
+            setPreferredRenderCamera(ctx.world, state.toolCameraEntity);
 
             if (ctx.world.hasAny<EngineToolPreviewCameraComponent>())
             {
@@ -316,14 +347,25 @@ namespace gts::tools
                     const glm::vec3 forward = safeForward(preview.target - preview.position);
                     yaw   = std::atan2(-forward.x, -forward.z);
                     pitch = glm::clamp(std::asin(glm::clamp(forward.y, -1.0f, 1.0f)), MIN_PITCH, MAX_PITCH);
+                    orbitDragActive = false;
+                    panDragActive = false;
                     return;
                 }
             }
 
+            const EngineToolInputCaptureComponent* capture = nullptr;
+            if (ctx.world.hasAny<EngineToolInputCaptureComponent>())
+                capture = &ctx.world.getSingleton<EngineToolInputCaptureComponent>();
+            updateViewportDragState(capture);
+
             const float dt = ctx.time == nullptr ? 0.0f : ctx.time->unscaledDeltaTime;
-            const bool keyboardCaptured = ctx.world.hasAny<EngineToolInputCaptureComponent>() &&
-                                          ctx.world.getSingleton<EngineToolInputCaptureComponent>().keyboardCaptured;
-            if (ctx.input != nullptr && !keyboardCaptured)
+            const bool keyboardCaptured = capture != nullptr && capture->keyboardCaptured;
+            const bool pointerViewportActive = capture != nullptr &&
+                                               (viewportAcceptsCameraInput(*capture)
+                                                || orbitDragActive
+                                                || panDragActive);
+            const bool keyboardViewportActive = !keyboardCaptured && pointerViewportActive;
+            if (ctx.input != nullptr && keyboardViewportActive)
             {
                 if (ctx.input->isHeld("engine.tool_camera_yaw_left"))
                     yaw += ROTATE_SPEED * dt;
@@ -333,12 +375,12 @@ namespace gts::tools
                     pitch += ROTATE_SPEED * dt;
                 if (ctx.input->isHeld("engine.tool_camera_pitch_down"))
                     pitch -= ROTATE_SPEED * dt;
-                updateMouseLook(ctx);
             }
+
+            if (pointerViewportActive)
+                updateMouseLook(capture);
             else
-            {
                 mouseLookReady = false;
-            }
 
             pitch = glm::clamp(pitch, MIN_PITCH, MAX_PITCH);
             const glm::vec3 forward{
@@ -348,18 +390,31 @@ namespace gts::tools
 
             if (ctx.input != nullptr && !keyboardCaptured)
             {
-                if (ctx.input->isHeld("engine.tool_camera_forward"))
+                if (keyboardViewportActive && ctx.input->isHeld("engine.tool_camera_forward"))
                     transform.position += forward * MOVE_SPEED * dt;
-                if (ctx.input->isHeld("engine.tool_camera_backward"))
+                if (keyboardViewportActive && ctx.input->isHeld("engine.tool_camera_backward"))
                     transform.position -= forward * MOVE_SPEED * dt;
-                if (ctx.input->isHeld("engine.tool_camera_left"))
+                if (keyboardViewportActive && ctx.input->isHeld("engine.tool_camera_left"))
                     transform.position -= right * MOVE_SPEED * dt;
-                if (ctx.input->isHeld("engine.tool_camera_right"))
+                if (keyboardViewportActive && ctx.input->isHeld("engine.tool_camera_right"))
                     transform.position += right * MOVE_SPEED * dt;
-                if (ctx.input->isHeld("engine.tool_camera_up"))
+                if (keyboardViewportActive && ctx.input->isHeld("engine.tool_camera_up"))
                     transform.position.y += MOVE_SPEED * dt;
-                if (ctx.input->isHeld("engine.tool_camera_down"))
+                if (keyboardViewportActive && ctx.input->isHeld("engine.tool_camera_down"))
                     transform.position.y -= MOVE_SPEED * dt;
+            }
+
+            if (capture != nullptr)
+            {
+                if (panDragActive)
+                {
+                    const glm::vec3 cameraUp = glm::normalize(glm::cross(right, forward));
+                    transform.position +=
+                        (-right * capture->pointerDeltaX + cameraUp * capture->pointerDeltaY) * MOUSE_PAN_SPEED;
+                }
+
+                if (viewportAcceptsCameraInput(*capture) && std::fabs(capture->scrollY) > 0.0001f)
+                    transform.position += forward * (capture->scrollY * SCROLL_DOLLY_SPEED);
             }
 
             if (transform.position != previousPosition)
@@ -422,26 +477,44 @@ namespace gts::tools
             syncActiveCameraView(world, entity, view, proj);
         }
 
-        void updateMouseLook(const EcsControllerContext& ctx)
+        void updateViewportDragState(const EngineToolInputCaptureComponent* capture)
         {
-            if (ctx.input == nullptr || !ctx.input->isHeld("engine.tool_camera_look"))
+            if (capture == nullptr)
+            {
+                orbitDragActive = false;
+                panDragActive = false;
+                mouseLookReady = false;
+                return;
+            }
+
+            const bool acceptsInput = viewportAcceptsCameraInput(*capture);
+            if (capture->orbitPressed)
+                orbitDragActive = acceptsInput;
+            if (!capture->orbitDown || capture->orbitReleased)
+                orbitDragActive = false;
+
+            if (capture->panPressed)
+                panDragActive = acceptsInput;
+            if (!capture->panDown || capture->panReleased)
+                panDragActive = false;
+        }
+
+        void updateMouseLook(const EngineToolInputCaptureComponent* capture)
+        {
+            if (capture == nullptr || !orbitDragActive)
             {
                 mouseLookReady = false;
                 return;
             }
 
-            const double mouseX = ctx.input->mouseX();
-            const double mouseY = ctx.input->mouseY();
             if (mouseLookReady)
             {
-                const double dx = mouseX - previousMouseX;
-                const double dy = mouseY - previousMouseY;
-                yaw -= static_cast<float>(dx) * MOUSE_LOOK_SPEED;
-                pitch -= static_cast<float>(dy) * MOUSE_LOOK_SPEED;
+                yaw -= capture->pointerDeltaX * MOUSE_LOOK_SPEED;
+                pitch -= capture->pointerDeltaY * MOUSE_LOOK_SPEED;
             }
 
-            previousMouseX = mouseX;
-            previousMouseY = mouseY;
+            previousMouseX = capture->pointerPixelX;
+            previousMouseY = capture->pointerPixelY;
             mouseLookReady = true;
         }
     };

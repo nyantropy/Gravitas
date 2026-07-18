@@ -12,17 +12,17 @@ namespace gts::tools
         int mediumWeight  = 500;
         int boldWeight    = 700;
 
-        float applicationTitleScale = 0.0132f;
-        float panelTitleScale       = 0.0120f;
-        float sectionHeaderScale    = 0.0108f;
-        float bodyScale             = 0.0102f;
-        float labelScale            = 0.0097f;
-        float valueScale            = 0.0097f;
-        float metadataScale         = 0.0092f;
-        float statusScale           = 0.0090f;
-        float diagnosticScale       = 0.0090f;
-        float buttonScale           = 0.0095f;
-        float iconScale             = 0.0100f;
+        float applicationTitleScale = 0.0118f;
+        float panelTitleScale       = 0.0108f;
+        float sectionHeaderScale    = 0.0098f;
+        float bodyScale             = 0.0092f;
+        float labelScale            = 0.0088f;
+        float valueScale            = 0.0088f;
+        float metadataScale         = 0.0084f;
+        float statusScale           = 0.0082f;
+        float diagnosticScale       = 0.0082f;
+        float buttonScale           = 0.0086f;
+        float iconScale             = 0.0090f;
 
         float titleScale  = applicationTitleScale;
         float headerScale = panelTitleScale;

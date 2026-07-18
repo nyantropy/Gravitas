@@ -21,6 +21,7 @@
 #include "ECSWorld.hpp"
 #include "EcsControllerContext.hpp"
 #include "EditorPreviewRenderData.h"
+#include "EngineToolViewportCameraControl.h"
 #include "FrustumCullingStrategy.h"
 #include "GlmConfig.h"
 #include "IResourceProvider.hpp"
@@ -76,6 +77,7 @@ namespace gts::tools
             assetEntity = INVALID_ENTITY;
             currentSignature.clear();
             currentManifest = {};
+            cameraState = {};
             hasAsset = false;
             world.clear();
             renderPipeline.resetSceneState();
@@ -100,16 +102,20 @@ namespace gts::tools
 
             destroyAssetEntity();
             currentSignature = signature;
+            cameraState = {};
             createAssetEntity(manifest);
         }
 
-        EditorPreviewRenderData buildFrame(float dt, uint32_t width, uint32_t height)
+        EditorPreviewRenderData buildFrame(float dt,
+                                           uint32_t width,
+                                           uint32_t height,
+                                           const EngineToolInputCaptureComponent* inputCapture = nullptr)
         {
             EditorPreviewRenderData data;
             if (!installed || resourceProvider == nullptr || !hasAsset)
                 return data;
 
-            updateCamera(width, height);
+            updateCamera(width, height, inputCapture);
 
             TimeContext previewTime;
             previewTime.unscaledDeltaTime = std::clamp(dt, 0.0f, 0.1f);
@@ -162,6 +168,7 @@ namespace gts::tools
         Entity assetEntity = INVALID_ENTITY;
         AssetManifest currentManifest;
         std::string currentSignature;
+        EngineToolOrbitCameraState cameraState;
         bool installed = false;
         bool hasAsset = false;
         uint64_t frame = 0;
@@ -174,6 +181,7 @@ namespace gts::tools
             fillLightEntity = INVALID_ENTITY;
             assetEntity = INVALID_ENTITY;
             currentSignature.clear();
+            cameraState = {};
             hasAsset = false;
             installed = false;
             resourceProvider = nullptr;
@@ -372,7 +380,9 @@ namespace gts::tools
             return gts::rendering::sharedUnlitMaterialReference(world, material);
         }
 
-        void updateCamera(uint32_t width, uint32_t height)
+        void updateCamera(uint32_t width,
+                          uint32_t height,
+                          const EngineToolInputCaptureComponent* inputCapture)
         {
             if (cameraEntity == INVALID_ENTITY || !entityAlive(cameraEntity))
                 createCamera();
@@ -382,16 +392,36 @@ namespace gts::tools
             const float distance = std::max(manifestDistance, bounds.radius * 2.35f + 0.35f);
             const glm::vec3 viewDirection = glm::normalize(glm::vec3(0.88f, 0.42f, 1.08f));
 
+            if (!cameraState.initialized)
+            {
+                resetOrbitCamera(cameraState,
+                                 bounds.center + viewDirection * distance,
+                                 bounds.center,
+                                 std::max(0.08f, bounds.radius * 0.28f),
+                                 std::max(20.0f, bounds.radius * 12.0f + 4.0f));
+            }
+            else
+            {
+                cameraState.minDistance = std::max(0.08f, bounds.radius * 0.28f);
+                cameraState.maxDistance = std::max(20.0f, bounds.radius * 12.0f + 4.0f);
+                cameraState.distance = glm::clamp(cameraState.distance,
+                                                  cameraState.minDistance,
+                                                  cameraState.maxDistance);
+            }
+
+            if (inputCapture != nullptr)
+                applyOrbitCameraInput(cameraState, *inputCapture, true);
+
             TransformComponent& transform = world.getComponent<TransformComponent>(cameraEntity);
-            transform.position = bounds.center + viewDirection * distance;
+            transform.position = orbitCameraPosition(cameraState);
             gts::transform::markDirty(world, cameraEntity);
 
             CameraDescriptionComponent& camera = world.getComponent<CameraDescriptionComponent>(cameraEntity);
-            camera.target = bounds.center;
+            camera.target = cameraState.target;
             camera.up = {0.0f, 1.0f, 0.0f};
             camera.fov = glm::radians(54.0f);
-            camera.nearClip = std::max(0.01f, distance - bounds.radius * 4.0f);
-            camera.farClip = std::max(30.0f, distance + bounds.radius * 5.0f);
+            camera.nearClip = std::max(0.01f, cameraState.distance - bounds.radius * 4.0f);
+            camera.farClip = std::max(30.0f, cameraState.distance + bounds.radius * 5.0f);
             camera.aspectRatio = static_cast<float>(std::max(1u, width)) /
                                  static_cast<float>(std::max(1u, height));
             camera.active = true;

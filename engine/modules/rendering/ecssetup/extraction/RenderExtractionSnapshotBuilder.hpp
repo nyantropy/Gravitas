@@ -19,6 +19,7 @@
 #include "RenderDirtyComponent.h"
 #include "RenderExtractionSnapshot.h"
 #include "RenderGpuComponent.h"
+#include "RenderCameraSelectionComponent.h"
 #include "RenderInvalidationLifecycle.h"
 #include "RenderStaticTag.h"
 #include "TransformMatrixHelpers.h"
@@ -87,20 +88,37 @@ class RenderExtractionSnapshotBuilder
             static_cast<uint32_t>(invalidation.snapshotDirtyEntities.size());
         snapshot.objectUploads.reserve(invalidation.snapshotDirtyEntities.size());
 
+        const auto useCamera =
+            [&](Entity entity, CameraGpuComponent& gpu)
+            {
+                if (!gpu.active || gpu.viewID == 0)
+                    return false;
+                snapshot.cameraViewID = gpu.viewID;
+                snapshot.cameraViewMatrix = gpu.viewMatrix;
+                cameraProjectionMatrix = gpu.projMatrix;
+                snapshot.cameraWorldPosition = cameraWorldPosition(world, entity, gpu.viewMatrix);
+                snapshot.frustum      = FrustumCuller::extractPlanesFromMatrix(gpu.projMatrix * gpu.viewMatrix);
+                return true;
+            };
+
+        if (world.hasAny<RenderCameraSelectionComponent>())
+        {
+            const Entity preferred = world.getSingleton<RenderCameraSelectionComponent>().preferredCamera;
+            if (preferred.id != std::numeric_limits<entity_id_type>::max()
+                && world.hasComponent<CameraGpuComponent>(preferred))
+            {
+                CameraGpuComponent& gpu = world.getComponent<CameraGpuComponent>(preferred);
+                useCamera(preferred, gpu);
+            }
+        }
+
         world.forEach<CameraGpuComponent>(
             [&](Entity entity, CameraGpuComponent& gpu)
             {
                 if (snapshot.cameraViewID != 0)
                     return;
 
-                if (!gpu.active)
-                    return;
-
-                snapshot.cameraViewID = gpu.viewID;
-                snapshot.cameraViewMatrix = gpu.viewMatrix;
-                cameraProjectionMatrix = gpu.projMatrix;
-                snapshot.cameraWorldPosition = cameraWorldPosition(world, entity, gpu.viewMatrix);
-                snapshot.frustum      = FrustumCuller::extractPlanesFromMatrix(gpu.projMatrix * gpu.viewMatrix);
+                useCamera(entity, gpu);
             });
         snapshot.lighting = gts::rendering::extractLightingFrameData(world, snapshot.cameraWorldPosition);
         if (snapshot.cameraViewID != 0)

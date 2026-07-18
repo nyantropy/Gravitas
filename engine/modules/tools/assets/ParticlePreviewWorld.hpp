@@ -17,6 +17,7 @@
 #include "ECSWorld.hpp"
 #include "EcsControllerContext.hpp"
 #include "EditorPreviewRenderData.h"
+#include "EngineToolViewportCameraControl.h"
 #include "FrustumCullingStrategy.h"
 #include "GlmConfig.h"
 #include "IResourceProvider.hpp"
@@ -72,6 +73,7 @@ namespace gts::tools
             cameraEntity = INVALID_ENTITY;
             gridEntity = INVALID_ENTITY;
             currentPath.clear();
+            cameraState = {};
             world.clear();
             renderPipeline.resetSceneState();
             installed = false;
@@ -83,6 +85,8 @@ namespace gts::tools
                        float playbackTimeScale,
                        bool playbackPaused)
         {
+            if (path != currentPath)
+                cameraState = {};
             currentPath = path;
             removeMissingEmitters(asset);
 
@@ -143,13 +147,14 @@ namespace gts::tools
                                            bool playing,
                                            float playbackTimeScale,
                                            uint32_t width,
-                                           uint32_t height)
+                                           uint32_t height,
+                                           const EngineToolInputCaptureComponent* inputCapture = nullptr)
         {
             EditorPreviewRenderData data;
             if (!installed || resourceProvider == nullptr)
                 return data;
 
-            updateCamera(asset, width, height);
+            updateCamera(asset, width, height, inputCapture);
             setRuntimePlayback(playbackTimeScale, !playing);
 
             TimeContext previewTime;
@@ -203,6 +208,7 @@ namespace gts::tools
         Entity gridEntity = INVALID_ENTITY;
         std::unordered_map<std::string, Entity> emitterEntities;
         std::string currentPath;
+        EngineToolOrbitCameraState cameraState;
         bool installed = false;
         uint64_t frame = 0;
 
@@ -212,6 +218,7 @@ namespace gts::tools
             cameraEntity = INVALID_ENTITY;
             gridEntity = INVALID_ENTITY;
             currentPath.clear();
+            cameraState = {};
             installed = false;
             resourceProvider = nullptr;
         }
@@ -398,17 +405,46 @@ namespace gts::tools
             emitterEntities.erase(it);
         }
 
-        void updateCamera(const ParticleEffectAsset& asset, uint32_t width, uint32_t height)
+        void updateCamera(const ParticleEffectAsset& asset,
+                          uint32_t width,
+                          uint32_t height,
+                          const EngineToolInputCaptureComponent* inputCapture)
         {
             if (cameraEntity == INVALID_ENTITY || !entityAlive(cameraEntity))
                 createCamera();
 
+            const glm::vec3 defaultTarget = asset.preview.cameraTarget;
+            glm::vec3 defaultPosition = asset.preview.cameraPosition;
+            if (glm::dot(defaultPosition - defaultTarget, defaultPosition - defaultTarget) <= 0.000001f)
+                defaultPosition = defaultTarget + glm::vec3(0.0f, 1.0f, 4.0f);
+
+            const float defaultDistance = std::max(0.001f, glm::length(defaultPosition - defaultTarget));
+            if (!cameraState.initialized)
+            {
+                resetOrbitCamera(cameraState,
+                                 defaultPosition,
+                                 defaultTarget,
+                                 0.12f,
+                                 std::max(12.0f, defaultDistance * 6.0f));
+            }
+            else
+            {
+                cameraState.minDistance = 0.12f;
+                cameraState.maxDistance = std::max(12.0f, defaultDistance * 6.0f);
+                cameraState.distance = glm::clamp(cameraState.distance,
+                                                  cameraState.minDistance,
+                                                  cameraState.maxDistance);
+            }
+
+            if (inputCapture != nullptr)
+                applyOrbitCameraInput(cameraState, *inputCapture, true);
+
             TransformComponent& transform = ensureTransform(cameraEntity);
-            transform.position = asset.preview.cameraPosition;
+            transform.position = orbitCameraPosition(cameraState);
             gts::transform::markDirty(world, cameraEntity);
 
             CameraDescriptionComponent& camera = world.getComponent<CameraDescriptionComponent>(cameraEntity);
-            camera.target = asset.preview.cameraTarget;
+            camera.target = cameraState.target;
             camera.up = {0.0f, 1.0f, 0.0f};
             camera.fov = glm::radians(70.0f);
             camera.aspectRatio = static_cast<float>(std::max(1u, width)) /
