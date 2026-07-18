@@ -71,9 +71,12 @@ namespace gts::tools
         static constexpr UiColor rotation           = DefaultEditorTheme.colors.rotation;
         static constexpr UiColor scale              = DefaultEditorTheme.colors.scale;
         static constexpr UiColor secondaryAccent    = DefaultEditorTheme.colors.secondaryAccent;
+        static constexpr UiColor shadow             = DefaultEditorTheme.shadow.color;
 
         static constexpr float shellPadding      = DefaultEditorTheme.spacing.shellPadding;
         static constexpr float panelInsetSpacing = DefaultEditorTheme.spacing.panelInset;
+        static constexpr float panelBorderWidth  = DefaultEditorTheme.borders.thinWidth;
+        static constexpr float panelShadowOffset = DefaultEditorTheme.shadow.offsetY;
         static constexpr float panelWidth        = 0.920f;
         static constexpr float headerTextScale   = DefaultEditorTheme.typography.panelTitleScale;
         static constexpr float bodyTextScale     = DefaultEditorTheme.typography.bodyScale;

@@ -72,6 +72,27 @@ namespace gts::tools::toolui
             ui.setPayload(surface, handle, UiRectData{color});
     }
 
+    inline void setPanelPayload(UiSystem& ui,
+                                UiSurfaceId surface,
+                                UiHandle handle,
+                                UiColor fill,
+                                UiColor border,
+                                float borderThickness,
+                                UiColor shadow = {0.0f, 0.0f, 0.0f, 0.0f},
+                                UiVec2 shadowOffset = {})
+    {
+        if (handle == UI_INVALID_HANDLE)
+            return;
+
+        UiRectData data;
+        data.color = fill;
+        data.borderColor = border;
+        data.borderThickness = borderThickness;
+        data.shadowColor = shadow;
+        data.shadowOffset = shadowOffset;
+        ui.setPayload(surface, handle, data);
+    }
+
     inline void setTextColor(UiSystem& ui, UiSurfaceId surface, UiHandle handle, UiColor color)
     {
         if (handle == UI_INVALID_HANDLE)

@@ -217,7 +217,12 @@ namespace gts::tools
             desc.enabled = true;
             desc.interactable = true;
             panel.build(context, parent, desc);
-            toolui::setRectPayload(context.ui, context.surface, panel.root(), color);
+            toolui::setPanelPayload(context.ui,
+                                    context.surface,
+                                    panel.root(),
+                                    color,
+                                    ToolTheme::borderSubtle,
+                                    ToolTheme::panelBorderWidth);
         }
 
     };

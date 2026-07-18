@@ -40,7 +40,21 @@ namespace gts::tools
             desc.enabled = true;
             desc.interactable = interactable;
             rootPanel.build(context, parent, desc);
-            toolui::setRectPayload(context.ui, context.surface, rootPanel.root(), color);
+            if (color.a > 0.0f)
+            {
+                toolui::setPanelPayload(context.ui,
+                                        context.surface,
+                                        rootPanel.root(),
+                                        color,
+                                        ToolTheme::border,
+                                        ToolTheme::panelBorderWidth,
+                                        ToolTheme::shadow,
+                                        {ToolTheme::panelShadowOffset, ToolTheme::panelShadowOffset});
+            }
+            else
+            {
+                toolui::setRectPayload(context.ui, context.surface, rootPanel.root(), color);
+            }
         }
 
         void updateRoot(gts::ui::UiWidgetContext& context, const UiLayoutSpec& layout, bool visible)
@@ -91,7 +105,9 @@ namespace gts::tools
                                UiHandle parent,
                                const UiLayoutSpec& layout,
                                UiColor color,
-                               bool interactable = false)
+                               bool interactable = false,
+                               bool framed = false,
+                               bool shadow = false)
         {
             gts::ui::UiPanelDesc desc;
             desc.layout = layout;
@@ -99,7 +115,22 @@ namespace gts::tools
             desc.enabled = true;
             desc.interactable = interactable;
             panel.build(context, parent, desc);
-            toolui::setRectPayload(context.ui, context.surface, panel.root(), color);
+            if (framed)
+            {
+                toolui::setPanelPayload(context.ui,
+                                        context.surface,
+                                        panel.root(),
+                                        color,
+                                        ToolTheme::borderSubtle,
+                                        ToolTheme::panelBorderWidth,
+                                        shadow ? ToolTheme::shadow : transparent(),
+                                        shadow ? UiVec2{ToolTheme::panelShadowOffset, ToolTheme::panelShadowOffset}
+                                               : UiVec2{});
+            }
+            else
+            {
+                toolui::setRectPayload(context.ui, context.surface, panel.root(), color);
+            }
         }
 
         void syncButton(gts::ui::UiWidgetContext& context,
@@ -263,7 +294,9 @@ namespace gts::tools
                        sceneGroup,
                        content(),
                        toolui::rect(0.012f, 0.120f, 0.318f, 0.760f),
-                       ToolTheme::toolbarGroupBackground);
+                       ToolTheme::toolbarGroupBackground,
+                       false,
+                       true);
             viewportLabel.build(context,
                                 sceneGroup.content(),
                                 label("Active",
@@ -280,7 +313,9 @@ namespace gts::tools
                        actionGroup,
                        content(),
                        toolui::rect(0.348f, 0.115f, 0.340f, 0.770f),
-                       ToolTheme::toolbarGroupBackground);
+                       ToolTheme::toolbarGroupBackground,
+                       false,
+                       true);
             std::array<ToolToolbarButtonSlot, 4> slots;
             slots[0] = {"Save", toolui::rect(0.025f, 0.150f, 0.170f, 0.700f)};
             slots[1] = {"Reload", toolui::rect(0.215f, 0.150f, 0.210f, 0.700f)};
@@ -291,7 +326,9 @@ namespace gts::tools
                        workspaceGroup,
                        content(),
                        toolui::rect(0.748f, 0.120f, 0.238f, 0.760f),
-                       ToolTheme::toolbarGroupBackground);
+                       ToolTheme::toolbarGroupBackground,
+                       false,
+                       true);
             workspaceLabel.build(context,
                                  workspaceGroup.content(),
                                  label("Workspace",
@@ -394,23 +431,29 @@ namespace gts::tools
                        content(),
                        toolui::rect(0.000f, 0.000f, 1.000f, 0.054f),
                        ToolTheme::headerBackground,
+                       true,
                        true);
             buildPanel(context,
                        bottomBar,
                        content(),
                        toolui::rect(0.000f, 0.944f, 1.000f, 0.056f),
                        ToolTheme::headerBackground,
+                       true,
                        true);
             buildPanel(context,
                        evalChip,
                        content(),
                        toolui::rect(0.020f, 0.080f, 0.250f, 0.044f),
-                       ToolTheme::viewportOverlay);
+                       ToolTheme::viewportOverlay,
+                       false,
+                       true);
             buildPanel(context,
                        debugChip,
                        content(),
                        toolui::rect(0.740f, 0.080f, 0.240f, 0.044f),
-                       ToolTheme::viewportOverlay);
+                       ToolTheme::viewportOverlay,
+                       false,
+                       true);
             title.build(context,
                         topBar.content(),
                         label("World Viewport",
@@ -718,7 +761,9 @@ namespace gts::tools
                        headerPanel,
                        content(),
                        toolui::rect(0.024f, 0.026f, 0.952f, 0.090f),
-                       ToolTheme::headerBackground);
+                       ToolTheme::headerBackground,
+                       false,
+                       true);
             title.build(context,
                         headerPanel.content(),
                         label("No Asset",
@@ -743,7 +788,10 @@ namespace gts::tools
                        previewPanel,
                        content(),
                        toolui::rect(0.024f, 0.132f, 0.952f, 0.742f),
-                       ToolTheme::panelInset);
+                       ToolTheme::panelInset,
+                       false,
+                       true,
+                       true);
             previewImage.build(context,
                                previewPanel.content(),
                                image(toolui::rect(0.018f, 0.025f, 0.964f, 0.950f)));
@@ -789,7 +837,9 @@ namespace gts::tools
                        footerPanel,
                        content(),
                        toolui::rect(0.024f, 0.895f, 0.952f, 0.055f),
-                       ToolTheme::viewportOverlay);
+                       ToolTheme::viewportOverlay,
+                       false,
+                       true);
             footer.build(context,
                          footerPanel.content(),
                          label("Select an asset manifest",
@@ -1202,7 +1252,9 @@ namespace gts::tools
                        headerPanel,
                        content(),
                        toolui::rect(0.035f, 0.035f, 0.930f, 0.145f),
-                       ToolTheme::headerBackground);
+                       ToolTheme::headerBackground,
+                       false,
+                       true);
             title.build(context,
                         headerPanel.content(),
                         label("No Effect",
@@ -1222,7 +1274,14 @@ namespace gts::tools
             previewDesc.enabled = true;
             previewDesc.interactable = false;
             previewPanel.build(context, content(), previewDesc);
-            toolui::setRectPayload(context.ui, context.surface, previewPanel.root(), ToolTheme::panelInset);
+            toolui::setPanelPayload(context.ui,
+                                    context.surface,
+                                    previewPanel.root(),
+                                    ToolTheme::panelInset,
+                                    ToolTheme::borderSubtle,
+                                    ToolTheme::panelBorderWidth,
+                                    ToolTheme::shadow,
+                                    {ToolTheme::panelShadowOffset, ToolTheme::panelShadowOffset});
 
             previewImage.build(context, previewPanel.content(), image(toolui::rect(0.018f, 0.025f, 0.964f, 0.950f)));
             for (size_t i = 0; i < previewGridVertical.size(); ++i)
@@ -1257,7 +1316,9 @@ namespace gts::tools
                        previewTopBar,
                        previewPanel.content(),
                        toolui::rect(0.018f, 0.025f, 0.964f, 0.072f),
-                       ToolTheme::viewportOverlay);
+                       ToolTheme::viewportOverlay,
+                       false,
+                       true);
             previewViewportTitle.build(context,
                                        previewTopBar.content(),
                                        label("Particle Viewport",
@@ -1275,7 +1336,9 @@ namespace gts::tools
                        previewStatsChip,
                        previewPanel.content(),
                        toolui::rect(0.720f, 0.120f, 0.245f, 0.072f),
-                       ToolTheme::viewportOverlay);
+                       ToolTheme::viewportOverlay,
+                       false,
+                       true);
             previewStats.build(context,
                                previewStatsChip.content(),
                                label("Particles 0 / 0",
@@ -1287,7 +1350,9 @@ namespace gts::tools
                        previewBottomBar,
                        previewPanel.content(),
                        toolui::rect(0.018f, 0.875f, 0.964f, 0.082f),
-                       ToolTheme::viewportOverlay);
+                       ToolTheme::viewportOverlay,
+                       false,
+                       true);
             previewEmitter.build(context,
                                  previewBottomBar.content(),
                                  label("Emitter",
@@ -1305,7 +1370,9 @@ namespace gts::tools
                        previewPlaybackChip,
                        previewPanel.content(),
                        toolui::rect(0.035f, 0.120f, 0.250f, 0.072f),
-                       ToolTheme::viewportOverlay);
+                       ToolTheme::viewportOverlay,
+                       false,
+                       true);
             previewPlayback.build(context,
                                   previewPlaybackChip.content(),
                                   label("Preview idle",
@@ -1324,7 +1391,9 @@ namespace gts::tools
                        statusStrip,
                        content(),
                        toolui::rect(0.050f, 0.705f, 0.900f, 0.060f),
-                       ToolTheme::viewportOverlay);
+                       ToolTheme::viewportOverlay,
+                       false,
+                       true);
             previewStatus.build(context,
                                 statusStrip.content(),
                                 label("Preview idle",
@@ -1343,7 +1412,9 @@ namespace gts::tools
                        actionBar,
                        content(),
                        toolui::rect(0.050f, 0.790f, 0.900f, 0.105f),
-                       ToolTheme::headerBackground);
+                       ToolTheme::headerBackground,
+                       false,
+                       true);
             std::array<ToolToolbarButtonSlot, 4> slots;
             slots[0] = {"Save", toolui::rect(0.015f, 0.140f, 0.220f, 0.720f)};
             slots[1] = {"Reload", toolui::rect(0.255f, 0.140f, 0.220f, 0.720f)};

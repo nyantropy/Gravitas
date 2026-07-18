@@ -307,24 +307,24 @@ namespace gts::tools
 
         static void tuneEditorFont(BitmapFont& inFont)
         {
-            inFont.lineHeight = 0.90f;
+            inFont.lineHeight = 1.0f;
             for (auto& glyphEntry : inFont.glyphs)
             {
                 GlyphInfo& glyph = glyphEntry.second;
-                glyph.advance = 0.405f;
-                glyph.size.x = 0.860f;
-                glyph.size.y = 0.875f;
+                glyph.advance = 0.620f;
+                glyph.size.x = 1.000f;
+                glyph.size.y = 1.000f;
 
                 const char ch = glyphEntry.first;
                 if (ch == ' ')
-                    glyph.advance = 0.285f;
+                    glyph.advance = 0.360f;
                 else if (ch == 'i' || ch == 'l' || ch == 'I' || ch == '!' || ch == '.' || ch == ',' || ch == ':' ||
                          ch == ';' || ch == '\'' || ch == '`')
-                    glyph.advance = 0.24f;
+                    glyph.advance = 0.340f;
                 else if (ch == 'm' || ch == 'w' || ch == 'M' || ch == 'W')
-                    glyph.advance = 0.540f;
+                    glyph.advance = 0.780f;
                 else if (ch >= 'A' && ch <= 'Z')
-                    glyph.advance = 0.440f;
+                    glyph.advance = 0.660f;
             }
         }
 

@@ -71,6 +71,8 @@ namespace gts::tools
             std::clamp(particleWorkspace ? 320 : 300, 220, std::max(220, safeWidth / 3));
         const int rightPanePixels =
             std::clamp(particleWorkspace ? 380 : 340, 280, std::max(280, safeWidth / 3));
+        const int paneGapPixels = std::clamp(10, 6, std::max(6, safeWidth / 220));
+        const int verticalGapPixels = std::clamp(8, 5, std::max(5, safeHeight / 160));
         const int bottomDockPixels = 0;
         const int bottomBarPixels       = std::clamp(28, 22, std::max(22, safeHeight / 16));
 
@@ -81,11 +83,18 @@ namespace gts::tools
         workspace.bottomDockHeight      = static_cast<float>(bottomDockPixels) / static_cast<float>(safeHeight);
         workspace.bottomBarHeight       = static_cast<float>(bottomBarPixels) / static_cast<float>(safeHeight);
 
-        workspace.viewportX      = workspace.leftRailWidth;
-        workspace.viewportY      = workspace.topBarHeight + workspace.viewportToolbarHeight;
-        workspace.viewportWidth  = std::max(0.05f, 1.0f - workspace.leftRailWidth - workspace.rightPaneWidth);
+        const float paneGapX = static_cast<float>(paneGapPixels) / static_cast<float>(safeWidth);
+        const float paneGapY = static_cast<float>(verticalGapPixels) / static_cast<float>(safeHeight);
+
+        workspace.viewportX      = workspace.leftRailWidth + paneGapX;
+        workspace.viewportY      = workspace.topBarHeight + workspace.viewportToolbarHeight + paneGapY;
+        workspace.viewportWidth  = std::max(0.05f,
+                                             1.0f - workspace.leftRailWidth - workspace.rightPaneWidth -
+                                                 paneGapX * 2.0f);
         workspace.viewportHeight =
-            std::max(0.05f, 1.0f - workspace.viewportY - workspace.bottomDockHeight - workspace.bottomBarHeight);
+            std::max(0.05f,
+                     1.0f - workspace.viewportY - workspace.bottomDockHeight -
+                         workspace.bottomBarHeight - paneGapY);
 
         // Particle and asset workspaces do not expose WorldViewportPane. The
         // runtime scene viewport remains a stable render context behind opaque

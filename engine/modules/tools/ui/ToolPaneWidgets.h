@@ -86,7 +86,12 @@ namespace gts::tools
             text = ToolTheme::text;
         }
 
-        toolui::setRectPayload(context.ui, context.surface, widget.root(), fill);
+        toolui::setPanelPayload(context.ui,
+                                context.surface,
+                                widget.root(),
+                                fill,
+                                active ? ToolTheme::accent : ToolTheme::borderSubtle,
+                                ToolTheme::panelBorderWidth);
         toolui::setTextColor(context.ui, context.surface, widget.label(), text);
     }
 
@@ -220,7 +225,12 @@ namespace gts::tools
             if (data.warning && data.enabled)
                 text = ToolTheme::warning;
 
-            toolui::setRectPayload(context.ui, context.surface, row.root(), fill);
+            toolui::setPanelPayload(context.ui,
+                                    context.surface,
+                                    row.root(),
+                                    fill,
+                                    data.selected ? ToolTheme::accent : ToolTheme::borderSubtle,
+                                    ToolTheme::panelBorderWidth);
             toolui::setTextColor(context.ui, context.surface, row.label(), text);
         }
 
@@ -312,7 +322,12 @@ namespace gts::tools
             headerDesc.enabled = true;
             headerDesc.interactable = false;
             headerPanel.build(context, parent, headerDesc);
-            toolui::setRectPayload(context.ui, context.surface, headerPanel.root(), ToolTheme::sectionHeader);
+            toolui::setPanelPayload(context.ui,
+                                    context.surface,
+                                    headerPanel.root(),
+                                    ToolTheme::sectionHeader,
+                                    ToolTheme::borderSubtle,
+                                    ToolTheme::panelBorderWidth);
 
             header.build(context,
                          parent,
@@ -459,7 +474,12 @@ namespace gts::tools
             headerDesc.enabled = true;
             headerDesc.interactable = false;
             headerPanel.build(context, parent, headerDesc);
-            toolui::setRectPayload(context.ui, context.surface, headerPanel.root(), ToolTheme::sectionHeader);
+            toolui::setPanelPayload(context.ui,
+                                    context.surface,
+                                    headerPanel.root(),
+                                    ToolTheme::sectionHeader,
+                                    ToolTheme::borderSubtle,
+                                    ToolTheme::panelBorderWidth);
 
             header.build(context,
                          parent,

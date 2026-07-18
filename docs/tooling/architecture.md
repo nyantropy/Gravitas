@@ -24,6 +24,7 @@ The active editor surface is:
 - self-contained `ToolPane` implementations
 - reusable tooling widgets for rows, lists, pagers, toolbar rows, inspectors,
   and property inspectors
+- framed rect payloads for pane borders, shadows, and large surface separation
 - `EngineToolShellSystem`, which applies commands and integrates with ECS,
   rendering, asset IO, and input capture
 

@@ -1351,12 +1351,59 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle,
             }
             else
             {
+                const UiRect bounds = node.computedLayout.bounds;
+                const float borderThickness = std::max(0.0f, data.borderThickness);
+                if (data.shadowColor.a > 0.0f &&
+                    (std::fabs(data.shadowOffset.x) > 0.000001f ||
+                     std::fabs(data.shadowOffset.y) > 0.000001f))
+                {
+                    visualList.primitives.push_back(UiRectPrimitive{
+                        node.handle,
+                        {bounds.x + data.shadowOffset.x,
+                         bounds.y + data.shadowOffset.y,
+                         bounds.width,
+                         bounds.height},
+                        effectiveClip,
+                        data.shadowColor
+                    });
+                }
+
                 visualList.primitives.push_back(UiRectPrimitive{
                     node.handle,
-                    node.computedLayout.bounds,
+                    bounds,
                     effectiveClip,
                     resolveFillColor(node, theme, data.color)
                 });
+
+                if (borderThickness > 0.0f && data.borderColor.a > 0.0f)
+                {
+                    const float thicknessX = std::min(borderThickness, bounds.width);
+                    const float thicknessY = std::min(borderThickness, bounds.height);
+                    visualList.primitives.push_back(UiRectPrimitive{
+                        node.handle,
+                        {bounds.x, bounds.y, bounds.width, thicknessY},
+                        effectiveClip,
+                        data.borderColor
+                    });
+                    visualList.primitives.push_back(UiRectPrimitive{
+                        node.handle,
+                        {bounds.x, bounds.y + std::max(0.0f, bounds.height - thicknessY), bounds.width, thicknessY},
+                        effectiveClip,
+                        data.borderColor
+                    });
+                    visualList.primitives.push_back(UiRectPrimitive{
+                        node.handle,
+                        {bounds.x, bounds.y, thicknessX, bounds.height},
+                        effectiveClip,
+                        data.borderColor
+                    });
+                    visualList.primitives.push_back(UiRectPrimitive{
+                        node.handle,
+                        {bounds.x + std::max(0.0f, bounds.width - thicknessX), bounds.y, thicknessX, bounds.height},
+                        effectiveClip,
+                        data.borderColor
+                    });
+                }
             }
             break;
         }

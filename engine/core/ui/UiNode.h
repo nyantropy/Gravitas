@@ -18,6 +18,10 @@ struct UiContainerData
 struct UiRectData
 {
     UiColor color = {1.0f, 1.0f, 1.0f, 1.0f};
+    UiColor borderColor = {0.0f, 0.0f, 0.0f, 0.0f};
+    UiColor shadowColor = {0.0f, 0.0f, 0.0f, 0.0f};
+    UiVec2 shadowOffset = {0.0f, 0.0f};
+    float borderThickness = 0.0f;
 
     bool operator==(const UiRectData&) const = default;
 };

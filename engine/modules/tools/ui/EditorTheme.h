@@ -12,16 +12,16 @@ namespace gts::tools
         int mediumWeight  = 500;
         int boldWeight    = 700;
 
-        float applicationTitleScale = 0.0118f;
-        float panelTitleScale       = 0.0104f;
-        float sectionHeaderScale    = 0.0095f;
-        float bodyScale             = 0.0088f;
-        float labelScale            = 0.0084f;
-        float valueScale            = 0.0084f;
-        float metadataScale         = 0.0079f;
-        float statusScale           = 0.0078f;
-        float diagnosticScale       = 0.0079f;
-        float buttonScale           = 0.0081f;
+        float applicationTitleScale = 0.0124f;
+        float panelTitleScale       = 0.0112f;
+        float sectionHeaderScale    = 0.0100f;
+        float bodyScale             = 0.0095f;
+        float labelScale            = 0.0090f;
+        float valueScale            = 0.0090f;
+        float metadataScale         = 0.0087f;
+        float statusScale           = 0.0085f;
+        float diagnosticScale       = 0.0087f;
+        float buttonScale           = 0.0089f;
         float iconScale             = 0.0096f;
 
         float titleScale  = applicationTitleScale;
@@ -121,9 +121,9 @@ namespace gts::tools
         UiColor headerBackground      = {0.026f, 0.032f, 0.040f, 0.998f};
         UiColor headerActive          = {0.038f, 0.049f, 0.061f, 1.000f};
         UiColor footerBackground      = statusBarBackground;
-        UiColor separator             = {0.105f, 0.121f, 0.139f, 0.760f};
-        UiColor border                = {0.170f, 0.193f, 0.220f, 0.780f};
-        UiColor borderSubtle          = {0.076f, 0.091f, 0.110f, 0.680f};
+        UiColor separator             = {0.130f, 0.150f, 0.172f, 0.820f};
+        UiColor border                = {0.245f, 0.275f, 0.315f, 0.940f};
+        UiColor borderSubtle          = {0.125f, 0.148f, 0.176f, 0.840f};
         UiColor highlight             = {0.520f, 0.650f, 0.780f, 0.130f};
 
         UiColor button          = {0.030f, 0.037f, 0.046f, 0.985f};
