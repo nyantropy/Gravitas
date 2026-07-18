@@ -216,6 +216,30 @@ vec3 evaluateEnvironmentIbl(
     return max(diffuse + specular, vec3(0.0));
 }
 
+vec3 evaluateAmbientFallback(
+    vec3 baseRgb,
+    vec3 normal,
+    vec3 viewDirection,
+    float metallic,
+    float roughness,
+    float ambientOcclusion)
+{
+    float environmentEnabled = cam.environmentParameters.z >= 0.5 ? 1.0 : 0.0;
+    float environmentIntensity = max(cam.environmentParameters.x, 0.0) * environmentEnabled;
+    if (environmentIntensity > 0.0)
+        return vec3(0.0);
+
+    float ambientIntensity = max(cam.lightingCountsAmbient.w, 0.0);
+    if (ambientIntensity <= 0.0)
+        return vec3(0.0);
+
+    float nDotV = saturate(dot(normal, viewDirection));
+    vec3 f0 = mix(vec3(0.04), max(baseRgb, vec3(0.0)), metallic);
+    vec3 fresnel = fresnelSchlickRoughness(nDotV, f0, roughness);
+    vec3 kd = (vec3(1.0) - fresnel) * (1.0 - metallic);
+    return max(kd * baseRgb * ambientIntensity * ambientOcclusion, vec3(0.0));
+}
+
 void main() {
     if (pc.materialFlags.x != 0) {
         outColor = pc.baseColor * vec4(fragColor, 1.0);
@@ -316,5 +340,12 @@ void main() {
         metallic,
         roughness,
         ambientOcclusion);
-    outColor = vec4(max(direct + ibl + emissive, vec3(0.0)), base.a);
+    vec3 ambient = evaluateAmbientFallback(
+        base.rgb,
+        normal,
+        viewDirection,
+        metallic,
+        roughness,
+        ambientOcclusion);
+    outColor = vec4(max(direct + ibl + ambient + emissive, vec3(0.0)), base.a);
 }
