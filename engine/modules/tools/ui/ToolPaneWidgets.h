@@ -91,7 +91,10 @@ namespace gts::tools
                                 widget.root(),
                                 fill,
                                 active ? ToolTheme::accent : ToolTheme::borderSubtle,
-                                ToolTheme::panelBorderWidth);
+                                ToolTheme::panelBorderWidth,
+                                {0.0f, 0.0f, 0.0f, 0.0f},
+                                {},
+                                ToolTheme::controlRadius);
         toolui::setTextColor(context.ui, context.surface, widget.label(), text);
     }
 
@@ -230,7 +233,10 @@ namespace gts::tools
                                     row.root(),
                                     fill,
                                     data.selected ? ToolTheme::accent : ToolTheme::borderSubtle,
-                                    ToolTheme::panelBorderWidth);
+                                    ToolTheme::panelBorderWidth,
+                                    {0.0f, 0.0f, 0.0f, 0.0f},
+                                    {},
+                                    ToolTheme::rowRadius);
             toolui::setTextColor(context.ui, context.surface, row.label(), text);
         }
 
@@ -322,12 +328,10 @@ namespace gts::tools
             headerDesc.enabled = true;
             headerDesc.interactable = false;
             headerPanel.build(context, parent, headerDesc);
-            toolui::setPanelPayload(context.ui,
-                                    context.surface,
-                                    headerPanel.root(),
-                                    ToolTheme::sectionHeader,
-                                    ToolTheme::borderSubtle,
-                                    ToolTheme::panelBorderWidth);
+            toolui::setSurfacePayload(context.ui,
+                                      context.surface,
+                                      headerPanel.root(),
+                                      toolui::SurfaceRole::SectionHeader);
 
             header.build(context,
                          parent,
@@ -474,12 +478,10 @@ namespace gts::tools
             headerDesc.enabled = true;
             headerDesc.interactable = false;
             headerPanel.build(context, parent, headerDesc);
-            toolui::setPanelPayload(context.ui,
-                                    context.surface,
-                                    headerPanel.root(),
-                                    ToolTheme::sectionHeader,
-                                    ToolTheme::borderSubtle,
-                                    ToolTheme::panelBorderWidth);
+            toolui::setSurfacePayload(context.ui,
+                                      context.surface,
+                                      headerPanel.root(),
+                                      toolui::SurfaceRole::SectionHeader);
 
             header.build(context,
                          parent,

@@ -222,7 +222,10 @@ namespace gts::tools
                                     panel.root(),
                                     color,
                                     ToolTheme::borderSubtle,
-                                    ToolTheme::panelBorderWidth);
+                                    ToolTheme::panelBorderWidth,
+                                    {0.0f, 0.0f, 0.0f, 0.0f},
+                                    {},
+                                    0.0f);
         }
 
     };

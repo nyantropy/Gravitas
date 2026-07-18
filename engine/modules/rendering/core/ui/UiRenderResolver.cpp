@@ -481,6 +481,70 @@ namespace
 
         buffer.addColoredPolygon(clipped, toGlm(value.color));
     }
+
+    std::vector<glm::vec2> roundedRectPoints(const UiRect& bounds, float cornerRadius)
+    {
+        const float radius = std::clamp(cornerRadius,
+                                        0.0f,
+                                        std::min(bounds.width, bounds.height) * 0.5f);
+        std::vector<glm::vec2> points;
+        if (radius <= 0.000001f)
+            return points;
+
+        constexpr float Pi = 3.14159265358979323846f;
+        constexpr int SegmentsPerCorner = 8;
+        points.reserve(static_cast<size_t>((SegmentsPerCorner + 1) * 4));
+
+        const float left = bounds.x;
+        const float top = bounds.y;
+        const float right = bounds.x + bounds.width;
+        const float bottom = bounds.y + bounds.height;
+
+        auto appendCorner = [&](glm::vec2 center, float startAngle, float endAngle)
+        {
+            for (int i = 0; i <= SegmentsPerCorner; ++i)
+            {
+                const float t = static_cast<float>(i) / static_cast<float>(SegmentsPerCorner);
+                const float angle = startAngle + (endAngle - startAngle) * t;
+                points.push_back({
+                    center.x + std::cos(angle) * radius,
+                    center.y + std::sin(angle) * radius
+                });
+            }
+        };
+
+        appendCorner({right - radius, top + radius}, -Pi * 0.5f, 0.0f);
+        appendCorner({right - radius, bottom - radius}, 0.0f, Pi * 0.5f);
+        appendCorner({left + radius, bottom - radius}, Pi * 0.5f, Pi);
+        appendCorner({left + radius, top + radius}, Pi, Pi * 1.5f);
+        return points;
+    }
+
+    void emitRoundedRect(UiCommandBuffer& buffer,
+                         const UiRectPrimitive& value,
+                         int viewportWidth,
+                         int viewportHeight)
+    {
+        const UiRect clippedBounds = intersectRect(value.bounds, value.clipRect);
+        if (isEmptyRect(clippedBounds))
+            return;
+
+        if (value.bounds.width <= 0.0f || value.bounds.height <= 0.0f)
+            return;
+
+        std::vector<glm::vec2> points = roundedRectPoints(value.bounds, value.cornerRadius);
+        if (points.size() < 3)
+            return;
+
+        std::vector<glm::vec2> clipped = clipPolygonToRect(std::move(points), value.clipRect);
+        if (clipped.size() < 3)
+            return;
+
+        for (glm::vec2& point : clipped)
+            point = snapPointToPixels(point, viewportWidth, viewportHeight);
+
+        buffer.addColoredPolygon(clipped, toGlm(value.color));
+    }
 }
 
 void UiRenderResolver::buildCommandBuffer(
@@ -503,6 +567,12 @@ void UiRenderResolver::buildCommandBuffer(
             {
                 const UiRect clipped = intersectRect(value.bounds, value.clipRect);
                 if (isEmptyRect(clipped)) return;
+
+                if (value.cornerRadius > 0.0f)
+                {
+                    emitRoundedRect(buffer, value, viewportWidth, viewportHeight);
+                    return;
+                }
 
                 const UiRect snapped = snapRectToPixels(clipped, viewportWidth, viewportHeight);
                 buffer.addColoredQuad(snapped.x,

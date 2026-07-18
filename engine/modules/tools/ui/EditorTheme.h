@@ -60,9 +60,9 @@ namespace gts::tools
         float thinWidth     = 0.0011f;
         float focusWidth    = 0.0018f;
 
-        float radiusSmall  = 0.0025f;
-        float radiusMedium = 0.0040f;
-        float radiusLarge  = 0.0060f;
+        float radiusSmall  = 0.0038f;
+        float radiusMedium = 0.0054f;
+        float radiusLarge  = 0.0072f;
     };
 
     struct EditorShadow
@@ -101,60 +101,60 @@ namespace gts::tools
 
     struct EditorColors
     {
-        UiColor windowBackground    = {0.010f, 0.012f, 0.014f, 1.000f};
-        UiColor workspaceBackground = {0.016f, 0.019f, 0.023f, 1.000f};
+        UiColor windowBackground    = {0.007f, 0.009f, 0.012f, 1.000f};
+        UiColor workspaceBackground = {0.011f, 0.014f, 0.019f, 1.000f};
         UiColor viewportBackground  = {0.008f, 0.011f, 0.016f, 1.000f};
-        UiColor menuBarBackground   = {0.012f, 0.014f, 0.017f, 0.998f};
-        UiColor toolbarBackground   = {0.018f, 0.022f, 0.027f, 0.996f};
-        UiColor statusBarBackground = {0.012f, 0.015f, 0.018f, 0.998f};
-        UiColor sidebarBackground   = {0.018f, 0.022f, 0.027f, 1.000f};
-        UiColor panelBackground     = {0.021f, 0.026f, 0.032f, 0.995f};
-        UiColor panelSurface        = {0.030f, 0.036f, 0.044f, 0.996f};
-        UiColor panelSurfaceRaised  = {0.045f, 0.053f, 0.064f, 1.000f};
-        UiColor panelInset          = {0.014f, 0.018f, 0.024f, 0.998f};
-        UiColor cardBackground      = {0.032f, 0.039f, 0.047f, 0.995f};
-        UiColor groupBackground     = {0.021f, 0.026f, 0.032f, 0.970f};
-        UiColor overlay             = {0.010f, 0.013f, 0.018f, 0.900f};
-        UiColor toolbarGroupBackground = {0.024f, 0.030f, 0.038f, 0.960f};
-        UiColor viewportOverlayBackground = {0.012f, 0.016f, 0.023f, 0.820f};
+        UiColor menuBarBackground   = {0.011f, 0.014f, 0.018f, 0.998f};
+        UiColor toolbarBackground   = {0.018f, 0.023f, 0.030f, 0.996f};
+        UiColor statusBarBackground = {0.011f, 0.014f, 0.018f, 0.998f};
+        UiColor sidebarBackground   = {0.018f, 0.024f, 0.032f, 1.000f};
+        UiColor panelBackground     = {0.025f, 0.032f, 0.041f, 0.988f};
+        UiColor panelSurface        = {0.036f, 0.044f, 0.055f, 0.992f};
+        UiColor panelSurfaceRaised  = {0.052f, 0.063f, 0.077f, 0.998f};
+        UiColor panelInset          = {0.012f, 0.016f, 0.023f, 0.998f};
+        UiColor cardBackground      = {0.039f, 0.048f, 0.060f, 0.992f};
+        UiColor groupBackground     = {0.025f, 0.032f, 0.041f, 0.970f};
+        UiColor overlay             = {0.010f, 0.013f, 0.019f, 0.900f};
+        UiColor toolbarGroupBackground = {0.031f, 0.039f, 0.050f, 0.960f};
+        UiColor viewportOverlayBackground = {0.014f, 0.018f, 0.026f, 0.860f};
 
-        UiColor headerBackground      = {0.026f, 0.032f, 0.040f, 0.998f};
-        UiColor headerActive          = {0.038f, 0.049f, 0.061f, 1.000f};
+        UiColor headerBackground      = {0.031f, 0.039f, 0.050f, 0.998f};
+        UiColor headerActive          = {0.048f, 0.061f, 0.076f, 1.000f};
         UiColor footerBackground      = statusBarBackground;
-        UiColor separator             = {0.130f, 0.150f, 0.172f, 0.820f};
-        UiColor border                = {0.245f, 0.275f, 0.315f, 0.940f};
-        UiColor borderSubtle          = {0.125f, 0.148f, 0.176f, 0.840f};
-        UiColor highlight             = {0.520f, 0.650f, 0.780f, 0.130f};
+        UiColor separator             = {0.155f, 0.178f, 0.205f, 0.840f};
+        UiColor border                = {0.305f, 0.345f, 0.395f, 0.940f};
+        UiColor borderSubtle          = {0.165f, 0.195f, 0.230f, 0.840f};
+        UiColor highlight             = {0.640f, 0.760f, 0.880f, 0.145f};
 
-        UiColor button          = {0.030f, 0.037f, 0.046f, 0.985f};
-        UiColor buttonSecondary = {0.022f, 0.028f, 0.035f, 0.930f};
-        UiColor buttonHover     = {0.054f, 0.067f, 0.082f, 1.000f};
-        UiColor buttonPressed   = {0.080f, 0.100f, 0.122f, 1.000f};
-        UiColor buttonActive    = {0.047f, 0.220f, 0.335f, 1.000f};
+        UiColor button          = {0.038f, 0.047f, 0.058f, 0.985f};
+        UiColor buttonSecondary = {0.026f, 0.033f, 0.042f, 0.930f};
+        UiColor buttonHover     = {0.064f, 0.079f, 0.096f, 1.000f};
+        UiColor buttonPressed   = {0.090f, 0.112f, 0.136f, 1.000f};
+        UiColor buttonActive    = {0.050f, 0.230f, 0.360f, 1.000f};
         UiColor toggleActive    = {0.050f, 0.250f, 0.385f, 1.000f};
         UiColor toggleHover     = {0.070f, 0.300f, 0.455f, 1.000f};
         UiColor disabled        = {0.020f, 0.024f, 0.030f, 0.660f};
 
-        UiColor inputBackground    = {0.019f, 0.023f, 0.029f, 1.000f};
-        UiColor inputHover         = {0.037f, 0.045f, 0.055f, 1.000f};
-        UiColor inputActive        = {0.045f, 0.060f, 0.074f, 1.000f};
+        UiColor inputBackground    = {0.016f, 0.021f, 0.028f, 1.000f};
+        UiColor inputHover         = {0.041f, 0.050f, 0.061f, 1.000f};
+        UiColor inputActive        = {0.050f, 0.065f, 0.082f, 1.000f};
         UiColor sliderTrack        = {0.026f, 0.032f, 0.039f, 1.000f};
         UiColor sliderTrackHover   = {0.048f, 0.059f, 0.071f, 1.000f};
         UiColor scrollbarTrack     = {0.020f, 0.025f, 0.031f, 0.760f};
         UiColor scrollbarThumb     = {0.160f, 0.190f, 0.220f, 0.940f};
-        UiColor sectionHeader      = {0.017f, 0.021f, 0.027f, 1.000f};
-        UiColor sectionHeaderHover = {0.040f, 0.050f, 0.062f, 1.000f};
+        UiColor sectionHeader      = {0.032f, 0.040f, 0.051f, 1.000f};
+        UiColor sectionHeaderHover = {0.050f, 0.062f, 0.077f, 1.000f};
 
         UiColor focus         = {0.260f, 0.610f, 0.880f, 1.000f};
         UiColor selection     = {0.040f, 0.180f, 0.285f, 1.000f};
         UiColor selectionSoft = {0.035f, 0.120f, 0.185f, 0.860f};
-        UiColor rowBackground = {0.022f, 0.027f, 0.034f, 0.985f};
-        UiColor rowHover      = {0.046f, 0.058f, 0.072f, 1.000f};
-        UiColor rowSelected   = {0.050f, 0.185f, 0.285f, 1.000f};
+        UiColor rowBackground = {0.030f, 0.037f, 0.047f, 0.985f};
+        UiColor rowHover      = {0.055f, 0.068f, 0.084f, 1.000f};
+        UiColor rowSelected   = {0.052f, 0.195f, 0.310f, 1.000f};
         UiColor rowAccent     = {0.230f, 0.590f, 0.880f, 1.000f};
-        UiColor inspectorRowBackground = {0.023f, 0.028f, 0.035f, 0.980f};
-        UiColor hover         = {0.062f, 0.074f, 0.088f, 1.000f};
-        UiColor pressed       = {0.085f, 0.104f, 0.125f, 1.000f};
+        UiColor inspectorRowBackground = {0.030f, 0.037f, 0.047f, 0.980f};
+        UiColor hover         = {0.068f, 0.082f, 0.100f, 1.000f};
+        UiColor pressed       = {0.095f, 0.116f, 0.140f, 1.000f};
         UiColor accent        = {0.230f, 0.590f, 0.880f, 1.000f};
         UiColor accentSoft    = {0.095f, 0.230f, 0.335f, 1.000f};
         UiColor accentMuted   = {0.125f, 0.220f, 0.290f, 1.000f};

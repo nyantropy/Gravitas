@@ -9,6 +9,7 @@
 #include "UiNode.h"
 #include "UiSystem.h"
 #include "UiWidget.h"
+#include "ToolTheme.h"
 
 namespace gts::tools::toolui
 {
@@ -79,7 +80,8 @@ namespace gts::tools::toolui
                                 UiColor border,
                                 float borderThickness,
                                 UiColor shadow = {0.0f, 0.0f, 0.0f, 0.0f},
-                                UiVec2 shadowOffset = {})
+                                UiVec2 shadowOffset = {},
+                                float cornerRadius = 0.0f)
     {
         if (handle == UI_INVALID_HANDLE)
             return;
@@ -90,7 +92,116 @@ namespace gts::tools::toolui
         data.borderThickness = borderThickness;
         data.shadowColor = shadow;
         data.shadowOffset = shadowOffset;
+        data.cornerRadius = cornerRadius;
         ui.setPayload(surface, handle, data);
+    }
+
+    enum class SurfaceRole
+    {
+        Pane,
+        Raised,
+        Inset,
+        ToolbarGroup,
+        Overlay,
+        Control,
+        ActiveControl,
+        SelectedRow,
+        SectionHeader,
+        Chrome
+    };
+
+    struct SurfaceStyle
+    {
+        UiColor fill = ToolTheme::paneSurface;
+        UiColor border = ToolTheme::borderSubtle;
+        UiColor shadow = {0.0f, 0.0f, 0.0f, 0.0f};
+        UiVec2 shadowOffset = {};
+        float borderThickness = ToolTheme::panelBorderWidth;
+        float cornerRadius = ToolTheme::radiusMedium;
+    };
+
+    inline SurfaceStyle surfaceStyle(SurfaceRole role)
+    {
+        SurfaceStyle style;
+        switch (role)
+        {
+            case SurfaceRole::Pane:
+                style.fill = ToolTheme::paneBackground;
+                style.border = ToolTheme::border;
+                style.shadow = ToolTheme::shadow;
+                style.shadowOffset = {0.0f, ToolTheme::panelShadowOffset};
+                style.cornerRadius = ToolTheme::panelRadius;
+                break;
+            case SurfaceRole::Raised:
+                style.fill = DefaultEditorTheme.colors.panelSurfaceRaised;
+                style.border = ToolTheme::border;
+                style.shadow = ToolTheme::shadow;
+                style.shadowOffset = {0.0f, ToolTheme::panelShadowOffset};
+                style.cornerRadius = ToolTheme::panelRadius;
+                break;
+            case SurfaceRole::Inset:
+                style.fill = ToolTheme::panelInset;
+                style.border = ToolTheme::borderSubtle;
+                style.cornerRadius = ToolTheme::radiusMedium;
+                break;
+            case SurfaceRole::ToolbarGroup:
+                style.fill = ToolTheme::toolbarGroupBackground;
+                style.border = ToolTheme::borderSubtle;
+                style.shadow = {0.0f, 0.0f, 0.0f, 0.220f};
+                style.shadowOffset = {0.0f, ToolTheme::panelShadowOffset * 0.45f};
+                style.cornerRadius = ToolTheme::radiusMedium;
+                break;
+            case SurfaceRole::Overlay:
+                style.fill = ToolTheme::viewportOverlay;
+                style.border = ToolTheme::border;
+                style.shadow = {0.0f, 0.0f, 0.0f, 0.320f};
+                style.shadowOffset = {0.0f, ToolTheme::panelShadowOffset * 0.55f};
+                style.cornerRadius = ToolTheme::overlayRadius;
+                break;
+            case SurfaceRole::Control:
+                style.fill = ToolTheme::button;
+                style.border = ToolTheme::borderSubtle;
+                style.cornerRadius = ToolTheme::controlRadius;
+                break;
+            case SurfaceRole::ActiveControl:
+                style.fill = ToolTheme::buttonActive;
+                style.border = ToolTheme::accent;
+                style.cornerRadius = ToolTheme::controlRadius;
+                break;
+            case SurfaceRole::SelectedRow:
+                style.fill = ToolTheme::rowSelected;
+                style.border = ToolTheme::accent;
+                style.cornerRadius = ToolTheme::rowRadius;
+                break;
+            case SurfaceRole::SectionHeader:
+                style.fill = ToolTheme::sectionHeader;
+                style.border = ToolTheme::borderSubtle;
+                style.cornerRadius = ToolTheme::radiusSmall;
+                break;
+            case SurfaceRole::Chrome:
+                style.fill = ToolTheme::barBackground;
+                style.border = ToolTheme::borderSubtle;
+                style.cornerRadius = 0.0f;
+                break;
+        }
+        return style;
+    }
+
+    inline void setSurfacePayload(UiSystem& ui,
+                                  UiSurfaceId surface,
+                                  UiHandle handle,
+                                  SurfaceRole role)
+    {
+        const SurfaceStyle style = surfaceStyle(role);
+        setPanelPayload(ui,
+                        surface,
+                        handle,
+                        style.fill,
+                        style.border,
+                        style.borderThickness,
+                        style.shadow,
+                        style.shadowOffset,
+                        style.cornerRadius);
     }
 
     inline void setTextColor(UiSystem& ui, UiSurfaceId surface, UiHandle handle, UiColor color)

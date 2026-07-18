@@ -35,7 +35,10 @@ namespace gts::tools
                                     rowPanel.root(),
                                     ToolTheme::inspectorRowBackground,
                                     ToolTheme::borderSubtle,
-                                    ToolTheme::panelBorderWidth);
+                                    ToolTheme::panelBorderWidth,
+                                    {0.0f, 0.0f, 0.0f, 0.0f},
+                                    {},
+                                    ToolTheme::rowRadius);
 
             gts::ui::UiPanelDesc railDesc;
             railDesc.layout = toolui::rect(0.000f, 0.120f, 0.010f, 0.760f);
@@ -94,7 +97,10 @@ namespace gts::tools
                                     rowPanel.root(),
                                     fill,
                                     editable ? ToolTheme::accentMuted : ToolTheme::borderSubtle,
-                                    ToolTheme::panelBorderWidth);
+                                    ToolTheme::panelBorderWidth,
+                                    {0.0f, 0.0f, 0.0f, 0.0f},
+                                    {},
+                                    ToolTheme::rowRadius);
             toolui::setRectPayload(context.ui, context.surface, rail.root(), railColor);
             toolui::setTextColor(context.ui, context.surface, name.root(), editable ? ToolTheme::text : ToolTheme::mutedText);
             toolui::setTextColor(context.ui, context.surface, value.root(), property.enabled ? ToolTheme::text : ToolTheme::disabledText);
@@ -302,12 +308,10 @@ namespace gts::tools
                 headerDesc.enabled = true;
                 headerDesc.interactable = false;
                 sectionHeaderPanels[sectionIndex].build(context, stack.root(), headerDesc);
-                toolui::setPanelPayload(context.ui,
-                                        context.surface,
-                                        sectionHeaderPanels[sectionIndex].root(),
-                                        ToolTheme::sectionHeader,
-                                        ToolTheme::borderSubtle,
-                                        ToolTheme::panelBorderWidth);
+                toolui::setSurfacePayload(context.ui,
+                                          context.surface,
+                                          sectionHeaderPanels[sectionIndex].root(),
+                                          toolui::SurfaceRole::SectionHeader);
                 sectionHeaders[sectionIndex].build(context,
                                                    sectionHeaderPanels[sectionIndex].content(),
                                                    toolLabel(font,

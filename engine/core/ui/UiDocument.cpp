@@ -1353,6 +1353,8 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle,
             {
                 const UiRect bounds = node.computedLayout.bounds;
                 const float borderThickness = std::max(0.0f, data.borderThickness);
+                const float cornerRadius = std::max(0.0f, data.cornerRadius);
+                const UiColor fillColor = resolveFillColor(node, theme, data.color);
                 if (data.shadowColor.a > 0.0f &&
                     (std::fabs(data.shadowOffset.x) > 0.000001f ||
                      std::fabs(data.shadowOffset.y) > 0.000001f))
@@ -1364,44 +1366,88 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle,
                          bounds.width,
                          bounds.height},
                         effectiveClip,
-                        data.shadowColor
+                        data.shadowColor,
+                        cornerRadius
                     });
                 }
 
-                visualList.primitives.push_back(UiRectPrimitive{
-                    node.handle,
-                    bounds,
-                    effectiveClip,
-                    resolveFillColor(node, theme, data.color)
-                });
-
                 if (borderThickness > 0.0f && data.borderColor.a > 0.0f)
                 {
-                    const float thicknessX = std::min(borderThickness, bounds.width);
-                    const float thicknessY = std::min(borderThickness, bounds.height);
+                    if (cornerRadius > 0.0f && fillColor.a > 0.0f)
+                    {
+                        visualList.primitives.push_back(UiRectPrimitive{
+                            node.handle,
+                            bounds,
+                            effectiveClip,
+                            data.borderColor,
+                            cornerRadius
+                        });
+
+                        const float insetX = std::min(borderThickness, bounds.width * 0.5f);
+                        const float insetY = std::min(borderThickness, bounds.height * 0.5f);
+                        const UiRect innerBounds = {
+                            bounds.x + insetX,
+                            bounds.y + insetY,
+                            std::max(0.0f, bounds.width - insetX * 2.0f),
+                            std::max(0.0f, bounds.height - insetY * 2.0f)
+                        };
+                        if (innerBounds.width > 0.0f && innerBounds.height > 0.0f)
+                        {
+                            visualList.primitives.push_back(UiRectPrimitive{
+                                node.handle,
+                                innerBounds,
+                                effectiveClip,
+                                fillColor,
+                                std::max(0.0f, cornerRadius - std::min(insetX, insetY))
+                            });
+                        }
+                    }
+                    else
+                    {
+                        visualList.primitives.push_back(UiRectPrimitive{
+                            node.handle,
+                            bounds,
+                            effectiveClip,
+                            fillColor,
+                            cornerRadius
+                        });
+
+                        const float thicknessX = std::min(borderThickness, bounds.width);
+                        const float thicknessY = std::min(borderThickness, bounds.height);
+                        visualList.primitives.push_back(UiRectPrimitive{
+                            node.handle,
+                            {bounds.x, bounds.y, bounds.width, thicknessY},
+                            effectiveClip,
+                            data.borderColor
+                        });
+                        visualList.primitives.push_back(UiRectPrimitive{
+                            node.handle,
+                            {bounds.x, bounds.y + std::max(0.0f, bounds.height - thicknessY), bounds.width, thicknessY},
+                            effectiveClip,
+                            data.borderColor
+                        });
+                        visualList.primitives.push_back(UiRectPrimitive{
+                            node.handle,
+                            {bounds.x, bounds.y, thicknessX, bounds.height},
+                            effectiveClip,
+                            data.borderColor
+                        });
+                        visualList.primitives.push_back(UiRectPrimitive{
+                            node.handle,
+                            {bounds.x + std::max(0.0f, bounds.width - thicknessX), bounds.y, thicknessX, bounds.height},
+                            effectiveClip,
+                            data.borderColor
+                        });
+                    }
+                }
+                else
+                {
                     visualList.primitives.push_back(UiRectPrimitive{
                         node.handle,
-                        {bounds.x, bounds.y, bounds.width, thicknessY},
+                        bounds,
                         effectiveClip,
-                        data.borderColor
-                    });
-                    visualList.primitives.push_back(UiRectPrimitive{
-                        node.handle,
-                        {bounds.x, bounds.y + std::max(0.0f, bounds.height - thicknessY), bounds.width, thicknessY},
-                        effectiveClip,
-                        data.borderColor
-                    });
-                    visualList.primitives.push_back(UiRectPrimitive{
-                        node.handle,
-                        {bounds.x, bounds.y, thicknessX, bounds.height},
-                        effectiveClip,
-                        data.borderColor
-                    });
-                    visualList.primitives.push_back(UiRectPrimitive{
-                        node.handle,
-                        {bounds.x + std::max(0.0f, bounds.width - thicknessX), bounds.y, thicknessX, bounds.height},
-                        effectiveClip,
-                        data.borderColor
+                        fillColor,
+                        cornerRadius
                     });
                 }
             }

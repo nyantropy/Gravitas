@@ -77,6 +77,13 @@ namespace gts::tools
         static constexpr float panelInsetSpacing = DefaultEditorTheme.spacing.panelInset;
         static constexpr float panelBorderWidth  = DefaultEditorTheme.borders.thinWidth;
         static constexpr float panelShadowOffset = DefaultEditorTheme.shadow.offsetY;
+        static constexpr float radiusSmall       = DefaultEditorTheme.borders.radiusSmall;
+        static constexpr float radiusMedium      = DefaultEditorTheme.borders.radiusMedium;
+        static constexpr float radiusLarge       = DefaultEditorTheme.borders.radiusLarge;
+        static constexpr float panelRadius       = DefaultEditorTheme.borders.radiusLarge;
+        static constexpr float controlRadius     = DefaultEditorTheme.borders.radiusMedium;
+        static constexpr float overlayRadius     = DefaultEditorTheme.borders.radiusMedium;
+        static constexpr float rowRadius         = DefaultEditorTheme.borders.radiusSmall;
         static constexpr float panelWidth        = 0.920f;
         static constexpr float headerTextScale   = DefaultEditorTheme.typography.panelTitleScale;
         static constexpr float bodyTextScale     = DefaultEditorTheme.typography.bodyScale;

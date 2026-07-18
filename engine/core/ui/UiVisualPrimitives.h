@@ -14,6 +14,7 @@ struct UiRectPrimitive
     UiRect   bounds;
     UiRect   clipRect;
     UiColor  color;
+    float    cornerRadius = 0.0f;
 };
 
 struct UiImagePrimitive

@@ -49,7 +49,8 @@ namespace gts::tools
                                         ToolTheme::border,
                                         ToolTheme::panelBorderWidth,
                                         ToolTheme::shadow,
-                                        {ToolTheme::panelShadowOffset, ToolTheme::panelShadowOffset});
+                                        {0.0f, ToolTheme::panelShadowOffset},
+                                        ToolTheme::panelRadius);
             }
             else
             {
@@ -107,7 +108,8 @@ namespace gts::tools
                                UiColor color,
                                bool interactable = false,
                                bool framed = false,
-                               bool shadow = false)
+                               bool shadow = false,
+                               float cornerRadius = ToolTheme::radiusMedium)
         {
             gts::ui::UiPanelDesc desc;
             desc.layout = layout;
@@ -124,8 +126,9 @@ namespace gts::tools
                                         ToolTheme::borderSubtle,
                                         ToolTheme::panelBorderWidth,
                                         shadow ? ToolTheme::shadow : transparent(),
-                                        shadow ? UiVec2{ToolTheme::panelShadowOffset, ToolTheme::panelShadowOffset}
-                                               : UiVec2{});
+                                        shadow ? UiVec2{0.0f, ToolTheme::panelShadowOffset}
+                                               : UiVec2{},
+                                        cornerRadius);
             }
             else
             {
@@ -1281,7 +1284,8 @@ namespace gts::tools
                                     ToolTheme::borderSubtle,
                                     ToolTheme::panelBorderWidth,
                                     ToolTheme::shadow,
-                                    {ToolTheme::panelShadowOffset, ToolTheme::panelShadowOffset});
+                                    {0.0f, ToolTheme::panelShadowOffset},
+                                    ToolTheme::panelRadius);
 
             previewImage.build(context, previewPanel.content(), image(toolui::rect(0.018f, 0.025f, 0.964f, 0.950f)));
             for (size_t i = 0; i < previewGridVertical.size(); ++i)
