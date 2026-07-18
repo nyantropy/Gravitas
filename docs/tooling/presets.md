@@ -61,7 +61,7 @@ Current schema:
 Fields:
 
 - `tools.visible`: seeds `EngineToolStateComponent::visible`.
-- `tools.workspace`: `world` or `particles`.
+- `tools.workspace`: `world`, `particles`, or `assets`.
 - `tools.visualEvaluation`: enables a clean screenshot-oriented startup state.
   It clears tool selection and disables debug draw/gizmos unless explicit
   overrides are also supplied.
@@ -69,6 +69,7 @@ Fields:
 - `tools.gizmos`: enables or disables transform gizmos at startup.
 - `tools.scene`: scene id registered by the application.
 - `tools.particleEffect`: particle asset path opened by `ParticleEditorSession`.
+- `tools.assetManifest`: asset manifest path selected by `AssetBrowserSession`.
 - `tools.selectedEmitter`: selected emitter index, clamped by the session.
 - `tools.selectedModule`: selected module index, clamped by the session.
 - `screenshots.enabled`: enables automated screenshot scheduling.
@@ -83,9 +84,11 @@ Example presets live in `engine/docs/tooling/tooling_presets/`:
 
 - `empty_editor.json`
 - `world_viewer.json`
+- `assets.json`
 - `particles.json`
 - `particles_inspector.json`
 - `editor_eval_world.json`
+- `editor_eval_assets.json`
 - `editor_eval_particles.json`
 
 ## Startup Flow
@@ -122,7 +125,8 @@ Default UI pass workflow:
 4. Capture the same preset again.
 5. Rename or copy the captured image to
    `screenshots/editor_eval_particles_after_<pass>.png`.
-6. Repeat with `editor_eval_world.json` when the change affects the world tab.
+6. Repeat with `editor_eval_world.json` or `editor_eval_assets.json` when the
+   change affects those workspaces.
 
 Expected launch shape:
 

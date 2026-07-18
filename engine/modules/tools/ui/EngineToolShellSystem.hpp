@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "AssetBrowserSession.h"
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
 #include "EditorPreviewRenderData.h"
@@ -19,6 +20,7 @@
 #include "EngineToolUiHelpers.h"
 #include "EngineToolWorkspaceComponent.h"
 #include "GraphicsConstants.h"
+#include "GtsPaths.h"
 #include "InputBindingRegistry.h"
 #include "ParticleEditorSession.h"
 #include "ParticleEffectAsset.h"
@@ -116,7 +118,7 @@ namespace gts::tools
             if (options.hasWorkspace)
             {
                 activeWorkspace = options.workspace;
-                status = activeWorkspace == ToolWorkspace::Particles ? "PARTICLE EDITOR" : "WORLD VIEWER";
+                status = workspaceStatus(activeWorkspace);
             }
 
             if (!options.particleEffect.empty())
@@ -137,6 +139,13 @@ namespace gts::tools
                 previewNeedsReset = true;
             }
 
+            if (!options.assetManifest.empty())
+            {
+                assetSession.select(options.assetManifest);
+                activeWorkspace = ToolWorkspace::Assets;
+                status = "ASSET BROWSER";
+            }
+
             if (previewNeedsReset)
                 resetParticlePreview();
 
@@ -149,6 +158,7 @@ namespace gts::tools
 
         static constexpr size_t ScenePageSize = 10;
         static constexpr size_t EffectPageSize = 6;
+        static constexpr size_t AssetPageSize = 10;
         static constexpr size_t EmitterPageSize = 5;
         static constexpr size_t ModulePageSize = 4;
 
@@ -169,8 +179,10 @@ namespace gts::tools
         std::vector<std::string> effectPaths;
         size_t sceneOffset = 0;
         size_t effectOffset = 0;
+        size_t assetOffset = 0;
         texture_id_type lastPreviewTexture = 0;
 
+        AssetBrowserSession assetSession;
         ParticleEditorSession particleSession;
         std::unique_ptr<ParticlePreviewWorld> previewWorld = std::make_unique<ParticlePreviewWorld>();
 
@@ -186,6 +198,20 @@ namespace gts::tools
             if (!world.hasAny<EngineToolInputCaptureComponent>())
                 return world.createSingleton<EngineToolInputCaptureComponent>();
             return world.getSingleton<EngineToolInputCaptureComponent>();
+        }
+
+        static std::string workspaceStatus(ToolWorkspace workspace)
+        {
+            switch (workspace)
+            {
+                case ToolWorkspace::World:
+                    return "WORLD VIEWER";
+                case ToolWorkspace::Particles:
+                    return "PARTICLE EDITOR";
+                case ToolWorkspace::Assets:
+                    return "ASSET BROWSER";
+            }
+            return "TOOLS";
         }
 
         bool processVisibilityToggle(const EcsControllerContext& ctx, EngineToolStateComponent& state)
@@ -325,7 +351,7 @@ namespace gts::tools
                 {
                     case ToolCommandType::SetWorkspace:
                         activeWorkspace = command.workspace;
-                        state.status = activeWorkspace == ToolWorkspace::Particles ? "PARTICLE EDITOR" : "WORLD VIEWER";
+                        state.status = workspaceStatus(activeWorkspace);
                         break;
 
                     case ToolCommandType::LoadScene:
@@ -354,6 +380,24 @@ namespace gts::tools
 
                     case ToolCommandType::EffectPageNext:
                         effectOffset += EffectPageSize;
+                        break;
+
+                    case ToolCommandType::SelectAsset:
+                        assetSession.select(command.value);
+                        activeWorkspace = ToolWorkspace::Assets;
+                        if (const AssetBrowserEntry* asset = assetSession.selected())
+                        {
+                            state.status = asset->valid ? "SELECTED " + assetDisplayName(*asset)
+                                                          : "ASSET MANIFEST INVALID";
+                        }
+                        break;
+
+                    case ToolCommandType::AssetPagePrevious:
+                        assetOffset = assetOffset < AssetPageSize ? 0 : assetOffset - AssetPageSize;
+                        break;
+
+                    case ToolCommandType::AssetPageNext:
+                        assetOffset += AssetPageSize;
                         break;
 
                     case ToolCommandType::SaveParticleEffect:
@@ -421,6 +465,7 @@ namespace gts::tools
                                 const EngineToolWorkspaceComponent& workspace)
         {
             collectEffectPaths(ctx.world);
+            collectAssetManifests();
             clampPaging(ctx);
             particleSession.clampSelection();
 
@@ -440,6 +485,7 @@ namespace gts::tools
             view.status = state.status;
             view.sceneOffset = sceneOffset;
             view.effectOffset = effectOffset;
+            view.assetOffset = assetOffset;
             view.previewTexture = lastPreviewTexture;
             view.particleLoaded = particleSession.hasAsset();
             view.particleDirty = particleSession.isDirty();
@@ -465,6 +511,8 @@ namespace gts::tools
 
             fillSceneRows(ctx, view);
             fillEffectRows(view);
+            fillAssetRows(view);
+            fillSelectedAsset(view);
             fillParticleRows(view);
             fillPreviewSummary(ctx, view);
             fillPropertySections(view);
@@ -505,6 +553,48 @@ namespace gts::tools
                 row.label = toolui::compact(toolui::stemName(row.path), 30);
                 view.effects.push_back(std::move(row));
             }
+        }
+
+        void fillAssetRows(ToolShellView& view) const
+        {
+            const std::vector<AssetBrowserEntry>& assets = assetSession.assets();
+            view.assetTotal = assets.size();
+            const size_t end = std::min(assets.size(), assetOffset + AssetPageSize);
+            for (size_t i = assetOffset; i < end; ++i)
+            {
+                const AssetBrowserEntry& asset = assets[i];
+                ToolAssetRow row;
+                row.manifestPath = asset.manifestPath;
+                row.active = i == assetSession.selectedIndex();
+                row.valid = asset.valid;
+                row.label = toolui::compact(assetDisplayName(asset), 30);
+                row.summary = asset.valid ? assetMaterialModeSummary(asset.manifest.materialMode) : "invalid";
+                view.assets.push_back(std::move(row));
+            }
+        }
+
+        void fillSelectedAsset(ToolShellView& view) const
+        {
+            const AssetBrowserEntry* asset = assetSession.selected();
+            if (asset == nullptr)
+                return;
+
+            view.assetSelected = true;
+            view.assetSelectedValid = asset->valid;
+            view.assetManifestPath = asset->manifestPath;
+            if (!asset->valid)
+            {
+                view.assetTitle = toolui::stemName(std::filesystem::path(asset->manifestPath).parent_path().string());
+                view.assetError = asset->error;
+                return;
+            }
+
+            view.assetTitle = assetDisplayName(*asset);
+            view.assetModelPath = asset->manifest.modelPath;
+            view.assetTexturePath = asset->manifest.fallbackTexturePath;
+            view.assetSourcePath = asset->manifest.sourceModelPath;
+            view.assetMaterialMode = assetMaterialModeSummary(asset->manifest.materialMode);
+            view.assetBounds = boundsText(asset->manifest.bounds);
         }
 
         void fillParticleRows(ToolShellView& view) const
@@ -608,6 +698,12 @@ namespace gts::tools
                 return;
             }
 
+            if (activeWorkspace == ToolWorkspace::Assets)
+            {
+                fillAssetPropertySections(view);
+                return;
+            }
+
             if (!particleSession.hasAsset())
             {
                 ToolPropertySection empty;
@@ -704,8 +800,87 @@ namespace gts::tools
                                                                          " hidden"));
                 }
                 if (!parameters.properties.empty())
-                    view.propertySections.push_back(std::move(parameters));
+                view.propertySections.push_back(std::move(parameters));
             }
+        }
+
+        void fillAssetPropertySections(ToolShellView& view) const
+        {
+            const AssetBrowserEntry* asset = assetSession.selected();
+            if (asset == nullptr)
+            {
+                ToolPropertySection empty;
+                empty.title = "Asset Inspector";
+                empty.properties.push_back(readOnlyProperty("asset.browser.count",
+                                                            "Assets",
+                                                            std::to_string(view.assetTotal)));
+                empty.properties.push_back(readOnlyProperty("asset.browser.selection",
+                                                            "Selection",
+                                                            "none"));
+                view.propertySections.push_back(std::move(empty));
+                return;
+            }
+
+            ToolPropertySection manifest;
+            manifest.title = "Manifest";
+            manifest.properties.push_back(readOnlyProperty("asset.manifest.path",
+                                                           "Path",
+                                                           toolui::compact(asset->manifestPath, 38)));
+            manifest.properties.push_back(readOnlyProperty("asset.manifest.state",
+                                                           "State",
+                                                           asset->valid ? "valid" : "invalid"));
+            if (!asset->valid)
+            {
+                manifest.properties.push_back(readOnlyProperty("asset.manifest.error",
+                                                               "Error",
+                                                               toolui::compact(asset->error, 40)));
+                view.propertySections.push_back(std::move(manifest));
+                return;
+            }
+
+            manifest.properties.push_back(readOnlyProperty("asset.id",
+                                                           "Id",
+                                                           asset->manifest.id));
+            manifest.properties.push_back(readOnlyProperty("asset.display_name",
+                                                           "Name",
+                                                           asset->manifest.displayName));
+            view.propertySections.push_back(std::move(manifest));
+
+            ToolPropertySection files;
+            files.title = "Files";
+            files.properties.push_back(readOnlyProperty("asset.model",
+                                                        "Model",
+                                                        toolui::compact(asset->manifest.modelPath, 40)));
+            files.properties.push_back(readOnlyProperty("asset.texture",
+                                                        "Texture",
+                                                        asset->manifest.fallbackTexturePath.empty()
+                                                            ? "none"
+                                                            : toolui::compact(asset->manifest.fallbackTexturePath, 40)));
+            files.properties.push_back(readOnlyProperty("asset.source",
+                                                        "Source",
+                                                        asset->manifest.sourceModelPath.empty()
+                                                            ? "none"
+                                                            : toolui::compact(asset->manifest.sourceModelPath, 40)));
+            view.propertySections.push_back(std::move(files));
+
+            ToolPropertySection render;
+            render.title = "Render";
+            render.properties.push_back(readOnlyProperty("asset.material_mode",
+                                                         "Material",
+                                                         assetMaterialModeSummary(asset->manifest.materialMode)));
+            render.properties.push_back(readOnlyProperty("asset.scale",
+                                                         "Scale",
+                                                         vec3Text(asset->manifest.scale)));
+            render.properties.push_back(readOnlyProperty("asset.bounds",
+                                                         "Bounds",
+                                                         boundsText(asset->manifest.bounds)));
+            render.properties.push_back(readOnlyProperty("asset.base",
+                                                         "Base",
+                                                         asset->manifest.baseAtGround ? "grounded" : "authored"));
+            render.properties.push_back(readOnlyProperty("asset.preview.camera",
+                                                         "Camera",
+                                                         toolui::fixed(asset->manifest.preview.cameraDistance, 2)));
+            view.propertySections.push_back(std::move(render));
         }
 
         bool applyPropertyEdit(const ToolCommand& command, std::string& status)
@@ -734,6 +909,23 @@ namespace gts::tools
                 view.diagnostics.push_back("Viewport: runtime scene");
                 view.diagnostics.push_back("Input: UI panes capture; viewport passes through");
                 view.diagnostics.push_back("Mode: Runtime");
+                return;
+            }
+
+            if (activeWorkspace == ToolWorkspace::Assets)
+            {
+                view.diagnostics.push_back("Assets: " + std::to_string(assetSession.assets().size()) + " manifests");
+                if (const AssetBrowserEntry* asset = assetSession.selected())
+                {
+                    view.diagnostics.push_back(std::string("Selected: ") + assetDisplayName(*asset));
+                    view.diagnostics.push_back(std::string("Manifest: ") + (asset->valid ? "valid" : "invalid"));
+                    if (!asset->valid)
+                        view.diagnostics.push_back(toolui::compact(asset->error, 52));
+                }
+                else
+                {
+                    view.diagnostics.push_back("Selected: none");
+                }
                 return;
             }
 
@@ -774,6 +966,40 @@ namespace gts::tools
             descriptor.readOnly = true;
             descriptor.textValue = value;
             return descriptor;
+        }
+
+        static std::string assetDisplayName(const AssetBrowserEntry& asset)
+        {
+            if (asset.valid && !asset.manifest.displayName.empty())
+                return asset.manifest.displayName;
+
+            const std::filesystem::path manifestPath(asset.manifestPath);
+            const std::string folder = manifestPath.parent_path().filename().string();
+            return folder.empty() ? toolui::fileName(asset.manifestPath) : folder;
+        }
+
+        static std::string assetMaterialModeSummary(AssetMaterialMode mode)
+        {
+            switch (mode)
+            {
+                case AssetMaterialMode::CookedMeshMaterials:
+                    return "lit cooked materials";
+                case AssetMaterialMode::UnlitTextureOverride:
+                default:
+                    return "unlit texture override";
+            }
+        }
+
+        static std::string vec3Text(const glm::vec3& value)
+        {
+            return toolui::fixed(value.x, 2) + ", " +
+                toolui::fixed(value.y, 2) + ", " +
+                toolui::fixed(value.z, 2);
+        }
+
+        static std::string boundsText(const BoundsComponent& bounds)
+        {
+            return "min " + vec3Text(bounds.min) + "  max " + vec3Text(bounds.max);
         }
 
         static ToolPropertyDescriptor boolProperty(const std::string& id,
@@ -949,6 +1175,16 @@ namespace gts::tools
             }
         }
 
+        void collectAssetManifests()
+        {
+            assetSession.refresh({
+                GtsPaths::GetProjectRoot() / "resources/assets",
+                "resources/assets",
+                "../resources/assets",
+                "../../resources/assets"
+            });
+        }
+
         void clampPaging(const EcsControllerContext& ctx)
         {
             const size_t sceneTotal = ctx.registeredScenes == nullptr ? 0 : ctx.registeredScenes->size();
@@ -961,6 +1197,12 @@ namespace gts::tools
                 effectOffset = 0;
             else if (effectOffset >= effectPaths.size())
                 effectOffset = ((effectPaths.size() - 1) / EffectPageSize) * EffectPageSize;
+
+            const size_t assetTotal = assetSession.assets().size();
+            if (assetTotal == 0)
+                assetOffset = 0;
+            else if (assetOffset >= assetTotal)
+                assetOffset = ((assetTotal - 1) / AssetPageSize) * AssetPageSize;
         }
 
         void syncParticlePreviewWorld(const EcsControllerContext& ctx)

@@ -25,6 +25,8 @@ namespace gts::tools
             panes.emplace_back(std::make_unique<ToolToolbarPane>());
             panes.emplace_back(std::make_unique<WorldViewportPane>());
             panes.emplace_back(std::make_unique<SceneBrowserPane>());
+            panes.emplace_back(std::make_unique<AssetBrowserPane>());
+            panes.emplace_back(std::make_unique<AssetPreviewPane>());
             panes.emplace_back(std::make_unique<EffectHierarchyPane>());
             panes.emplace_back(std::make_unique<EmitterDetailsPane>());
             panes.emplace_back(std::make_unique<ParticlePreviewViewportPane>());

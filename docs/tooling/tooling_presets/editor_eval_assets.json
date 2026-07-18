@@ -1,0 +1,19 @@
+{
+  "tools": {
+    "visible": true,
+    "workspace": "assets",
+    "visualEvaluation": true,
+    "debugDraw": false,
+    "gizmos": false,
+    "scene": "editor_visual_eval",
+    "assetManifest": "resources/assets/shop_shelf/asset.json"
+  },
+  "screenshots": {
+    "enabled": true,
+    "afterSeconds": 2.0,
+    "intervalSeconds": 1.0,
+    "count": 1,
+    "directory": "screenshots/tooling/editor_eval_assets",
+    "exitAfterCapture": true
+  }
+}

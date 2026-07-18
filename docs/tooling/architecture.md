@@ -33,6 +33,8 @@ The first-class workspaces are:
 - Particles: particle asset/effect hierarchy, live runtime scene viewport,
   separate particle preview viewport, property inspector, diagnostics, and
   timeline placeholder.
+- Assets: manifest browser, selected asset metadata preview, property inspector,
+  and diagnostics.
 
 Workspace switching filters pane descriptors. It does not change engine mode.
 
@@ -44,7 +46,8 @@ Workspace switching filters pane descriptors. It does not change engine mode.
 - `modules/tools/runtime/`: global tool runtime and scene-change state handoff.
 - `modules/tools/workspace/`: per-frame workspace layout and scene viewport
   publication.
-- `modules/tools/assets/`: particle preview world integration.
+- `modules/tools/assets/`: asset manifests, asset browser session state, and
+  particle preview world integration.
 - `modules/tools/selection/`: input capture, world picking, selection labels,
   selection highlight, and shared raycast helpers.
 - `modules/tools/gizmos/`: translation gizmo state, picking, snapping, and
@@ -139,6 +142,19 @@ The particle preview is separate from the central world viewport.
 `ParticlePreviewWorld` rendering into the preview target, and publishes
 `EditorPreviewRenderComponent`.
 
+## Asset Browser Session
+
+`AssetBrowserSession` owns toolchain asset browser state:
+
+- discovered asset manifests
+- selected manifest path
+- manifest load diagnostics
+
+Asset manifests describe reusable authored assets independently of any game
+scene placement. Game code may consume the same manifest type for runtime
+spawning, but asset discovery, validation, preview, and future import/cook
+commands belong to engine tooling.
+
 ## Tooling Launch Presets
 
 Tooling launch presets configure the engine into a deterministic startup state
@@ -177,6 +193,8 @@ These are known limits, not accidental regressions:
   widget helper layer is lightweight.
 - Theme usage is improved but not complete; some low-level payload styling
   still exists inside tooling widgets.
+- Asset browser preview is manifest metadata only; a dedicated model preview
+  world/render target is still future work.
 
 ## Guardrails
 

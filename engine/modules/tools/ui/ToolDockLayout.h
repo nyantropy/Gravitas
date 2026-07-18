@@ -146,9 +146,19 @@ namespace gts::tools
 
         static float preferredSize(const PaneDescriptor& descriptor, ToolWorkspace workspace)
         {
-            const float workspaceSize = workspace == ToolWorkspace::World
-                ? descriptor.preferredSizeInWorld
-                : descriptor.preferredSizeInParticles;
+            float workspaceSize = 0.0f;
+            switch (workspace)
+            {
+                case ToolWorkspace::World:
+                    workspaceSize = descriptor.preferredSizeInWorld;
+                    break;
+                case ToolWorkspace::Particles:
+                    workspaceSize = descriptor.preferredSizeInParticles;
+                    break;
+                case ToolWorkspace::Assets:
+                    workspaceSize = descriptor.preferredSizeInAssets;
+                    break;
+            }
             return workspaceSize > 0.0f ? workspaceSize : descriptor.preferredSize;
         }
 

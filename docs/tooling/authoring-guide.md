@@ -30,6 +30,16 @@ Do not introduce runtime reflection or serialization-driven property editing.
 Material, entity, camera, physics, animation, and particle tools can all
 produce property descriptors without sharing domain logic with the inspector.
 
+## Asset Browser Data
+
+Generic authored asset metadata belongs under `modules/tools/assets/`. Keep
+game-specific placement rules, spawn weights, room affinities, and progression
+logic in the game that consumes the manifest.
+
+Asset browser panes should stay read-only until a typed import, cook, save, or
+reload command is added to `ToolCommand` and applied by the shell system or an
+owning tool session.
+
 ## Tool Pane Rules
 
 Panes may:

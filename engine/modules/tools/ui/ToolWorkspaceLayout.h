@@ -21,13 +21,18 @@ namespace gts::tools
     private:
         static void applyPaneRole(PaneDescriptor& descriptor, ToolWorkspace workspace)
         {
-            if (workspace == ToolWorkspace::World)
+            switch (workspace)
             {
-                applyWorldRole(descriptor);
-                return;
+                case ToolWorkspace::World:
+                    applyWorldRole(descriptor);
+                    break;
+                case ToolWorkspace::Particles:
+                    applyParticleRole(descriptor);
+                    break;
+                case ToolWorkspace::Assets:
+                    applyAssetRole(descriptor);
+                    break;
             }
-
-            applyParticleRole(descriptor);
         }
 
         static void applyWorldRole(PaneDescriptor& descriptor)
@@ -130,6 +135,52 @@ namespace gts::tools
                     break;
 
                 default:
+                    break;
+            }
+        }
+
+        static void applyAssetRole(PaneDescriptor& descriptor)
+        {
+            switch (descriptor.id)
+            {
+                case ToolPaneId::MenuBar:
+                case ToolPaneId::WorkspaceTabs:
+                case ToolPaneId::ToolToolbar:
+                case ToolPaneId::StatusBar:
+                    descriptor.visibleInAssets = true;
+                    break;
+
+                case ToolPaneId::AssetBrowser:
+                    descriptor.dockArea = ToolDockArea::Left;
+                    descriptor.order = 0;
+                    descriptor.visibleInAssets = true;
+                    descriptor.preferredSizeInAssets = 0.0f;
+                    break;
+
+                case ToolPaneId::AssetPreview:
+                    descriptor.dockArea = ToolDockArea::Bottom;
+                    descriptor.order = 0;
+                    descriptor.visibleInAssets = true;
+                    descriptor.preferredSizeInAssets = 0.0f;
+                    descriptor.minimumSize = 0.0f;
+                    break;
+
+                case ToolPaneId::PropertyInspector:
+                    descriptor.dockArea = ToolDockArea::Right;
+                    descriptor.order = 0;
+                    descriptor.visibleInAssets = true;
+                    descriptor.preferredSizeInAssets = 0.700f;
+                    break;
+
+                case ToolPaneId::Diagnostics:
+                    descriptor.dockArea = ToolDockArea::Right;
+                    descriptor.order = 1;
+                    descriptor.visibleInAssets = true;
+                    descriptor.preferredSizeInAssets = 0.0f;
+                    break;
+
+                default:
+                    descriptor.visibleInAssets = false;
                     break;
             }
         }

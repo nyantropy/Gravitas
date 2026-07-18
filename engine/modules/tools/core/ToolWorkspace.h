@@ -5,6 +5,7 @@ namespace gts::tools
     enum class ToolWorkspace
     {
         World,
-        Particles
+        Particles,
+        Assets
     };
 } // namespace gts::tools

@@ -36,6 +36,7 @@ namespace gts::tools
 
         std::string scene;
         std::string particleEffect;
+        std::string assetManifest;
 
         bool hasSelectedEmitter = false;
         size_t selectedEmitter = 0;
@@ -46,6 +47,7 @@ namespace gts::tools
         bool hasAnyToolState() const
         {
             return hasVisible || hasWorkspace || !particleEffect.empty() ||
+                !assetManifest.empty() ||
                 hasVisualEvaluation || hasDebugDraw || hasGizmos ||
                 hasSelectedEmitter || hasSelectedModule;
         }
@@ -123,6 +125,11 @@ namespace gts::tools
             if (normalized == "particles" || normalized == "particle" || normalized == "particle_editor")
             {
                 outWorkspace = ToolWorkspace::Particles;
+                return true;
+            }
+            if (normalized == "assets" || normalized == "asset" || normalized == "asset_browser")
+            {
+                outWorkspace = ToolWorkspace::Assets;
                 return true;
             }
             return false;
@@ -212,6 +219,8 @@ namespace gts::tools
                 preset.tools.scene = *scene;
             if (const auto particleEffect = detail::stringMember(*tools, "particleEffect"))
                 preset.tools.particleEffect = *particleEffect;
+            if (const auto assetManifest = detail::stringMember(*tools, "assetManifest"))
+                preset.tools.assetManifest = *assetManifest;
             if (const auto selectedEmitter = detail::numberMember(*tools, "selectedEmitter"))
             {
                 preset.tools.hasSelectedEmitter = true;

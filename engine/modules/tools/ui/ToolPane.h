@@ -17,6 +17,8 @@ namespace gts::tools
         ToolToolbar,
         WorldViewport,
         SceneBrowser,
+        AssetBrowser,
+        AssetPreview,
         EffectHierarchy,
         EmitterDetails,
         ParticlePreviewViewport,
@@ -52,11 +54,22 @@ namespace gts::tools
         float leadingOffset = 0.0f;
         bool collapsible = false;
         bool closable = false;
+        bool visibleInAssets = true;
+        float preferredSizeInAssets = 0.0f;
     };
 
     inline bool paneVisibleInWorkspace(const PaneDescriptor& descriptor, ToolWorkspace workspace)
     {
-        return workspace == ToolWorkspace::World ? descriptor.visibleInWorld : descriptor.visibleInParticles;
+        switch (workspace)
+        {
+            case ToolWorkspace::World:
+                return descriptor.visibleInWorld;
+            case ToolWorkspace::Particles:
+                return descriptor.visibleInParticles;
+            case ToolWorkspace::Assets:
+                return descriptor.visibleInAssets;
+        }
+        return false;
     }
 
     struct ToolSceneRow
@@ -71,6 +84,15 @@ namespace gts::tools
         std::string path;
         std::string label;
         bool active = false;
+    };
+
+    struct ToolAssetRow
+    {
+        std::string manifestPath;
+        std::string label;
+        std::string summary;
+        bool active = false;
+        bool valid = true;
     };
 
     struct ToolEmitterRow
@@ -115,6 +137,20 @@ namespace gts::tools
         std::vector<ToolEffectRow> effects;
         size_t effectOffset = 0;
         size_t effectTotal = 0;
+
+        std::vector<ToolAssetRow> assets;
+        size_t assetOffset = 0;
+        size_t assetTotal = 0;
+        bool assetSelected = false;
+        bool assetSelectedValid = false;
+        std::string assetTitle = "No Asset";
+        std::string assetManifestPath;
+        std::string assetModelPath;
+        std::string assetTexturePath;
+        std::string assetSourcePath;
+        std::string assetMaterialMode;
+        std::string assetBounds;
+        std::string assetError;
 
         bool particleLoaded = false;
         bool particleDirty = false;

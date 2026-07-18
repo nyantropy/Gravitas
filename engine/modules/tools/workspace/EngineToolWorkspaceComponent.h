@@ -65,6 +65,7 @@ namespace gts::tools
         }
 
         const bool particleWorkspace = activeWorkspace == ToolWorkspace::Particles;
+        const bool assetWorkspace = activeWorkspace == ToolWorkspace::Assets;
         const int topBarPixels          = std::clamp(34, 28, std::max(28, safeHeight / 12));
         const int viewportToolbarPixels = std::clamp(44, 34, std::max(34, safeHeight / 13));
         const int leftRailPixels =
@@ -72,7 +73,7 @@ namespace gts::tools
         const int rightPanePixels =
             std::clamp(particleWorkspace ? 380 : 340, 280, std::max(280, safeWidth / 3));
         const int bottomDockPixels =
-            std::clamp(particleWorkspace ? 220 : 160, 120, std::max(120, safeHeight / 3));
+            std::clamp((particleWorkspace || assetWorkspace) ? 220 : 160, 120, std::max(120, safeHeight / 3));
         const int bottomBarPixels       = std::clamp(28, 22, std::max(22, safeHeight / 16));
 
         workspace.topBarHeight          = static_cast<float>(topBarPixels) / static_cast<float>(safeHeight);
