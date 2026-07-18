@@ -118,8 +118,6 @@ namespace gts::tools
         private:
         float  yaw            = 0.0f;
         float  pitch          = 0.0f;
-        double previousMouseX = 0.0;
-        double previousMouseY = 0.0;
         bool   mouseLookReady = false;
         bool   orbitDragActive = false;
         bool   panDragActive = false;
@@ -513,8 +511,6 @@ namespace gts::tools
                 pitch -= capture->pointerDeltaY * MOUSE_LOOK_SPEED;
             }
 
-            previousMouseX = capture->pointerPixelX;
-            previousMouseY = capture->pointerPixelY;
             mouseLookReady = true;
         }
     };

@@ -68,12 +68,6 @@ namespace gts::tools
                     descriptor.preferredSizeInWorld = 0.0f;
                     break;
 
-                case ToolPaneId::CurveTimeline:
-                    descriptor.dockArea = ToolDockArea::Bottom;
-                    descriptor.order = 0;
-                    descriptor.visibleInWorld = false;
-                    break;
-
                 default:
                     break;
             }
@@ -122,12 +116,6 @@ namespace gts::tools
                     descriptor.order = 1;
                     descriptor.visibleInParticles = true;
                     descriptor.preferredSizeInParticles = 0.220f;
-                    break;
-
-                case ToolPaneId::CurveTimeline:
-                    descriptor.dockArea = ToolDockArea::Bottom;
-                    descriptor.order = 0;
-                    descriptor.visibleInParticles = false;
                     break;
 
                 default:

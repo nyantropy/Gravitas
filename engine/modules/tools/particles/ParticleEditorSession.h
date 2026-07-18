@@ -6,11 +6,11 @@
 #include <string>
 #include <utility>
 
-#include "EngineToolUiHelpers.h"
 #include "ParticleEffectAsset.h"
 #include "ParticleEffectAssetIO.h"
 #include "ParticleModuleAuthoring.h"
 #include "ParticleProgramCompiler.h"
+#include "ToolStringUtils.h"
 
 namespace gts::tools
 {

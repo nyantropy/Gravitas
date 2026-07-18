@@ -31,7 +31,6 @@ namespace gts::tools
             panes.emplace_back(std::make_unique<EmitterDetailsPane>());
             panes.emplace_back(std::make_unique<ParticlePreviewViewportPane>());
             panes.emplace_back(std::make_unique<PropertyInspectorPane>());
-            panes.emplace_back(std::make_unique<CurveTimelinePane>());
             panes.emplace_back(std::make_unique<DiagnosticsPane>());
             panes.emplace_back(std::make_unique<StatusBarPane>());
         }

@@ -17,6 +17,7 @@ target_include_directories(gravitas_tools PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/core"
     "${CMAKE_CURRENT_SOURCE_DIR}/ui"
     "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+    "${CMAKE_CURRENT_SOURCE_DIR}/particles"
     "${CMAKE_CURRENT_SOURCE_DIR}/selection"
     "${CMAKE_CURRENT_SOURCE_DIR}/debugdraw"
     "${CMAKE_CURRENT_SOURCE_DIR}/gizmos"

@@ -75,7 +75,8 @@ through `RenderViewportComponent::sceneViewport`.
 
 Particle and asset previews are separate preview render paths. Keep preview
 measurement, preview world sync, and `EditorPreviewRenderComponent`
-publication in `EngineToolShellSystem` or owning preview systems, not panes.
+publication in `EngineToolPreviewCoordinator` or another owning preview system,
+not panes.
 
 ## Visual QA Rules
 

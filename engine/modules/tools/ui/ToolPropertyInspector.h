@@ -11,6 +11,7 @@
 #include "EngineToolUiHelpers.h"
 #include "ToolPaneWidgets.h"
 #include "ToolPropertyTypes.h"
+#include "ToolStringUtils.h"
 #include "ToolTheme.h"
 #include "UiWidget.h"
 

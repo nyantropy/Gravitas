@@ -27,8 +27,8 @@ The active editor surface is:
 - rounded rect payloads for pane borders, shadows, and large surface separation
 - named tool surface roles for panes, raised panels, overlays, controls, rows,
   chrome, and section headers
-- `EngineToolShellSystem`, which applies commands and integrates with ECS,
-  rendering, asset IO, and input capture
+- `EngineToolShellSystem`, which applies commands and delegates input capture
+  and preview rendering to tool-owned helper systems
 
 The first-class workspaces are:
 
@@ -42,16 +42,21 @@ Workspace switching filters pane descriptors. It does not change engine mode.
 
 ## Feature Layout
 
-- `modules/tools/core/`: shared tool state and query helpers.
+- `modules/tools/core/`: shared tool state, query helpers, workspace enums, and
+  non-UI formatting/path helpers.
 - `modules/tools/ui/`: pane descriptors, pane widgets, shell composition,
-  shell system, tool theme tokens, and particle editor session state.
-- `modules/tools/runtime/`: global tool runtime and scene-change state handoff.
+  shell system, tool theme tokens, property inspectors, and grouped pane
+  implementations under `ui/panes/`.
+- `modules/tools/particles/`: particle editor session state, particle asset
+  IO-facing editing helpers, and the isolated particle preview world.
+- `modules/tools/runtime/`: global tool runtime, scene-change state handoff,
+  and preview coordination for tool-owned render targets.
 - `modules/tools/workspace/`: per-frame workspace layout and scene viewport
   publication.
 - `modules/tools/assets/`: asset manifests, asset browser session state, asset
-  preview world integration, and particle preview world integration.
-- `modules/tools/selection/`: input capture, world picking, selection labels,
-  selection highlight, and shared raycast helpers.
+  discovery, validation, and asset preview world integration.
+- `modules/tools/selection/`: input capture state/updating, world picking,
+  selection labels, selection highlight, and shared raycast helpers.
 - `modules/tools/gizmos/`: translation gizmo state, picking, snapping, and
   transform edits.
 - `modules/tools/debugdraw/`: tool-driven bounds, axes, frustum, and pick-ray
@@ -90,9 +95,11 @@ runtime widgets. They are not a second UI framework. Current reusable controls
 include `ToolSelectableRow`, `ToolListSection`, `ToolPager`,
 `ToolInspectorSection`, `ToolToolbarRow`, and `ToolPropertyInspector`.
 
-`EngineToolShellSystem` owns engine integration: ECS integration, renderer
-integration, viewport publication, particle and asset preview rendering, asset
-IO, scene commands, input capture, and applying `ToolCommand`s.
+`EngineToolShellSystem` owns shell orchestration: ECS integration, viewport
+publication, asset discovery, view-model building, scene commands, and applying
+`ToolCommand`s. It delegates pointer/input capture to
+`EngineToolInputCaptureSystem` and tool preview publication to
+`EngineToolPreviewCoordinator`.
 
 ## Command Flow
 
@@ -140,8 +147,8 @@ then applies emitted commands back through the session.
 
 The particle preview is separate from the central world viewport.
 `ParticlePreviewViewportPane` owns preview chrome and an image handle.
-`EngineToolShellSystem` measures that handle after composition update, routes
-`ParticlePreviewWorld` rendering into the preview target, and publishes
+`EngineToolPreviewCoordinator` measures that handle after composition update,
+routes `ParticlePreviewWorld` rendering into the preview target, and publishes
 `EditorPreviewRenderComponent`.
 
 ## Asset Browser Session
@@ -158,13 +165,21 @@ spawning, but asset discovery, validation, preview, and future import/cook
 commands belong to engine tooling.
 
 `AssetPreviewPane` owns the retained UI image handle for the selected asset.
-`EngineToolShellSystem` measures that handle after composition update, routes
-`AssetPreviewWorld` rendering into the preview target, and publishes
-`EditorPreviewRenderComponent`. The preview world is engine-tool owned and
-loads the manifest model path through the same mesh/material binding systems as
+`EngineToolPreviewCoordinator` measures that handle after composition update,
+routes `AssetPreviewWorld` rendering into the preview target, and publishes
+`EditorPreviewRenderComponent`. The preview world is engine-tool owned and loads
+the manifest model path through the same mesh/material binding systems as
 runtime scenes. `unlit_texture_override` manifests use a shared unlit material
 with the fallback texture; `cooked_mesh_materials` manifests enable submesh
 material bindings from the cooked mesh and use the standard lit material path.
+
+## Input Capture
+
+`EngineToolInputCaptureSystem` converts retained UI dispatch state, mouse
+motion, scroll input, action bindings, and the current render viewport into the
+singleton `EngineToolInputCaptureComponent`. World-view cameras, particle
+previews, asset previews, picking, and gizmos should consume that component
+instead of reading raw input independently.
 
 ## Tooling Launch Presets
 

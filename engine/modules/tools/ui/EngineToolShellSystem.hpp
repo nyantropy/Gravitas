@@ -11,14 +11,13 @@
 #include <vector>
 
 #include "AssetBrowserSession.h"
-#include "AssetPreviewWorld.hpp"
 #include "ECSControllerSystem.hpp"
 #include "ECSWorld.hpp"
 #include "EditorPreviewRenderData.h"
-#include "EngineToolInputCaptureComponent.h"
+#include "EngineToolInputCaptureSystem.h"
+#include "EngineToolPreviewCoordinator.h"
 #include "EngineToolShellComposition.h"
 #include "EngineToolStateComponent.h"
-#include "EngineToolUiHelpers.h"
 #include "EngineToolWorkspaceComponent.h"
 #include "GraphicsConstants.h"
 #include "GtsPaths.h"
@@ -27,12 +26,10 @@
 #include "ParticleEffectAsset.h"
 #include "ParticleEmitterComponent.h"
 #include "ParticleModuleAuthoring.h"
-#include "ParticlePreviewWorld.hpp"
 #include "RegisteredSceneInfo.h"
-#include "RenderViewportComponent.h"
 #include "TimeContext.h"
 #include "ToolLaunchPreset.h"
-#include "UiNode.h"
+#include "ToolStringUtils.h"
 #include "UiSystem.h"
 
 namespace gts::tools
@@ -77,19 +74,24 @@ namespace gts::tools
             if (activeWorkspace != workspaceBeforeCommands)
                 workspace = publishWorkspace(ctx, true);
             if (activeWorkspace == ToolWorkspace::Particles)
-                syncParticlePreviewWorld(ctx);
+                previewCoordinator.syncParticle(ctx, particleSession);
 
             ToolShellView view = buildView(ctx, state, workspace);
             shell->setView(view);
             ctx.ui->updateComposition(shellComposition);
 
-            updateInputCapture(ctx.world, ctx);
-            publishActivePreview(ctx, *shell);
-            if (view.previewTexture != lastPreviewTexture ||
-                view.assetPreviewTexture != lastAssetPreviewTexture)
+            inputCapture.update(ctx.world, ctx);
+            previewCoordinator.publish(ctx,
+                                       activeWorkspace,
+                                       shell->particlePreviewImageHandle(),
+                                       shell->assetPreviewImageHandle(),
+                                       particleSession,
+                                       assetSession);
+            if (view.previewTexture != previewCoordinator.particleTexture() ||
+                view.assetPreviewTexture != previewCoordinator.assetTexture())
             {
-                view.previewTexture = lastPreviewTexture;
-                view.assetPreviewTexture = lastAssetPreviewTexture;
+                view.previewTexture = previewCoordinator.particleTexture();
+                view.assetPreviewTexture = previewCoordinator.assetTexture();
                 shell->setView(view);
                 ctx.ui->updateComposition(shellComposition);
             }
@@ -104,10 +106,7 @@ namespace gts::tools
 
         void shutdown()
         {
-            if (previewWorld)
-                previewWorld->destroy();
-            if (assetPreviewWorld)
-                assetPreviewWorld->destroy();
+            previewCoordinator.destroy();
         }
 
         ToolWorkspace currentWorkspace() const
@@ -152,17 +151,12 @@ namespace gts::tools
             }
 
             if (previewNeedsReset)
-                resetParticlePreview();
+                previewCoordinator.resetParticlePreview();
 
             return status;
         }
 
     private:
-        static constexpr const char* ToolsInputContext = "engine.tools";
-        static constexpr const char* ToolsSelectAction = "engine.tools_select";
-        static constexpr const char* ToolsOrbitAction = "engine.tool_camera_look";
-        static constexpr const char* ToolsPanAction = "engine.tool_viewport_pan";
-
         static constexpr size_t ScenePageSize = 10;
         static constexpr size_t EffectPageSize = 6;
         static constexpr size_t AssetPageSize = 10;
@@ -179,9 +173,6 @@ namespace gts::tools
         BitmapFont font;
         bool fontReady = false;
         bool toolsContextRequested = false;
-        bool inputPointerReady = false;
-        double previousInputMouseX = 0.0;
-        double previousInputMouseY = 0.0;
         uint64_t lastVisibilityToggleFrame = std::numeric_limits<uint64_t>::max();
         UiCompositionId shellComposition = UI_INVALID_COMPOSITION;
         ToolWorkspace activeWorkspace = ToolWorkspace::Particles;
@@ -190,26 +181,17 @@ namespace gts::tools
         size_t sceneOffset = 0;
         size_t effectOffset = 0;
         size_t assetOffset = 0;
-        texture_id_type lastPreviewTexture = 0;
-        texture_id_type lastAssetPreviewTexture = 0;
 
         AssetBrowserSession assetSession;
         ParticleEditorSession particleSession;
-        std::unique_ptr<ParticlePreviewWorld> previewWorld = std::make_unique<ParticlePreviewWorld>();
-        std::unique_ptr<AssetPreviewWorld> assetPreviewWorld = std::make_unique<AssetPreviewWorld>();
+        EngineToolInputCaptureSystem inputCapture;
+        EngineToolPreviewCoordinator previewCoordinator;
 
         static EngineToolStateComponent& ensureState(ECSWorld& world)
         {
             if (!world.hasAny<EngineToolStateComponent>())
                 return world.createSingleton<EngineToolStateComponent>();
             return world.getSingleton<EngineToolStateComponent>();
-        }
-
-        static EngineToolInputCaptureComponent& ensureInputCapture(ECSWorld& world)
-        {
-            if (!world.hasAny<EngineToolInputCaptureComponent>())
-                return world.createSingleton<EngineToolInputCaptureComponent>();
-            return world.getSingleton<EngineToolInputCaptureComponent>();
         }
 
         static std::string workspaceStatus(ToolWorkspace workspace)
@@ -248,13 +230,9 @@ namespace gts::tools
         {
             state.editorMode = EditorMode::Runtime;
             setToolsInputContext(ctx, false);
-            clearInputCapture(ctx.world);
-            inputPointerReady = false;
-            clearPreviewRender(ctx.world);
-            if (previewWorld)
-                previewWorld->destroy();
-            if (assetPreviewWorld)
-                assetPreviewWorld->destroy();
+            inputCapture.clear(ctx.world);
+            previewCoordinator.clear(ctx.world);
+            previewCoordinator.destroy();
             if (ctx.ui != nullptr)
                 destroyComposition(*ctx.ui);
             publishWorkspace(ctx, false);
@@ -267,21 +245,15 @@ namespace gts::tools
 
             if (enabled)
             {
-                if (!toolsContextRequested && !ctx.input->isContextActive(ToolsInputContext))
-                    ctx.input->pushContext(ToolsInputContext);
+                if (!toolsContextRequested && !ctx.input->isContextActive(EngineToolInputCaptureSystem::ContextName))
+                    ctx.input->pushContext(EngineToolInputCaptureSystem::ContextName);
                 toolsContextRequested = true;
                 return;
             }
 
-            if (toolsContextRequested || ctx.input->isContextActive(ToolsInputContext))
-                ctx.input->popContext(ToolsInputContext);
+            if (toolsContextRequested || ctx.input->isContextActive(EngineToolInputCaptureSystem::ContextName))
+                ctx.input->popContext(EngineToolInputCaptureSystem::ContextName);
             toolsContextRequested = false;
-        }
-
-        static void clearInputCapture(ECSWorld& world)
-        {
-            EngineToolInputCaptureComponent& capture = ensureInputCapture(world);
-            capture = {};
         }
 
         EngineToolWorkspaceComponent& publishWorkspace(const EcsControllerContext& ctx, bool active)
@@ -371,7 +343,7 @@ namespace gts::tools
                         if (particleSession.open(command.value, state.status, true, false))
                         {
                             activeWorkspace = ToolWorkspace::Particles;
-                            resetParticlePreview();
+                            previewCoordinator.resetParticlePreview();
                         }
                         break;
 
@@ -386,7 +358,7 @@ namespace gts::tools
                     case ToolCommandType::SelectAsset:
                         assetSession.select(command.value);
                         activeWorkspace = ToolWorkspace::Assets;
-                        lastAssetPreviewTexture = 0;
+                        previewCoordinator.resetAssetPreviewTexture();
                         if (const AssetBrowserEntry* asset = assetSession.selected())
                         {
                             state.status = asset->valid ? "SELECTED " + assetDisplayName(*asset)
@@ -408,7 +380,7 @@ namespace gts::tools
 
                     case ToolCommandType::ReloadParticleEffect:
                         if (particleSession.reload(state.status))
-                            resetParticlePreview();
+                            previewCoordinator.resetParticlePreview();
                         break;
 
                     case ToolCommandType::ToggleParticlePlayback:
@@ -416,7 +388,7 @@ namespace gts::tools
                         break;
 
                     case ToolCommandType::RestartParticlePreview:
-                        resetParticlePreview();
+                        previewCoordinator.resetParticlePreview();
                         state.status = "PARTICLE PREVIEW RESTARTED";
                         break;
 
@@ -430,16 +402,10 @@ namespace gts::tools
 
                     case ToolCommandType::EditProperty:
                         if (applyPropertyEdit(command, state.status))
-                            resetParticlePreview();
+                            previewCoordinator.resetParticlePreview();
                         break;
                 }
             }
-        }
-
-        void resetParticlePreview()
-        {
-            if (previewWorld)
-                previewWorld->resetSimulation();
         }
 
         void requestSceneChange(const EcsControllerContext& ctx,
@@ -488,8 +454,8 @@ namespace gts::tools
             view.sceneOffset = sceneOffset;
             view.effectOffset = effectOffset;
             view.assetOffset = assetOffset;
-            view.previewTexture = lastPreviewTexture;
-            view.assetPreviewTexture = lastAssetPreviewTexture;
+            view.previewTexture = previewCoordinator.particleTexture();
+            view.assetPreviewTexture = previewCoordinator.assetTexture();
             view.particleLoaded = particleSession.hasAsset();
             view.particleDirty = particleSession.isDirty();
             view.particlePlaying = particleSession.isPlaying();
@@ -1208,225 +1174,5 @@ namespace gts::tools
                 assetOffset = ((assetTotal - 1) / AssetPageSize) * AssetPageSize;
         }
 
-        void syncParticlePreviewWorld(const EcsControllerContext& ctx)
-        {
-            if (!particleSession.hasAsset() || particleSession.path().empty() || !previewWorld)
-                return;
-
-            previewWorld->ensure(ctx.resources);
-            previewWorld->syncAsset(particleSession.path(),
-                                    particleSession.asset(),
-                                    particleSession.timeScale(),
-                                    particleSession.isPaused());
-        }
-
-        bool syncAssetPreviewWorld(const EcsControllerContext& ctx)
-        {
-            const AssetBrowserEntry* asset = assetSession.selected();
-            if (asset == nullptr || !asset->valid || !assetPreviewWorld || ctx.resources == nullptr)
-                return false;
-
-            assetPreviewWorld->ensure(ctx.resources);
-            assetPreviewWorld->syncAsset(asset->manifestPath, asset->manifest);
-            return true;
-        }
-
-        void publishActivePreview(const EcsControllerContext& ctx, EngineToolShellComposition& shell)
-        {
-            switch (activeWorkspace)
-            {
-                case ToolWorkspace::Particles:
-                    publishParticlePreview(ctx, shell);
-                    return;
-                case ToolWorkspace::Assets:
-                    publishAssetPreview(ctx, shell);
-                    return;
-                case ToolWorkspace::World:
-                    clearPreviewRender(ctx.world);
-                    return;
-            }
-            clearPreviewRender(ctx.world);
-        }
-
-        static std::pair<uint32_t, uint32_t> previewImageSize(const EcsControllerContext& ctx,
-                                                              UiHandle imageHandle)
-        {
-            uint32_t width = 320;
-            uint32_t height = 240;
-            if (ctx.ui == nullptr)
-                return {width, height};
-
-            const UiNode* node = ctx.ui->findNode(imageHandle);
-            if (node == nullptr)
-                return {width, height};
-
-            width = std::max(1u,
-                             static_cast<uint32_t>(
-                                 std::round(node->computedLayout.bounds.width *
-                                            std::max(1.0f, ctx.windowPixelWidth))));
-            height = std::max(1u,
-                              static_cast<uint32_t>(
-                                  std::round(node->computedLayout.bounds.height *
-                                             std::max(1.0f, ctx.windowPixelHeight))));
-            return {width, height};
-        }
-
-        static const EngineToolInputCaptureComponent* currentInputCapture(ECSWorld& world)
-        {
-            if (!world.hasAny<EngineToolInputCaptureComponent>())
-                return nullptr;
-            return &world.getSingleton<EngineToolInputCaptureComponent>();
-        }
-
-        void publishAssetPreview(const EcsControllerContext& ctx, EngineToolShellComposition& shell)
-        {
-            if (!syncAssetPreviewWorld(ctx))
-            {
-                clearPreviewRender(ctx.world);
-                lastAssetPreviewTexture = 0;
-                return;
-            }
-
-            const auto [width, height] = previewImageSize(ctx, shell.assetPreviewImageHandle());
-
-            texture_id_type previousTexture = 0;
-            if (ctx.world.hasAny<EditorPreviewRenderComponent>())
-                previousTexture = ctx.world.getSingleton<EditorPreviewRenderComponent>().data.colorTextureID;
-
-            const float dt = ctx.time == nullptr ? 1.0f / 60.0f : ctx.time->unscaledDeltaTime;
-            EditorPreviewRenderData data =
-                assetPreviewWorld->buildFrame(dt, width, height, currentInputCapture(ctx.world));
-            data.colorTextureID = previousTexture;
-
-            EditorPreviewRenderComponent* component = nullptr;
-            if (ctx.world.hasAny<EditorPreviewRenderComponent>())
-                component = &ctx.world.getSingleton<EditorPreviewRenderComponent>();
-            else
-                component = &ctx.world.createSingleton<EditorPreviewRenderComponent>();
-
-            component->data = std::move(data);
-            lastAssetPreviewTexture = component->data.enabled ? component->data.colorTextureID : 0;
-        }
-
-        void publishParticlePreview(const EcsControllerContext& ctx, EngineToolShellComposition& shell)
-        {
-            if (!particleSession.hasAsset() || particleSession.path().empty() || !previewWorld)
-            {
-                clearPreviewRender(ctx.world);
-                lastPreviewTexture = 0;
-                return;
-            }
-
-            const auto [width, height] = previewImageSize(ctx, shell.particlePreviewImageHandle());
-
-            texture_id_type previousTexture = 0;
-            if (ctx.world.hasAny<EditorPreviewRenderComponent>())
-                previousTexture = ctx.world.getSingleton<EditorPreviewRenderComponent>().data.colorTextureID;
-
-            const float dt = ctx.time == nullptr ? 1.0f / 60.0f : ctx.time->unscaledDeltaTime;
-            EditorPreviewRenderData data = previewWorld->buildFrame(particleSession.asset(),
-                                                                     dt,
-                                                                     particleSession.isPlaying(),
-                                                                     particleSession.timeScale(),
-                                                                     width,
-                                                                     height,
-                                                                     currentInputCapture(ctx.world));
-            data.colorTextureID = previousTexture;
-
-            EditorPreviewRenderComponent* component = nullptr;
-            if (ctx.world.hasAny<EditorPreviewRenderComponent>())
-                component = &ctx.world.getSingleton<EditorPreviewRenderComponent>();
-            else
-                component = &ctx.world.createSingleton<EditorPreviewRenderComponent>();
-
-            component->data = std::move(data);
-            lastPreviewTexture = component->data.colorTextureID;
-        }
-
-        static void clearPreviewRender(ECSWorld& world)
-        {
-            if (world.hasAny<EditorPreviewRenderComponent>())
-                world.getSingleton<EditorPreviewRenderComponent>().data.enabled = false;
-        }
-
-        void updateInputCapture(ECSWorld& world, const EcsControllerContext& ctx)
-        {
-            EngineToolInputCaptureComponent& capture = ensureInputCapture(world);
-            const UiDispatchResult& dispatch = ctx.ui == nullptr ? UiDispatchResult{} : ctx.ui->dispatchResult();
-
-            capture.pointerOverToolUi = dispatch.hovered != UI_INVALID_HANDLE;
-            capture.toolUiPressed = dispatch.pressed != UI_INVALID_HANDLE;
-            capture.keyboardCaptured = dispatch.keyboardConsumed || dispatch.navigationConsumed || dispatch.textInputConsumed;
-            capture.worldConsumed = false;
-            capture.pointerX = dispatch.pointerX;
-            capture.pointerY = dispatch.pointerY;
-            capture.hoveredUi = dispatch.hovered;
-            capture.pressedUi = dispatch.pressed;
-
-            if (ctx.input == nullptr)
-            {
-                capture.primaryDown = false;
-                capture.primaryPressed = false;
-                capture.primaryReleased = false;
-                capture.orbitDown = false;
-                capture.orbitPressed = false;
-                capture.orbitReleased = false;
-                capture.panDown = false;
-                capture.panPressed = false;
-                capture.panReleased = false;
-                capture.pointerOverViewport = false;
-                capture.pointerPixelX = 0.0f;
-                capture.pointerPixelY = 0.0f;
-                capture.pointerDeltaX = 0.0f;
-                capture.pointerDeltaY = 0.0f;
-                capture.viewportPointerX = 0.0f;
-                capture.viewportPointerY = 0.0f;
-                capture.viewportPointerDeltaX = 0.0f;
-                capture.viewportPointerDeltaY = 0.0f;
-                capture.scrollX = 0.0f;
-                capture.scrollY = 0.0f;
-                inputPointerReady = false;
-                return;
-            }
-
-            const double mouseX = ctx.input->mouseX();
-            const double mouseY = ctx.input->mouseY();
-            capture.pointerPixelX = static_cast<float>(mouseX);
-            capture.pointerPixelY = static_cast<float>(mouseY);
-            capture.pointerDeltaX = inputPointerReady ? static_cast<float>(mouseX - previousInputMouseX) : 0.0f;
-            capture.pointerDeltaY = inputPointerReady ? static_cast<float>(mouseY - previousInputMouseY) : 0.0f;
-            previousInputMouseX = mouseX;
-            previousInputMouseY = mouseY;
-            inputPointerReady = true;
-            capture.scrollX = static_cast<float>(ctx.input->scrollX());
-            capture.scrollY = static_cast<float>(ctx.input->scrollY());
-
-            RenderViewportRect viewport =
-                RenderViewportRect::full(std::max(1, static_cast<int>(std::round(ctx.windowPixelWidth))),
-                                         std::max(1, static_cast<int>(std::round(ctx.windowPixelHeight))));
-            if (world.hasAny<RenderViewportComponent>())
-                viewport = world.getSingleton<RenderViewportComponent>().sceneViewport;
-
-            capture.pointerOverViewport = viewport.remapPointer(static_cast<float>(mouseX),
-                                                                static_cast<float>(mouseY),
-                                                                capture.viewportPointerX,
-                                                                capture.viewportPointerY);
-            capture.viewportPointerDeltaX =
-                viewport.width > 0 ? capture.pointerDeltaX / static_cast<float>(viewport.width) : 0.0f;
-            capture.viewportPointerDeltaY =
-                viewport.height > 0 ? capture.pointerDeltaY / static_cast<float>(viewport.height) : 0.0f;
-
-            const char* primaryAction =
-                ctx.input->isContextActive(ToolsInputContext) ? ToolsSelectAction : "engine.ui_primary";
-            capture.primaryDown = ctx.input->isHeld(primaryAction);
-            capture.primaryPressed = ctx.input->isPressed(primaryAction);
-            capture.primaryReleased = ctx.input->isReleased(primaryAction);
-            capture.orbitDown = ctx.input->isHeld(ToolsOrbitAction);
-            capture.orbitPressed = ctx.input->isPressed(ToolsOrbitAction);
-            capture.orbitReleased = ctx.input->isReleased(ToolsOrbitAction);
-            capture.panDown = ctx.input->isHeld(ToolsPanAction);
-            capture.panPressed = ctx.input->isPressed(ToolsPanAction);
-            capture.panReleased = ctx.input->isReleased(ToolsPanAction);
-        }
     };
 } // namespace gts::tools

@@ -23,7 +23,6 @@ namespace gts::tools
         EmitterDetails,
         ParticlePreviewViewport,
         PropertyInspector,
-        CurveTimeline,
         Diagnostics,
         StatusBar
     };
@@ -52,8 +51,6 @@ namespace gts::tools
         float preferredSizeInParticles = 0.0f;
         float minimumSize = 0.0f;
         float leadingOffset = 0.0f;
-        bool collapsible = false;
-        bool closable = false;
         bool visibleInAssets = true;
         float preferredSizeInAssets = 0.0f;
     };
