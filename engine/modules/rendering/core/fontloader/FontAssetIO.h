@@ -141,6 +141,115 @@ namespace gts::fonts
             return pos != std::string::npos && parseBoolAt(source, pos, value);
         }
 
+        inline bool parseGlyphMetricsAt(const std::string& source, size_t& pos, FontGlyphMetrics& metrics)
+        {
+            if (!consume(source, pos, '{'))
+                return false;
+
+            while (pos < source.size())
+            {
+                skipWhitespace(source, pos);
+                if (pos < source.size() && source[pos] == '}')
+                {
+                    ++pos;
+                    return true;
+                }
+
+                std::string key;
+                if (!parseStringAt(source, pos, key) || !consume(source, pos, ':'))
+                    return false;
+
+                float value = 0.0f;
+                if (!parseFloatAt(source, pos, value))
+                    return false;
+
+                if (key == "sizeX")
+                    metrics.sizeX = value;
+                else if (key == "sizeY")
+                    metrics.sizeY = value;
+                else if (key == "advance")
+                    metrics.advance = value;
+
+                skipWhitespace(source, pos);
+                if (pos < source.size() && source[pos] == ',')
+                {
+                    ++pos;
+                    continue;
+                }
+                if (pos < source.size() && source[pos] == '}')
+                {
+                    ++pos;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        inline bool readGlyphDefaults(const std::string& source, FontGlyphMetrics& metrics)
+        {
+            size_t pos = findValue(source, "glyphDefaults");
+            return pos != std::string::npos && parseGlyphMetricsAt(source, pos, metrics);
+        }
+
+        inline bool readGlyphOverrides(const std::string& source,
+                                       std::unordered_map<char, FontGlyphMetrics>& overrides)
+        {
+            size_t pos = findValue(source, "glyphOverrides");
+            if (pos == std::string::npos)
+                return false;
+
+            if (!consume(source, pos, '{'))
+                return false;
+
+            while (pos < source.size())
+            {
+                skipWhitespace(source, pos);
+                if (pos < source.size() && source[pos] == '}')
+                {
+                    ++pos;
+                    return true;
+                }
+
+                std::string chars;
+                if (!parseStringAt(source, pos, chars) || !consume(source, pos, ':'))
+                    return false;
+
+                FontGlyphMetrics metrics;
+                if (!parseGlyphMetricsAt(source, pos, metrics))
+                    return false;
+
+                for (char ch : chars)
+                    overrides[ch] = metrics;
+
+                skipWhitespace(source, pos);
+                if (pos < source.size() && source[pos] == ',')
+                {
+                    ++pos;
+                    continue;
+                }
+                if (pos < source.size() && source[pos] == '}')
+                {
+                    ++pos;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        inline bool hasGlyphMetrics(const FontGlyphMetrics& metrics)
+        {
+            return metrics.sizeX > 0.0f || metrics.sizeY > 0.0f || metrics.advance > 0.0f;
+        }
+
+        inline void writeGlyphMetrics(std::ostream& out, const FontGlyphMetrics& metrics)
+        {
+            out << "{\"sizeX\": " << std::fixed << std::setprecision(3) << metrics.sizeX
+                << ", \"sizeY\": " << metrics.sizeY
+                << ", \"advance\": " << metrics.advance << "}";
+        }
+
         inline std::string escapeJsonString(const std::string& value)
         {
             std::string escaped;
@@ -175,6 +284,8 @@ namespace gts::fonts
         if (!detail::readString(source, "charOrder", parsed.charOrder)) return false;
         if (!detail::readFloat(source, "lineHeight", parsed.lineHeight)) return false;
         detail::readBool(source, "pixelSampling", parsed.pixelSampling);
+        detail::readGlyphDefaults(source, parsed.glyphDefaults);
+        detail::readGlyphOverrides(source, parsed.glyphOverrides);
 
         if (parsed.atlasWidth == 0
             || parsed.atlasHeight == 0
@@ -205,6 +316,27 @@ namespace gts::fonts
         out << "  \"columns\": " << asset.columns << ",\n";
         out << "  \"charOrder\": \"" << detail::escapeJsonString(asset.charOrder) << "\",\n";
         out << "  \"lineHeight\": " << std::fixed << std::setprecision(3) << asset.lineHeight << ",\n";
+        if (detail::hasGlyphMetrics(asset.glyphDefaults))
+        {
+            out << "  \"glyphDefaults\": ";
+            detail::writeGlyphMetrics(out, asset.glyphDefaults);
+            out << ",\n";
+        }
+        if (!asset.glyphOverrides.empty())
+        {
+            out << "  \"glyphOverrides\": {\n";
+            size_t written = 0;
+            for (const auto& [ch, metrics] : asset.glyphOverrides)
+            {
+                const std::string key(1, ch);
+                out << "    \"" << detail::escapeJsonString(key) << "\": ";
+                detail::writeGlyphMetrics(out, metrics);
+                if (++written < asset.glyphOverrides.size())
+                    out << ",";
+                out << "\n";
+            }
+            out << "  },\n";
+        }
         out << "  \"pixelSampling\": " << (asset.pixelSampling ? "true" : "false") << "\n";
         out << "}\n";
         return true;

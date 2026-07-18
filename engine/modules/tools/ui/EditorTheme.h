@@ -12,17 +12,17 @@ namespace gts::tools
         int mediumWeight  = 500;
         int boldWeight    = 700;
 
-        float applicationTitleScale = 0.0124f;
-        float panelTitleScale       = 0.0112f;
-        float sectionHeaderScale    = 0.0100f;
-        float bodyScale             = 0.0095f;
-        float labelScale            = 0.0090f;
-        float valueScale            = 0.0090f;
-        float metadataScale         = 0.0087f;
-        float statusScale           = 0.0085f;
-        float diagnosticScale       = 0.0087f;
-        float buttonScale           = 0.0089f;
-        float iconScale             = 0.0096f;
+        float applicationTitleScale = 0.0132f;
+        float panelTitleScale       = 0.0120f;
+        float sectionHeaderScale    = 0.0108f;
+        float bodyScale             = 0.0102f;
+        float labelScale            = 0.0097f;
+        float valueScale            = 0.0097f;
+        float metadataScale         = 0.0092f;
+        float statusScale           = 0.0090f;
+        float diagnosticScale       = 0.0090f;
+        float buttonScale           = 0.0095f;
+        float iconScale             = 0.0100f;
 
         float titleScale  = applicationTitleScale;
         float headerScale = panelTitleScale;
@@ -60,9 +60,9 @@ namespace gts::tools
         float thinWidth     = 0.0011f;
         float focusWidth    = 0.0018f;
 
-        float radiusSmall  = 0.0038f;
-        float radiusMedium = 0.0054f;
-        float radiusLarge  = 0.0072f;
+        float radiusSmall  = 0.0042f;
+        float radiusMedium = 0.0062f;
+        float radiusLarge  = 0.0080f;
     };
 
     struct EditorShadow
@@ -70,7 +70,7 @@ namespace gts::tools
         UiColor color   = {0.000f, 0.000f, 0.000f, 0.420f};
         float   offsetX = 0.000f;
         float   offsetY = 0.006f;
-        float   blur    = 0.018f;
+        float   blur    = 0.016f;
     };
 
     struct EditorAnimation
@@ -102,34 +102,34 @@ namespace gts::tools
     struct EditorColors
     {
         UiColor windowBackground    = {0.007f, 0.009f, 0.012f, 1.000f};
-        UiColor workspaceBackground = {0.011f, 0.014f, 0.019f, 1.000f};
-        UiColor viewportBackground  = {0.008f, 0.011f, 0.016f, 1.000f};
+        UiColor workspaceBackground = {0.014f, 0.018f, 0.024f, 1.000f};
+        UiColor viewportBackground  = {0.010f, 0.014f, 0.020f, 1.000f};
         UiColor menuBarBackground   = {0.011f, 0.014f, 0.018f, 0.998f};
-        UiColor toolbarBackground   = {0.018f, 0.023f, 0.030f, 0.996f};
+        UiColor toolbarBackground   = {0.023f, 0.029f, 0.037f, 0.996f};
         UiColor statusBarBackground = {0.011f, 0.014f, 0.018f, 0.998f};
-        UiColor sidebarBackground   = {0.018f, 0.024f, 0.032f, 1.000f};
-        UiColor panelBackground     = {0.026f, 0.033f, 0.042f, 0.988f};
-        UiColor panelSurface        = {0.038f, 0.047f, 0.058f, 0.992f};
-        UiColor panelSurfaceRaised  = {0.056f, 0.067f, 0.081f, 0.998f};
-        UiColor panelInset          = {0.010f, 0.014f, 0.020f, 0.998f};
-        UiColor cardBackground      = {0.039f, 0.048f, 0.060f, 0.992f};
-        UiColor groupBackground     = {0.025f, 0.032f, 0.041f, 0.970f};
+        UiColor sidebarBackground   = {0.024f, 0.031f, 0.041f, 1.000f};
+        UiColor panelBackground     = {0.033f, 0.041f, 0.052f, 0.988f};
+        UiColor panelSurface        = {0.045f, 0.055f, 0.068f, 0.992f};
+        UiColor panelSurfaceRaised  = {0.062f, 0.074f, 0.090f, 0.998f};
+        UiColor panelInset          = {0.014f, 0.019f, 0.027f, 0.998f};
+        UiColor cardBackground      = {0.047f, 0.057f, 0.071f, 0.992f};
+        UiColor groupBackground     = {0.030f, 0.038f, 0.049f, 0.970f};
         UiColor overlay             = {0.010f, 0.013f, 0.019f, 0.900f};
-        UiColor toolbarGroupBackground = {0.031f, 0.039f, 0.050f, 0.960f};
-        UiColor viewportOverlayBackground = {0.014f, 0.018f, 0.026f, 0.860f};
+        UiColor toolbarGroupBackground = {0.036f, 0.045f, 0.057f, 0.960f};
+        UiColor viewportOverlayBackground = {0.018f, 0.023f, 0.031f, 0.860f};
 
-        UiColor headerBackground      = {0.031f, 0.039f, 0.050f, 0.998f};
-        UiColor headerActive          = {0.048f, 0.061f, 0.076f, 1.000f};
+        UiColor headerBackground      = {0.038f, 0.047f, 0.058f, 0.998f};
+        UiColor headerActive          = {0.056f, 0.069f, 0.085f, 1.000f};
         UiColor footerBackground      = statusBarBackground;
-        UiColor separator             = {0.100f, 0.122f, 0.148f, 0.600f};
-        UiColor border                = {0.190f, 0.225f, 0.270f, 0.760f};
-        UiColor borderSubtle          = {0.090f, 0.112f, 0.138f, 0.620f};
+        UiColor separator             = {0.130f, 0.158f, 0.190f, 0.650f};
+        UiColor border                = {0.230f, 0.270f, 0.320f, 0.820f};
+        UiColor borderSubtle          = {0.130f, 0.158f, 0.190f, 0.680f};
         UiColor highlight             = {0.640f, 0.760f, 0.880f, 0.145f};
 
-        UiColor button          = {0.034f, 0.043f, 0.054f, 0.985f};
-        UiColor buttonSecondary = {0.026f, 0.033f, 0.042f, 0.930f};
-        UiColor buttonHover     = {0.064f, 0.079f, 0.096f, 1.000f};
-        UiColor buttonPressed   = {0.090f, 0.112f, 0.136f, 1.000f};
+        UiColor button          = {0.040f, 0.050f, 0.063f, 0.985f};
+        UiColor buttonSecondary = {0.030f, 0.038f, 0.048f, 0.930f};
+        UiColor buttonHover     = {0.074f, 0.090f, 0.109f, 1.000f};
+        UiColor buttonPressed   = {0.100f, 0.123f, 0.148f, 1.000f};
         UiColor buttonActive    = {0.050f, 0.230f, 0.360f, 1.000f};
         UiColor toggleActive    = {0.050f, 0.250f, 0.385f, 1.000f};
         UiColor toggleHover     = {0.070f, 0.300f, 0.455f, 1.000f};

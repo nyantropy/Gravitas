@@ -81,7 +81,8 @@ namespace gts::tools::toolui
                                 float borderThickness,
                                 UiColor shadow = {0.0f, 0.0f, 0.0f, 0.0f},
                                 UiVec2 shadowOffset = {},
-                                float cornerRadius = 0.0f)
+                                float cornerRadius = 0.0f,
+                                float shadowBlur = 0.0f)
     {
         if (handle == UI_INVALID_HANDLE)
             return;
@@ -93,6 +94,7 @@ namespace gts::tools::toolui
         data.shadowColor = shadow;
         data.shadowOffset = shadowOffset;
         data.cornerRadius = cornerRadius;
+        data.shadowBlur = shadowBlur;
         ui.setPayload(surface, handle, data);
     }
 
@@ -118,6 +120,7 @@ namespace gts::tools::toolui
         UiVec2 shadowOffset = {};
         float borderThickness = ToolTheme::panelBorderWidth;
         float cornerRadius = ToolTheme::radiusMedium;
+        float shadowBlur = 0.0f;
     };
 
     inline SurfaceStyle surfaceStyle(SurfaceRole role)
@@ -130,6 +133,7 @@ namespace gts::tools::toolui
                 style.border = ToolTheme::border;
                 style.shadow = ToolTheme::shadow;
                 style.shadowOffset = {0.0f, ToolTheme::panelShadowOffset};
+                style.shadowBlur = DefaultEditorTheme.shadow.blur;
                 style.cornerRadius = ToolTheme::panelRadius;
                 break;
             case SurfaceRole::Raised:
@@ -137,6 +141,7 @@ namespace gts::tools::toolui
                 style.border = ToolTheme::border;
                 style.shadow = ToolTheme::shadow;
                 style.shadowOffset = {0.0f, ToolTheme::panelShadowOffset};
+                style.shadowBlur = DefaultEditorTheme.shadow.blur * 0.70f;
                 style.cornerRadius = ToolTheme::panelRadius;
                 break;
             case SurfaceRole::Inset:
@@ -149,6 +154,7 @@ namespace gts::tools::toolui
                 style.border = ToolTheme::borderSubtle;
                 style.shadow = {0.0f, 0.0f, 0.0f, 0.220f};
                 style.shadowOffset = {0.0f, ToolTheme::panelShadowOffset * 0.45f};
+                style.shadowBlur = DefaultEditorTheme.shadow.blur * 0.35f;
                 style.cornerRadius = ToolTheme::radiusMedium;
                 break;
             case SurfaceRole::Overlay:
@@ -156,6 +162,7 @@ namespace gts::tools::toolui
                 style.border = ToolTheme::border;
                 style.shadow = {0.0f, 0.0f, 0.0f, 0.320f};
                 style.shadowOffset = {0.0f, ToolTheme::panelShadowOffset * 0.55f};
+                style.shadowBlur = DefaultEditorTheme.shadow.blur * 0.45f;
                 style.cornerRadius = ToolTheme::overlayRadius;
                 break;
             case SurfaceRole::Control:
@@ -201,7 +208,8 @@ namespace gts::tools::toolui
                         style.borderThickness,
                         style.shadow,
                         style.shadowOffset,
-                        style.cornerRadius);
+                        style.cornerRadius,
+                        style.shadowBlur);
     }
 
     inline void setTextColor(UiSystem& ui, UiSurfaceId surface, UiHandle handle, UiColor color)

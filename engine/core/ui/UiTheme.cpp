@@ -458,6 +458,12 @@ UiTheme defaultUiTheme()
     UiStyleClass panel;
     panel.base.skinName = "Panel";
     panel.base.foregroundColorToken = UiThemeTokens::TextPrimary;
+    panel.base.borderColor = theme.colorOr(UiThemeTokens::Separator, {0.125f, 0.142f, 0.160f, 0.62f});
+    panel.base.borderWidth = 0.001f;
+    panel.base.borderRadius = 0.004f;
+    panel.base.shadowColor = theme.colorOr(UiThemeTokens::Shadow, {0.0f, 0.0f, 0.0f, 0.42f});
+    panel.base.shadowOffset = UiVec2{0.0f, 0.004f};
+    panel.base.shadowBlur = 0.012f;
     theme.setStyleClass("Panel", panel);
 
     UiStyleClass label;
@@ -469,6 +475,9 @@ UiTheme defaultUiTheme()
     button.base.backgroundColorToken = UiThemeTokens::PanelRaised;
     button.base.foregroundColorToken = UiThemeTokens::TextPrimary;
     button.base.typographyName = "Body";
+    button.base.borderColor = theme.colorOr(UiThemeTokens::Separator, {0.125f, 0.142f, 0.160f, 0.62f});
+    button.base.borderWidth = 0.001f;
+    button.base.borderRadius = 0.004f;
     button.states[UiStyleState::Hover].backgroundColorToken = UiThemeTokens::AccentHover;
     button.states[UiStyleState::Pressed].backgroundColorToken = UiThemeTokens::AccentPressed;
     button.states[UiStyleState::Disabled].backgroundColor = {0.045f, 0.051f, 0.060f, 0.62f};

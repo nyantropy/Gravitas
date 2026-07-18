@@ -126,6 +126,8 @@ namespace gts::ui
         bool accessibilityHidden = false;
         std::optional<UiColor> color;
         std::optional<float> scale;
+        std::optional<float> lineHeight;
+        std::optional<float> letterSpacing;
         UiTextWrapMode wrapMode = UiTextWrapMode::None;
         UiHorizontalAlign horizontalAlign = UiHorizontalAlign::Left;
         UiVerticalAlign verticalAlign = UiVerticalAlign::Top;
@@ -215,6 +217,10 @@ namespace gts::ui
                 payload.color = *desc.color;
             if (desc.scale)
                 payload.scale = *desc.scale;
+            if (desc.lineHeight)
+                payload.lineHeight = *desc.lineHeight;
+            if (desc.letterSpacing)
+                payload.letterSpacing = *desc.letterSpacing;
             context.ui.setPayload(context.surface, rootHandle, payload);
 
             if (!desc.styleClass.empty())
@@ -364,6 +370,8 @@ namespace gts::ui
         std::optional<UiPanelStateSkin> panelStateSkin;
         std::optional<UiColor> textColor;
         std::optional<float> textScale;
+        std::optional<float> lineHeight;
+        std::optional<float> letterSpacing;
         UiHorizontalAlign horizontalAlign = UiHorizontalAlign::Center;
         UiVerticalAlign verticalAlign = UiVerticalAlign::Middle;
         UiTextWrapMode wrapMode = UiTextWrapMode::None;
@@ -568,6 +576,10 @@ namespace gts::ui
                 label.color = *buttonDesc.textColor;
             if (buttonDesc.textScale)
                 label.scale = *buttonDesc.textScale;
+            if (buttonDesc.lineHeight)
+                label.lineHeight = *buttonDesc.lineHeight;
+            if (buttonDesc.letterSpacing)
+                label.letterSpacing = *buttonDesc.letterSpacing;
             context.ui.setPayload(context.surface, labelHandle, label);
         }
 

@@ -2,6 +2,14 @@
 
 #include <cstdint>
 #include <string>
+#include <unordered_map>
+
+struct FontGlyphMetrics
+{
+    float sizeX = 0.0f;
+    float sizeY = 0.0f;
+    float advance = 0.0f;
+};
 
 struct FontAsset
 {
@@ -14,4 +22,6 @@ struct FontAsset
     std::string charOrder;
     float lineHeight = 1.0f;
     bool pixelSampling = true;
+    FontGlyphMetrics glyphDefaults;
+    std::unordered_map<char, FontGlyphMetrics> glyphOverrides;
 };

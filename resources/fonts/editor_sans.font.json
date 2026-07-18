@@ -6,6 +6,14 @@
   "cellHeight": 32,
   "columns": 16,
   "charOrder": " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~",
-  "lineHeight": 1.0,
+  "lineHeight": 0.92,
+  "glyphDefaults": {"sizeX": 0.720, "sizeY": 0.920, "advance": 0.460},
+  "glyphOverrides": {
+    " ": {"sizeX": 0.360, "sizeY": 0.920, "advance": 0.260},
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ": {"sizeX": 0.760, "sizeY": 0.920, "advance": 0.500},
+    "0123456789": {"sizeX": 0.660, "sizeY": 0.920, "advance": 0.440},
+    "ijlI!.,:;'`": {"sizeX": 0.420, "sizeY": 0.920, "advance": 0.250},
+    "mwMW": {"sizeX": 0.860, "sizeY": 0.920, "advance": 0.620}
+  },
   "pixelSampling": false
 }

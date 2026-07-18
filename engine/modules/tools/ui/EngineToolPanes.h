@@ -50,7 +50,8 @@ namespace gts::tools
                                         ToolTheme::panelBorderWidth,
                                         ToolTheme::shadow,
                                         {0.0f, ToolTheme::panelShadowOffset},
-                                        ToolTheme::panelRadius);
+                                        ToolTheme::panelRadius,
+                                        DefaultEditorTheme.shadow.blur);
             }
             else
             {
@@ -128,7 +129,8 @@ namespace gts::tools
                                         shadow ? ToolTheme::shadow : transparent(),
                                         shadow ? UiVec2{0.0f, ToolTheme::panelShadowOffset}
                                                : UiVec2{},
-                                        cornerRadius);
+                                        cornerRadius,
+                                        shadow ? DefaultEditorTheme.shadow.blur * 0.70f : 0.0f);
             }
             else
             {

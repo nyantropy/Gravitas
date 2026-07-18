@@ -23,6 +23,7 @@ struct UiRectData
     UiVec2 shadowOffset = {0.0f, 0.0f};
     float borderThickness = 0.0f;
     float cornerRadius = 0.0f;
+    float shadowBlur = 0.0f;
 
     bool operator==(const UiRectData&) const = default;
 };
@@ -57,6 +58,8 @@ struct UiTextData
     UiHorizontalAlign horizontalAlign = UiHorizontalAlign::Left;
     UiVerticalAlign verticalAlign = UiVerticalAlign::Top;
     int maxLines = 0;
+    float lineHeight = 1.0f;
+    float letterSpacing = 0.0f;
 
     bool operator==(const UiTextData&) const = default;
 };

@@ -300,49 +300,8 @@ namespace gts::tools
                 return false;
 
             font = *loadedFont;
-            tuneEditorFont(font);
             fontReady = true;
             return true;
-        }
-
-        static void tuneEditorFont(BitmapFont& inFont)
-        {
-            inFont.lineHeight = 0.92f;
-            for (auto& glyphEntry : inFont.glyphs)
-            {
-                GlyphInfo& glyph = glyphEntry.second;
-                glyph.advance = 0.460f;
-                glyph.size.x = 0.720f;
-                glyph.size.y = 0.920f;
-
-                const char ch = glyphEntry.first;
-                if (ch == ' ')
-                {
-                    glyph.advance = 0.260f;
-                    glyph.size.x = 0.360f;
-                }
-                else if (ch == 'i' || ch == 'l' || ch == 'I' || ch == '!' || ch == '.' || ch == ',' || ch == ':' ||
-                         ch == ';' || ch == '\'' || ch == '`')
-                {
-                    glyph.advance = 0.250f;
-                    glyph.size.x = 0.420f;
-                }
-                else if (ch == 'm' || ch == 'w' || ch == 'M' || ch == 'W')
-                {
-                    glyph.advance = 0.620f;
-                    glyph.size.x = 0.860f;
-                }
-                else if (ch >= '0' && ch <= '9')
-                {
-                    glyph.advance = 0.440f;
-                    glyph.size.x = 0.660f;
-                }
-                else if (ch >= 'A' && ch <= 'Z')
-                {
-                    glyph.advance = 0.500f;
-                    glyph.size.x = 0.760f;
-                }
-            }
         }
 
         EngineToolShellComposition* ensureComposition(UiSystem& ui)

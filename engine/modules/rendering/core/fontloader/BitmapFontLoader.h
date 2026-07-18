@@ -14,6 +14,27 @@
 //   size = (cellW / cellH, 1), bearing = (0, 1), advance = cellW / cellH.
 namespace BitmapFontLoader
 {
+    inline void applyMetric(FontGlyphMetrics metrics, GlyphInfo& glyph)
+    {
+        if (metrics.sizeX > 0.0f)
+            glyph.size.x = metrics.sizeX;
+        if (metrics.sizeY > 0.0f)
+            glyph.size.y = metrics.sizeY;
+        if (metrics.advance > 0.0f)
+            glyph.advance = metrics.advance;
+    }
+
+    inline void applyMetrics(BitmapFont& font, const FontAsset& asset)
+    {
+        for (auto& glyphEntry : font.glyphs)
+        {
+            applyMetric(asset.glyphDefaults, glyphEntry.second);
+            const auto overrideIt = asset.glyphOverrides.find(glyphEntry.first);
+            if (overrideIt != asset.glyphOverrides.end())
+                applyMetric(overrideIt->second, glyphEntry.second);
+        }
+    }
+
     inline BitmapFont buildGridFont(texture_id_type atlasTexture,
                                     int atlasW,
                                     int atlasH,
@@ -56,14 +77,16 @@ namespace BitmapFontLoader
 
     inline BitmapFont buildGridFont(texture_id_type atlasTexture, const FontAsset& asset)
     {
-        return buildGridFont(atlasTexture,
-                             static_cast<int>(asset.atlasWidth),
-                             static_cast<int>(asset.atlasHeight),
-                             static_cast<int>(asset.cellWidth),
-                             static_cast<int>(asset.cellHeight),
-                             static_cast<int>(asset.columns),
-                             asset.charOrder,
-                             asset.lineHeight);
+        BitmapFont font = buildGridFont(atlasTexture,
+                                        static_cast<int>(asset.atlasWidth),
+                                        static_cast<int>(asset.atlasHeight),
+                                        static_cast<int>(asset.cellWidth),
+                                        static_cast<int>(asset.cellHeight),
+                                        static_cast<int>(asset.columns),
+                                        asset.charOrder,
+                                        asset.lineHeight);
+        applyMetrics(font, asset);
+        return font;
     }
 
     // atlasW/atlasH  : atlas dimensions in pixels

@@ -47,14 +47,32 @@ namespace GlyphLayoutEngine
         return it->second.advance * scale;
     }
 
-    inline float measureUiTextLine(const BitmapFont& font, const std::string& text, float scale)
+    inline float resolvedLineHeight(const BitmapFont& font, float scale, float lineHeight)
+    {
+        return font.lineHeight * scale * std::max(0.1f, lineHeight);
+    }
+
+    inline float resolvedLetterSpacing(float scale, float letterSpacing)
+    {
+        return std::max(0.0f, letterSpacing) * scale;
+    }
+
+    inline float measureUiTextLine(const BitmapFont& font,
+                                   const std::string& text,
+                                   float scale,
+                                   float letterSpacing = 0.0f)
     {
         float width = 0.0f;
+        bool hasPrevious = false;
+        const float spacing = resolvedLetterSpacing(scale, letterSpacing);
         for (char ch : text)
         {
             if (ch == '\n')
                 break;
+            if (hasPrevious)
+                width += spacing;
             width += glyphAdvance(font, ch, scale);
+            hasPrevious = true;
         }
         return width;
     }
@@ -82,13 +100,14 @@ namespace GlyphLayoutEngine
                                   std::string& current,
                                   const std::string& word,
                                   float scale,
+                                  float letterSpacing,
                                   float maxWidth)
     {
         if (word.empty())
             return;
 
         const std::string candidate = current.empty() ? word : current + " " + word;
-        if (measureUiTextLine(font, candidate, scale) <= maxWidth)
+        if (measureUiTextLine(font, candidate, scale, letterSpacing) <= maxWidth)
         {
             current = candidate;
             return;
@@ -100,7 +119,7 @@ namespace GlyphLayoutEngine
             current.clear();
         }
 
-        if (measureUiTextLine(font, word, scale) <= maxWidth)
+        if (measureUiTextLine(font, word, scale, letterSpacing) <= maxWidth)
         {
             current = word;
             return;
@@ -109,7 +128,7 @@ namespace GlyphLayoutEngine
         for (char ch : word)
         {
             const std::string candidateChar = current + ch;
-            if (!current.empty() && measureUiTextLine(font, candidateChar, scale) > maxWidth)
+            if (!current.empty() && measureUiTextLine(font, candidateChar, scale, letterSpacing) > maxWidth)
             {
                 lines.push_back(current);
                 current.clear();
@@ -123,7 +142,8 @@ namespace GlyphLayoutEngine
                                                       float scale,
                                                       float maxWidth,
                                                       UiTextWrapMode wrapMode,
-                                                      int maxLines)
+                                                      int maxLines,
+                                                      float letterSpacing = 0.0f)
     {
         std::vector<std::string> lines;
         if (text.empty())
@@ -149,14 +169,14 @@ namespace GlyphLayoutEngine
                 {
                     if (ch == ' ' || ch == '\t')
                     {
-                        appendWordWrapped(font, lines, current, word, scale, maxWidth);
+                        appendWordWrapped(font, lines, current, word, scale, letterSpacing, maxWidth);
                         word.clear();
                         continue;
                     }
                     word.push_back(ch);
                 }
 
-                appendWordWrapped(font, lines, current, word, scale, maxWidth);
+                appendWordWrapped(font, lines, current, word, scale, letterSpacing, maxWidth);
                 lines.push_back(current);
             }
         }
@@ -172,17 +192,21 @@ namespace GlyphLayoutEngine
                                            float scale,
                                            float maxWidth = 0.0f,
                                            UiTextWrapMode wrapMode = UiTextWrapMode::None,
-                                           int maxLines = 0)
+                                           int maxLines = 0,
+                                           float lineHeight = 1.0f,
+                                           float letterSpacing = 0.0f)
     {
         const std::vector<std::string> lines = layoutUiTextLines(
-            font, text, scale, maxWidth, wrapMode, maxLines);
+            font, text, scale, maxWidth, wrapMode, maxLines, letterSpacing);
 
         UiTextMeasurement measurement;
         measurement.lineCount = static_cast<int>(lines.size());
-        measurement.height = static_cast<float>(measurement.lineCount) * font.lineHeight * scale;
+        measurement.height = static_cast<float>(measurement.lineCount) *
+            resolvedLineHeight(font, scale, lineHeight);
 
         for (const std::string& line : lines)
-            measurement.width = std::max(measurement.width, measureUiTextLine(font, line, scale));
+            measurement.width = std::max(measurement.width,
+                                         measureUiTextLine(font, line, scale, letterSpacing));
 
         return measurement;
     }
@@ -231,16 +255,23 @@ namespace GlyphLayoutEngine
                                         float y,
                                         float scale,
                                         const UiRect& clipRect,
-                                        glm::vec4 color)
+                                        glm::vec4 color,
+                                        float letterSpacing = 0.0f)
     {
         float cursorX = x;
+        bool hasPrevious = false;
+        const float spacing = resolvedLetterSpacing(scale, letterSpacing);
 
         for (char ch : text)
         {
+            if (hasPrevious)
+                cursorX += spacing;
+
             auto it = font.glyphs.find(ch);
             if (it == font.glyphs.end())
             {
                 cursorX += font.lineHeight * 0.5f * scale;
+                hasPrevious = true;
                 continue;
             }
 
@@ -256,6 +287,7 @@ namespace GlyphLayoutEngine
             }
 
             cursorX += g.advance * scale;
+            hasPrevious = true;
         }
     }
 
@@ -269,7 +301,9 @@ namespace GlyphLayoutEngine
                                    UiTextWrapMode wrapMode = UiTextWrapMode::None,
                                    UiHorizontalAlign horizontalAlign = UiHorizontalAlign::Left,
                                    UiVerticalAlign verticalAlign = UiVerticalAlign::Top,
-                                   int maxLines = 0)
+                                   int maxLines = 0,
+                                   float lineHeight = 1.0f,
+                                   float letterSpacing = 0.0f)
     {
         const bool hasTextBox = bounds.width > 0.0f && bounds.height > 0.0f;
         const UiRect effectiveBounds = hasTextBox
@@ -286,12 +320,13 @@ namespace GlyphLayoutEngine
             scale,
             hasTextBox ? effectiveBounds.width : 0.0f,
             hasTextBox ? wrapMode : UiTextWrapMode::None,
-            maxLines);
+            maxLines,
+            letterSpacing);
         if (lines.empty())
             return;
 
-        const float lineHeight = font.lineHeight * scale;
-        const float textHeight = static_cast<float>(lines.size()) * lineHeight;
+        const float lineAdvance = resolvedLineHeight(font, scale, lineHeight);
+        const float textHeight = static_cast<float>(lines.size()) * lineAdvance;
         float y = effectiveBounds.y;
         if (hasTextBox)
         {
@@ -305,7 +340,7 @@ namespace GlyphLayoutEngine
 
         for (const std::string& line : lines)
         {
-            const float lineWidth = measureUiTextLine(font, line, scale);
+            const float lineWidth = measureUiTextLine(font, line, scale, letterSpacing);
             float x = effectiveBounds.x;
             if (hasTextBox)
             {
@@ -317,8 +352,8 @@ namespace GlyphLayoutEngine
                 }
             }
 
-            appendUiTextLineClipped(buffer, font, line, x, y, scale, effectiveClip, color);
-            y += lineHeight;
+            appendUiTextLineClipped(buffer, font, line, x, y, scale, effectiveClip, color, letterSpacing);
+            y += lineAdvance;
         }
     }
 
@@ -392,25 +427,34 @@ namespace GlyphLayoutEngine
                              const BitmapFont& font,
                              const std::string& text,
                              float x, float y, float scale,
-                             glm::vec4 color = {1.0f, 1.0f, 1.0f, 1.0f})
+                             glm::vec4 color = {1.0f, 1.0f, 1.0f, 1.0f},
+                             float lineHeight = 1.0f,
+                             float letterSpacing = 0.0f)
     {
         float cursorX = x;
         float cursorY = y;
         const uint32_t indexStart = static_cast<uint32_t>(buffer.indices.size());
+        const float spacing = resolvedLetterSpacing(scale, letterSpacing);
+        bool hasPrevious = false;
 
         for (char ch : text)
         {
             if (ch == '\n')
             {
                 cursorX  = x;
-                cursorY += font.lineHeight * scale;
+                cursorY += resolvedLineHeight(font, scale, lineHeight);
+                hasPrevious = false;
                 continue;
             }
+
+            if (hasPrevious)
+                cursorX += spacing;
 
             auto it = font.glyphs.find(ch);
             if (it == font.glyphs.end())
             {
                 cursorX += font.lineHeight * 0.5f * scale;
+                hasPrevious = true;
                 continue;
             }
 
@@ -440,6 +484,7 @@ namespace GlyphLayoutEngine
             }
 
             cursorX += g.advance * scale;
+            hasPrevious = true;
         }
 
         buffer.addDrawCommand(UiDrawType::TexturedQuad,

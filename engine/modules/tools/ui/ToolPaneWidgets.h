@@ -33,6 +33,8 @@ namespace gts::tools
         desc.styleClass.clear();
         desc.color = color;
         desc.scale = scale;
+        desc.lineHeight = 1.08f;
+        desc.letterSpacing = 0.0f;
         desc.horizontalAlign = align;
         desc.verticalAlign = UiVerticalAlign::Middle;
         desc.wrapMode = UiTextWrapMode::Word;
@@ -54,6 +56,8 @@ namespace gts::tools
         desc.labelStyleClass.clear();
         desc.textColor = ToolTheme::text;
         desc.textScale = scale;
+        desc.lineHeight = 1.06f;
+        desc.letterSpacing = 0.0f;
         desc.horizontalAlign = align;
         desc.verticalAlign = UiVerticalAlign::Middle;
         desc.wrapMode = UiTextWrapMode::Word;

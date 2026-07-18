@@ -52,6 +52,8 @@ struct UiTextPrimitive
     UiHorizontalAlign horizontalAlign = UiHorizontalAlign::Left;
     UiVerticalAlign verticalAlign = UiVerticalAlign::Top;
     int          maxLines = 0;
+    float        lineHeight = 1.0f;
+    float        letterSpacing = 0.0f;
 };
 
 struct UiLinePrimitive

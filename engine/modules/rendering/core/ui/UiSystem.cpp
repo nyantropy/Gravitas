@@ -1170,7 +1170,9 @@ bool UiSystem::measureText(UiSurfaceId surfaceId, UiHandle handle, UiTextMeasure
         data.scale,
         maxWidth,
         data.wrapMode,
-        data.maxLines);
+        data.maxLines,
+        data.lineHeight,
+        data.letterSpacing);
     return true;
 }
 
@@ -1882,7 +1884,9 @@ const UiCommandBuffer& UiSystem::extractSurfaceCommandsRef(UiSurfaceId surfaceId
                 data.scale,
                 0.0f,
                 data.wrapMode,
-                data.maxLines);
+                data.maxLines,
+                data.lineHeight,
+                data.letterSpacing);
             return true;
         };
 

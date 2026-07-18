@@ -164,8 +164,57 @@ namespace
     {
         const float scale = std::max(0.0f, text.scale);
         const float width = static_cast<float>(text.text.size()) * scale * 0.55f;
-        const float height = scale * 1.25f * static_cast<float>(std::max(1, text.maxLines == 0 ? 1 : text.maxLines));
+        const float lineHeight = scale * 1.25f * std::max(0.1f, text.lineHeight);
+        const float height = lineHeight * static_cast<float>(std::max(1, text.maxLines == 0 ? 1 : text.maxLines));
         return makeSize(width, height);
+    }
+
+    void appendShadowPrimitives(UiVisualList& visualList,
+                                UiHandle handle,
+                                const UiRect& bounds,
+                                const UiRect& clipRect,
+                                UiColor color,
+                                UiVec2 offset,
+                                float blur,
+                                float cornerRadius)
+    {
+        if (color.a <= 0.0f)
+            return;
+
+        if (blur <= 0.000001f)
+        {
+            visualList.primitives.push_back(UiRectPrimitive{
+                handle,
+                {bounds.x + offset.x, bounds.y + offset.y, bounds.width, bounds.height},
+                clipRect,
+                color,
+                cornerRadius
+            });
+            return;
+        }
+
+        constexpr int ShadowLayers = 6;
+        for (int layer = ShadowLayers; layer >= 1; --layer)
+        {
+            const float t = static_cast<float>(layer) / static_cast<float>(ShadowLayers);
+            const float spread = blur * t;
+            const float weight = static_cast<float>(ShadowLayers - layer + 1) /
+                static_cast<float>(ShadowLayers);
+            UiColor layerColor = color;
+            layerColor.a *= weight * 0.28f;
+            visualList.primitives.push_back(UiRectPrimitive{
+                handle,
+                {
+                    bounds.x + offset.x - spread,
+                    bounds.y + offset.y - spread,
+                    bounds.width + spread * 2.0f,
+                    bounds.height + spread * 2.0f
+                },
+                clipRect,
+                layerColor,
+                cornerRadius + spread
+            });
+        }
     }
 }
 
@@ -1262,6 +1311,8 @@ UiTextData UiDocument::resolveTextData(const UiNode& node, const UiTheme* theme)
         if (!style.typography.fontAsset.empty())
             data.fontAsset = style.typography.fontAsset;
         data.scale = style.typography.scale;
+        data.lineHeight = style.typography.lineHeight;
+        data.letterSpacing = style.typography.letterSpacing;
     }
     if (style.hasOpacity)
         data.color.a *= style.opacity;
@@ -1352,26 +1403,39 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle,
             else
             {
                 const UiRect bounds = node.computedLayout.bounds;
-                const float borderThickness = std::max(0.0f, data.borderThickness);
-                const float cornerRadius = std::max(0.0f, data.cornerRadius);
-                const UiColor fillColor = resolveFillColor(node, theme, data.color);
-                if (data.shadowColor.a > 0.0f &&
-                    (std::fabs(data.shadowOffset.x) > 0.000001f ||
-                     std::fabs(data.shadowOffset.y) > 0.000001f))
+                const UiComputedStyle style = resolveComputedStyle(node, theme);
+                const float borderThickness = style.hasBorderWidth
+                    ? style.borderWidth
+                    : std::max(0.0f, data.borderThickness);
+                const float cornerRadius = style.hasBorderRadius
+                    ? style.borderRadius
+                    : std::max(0.0f, data.cornerRadius);
+                UiColor borderColor = style.hasBorderColor ? style.borderColor : data.borderColor;
+                UiColor shadowColor = style.hasShadowColor ? style.shadowColor : data.shadowColor;
+                const UiVec2 shadowOffset = style.hasShadowOffset ? style.shadowOffset : data.shadowOffset;
+                const float shadowBlur = style.hasShadowBlur ? style.shadowBlur : data.shadowBlur;
+                if (style.hasOpacity)
                 {
-                    visualList.primitives.push_back(UiRectPrimitive{
-                        node.handle,
-                        {bounds.x + data.shadowOffset.x,
-                         bounds.y + data.shadowOffset.y,
-                         bounds.width,
-                         bounds.height},
-                        effectiveClip,
-                        data.shadowColor,
-                        cornerRadius
-                    });
+                    borderColor.a *= style.opacity;
+                    shadowColor.a *= style.opacity;
+                }
+                const UiColor fillColor = resolveFillColor(node, theme, data.color);
+                if (shadowColor.a > 0.0f &&
+                    (std::fabs(shadowOffset.x) > 0.000001f ||
+                     std::fabs(shadowOffset.y) > 0.000001f ||
+                     shadowBlur > 0.000001f))
+                {
+                    appendShadowPrimitives(visualList,
+                                           node.handle,
+                                           bounds,
+                                           effectiveClip,
+                                           shadowColor,
+                                           shadowOffset,
+                                           shadowBlur,
+                                           cornerRadius);
                 }
 
-                if (borderThickness > 0.0f && data.borderColor.a > 0.0f)
+                if (borderThickness > 0.0f && borderColor.a > 0.0f)
                 {
                     if (cornerRadius > 0.0f && fillColor.a > 0.0f)
                     {
@@ -1379,7 +1443,7 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle,
                             node.handle,
                             bounds,
                             effectiveClip,
-                            data.borderColor,
+                            borderColor,
                             cornerRadius
                         });
 
@@ -1418,25 +1482,25 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle,
                             node.handle,
                             {bounds.x, bounds.y, bounds.width, thicknessY},
                             effectiveClip,
-                            data.borderColor
+                            borderColor
                         });
                         visualList.primitives.push_back(UiRectPrimitive{
                             node.handle,
                             {bounds.x, bounds.y + std::max(0.0f, bounds.height - thicknessY), bounds.width, thicknessY},
                             effectiveClip,
-                            data.borderColor
+                            borderColor
                         });
                         visualList.primitives.push_back(UiRectPrimitive{
                             node.handle,
                             {bounds.x, bounds.y, thicknessX, bounds.height},
                             effectiveClip,
-                            data.borderColor
+                            borderColor
                         });
                         visualList.primitives.push_back(UiRectPrimitive{
                             node.handle,
                             {bounds.x + std::max(0.0f, bounds.width - thicknessX), bounds.y, thicknessX, bounds.height},
                             effectiveClip,
-                            data.borderColor
+                            borderColor
                         });
                     }
                 }
@@ -1509,7 +1573,9 @@ void UiDocument::rebuildVisualRecursive(UiHandle handle,
                 data.wrapMode,
                 data.horizontalAlign,
                 data.verticalAlign,
-                data.maxLines
+                data.maxLines,
+                data.lineHeight,
+                data.letterSpacing
             });
             break;
         }

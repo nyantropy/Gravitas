@@ -650,7 +650,9 @@ void UiRenderResolver::buildCommandBuffer(
                                                       value.wrapMode,
                                                       value.horizontalAlign,
                                                       value.verticalAlign,
-                                                      value.maxLines);
+                                                      value.maxLines,
+                                                      value.lineHeight,
+                                                      value.letterSpacing);
             }
             else if constexpr (std::is_same_v<T, UiLinePrimitive>)
             {
