@@ -58,6 +58,8 @@ struct ProfileAccumulator
         sum.totalObjects           += s.totalObjects;
         sum.triangleCount          += s.triangleCount;
         sum.drawCalls              += s.drawCalls;
+        sum.pipelineBinds          += s.pipelineBinds;
+        sum.descriptorBinds        += s.descriptorBinds;
         sum.pipelineSwitches       += s.pipelineSwitches;
         sum.textureSwitches        += s.textureSwitches;
         sum.renderGpuUpdatedCount  += s.renderGpuUpdatedCount;
@@ -72,8 +74,12 @@ struct ProfileAccumulator
         sum.materialReferenceAddCount += s.materialReferenceAddCount;
         sum.materialReferenceRemoveCount += s.materialReferenceRemoveCount;
         sum.materialFullScanCount     += s.materialFullScanCount;
+        sum.objectUploadCommandCount  += s.objectUploadCommandCount;
+        sum.objectUploadBytes         += s.objectUploadBytes;
         sum.backendObjectWrites       += s.backendObjectWrites;
         sum.backendObjectWritesSkipped += s.backendObjectWritesSkipped;
+        sum.backendObjectWriteBytes   += s.backendObjectWriteBytes;
+        sum.backendObjectWriteContiguousRuns += s.backendObjectWriteContiguousRuns;
         sum.screenshotRequestedCount += s.screenshotRequestedCount;
         sum.screenshotScheduledCount += s.screenshotScheduledCount;
         sum.screenshotCompletedCount += s.screenshotCompletedCount;
@@ -143,6 +149,8 @@ struct ProfileAccumulator
         max.totalObjects           = s.totalObjects;
         max.triangleCount          = s.triangleCount;
         max.drawCalls              = s.drawCalls;
+        max.pipelineBinds          = s.pipelineBinds;
+        max.descriptorBinds        = s.descriptorBinds;
         max.pipelineSwitches       = s.pipelineSwitches;
         max.textureSwitches        = s.textureSwitches;
         max.renderGpuUpdatedCount  = s.renderGpuUpdatedCount;
@@ -157,8 +165,12 @@ struct ProfileAccumulator
         max.materialReferenceAddCount = s.materialReferenceAddCount;
         max.materialReferenceRemoveCount = s.materialReferenceRemoveCount;
         max.materialFullScanCount     = s.materialFullScanCount;
+        max.objectUploadCommandCount  = s.objectUploadCommandCount;
+        max.objectUploadBytes         = s.objectUploadBytes;
         max.backendObjectWrites       = s.backendObjectWrites;
         max.backendObjectWritesSkipped = s.backendObjectWritesSkipped;
+        max.backendObjectWriteBytes   = s.backendObjectWriteBytes;
+        max.backendObjectWriteContiguousRuns = s.backendObjectWriteContiguousRuns;
         max.screenshotRequestedCount = std::max(max.screenshotRequestedCount, s.screenshotRequestedCount);
         max.screenshotScheduledCount = std::max(max.screenshotScheduledCount, s.screenshotScheduledCount);
         max.screenshotCompletedCount = std::max(max.screenshotCompletedCount, s.screenshotCompletedCount);
@@ -235,6 +247,14 @@ inline void printProfile(const ProfileAccumulator& acc)
                   << std::setw(6) << maxMs
                   << '\n';
     };
+    auto printCounter = [](const char* label, float avgValue, uint32_t lastValue)
+    {
+        std::cout << std::left << std::setw(22) << label
+                  << std::right << std::setw(10) << std::fixed << std::setprecision(1) << avgValue
+                  << " avg/frame | last "
+                  << lastValue
+                  << '\n';
+    };
 
     std::cout << "\n=== FRAME PROFILE (5s window, avg / max) ===\n";
     std::cout << "Samples: " << acc.frameCount
@@ -258,6 +278,28 @@ inline void printProfile(const ProfileAccumulator& acc)
     printRow("Sort:",        acc.sum.renderExtractSortCpuMs * inv, acc.max.renderExtractSortCpuMs);
     printRow("UI:",          acc.sum.uiCpuMs * inv,                acc.max.uiCpuMs);
     printRow("Submit:",      acc.sum.renderSubmitCpuMs * inv,      acc.max.renderSubmitCpuMs);
+
+    std::cout << "\n--- SUBMIT / BACKEND ---\n";
+    printRow("Wrapper:",     acc.sum.renderSubmitCpuMs * inv,       acc.max.renderSubmitCpuMs);
+    printRow("Backend:",     acc.sum.backendFrameCpuMs * inv,       acc.max.backendFrameCpuMs);
+    printRow("FenceWait:",   acc.sum.backendFenceWaitCpuMs * inv,   acc.max.backendFenceWaitCpuMs);
+    printRow("Acquire:",     acc.sum.backendAcquireCpuMs * inv,     acc.max.backendAcquireCpuMs);
+    printRow("ImageWait:",   acc.sum.backendImageWaitCpuMs * inv,   acc.max.backendImageWaitCpuMs);
+    printRow("ObjWrite:",    acc.sum.backendObjectWriteCpuMs * inv, acc.max.backendObjectWriteCpuMs);
+    printRow("FenceReset:",  acc.sum.backendFenceResetCpuMs * inv,  acc.max.backendFenceResetCpuMs);
+    printRow("CmdReset:",    acc.sum.backendCmdResetCpuMs * inv,    acc.max.backendCmdResetCpuMs);
+    printRow("CmdRecord:",   acc.sum.backendCmdRecordCpuMs * inv,   acc.max.backendCmdRecordCpuMs);
+    printRow("QueueSub:",    acc.sum.backendQueueSubmitCpuMs * inv, acc.max.backendQueueSubmitCpuMs);
+    printRow("Present:",     acc.sum.backendPresentCpuMs * inv,     acc.max.backendPresentCpuMs);
+    printCounter("Draw calls:",       acc.sum.drawCalls * inv,              acc.max.drawCalls);
+    printCounter("Pipeline binds:",   acc.sum.pipelineBinds * inv,          acc.max.pipelineBinds);
+    printCounter("Descriptor binds:", acc.sum.descriptorBinds * inv,        acc.max.descriptorBinds);
+    printCounter("Pipeline switches:", acc.sum.pipelineSwitches * inv,      acc.max.pipelineSwitches);
+    printCounter("Texture switches:", acc.sum.textureSwitches * inv,        acc.max.textureSwitches);
+    printCounter("Object uploads:",   acc.sum.objectUploadCommandCount * inv, acc.max.objectUploadCommandCount);
+    printCounter("Object writes:",    acc.sum.backendObjectWrites * inv,    acc.max.backendObjectWrites);
+    printCounter("Object write bytes:", acc.sum.backendObjectWriteBytes * inv, acc.max.backendObjectWriteBytes);
+    std::cout << "Present mode: " << acc.max.backendPresentMode << '\n';
     const bool screenshotActive =
         acc.sum.screenshotRequestedCount > 0 ||
         acc.sum.screenshotScheduledCount > 0 ||

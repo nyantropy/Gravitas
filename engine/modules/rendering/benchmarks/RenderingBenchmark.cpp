@@ -842,6 +842,14 @@ namespace gts::rendering::benchmarks
                 emitter.velocitySpread = 0.10f;
                 emitter.drag = 0.04f;
                 emitter.baseTint = {0.62f, 0.72f, 1.0f, 0.82f};
+                if (config.presetName == "submit_particle_draw_pressure")
+                {
+                    ParticleBurst burst;
+                    burst.time = 0.0f;
+                    burst.countMin = 16;
+                    burst.countMax = 16;
+                    emitter.bursts.push_back(burst);
+                }
 
                 if (i < config.particleMeshEmitterCount)
                 {
@@ -1512,6 +1520,65 @@ namespace gts::rendering::benchmarks
                      "Small GPU runtime workload that requests one deferred screenshot capture.",
                      1,
                      screenshotSmoke,
+                     presets);
+
+        RenderingBenchmarkConfig submitEmpty = base;
+        submitEmpty.mode = BenchmarkRunMode::GpuRuntime;
+        submitEmpty.renderableCount = 0;
+        submitEmpty.visibleRenderableCount = 0;
+        submitEmpty.uniqueMeshCount = 1;
+        submitEmpty.uniqueMaterialCount = 1;
+        submitEmpty.directionalLightCount = 0;
+        submitEmpty.pointLightCount = 0;
+        submitEmpty.spotLightCount = 0;
+        submitEmpty.enablePbr = false;
+        submitEmpty.enableNormalMaps = false;
+        submitEmpty.enableIbl = false;
+        presetConfig("submit_empty_baseline",
+                     "GPU runtime baseline for swapchain acquire, queue submit, present, and frame fences.",
+                     1,
+                     submitEmpty,
+                     presets);
+
+        RenderingBenchmarkConfig submitDrawCallPressure = submitEmpty;
+        submitDrawCallPressure.renderableCount = 12000;
+        submitDrawCallPressure.visibleRenderableCount = 12000;
+        submitDrawCallPressure.uniqueMeshCount = 64;
+        submitDrawCallPressure.uniqueMaterialCount = 256;
+        presetConfig("submit_draw_call_pressure",
+                     "Many visible material/mesh groups to isolate command recording and queue submission pressure.",
+                     1,
+                     submitDrawCallPressure,
+                     presets);
+
+        RenderingBenchmarkConfig submitStateChangePressure = submitEmpty;
+        submitStateChangePressure.renderableCount = 12000;
+        submitStateChangePressure.visibleRenderableCount = 12000;
+        submitStateChangePressure.uniqueMeshCount = 1024;
+        submitStateChangePressure.uniqueMaterialCount = 4096;
+        presetConfig("submit_state_change_pressure",
+                     "Fragmented mesh/material state to expose bind, descriptor, and texture switch pressure.",
+                     1,
+                     submitStateChangePressure,
+                     presets);
+
+        RenderingBenchmarkConfig submitObjectUploadPressure = submitDrawCallPressure;
+        submitObjectUploadPressure.movingObjectCount = submitObjectUploadPressure.renderableCount;
+        presetConfig("submit_object_upload_pressure",
+                     "Many moving renderables to isolate backend object-buffer write pressure.",
+                     1,
+                     submitObjectUploadPressure,
+                     presets);
+
+        RenderingBenchmarkConfig submitParticleDrawPressure = submitEmpty;
+        submitParticleDrawPressure.particleEmitterCount = 192;
+        submitParticleDrawPressure.particleMeshEmitterCount = 64;
+        submitParticleDrawPressure.particleEmissionRate = 48.0;
+        submitParticleDrawPressure.particleMaxParticles = 128;
+        presetConfig("submit_particle_draw_pressure",
+                     "Particle-heavy runtime path for billboard, mesh particle, and particle draw submission pressure.",
+                     1,
+                     submitParticleDrawPressure,
                      presets);
 
         RenderingBenchmarkConfig staticLarge = base;
@@ -2303,6 +2370,7 @@ namespace gts::rendering::benchmarks
              result.config.presetName == "moving_sparse" ||
              result.config.presetName == "moving_dense" ||
              result.config.presetName == "upload_only_pressure" ||
+             result.config.presetName == "submit_object_upload_pressure" ||
              result.config.presetName == "gtsscene3_64k_moving_cubes" ||
              result.config.presetName == "moving_64k_independent") &&
             result.config.movingObjectCount > 0)
@@ -2371,6 +2439,56 @@ namespace gts::rendering::benchmarks
             counter("dynamic_mesh_gpu_reallocations") == 0)
         {
             failures.push_back("dynamic mesh growth preset did not reallocate after warmup");
+        }
+
+        if (result.config.presetName.rfind("submit_", 0) == 0)
+        {
+            if (result.config.mode != BenchmarkRunMode::GpuRuntime)
+                failures.push_back("submit benchmark presets must run through gpu_runtime");
+        }
+
+        if (result.config.presetName == "submit_empty_baseline")
+        {
+            if (counter("visible_renderables") != 0)
+                failures.push_back("submit empty baseline produced visible renderables");
+            if (counter("render_commands") != 0)
+                failures.push_back("submit empty baseline produced render commands");
+            if (counter("draw_calls") != 0)
+                failures.push_back("submit empty baseline produced draw calls");
+            if (counter("particle_rendered") != 0)
+                failures.push_back("submit empty baseline rendered particles");
+        }
+
+        if (result.config.presetName == "submit_draw_call_pressure")
+        {
+            if (counter("draw_calls") < frames)
+                failures.push_back("submit draw-call pressure produced fewer than one draw call per frame");
+            if (counter("render_commands") == 0)
+                failures.push_back("submit draw-call pressure produced zero render commands");
+        }
+
+        if (result.config.presetName == "submit_state_change_pressure")
+        {
+            if (counter("descriptor_binds") == 0)
+                failures.push_back("submit state-change pressure produced zero descriptor binds");
+            if (counter("draw_calls") == 0)
+                failures.push_back("submit state-change pressure produced zero draw calls");
+        }
+
+        if (result.config.presetName == "submit_object_upload_pressure")
+        {
+            if (counter("object_upload_commands") == 0)
+                failures.push_back("submit object-upload pressure produced zero object upload commands");
+            if (counter("physical_object_buffer_writes") == 0)
+                failures.push_back("submit object-upload pressure produced zero physical object buffer writes");
+        }
+
+        if (result.config.presetName == "submit_particle_draw_pressure")
+        {
+            if (counter("particle_rendered") == 0)
+                failures.push_back("submit particle draw pressure rendered zero particles");
+            if (counter("particle_draw_commands") == 0)
+                failures.push_back("submit particle draw pressure produced zero particle draw commands");
         }
 
         if (counter("snapshot_renderables") < counter("visible_renderables"))
@@ -2698,6 +2816,57 @@ namespace gts::rendering::benchmarks
         if (const StatisticSummary* extract = timing("command_extract_cpu"))
             out << "commands median/p95/p99: " << extract->median << " / "
                 << extract->p95 << " / " << extract->p99 << " ms\n";
+        if (const StatisticSummary* submit = timing("render_submit_cpu"))
+            out << "submit wrapper median/p95/p99/max: " << submit->median << " / "
+                << submit->p95 << " / " << submit->p99 << " / " << submit->maximum << " ms\n";
+
+        struct SubmitTimingRow
+        {
+            const char* key = "";
+            const char* label = "";
+            bool aggregate = false;
+        };
+        const std::vector<SubmitTimingRow> submitRows = {
+            {"backend_frame_cpu", "backend frame", true},
+            {"backend_fence_wait_cpu", "fence wait", false},
+            {"backend_acquire_cpu", "acquire", false},
+            {"backend_image_wait_cpu", "image wait", false},
+            {"backend_object_write_cpu", "object writes", false},
+            {"backend_fence_reset_cpu", "fence reset", false},
+            {"backend_cmd_reset_cpu", "cmd reset", false},
+            {"backend_cmd_record_cpu", "cmd record", false},
+            {"backend_queue_submit_cpu", "queue submit", false},
+            {"backend_present_cpu", "present", false}
+        };
+        const SubmitTimingRow* largestSubmitRow = nullptr;
+        const StatisticSummary* largestSubmitTiming = nullptr;
+        bool printedSubmitHeader = false;
+        for (const SubmitTimingRow& row : submitRows)
+        {
+            const StatisticSummary* summary = timing(row.key);
+            if (summary == nullptr)
+                continue;
+            if (!printedSubmitHeader)
+            {
+                out << "Submit / Backend\n";
+                printedSubmitHeader = true;
+            }
+            out << row.label << " median/p95/p99/max: "
+                << summary->median << " / " << summary->p95 << " / "
+                << summary->p99 << " / " << summary->maximum << " ms\n";
+            if (!row.aggregate &&
+                (largestSubmitTiming == nullptr || summary->median > largestSubmitTiming->median))
+            {
+                largestSubmitRow = &row;
+                largestSubmitTiming = summary;
+            }
+        }
+        if (largestSubmitRow != nullptr && largestSubmitTiming != nullptr)
+        {
+            out << "largest backend submit contributor: " << largestSubmitRow->label
+                << " median " << largestSubmitTiming->median
+                << " ms, max " << largestSubmitTiming->maximum << " ms\n";
+        }
         if (!result.controllerTimingsMs.empty())
         {
             std::vector<std::pair<std::string, StatisticSummary>> rows(
@@ -2745,6 +2914,14 @@ namespace gts::rendering::benchmarks
         const uint64_t frames = std::max<uint64_t>(1u, result.config.measuredFrames);
         out << "render_commands total: " << counter("render_commands") << "\n";
         out << "visible_renderables total: " << counter("visible_renderables") << "\n";
+        out << "draw_calls/pipeline_switches/descriptor_binds per frame: "
+            << static_cast<double>(counter("draw_calls")) / static_cast<double>(frames)
+            << " / "
+            << static_cast<double>(counter("pipeline_switches")) / static_cast<double>(frames)
+            << " / "
+            << static_cast<double>(counter("descriptor_binds")) / static_cast<double>(frames) << "\n";
+        out << "texture_switches per frame: "
+            << static_cast<double>(counter("texture_switches")) / static_cast<double>(frames) << "\n";
         out << "particle emitters visible/culled per frame: "
             << static_cast<double>(counter("particle_visible_emitters")) / static_cast<double>(frames)
             << " / "

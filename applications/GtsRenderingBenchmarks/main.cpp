@@ -657,6 +657,14 @@ namespace
             emitter.velocitySpread = 0.10f;
             emitter.drag = 0.04f;
             emitter.baseTint = {0.62f, 0.72f, 1.0f, 0.82f};
+            if (config.presetName == "submit_particle_draw_pressure")
+            {
+                ParticleBurst burst;
+                burst.time = 0.0f;
+                burst.countMin = 16;
+                burst.countMax = 16;
+                emitter.bursts.push_back(burst);
+            }
 
             if (i < config.particleMeshEmitterCount)
             {
@@ -891,6 +899,12 @@ namespace
         addSample(collector.cpuSamples, "command_sort_cpu", stats.renderExtractSortCpuMs);
         addSample(collector.cpuSamples, "render_gpu_sync_cpu", stats.renderGpuCpuMs);
         addSample(collector.cpuSamples, "backend_frame_cpu", stats.backendFrameCpuMs);
+        addSample(collector.cpuSamples, "backend_fence_wait_cpu", stats.backendFenceWaitCpuMs);
+        addSample(collector.cpuSamples, "backend_acquire_cpu", stats.backendAcquireCpuMs);
+        addSample(collector.cpuSamples, "backend_image_wait_cpu", stats.backendImageWaitCpuMs);
+        addSample(collector.cpuSamples, "backend_object_write_cpu", stats.backendObjectWriteCpuMs);
+        addSample(collector.cpuSamples, "backend_fence_reset_cpu", stats.backendFenceResetCpuMs);
+        addSample(collector.cpuSamples, "backend_cmd_reset_cpu", stats.backendCmdResetCpuMs);
         addSample(collector.cpuSamples, "backend_cmd_record_cpu", stats.backendCmdRecordCpuMs);
         addSample(collector.cpuSamples, "backend_queue_submit_cpu", stats.backendQueueSubmitCpuMs);
         addSample(collector.cpuSamples, "backend_present_cpu", stats.backendPresentCpuMs);
@@ -1186,7 +1200,9 @@ namespace
             {"backend_acquire_cpu", stats.backendAcquireCpuMs},
             {"backend_image_wait_cpu", stats.backendImageWaitCpuMs},
             {"backend_object_write_cpu", stats.backendObjectWriteCpuMs},
-            {"backend_command_record_cpu", stats.backendCmdRecordCpuMs},
+            {"backend_fence_reset_cpu", stats.backendFenceResetCpuMs},
+            {"backend_cmd_reset_cpu", stats.backendCmdResetCpuMs},
+            {"backend_cmd_record_cpu", stats.backendCmdRecordCpuMs},
             {"backend_queue_submit_cpu", stats.backendQueueSubmitCpuMs},
             {"backend_present_cpu", stats.backendPresentCpuMs},
             {"screenshot_schedule_cpu", stats.screenshotScheduleCpuMs},
