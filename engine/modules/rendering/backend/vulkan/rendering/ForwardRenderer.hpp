@@ -766,9 +766,9 @@ class ForwardRenderer : Renderer
                     std::chrono::duration<float, std::milli>(imageWaitEnd - imageWaitStart).count();
             }
 
-            // Object data is double/triple-buffered, so changed transforms or
-            // per-object presentation state must be propagated to every
-            // in-flight SSBO copy before we clear the dirty state.
+            // Object data is buffered per frame. Upload commands write the
+            // active frame immediately and mark other frame slots stale; stale
+            // slots are patched here when their frame becomes active.
             auto countContiguousRuns = [](const std::vector<ObjectUploadCommand>& uploads) -> uint32_t
             {
                 if (uploads.empty())
@@ -796,7 +796,8 @@ class ForwardRenderer : Renderer
             for (const auto& upload : objectUploads)
             {
                 const uint32_t writes =
-                    resourceSystem->writeObjectDataAllFrames(
+                    resourceSystem->writeObjectDataForFrameAndMarkStale(
+                        currentFrame,
                         upload.objectSSBOSlot,
                         upload.modelMatrix,
                         upload.uvTransform);
@@ -815,7 +816,8 @@ class ForwardRenderer : Renderer
                 for (const auto& upload : editorPreview.objectUploads)
                 {
                     const uint32_t writes =
-                        resourceSystem->writeObjectDataAllFrames(
+                        resourceSystem->writeObjectDataForFrameAndMarkStale(
+                            currentFrame,
                             upload.objectSSBOSlot,
                             upload.modelMatrix,
                             upload.uvTransform);
@@ -824,7 +826,9 @@ class ForwardRenderer : Renderer
                         frameStats.backendObjectWritesSkipped += 1;
                 }
             }
-            resourceSystem->flushAllObjectSSBO();
+            frameStats.backendObjectWrites +=
+                resourceSystem->writePendingObjectDataForFrame(currentFrame);
+            resourceSystem->flushObjectSSBO(currentFrame);
             frameStats.backendObjectWriteBytes =
                 static_cast<uint32_t>(frameStats.backendObjectWrites * sizeof(ObjectUBO));
             const auto objectWriteEnd = std::chrono::steady_clock::now();

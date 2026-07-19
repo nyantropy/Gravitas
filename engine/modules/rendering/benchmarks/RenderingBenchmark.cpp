@@ -2481,6 +2481,8 @@ namespace gts::rendering::benchmarks
                 failures.push_back("submit object-upload pressure produced zero object upload commands");
             if (counter("physical_object_buffer_writes") == 0)
                 failures.push_back("submit object-upload pressure produced zero physical object buffer writes");
+            if (counter("physical_object_buffer_writes") != counter("object_upload_commands"))
+                failures.push_back("submit object-upload pressure wrote more than the active frame object buffer");
         }
 
         if (result.config.presetName == "submit_particle_draw_pressure")

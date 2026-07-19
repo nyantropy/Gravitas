@@ -264,6 +264,23 @@ class RenderResourceManager : public IResourceProvider
             return objectSSBOManager->writeSlotObjectDataAllFrames(slot, model, uvTransform);
         }
 
+        uint32_t writeObjectDataForFrameAndMarkStale(uint32_t frameIndex,
+                                                     ssbo_id_type slot,
+                                                     const glm::mat4& model,
+                                                     const glm::vec4& uvTransform)
+        {
+            return objectSSBOManager->writeSlotObjectDataForFrameAndMarkStale(
+                frameIndex,
+                slot,
+                model,
+                uvTransform);
+        }
+
+        uint32_t writePendingObjectDataForFrame(uint32_t frameIndex)
+        {
+            return objectSSBOManager->writePendingSlotsForFrame(frameIndex);
+        }
+
         void flushObjectSSBO(uint32_t frameIndex)
         {
             objectSSBOManager->flushFrame(frameIndex);

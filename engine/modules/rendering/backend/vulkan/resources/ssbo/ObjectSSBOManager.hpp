@@ -1,8 +1,10 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstdint>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -55,7 +57,9 @@ class ObjectSSBOManager
                 // zero-initialize so unwritten slots don't contain garbage
                 std::memset(ssboMapped[i], 0, static_cast<size_t>(bufferSize));
                 lastWrittenObject[i].resize(MAX_OBJECTS, emptyObjectData());
+                pendingSlotQueued[i].resize(MAX_OBJECTS, 0u);
             }
+            latestObjectData.resize(MAX_OBJECTS, emptyObjectData());
 
             descriptorSets = descriptorSetManager.allocateForObjectSSBO(ssboBuffers, bufferSize);
 
@@ -107,6 +111,9 @@ class ObjectSSBOManager
             freeList.push_back(slot);
             for (auto& frameCache : lastWrittenObject)
                 frameCache[slot] = emptyObjectData();
+            latestObjectData[slot] = empty;
+            for (auto& frameFlags : pendingSlotQueued)
+                frameFlags[slot] = 0u;
         }
 
         // Writes one object's data into the given frame's SSBO at the given slot.
@@ -129,8 +136,10 @@ class ObjectSSBOManager
         uint32_t writeSlotAllFrames(ssbo_id_type slot, const ObjectUBO& data)
         {
             uint32_t writes = 0;
+            latestObjectData[slot] = data;
             for (uint32_t frameIndex = 0; frameIndex < static_cast<uint32_t>(ssboMapped.size()); ++frameIndex)
             {
+                pendingSlotQueued[frameIndex][slot] = 0u;
                 if (writeSlot(frameIndex, slot, data))
                     writes += 1;
             }
@@ -149,17 +158,70 @@ class ObjectSSBOManager
             return writeSlot(frameIndex, slot, data);
         }
 
+        uint32_t writeSlotForFrameAndMarkStale(uint32_t frameIndex,
+                                               ssbo_id_type slot,
+                                               const ObjectUBO& data)
+        {
+            const bool latestChanged = !sameObjectData(latestObjectData[slot], data);
+            if (latestChanged)
+            {
+                latestObjectData[slot] = data;
+                for (uint32_t otherFrame = 0; otherFrame < static_cast<uint32_t>(ssboMapped.size()); ++otherFrame)
+                {
+                    if (otherFrame != frameIndex)
+                        markFrameSlotPending(otherFrame, slot);
+                }
+            }
+
+            const bool wrote = writeSlot(frameIndex, slot, data);
+            pendingSlotQueued[frameIndex][slot] = 0u;
+            return wrote ? 1u : 0u;
+        }
+
+        uint32_t writeSlotObjectDataForFrameAndMarkStale(uint32_t frameIndex,
+                                                         ssbo_id_type slot,
+                                                         const glm::mat4& model,
+                                                         const glm::vec4& uvTransform)
+        {
+            ObjectUBO data = latestObjectData[slot];
+            data.model = model;
+            data.uvTransform = uvTransform;
+            return writeSlotForFrameAndMarkStale(frameIndex, slot, data);
+        }
+
         uint32_t writeSlotObjectDataAllFrames(ssbo_id_type slot,
                                               const glm::mat4& model,
                                               const glm::vec4& uvTransform)
         {
+            ObjectUBO data = latestObjectData[slot];
+            data.model = model;
+            data.uvTransform = uvTransform;
             uint32_t writes = 0;
+            latestObjectData[slot] = data;
             for (uint32_t frameIndex = 0; frameIndex < static_cast<uint32_t>(ssboMapped.size()); ++frameIndex)
             {
-                if (writeSlotObjectData(frameIndex, slot, model, uvTransform))
+                pendingSlotQueued[frameIndex][slot] = 0u;
+                if (writeSlot(frameIndex, slot, data))
                     writes += 1;
             }
 
+            return writes;
+        }
+
+        uint32_t writePendingSlotsForFrame(uint32_t frameIndex)
+        {
+            uint32_t writes = 0;
+            std::vector<ssbo_id_type>& slots = pendingSlots[frameIndex];
+            for (ssbo_id_type slot : slots)
+            {
+                if (pendingSlotQueued[frameIndex][slot] == 0u)
+                    continue;
+
+                pendingSlotQueued[frameIndex][slot] = 0u;
+                if (writeSlot(frameIndex, slot, latestObjectData[slot]))
+                    writes += 1;
+            }
+            slots.clear();
             return writes;
         }
 
@@ -228,7 +290,10 @@ class ObjectSSBOManager
         std::vector<VkDeviceMemory>  ssboMemory;
         std::vector<void*>           ssboMapped;
         std::vector<VkDescriptorSet> descriptorSets;
+        std::vector<ObjectUBO>       latestObjectData;
         std::array<std::vector<ObjectUBO>, GraphicsConstants::MAX_FRAMES_IN_FLIGHT> lastWrittenObject;
+        std::array<std::vector<ssbo_id_type>, GraphicsConstants::MAX_FRAMES_IN_FLIGHT> pendingSlots;
+        std::array<std::vector<uint8_t>, GraphicsConstants::MAX_FRAMES_IN_FLIGHT> pendingSlotQueued;
         VkDeviceSize                 nonCoherentAtomSize = sizeof(ObjectUBO);
 
         // Dirty-range tracking — initialised to "empty" (min > max).
@@ -238,6 +303,15 @@ class ObjectSSBOManager
 
         std::vector<ssbo_id_type> freeList;
         ssbo_id_type              nextSlot = 0;
+
+        void markFrameSlotPending(uint32_t frameIndex, ssbo_id_type slot)
+        {
+            if (pendingSlotQueued[frameIndex][slot] != 0u)
+                return;
+
+            pendingSlotQueued[frameIndex][slot] = 1u;
+            pendingSlots[frameIndex].push_back(slot);
+        }
 
         static ObjectUBO emptyObjectData()
         {
