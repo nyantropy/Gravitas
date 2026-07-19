@@ -276,6 +276,12 @@ namespace
         return config.presetName == "gtsscene3_64k_moving_cubes";
     }
 
+    bool usesSubmitParticleBurst(const RenderingBenchmarkConfig& config)
+    {
+        return config.presetName == "submit_particle_draw_pressure" ||
+            config.presetName == "submit_scene_particle_mix_pressure";
+    }
+
     glm::vec3 gtsScene3CubePosition(uint32_t index)
     {
         const uint32_t x = index % GtsScene3GridColumns;
@@ -657,7 +663,7 @@ namespace
             emitter.velocitySpread = 0.10f;
             emitter.drag = 0.04f;
             emitter.baseTint = {0.62f, 0.72f, 1.0f, 0.82f};
-            if (config.presetName == "submit_particle_draw_pressure")
+            if (usesSubmitParticleBurst(config))
             {
                 ParticleBurst burst;
                 burst.time = 0.0f;

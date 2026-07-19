@@ -373,6 +373,12 @@ namespace gts::rendering::benchmarks
                 config.presetName == "static_64k_control";
         }
 
+        bool usesSubmitParticleBurst(const RenderingBenchmarkConfig& config)
+        {
+            return config.presetName == "submit_particle_draw_pressure" ||
+                config.presetName == "submit_scene_particle_mix_pressure";
+        }
+
         glm::vec3 gtsScene3CubePosition(uint32_t index)
         {
             const uint32_t x = index % GtsScene3GridColumns;
@@ -842,7 +848,7 @@ namespace gts::rendering::benchmarks
                 emitter.velocitySpread = 0.10f;
                 emitter.drag = 0.04f;
                 emitter.baseTint = {0.62f, 0.72f, 1.0f, 0.82f};
-                if (config.presetName == "submit_particle_draw_pressure")
+                if (usesSubmitParticleBurst(config))
                 {
                     ParticleBurst burst;
                     burst.time = 0.0f;
@@ -1551,6 +1557,36 @@ namespace gts::rendering::benchmarks
                      submitDrawCallPressure,
                      presets);
 
+        RenderingBenchmarkConfig submitStaticBatchCoherence = submitEmpty;
+        submitStaticBatchCoherence.renderableCount = 16000;
+        submitStaticBatchCoherence.visibleRenderableCount = 16000;
+        submitStaticBatchCoherence.uniqueMeshCount = 1;
+        submitStaticBatchCoherence.uniqueMaterialCount = 1;
+        presetConfig("submit_static_batch_coherence",
+                     "Best-case static submit path where many visible renderables should collapse into few batches.",
+                     1,
+                     submitStaticBatchCoherence,
+                     presets);
+
+        RenderingBenchmarkConfig submitSparseObjectUploadPressure = submitDrawCallPressure;
+        submitSparseObjectUploadPressure.movingObjectCount = 128;
+        presetConfig("submit_sparse_object_upload_pressure",
+                     "Sparse moving-object submit workload to verify dirty object uploads stay proportional to changes.",
+                     1,
+                     submitSparseObjectUploadPressure,
+                     presets);
+
+        RenderingBenchmarkConfig submitMaterialDescriptorPressure = submitEmpty;
+        submitMaterialDescriptorPressure.renderableCount = 12000;
+        submitMaterialDescriptorPressure.visibleRenderableCount = 12000;
+        submitMaterialDescriptorPressure.uniqueMeshCount = 1;
+        submitMaterialDescriptorPressure.uniqueMaterialCount = 4096;
+        presetConfig("submit_material_descriptor_pressure",
+                     "Shared mesh with many material instances to isolate descriptor binding pressure.",
+                     1,
+                     submitMaterialDescriptorPressure,
+                     presets);
+
         RenderingBenchmarkConfig submitStateChangePressure = submitEmpty;
         submitStateChangePressure.renderableCount = 12000;
         submitStateChangePressure.visibleRenderableCount = 12000;
@@ -1579,6 +1615,21 @@ namespace gts::rendering::benchmarks
                      "Particle-heavy runtime path for billboard, mesh particle, and particle draw submission pressure.",
                      1,
                      submitParticleDrawPressure,
+                     presets);
+
+        RenderingBenchmarkConfig submitSceneParticleMixPressure = submitEmpty;
+        submitSceneParticleMixPressure.renderableCount = 6000;
+        submitSceneParticleMixPressure.visibleRenderableCount = 6000;
+        submitSceneParticleMixPressure.uniqueMeshCount = 24;
+        submitSceneParticleMixPressure.uniqueMaterialCount = 96;
+        submitSceneParticleMixPressure.particleEmitterCount = 128;
+        submitSceneParticleMixPressure.particleMeshEmitterCount = 32;
+        submitSceneParticleMixPressure.particleEmissionRate = 42.0;
+        submitSceneParticleMixPressure.particleMaxParticles = 128;
+        presetConfig("submit_scene_particle_mix_pressure",
+                     "Mixed visible scene and particle submit workload for framegraph stage attribution.",
+                     1,
+                     submitSceneParticleMixPressure,
                      presets);
 
         RenderingBenchmarkConfig staticLarge = base;
@@ -2371,6 +2422,7 @@ namespace gts::rendering::benchmarks
              result.config.presetName == "moving_dense" ||
              result.config.presetName == "upload_only_pressure" ||
              result.config.presetName == "submit_object_upload_pressure" ||
+             result.config.presetName == "submit_sparse_object_upload_pressure" ||
              result.config.presetName == "gtsscene3_64k_moving_cubes" ||
              result.config.presetName == "moving_64k_independent") &&
             result.config.movingObjectCount > 0)
@@ -2467,6 +2519,34 @@ namespace gts::rendering::benchmarks
                 failures.push_back("submit draw-call pressure produced zero render commands");
         }
 
+        if (result.config.presetName == "submit_static_batch_coherence")
+        {
+            if (counter("render_commands") == 0)
+                failures.push_back("submit static batch coherence produced zero render commands");
+            if (counter("draw_calls") == 0)
+                failures.push_back("submit static batch coherence produced zero draw calls");
+            if (counter("draw_calls") > frames * 8u)
+                failures.push_back("submit static batch coherence produced too many draw calls for a coherent workload");
+        }
+
+        if (result.config.presetName == "submit_sparse_object_upload_pressure")
+        {
+            if (counter("object_upload_commands") == 0)
+                failures.push_back("submit sparse object-upload pressure produced zero object upload commands");
+            if (counter("physical_object_buffer_writes") == 0)
+                failures.push_back("submit sparse object-upload pressure produced zero physical object buffer writes");
+            if (counter("physical_object_buffer_writes") != counter("object_upload_commands"))
+                failures.push_back("submit sparse object-upload pressure wrote more than the active frame object buffer");
+        }
+
+        if (result.config.presetName == "submit_material_descriptor_pressure")
+        {
+            if (counter("descriptor_binds") == 0)
+                failures.push_back("submit material-descriptor pressure produced zero descriptor binds");
+            if (counter("draw_calls") == 0)
+                failures.push_back("submit material-descriptor pressure produced zero draw calls");
+        }
+
         if (result.config.presetName == "submit_state_change_pressure")
         {
             if (counter("descriptor_binds") == 0)
@@ -2491,6 +2571,16 @@ namespace gts::rendering::benchmarks
                 failures.push_back("submit particle draw pressure rendered zero particles");
             if (counter("particle_draw_commands") == 0)
                 failures.push_back("submit particle draw pressure produced zero particle draw commands");
+        }
+
+        if (result.config.presetName == "submit_scene_particle_mix_pressure")
+        {
+            if (counter("render_commands") == 0)
+                failures.push_back("submit scene-particle mix produced zero render commands");
+            if (counter("particle_rendered") == 0)
+                failures.push_back("submit scene-particle mix rendered zero particles");
+            if (counter("draw_calls") == 0)
+                failures.push_back("submit scene-particle mix produced zero draw calls");
         }
 
         if (counter("snapshot_renderables") < counter("visible_renderables"))
