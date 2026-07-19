@@ -40,6 +40,12 @@ namespace gts::rendering::benchmarks
         uint32_t dynamicMeshCount = 0;
         uint32_t dynamicMeshMutationCountPerFrame = 0;
         uint32_t particleEmitterCount = 0;
+        double particleEmissionRate = 24.0;
+        uint32_t particleMaxParticles = 96;
+        uint32_t particleMeshEmitterCount = 0;
+        uint32_t particleMaxSimulatedParticles = 0;
+        uint32_t particleMaxRenderedParticles = 0;
+        uint32_t particleMaxSpawnedPerFrame = 0;
         uint32_t worldTextCount = 0;
 
         bool enablePbr = true;

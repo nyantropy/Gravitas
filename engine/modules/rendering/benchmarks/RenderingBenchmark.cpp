@@ -29,6 +29,9 @@
 #include "MaterialReferenceComponent.h"
 #include "MaterialRuntime.h"
 #include "ParticleEmitterComponent.h"
+#include "ParticleEmitterRuntimeComponent.h"
+#include "ParticleEmitterSystem.hpp"
+#include "ParticleFrameData.h"
 #include "PointLightComponent.h"
 #include "RenderCommandExtractor.hpp"
 #include "RenderExtractionSnapshotBuilder.hpp"
@@ -56,6 +59,8 @@ namespace gts::rendering::benchmarks
         constexpr uint32_t MaxBenchmarkMaterials = 60000;
         constexpr uint32_t MaxBenchmarkMeshes = 4096;
         constexpr uint32_t MaxBenchmarkLights = 20000;
+        constexpr uint32_t MaxBenchmarkParticleEmitters = 4096;
+        constexpr uint32_t MaxBenchmarkParticlesPerEmitter = 2048;
         constexpr float FixedDeltaSeconds = 1.0f / 60.0f;
         constexpr uint32_t GtsScene3CubeCount = 64000;
         constexpr uint32_t GtsScene3GridColumns = 40;
@@ -792,6 +797,24 @@ namespace gts::rendering::benchmarks
             }
         }
 
+        void configureParticleBenchmarkBudget(ECSWorld& world, const RenderingBenchmarkConfig& config)
+        {
+            if (config.particleMaxSimulatedParticles == 0u &&
+                config.particleMaxRenderedParticles == 0u &&
+                config.particleMaxSpawnedPerFrame == 0u)
+            {
+                return;
+            }
+
+            if (!world.hasAny<ParticleBudgetComponent>())
+                world.createSingleton<ParticleBudgetComponent>();
+
+            ParticleBudgetState& budget = world.getSingleton<ParticleBudgetComponent>().state;
+            budget.maxSimulatedParticles = config.particleMaxSimulatedParticles;
+            budget.maxRenderedParticles = config.particleMaxRenderedParticles;
+            budget.maxSpawnedPerFrame = config.particleMaxSpawnedPerFrame;
+        }
+
         void createBenchmarkParticles(BenchmarkSceneState& state, const RenderingBenchmarkConfig& config)
         {
             for (uint32_t i = 0; i < config.particleEmitterCount; ++i)
@@ -808,9 +831,25 @@ namespace gts::rendering::benchmarks
                 emitter.effectPath.clear();
                 emitter.reloadFromEffect = false;
                 emitter.randomSeed = config.seed + i;
-                emitter.emissionRate = 24.0f;
-                emitter.maxParticles = 96;
+                emitter.emissionRate = static_cast<float>(config.particleEmissionRate);
+                emitter.maxParticles = config.particleMaxParticles;
                 emitter.texturePath = "benchmarks/generated_particle.png";
+                emitter.shape = i % 3u == 0u ? ParticleEmitterShape::Ring : ParticleEmitterShape::Box;
+                emitter.blend = ParticleBlendMode::Additive;
+                emitter.lifetimeMin = 0.85f;
+                emitter.lifetimeMax = 1.85f;
+                emitter.tangentVelocity = i % 3u == 0u ? 0.42f : 0.18f;
+                emitter.velocitySpread = 0.10f;
+                emitter.drag = 0.04f;
+                emitter.baseTint = {0.62f, 0.72f, 1.0f, 0.82f};
+
+                if (i < config.particleMeshEmitterCount)
+                {
+                    emitter.primitive = ParticlePrimitive::Mesh;
+                    emitter.meshPath = "benchmarks/generated_particle_mesh.gmesh";
+                    emitter.meshScale = {0.18f, 0.18f, 0.18f};
+                }
+
                 state.world.addComponent(entity, emitter);
             }
         }
@@ -818,6 +857,7 @@ namespace gts::rendering::benchmarks
         void generateScene(BenchmarkSceneState& state, const RenderingBenchmarkConfig& config)
         {
             installBenchmarkFeatures(state, config);
+            configureParticleBenchmarkBudget(state.world, config);
             createBenchmarkCamera(state, config);
             createBenchmarkLights(state, config);
             createBenchmarkRenderables(state, config);
@@ -946,6 +986,46 @@ namespace gts::rendering::benchmarks
             counters[key] += value;
         }
 
+        void recordParticleCounters(const ECSWorld& world,
+                                    std::map<std::string, uint64_t>& counters)
+        {
+            if (world.hasAny<ParticleFrameDataComponent>())
+            {
+                const ParticleFrameData& frameData =
+                    world.getSingleton<ParticleFrameDataComponent>().frameData;
+                addCounter(counters, "particle_frame_emitters", frameData.emitterCount);
+                addCounter(counters, "particle_visible_emitters", frameData.visibleEmitterCount);
+                addCounter(counters, "particle_culled_emitters", frameData.culledEmitterCount);
+                addCounter(counters, "particle_simulated", frameData.simulatedParticleCount);
+                addCounter(counters, "particle_rendered", frameData.renderedParticleCount);
+                addCounter(counters, "particle_budget_clipped", frameData.budgetClippedParticleCount);
+                addCounter(counters, "particle_billboard_instances",
+                           static_cast<uint64_t>(frameData.instances.size()));
+                addCounter(counters, "particle_mesh_instances",
+                           static_cast<uint64_t>(frameData.meshInstances.size()));
+                addCounter(counters, "particle_draw_commands",
+                           static_cast<uint64_t>(frameData.drawCommands.size()));
+                addCounter(counters, "particle_mesh_draw_commands",
+                           static_cast<uint64_t>(frameData.meshDrawCommands.size()));
+                addCounter(counters, "particle_collision_events", frameData.collisionEventCount);
+                addCounter(counters, "particle_death_events", frameData.deathEventCount);
+                addCounter(counters, "particle_event_spawns", frameData.eventSpawnedParticleCount);
+                addCounter(counters, "particle_render_budget", frameData.renderBudget);
+            }
+
+            if (world.hasAny<ParticleBudgetComponent>())
+            {
+                const ParticleBudgetState& budget = world.getSingleton<ParticleBudgetComponent>().state;
+                addCounter(counters, "particle_budget_requested_simulated",
+                           budget.requestedSimulatedParticles);
+                addCounter(counters, "particle_budget_active", budget.activeParticles);
+                addCounter(counters, "particle_budget_spawned", budget.spawnedParticles);
+                addCounter(counters, "particle_budget_rendered", budget.renderedParticles);
+                addCounter(counters, "particle_budget_culled_emitters", budget.culledEmitters);
+                addCounter(counters, "particle_budget_clipped_emitters", budget.budgetClippedEmitters);
+            }
+        }
+
         std::string controllerTimingKey(const EcsSystemTimingSample& sample)
         {
             std::string key(sample.name);
@@ -977,6 +1057,35 @@ namespace gts::rendering::benchmarks
                                double value)
         {
             substages[key].push_back(value);
+        }
+
+        void recordParticleSubstages(const ParticleEmitterSystem::Metrics& metrics,
+                                     std::map<std::string, std::vector<double>>& substages)
+        {
+            addSubstageSample(substages,
+                              "ParticleEmitterSystem.runtime_maintenance",
+                              metrics.runtimeMaintenanceCpuMs);
+            addSubstageSample(substages,
+                              "ParticleEmitterSystem.setup",
+                              metrics.setupCpuMs);
+            addSubstageSample(substages,
+                              "ParticleEmitterSystem.policy",
+                              metrics.policyCpuMs);
+            addSubstageSample(substages,
+                              "ParticleEmitterSystem.simulation",
+                              metrics.simulationCpuMs);
+            addSubstageSample(substages,
+                              "ParticleEmitterSystem.bounds_visibility",
+                              metrics.boundsVisibilityCpuMs);
+            addSubstageSample(substages,
+                              "ParticleEmitterSystem.extraction",
+                              metrics.extractionCpuMs);
+            addSubstageSample(substages,
+                              "ParticleEmitterSystem.frame_build",
+                              metrics.frameBuildCpuMs);
+            addSubstageSample(substages,
+                              "ParticleEmitterSystem.total_instrumented",
+                              metrics.totalCpuMs);
         }
 
         void recordRenderPrepSubstages(
@@ -1170,6 +1279,7 @@ namespace gts::rendering::benchmarks
                                       dynamicMeshMetrics,
                                       snapshotMetrics,
                                       controllerSubstages);
+            recordParticleSubstages(ParticleEmitterSystem::getLastMetrics(), controllerSubstages);
 
             uint64_t transparent = 0;
             for (const RenderableSnapshot& renderable : snapshot.renderables)
@@ -1318,6 +1428,7 @@ namespace gts::rendering::benchmarks
             addCounter(counters, "lights_dropped_point", lighting.diagnostics.droppedPointLights);
             addCounter(counters, "lights_dropped_spot", lighting.diagnostics.droppedSpotLights);
             addCounter(counters, "particle_emitters", config.particleEmitterCount);
+            recordParticleCounters(state.world, counters);
             addCounter(counters, "world_text_blocks", config.worldTextCount);
             addCounter(counters, "draw_calls", 0);
             addCounter(counters, "prepared_batches", 0);
@@ -1713,6 +1824,27 @@ namespace gts::rendering::benchmarks
                      pbrHeavy,
                      presets);
 
+        RenderingBenchmarkConfig particleYune = base;
+        particleYune.renderableCount = 0;
+        particleYune.visibleRenderableCount = 0;
+        particleYune.uniqueMeshCount = 1;
+        particleYune.uniqueMaterialCount = 1;
+        particleYune.directionalLightCount = 0;
+        particleYune.pointLightCount = 0;
+        particleYune.spotLightCount = 0;
+        particleYune.particleEmitterCount = 144;
+        particleYune.particleMeshEmitterCount = 48;
+        particleYune.particleEmissionRate = 42.0;
+        particleYune.particleMaxParticles = 128;
+        particleYune.enablePbr = false;
+        particleYune.enableNormalMaps = false;
+        particleYune.enableIbl = false;
+        presetConfig("particles_yune_blocker_field",
+                     "Particle-heavy Yune-style blocker field with mixed billboard and mesh emitters.",
+                     1,
+                     particleYune,
+                     presets);
+
         RenderingBenchmarkConfig combined = base;
         combined.renderableCount = 5000;
         combined.visibleRenderableCount = 3500;
@@ -1775,6 +1907,24 @@ namespace gts::rendering::benchmarks
         config.dynamicMeshCount = std::min(config.dynamicMeshCount, config.renderableCount);
         config.dynamicMeshMutationCountPerFrame =
             std::min(config.dynamicMeshMutationCountPerFrame, config.dynamicMeshCount);
+        config.particleEmitterCount = std::min(config.particleEmitterCount, MaxBenchmarkParticleEmitters);
+        if (!std::isfinite(config.particleEmissionRate) || config.particleEmissionRate < 0.0)
+            config.particleEmissionRate = 0.0;
+        config.particleEmissionRate = std::min(config.particleEmissionRate, 20000.0);
+        config.particleMaxParticles = std::clamp(config.particleMaxParticles,
+                                                 1u,
+                                                 MaxBenchmarkParticlesPerEmitter);
+        config.particleMeshEmitterCount = std::min(config.particleMeshEmitterCount,
+                                                   config.particleEmitterCount);
+        config.particleMaxSimulatedParticles =
+            std::min(config.particleMaxSimulatedParticles,
+                     MaxBenchmarkParticleEmitters * MaxBenchmarkParticlesPerEmitter);
+        config.particleMaxRenderedParticles =
+            std::min(config.particleMaxRenderedParticles,
+                     MaxBenchmarkParticleEmitters * MaxBenchmarkParticlesPerEmitter);
+        config.particleMaxSpawnedPerFrame =
+            std::min(config.particleMaxSpawnedPerFrame,
+                     MaxBenchmarkParticleEmitters * MaxBenchmarkParticlesPerEmitter);
         config.renderWidth = std::clamp(config.renderWidth, 16u, 16384u);
         config.renderHeight = std::clamp(config.renderHeight, 16u, 16384u);
         if (!std::isfinite(config.hitchThresholdMs) || config.hitchThresholdMs < 0.0)
@@ -1848,6 +1998,12 @@ namespace gts::rendering::benchmarks
         else if (key == "dynamic-mesh-count" || key == "dynamic_mesh_count") ok = unsignedValue(config.dynamicMeshCount);
         else if (key == "dynamic-mesh-mutations" || key == "dynamic_mesh_mutations") ok = unsignedValue(config.dynamicMeshMutationCountPerFrame);
         else if (key == "particle-emitter-count" || key == "particle_emitter_count") ok = unsignedValue(config.particleEmitterCount);
+        else if (key == "particle-emission-rate" || key == "particle_emission_rate") ok = doubleValue(config.particleEmissionRate);
+        else if (key == "particle-max-particles" || key == "particle_max_particles") ok = unsignedValue(config.particleMaxParticles);
+        else if (key == "particle-mesh-emitter-count" || key == "particle_mesh_emitter_count") ok = unsignedValue(config.particleMeshEmitterCount);
+        else if (key == "particle-max-simulated" || key == "particle_max_simulated") ok = unsignedValue(config.particleMaxSimulatedParticles);
+        else if (key == "particle-max-rendered" || key == "particle_max_rendered") ok = unsignedValue(config.particleMaxRenderedParticles);
+        else if (key == "particle-max-spawned-per-frame" || key == "particle_max_spawned_per_frame") ok = unsignedValue(config.particleMaxSpawnedPerFrame);
         else if (key == "world-text-count" || key == "world_text_count") ok = unsignedValue(config.worldTextCount);
         else if (key == "render-width" || key == "render_width") ok = unsignedValue(config.renderWidth);
         else if (key == "render-height" || key == "render_height") ok = unsignedValue(config.renderHeight);
@@ -1935,6 +2091,7 @@ namespace gts::rendering::benchmarks
         gts::transform::TransformSystem::setDetailedMetricsEnabled(true);
         RenderGpuSystem::setDetailedMetricsEnabled(true);
         DynamicMeshBindingSystem::setDetailedMetricsEnabled(true);
+        ParticleEmitterSystem::setDetailedMetricsEnabled(true);
 
         std::map<std::string, std::vector<double>> timingSamples;
         std::map<std::string, std::vector<double>> controllerTimingSamples;
@@ -1989,6 +2146,7 @@ namespace gts::rendering::benchmarks
         gts::transform::TransformSystem::setDetailedMetricsEnabled(false);
         RenderGpuSystem::setDetailedMetricsEnabled(false);
         DynamicMeshBindingSystem::setDetailedMetricsEnabled(false);
+        ParticleEmitterSystem::setDetailedMetricsEnabled(false);
         return result;
     }
 
@@ -2292,6 +2450,12 @@ namespace gts::rendering::benchmarks
         out << "    \"dynamic_mesh_count\": " << result.config.dynamicMeshCount << ",\n";
         out << "    \"dynamic_mesh_mutation_count_per_frame\": " << result.config.dynamicMeshMutationCountPerFrame << ",\n";
         out << "    \"particle_emitter_count\": " << result.config.particleEmitterCount << ",\n";
+        out << "    \"particle_emission_rate\": " << result.config.particleEmissionRate << ",\n";
+        out << "    \"particle_max_particles\": " << result.config.particleMaxParticles << ",\n";
+        out << "    \"particle_mesh_emitter_count\": " << result.config.particleMeshEmitterCount << ",\n";
+        out << "    \"particle_max_simulated_particles\": " << result.config.particleMaxSimulatedParticles << ",\n";
+        out << "    \"particle_max_rendered_particles\": " << result.config.particleMaxRenderedParticles << ",\n";
+        out << "    \"particle_max_spawned_per_frame\": " << result.config.particleMaxSpawnedPerFrame << ",\n";
         out << "    \"world_text_count\": " << result.config.worldTextCount << ",\n";
         out << "    \"enable_pbr\": " << (result.config.enablePbr ? "true" : "false") << ",\n";
         out << "    \"enable_normal_maps\": " << (result.config.enableNormalMaps ? "true" : "false") << ",\n";
@@ -2578,11 +2742,21 @@ namespace gts::rendering::benchmarks
         {
             out << result.gpuTimingStatus << "\n";
         }
+        const uint64_t frames = std::max<uint64_t>(1u, result.config.measuredFrames);
         out << "render_commands total: " << counter("render_commands") << "\n";
         out << "visible_renderables total: " << counter("visible_renderables") << "\n";
+        out << "particle emitters visible/culled per frame: "
+            << static_cast<double>(counter("particle_visible_emitters")) / static_cast<double>(frames)
+            << " / "
+            << static_cast<double>(counter("particle_culled_emitters")) / static_cast<double>(frames) << "\n";
+        out << "particles simulated/rendered/clipped per frame: "
+            << static_cast<double>(counter("particle_simulated")) / static_cast<double>(frames)
+            << " / "
+            << static_cast<double>(counter("particle_rendered")) / static_cast<double>(frames)
+            << " / "
+            << static_cast<double>(counter("particle_budget_clipped")) / static_cast<double>(frames) << "\n";
         out << "material_synchronized total: " << counter("material_synchronized") << "\n";
         out << "object_uploads total: " << counter("object_uploads") << "\n";
-        const uint64_t frames = std::max<uint64_t>(1u, result.config.measuredFrames);
         out << "render_gpu_full_scan_visited/frame: "
             << static_cast<double>(counter("render_gpu_full_scan_visited")) / static_cast<double>(frames) << "\n";
         out << "render_gpu_queued/frame: "

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <limits>
 #include <vector>
@@ -21,8 +22,44 @@
 class ParticleEmitterSystem : public ECSControllerSystem
 {
 public:
+    struct Metrics
+    {
+        float runtimeMaintenanceCpuMs = 0.0f;
+        float setupCpuMs = 0.0f;
+        float policyCpuMs = 0.0f;
+        float simulationCpuMs = 0.0f;
+        float boundsVisibilityCpuMs = 0.0f;
+        float extractionCpuMs = 0.0f;
+        float frameBuildCpuMs = 0.0f;
+        float totalCpuMs = 0.0f;
+
+        uint32_t emitterCount = 0;
+        uint32_t visibleEmitterCount = 0;
+        uint32_t culledEmitterCount = 0;
+        uint32_t simulatedParticleCount = 0;
+        uint32_t renderedParticleCount = 0;
+        uint32_t budgetClippedParticleCount = 0;
+    };
+
+    static void setDetailedMetricsEnabled(bool enabled)
+    {
+        detailedMetricsEnabled = enabled;
+    }
+
+    static Metrics getLastMetrics()
+    {
+        return lastMetricsStorage();
+    }
+
     void update(const EcsControllerContext& ctx) override
     {
+        using Clock = std::chrono::steady_clock;
+
+        Metrics metrics;
+        const bool detailed = detailedMetricsEnabled;
+        const auto updateStart = detailed ? Clock::now() : Clock::time_point{};
+        auto stageStart = updateStart;
+
         ParticleFrameDataComponent& frameComponent = ensureFrameData(ctx.world);
         ParticleBudgetComponent& budgetComponent = ensureBudget(ctx.world);
         ParticleBudgetState& budget = budgetComponent.state;
@@ -33,12 +70,24 @@ public:
 
         removeOrphanRuntimes(ctx.world);
         ensureRuntimes(ctx.world);
+        if (detailed)
+        {
+            const auto now = Clock::now();
+            metrics.runtimeMaintenanceCpuMs = elapsedMs(stageStart, now);
+            stageStart = now;
+        }
 
         const float dt = resolveDeltaTime(ctx);
         const CameraInfo camera = resolveActiveCamera(ctx.world);
         const BudgetFrame budgetFrame = buildBudgetFrame(ctx.world, budget);
         frameData.cameraViewID = camera.viewID;
         frameData.renderBudget = budget.maxRenderedParticles;
+        if (detailed)
+        {
+            const auto now = Clock::now();
+            metrics.setupCpuMs = elapsedMs(stageStart, now);
+            stageStart = now;
+        }
 
         alphaParticles.clear();
         additiveParticles.clear();
@@ -56,13 +105,44 @@ public:
                 const EmitterTransform emitterTransform = makeEmitterTransform(worldTransform);
                 frameData.emitterCount += 1;
                 resetRuntimeFrameStats(runtime);
-                const EmitterFramePolicy policy =
-                    resolveEmitterFramePolicy(emitter, runtime, emitterTransform, camera, budgetFrame);
+
+                EmitterFramePolicy policy;
+                if (detailed)
+                {
+                    const auto policyStart = Clock::now();
+                    policy = resolveEmitterFramePolicy(emitter, runtime, emitterTransform, camera, budgetFrame);
+                    metrics.policyCpuMs += elapsedMs(policyStart, Clock::now());
+                }
+                else
+                {
+                    policy = resolveEmitterFramePolicy(emitter, runtime, emitterTransform, camera, budgetFrame);
+                }
+
                 const float emitterDt =
                     runtime.playbackPaused ? 0.0f : dt * std::max(0.0f, runtime.playbackTimeScale);
-                updateEmitter(ctx, emitter, runtime, emitterTransform, emitterDt, policy);
-                refreshRuntimeBounds(emitter, runtime, emitterTransform);
-                applyVisibilityPolicy(emitter, runtime, emitterTransform, camera);
+                if (detailed)
+                {
+                    const auto simulationStart = Clock::now();
+                    updateEmitter(ctx, emitter, runtime, emitterTransform, emitterDt, policy);
+                    metrics.simulationCpuMs += elapsedMs(simulationStart, Clock::now());
+                }
+                else
+                {
+                    updateEmitter(ctx, emitter, runtime, emitterTransform, emitterDt, policy);
+                }
+
+                if (detailed)
+                {
+                    const auto boundsStart = Clock::now();
+                    refreshRuntimeBounds(emitter, runtime, emitterTransform);
+                    applyVisibilityPolicy(emitter, runtime, emitterTransform, camera);
+                    metrics.boundsVisibilityCpuMs += elapsedMs(boundsStart, Clock::now());
+                }
+                else
+                {
+                    refreshRuntimeBounds(emitter, runtime, emitterTransform);
+                    applyVisibilityPolicy(emitter, runtime, emitterTransform, camera);
+                }
 
                 frameData.simulatedParticleCount += static_cast<uint32_t>(runtime.particles.size());
                 frameData.collisionEventCount += runtime.collisionEventsThisFrame;
@@ -86,10 +166,35 @@ public:
                 }
 
                 frameData.visibleEmitterCount += 1;
-                extractEmitter(emitter, runtime, emitterTransform, camera);
+                if (detailed)
+                {
+                    const auto extractionStart = Clock::now();
+                    extractEmitter(emitter, runtime, emitterTransform, camera);
+                    metrics.extractionCpuMs += elapsedMs(extractionStart, Clock::now());
+                }
+                else
+                {
+                    extractEmitter(emitter, runtime, emitterTransform, camera);
+                }
             });
 
+        if (detailed)
+            stageStart = Clock::now();
         buildFrameData(frameData, budget);
+        if (detailed)
+        {
+            const auto now = Clock::now();
+            metrics.frameBuildCpuMs = elapsedMs(stageStart, now);
+            metrics.totalCpuMs = elapsedMs(updateStart, now);
+        }
+
+        metrics.emitterCount = frameData.emitterCount;
+        metrics.visibleEmitterCount = frameData.visibleEmitterCount;
+        metrics.culledEmitterCount = frameData.culledEmitterCount;
+        metrics.simulatedParticleCount = frameData.simulatedParticleCount;
+        metrics.renderedParticleCount = frameData.renderedParticleCount;
+        metrics.budgetClippedParticleCount = frameData.budgetClippedParticleCount;
+        lastMetricsStorage() = metrics;
     }
 
 private:
@@ -144,6 +249,18 @@ private:
     std::vector<ExtractedParticle> additiveParticles;
     std::vector<ExtractedMeshParticle> alphaMeshParticles;
     std::vector<ExtractedMeshParticle> additiveMeshParticles;
+
+    static float elapsedMs(std::chrono::steady_clock::time_point start,
+                           std::chrono::steady_clock::time_point end)
+    {
+        return std::chrono::duration<float, std::milli>(end - start).count();
+    }
+
+    static Metrics& lastMetricsStorage()
+    {
+        static Metrics metrics;
+        return metrics;
+    }
 
     static EmitterTransform makeEmitterTransform(const WorldTransformComponent& worldTransform)
     {
@@ -312,7 +429,6 @@ private:
                                                         const CameraInfo& camera,
                                                         const BudgetFrame& budgetFrame)
     {
-        refreshRuntimeBounds(emitter, runtime, transform);
         applyVisibilityPolicy(emitter, runtime, transform, camera);
 
         EmitterFramePolicy policy;
@@ -1116,4 +1232,6 @@ private:
             });
         }
     }
+
+    static inline bool detailedMetricsEnabled = false;
 };

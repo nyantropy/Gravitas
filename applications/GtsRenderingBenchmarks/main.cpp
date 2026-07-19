@@ -30,6 +30,9 @@
 #include "MaterialReferenceComponent.h"
 #include "MaterialRuntime.h"
 #include "ParticleEmitterComponent.h"
+#include "ParticleEmitterRuntimeComponent.h"
+#include "ParticleEmitterSystem.hpp"
+#include "ParticleFrameData.h"
 #include "PointLightComponent.h"
 #include "QuadMeshComponent.h"
 #include "RendererSceneFeature.h"
@@ -603,9 +606,32 @@ namespace
         }
     }
 
+    void configureRuntimeParticleBudget(ECSWorld& world, const RenderingBenchmarkConfig& config)
+    {
+        if (config.particleMaxSimulatedParticles == 0u &&
+            config.particleMaxRenderedParticles == 0u &&
+            config.particleMaxSpawnedPerFrame == 0u)
+        {
+            return;
+        }
+
+        if (!world.hasAny<ParticleBudgetComponent>())
+            world.createSingleton<ParticleBudgetComponent>();
+
+        ParticleBudgetState& budget = world.getSingleton<ParticleBudgetComponent>().state;
+        budget.maxSimulatedParticles = config.particleMaxSimulatedParticles;
+        budget.maxRenderedParticles = config.particleMaxRenderedParticles;
+        budget.maxSpawnedPerFrame = config.particleMaxSpawnedPerFrame;
+    }
+
     void createRuntimeParticles(ECSWorld& world,
                                 const RenderingBenchmarkConfig& config)
     {
+        const std::string texturePath =
+            std::string(GraphicsConstants::ENGINE_RESOURCES) + "/textures/engine_particle_fallback.png";
+        const std::string meshPath =
+            std::string(GraphicsConstants::ENGINE_RESOURCES) + "/models/cube.gmesh";
+
         for (uint32_t i = 0; i < config.particleEmitterCount; ++i)
         {
             Entity entity = world.createEntity();
@@ -620,10 +646,25 @@ namespace
             emitter.effectPath.clear();
             emitter.reloadFromEffect = false;
             emitter.randomSeed = config.seed + i;
-            emitter.emissionRate = 24.0f;
-            emitter.maxParticles = 96;
-            emitter.texturePath =
-                std::string(GraphicsConstants::ENGINE_RESOURCES) + "/textures/engine_particle_fallback.png";
+            emitter.emissionRate = static_cast<float>(config.particleEmissionRate);
+            emitter.maxParticles = config.particleMaxParticles;
+            emitter.texturePath = texturePath;
+            emitter.shape = i % 3u == 0u ? ParticleEmitterShape::Ring : ParticleEmitterShape::Box;
+            emitter.blend = ParticleBlendMode::Additive;
+            emitter.lifetimeMin = 0.85f;
+            emitter.lifetimeMax = 1.85f;
+            emitter.tangentVelocity = i % 3u == 0u ? 0.42f : 0.18f;
+            emitter.velocitySpread = 0.10f;
+            emitter.drag = 0.04f;
+            emitter.baseTint = {0.62f, 0.72f, 1.0f, 0.82f};
+
+            if (i < config.particleMeshEmitterCount)
+            {
+                emitter.primitive = ParticlePrimitive::Mesh;
+                emitter.meshPath = meshPath;
+                emitter.meshScale = {0.18f, 0.18f, 0.18f};
+            }
+
             world.addComponent(entity, emitter);
         }
     }
@@ -637,6 +678,7 @@ namespace
         createRuntimeRenderables(world, config, generated);
         attachRuntimeHierarchy(world, generated, config);
         createRuntimeWorldText(world, config);
+        configureRuntimeParticleBudget(world, config);
         createRuntimeParticles(world, config);
         return generated;
     }
@@ -764,9 +806,79 @@ namespace
         counters[key] += value;
     }
 
+    void recordParticleCounters(const ECSWorld& world,
+                                std::map<std::string, uint64_t>& counters)
+    {
+        if (world.hasAny<ParticleFrameDataComponent>())
+        {
+            const ParticleFrameData& frameData =
+                world.getSingleton<ParticleFrameDataComponent>().frameData;
+            addCounter(counters, "particle_frame_emitters", frameData.emitterCount);
+            addCounter(counters, "particle_visible_emitters", frameData.visibleEmitterCount);
+            addCounter(counters, "particle_culled_emitters", frameData.culledEmitterCount);
+            addCounter(counters, "particle_simulated", frameData.simulatedParticleCount);
+            addCounter(counters, "particle_rendered", frameData.renderedParticleCount);
+            addCounter(counters, "particle_budget_clipped", frameData.budgetClippedParticleCount);
+            addCounter(counters, "particle_billboard_instances",
+                       static_cast<uint64_t>(frameData.instances.size()));
+            addCounter(counters, "particle_mesh_instances",
+                       static_cast<uint64_t>(frameData.meshInstances.size()));
+            addCounter(counters, "particle_draw_commands",
+                       static_cast<uint64_t>(frameData.drawCommands.size()));
+            addCounter(counters, "particle_mesh_draw_commands",
+                       static_cast<uint64_t>(frameData.meshDrawCommands.size()));
+            addCounter(counters, "particle_collision_events", frameData.collisionEventCount);
+            addCounter(counters, "particle_death_events", frameData.deathEventCount);
+            addCounter(counters, "particle_event_spawns", frameData.eventSpawnedParticleCount);
+            addCounter(counters, "particle_render_budget", frameData.renderBudget);
+        }
+
+        if (world.hasAny<ParticleBudgetComponent>())
+        {
+            const ParticleBudgetState& budget = world.getSingleton<ParticleBudgetComponent>().state;
+            addCounter(counters, "particle_budget_requested_simulated",
+                       budget.requestedSimulatedParticles);
+            addCounter(counters, "particle_budget_active", budget.activeParticles);
+            addCounter(counters, "particle_budget_spawned", budget.spawnedParticles);
+            addCounter(counters, "particle_budget_rendered", budget.renderedParticles);
+            addCounter(counters, "particle_budget_culled_emitters", budget.culledEmitters);
+            addCounter(counters, "particle_budget_clipped_emitters", budget.budgetClippedEmitters);
+        }
+    }
+
+    void recordParticleSubstages(const ParticleEmitterSystem::Metrics& metrics,
+                                 std::map<std::string, std::vector<double>>& substages)
+    {
+        addSample(substages,
+                  "ParticleEmitterSystem.runtime_maintenance",
+                  metrics.runtimeMaintenanceCpuMs);
+        addSample(substages,
+                  "ParticleEmitterSystem.setup",
+                  metrics.setupCpuMs);
+        addSample(substages,
+                  "ParticleEmitterSystem.policy",
+                  metrics.policyCpuMs);
+        addSample(substages,
+                  "ParticleEmitterSystem.simulation",
+                  metrics.simulationCpuMs);
+        addSample(substages,
+                  "ParticleEmitterSystem.bounds_visibility",
+                  metrics.boundsVisibilityCpuMs);
+        addSample(substages,
+                  "ParticleEmitterSystem.extraction",
+                  metrics.extractionCpuMs);
+        addSample(substages,
+                  "ParticleEmitterSystem.frame_build",
+                  metrics.frameBuildCpuMs);
+        addSample(substages,
+                  "ParticleEmitterSystem.total_instrumented",
+                  metrics.totalCpuMs);
+    }
+
     void recordRuntimeFrameStats(RuntimeBenchmarkCollector& collector,
                                  const GtsFrameStats& stats,
-                                 const std::vector<EcsSystemTimingSample>& controllerTimings)
+                                 const std::vector<EcsSystemTimingSample>& controllerTimings,
+                                 const ECSWorld& world)
     {
         const RenderingBenchmarkConfig& config = collector.config;
 
@@ -912,6 +1024,8 @@ namespace
         addSample(collector.controllerSubstageSamples,
                   "RenderExtractionSnapshotBuilder.aggregate_merge",
                   stats.snapshotAggregateMergeCpuMs);
+        recordParticleSubstages(ParticleEmitterSystem::getLastMetrics(),
+                                collector.controllerSubstageSamples);
 
         if (stats.gpuTimingAvailable != 0)
         {
@@ -1029,6 +1143,7 @@ namespace
         addCounter(collector.counters, "transform_processed", stats.transformProcessedCount);
         addCounter(collector.counters, "transform_updates", stats.transformUpdatedCount);
         addCounter(collector.counters, "particle_emitters", config.particleEmitterCount);
+        recordParticleCounters(world, collector.counters);
         addCounter(collector.counters, "world_text_blocks", config.worldTextCount);
         addCounter(collector.counters, "draw_calls", stats.drawCalls);
         addCounter(collector.counters, "pipeline_switches", stats.pipelineSwitches);
@@ -1321,7 +1436,7 @@ namespace
                 timeoutWarningAdded = true;
             }
 
-            recordRuntimeFrameStats(*collector, stats, lastControllerTimings);
+            recordRuntimeFrameStats(*collector, stats, lastControllerTimings, ecsWorld);
             recordRuntimeHitchFrame(*collector, stats, lastControllerTimings);
             collector->measuredFrames += 1;
 
@@ -1392,6 +1507,7 @@ namespace
         gts::transform::TransformSystem::setDetailedMetricsEnabled(true);
         RenderGpuSystem::setDetailedMetricsEnabled(true);
         DynamicMeshBindingSystem::setDetailedMetricsEnabled(true);
+        ParticleEmitterSystem::setDetailedMetricsEnabled(true);
 
         GravitasEngine engine(engineConfig);
         engine.registerScene(
@@ -1406,6 +1522,7 @@ namespace
         gts::transform::TransformSystem::setDetailedMetricsEnabled(false);
         RenderGpuSystem::setDetailedMetricsEnabled(false);
         DynamicMeshBindingSystem::setDetailedMetricsEnabled(false);
+        ParticleEmitterSystem::setDetailedMetricsEnabled(false);
         return finishRuntimeBenchmarkResult(*collector);
     }
 }
