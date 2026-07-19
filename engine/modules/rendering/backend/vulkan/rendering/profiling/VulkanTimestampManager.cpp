@@ -150,9 +150,11 @@ VulkanGpuTimestampResult VulkanTimestampManager::collectFrame(uint32_t frameInde
     for (const StageSample& sample : frame.samples)
     {
         const float durationMs = elapsedMs(timestamps[sample.beginQuery], timestamps[sample.endQuery]);
-        if (sample.name == "SceneRenderStage")
+        if (sample.name == "SceneRenderStage" ||
+            sample.name == "EditorPreviewSceneRenderStage")
             result.sceneMs += durationMs;
-        else if (sample.name == "ParticleRenderStage")
+        else if (sample.name == "ParticleRenderStage" ||
+                 sample.name == "EditorPreviewParticleRenderStage")
             result.particleMs += durationMs;
         else if (sample.name == "UiRenderStage")
             result.uiMs += durationMs;

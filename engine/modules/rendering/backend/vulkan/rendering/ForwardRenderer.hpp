@@ -98,6 +98,11 @@ class ForwardRenderer : Renderer
         texture_id_type editorPreviewTextureID = 0;
         VkExtent2D editorPreviewExtent{0, 0};
 
+        static float elapsedMs(std::chrono::steady_clock::time_point start,
+                               std::chrono::steady_clock::time_point end)
+        {
+            return std::chrono::duration<float, std::milli>(end - start).count();
+        }
 
         VkFormat findDepthFormat()
         {
@@ -493,8 +498,11 @@ class ForwardRenderer : Renderer
             VkCommandBufferBeginInfo beginInfo{};
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
+            const auto cmdBeginStart = std::chrono::steady_clock::now();
             if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
                 throw std::runtime_error("failed to begin recording command buffer!");
+            const auto cmdBeginEnd = std::chrono::steady_clock::now();
+            frameStats.backendCmdBeginCpuMs = elapsedMs(cmdBeginStart, cmdBeginEnd);
 
             if (timestampManager)
                 timestampManager->beginFrame(commandBuffer, currentFrame);
@@ -508,6 +516,18 @@ class ForwardRenderer : Renderer
             frameGraph.provideData(&editorPreview);
             frameGraph.provideData(&frameStats);
             frameGraph.execute(commandBuffer, imageIndex, currentFrame);
+            const GtsFrameGraphCpuMetrics& frameGraphMetrics = frameGraph.getLastCpuMetrics();
+            frameStats.backendFrameGraphCpuMs = frameGraphMetrics.totalCpuMs;
+            frameStats.backendFrameGraphBarrierCpuMs = frameGraphMetrics.barrierCpuMs;
+            frameStats.backendSceneRecordCpuMs = frameGraphMetrics.sceneRecordCpuMs;
+            frameStats.backendParticleRecordCpuMs = frameGraphMetrics.particleRecordCpuMs;
+            frameStats.backendUiRecordCpuMs = frameGraphMetrics.uiRecordCpuMs;
+            frameStats.backendEditorPreviewSceneRecordCpuMs =
+                frameGraphMetrics.editorPreviewSceneRecordCpuMs;
+            frameStats.backendEditorPreviewParticleRecordCpuMs =
+                frameGraphMetrics.editorPreviewParticleRecordCpuMs;
+            frameStats.backendUpscaleRecordCpuMs = frameGraphMetrics.upscaleRecordCpuMs;
+            frameStats.backendOtherRecordCpuMs = frameGraphMetrics.otherRecordCpuMs;
 
             if (timestampManager)
                 timestampManager->endFrame(commandBuffer, currentFrame);
@@ -543,8 +563,11 @@ class ForwardRenderer : Renderer
                 frameStats.drawCalls        += frameStats.particleDrawCalls;
             }
 
+            const auto cmdEndStart = std::chrono::steady_clock::now();
             if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
                 throw std::runtime_error("failed to record command buffer!");
+            const auto cmdEndEnd = std::chrono::steady_clock::now();
+            frameStats.backendCmdEndCpuMs = elapsedMs(cmdEndStart, cmdEndEnd);
         }
 
 

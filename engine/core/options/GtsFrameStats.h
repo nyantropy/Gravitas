@@ -24,6 +24,17 @@ struct GtsFrameStats
     float    backendFenceResetCpuMs = 0.0f;
     float    backendCmdResetCpuMs   = 0.0f;
     float    backendCmdRecordCpuMs  = 0.0f;
+    float    backendCmdBeginCpuMs   = 0.0f;
+    float    backendFrameGraphCpuMs = 0.0f;
+    float    backendFrameGraphBarrierCpuMs = 0.0f;
+    float    backendSceneRecordCpuMs = 0.0f;
+    float    backendParticleRecordCpuMs = 0.0f;
+    float    backendUiRecordCpuMs = 0.0f;
+    float    backendEditorPreviewSceneRecordCpuMs = 0.0f;
+    float    backendEditorPreviewParticleRecordCpuMs = 0.0f;
+    float    backendUpscaleRecordCpuMs = 0.0f;
+    float    backendOtherRecordCpuMs = 0.0f;
+    float    backendCmdEndCpuMs = 0.0f;
     float    backendQueueSubmitCpuMs = 0.0f;
     float    backendPresentCpuMs    = 0.0f;
     float    screenshotScheduleCpuMs = 0.0f;

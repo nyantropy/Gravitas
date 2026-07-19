@@ -1,11 +1,42 @@
 #include "GtsFrameGraph.h"
 
+#include <chrono>
 #include <queue>
 #include <set>
 #include <unordered_map>
 
 #include "ImageUtil.hpp"
 #include "MemoryUtil.hpp"
+
+namespace
+{
+    using Clock = std::chrono::steady_clock;
+
+    float elapsedMs(Clock::time_point start, Clock::time_point end)
+    {
+        return std::chrono::duration<float, std::milli>(end - start).count();
+    }
+
+    void accumulateStageRecordCpu(GtsFrameGraphCpuMetrics& metrics,
+                                  const std::string&       stageName,
+                                  float                    durationMs)
+    {
+        if (stageName == "SceneRenderStage")
+            metrics.sceneRecordCpuMs += durationMs;
+        else if (stageName == "ParticleRenderStage")
+            metrics.particleRecordCpuMs += durationMs;
+        else if (stageName == "UiRenderStage")
+            metrics.uiRecordCpuMs += durationMs;
+        else if (stageName == "EditorPreviewSceneRenderStage")
+            metrics.editorPreviewSceneRecordCpuMs += durationMs;
+        else if (stageName == "EditorPreviewParticleRenderStage")
+            metrics.editorPreviewParticleRecordCpuMs += durationMs;
+        else if (stageName == "UpscaleRenderStage")
+            metrics.upscaleRecordCpuMs += durationMs;
+        else
+            metrics.otherRecordCpuMs += durationMs;
+    }
+}
 
 // ── Resource registration ─────────────────────────────────────────────────
 
@@ -283,6 +314,9 @@ void GtsFrameGraph::compile()
 
 void GtsFrameGraph::execute(VkCommandBuffer cmd, uint32_t imageIndex, uint32_t currentFrame)
 {
+    lastCpuMetrics.reset();
+    const Clock::time_point graphStart = Clock::now();
+
     // Reset swapchain resource layouts — they start UNDEFINED each frame from
     // the frame graph's perspective (the render pass initialLayout handles the
     // actual transition from whatever the GPU left the image in).
@@ -294,6 +328,7 @@ void GtsFrameGraph::execute(VkCommandBuffer cmd, uint32_t imageIndex, uint32_t c
         uint32_t si = compiledOrder[orderIdx];
 
         // Insert pre-computed barriers for this stage.
+        const Clock::time_point barrierStart = Clock::now();
         for (const auto& bp : barriers)
         {
             if (bp.stageIndex != orderIdx) continue;
@@ -309,11 +344,18 @@ void GtsFrameGraph::execute(VkCommandBuffer cmd, uint32_t imageIndex, uint32_t c
                     bp.newLayout);
             }
         }
+        const Clock::time_point barrierEnd = Clock::now();
+        lastCpuMetrics.barrierCpuMs += elapsedMs(barrierStart, barrierEnd);
 
         if (timestampManager)
             timestampManager->beginStage(cmd, currentFrame, stages[si]->getName());
 
+        const Clock::time_point stageStart = Clock::now();
         stages[si]->record(cmd, *this, imageIndex, currentFrame);
+        const Clock::time_point stageEnd = Clock::now();
+        accumulateStageRecordCpu(lastCpuMetrics,
+                                 stages[si]->getName(),
+                                 elapsedMs(stageStart, stageEnd));
 
         if (timestampManager)
             timestampManager->endStage(cmd, currentFrame, stages[si]->getName());
@@ -328,6 +370,8 @@ void GtsFrameGraph::execute(VkCommandBuffer cmd, uint32_t imageIndex, uint32_t c
     }
 
     dataBlackboard.clear();
+    const Clock::time_point graphEnd = Clock::now();
+    lastCpuMetrics.totalCpuMs = elapsedMs(graphStart, graphEnd);
 }
 
 // ── Barrier insertion ─────────────────────────────────────────────────────

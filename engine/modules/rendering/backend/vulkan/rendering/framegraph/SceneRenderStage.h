@@ -63,7 +63,9 @@ public:
                      GtsResourceHandle      depthHandle,
                      VkImageLayout          colorFinalLayout,
                      DataSource             dataSource = DataSource::RuntimeWorld)
-        : GtsRenderStage("SceneRenderStage")
+        : GtsRenderStage(dataSource == DataSource::EditorPreview
+            ? "EditorPreviewSceneRenderStage"
+            : "SceneRenderStage")
         , resources(resources)
         , threadPool(threadPool)
         , backendContext(backendContext)

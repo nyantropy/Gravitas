@@ -36,6 +36,17 @@ struct ProfileAccumulator
         sum.backendFenceResetCpuMs += s.backendFenceResetCpuMs;
         sum.backendCmdResetCpuMs   += s.backendCmdResetCpuMs;
         sum.backendCmdRecordCpuMs  += s.backendCmdRecordCpuMs;
+        sum.backendCmdBeginCpuMs   += s.backendCmdBeginCpuMs;
+        sum.backendFrameGraphCpuMs += s.backendFrameGraphCpuMs;
+        sum.backendFrameGraphBarrierCpuMs += s.backendFrameGraphBarrierCpuMs;
+        sum.backendSceneRecordCpuMs += s.backendSceneRecordCpuMs;
+        sum.backendParticleRecordCpuMs += s.backendParticleRecordCpuMs;
+        sum.backendUiRecordCpuMs += s.backendUiRecordCpuMs;
+        sum.backendEditorPreviewSceneRecordCpuMs += s.backendEditorPreviewSceneRecordCpuMs;
+        sum.backendEditorPreviewParticleRecordCpuMs += s.backendEditorPreviewParticleRecordCpuMs;
+        sum.backendUpscaleRecordCpuMs += s.backendUpscaleRecordCpuMs;
+        sum.backendOtherRecordCpuMs += s.backendOtherRecordCpuMs;
+        sum.backendCmdEndCpuMs     += s.backendCmdEndCpuMs;
         sum.backendQueueSubmitCpuMs += s.backendQueueSubmitCpuMs;
         sum.backendPresentCpuMs    += s.backendPresentCpuMs;
         sum.screenshotScheduleCpuMs += s.screenshotScheduleCpuMs;
@@ -127,6 +138,27 @@ struct ProfileAccumulator
         max.backendFenceResetCpuMs = std::max(max.backendFenceResetCpuMs, s.backendFenceResetCpuMs);
         max.backendCmdResetCpuMs   = std::max(max.backendCmdResetCpuMs, s.backendCmdResetCpuMs);
         max.backendCmdRecordCpuMs  = std::max(max.backendCmdRecordCpuMs, s.backendCmdRecordCpuMs);
+        max.backendCmdBeginCpuMs   = std::max(max.backendCmdBeginCpuMs, s.backendCmdBeginCpuMs);
+        max.backendFrameGraphCpuMs = std::max(max.backendFrameGraphCpuMs, s.backendFrameGraphCpuMs);
+        max.backendFrameGraphBarrierCpuMs =
+            std::max(max.backendFrameGraphBarrierCpuMs, s.backendFrameGraphBarrierCpuMs);
+        max.backendSceneRecordCpuMs =
+            std::max(max.backendSceneRecordCpuMs, s.backendSceneRecordCpuMs);
+        max.backendParticleRecordCpuMs =
+            std::max(max.backendParticleRecordCpuMs, s.backendParticleRecordCpuMs);
+        max.backendUiRecordCpuMs =
+            std::max(max.backendUiRecordCpuMs, s.backendUiRecordCpuMs);
+        max.backendEditorPreviewSceneRecordCpuMs =
+            std::max(max.backendEditorPreviewSceneRecordCpuMs,
+                     s.backendEditorPreviewSceneRecordCpuMs);
+        max.backendEditorPreviewParticleRecordCpuMs =
+            std::max(max.backendEditorPreviewParticleRecordCpuMs,
+                     s.backendEditorPreviewParticleRecordCpuMs);
+        max.backendUpscaleRecordCpuMs =
+            std::max(max.backendUpscaleRecordCpuMs, s.backendUpscaleRecordCpuMs);
+        max.backendOtherRecordCpuMs =
+            std::max(max.backendOtherRecordCpuMs, s.backendOtherRecordCpuMs);
+        max.backendCmdEndCpuMs     = std::max(max.backendCmdEndCpuMs, s.backendCmdEndCpuMs);
         max.backendQueueSubmitCpuMs = std::max(max.backendQueueSubmitCpuMs, s.backendQueueSubmitCpuMs);
         max.backendPresentCpuMs    = std::max(max.backendPresentCpuMs, s.backendPresentCpuMs);
         max.screenshotScheduleCpuMs = std::max(max.screenshotScheduleCpuMs, s.screenshotScheduleCpuMs);
@@ -255,6 +287,12 @@ inline void printProfile(const ProfileAccumulator& acc)
                   << lastValue
                   << '\n';
     };
+    auto printOptionalRow = [&](const char* label, float avgMs, float maxMs)
+    {
+        if (avgMs <= 0.0f && maxMs <= 0.0f)
+            return;
+        printRow(label, avgMs, maxMs);
+    };
 
     std::cout << "\n=== FRAME PROFILE (5s window, avg / max) ===\n";
     std::cout << "Samples: " << acc.frameCount
@@ -289,6 +327,25 @@ inline void printProfile(const ProfileAccumulator& acc)
     printRow("FenceReset:",  acc.sum.backendFenceResetCpuMs * inv,  acc.max.backendFenceResetCpuMs);
     printRow("CmdReset:",    acc.sum.backendCmdResetCpuMs * inv,    acc.max.backendCmdResetCpuMs);
     printRow("CmdRecord:",   acc.sum.backendCmdRecordCpuMs * inv,   acc.max.backendCmdRecordCpuMs);
+    printRow("CmdBegin:",    acc.sum.backendCmdBeginCpuMs * inv,    acc.max.backendCmdBeginCpuMs);
+    printRow("FrameGraph:",  acc.sum.backendFrameGraphCpuMs * inv,  acc.max.backendFrameGraphCpuMs);
+    printRow("Barriers:",    acc.sum.backendFrameGraphBarrierCpuMs * inv,
+                             acc.max.backendFrameGraphBarrierCpuMs);
+    printRow("SceneRec:",    acc.sum.backendSceneRecordCpuMs * inv, acc.max.backendSceneRecordCpuMs);
+    printRow("PartRec:",     acc.sum.backendParticleRecordCpuMs * inv,
+                             acc.max.backendParticleRecordCpuMs);
+    printRow("UiRec:",       acc.sum.backendUiRecordCpuMs * inv, acc.max.backendUiRecordCpuMs);
+    printOptionalRow("PrevScene:",
+                     acc.sum.backendEditorPreviewSceneRecordCpuMs * inv,
+                     acc.max.backendEditorPreviewSceneRecordCpuMs);
+    printOptionalRow("PrevPart:",
+                     acc.sum.backendEditorPreviewParticleRecordCpuMs * inv,
+                     acc.max.backendEditorPreviewParticleRecordCpuMs);
+    printOptionalRow("Upscale:",     acc.sum.backendUpscaleRecordCpuMs * inv,
+                     acc.max.backendUpscaleRecordCpuMs);
+    printOptionalRow("OtherRec:",    acc.sum.backendOtherRecordCpuMs * inv,
+                     acc.max.backendOtherRecordCpuMs);
+    printRow("CmdEnd:",      acc.sum.backendCmdEndCpuMs * inv,      acc.max.backendCmdEndCpuMs);
     printRow("QueueSub:",    acc.sum.backendQueueSubmitCpuMs * inv, acc.max.backendQueueSubmitCpuMs);
     printRow("Present:",     acc.sum.backendPresentCpuMs * inv,     acc.max.backendPresentCpuMs);
     printCounter("Draw calls:",       acc.sum.drawCalls * inv,              acc.max.drawCalls);

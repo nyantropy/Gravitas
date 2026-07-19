@@ -70,7 +70,9 @@ public:
                         VkImageLayout          colorInitialLayout,
                         VkImageLayout          colorFinalLayout,
                         DataSource             dataSource = DataSource::RuntimeWorld)
-        : GtsRenderStage("ParticleRenderStage")
+        : GtsRenderStage(dataSource == DataSource::EditorPreview
+            ? "EditorPreviewParticleRenderStage"
+            : "ParticleRenderStage")
         , resources(resources)
         , backendContext(backendContext)
         , descriptorSetManager(descriptorSetManager)

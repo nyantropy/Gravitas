@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include <cstdint>
 #include <vector>
 #include <memory>
 #include <string>
@@ -13,6 +14,24 @@
 #include "GtsRenderStage.h"
 #include "VulkanBackendContext.h"
 #include "VulkanTimestampManager.h"
+
+struct GtsFrameGraphCpuMetrics
+{
+    float totalCpuMs = 0.0f;
+    float barrierCpuMs = 0.0f;
+    float sceneRecordCpuMs = 0.0f;
+    float particleRecordCpuMs = 0.0f;
+    float uiRecordCpuMs = 0.0f;
+    float editorPreviewSceneRecordCpuMs = 0.0f;
+    float editorPreviewParticleRecordCpuMs = 0.0f;
+    float upscaleRecordCpuMs = 0.0f;
+    float otherRecordCpuMs = 0.0f;
+
+    void reset()
+    {
+        *this = {};
+    }
+};
 
 class GtsFrameGraph
 {
@@ -121,6 +140,10 @@ public:
     {
         timestampManager = manager;
     }
+    const GtsFrameGraphCpuMetrics& getLastCpuMetrics() const
+    {
+        return lastCpuMetrics;
+    }
 
     // ── Cleanup ───────────────────────────────────────────────────────────
 
@@ -162,6 +185,7 @@ private:
 
     VulkanBackendContext& backendContext;
     VulkanTimestampManager* timestampManager = nullptr;
+    GtsFrameGraphCpuMetrics lastCpuMetrics;
     bool compiled = false;
 
     // ── Internal helpers ──────────────────────────────────────────────────

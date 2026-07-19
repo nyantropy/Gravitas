@@ -906,6 +906,21 @@ namespace
         addSample(collector.cpuSamples, "backend_fence_reset_cpu", stats.backendFenceResetCpuMs);
         addSample(collector.cpuSamples, "backend_cmd_reset_cpu", stats.backendCmdResetCpuMs);
         addSample(collector.cpuSamples, "backend_cmd_record_cpu", stats.backendCmdRecordCpuMs);
+        addSample(collector.cpuSamples, "backend_cmd_begin_cpu", stats.backendCmdBeginCpuMs);
+        addSample(collector.cpuSamples, "backend_framegraph_cpu", stats.backendFrameGraphCpuMs);
+        addSample(collector.cpuSamples, "backend_framegraph_barrier_cpu",
+                  stats.backendFrameGraphBarrierCpuMs);
+        addSample(collector.cpuSamples, "backend_scene_record_cpu", stats.backendSceneRecordCpuMs);
+        addSample(collector.cpuSamples, "backend_particle_record_cpu",
+                  stats.backendParticleRecordCpuMs);
+        addSample(collector.cpuSamples, "backend_ui_record_cpu", stats.backendUiRecordCpuMs);
+        addSample(collector.cpuSamples, "backend_editor_preview_scene_record_cpu",
+                  stats.backendEditorPreviewSceneRecordCpuMs);
+        addSample(collector.cpuSamples, "backend_editor_preview_particle_record_cpu",
+                  stats.backendEditorPreviewParticleRecordCpuMs);
+        addSample(collector.cpuSamples, "backend_upscale_record_cpu", stats.backendUpscaleRecordCpuMs);
+        addSample(collector.cpuSamples, "backend_other_record_cpu", stats.backendOtherRecordCpuMs);
+        addSample(collector.cpuSamples, "backend_cmd_end_cpu", stats.backendCmdEndCpuMs);
         addSample(collector.cpuSamples, "backend_queue_submit_cpu", stats.backendQueueSubmitCpuMs);
         addSample(collector.cpuSamples, "backend_present_cpu", stats.backendPresentCpuMs);
         addSample(collector.cpuSamples, "screenshot_schedule_cpu", stats.screenshotScheduleCpuMs);
@@ -1203,6 +1218,19 @@ namespace
             {"backend_fence_reset_cpu", stats.backendFenceResetCpuMs},
             {"backend_cmd_reset_cpu", stats.backendCmdResetCpuMs},
             {"backend_cmd_record_cpu", stats.backendCmdRecordCpuMs},
+            {"backend_cmd_begin_cpu", stats.backendCmdBeginCpuMs},
+            {"backend_framegraph_cpu", stats.backendFrameGraphCpuMs},
+            {"backend_framegraph_barrier_cpu", stats.backendFrameGraphBarrierCpuMs},
+            {"backend_scene_record_cpu", stats.backendSceneRecordCpuMs},
+            {"backend_particle_record_cpu", stats.backendParticleRecordCpuMs},
+            {"backend_ui_record_cpu", stats.backendUiRecordCpuMs},
+            {"backend_editor_preview_scene_record_cpu",
+             stats.backendEditorPreviewSceneRecordCpuMs},
+            {"backend_editor_preview_particle_record_cpu",
+             stats.backendEditorPreviewParticleRecordCpuMs},
+            {"backend_upscale_record_cpu", stats.backendUpscaleRecordCpuMs},
+            {"backend_other_record_cpu", stats.backendOtherRecordCpuMs},
+            {"backend_cmd_end_cpu", stats.backendCmdEndCpuMs},
             {"backend_queue_submit_cpu", stats.backendQueueSubmitCpuMs},
             {"backend_present_cpu", stats.backendPresentCpuMs},
             {"screenshot_schedule_cpu", stats.screenshotScheduleCpuMs},
