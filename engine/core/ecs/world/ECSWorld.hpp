@@ -799,16 +799,13 @@ class ECSWorld
                 const auto end = std::chrono::steady_clock::now();
                 const float ms = std::chrono::duration<float, std::milli>(end - start).count();
 
-                recordControllerProfile(name, ms);
-
                 const auto flushStart = std::chrono::steady_clock::now();
                 flushDeferredStructuralCommands();
                 const auto flushEnd = std::chrono::steady_clock::now();
                 const float flushMs =
                     std::chrono::duration<float, std::milli>(flushEnd - flushStart).count();
 
-                lastControllerTimingSamples.push_back(
-                    EcsSystemTimingSample{name, entry.group, instanceIndex, ms, flushMs});
+                recordControllerTimingSample(name, entry.group, instanceIndex, ms, flushMs);
             }
         }
 
@@ -823,6 +820,26 @@ class ECSWorld
             profile.totalMs += ms;
             profile.maxMs = std::max(profile.maxMs, ms);
             ++profile.calls;
+        }
+
+        void recordControllerTimingSample(std::string_view name,
+                                          EcsSystemGroup group,
+                                          uint32_t instanceIndex,
+                                          float updateMs,
+                                          float commandFlushMs)
+        {
+            recordControllerProfile(name, updateMs);
+            lastControllerTimingSamples.push_back(
+                EcsSystemTimingSample{name, group, instanceIndex, updateMs, commandFlushMs});
+        }
+
+        void recordExternalControllerTimingSample(std::string_view name,
+                                                  EcsSystemGroup group,
+                                                  float updateMs,
+                                                  float commandFlushMs)
+        {
+            const uint32_t instanceIndex = controllerInstanceScratch[name]++;
+            recordControllerTimingSample(name, group, instanceIndex, updateMs, commandFlushMs);
         }
 
         void printControllerProfiles() const

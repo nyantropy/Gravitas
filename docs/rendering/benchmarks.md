@@ -65,6 +65,13 @@ Override fields either with named options or `--set key=value`:
 GtsRenderingBenchmarks --preset combined_game_like --set renderable-count=2000
 ```
 
+Run the tooling overhead pair:
+
+```bash
+GtsRenderingBenchmarks --preset tooling_editor_control --mode gpu_runtime
+GtsRenderingBenchmarks --preset tooling_editor_visible_world --mode gpu_runtime
+```
+
 Capture frames around CPU hitches:
 
 ```bash
@@ -88,6 +95,8 @@ GtsRenderingBenchmarks \
 - directional, point, spot, and moving light counts
 - dynamic mesh, particle emitter, and world text counts
 - PBR, normal-map, IBL, UI, and frustum-culling toggles
+- engine tooling enablement, visible state, workspace, debug draw, and gizmo
+  toggles
 - render resolution and run mode
 - hitch capture threshold, context frame count, and maximum captured events
 
@@ -130,6 +139,8 @@ Current presets:
 - `batch_high_coherence`
 - `batch_low_coherence`
 - `pbr_fragment_heavy`
+- `tooling_editor_control`
+- `tooling_editor_visible_world`
 - `combined_game_like`
 
 `gtsscene3_64k_moving_cubes` mirrors the GtsScene3 stress case: a 40x40x40
@@ -194,8 +205,10 @@ command flush that runs after each controller is reported separately in
 preceding system.
 
 GPU runtime benchmarks disable the global engine tooling runtime so editor/tool
-controllers do not pollute workload attribution. Normal engine applications keep
-tooling enabled by default.
+controllers do not pollute workload attribution. `tooling_*` presets opt back
+into the global tooling runtime and report engine tool controllers in
+`controller_timings_ms`. Normal engine applications keep tooling enabled by
+default.
 
 Selected low-cardinality substages are emitted in `controller_substages_ms`:
 
@@ -367,6 +380,8 @@ Benchmarks assert architectural expectations in addition to timings:
 - `dynamic_mesh_capacity_stable` must perform zero GPU reallocations after
   warmup
 - `dynamic_mesh_growth` must reallocate during sufficiently long measured runs
+- `tooling_*` presets must run through `gpu_runtime`
+- `tooling_editor_visible_world` must report `EngineToolShellSystem` timing
 - GPU timing metadata and counters must agree
 
 These checks are stronger than noisy timing thresholds for many renderer

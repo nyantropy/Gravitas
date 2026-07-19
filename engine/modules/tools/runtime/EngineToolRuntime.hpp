@@ -106,8 +106,17 @@ namespace gts::tools
             system.update(ctx);
             const auto  end = std::chrono::steady_clock::now();
             const float ms  = std::chrono::duration<float, std::milli>(end - start).count();
-            ctx.world.recordControllerProfile(system.getName(), ms);
+
+            const auto flushStart = std::chrono::steady_clock::now();
             ctx.world.flushCommands();
+            const auto flushEnd = std::chrono::steady_clock::now();
+            const float flushMs =
+                std::chrono::duration<float, std::milli>(flushEnd - flushStart).count();
+
+            ctx.world.recordExternalControllerTimingSample(system.getName(),
+                                                           EcsSystemGroup::Tools,
+                                                           ms,
+                                                           flushMs);
         }
 
         void resetSceneSystems()

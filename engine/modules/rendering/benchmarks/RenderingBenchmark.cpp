@@ -1963,6 +1963,35 @@ namespace gts::rendering::benchmarks
                      particleYune,
                      presets);
 
+        RenderingBenchmarkConfig toolingEditorBase = submitEmpty;
+        toolingEditorBase.renderableCount = 6000;
+        toolingEditorBase.visibleRenderableCount = 6000;
+        toolingEditorBase.uniqueMeshCount = 24;
+        toolingEditorBase.uniqueMaterialCount = 96;
+        toolingEditorBase.particleEmitterCount = 64;
+        toolingEditorBase.particleMeshEmitterCount = 16;
+        toolingEditorBase.particleEmissionRate = 36.0;
+        toolingEditorBase.particleMaxParticles = 96;
+        toolingEditorBase.worldTextCount = 16;
+        toolingEditorBase.enableUi = true;
+        presetConfig("tooling_editor_control",
+                     "Editor-shaped GPU runtime control scene with global tooling disabled.",
+                     1,
+                     toolingEditorBase,
+                     presets);
+
+        RenderingBenchmarkConfig toolingEditorWorld = toolingEditorBase;
+        toolingEditorWorld.enableTooling = true;
+        toolingEditorWorld.toolingVisible = true;
+        toolingEditorWorld.toolingWorkspace = "world";
+        toolingEditorWorld.toolingDebugDraw = true;
+        toolingEditorWorld.toolingGizmos = true;
+        presetConfig("tooling_editor_visible_world",
+                     "Editor-shaped GPU runtime scene with visible global tooling in the world workspace.",
+                     1,
+                     toolingEditorWorld,
+                     presets);
+
         RenderingBenchmarkConfig combined = base;
         combined.renderableCount = 5000;
         combined.visibleRenderableCount = 3500;
@@ -2045,6 +2074,8 @@ namespace gts::rendering::benchmarks
                      MaxBenchmarkParticleEmitters * MaxBenchmarkParticlesPerEmitter);
         config.renderWidth = std::clamp(config.renderWidth, 16u, 16384u);
         config.renderHeight = std::clamp(config.renderHeight, 16u, 16384u);
+        if (config.toolingWorkspace.empty())
+            config.toolingWorkspace = "world";
         if (!std::isfinite(config.hitchThresholdMs) || config.hitchThresholdMs < 0.0)
             config.hitchThresholdMs = 0.0;
         config.hitchThresholdMs = std::min(config.hitchThresholdMs, 10000.0);
@@ -2135,6 +2166,11 @@ namespace gts::rendering::benchmarks
         else if (key == "enable-ibl" || key == "enable_ibl") ok = boolValue(config.enableIbl);
         else if (key == "enable-ui" || key == "enable_ui") ok = boolValue(config.enableUi);
         else if (key == "enable-frustum-culling" || key == "enable_frustum_culling") ok = boolValue(config.enableFrustumCulling);
+        else if (key == "enable-tooling" || key == "enable_tooling") ok = boolValue(config.enableTooling);
+        else if (key == "tooling-visible" || key == "tooling_visible") ok = boolValue(config.toolingVisible);
+        else if (key == "tooling-debug-draw" || key == "tooling_debug_draw") ok = boolValue(config.toolingDebugDraw);
+        else if (key == "tooling-gizmos" || key == "tooling_gizmos") ok = boolValue(config.toolingGizmos);
+        else if (key == "tooling-workspace" || key == "tooling_workspace") config.toolingWorkspace = std::string(value);
         else if (key == "mode")
         {
             if (value == "cpu_smoke" || value == "smoke")
@@ -2499,6 +2535,25 @@ namespace gts::rendering::benchmarks
                 failures.push_back("submit benchmark presets must run through gpu_runtime");
         }
 
+        if (result.config.presetName.rfind("tooling_", 0) == 0)
+        {
+            if (result.config.mode != BenchmarkRunMode::GpuRuntime)
+                failures.push_back("tooling benchmark presets must run through gpu_runtime");
+        }
+
+        if (result.config.presetName == "tooling_editor_visible_world")
+        {
+            if (!result.config.enableTooling)
+                failures.push_back("tooling editor visible world preset did not enable engine tooling");
+            if (!result.config.toolingVisible)
+                failures.push_back("tooling editor visible world preset did not request visible tooling");
+            if (result.controllerTimingsMs.find("gts::tools::EngineToolShellSystem") ==
+                result.controllerTimingsMs.end())
+            {
+                failures.push_back("tooling editor visible world preset did not report EngineToolShellSystem timing");
+            }
+        }
+
         if (result.config.presetName == "submit_empty_baseline")
         {
             if (counter("visible_renderables") != 0)
@@ -2672,6 +2727,11 @@ namespace gts::rendering::benchmarks
         out << "    \"enable_ibl\": " << (result.config.enableIbl ? "true" : "false") << ",\n";
         out << "    \"enable_ui\": " << (result.config.enableUi ? "true" : "false") << ",\n";
         out << "    \"enable_frustum_culling\": " << (result.config.enableFrustumCulling ? "true" : "false") << ",\n";
+        out << "    \"enable_tooling\": " << (result.config.enableTooling ? "true" : "false") << ",\n";
+        out << "    \"tooling_visible\": " << (result.config.toolingVisible ? "true" : "false") << ",\n";
+        out << "    \"tooling_debug_draw\": " << (result.config.toolingDebugDraw ? "true" : "false") << ",\n";
+        out << "    \"tooling_gizmos\": " << (result.config.toolingGizmos ? "true" : "false") << ",\n";
+        out << "    \"tooling_workspace\": \"" << escapedJson(result.config.toolingWorkspace) << "\",\n";
         out << "    \"hitch_threshold_ms\": " << result.config.hitchThresholdMs << ",\n";
         out << "    \"hitch_context_frames\": " << result.config.hitchContextFrames << ",\n";
         out << "    \"max_hitch_events\": " << result.config.maxHitchEvents << ",\n";

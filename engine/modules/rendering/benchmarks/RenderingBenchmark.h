@@ -53,6 +53,11 @@ namespace gts::rendering::benchmarks
         bool enableIbl = true;
         bool enableUi = false;
         bool enableFrustumCulling = true;
+        bool enableTooling = false;
+        bool toolingVisible = false;
+        bool toolingDebugDraw = true;
+        bool toolingGizmos = true;
+        std::string toolingWorkspace = "world";
 
         uint32_t renderWidth = 1280;
         uint32_t renderHeight = 720;

@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <deque>
@@ -43,6 +44,7 @@
 #include "TransformDirtyHelpers.h"
 #include "TransformHierarchyHelpers.h"
 #include "TransformSystem.hpp"
+#include "ToolLaunchPreset.h"
 #include "Vertex.h"
 #include "WorldTextComponent.h"
 
@@ -254,6 +256,34 @@ namespace
     bool dynamicMeshAttributeGenerationPreset(const RenderingBenchmarkConfig& config)
     {
         return config.presetName == "dynamic_mesh_attribute_generation";
+    }
+
+    gts::tools::ToolWorkspace benchmarkToolWorkspace(const std::string& value)
+    {
+        std::string normalized;
+        normalized.reserve(value.size());
+        for (unsigned char ch : value)
+            normalized.push_back(static_cast<char>(std::tolower(ch)));
+
+        if (normalized == "particles" || normalized == "particle" || normalized == "particle_editor")
+            return gts::tools::ToolWorkspace::Particles;
+        if (normalized == "assets" || normalized == "asset" || normalized == "asset_browser")
+            return gts::tools::ToolWorkspace::Assets;
+        return gts::tools::ToolWorkspace::World;
+    }
+
+    gts::tools::ToolLaunchPreset benchmarkToolLaunchPreset(const RenderingBenchmarkConfig& config)
+    {
+        gts::tools::ToolLaunchPreset preset;
+        preset.tools.hasVisible = true;
+        preset.tools.visible = config.toolingVisible;
+        preset.tools.hasWorkspace = true;
+        preset.tools.workspace = benchmarkToolWorkspace(config.toolingWorkspace);
+        preset.tools.hasDebugDraw = true;
+        preset.tools.debugDrawEnabled = config.toolingDebugDraw;
+        preset.tools.hasGizmos = true;
+        preset.tools.gizmosEnabled = config.toolingGizmos;
+        return preset;
     }
 
     bool dynamicMeshGrowthExpanded(const RenderingBenchmarkConfig& config,
@@ -1443,7 +1473,6 @@ namespace
                 mutateRuntimeBenchmarkWorld(ecsWorld, generated, config, ctx.time->frame);
 
             ecsWorld.updateControllers(ctx);
-            lastControllerTimings = ecsWorld.getLastControllerTimingSamples();
 
             maybeRequestScreenshot(ctx);
 
@@ -1490,8 +1519,10 @@ namespace
                 timeoutWarningAdded = true;
             }
 
-            recordRuntimeFrameStats(*collector, stats, lastControllerTimings, ecsWorld);
-            recordRuntimeHitchFrame(*collector, stats, lastControllerTimings);
+            const std::vector<EcsSystemTimingSample>& frameControllerTimings =
+                ecsWorld.getLastControllerTimingSamples();
+            recordRuntimeFrameStats(*collector, stats, frameControllerTimings, ecsWorld);
+            recordRuntimeHitchFrame(*collector, stats, frameControllerTimings);
             collector->measuredFrames += 1;
 
             if (collector->measuredFrames >= config.measuredFrames)
@@ -1502,7 +1533,6 @@ namespace
         RenderingBenchmarkConfig config;
         std::shared_ptr<RuntimeBenchmarkCollector> collector;
         RuntimeBenchmarkWorld generated;
-        std::vector<EcsSystemTimingSample> lastControllerTimings;
         bool requestQuit = false;
         bool timeoutWarningAdded = false;
         bool screenshotRequested = false;
@@ -1542,7 +1572,7 @@ namespace
         EngineConfig engineConfig;
         engineConfig.frustumCullingEnabled = config.enableFrustumCulling;
         engineConfig.debugOverlayEnabledByDefault = false;
-        engineConfig.engineToolsEnabled = false;
+        engineConfig.engineToolsEnabled = config.enableTooling;
         engineConfig.graphics.headless = true;
         engineConfig.graphics.enableValidationLayers = false;
         engineConfig.graphics.renderWidth = config.renderWidth;
@@ -1564,6 +1594,8 @@ namespace
         ParticleEmitterSystem::setDetailedMetricsEnabled(true);
 
         GravitasEngine engine(engineConfig);
+        if (config.enableTooling)
+            engine.applyToolLaunchPreset(benchmarkToolLaunchPreset(config));
         engine.registerScene(
             "rendering_benchmark",
             [config, collector]()
