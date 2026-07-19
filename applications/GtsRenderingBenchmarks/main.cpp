@@ -1181,6 +1181,10 @@ namespace
         recordParticleCounters(world, collector.counters);
         addCounter(collector.counters, "world_text_blocks", config.worldTextCount);
         addCounter(collector.counters, "draw_calls", stats.drawCalls);
+        addCounter(collector.counters, "scene_batch_cache_hits", stats.sceneBatchCacheHit);
+        addCounter(collector.counters, "scene_batch_cache_misses", stats.sceneBatchCacheMiss);
+        addCounter(collector.counters, "scene_prepared_batches", stats.scenePreparedBatchCount);
+        addCounter(collector.counters, "scene_instance_slots", stats.sceneInstanceSlotCount);
         addCounter(collector.counters, "pipeline_switches", stats.pipelineSwitches);
         addCounter(collector.counters, "descriptor_binds", stats.descriptorBinds);
         addCounter(collector.counters, "texture_switches", stats.textureSwitches);

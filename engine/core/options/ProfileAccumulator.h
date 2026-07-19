@@ -73,6 +73,10 @@ struct ProfileAccumulator
         sum.descriptorBinds        += s.descriptorBinds;
         sum.pipelineSwitches       += s.pipelineSwitches;
         sum.textureSwitches        += s.textureSwitches;
+        sum.sceneBatchCacheHit     += s.sceneBatchCacheHit;
+        sum.sceneBatchCacheMiss    += s.sceneBatchCacheMiss;
+        sum.scenePreparedBatchCount += s.scenePreparedBatchCount;
+        sum.sceneInstanceSlotCount += s.sceneInstanceSlotCount;
         sum.renderGpuUpdatedCount  += s.renderGpuUpdatedCount;
         sum.renderCommandVisitedCount += s.renderCommandVisitedCount;
         sum.renderCommandTotalCount   += s.renderCommandTotalCount;
@@ -185,6 +189,10 @@ struct ProfileAccumulator
         max.descriptorBinds        = s.descriptorBinds;
         max.pipelineSwitches       = s.pipelineSwitches;
         max.textureSwitches        = s.textureSwitches;
+        max.sceneBatchCacheHit     = std::max(max.sceneBatchCacheHit, s.sceneBatchCacheHit);
+        max.sceneBatchCacheMiss    = std::max(max.sceneBatchCacheMiss, s.sceneBatchCacheMiss);
+        max.scenePreparedBatchCount = s.scenePreparedBatchCount;
+        max.sceneInstanceSlotCount = s.sceneInstanceSlotCount;
         max.renderGpuUpdatedCount  = s.renderGpuUpdatedCount;
         max.renderCommandVisitedCount = s.renderCommandVisitedCount;
         max.renderCommandTotalCount   = s.renderCommandTotalCount;
@@ -353,6 +361,9 @@ inline void printProfile(const ProfileAccumulator& acc)
     printCounter("Descriptor binds:", acc.sum.descriptorBinds * inv,        acc.max.descriptorBinds);
     printCounter("Pipeline switches:", acc.sum.pipelineSwitches * inv,      acc.max.pipelineSwitches);
     printCounter("Texture switches:", acc.sum.textureSwitches * inv,        acc.max.textureSwitches);
+    printCounter("Batch cache hits:", acc.sum.sceneBatchCacheHit * inv,      acc.max.sceneBatchCacheHit);
+    printCounter("Prepared batches:", acc.sum.scenePreparedBatchCount * inv, acc.max.scenePreparedBatchCount);
+    printCounter("Instance slots:",   acc.sum.sceneInstanceSlotCount * inv,  acc.max.sceneInstanceSlotCount);
     printCounter("Object uploads:",   acc.sum.objectUploadCommandCount * inv, acc.max.objectUploadCommandCount);
     printCounter("Object writes:",    acc.sum.backendObjectWrites * inv,    acc.max.backendObjectWrites);
     printCounter("Object write bytes:", acc.sum.backendObjectWriteBytes * inv, acc.max.backendObjectWriteBytes);

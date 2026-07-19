@@ -554,6 +554,10 @@ class ForwardRenderer : Renderer
                 frameStats.descriptorBinds  = sceneStage->getLastDescriptorBinds();
                 frameStats.pipelineSwitches = sceneStage->getLastPipelineSwitches();
                 frameStats.textureSwitches  = sceneStage->getLastTextureSwitches();
+                frameStats.sceneBatchCacheHit = sceneStage->getLastBatchCacheHit();
+                frameStats.sceneBatchCacheMiss = sceneStage->getLastBatchCacheMiss();
+                frameStats.scenePreparedBatchCount = sceneStage->getLastPreparedBatchCount();
+                frameStats.sceneInstanceSlotCount = sceneStage->getLastInstanceSlotCount();
             }
 
             if (particleStage)

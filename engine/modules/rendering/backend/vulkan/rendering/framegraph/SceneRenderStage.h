@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -230,8 +231,8 @@ public:
         const MaterialFrameData& materialFrameData = resolveMaterialFrameData(graph);
         const RenderViewportRect viewport = resolveViewport(graph);
 
-        prepareBatches(renderList, materialFrameData, currentFrame);
         resetFrameStats();
+        prepareBatches(renderList, materialFrameData, currentFrame);
 
         if (renderList.empty() || renderList[0].cameraViewID == 0)
         {
@@ -280,6 +281,26 @@ public:
         return lastTextureSwitches;
     }
 
+    uint32_t getLastBatchCacheHit() const
+    {
+        return lastBatchCacheHit ? 1u : 0u;
+    }
+
+    uint32_t getLastBatchCacheMiss() const
+    {
+        return lastBatchCacheMiss ? 1u : 0u;
+    }
+
+    uint32_t getLastPreparedBatchCount() const
+    {
+        return lastPreparedBatchCount;
+    }
+
+    uint32_t getLastInstanceSlotCount() const
+    {
+        return lastInstanceSlotCount;
+    }
+
 private:
     struct PreparedBatch
     {
@@ -322,6 +343,16 @@ private:
         VkDescriptorSet environment = VK_NULL_HANDLE;
     };
 
+    struct BatchCacheKey
+    {
+        uint64_t commandHash = 0;
+        uint64_t materialHash = 0;
+        uint32_t commandCount = 0;
+        uint32_t materialCount = 0;
+
+        bool operator==(const BatchCacheKey&) const = default;
+    };
+
     static constexpr uint32_t PARALLEL_RECORDING_THRESHOLD = 64;
 
     std::unique_ptr<VulkanRenderPass>   renderPass;
@@ -358,14 +389,21 @@ private:
     uint32_t                            lastDescriptorBinds = 0;
     uint32_t                            lastPipelineSwitches = 0;
     uint32_t                            lastTextureSwitches = 0;
+    uint32_t                            lastPreparedBatchCount = 0;
+    uint32_t                            lastInstanceSlotCount = 0;
+    bool                                lastBatchCacheHit = false;
+    bool                                lastBatchCacheMiss = false;
 
     uint32_t                            maxRecordingSlots = 1;
     std::vector<std::vector<VkCommandPool>>   secondaryCommandPools;
     std::vector<std::vector<VkCommandBuffer>> secondaryCommandBuffers;
     std::vector<PreparedBatch>          preparedBatches;
+    std::vector<uint32_t>               cachedInstanceSlots;
+    BatchCacheKey                       cachedBatchKey{};
     std::vector<BatchRange>             chunkRanges;
     std::vector<VkCommandBuffer>        secondaryExecutionBuffers;
     std::vector<ChunkStats>             chunkStats;
+    bool                                batchCacheValid = false;
     bool                                litFallbackWarningLogged = false;
     bool                                normalMapFallbackWarningLogged = false;
 
@@ -459,6 +497,10 @@ private:
         lastDescriptorBinds = 0;
         lastPipelineSwitches = 0;
         lastTextureSwitches = 0;
+        lastPreparedBatchCount = 0;
+        lastInstanceSlotCount = 0;
+        lastBatchCacheHit = false;
+        lastBatchCacheMiss = false;
     }
 
     void resetSecondaryCommandPools(uint32_t currentFrame)
@@ -523,14 +565,148 @@ private:
         return preparedBatches.size() > 1;
     }
 
+    static void hashCombine(uint64_t& hash, uint64_t value)
+    {
+        hash ^= value + 0x9e3779b97f4a7c15ull + (hash << 6u) + (hash >> 2u);
+    }
+
+    static uint32_t floatBits(float value)
+    {
+        uint32_t bits = 0;
+        std::memcpy(&bits, &value, sizeof(bits));
+        return bits;
+    }
+
+    static void hashVec4(uint64_t& hash, const glm::vec4& value)
+    {
+        hashCombine(hash, floatBits(value.x));
+        hashCombine(hash, floatBits(value.y));
+        hashCombine(hash, floatBits(value.z));
+        hashCombine(hash, floatBits(value.w));
+    }
+
+    static void hashMaterialHandle(uint64_t& hash, MaterialInstanceHandle handle)
+    {
+        hashCombine(hash, handle.id);
+        hashCombine(hash, handle.generation);
+    }
+
+    static void hashMaterialGpuHandle(uint64_t& hash, MaterialGpuHandle handle)
+    {
+        hashCombine(hash, handle.id);
+        hashCombine(hash, handle.generation);
+    }
+
+    static void hashSubmeshBinding(uint64_t& hash,
+                                   const SubmeshMaterialRuntimeBinding& binding)
+    {
+        hashMaterialHandle(hash, binding.material);
+        hashMaterialGpuHandle(hash, binding.materialGpu);
+        hashCombine(hash, binding.variantKey.value);
+        hashCombine(hash, static_cast<uint64_t>(binding.renderQueue));
+    }
+
+    static void hashRenderCommand(uint64_t& hash, const RenderCommand& command)
+    {
+        hashCombine(hash, command.meshID);
+        hashCombine(hash, command.firstIndex);
+        hashCombine(hash, command.indexCount);
+        hashCombine(hash, command.objectSSBOSlot);
+        hashCombine(hash, command.cameraViewID);
+        hashMaterialHandle(hash, command.material);
+        hashMaterialGpuHandle(hash, command.materialGpu);
+        hashCombine(hash, command.variantKey.value);
+        hashCombine(hash, static_cast<uint64_t>(command.renderQueue));
+        hashCombine(hash, command.sortKey);
+        hashCombine(hash, command.submeshMaterials.size());
+        for (const SubmeshMaterialRuntimeBinding& binding : command.submeshMaterials)
+            hashSubmeshBinding(hash, binding);
+    }
+
+    static void hashMaterialFrameState(uint64_t& hash,
+                                       const MaterialFrameState& material)
+    {
+        hashMaterialHandle(hash, material.instance);
+        hashMaterialGpuHandle(hash, material.gpuHandle);
+        hashCombine(hash, material.variantKey.value);
+        hashCombine(hash, static_cast<uint64_t>(material.renderQueue));
+        hashCombine(hash, material.uploadedVersion);
+        hashCombine(hash, static_cast<uint64_t>(material.shaderFamily));
+        hashCombine(hash, material.textures.baseColor);
+        hashCombine(hash, material.textures.metallicRoughness);
+        hashCombine(hash, material.textures.normal);
+        hashCombine(hash, material.textures.ambientOcclusion);
+        hashCombine(hash, material.textures.emissive);
+        hashCombine(hash, material.baseColorTextureID);
+        hashCombine(hash, static_cast<uint64_t>(material.featureFlags));
+        hashVec4(hash, material.parameters.baseColor);
+        hashVec4(hash, material.parameters.surfaceParameters);
+        hashVec4(hash, material.parameters.emissiveFactorStrength);
+        hashCombine(hash, static_cast<uint64_t>(material.renderState.alphaMode));
+        hashCombine(hash, floatBits(material.renderState.alphaCutoff));
+        hashCombine(hash, material.renderState.doubleSided ? 1u : 0u);
+        hashCombine(hash, material.renderState.depthWrite ? 1u : 0u);
+        hashCombine(hash, static_cast<uint64_t>(material.renderState.blendMode));
+        hashCombine(hash, material.vertexColorOnly ? 1u : 0u);
+    }
+
+    static BatchCacheKey makeBatchCacheKey(const std::vector<RenderCommand>& renderList,
+                                           const MaterialFrameData& materialFrameData)
+    {
+        BatchCacheKey key;
+        key.commandCount = static_cast<uint32_t>(renderList.size());
+        key.materialCount = static_cast<uint32_t>(materialFrameData.materials.size());
+        key.commandHash = 1469598103934665603ull;
+        key.materialHash = 1099511628211ull;
+
+        hashCombine(key.commandHash, renderList.size());
+        for (const RenderCommand& command : renderList)
+            hashRenderCommand(key.commandHash, command);
+
+        hashCombine(key.materialHash, materialFrameData.materials.size());
+        for (const MaterialFrameState& material : materialFrameData.materials)
+            hashMaterialFrameState(key.materialHash, material);
+
+        return key;
+    }
+
+    void uploadCachedInstanceSlots(uint32_t currentFrame) const
+    {
+        if (cachedInstanceSlots.empty())
+            return;
+
+        auto* instanceData = static_cast<uint32_t*>(instanceBufferMapped[currentFrame]);
+        std::memcpy(instanceData,
+                    cachedInstanceSlots.data(),
+                    cachedInstanceSlots.size() * sizeof(uint32_t));
+    }
+
     void prepareBatches(const std::vector<RenderCommand>& renderList,
                         const MaterialFrameData& materialFrameData,
                         uint32_t currentFrame)
     {
-        preparedBatches.clear();
-
         if (renderList.empty())
+        {
+            preparedBatches.clear();
+            cachedInstanceSlots.clear();
+            batchCacheValid = false;
             return;
+        }
+
+        const BatchCacheKey nextKey = makeBatchCacheKey(renderList, materialFrameData);
+        if (batchCacheValid && nextKey == cachedBatchKey)
+        {
+            uploadCachedInstanceSlots(currentFrame);
+            lastBatchCacheHit = true;
+            lastPreparedBatchCount = static_cast<uint32_t>(preparedBatches.size());
+            lastInstanceSlotCount = static_cast<uint32_t>(cachedInstanceSlots.size());
+            return;
+        }
+
+        lastBatchCacheMiss = true;
+        preparedBatches.clear();
+        cachedInstanceSlots.clear();
+        cachedInstanceSlots.reserve(renderList.size());
 
         auto* instanceData = static_cast<uint32_t*>(instanceBufferMapped[currentFrame]);
         uint32_t instanceHead = 0;
@@ -572,6 +748,7 @@ private:
                         previous.indexCount == indexCount)
                     {
                         instanceData[instanceHead] = command.objectSSBOSlot;
+                        cachedInstanceSlots.push_back(command.objectSSBOSlot);
                         instanceHead += 1;
                         previous.instanceCount += 1;
                         return;
@@ -619,6 +796,7 @@ private:
                 }
 
                 instanceData[instanceHead] = command.objectSSBOSlot;
+                cachedInstanceSlots.push_back(command.objectSSBOSlot);
                 instanceHead += 1;
                 preparedBatches.push_back(batch);
             };
@@ -644,6 +822,11 @@ private:
                 appendBatch(0, static_cast<uint32_t>(mesh->indices.size()), nullptr);
             }
         }
+
+        cachedBatchKey = nextKey;
+        batchCacheValid = true;
+        lastPreparedBatchCount = static_cast<uint32_t>(preparedBatches.size());
+        lastInstanceSlotCount = static_cast<uint32_t>(cachedInstanceSlots.size());
     }
 
     VulkanPipeline* selectPipeline(const PreparedBatch& batch) const

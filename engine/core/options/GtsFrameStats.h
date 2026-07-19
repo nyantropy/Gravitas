@@ -48,6 +48,10 @@ struct GtsFrameStats
     uint32_t descriptorBinds        = 0;
     uint32_t pipelineSwitches       = 0;
     uint32_t textureSwitches        = 0;
+    uint32_t sceneBatchCacheHit     = 0;
+    uint32_t sceneBatchCacheMiss    = 0;
+    uint32_t scenePreparedBatchCount = 0;
+    uint32_t sceneInstanceSlotCount = 0;
     uint32_t particleCount          = 0;
     uint32_t particleDrawCalls      = 0;
     uint32_t renderGpuUpdatedCount  = 0;
