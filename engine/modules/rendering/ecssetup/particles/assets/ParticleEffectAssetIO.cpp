@@ -624,10 +624,8 @@ namespace
         for (size_t i = 0; i < emitterObjects->size(); ++i)
         {
             ParticleEffectEmitter emitter;
-            emitter.stableId = defaultEmitterId(i);
-            emitter.name     = defaultEmitterName(i);
-            emitter.stableId = (*emitterObjects)[i].findString("id").value_or(emitter.stableId);
-            emitter.name = (*emitterObjects)[i].findString("name").value_or(emitter.name);
+            emitter.stableId = (*emitterObjects)[i].findString("id").value_or(defaultEmitterId(i));
+            emitter.name = (*emitterObjects)[i].findString("name").value_or(defaultEmitterName(i));
             readEmitter((*emitterObjects)[i], emitter.descriptor);
             readEmitterModules((*emitterObjects)[i], emitter.modules);
             readEmitterGraph((*emitterObjects)[i], emitter.graph);

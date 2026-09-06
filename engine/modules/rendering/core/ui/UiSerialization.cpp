@@ -654,12 +654,8 @@ namespace
                 {
                     if (const auto string = value.tryString())
                         widget.parameters[key] = *string;
-                    else if (value.isNumber())
-                    {
+                    else if (value.isNumber() || value.isBool())
                         widget.parameters[key] = GtsJsonParser::serialize(value);
-                    }
-                    else if (const auto boolean = value.tryBool())
-                        widget.parameters[key] = *boolean ? "true" : "false";
                 }
             }
         }

@@ -24,10 +24,6 @@ namespace
         return false;
     }
 
-    std::string valuePath(const std::string& key)
-    {
-        return "$." + key;
-    }
 
     std::string lowerCopy(std::string value)
     {
@@ -59,7 +55,7 @@ namespace
     {
         const GtsJsonValue* value = object.find(key);
         if (value == nullptr)
-            fail(error, "missing required manifest field '" + valuePath(key) + "'");
+            fail(error, "missing required manifest field '$." + key + "'");
         return value;
     }
 
@@ -84,11 +80,11 @@ namespace
         if (json == nullptr)
             return false;
         if (!json->isString())
-            return fail(error, "manifest field '" + valuePath(key) + "' must be a string");
+            return fail(error, "manifest field '$." + key + "' must be a string");
 
         value = json->asString();
         if (value.empty())
-            return fail(error, "manifest field '" + valuePath(key) + "' must not be empty");
+            return fail(error, "manifest field '$." + key + "' must not be empty");
         return true;
     }
 
@@ -101,7 +97,7 @@ namespace
         if (json == nullptr || json->isNull())
             return true;
         if (!json->isString())
-            return fail(error, "manifest field '" + valuePath(key) + "' must be a string");
+            return fail(error, "manifest field '$." + key + "' must be a string");
 
         value = json->asString();
         return true;
@@ -116,14 +112,14 @@ namespace
         if (json == nullptr)
             return false;
         if (!json->isNumber())
-            return fail(error, "manifest field '" + valuePath(key) + "' must be a number");
+            return fail(error, "manifest field '$." + key + "' must be a number");
 
         if (!json->tryNumber())
-            return fail(error, "manifest field '" + valuePath(key) + "' must be finite");
+            return fail(error, "manifest field '$." + key + "' must be finite");
 
         const auto integer = json->tryInt32();
         if (!integer)
-            return fail(error, "manifest field '" + valuePath(key) + "' must be an in-range integer");
+            return fail(error, "manifest field '$." + key + "' must be an in-range integer");
         value = *integer;
         return true;
     }
@@ -137,7 +133,7 @@ namespace
         if (json == nullptr)
             return false;
         if (!json->isBool())
-            return fail(error, "manifest field '" + valuePath(key) + "' must be a boolean");
+            return fail(error, "manifest field '$." + key + "' must be a boolean");
 
         value = json->asBool();
         return true;
@@ -152,14 +148,14 @@ namespace
         if (json == nullptr || json->isNull())
             return true;
         if (!json->isNumber())
-            return fail(error, "manifest field '" + valuePath(key) + "' must be a number");
+            return fail(error, "manifest field '$." + key + "' must be a number");
 
         if (!json->tryNumber())
-            return fail(error, "manifest field '" + valuePath(key) + "' must be finite");
+            return fail(error, "manifest field '$." + key + "' must be finite");
 
         const auto converted = json->tryFloat();
         if (!converted)
-            return fail(error, "manifest field '" + valuePath(key) + "' must fit in a float");
+            return fail(error, "manifest field '$." + key + "' must fit in a float");
         value = *converted;
         return true;
     }
@@ -201,7 +197,7 @@ namespace
         const GtsJsonValue* json = requireMember(object, key, error);
         if (json == nullptr)
             return false;
-        return readVec3Value(*json, valuePath(key), value, error);
+        return readVec3Value(*json, "$." + key, value, error);
     }
 
     bool readBounds(const GtsJsonValue& object, BoundsComponent& bounds, std::string* error)

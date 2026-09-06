@@ -88,10 +88,14 @@ int main()
         GtsJsonValue numericParameters;
         require(GtsJsonParser::parse(R"({
             "id":"numbers", "type":"Label",
-            "parameters":{"large":18446744073709551615,"precise":1.2345678901234567}
+            "parameters":{"large":18446744073709551615,"precise":1.2345678901234567,
+                          "yes":true,"no":false,"text":"unquoted","empty":""}
         })", numericParameters), "Numeric parameter fixture");
         UiSerializedWidget numericWidget;
         require(parseUiSerializedWidget(numericParameters, numericWidget), "Numeric widget parameters");
+        require(numericWidget.parameters.at("yes") == "true" && numericWidget.parameters.at("no") == "false"
+                && numericWidget.parameters.at("text") == "unquoted" && numericWidget.parameters.at("empty").empty(),
+                "Widget boolean and string parameter text");
         require(numericWidget.parameters.at("large") == "18446744073709551615",
                 "Widget parameter integer precision");
         GtsJsonValue preciseNumber;
@@ -103,10 +107,17 @@ int main()
             "schema":1,"id":"numbers","version":1,
             "parameters":[
                 {"name":"large","type":"Number","default":18446744073709551615},
-                {"name":"precise","type":"Number","default":1.2345678901234567}
+                {"name":"precise","type":"Number","default":1.2345678901234567},
+                {"name":"yes","type":"Bool","default":true},
+                {"name":"no","type":"Bool","default":false},
+                {"name":"text","type":"String","default":"unquoted"}
             ],
             "root":{"id":"label","type":"Label"}
         })", numericAsset), "Numeric asset parameters");
+        require(numericAsset.parameters.at("yes").defaultValue == "true"
+                && numericAsset.parameters.at("no").defaultValue == "false"
+                && numericAsset.parameters.at("text").defaultValue == "unquoted",
+                "Asset boolean and string parameter text");
         require(numericAsset.parameters.at("large").defaultValue == "18446744073709551615",
                 "Asset parameter integer precision");
         require(GtsJsonParser::parse(numericAsset.parameters.at("precise").defaultValue, preciseNumber)

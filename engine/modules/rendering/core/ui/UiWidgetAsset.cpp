@@ -20,12 +20,8 @@ namespace
     {
         if (const auto string = value.tryString())
             return *string;
-        if (value.isNumber())
-        {
+        if (value.isNumber() || value.isBool())
             return GtsJsonParser::serialize(value);
-        }
-        if (const auto boolean = value.tryBool())
-            return *boolean ? "true" : "false";
         return {};
     }
 
@@ -43,13 +39,6 @@ namespace
         return result;
     }
 
-    GtsJsonValue serializeStringArray(const std::vector<std::string>& values)
-    {
-        Array array;
-        for (const std::string& value : values)
-            array.push_back(value);
-        return array;
-    }
 
     std::unordered_map<std::string, std::string> parseStringMap(const GtsJsonValue* value)
     {
@@ -193,7 +182,7 @@ namespace
             {"name", variant.name},
             {"displayName", variant.displayName},
             {"description", variant.description},
-            {"tags", serializeStringArray(variant.tags)},
+            {"tags", GtsJsonValue::Array(variant.tags.begin(), variant.tags.end())},
             {"parameters", serializeStringMap(variant.parameterDefaults)},
             {"slots", serializeSlotContent(variant.slotDefaults)}
         };

@@ -99,13 +99,6 @@ namespace
         return result;
     }
 
-    GtsJsonValue serializeStringArray(const std::vector<std::string>& values)
-    {
-        GtsJsonValue::Array array;
-        for (const std::string& value : values)
-            array.push_back(value);
-        return array;
-    }
 
     GtsJsonValue serializeDependency(const UiPackageDependency& dependency)
     {
@@ -140,7 +133,7 @@ namespace
             if (!plugin.description.empty())
                 object.emplace_back("description", plugin.description);
             if (!plugin.capabilities.empty())
-                object.emplace_back("capabilities", serializeStringArray(plugin.capabilities));
+                object.emplace_back("capabilities", GtsJsonValue::Array(plugin.capabilities.begin(), plugin.capabilities.end()));
             if (plugin.nativeCode)
                 object.emplace_back("nativeCode", true);
             array.push_back(std::move(object));
@@ -300,9 +293,9 @@ std::string serializeUiPackageManifest(const UiPackageManifest& manifest)
     if (!manifest.description.empty())
         root.emplace_back("description", manifest.description);
     if (!manifest.tags.empty())
-        root.emplace_back("tags", serializeStringArray(manifest.tags));
+        root.emplace_back("tags", GtsJsonValue::Array(manifest.tags.begin(), manifest.tags.end()));
     if (!manifest.assetRoots.empty())
-        root.emplace_back("assetRoots", serializeStringArray(manifest.assetRoots));
+        root.emplace_back("assetRoots", GtsJsonValue::Array(manifest.assetRoots.begin(), manifest.assetRoots.end()));
     if (!manifest.dependencies.empty())
         root.emplace_back("dependencies", serializeDependencies(manifest.dependencies));
     if (!manifest.optionalDependencies.empty())
