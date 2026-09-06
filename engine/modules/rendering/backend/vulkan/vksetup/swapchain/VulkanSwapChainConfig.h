@@ -5,7 +5,7 @@
 #include "OutputWindow.hpp"
 #include "SwapChainSupportDetails.h"
 #include "QueueFamilyIndices.h"
-#include "../../../../core/init/GraphicsConfig.h"
+#include "../../../../core/init/PresentationSettings.h"
 
 // same story as all other config objects
 struct VulkanSwapChainConfig 

@@ -118,7 +118,16 @@ namespace gts::rendering
         if (command.name == SET_FRUSTUM_CULLING_ENABLED_COMMAND)
         {
             if (const auto* payload = std::any_cast<SetFrustumCullingEnabledCommand>(&command.payload))
-                setVisibilityEnabled(payload->enabled);
+            {
+                if (graphicsSettingsCallback)
+                {
+                    auto settings = graphics.getRequestedGraphicsSettings();
+                    settings.rendering.frustumCullingEnabled = payload->enabled;
+                    graphicsSettingsCallback(settings);
+                }
+                else
+                    setVisibilityEnabled(payload->enabled);
+            }
             return true;
         }
 

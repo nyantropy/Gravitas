@@ -30,12 +30,17 @@
 #include <algorithm>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 class VulkanGraphics : public IGtsGraphicsModule
 {
+private:
+    const GraphicsConfig config;
+    GraphicsSettings requested;
+    Extent2D renderExtent;
+
 public:
-    GraphicsConfig config;
     GtsPlatformEventBus eventBus;
     // the window manager contains the window we render to
     std::unique_ptr<WindowManager> windowManager;
@@ -51,39 +56,40 @@ public:
 
     PresentModePreference resolvePresentModePreference() const
     {
-        return config.window.vsync
-            ? PresentModePreference::Fifo
-            : config.presentModePreference;
+        return requested.presentation.mode;
     }
 
     GtsPlatformEventBus& getEventBus() override { return eventBus; }
 
-    VulkanGraphics(const GraphicsConfig& config): config(config)
+    VulkanGraphics(const GraphicsConfig& config): config(config), requested(config.settings)
     {
-        if (this->config.renderWidth == 0)
-            this->config.renderWidth = static_cast<uint32_t>(std::max(1, this->config.window.width));
-        if (this->config.renderHeight == 0)
-            this->config.renderHeight = static_cast<uint32_t>(std::max(1, this->config.window.height));
+        const std::string error = validateGraphicsSettings(requested);
+        if (!error.empty())
+            throw std::invalid_argument(error);
 
-        if (!config.headless)
+        if (!config.startup.headless)
             createWindow();
+        Extent2D output{static_cast<uint32_t>(requested.window.width),
+                        static_cast<uint32_t>(requested.window.height)};
+        if (windowManager)
+        {
+            int width = 0;
+            int height = 0;
+            windowManager->getOutputWindow()->getSize(width, height);
+            output = {static_cast<uint32_t>(std::max(1, width)),
+                      static_cast<uint32_t>(std::max(1, height))};
+        }
+        const auto initialExtent = resolveRenderExtent(requested.rendering.resolution, output);
+        if (!initialExtent)
+            throw std::invalid_argument("Render resolution cannot be resolved for this output");
+        renderExtent = *initialExtent;
         createContext();
+        if (!supportsRenderExtent(renderExtent))
+            throw std::invalid_argument("Render resolution exceeds device limits");
         createRenderer();
         resizeEventToken = eventBus.subscribe<GtsWindowResizeEvent>(
             [this](const GtsWindowResizeEvent& event)
             {
-                if (event.width > 0 && event.height > 0 && windowManager)
-                {
-                    if (windowManager->getOutputWindow()->getWindowMode() == WindowMode::Windowed)
-                    {
-                        this->config.window.width = event.width;
-                        this->config.window.height = event.height;
-                        this->config.renderWidth = static_cast<uint32_t>(event.width);
-                        this->config.renderHeight = static_cast<uint32_t>(event.height);
-                        if (renderer)
-                            renderer->setRenderResolution(this->config.renderWidth, this->config.renderHeight);
-                    }
-                }
                 swapchainRecreatePending = true;
             });
     }
@@ -93,30 +99,23 @@ public:
     {
         WindowManagerConfig wmConfig;
         wmConfig.windowBackend          = WindowBackend::GLFW;
-        wmConfig.windowWidth            = config.window.width;
-        wmConfig.windowHeight           = config.window.height;
-        wmConfig.windowTitle            = config.window.title;
-        wmConfig.enableValidationLayers = config.enableValidationLayers;
-        wmConfig.windowMode             = config.window.windowMode;
-        wmConfig.monitorIndex           = config.window.monitorIndex;
-        wmConfig.monitorName            = config.window.monitorName;
+        wmConfig.window.settings = requested.window;
+        wmConfig.window.title = config.windowTitle;
         windowManager = std::make_unique<WindowManager>(wmConfig, eventBus);
-        config.window.monitorIndex = windowManager->getOutputWindow()->getConfig().monitorIndex;
-        config.window.monitorName = windowManager->getOutputWindow()->getConfig().monitorName;
     }
 
     // create a concrete Vulkan Context object and backend dependency context
     void createContext()
     {
         VulkanContextConfig vcConfig;
-        vcConfig.enableValidationLayers   = config.enableValidationLayers;
-        vcConfig.headless                 = config.headless;
-        vcConfig.enableSurfaceSupport     = !config.headless;
-        vcConfig.renderWidth              = config.renderWidth;
-        vcConfig.renderHeight             = config.renderHeight;
+        vcConfig.enableValidationLayers   = config.startup.enableValidationLayers;
+        vcConfig.headless                 = config.startup.headless;
+        vcConfig.enableSurfaceSupport     = !config.startup.headless;
+        vcConfig.renderWidth              = renderExtent.width;
+        vcConfig.renderHeight             = renderExtent.height;
         vcConfig.presentModePreference    = resolvePresentModePreference();
 
-        if (!config.headless)
+        if (!config.startup.headless)
         {
             uint32_t glfwExtensionCount = 0;
             const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
@@ -128,11 +127,11 @@ public:
         vContext = std::make_unique<VulkanContext>(vcConfig);
         backendContext = std::make_unique<VulkanBackendContext>(*vContext);
 
-        if (config.headless)
+        if (config.startup.headless)
         {
             std::cout << "Running in headless mode" << std::endl;
             std::cout << "Headless output resolution: "
-                      << config.renderWidth << "x" << config.renderHeight << std::endl;
+                      << renderExtent.width << "x" << renderExtent.height << std::endl;
         }
         else
         {
@@ -144,16 +143,16 @@ public:
     void createRenderer()
     {
         RendererConfig rConfig;
-        rConfig.headless = config.headless;
+        rConfig.headless = config.startup.headless;
         rConfig.internalScalingEnabled =
-            !config.headless && config.window.windowMode == WindowMode::BorderlessFullscreen;
-        rConfig.renderWidth = config.renderWidth;
-        rConfig.renderHeight = config.renderHeight;
-        rConfig.maxScreenshotsPerRun = config.maxScreenshotsPerRun;
-        rConfig.minSecondsBetweenScreenshots = config.minSecondsBetweenScreenshots;
-        rConfig.enableGpuTimestamps = config.enableGpuTimestamps;
+            !config.startup.headless && requested.rendering.resolution.mode != RenderResolutionMode::MatchOutput;
+        rConfig.renderWidth = renderExtent.width;
+        rConfig.renderHeight = renderExtent.height;
+        rConfig.maxScreenshotsPerRun = config.screenshots.maxScreenshotsPerRun;
+        rConfig.minSecondsBetweenScreenshots = config.screenshots.minSecondsBetweenScreenshots;
+        rConfig.enableGpuTimestamps = config.startup.enableGpuTimestamps;
         renderer = std::make_unique<ForwardRenderer>(rConfig, *backendContext, eventBus);
-        if (config.headless)
+        if (config.startup.headless)
         {
             std::cout << "Headless offscreen format: "
                       << static_cast<int>(backendContext->frameOutputFormat()) << std::endl;
@@ -258,36 +257,46 @@ public:
 
     float getAspectRatio() const override
     {
-        if (!windowManager)
-            return static_cast<float>(config.renderWidth) / static_cast<float>(config.renderHeight);
-        if (config.window.windowMode == WindowMode::BorderlessFullscreen)
-            return static_cast<float>(config.renderWidth) / static_cast<float>(config.renderHeight);
-        return windowManager->getOutputWindow()->getAspectRatio();
+        const auto extent = renderer->getSceneRenderExtent();
+        return static_cast<float>(extent.width) / static_cast<float>(extent.height);
     }
 
     void getViewportSize(int& width, int& height) const override
     {
         if (!windowManager)
         {
-            width = static_cast<int>(config.renderWidth);
-            height = static_cast<int>(config.renderHeight);
+            width = static_cast<int>(renderExtent.width);
+            height = static_cast<int>(renderExtent.height);
             return;
         }
         windowManager->getOutputWindow()->getSize(width, height);
     }
 
-    RuntimeGraphicsSettings getRuntimeGraphicsSettings() const override
+    GraphicsSettings getRequestedGraphicsSettings() const override
     {
-        return RuntimeGraphicsSettings{
-            static_cast<int>(config.renderWidth),
-            static_cast<int>(config.renderHeight),
-            config.window.windowMode,
-            config.window.vsync,
-            config.presentModePreference,
-            config.maxFrameRate,
-            config.window.monitorIndex,
-            config.window.monitorName
-        };
+        return requested;
+    }
+
+    GraphicsRuntimeState getGraphicsRuntimeState() const override
+    {
+        GraphicsRuntimeState state;
+        if (windowManager)
+            state.window = windowManager->getOutputWindow()->getRuntimeSettings();
+        const auto output = vContext->getFrameOutputExtent();
+        const auto scene = renderer->getSceneRenderExtent();
+        state.outputExtent = {output.width, output.height};
+        state.renderExtent = {scene.width, scene.height};
+        if (!config.startup.headless)
+        {
+            switch (vContext->getFrameOutputPresentMode())
+            {
+                case VK_PRESENT_MODE_IMMEDIATE_KHR: state.presentMode = PresentModePreference::Immediate; break;
+                case VK_PRESENT_MODE_MAILBOX_KHR: state.presentMode = PresentModePreference::Mailbox; break;
+                default: state.presentMode = PresentModePreference::Fifo; break;
+            }
+        }
+        state.pending = swapchainRecreatePending;
+        return state;
     }
 
     std::vector<GraphicsMonitorInfo> getAvailableMonitors() const override
@@ -297,51 +306,41 @@ public:
         return windowManager->getOutputWindow()->getAvailableMonitors();
     }
 
-    bool applyRuntimeGraphicsSettings(const RuntimeGraphicsSettings& settings) override
+    GraphicsSettingsApplyResult applyGraphicsSettings(const GraphicsSettings& settings) override
     {
-        if (settings.width <= 0 || settings.height <= 0)
-            return false;
+        const std::string error = validateGraphicsSettings(settings);
+        if (!error.empty())
+            return {GraphicsSettingsApplyStatus::Rejected, error};
 
-        config.renderWidth = static_cast<uint32_t>(settings.width);
-        config.renderHeight = static_cast<uint32_t>(settings.height);
-        config.window.width = settings.width;
-        config.window.height = settings.height;
-        config.window.windowMode = settings.windowMode;
-        config.window.monitorIndex = std::max(0, settings.monitorIndex);
-        config.window.monitorName = settings.monitorName;
-        config.window.vsync = settings.vsync;
-        config.presentModePreference = settings.presentModePreference;
-        config.maxFrameRate = std::max(0, settings.maxFrameRate);
+        const auto output = vContext->getFrameOutputExtent();
+        const auto extent = resolveRenderExtent(settings.rendering.resolution, {output.width, output.height});
+        if (!extent)
+            return {GraphicsSettingsApplyStatus::Rejected, "Render resolution cannot be resolved"};
+        if (!supportsRenderExtent(*extent))
+            return {GraphicsSettingsApplyStatus::Rejected, "Render resolution exceeds device limits"};
+        if (config.startup.headless && *extent != Extent2D{output.width, output.height})
+            return {GraphicsSettingsApplyStatus::Rejected, "Headless output resizing requires restart"};
 
-        if (!config.headless && windowManager)
+        const bool windowChanged = requested.window != settings.window;
+        const bool resourcesChanged = windowChanged || *extent != renderExtent
+            || requested.presentation.mode != settings.presentation.mode
+            || requested.rendering.resolution.mode != settings.rendering.resolution.mode;
+        requested = settings;
+
+        if (windowChanged && windowManager)
         {
             OutputWindow* window = windowManager->getOutputWindow();
-            const auto monitors = window->getAvailableMonitors();
-            if (!monitors.empty())
-            {
-                config.window.monitorIndex = std::clamp(
-                    config.window.monitorIndex,
-                    0,
-                    static_cast<int>(monitors.size()) - 1);
-            }
-            window->applyWindowSettings(config.window.width,
-                                        config.window.height,
-                                        config.window.windowMode,
-                                        config.window.monitorIndex,
-                                        config.window.monitorName);
-            config.window.monitorIndex = window->getConfig().monitorIndex;
-            config.window.monitorName = window->getConfig().monitorName;
+            window->applyWindowSettings(requested.window.width,
+                                        requested.window.height,
+                                        requested.window.windowMode,
+                                        requested.window.monitorIndex,
+                                        requested.window.monitorName);
         }
 
-        if (renderer)
-        {
-            renderer->setInternalScalingEnabled(
-                !config.headless && config.window.windowMode == WindowMode::BorderlessFullscreen);
-            renderer->setRenderResolution(config.renderWidth, config.renderHeight);
-        }
-        swapchainRecreatePending = true;
-        recreateSwapchainResourcesIfPossible();
-        return true;
+        swapchainRecreatePending = swapchainRecreatePending || resourcesChanged;
+        if (!recreateSwapchainResourcesIfPossible())
+            return {GraphicsSettingsApplyStatus::Pending, "Waiting for a drawable output"};
+        return {GraphicsSettingsApplyStatus::Applied, {}};
     }
 
     IResourceProvider* getResourceProvider() override
@@ -350,6 +349,14 @@ public:
     }
 
 private:
+    bool supportsRenderExtent(Extent2D extent) const
+    {
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(backendContext->physicalDevice(), &properties);
+        return extent.width <= std::min(properties.limits.maxImageDimension2D, properties.limits.maxFramebufferWidth)
+            && extent.height <= std::min(properties.limits.maxImageDimension2D, properties.limits.maxFramebufferHeight);
+    }
+
     bool currentWindowExtentValid() const
     {
         int width = 0;
@@ -360,7 +367,7 @@ private:
 
     bool recreateSwapchainResourcesIfPossible()
     {
-        if (config.headless)
+        if (config.startup.headless)
         {
             swapchainRecreatePending = false;
             return true;
@@ -374,6 +381,13 @@ private:
         vkDeviceWaitIdle(backendContext->device());
         renderer->releaseFrameResources();
         vContext->recreateSwapChain(resolvePresentModePreference());
+        const auto output = vContext->getFrameOutputExtent();
+        const auto extent = resolveRenderExtent(requested.rendering.resolution, {output.width, output.height});
+        if (!extent)
+            throw std::runtime_error("Cannot resolve render extent after output resize");
+        renderExtent = *extent;
+        renderer->setInternalScalingEnabled(requested.rendering.resolution.mode != RenderResolutionMode::MatchOutput);
+        renderer->setRenderResolution(renderExtent.width, renderExtent.height);
         renderer->rebuildFrameResources();
         swapchainRecreatePending = false;
         return true;

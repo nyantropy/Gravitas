@@ -56,9 +56,9 @@ class GtsPlatform
             graphics->getViewportSize(width, height);
         }
 
-        RuntimeGraphicsSettings getRuntimeGraphicsSettings() const
+        GraphicsSettings getRequestedGraphicsSettings() const
         {
-            return graphics->getRuntimeGraphicsSettings();
+            return graphics->getRequestedGraphicsSettings();
         }
 
         std::vector<GraphicsMonitorInfo> getAvailableMonitors() const
@@ -66,9 +66,9 @@ class GtsPlatform
             return graphics->getAvailableMonitors();
         }
 
-        bool applyRuntimeGraphicsSettings(const RuntimeGraphicsSettings& settings)
+        GraphicsSettingsApplyResult applyGraphicsSettings(const GraphicsSettings& settings)
         {
-            return graphics->applyRuntimeGraphicsSettings(settings);
+            return graphics->applyGraphicsSettings(settings);
         }
 
         IResourceProvider* getResourceProvider()
@@ -138,7 +138,7 @@ class GtsPlatform
                 inputManager->onScrollEvent(e.x, e.y);
             });
 
-            if (config.debugOverlayEnabledByDefault)
+            if (config.tools.debugOverlayEnabledByDefault)
                 graphics->toggleDebugOverlay();
         }
 

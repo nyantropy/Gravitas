@@ -8,12 +8,12 @@
 int main()
 {
     EngineConfig config;
-    config.graphics.backend = GraphicsBackend::Vulkan;
-    config.graphics.window.width = 1280;
-    config.graphics.window.height = 720;
-    config.graphics.window.title = "Gravitas PBR Validation";
-    config.graphics.window.windowMode = WindowMode::Windowed;
-    config.graphics.window.vsync = true;
+    config.graphics.startup.backend = GraphicsBackend::Vulkan;
+    config.graphics.settings.window.width = 1280;
+    config.graphics.settings.window.height = 720;
+    config.graphics.windowTitle = "Gravitas PBR Validation";
+    config.graphics.settings.window.windowMode = WindowMode::Windowed;
+    config.graphics.settings.presentation.mode = PresentModePreference::Fifo;
 
     GravitasEngine engine(config);
     engine.registerScene(

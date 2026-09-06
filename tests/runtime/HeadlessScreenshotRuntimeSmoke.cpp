@@ -55,16 +55,17 @@ int main()
     try
     {
         EngineConfig config;
-        config.graphics.backend = GraphicsBackend::Vulkan;
-        config.graphics.headless = true;
-        config.graphics.enableValidationLayers = false;
-        config.graphics.renderWidth = 64;
-        config.graphics.renderHeight = 64;
-        config.graphics.maxFrameRate = 0;
-        config.graphics.maxScreenshotsPerRun = 1;
-        config.graphics.minSecondsBetweenScreenshots = 0.0f;
-        config.simulationTickRate = 60;
-        config.debugOverlayEnabledByDefault = false;
+        config.graphics.startup.backend = GraphicsBackend::Vulkan;
+        config.graphics.startup.headless = true;
+        config.graphics.startup.enableValidationLayers = false;
+        config.graphics.settings.rendering.resolution.mode = RenderResolutionMode::Fixed;
+        config.graphics.settings.rendering.resolution.fixedExtent.width = 64;
+        config.graphics.settings.rendering.resolution.fixedExtent.height = 64;
+        config.graphics.settings.framePacing.maxFrameRate = 0;
+        config.graphics.screenshots.maxScreenshotsPerRun = 1;
+        config.graphics.screenshots.minSecondsBetweenScreenshots = 0.0f;
+        config.simulation.tickRate = 60;
+        config.tools.debugOverlayEnabledByDefault = false;
 
         GravitasEngine engine(config);
         engine.registerScene("headless_screenshot_smoke",

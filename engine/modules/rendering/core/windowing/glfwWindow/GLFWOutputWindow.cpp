@@ -29,7 +29,7 @@ void GLFWOutputWindow::init()
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     this->window = glfwCreateWindow(
-        config.width, config.height, config.title.c_str(), nullptr, nullptr);
+        config.settings.width, config.settings.height, config.title.c_str(), nullptr, nullptr);
 
     auto* glfwWindow = static_cast<GLFWwindow*>(this->window);
     if (glfwWindow == nullptr)
@@ -49,7 +49,7 @@ void GLFWOutputWindow::init()
     glfwSetCursorPosCallback(glfwWindow, onCursorPositionCallbackStatic);
     glfwSetScrollCallback(glfwWindow, onScrollCallbackStatic);
 
-    switch (config.windowMode)
+    switch (config.settings.windowMode)
     {
         case WindowMode::BorderlessFullscreen: setBorderlessFullscreen(); break;
         case WindowMode::Fullscreen:           setFullscreen();           break;
@@ -106,8 +106,8 @@ void GLFWOutputWindow::getMonitorWorkArea(GLFWmonitor* monitor, int& x, int& y, 
     {
         x = 0;
         y = 0;
-        width = std::max(1, config.width);
-        height = std::max(1, config.height);
+        width = std::max(1, config.settings.width);
+        height = std::max(1, config.settings.height);
         return;
     }
 
@@ -117,8 +117,8 @@ void GLFWOutputWindow::getMonitorWorkArea(GLFWmonitor* monitor, int& x, int& y, 
 void GLFWOutputWindow::applyWindowed(GLFWmonitor* monitor, bool centerOnMonitor)
 {
     GLFWwindow* gw = static_cast<GLFWwindow*>(this->window);
-    const int targetWidth = std::max(1, config.width);
-    const int targetHeight = std::max(1, config.height);
+    const int targetWidth = std::max(1, config.settings.width);
+    const int targetHeight = std::max(1, config.settings.height);
     glfwSetWindowAttrib(gw, GLFW_DECORATED, GLFW_TRUE);
     glfwSetWindowAttrib(gw, GLFW_RESIZABLE, GLFW_TRUE);
 
@@ -154,7 +154,7 @@ void GLFWOutputWindow::applyWindowed(GLFWmonitor* monitor, bool centerOnMonitor)
     savedY = y;
     savedW = targetWidth;
     savedH = targetHeight;
-    config.windowMode = WindowMode::Windowed;
+    config.settings.windowMode = WindowMode::Windowed;
 }
 
 void GLFWOutputWindow::applyBorderless(GLFWmonitor* monitor)
@@ -167,7 +167,7 @@ void GLFWOutputWindow::applyBorderless(GLFWmonitor* monitor)
     if (mode == nullptr)
         return;
 
-    if (config.windowMode == WindowMode::Windowed)
+    if (config.settings.windowMode == WindowMode::Windowed)
     {
         glfwGetWindowPos(gw, &savedX, &savedY);
         glfwGetWindowSize(gw, &savedW, &savedH);
@@ -178,7 +178,7 @@ void GLFWOutputWindow::applyBorderless(GLFWmonitor* monitor)
     glfwSetWindowAttrib(gw, GLFW_DECORATED,    GLFW_FALSE);
     glfwSetWindowAttrib(gw, GLFW_AUTO_ICONIFY, GLFW_FALSE);
     glfwSetWindowMonitor(gw, monitor, monitorX, monitorY, mode->width, mode->height, mode->refreshRate);
-    config.windowMode = WindowMode::BorderlessFullscreen;
+    config.settings.windowMode = WindowMode::BorderlessFullscreen;
 }
 
 void GLFWOutputWindow::applyFullscreen(GLFWmonitor* monitor)
@@ -191,18 +191,18 @@ void GLFWOutputWindow::applyFullscreen(GLFWmonitor* monitor)
     if (mode == nullptr)
         return;
 
-    if (config.windowMode == WindowMode::Windowed)
+    if (config.settings.windowMode == WindowMode::Windowed)
     {
         glfwGetWindowPos(gw, &savedX, &savedY);
         glfwGetWindowSize(gw, &savedW, &savedH);
     }
 
-    const int targetWidth = std::max(1, config.width);
-    const int targetHeight = std::max(1, config.height);
+    const int targetWidth = std::max(1, config.settings.width);
+    const int targetHeight = std::max(1, config.settings.height);
     glfwSetWindowAttrib(gw, GLFW_DECORATED, GLFW_FALSE);
     glfwSetWindowAttrib(gw, GLFW_AUTO_ICONIFY, GLFW_TRUE);
     glfwSetWindowMonitor(gw, monitor, 0, 0, targetWidth, targetHeight, mode->refreshRate);
-    config.windowMode = WindowMode::Fullscreen;
+    config.settings.windowMode = WindowMode::Fullscreen;
 }
 
 std::vector<GraphicsMonitorInfo> GLFWOutputWindow::getAvailableMonitors() const
@@ -243,18 +243,18 @@ void GLFWOutputWindow::applyWindowSettings(int width,
                                            int monitorIndex,
                                            const std::string& monitorName)
 {
-    const WindowMode previousMode = config.windowMode;
-    const int previousMonitor = config.monitorIndex;
-    config.width = std::max(1, width);
-    config.height = std::max(1, height);
-    config.monitorIndex = resolveMonitorIndex(monitorIndex, monitorName);
-    config.monitorName = monitorNameForIndex(config.monitorIndex);
+    const WindowMode previousMode = config.settings.windowMode;
+    const int previousMonitor = config.settings.monitorIndex;
+    config.settings.width = std::max(1, width);
+    config.settings.height = std::max(1, height);
+    config.settings.monitorIndex = resolveMonitorIndex(monitorIndex, monitorName);
+    config.settings.monitorName = monitorNameForIndex(config.settings.monitorIndex);
 
-    GLFWmonitor* monitor = resolveMonitor(config.monitorIndex);
+    GLFWmonitor* monitor = resolveMonitor(config.settings.monitorIndex);
     switch (mode)
     {
         case WindowMode::Windowed:
-            applyWindowed(monitor, previousMode != WindowMode::Windowed || previousMonitor != config.monitorIndex);
+            applyWindowed(monitor, previousMode != WindowMode::Windowed || previousMonitor != config.settings.monitorIndex);
             break;
         case WindowMode::BorderlessFullscreen:
             applyBorderless(monitor);
@@ -267,43 +267,43 @@ void GLFWOutputWindow::applyWindowSettings(int width,
 
 void GLFWOutputWindow::setWindowed()
 {
-    applyWindowSettings(config.width, config.height, WindowMode::Windowed, config.monitorIndex, config.monitorName);
+    applyWindowSettings(config.settings.width, config.settings.height, WindowMode::Windowed, config.settings.monitorIndex, config.settings.monitorName);
 }
 
 void GLFWOutputWindow::setBorderlessFullscreen()
 {
-    applyWindowSettings(config.width,
-                        config.height,
+    applyWindowSettings(config.settings.width,
+                        config.settings.height,
                         WindowMode::BorderlessFullscreen,
-                        config.monitorIndex,
-                        config.monitorName);
+                        config.settings.monitorIndex,
+                        config.settings.monitorName);
 }
 
 void GLFWOutputWindow::setFullscreen()
 {
-    applyWindowSettings(config.width, config.height, WindowMode::Fullscreen, config.monitorIndex, config.monitorName);
+    applyWindowSettings(config.settings.width, config.settings.height, WindowMode::Fullscreen, config.settings.monitorIndex, config.settings.monitorName);
 }
 
 void GLFWOutputWindow::setWindowMode(WindowMode mode)
 {
-    applyWindowSettings(config.width, config.height, mode, config.monitorIndex, config.monitorName);
+    applyWindowSettings(config.settings.width, config.settings.height, mode, config.settings.monitorIndex, config.settings.monitorName);
 }
 
 void GLFWOutputWindow::setWindowSize(int width, int height)
 {
-    config.width = std::max(1, width);
-    config.height = std::max(1, height);
-    savedW = config.width;
-    savedH = config.height;
+    config.settings.width = std::max(1, width);
+    config.settings.height = std::max(1, height);
+    savedW = config.settings.width;
+    savedH = config.settings.height;
 
     GLFWwindow* gw = static_cast<GLFWwindow*>(this->window);
-    if (config.windowMode == WindowMode::Windowed)
+    if (config.settings.windowMode == WindowMode::Windowed)
     {
-        glfwSetWindowSize(gw, config.width, config.height);
+        glfwSetWindowSize(gw, config.settings.width, config.settings.height);
         return;
     }
 
-    if (config.windowMode == WindowMode::Fullscreen)
+    if (config.settings.windowMode == WindowMode::Fullscreen)
     {
         GLFWmonitor* monitor = glfwGetWindowMonitor(gw);
         if (monitor == nullptr)
@@ -313,7 +313,7 @@ void GLFWOutputWindow::setWindowSize(int width, int height)
 
         const GLFWvidmode* mode = glfwGetVideoMode(monitor);
         const int refreshRate = mode != nullptr ? mode->refreshRate : GLFW_DONT_CARE;
-        glfwSetWindowMonitor(gw, monitor, 0, 0, config.width, config.height, refreshRate);
+        glfwSetWindowMonitor(gw, monitor, 0, 0, config.settings.width, config.settings.height, refreshRate);
     }
 }
 

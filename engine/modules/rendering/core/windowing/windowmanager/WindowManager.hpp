@@ -14,19 +14,10 @@ class WindowManager
 
         void createWindow()
         {
-            OutputWindowConfig owConfig;
-            owConfig.enableValidationLayers = config.enableValidationLayers;
-            owConfig.width                  = config.windowWidth;
-            owConfig.height                 = config.windowHeight;
-            owConfig.title                  = config.windowTitle;
-            owConfig.windowMode             = config.windowMode;
-            owConfig.monitorIndex           = config.monitorIndex;
-            owConfig.monitorName            = config.monitorName;
-
             switch (config.windowBackend)
             {
                 case WindowBackend::GLFW:
-                    outputWindow = std::make_unique<GLFWOutputWindow>(owConfig, eventBus);
+                    outputWindow = std::make_unique<GLFWOutputWindow>(config.window, eventBus);
                     break;
             }
         }

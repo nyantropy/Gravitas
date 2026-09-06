@@ -34,7 +34,7 @@
 class GravitasEngine
 {
     private:
-    EngineConfig engineConfig;
+    const EngineConfig engineConfig;
 
     // registered graphics backends installed before platform creation
     gts::rendering::GraphicsBackendRegistry graphicsBackends;
@@ -207,21 +207,16 @@ class GravitasEngine
     }
 
     // command callback from lower level architectures
-    void applyGraphicsSettingsCommand(const RuntimeGraphicsSettings& settings)
+    void applyGraphicsSettingsCommand(const GraphicsSettings& settings)
     {
-        if (platform.applyRuntimeGraphicsSettings(settings))
+        const auto result = platform.applyGraphicsSettings(settings);
+        if (result.accepted())
         {
-            engineConfig.graphics.renderWidth           = static_cast<uint32_t>(settings.width);
-            engineConfig.graphics.renderHeight          = static_cast<uint32_t>(settings.height);
-            engineConfig.graphics.window.width          = settings.width;
-            engineConfig.graphics.window.height         = settings.height;
-            engineConfig.graphics.window.windowMode     = settings.windowMode;
-            engineConfig.graphics.window.monitorIndex   = settings.monitorIndex;
-            engineConfig.graphics.window.vsync          = settings.vsync;
-            engineConfig.graphics.presentModePreference = settings.presentModePreference;
-            engineConfig.graphics.maxFrameRate          = settings.maxFrameRate;
-            maxFrameRate                                = settings.maxFrameRate;
+            maxFrameRate = settings.framePacing.maxFrameRate;
+            renderingRuntime->setVisibilityEnabled(settings.rendering.frustumCullingEnabled);
         }
+        else
+            std::cerr << "Graphics settings rejected: " << result.message << '\n';
     }
 
     void applyPendingRenderCommands()
@@ -234,6 +229,11 @@ class GravitasEngine
                     it = engineCommands.commands.erase(it);
                 else
                     ++it;
+            }
+            else if (auto* screenshot = std::get_if<GtsScreenshotCommand>(&*it))
+            {
+                platform.getGraphics()->requestScreenshot(screenshot->directory);
+                it = engineCommands.commands.erase(it);
             }
             else
             {
@@ -256,10 +256,6 @@ class GravitasEngine
                 gameLoop.paused = !gameLoop.paused;
                 std::cout << (gameLoop.paused ? "Paused" : "Resumed") << std::endl;
             }
-            else if (auto* screenshot = std::get_if<GtsScreenshotCommand>(&cmd))
-            {
-                platform.getGraphics()->requestScreenshot(screenshot->directory);
-            }
             else if (auto* changeScene = std::get_if<GtsChangeSceneCommand>(&cmd))
             {
                 switchScene(changeScene->name, changeScene->transitionData.get());
@@ -280,18 +276,18 @@ class GravitasEngine
         , platform(engineConfig, graphicsBackends)
     {
         gameLoop.init(engineConfig);
-        maxFrameRate   = engineConfig.graphics.maxFrameRate;
+        maxFrameRate   = engineConfig.graphics.settings.framePacing.maxFrameRate;
         sceneManager   = std::make_unique<SceneManager>();
         renderingRuntime =
             std::make_unique<gts::rendering::RenderingRuntime>(
-                engineConfig.frustumCullingEnabled,
+                engineConfig.graphics.settings.rendering.frustumCullingEnabled,
                 *platform.getGraphics(),
-                [this](const RuntimeGraphicsSettings& settings)
+                [this](const GraphicsSettings& settings)
                 {
                     applyGraphicsSettingsCommand(settings);
                 });
         installEngineModule(*renderingRuntime);
-        if (engineConfig.engineToolsEnabled)
+        if (engineConfig.tools.enabled)
             toolRuntime = std::make_unique<gts::tools::EngineToolRuntime>();
     }
 
@@ -321,7 +317,7 @@ class GravitasEngine
         toolScreenshotsRequested = 0;
         toolScreenshotNextAt = std::max(0.0f, toolScreenshotPreset.afterSeconds);
         toolScreenshotInterval = std::max(toolScreenshotPreset.intervalSeconds,
-                                          engineConfig.graphics.minSecondsBetweenScreenshots);
+                                          engineConfig.graphics.screenshots.minSecondsBetweenScreenshots);
     }
 
     private:

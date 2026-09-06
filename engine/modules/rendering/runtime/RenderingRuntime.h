@@ -15,7 +15,7 @@ class RenderPipeline;
 class UiSystem;
 struct EcsControllerContext;
 struct GtsExtensionCommand;
-struct RuntimeGraphicsSettings;
+struct GraphicsSettings;
 struct TimeContext;
 
 namespace gts::rendering
@@ -23,7 +23,7 @@ namespace gts::rendering
     class RenderingRuntime : public IEngineModule
     {
     public:
-        using GraphicsSettingsCallback = std::function<void(const RuntimeGraphicsSettings&)>;
+        using GraphicsSettingsCallback = std::function<void(const GraphicsSettings&)>;
 
         RenderingRuntime(bool frustumCullingEnabled,
                          IGtsGraphicsModule& graphics,

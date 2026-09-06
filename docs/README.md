@@ -7,6 +7,8 @@ Third-party dependency documentation stays with the dependency under
 
 Start with:
 
+- [settings/architecture.md](settings/architecture.md) for startup configuration,
+  runtime preferences, resolution policies, and effective state.
 - [../ARCHITECTURE.md](../ARCHITECTURE.md) for the engine architecture index.
 - [ui/architecture.md](ui/architecture.md) and
   [ui/authoring-guide.md](ui/authoring-guide.md) for retained UI.

@@ -1570,23 +1570,23 @@ namespace
         collector->config = config;
 
         EngineConfig engineConfig;
-        engineConfig.frustumCullingEnabled = config.enableFrustumCulling;
-        engineConfig.debugOverlayEnabledByDefault = false;
-        engineConfig.engineToolsEnabled = config.enableTooling;
-        engineConfig.graphics.headless = true;
-        engineConfig.graphics.enableValidationLayers = false;
-        engineConfig.graphics.renderWidth = config.renderWidth;
-        engineConfig.graphics.renderHeight = config.renderHeight;
-        engineConfig.graphics.window.width = static_cast<int>(config.renderWidth);
-        engineConfig.graphics.window.height = static_cast<int>(config.renderHeight);
-        engineConfig.graphics.window.vsync = false;
-        engineConfig.graphics.presentModePreference = PresentModePreference::Immediate;
-        engineConfig.graphics.maxFrameRate = 0;
-        engineConfig.graphics.enableGpuTimestamps = true;
+        engineConfig.graphics.settings.rendering.frustumCullingEnabled = config.enableFrustumCulling;
+        engineConfig.tools.debugOverlayEnabledByDefault = false;
+        engineConfig.tools.enabled = config.enableTooling;
+        engineConfig.graphics.startup.headless = true;
+        engineConfig.graphics.startup.enableValidationLayers = false;
+        engineConfig.graphics.settings.rendering.resolution.mode = RenderResolutionMode::Fixed;
+        engineConfig.graphics.settings.rendering.resolution.fixedExtent.width = config.renderWidth;
+        engineConfig.graphics.settings.rendering.resolution.fixedExtent.height = config.renderHeight;
+        engineConfig.graphics.settings.window.width = static_cast<int>(config.renderWidth);
+        engineConfig.graphics.settings.window.height = static_cast<int>(config.renderHeight);
+        engineConfig.graphics.settings.presentation.mode = PresentModePreference::Immediate;
+        engineConfig.graphics.settings.framePacing.maxFrameRate = 0;
+        engineConfig.graphics.startup.enableGpuTimestamps = true;
         if (config.requestScreenshot)
         {
-            engineConfig.graphics.maxScreenshotsPerRun = 1;
-            engineConfig.graphics.minSecondsBetweenScreenshots = 0.0f;
+            engineConfig.graphics.screenshots.maxScreenshotsPerRun = 1;
+            engineConfig.graphics.screenshots.minSecondsBetweenScreenshots = 0.0f;
         }
         gts::transform::TransformSystem::setDetailedMetricsEnabled(true);
         RenderGpuSystem::setDetailedMetricsEnabled(true);

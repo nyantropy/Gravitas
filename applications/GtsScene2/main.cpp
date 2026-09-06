@@ -7,13 +7,13 @@
 int main()
 {
     EngineConfig config;
-    config.graphics.backend           = GraphicsBackend::Vulkan;
-    config.graphics.window.width      = 1280;
-    config.graphics.window.height     = 720;
-    config.graphics.window.title      = "GtsScene2 — Frustum Culling Test";
-    config.graphics.window.windowMode = WindowMode::Windowed;
-    config.graphics.window.vsync      = true;
-    config.frustumCullingEnabled      = true;
+    config.graphics.startup.backend           = GraphicsBackend::Vulkan;
+    config.graphics.settings.window.width      = 1280;
+    config.graphics.settings.window.height     = 720;
+    config.graphics.windowTitle      = "GtsScene2 — Frustum Culling Test";
+    config.graphics.settings.window.windowMode = WindowMode::Windowed;
+    config.graphics.settings.presentation.mode = PresentModePreference::Fifo;
+    config.graphics.settings.rendering.frustumCullingEnabled      = true;
 
     GravitasEngine engine(config);
     engine.registerScene("culltest",

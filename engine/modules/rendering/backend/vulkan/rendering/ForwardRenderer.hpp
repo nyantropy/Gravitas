@@ -627,6 +627,11 @@ class ForwardRenderer : Renderer
             config.renderHeight = std::max(1u, height);
         }
 
+        VkExtent2D getSceneRenderExtent() const
+        {
+            return sceneRenderExtent;
+        }
+
         void setInternalScalingEnabled(bool enabled)
         {
             config.internalScalingEnabled = enabled;

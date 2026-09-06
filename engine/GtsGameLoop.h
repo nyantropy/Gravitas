@@ -1,19 +1,22 @@
 #pragma once
 
 #include "EngineConfig.h"
+#include <stdexcept>
 
 // Fixed-timestep accumulator for the engine game loop.
 // Owned by GravitasEngine; no heap allocations.
 struct GtsGameLoop
 {
-    float fixedTimestep = 1.0f / 20.0f;  // derived from EngineConfig::simulationTickRate
+    float fixedTimestep = 1.0f / 20.0f;  // derived from SimulationSettings::tickRate
     float accumulator   = 0.0f;
     bool  paused        = false;
 
     // Initialise from config. Call once before the loop starts.
     void init(const EngineConfig& config)
     {
-        fixedTimestep = 1.0f / static_cast<float>(config.simulationTickRate);
+        if (config.simulation.tickRate <= 0)
+            throw std::invalid_argument("Simulation tick rate must be positive");
+        fixedTimestep = 1.0f / static_cast<float>(config.simulation.tickRate);
         accumulator   = 0.0f;
         paused        = false;
     }

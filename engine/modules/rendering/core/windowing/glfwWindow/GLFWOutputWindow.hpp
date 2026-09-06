@@ -15,6 +15,12 @@ class GLFWOutputWindow : public OutputWindow
         bool shouldClose() const override;
         void pollEvents() override;
         void getSize(int& width, int& height) const override;
+        WindowSettings getRuntimeSettings() const override
+        {
+            WindowSettings settings = config.settings;
+            glfwGetWindowSize(static_cast<GLFWwindow*>(window), &settings.width, &settings.height);
+            return settings;
+        }
         void* getWindow() const override;
 
         void setWindowed()             override;

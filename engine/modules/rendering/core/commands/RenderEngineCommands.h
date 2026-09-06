@@ -26,7 +26,7 @@ namespace gts::rendering
 
     struct ApplyGraphicsSettingsCommand
     {
-        RuntimeGraphicsSettings settings;
+        GraphicsSettings settings;
     };
 
     inline void requestSetFrustumCullingEnabled(GtsCommandBuffer& commands, bool enabled)
@@ -43,7 +43,7 @@ namespace gts::rendering
             SetFrustumFreezeCommand{frozen});
     }
 
-    inline void requestApplyGraphicsSettings(GtsCommandBuffer& commands, const RuntimeGraphicsSettings& settings)
+    inline void requestApplyGraphicsSettings(GtsCommandBuffer& commands, const GraphicsSettings& settings)
     {
         commands.requestExtensionCommand(
             APPLY_GRAPHICS_SETTINGS_COMMAND,

@@ -32,8 +32,9 @@ class OutputWindow
         virtual bool shouldClose() const = 0;
         virtual void pollEvents() = 0;
         virtual void getSize(int& width, int& height) const = 0;
+        virtual WindowSettings getRuntimeSettings() const = 0;
         virtual void* getWindow() const = 0;
-        virtual WindowMode getWindowMode() const { return config.windowMode; }
+        virtual WindowMode getWindowMode() const { return config.settings.windowMode; }
         virtual OutputWindowConfig getConfig() const { return config; }
         virtual std::vector<GraphicsMonitorInfo> getAvailableMonitors() const { return {}; }
 
@@ -60,8 +61,8 @@ class OutputWindow
         }
         virtual void setWindowSize(int width, int height)
         {
-            config.width = width;
-            config.height = height;
+            config.settings.width = width;
+            config.settings.height = height;
         }
         virtual void applyWindowSettings(int width,
                                          int height,
@@ -70,8 +71,8 @@ class OutputWindow
                                          const std::string& monitorName = {})
         {
             setWindowSize(width, height);
-            config.monitorIndex = monitorIndex;
-            config.monitorName = monitorName;
+            config.settings.monitorIndex = monitorIndex;
+            config.settings.monitorName = monitorName;
             setWindowMode(mode);
         }
 };

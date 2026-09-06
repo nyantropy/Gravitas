@@ -7,14 +7,14 @@
 int main()
 {
     EngineConfig config;
-    config.graphics.backend                = GraphicsBackend::Vulkan;
-    config.graphics.window.width           = 1600;
-    config.graphics.window.height          = 900;
-    config.graphics.window.title           = "GtsScene3 - Stress Test";
-    config.graphics.window.windowMode      = WindowMode::Windowed;
-    config.graphics.window.vsync           = false;
-    config.graphics.enableValidationLayers = false;
-    config.frustumCullingEnabled           = true;
+    config.graphics.startup.backend                = GraphicsBackend::Vulkan;
+    config.graphics.settings.window.width           = 1600;
+    config.graphics.settings.window.height          = 900;
+    config.graphics.windowTitle           = "GtsScene3 - Stress Test";
+    config.graphics.settings.window.windowMode      = WindowMode::Windowed;
+    config.graphics.settings.presentation.mode = PresentModePreference::Immediate;
+    config.graphics.startup.enableValidationLayers = false;
+    config.graphics.settings.rendering.frustumCullingEnabled           = true;
 
     GravitasEngine engine(config);
     engine.registerScene("stress",

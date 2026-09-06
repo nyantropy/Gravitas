@@ -58,12 +58,12 @@ namespace gts::rendering
 
         std::unique_ptr<IGtsGraphicsModule> create(const GraphicsConfig& config) const
         {
-            const IGraphicsBackendProvider* provider = find(config.backend);
+            const IGraphicsBackendProvider* provider = find(config.startup.backend);
             if (provider == nullptr)
             {
                 throw std::runtime_error(
                     std::string("No graphics backend provider registered for ")
-                    + graphicsBackendName(config.backend));
+                    + graphicsBackendName(config.startup.backend));
             }
 
             std::unique_ptr<IGtsGraphicsModule> graphics = provider->create(config);
@@ -71,7 +71,7 @@ namespace gts::rendering
             {
                 throw std::runtime_error(
                     std::string("Graphics backend provider failed to create ")
-                    + graphicsBackendName(config.backend));
+                    + graphicsBackendName(config.startup.backend));
             }
 
             return graphics;

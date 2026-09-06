@@ -1,3 +1,12 @@
+add_executable(GraphicsSettingsTest rendering/GraphicsSettingsTest.cpp)
+target_link_libraries(GraphicsSettingsTest PRIVATE gravitas_rendering)
+add_test(NAME graphics_settings COMMAND GraphicsSettingsTest)
+
+add_executable(GraphicsSettingsRuntimeTest runtime/GraphicsSettingsRuntimeTest.cpp)
+target_link_libraries(GraphicsSettingsRuntimeTest PRIVATE gravitas_engine)
+add_test(NAME graphics_settings_headless COMMAND GraphicsSettingsRuntimeTest)
+set_tests_properties(graphics_settings_headless PROPERTIES SKIP_RETURN_CODE 77)
+
 add_executable(GravitasHeadlessRuntimeSmoke
     runtime/HeadlessRuntimeSmoke.cpp
 )

@@ -1,28 +1,24 @@
 #pragma once
 
+#include <cstdint>
+
 #include "GraphicsConfig.h"
+#include "core/time/SimulationSettings.h"
+#include "modules/tools/core/ToolSettings.h"
 
 struct EngineConfig
 {
+    // maximum renderable objects, exceeding this number of objects will cause the engine to crash
     static constexpr uint32_t MAX_RENDERABLE_OBJECTS = 65536;
 
+    // graphics settings
     GraphicsConfig graphics;
 
-    // Number of simulation ticks per second.
-    // Controller systems and rendering always run every frame.
-    // Default: 20 ticks/sec (one tick = 0.05 s of game time).
-    int simulationTickRate = 20;
+    // simulation settings for the simulation loop
+    SimulationSettings simulation;
 
-    // Enable frustum culling in RenderCommandExtractor.
-    // Entities without a BoundsComponent are never culled regardless of this flag.
-    // Set to false to disable culling globally (useful for debugging).
-    bool frustumCullingEnabled = true;
-
-    // Whether the F3 debug overlay is visible by default on startup.
-    bool debugOverlayEnabledByDefault = false;
-
-    // Whether engine-owned editor/tool controllers run around the active scene.
-    bool engineToolsEnabled = true;
+    // tooling settings for the engine toolchain
+    ToolSettings tools;
 
     // Extend here later: audio config, input config, physics config, etc.
 };

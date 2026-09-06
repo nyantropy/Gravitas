@@ -561,10 +561,12 @@ Particles extract into `ParticleFrameDataComponent`, not `RenderCommand`.
 Tooling uses it so scene rendering does not cover tool chrome.
 
 The renderer can separate scene render resolution from output resolution.
-Borderless fullscreen keeps the desktop-sized swapchain, renders scene and
-particles into an offscreen target at the requested render resolution,
-composites that image into the frame output, and renders UI at output
-resolution.
+`RenderResolutionSettings` selects output matching, a fixed extent, or a scale
+of output dimensions independently of window mode. Fixed/scaled rendering uses
+an offscreen scene/particle target, composites it into output, and renders UI at
+output resolution. Borderless fullscreen keeps the desktop-sized output.
+Startup, runtime application, and requested/effective state are documented in
+[settings architecture](../settings/architecture.md).
 
 ## Screenshots
 

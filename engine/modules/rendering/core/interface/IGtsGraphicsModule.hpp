@@ -7,6 +7,8 @@
 #include "GtsKeyEvent.h"
 #include "GtsFrameStats.h"
 #include "GraphicsConfig.h"
+#include "GraphicsRuntimeState.h"
+#include "GraphicsMonitorInfo.h"
 #include "IResourceProvider.hpp"
 #include "EditorPreviewRenderData.h"
 #include "ParticleFrameData.h"
@@ -42,9 +44,10 @@ public:
     virtual bool isWindowOpen() const = 0;
     virtual float getAspectRatio() const = 0;
     virtual void getViewportSize(int& width, int& height) const = 0;
-    virtual RuntimeGraphicsSettings getRuntimeGraphicsSettings() const = 0;
+    virtual GraphicsSettings getRequestedGraphicsSettings() const = 0;
+    virtual GraphicsRuntimeState getGraphicsRuntimeState() const = 0;
     virtual std::vector<GraphicsMonitorInfo> getAvailableMonitors() const = 0;
-    virtual bool applyRuntimeGraphicsSettings(const RuntimeGraphicsSettings& settings) = 0;
+    virtual GraphicsSettingsApplyResult applyGraphicsSettings(const GraphicsSettings& settings) = 0;
     virtual IResourceProvider* getResourceProvider() = 0;
     virtual GtsPlatformEventBus& getEventBus() = 0;
 };

@@ -49,6 +49,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
 
 ## Feature Documentation Map
 
+- [docs/settings/architecture.md](docs/settings/architecture.md): subsystem-owned
+  settings, immutable startup configuration, runtime requests, and effective state.
 - [docs/ui/architecture.md](docs/ui/architecture.md): retained UI runtime.
 - [docs/ui/authoring-guide.md](docs/ui/authoring-guide.md): practical UI
   authoring rules.
@@ -195,6 +197,10 @@ Tooling preset screenshot automation is documented in
 [docs/tooling/presets.md](docs/tooling/presets.md). Agents doing visual work
 should run a deterministic preset, then inspect the generated PNGs directly.
 
+Queued screenshot requests are consumed in the pre-render command pass, before
+the current frame is drawn. Scene changes and quit remain post-render commands,
+so a screenshot requested alongside quit still captures the final frame.
+
 ## Resource Model
 
 Assets are accessed through `IResourceProvider`. Binding/lifecycle systems load
@@ -248,8 +254,10 @@ time.
 Runtime graphics changes are engine-owned and travel through engine-facing
 types. Applications request changes through
 `gts::rendering::requestApplyGraphicsSettings(...)`; the graphics module and
-main loop apply window, swapchain, resolution, vsync, present mode, and frame
-pacing changes.
+main loop apply window, swapchain, resolution policy, presentation, and frame
+pacing changes. `EngineConfig` is an immutable startup snapshot. Runtime
+preferences and effective graphics state are queried separately; see the
+settings architecture for ownership and extension rules.
 
 ## Extensibility Pointers
 
