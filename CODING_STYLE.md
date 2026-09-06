@@ -12,12 +12,12 @@ This document records the repository style contract for the Gravitas engine. It 
 - Include a trailing newline in every text file.
 
 ## KEEP IT STUPID SIMPLE
-- do not throw code into functions if the code only runs once, as soon as it is used twice, it needs to be put into a function.
-- algorithms should never be overengineered.
-- multiple layers of indirection are not needed.
+- Prefer straightforward control flow and descriptive names. Keep related operations together so a reader can follow the work without jumping through layers.
+- Extract a helper when it names a meaningful operation or removes real duplication. Do not split code solely to meet a function-length target or generalize coincidentally similar code.
+- Solve the current requirement with the simplest adequate design. Add indirection only for a concrete responsibility, ownership, or dependency boundary.
 
 ## Design Patterns
-- use an interface wherever possible to hide implementation, but do not use it for small tasks or operations.
+- Use interfaces for real substitutable boundaries, not by default. A plain function or concrete type is preferable when it already expresses the job clearly.
 
 
 ## Files

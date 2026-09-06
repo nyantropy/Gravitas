@@ -1,3 +1,7 @@
+add_executable(ToolLaunchPresetTest tooling/ToolLaunchPresetTest.cpp)
+target_link_libraries(ToolLaunchPresetTest PRIVATE gravitas_tools)
+add_test(NAME tool_launch_preset COMMAND ToolLaunchPresetTest)
+
 add_executable(InputBindingRoutingTest input/InputBindingRoutingTest.cpp)
 target_link_libraries(InputBindingRoutingTest PRIVATE gravitas_core)
 add_test(NAME input_binding_routing COMMAND InputBindingRoutingTest)

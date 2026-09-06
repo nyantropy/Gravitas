@@ -93,6 +93,18 @@ Example presets live in `engine/docs/tooling/tooling_presets/`:
 
 ## Startup Flow
 
+`modules/tools/runtime/ToolLaunchPreset.h` contains the lightweight preset data
+and the `loadToolLaunchPreset` declaration. The neighboring `.cpp` owns path
+resolution, file reading, and JSON parsing. Callers that only inspect or apply
+presets do not include the filesystem or UI serialization implementation through
+this header. The loader continues to use the existing JSON parser; it does not
+introduce a separate parser framework or loader interface.
+
+The loader replaces the output preset only after successful parsing. Missing
+files, invalid JSON roots, and unknown workspace names return an error without
+replacing the caller's preset. Optional fields retain the existing defaults and
+type-handling behavior.
+
 ```text
 Application launch
   -> parse --tooling-preset=<json>

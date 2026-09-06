@@ -11,6 +11,15 @@ This file is the engine architecture entrypoint. Feature details live under
 
 ## Core Philosophy
 
+- KISS (Keep It Simple): prefer direct, readable code and explicit ownership.
+  Add abstractions only when they solve a concrete problem; do not introduce
+  interfaces, factories, or registration layers for hypothetical future needs.
+- Group related code by responsibility. Keep small data contracts independent
+  of loading, parsing, and runtime implementation dependencies. Put substantial
+  implementation in a neighboring source file, not another abstraction layer.
+- Optimize for comprehension as well as reuse: descriptive names, straightforward
+  control flow, and few jumps between files. A helper is useful when it names a
+  meaningful operation or removes real duplication, not merely to shorten a function.
 - ECS-first: state lives in components, behavior lives in systems.
 - Strict separation between CPU logic and GPU/backend state.
 - Descriptor/runtime split: applications write descriptors; engine systems
