@@ -1,4 +1,5 @@
 #include "UiPackageRuntime.h"
+#include "GtsJsonParser.h"
 
 #include <algorithm>
 #include <charconv>
@@ -20,39 +21,39 @@ namespace
         return uiAssetKey(reference);
     }
 
-    const UiJsonValue* findField(const UiJsonValue& value, const std::string& key)
+    const GtsJsonValue* findField(const GtsJsonValue& value, const std::string& key)
     {
         return value.find(key);
     }
 
-    std::string jsonStringValue(const UiJsonValue* value, const std::string& fallback = {})
+    std::string jsonStringValue(const GtsJsonValue* value, const std::string& fallback = {})
     {
         if (value == nullptr || !value->isString())
             return fallback;
         return std::get<std::string>(value->value);
     }
 
-    bool jsonBoolValue(const UiJsonValue* value, bool fallback = false)
+    bool jsonBoolValue(const GtsJsonValue* value, bool fallback = false)
     {
         if (value == nullptr || !value->isBool())
             return fallback;
         return std::get<bool>(value->value);
     }
 
-    int jsonIntValue(const UiJsonValue* value, int fallback = 0)
+    int jsonIntValue(const GtsJsonValue* value, int fallback = 0)
     {
         if (value == nullptr || !value->isNumber())
             return fallback;
-        return static_cast<int>(std::get<double>(value->value));
+        return static_cast<int>(value->asNumber());
     }
 
-    std::vector<std::string> jsonStringArray(const UiJsonValue* value)
+    std::vector<std::string> jsonStringArray(const GtsJsonValue* value)
     {
         std::vector<std::string> result;
         if (value == nullptr || !value->isArray())
             return result;
 
-        for (const UiJsonValue& item : std::get<UiJsonValue::Array>(value->value))
+        for (const GtsJsonValue& item : std::get<GtsJsonValue::Array>(value->value))
         {
             if (item.isString())
                 result.push_back(std::get<std::string>(item.value));
@@ -60,7 +61,7 @@ namespace
         return result;
     }
 
-    UiPackageDependency parseDependency(const UiJsonValue& value, bool optionalFallback)
+    UiPackageDependency parseDependency(const GtsJsonValue& value, bool optionalFallback)
     {
         UiPackageDependency dependency;
         dependency.optional = optionalFallback;
@@ -79,13 +80,13 @@ namespace
         return dependency;
     }
 
-    std::vector<UiPackageDependency> parseDependencies(const UiJsonValue* value, bool optional)
+    std::vector<UiPackageDependency> parseDependencies(const GtsJsonValue* value, bool optional)
     {
         std::vector<UiPackageDependency> result;
         if (value == nullptr || !value->isArray())
             return result;
 
-        for (const UiJsonValue& item : std::get<UiJsonValue::Array>(value->value))
+        for (const GtsJsonValue& item : std::get<GtsJsonValue::Array>(value->value))
         {
             UiPackageDependency dependency = parseDependency(item, optional);
             if (!dependency.packageId.empty())
@@ -94,7 +95,7 @@ namespace
         return result;
     }
 
-    UiPluginMetadata parsePlugin(const UiJsonValue& value)
+    UiPluginMetadata parsePlugin(const GtsJsonValue& value)
     {
         UiPluginMetadata plugin;
         if (!value.isObject())
@@ -109,13 +110,13 @@ namespace
         return plugin;
     }
 
-    std::vector<UiPluginMetadata> parsePlugins(const UiJsonValue* value)
+    std::vector<UiPluginMetadata> parsePlugins(const GtsJsonValue* value)
     {
         std::vector<UiPluginMetadata> result;
         if (value == nullptr || !value->isArray())
             return result;
 
-        for (const UiJsonValue& item : std::get<UiJsonValue::Array>(value->value))
+        for (const GtsJsonValue& item : std::get<GtsJsonValue::Array>(value->value))
         {
             UiPluginMetadata plugin = parsePlugin(item);
             if (!plugin.id.empty())
@@ -124,88 +125,53 @@ namespace
         return result;
     }
 
-    UiJsonValue jsonString(std::string value)
+    GtsJsonValue serializeStringArray(const std::vector<std::string>& values)
     {
-        UiJsonValue json;
-        json.value = std::move(value);
-        return json;
-    }
-
-    UiJsonValue jsonBool(bool value)
-    {
-        UiJsonValue json;
-        json.value = value;
-        return json;
-    }
-
-    UiJsonValue jsonNumber(double value)
-    {
-        UiJsonValue json;
-        json.value = value;
-        return json;
-    }
-
-    UiJsonValue jsonArray(UiJsonValue::Array values)
-    {
-        UiJsonValue json;
-        json.value = std::move(values);
-        return json;
-    }
-
-    UiJsonValue jsonObject(UiJsonValue::Object values)
-    {
-        UiJsonValue json;
-        json.value = std::move(values);
-        return json;
-    }
-
-    UiJsonValue serializeStringArray(const std::vector<std::string>& values)
-    {
-        UiJsonValue::Array array;
+        GtsJsonValue::Array array;
         for (const std::string& value : values)
-            array.push_back(jsonString(value));
-        return jsonArray(std::move(array));
+            array.push_back(GtsJsonValue(value));
+        return GtsJsonValue::Array(std::move(array));
     }
 
-    UiJsonValue serializeDependency(const UiPackageDependency& dependency)
+    GtsJsonValue serializeDependency(const UiPackageDependency& dependency)
     {
-        UiJsonValue::Object object;
-        object.emplace_back("id", jsonString(dependency.packageId));
+        GtsJsonValue::Object object;
+        object.emplace_back("id", GtsJsonValue(dependency.packageId));
         if (!dependency.minVersion.empty())
-            object.emplace_back("minVersion", jsonString(dependency.minVersion));
+            object.emplace_back("minVersion", GtsJsonValue(dependency.minVersion));
         if (dependency.optional)
-            object.emplace_back("optional", jsonBool(true));
-        return jsonObject(std::move(object));
+            object.emplace_back("optional", GtsJsonValue(true));
+        return GtsJsonValue::Object(std::move(object));
     }
 
-    UiJsonValue serializeDependencies(const std::vector<UiPackageDependency>& dependencies)
+    GtsJsonValue serializeDependencies(const std::vector<UiPackageDependency>& dependencies)
     {
-        UiJsonValue::Array array;
+        GtsJsonValue::Array array;
         for (const UiPackageDependency& dependency : dependencies)
             array.push_back(serializeDependency(dependency));
-        return jsonArray(std::move(array));
+        return GtsJsonValue::Array(std::move(array));
     }
 
-    UiJsonValue serializePlugins(const std::vector<UiPluginMetadata>& plugins)
+    GtsJsonValue serializePlugins(const std::vector<UiPluginMetadata>& plugins)
     {
-        UiJsonValue::Array array;
+        GtsJsonValue::Array array;
         for (const UiPluginMetadata& plugin : plugins)
         {
-            UiJsonValue::Object object;
-            object.emplace_back("id", jsonString(plugin.id));
+            GtsJsonValue::Object object;
+            object.emplace_back("id", GtsJsonValue(plugin.id));
             if (!plugin.displayName.empty())
-                object.emplace_back("displayName", jsonString(plugin.displayName));
+                object.emplace_back("displayName", GtsJsonValue(plugin.displayName));
             if (!plugin.version.empty())
-                object.emplace_back("version", jsonString(plugin.version));
+                object.emplace_back("version", GtsJsonValue(plugin.version));
             if (!plugin.description.empty())
-                object.emplace_back("description", jsonString(plugin.description));
+                object.emplace_back("description", GtsJsonValue(plugin.description));
             if (!plugin.capabilities.empty())
                 object.emplace_back("capabilities", serializeStringArray(plugin.capabilities));
             if (plugin.nativeCode)
-                object.emplace_back("nativeCode", jsonBool(true));
-            array.push_back(jsonObject(std::move(object)));
+                object.emplace_back("nativeCode", GtsJsonValue(true));
+            array.push_back(GtsJsonValue::Object(std::move(object)));
         }
-        return jsonArray(std::move(array));
+        return GtsJsonValue::Array(std::move(array));
     }
 
     UiPackageEvent makePackageEvent(UiPackageEventKind kind,
@@ -298,9 +264,9 @@ bool parseUiPackageManifest(const std::string& json,
                             UiSerializedValidationResult* outValidation)
 {
     UiSerializedValidationResult validation;
-    UiJsonValue root;
+    GtsJsonValue root;
     std::string parseError;
-    if (!parseUiJson(json, root, &parseError))
+    if (!GtsJsonParser::parse(json, root, &parseError))
     {
         validation.error("$", parseError.empty() ? "package manifest JSON parse failed" : parseError);
         if (outValidation != nullptr)
@@ -346,19 +312,19 @@ bool parseUiPackageManifest(const std::string& json,
 
 std::string serializeUiPackageManifest(const UiPackageManifest& manifest)
 {
-    UiJsonValue::Object root;
-    root.emplace_back("schema", jsonNumber(manifest.schemaVersion));
-    root.emplace_back("id", jsonString(manifest.id));
-    root.emplace_back("version", jsonString(manifest.version));
-    root.emplace_back("namespace", jsonString(manifest.namespaceId));
+    GtsJsonValue::Object root;
+    root.emplace_back("schema", GtsJsonValue(manifest.schemaVersion));
+    root.emplace_back("id", GtsJsonValue(manifest.id));
+    root.emplace_back("version", GtsJsonValue(manifest.version));
+    root.emplace_back("namespace", GtsJsonValue(manifest.namespaceId));
     if (!manifest.displayName.empty())
-        root.emplace_back("displayName", jsonString(manifest.displayName));
+        root.emplace_back("displayName", GtsJsonValue(manifest.displayName));
     if (!manifest.author.empty())
-        root.emplace_back("author", jsonString(manifest.author));
+        root.emplace_back("author", GtsJsonValue(manifest.author));
     if (!manifest.engineCompatibility.empty())
-        root.emplace_back("engineCompatibility", jsonString(manifest.engineCompatibility));
+        root.emplace_back("engineCompatibility", GtsJsonValue(manifest.engineCompatibility));
     if (!manifest.description.empty())
-        root.emplace_back("description", jsonString(manifest.description));
+        root.emplace_back("description", GtsJsonValue(manifest.description));
     if (!manifest.tags.empty())
         root.emplace_back("tags", serializeStringArray(manifest.tags));
     if (!manifest.assetRoots.empty())
@@ -369,7 +335,7 @@ std::string serializeUiPackageManifest(const UiPackageManifest& manifest)
         root.emplace_back("optionalDependencies", serializeDependencies(manifest.optionalDependencies));
     if (!manifest.plugins.empty())
         root.emplace_back("plugins", serializePlugins(manifest.plugins));
-    return serializeUiJson(jsonObject(std::move(root)));
+    return GtsJsonParser::serialize(GtsJsonValue::Object(std::move(root)));
 }
 
 UiPackageLoadResult UiPackageRuntime::registerPackage(UiSystem& ui, const UiPackageDesc& package)

@@ -1,4 +1,5 @@
 #include "AssetManifest.h"
+#include "GtsJsonParser.h"
 
 #include <algorithm>
 #include <cctype>
@@ -12,7 +13,6 @@
 #include <variant>
 #include <vector>
 
-#include "UiSerialization.h"
 
 namespace gts::tools
 {
@@ -54,11 +54,11 @@ namespace
         return path;
     }
 
-    const UiJsonValue* requireMember(const UiJsonValue& object,
+    const GtsJsonValue* requireMember(const GtsJsonValue& object,
                                      const std::string& key,
                                      std::string* error)
     {
-        const UiJsonValue* value = object.find(key);
+        const GtsJsonValue* value = object.find(key);
         if (value == nullptr)
             fail(error, "missing required manifest field '" + valuePath(key) + "'");
         return value;
@@ -76,12 +76,12 @@ namespace
         return true;
     }
 
-    bool readRequiredString(const UiJsonValue& object,
+    bool readRequiredString(const GtsJsonValue& object,
                             const std::string& key,
                             std::string& value,
                             std::string* error)
     {
-        const UiJsonValue* json = requireMember(object, key, error);
+        const GtsJsonValue* json = requireMember(object, key, error);
         if (json == nullptr)
             return false;
         if (!json->isString())
@@ -93,12 +93,12 @@ namespace
         return true;
     }
 
-    bool readOptionalString(const UiJsonValue& object,
+    bool readOptionalString(const GtsJsonValue& object,
                             const std::string& key,
                             std::string& value,
                             std::string* error)
     {
-        const UiJsonValue* json = object.find(key);
+        const GtsJsonValue* json = object.find(key);
         if (json == nullptr || json->isNull())
             return true;
         if (!json->isString())
@@ -108,18 +108,18 @@ namespace
         return true;
     }
 
-    bool readRequiredInt(const UiJsonValue& object,
+    bool readRequiredInt(const GtsJsonValue& object,
                          const std::string& key,
                          int& value,
                          std::string* error)
     {
-        const UiJsonValue* json = requireMember(object, key, error);
+        const GtsJsonValue* json = requireMember(object, key, error);
         if (json == nullptr)
             return false;
         if (!json->isNumber())
             return fail(error, "manifest field '" + valuePath(key) + "' must be a number");
 
-        const double number = std::get<double>(json->value);
+        const double number = json->asNumber();
         if (!std::isfinite(number))
             return fail(error, "manifest field '" + valuePath(key) + "' must be finite");
 
@@ -129,12 +129,12 @@ namespace
         return true;
     }
 
-    bool readRequiredBool(const UiJsonValue& object,
+    bool readRequiredBool(const GtsJsonValue& object,
                           const std::string& key,
                           bool& value,
                           std::string* error)
     {
-        const UiJsonValue* json = requireMember(object, key, error);
+        const GtsJsonValue* json = requireMember(object, key, error);
         if (json == nullptr)
             return false;
         if (!json->isBool())
@@ -144,18 +144,18 @@ namespace
         return true;
     }
 
-    bool readOptionalFloat(const UiJsonValue& object,
+    bool readOptionalFloat(const GtsJsonValue& object,
                            const std::string& key,
                            float& value,
                            std::string* error)
     {
-        const UiJsonValue* json = object.find(key);
+        const GtsJsonValue* json = object.find(key);
         if (json == nullptr || json->isNull())
             return true;
         if (!json->isNumber())
             return fail(error, "manifest field '" + valuePath(key) + "' must be a number");
 
-        const double number = std::get<double>(json->value);
+        const double number = json->asNumber();
         if (!std::isfinite(number))
             return fail(error, "manifest field '" + valuePath(key) + "' must be finite");
 
@@ -163,7 +163,7 @@ namespace
         return true;
     }
 
-    bool readVec3Value(const UiJsonValue& json,
+    bool readVec3Value(const GtsJsonValue& json,
                        const std::string& path,
                        glm::vec3& value,
                        std::string* error)
@@ -171,7 +171,7 @@ namespace
         if (!json.isArray())
             return fail(error, "manifest field '" + path + "' must be a 3-number array");
 
-        const auto& array = std::get<UiJsonValue::Array>(json.value);
+        const auto& array = std::get<GtsJsonValue::Array>(json.value);
         if (array.size() != 3u)
             return fail(error, "manifest field '" + path + "' must contain exactly 3 numbers");
 
@@ -180,7 +180,7 @@ namespace
         {
             if (!array[i].isNumber())
                 return fail(error, "manifest field '" + path + "' must contain only numbers");
-            const double number = std::get<double>(array[i].value);
+            const double number = array[i].asNumber();
             if (!std::isfinite(number))
                 return fail(error, "manifest field '" + path + "' must contain finite numbers");
             parsed[static_cast<glm::length_t>(i)] = static_cast<float>(number);
@@ -190,32 +190,32 @@ namespace
         return true;
     }
 
-    bool readRequiredVec3(const UiJsonValue& object,
+    bool readRequiredVec3(const GtsJsonValue& object,
                           const std::string& key,
                           glm::vec3& value,
                           std::string* error)
     {
-        const UiJsonValue* json = requireMember(object, key, error);
+        const GtsJsonValue* json = requireMember(object, key, error);
         if (json == nullptr)
             return false;
         return readVec3Value(*json, valuePath(key), value, error);
     }
 
-    bool readBounds(const UiJsonValue& object, BoundsComponent& bounds, std::string* error)
+    bool readBounds(const GtsJsonValue& object, BoundsComponent& bounds, std::string* error)
     {
-        const UiJsonValue* json = requireMember(object, "bounds", error);
+        const GtsJsonValue* json = requireMember(object, "bounds", error);
         if (json == nullptr)
             return false;
         if (!json->isObject())
             return fail(error, "manifest field '$.bounds' must be an object");
 
-        const UiJsonValue* minValue = requireMember(*json, "min", error);
+        const GtsJsonValue* minValue = requireMember(*json, "min", error);
         if (minValue == nullptr)
             return false;
         if (!readVec3Value(*minValue, "$.bounds.min", bounds.min, error))
             return false;
 
-        const UiJsonValue* maxValue = requireMember(*json, "max", error);
+        const GtsJsonValue* maxValue = requireMember(*json, "max", error);
         if (maxValue == nullptr)
             return false;
         if (!readVec3Value(*maxValue, "$.bounds.max", bounds.max, error))
@@ -226,7 +226,7 @@ namespace
         return true;
     }
 
-    bool readMaterialMode(const UiJsonValue& object,
+    bool readMaterialMode(const GtsJsonValue& object,
                           AssetMaterialMode& materialMode,
                           std::string* error)
     {
@@ -316,11 +316,11 @@ namespace
         return true;
     }
 
-    bool readPreview(const UiJsonValue& object,
+    bool readPreview(const GtsJsonValue& object,
                      AssetPreviewSettings& preview,
                      std::string* error)
     {
-        const UiJsonValue* json = object.find("preview");
+        const GtsJsonValue* json = object.find("preview");
         if (json == nullptr || json->isNull())
             return true;
         if (!json->isObject())
@@ -334,7 +334,7 @@ namespace
     }
 
     bool parseManifest(const std::filesystem::path& path,
-                       const UiJsonValue& root,
+                       const GtsJsonValue& root,
                        AssetManifest& manifest,
                        std::string* error)
     {
@@ -398,9 +398,9 @@ bool loadAssetManifest(const std::string& path,
     if (!readFile(path, contents, error))
         return false;
 
-    UiJsonValue root;
+    GtsJsonValue root;
     std::string parseError;
-    if (!parseUiJson(contents, root, &parseError))
+    if (!GtsJsonParser::parse(contents, root, &parseError))
         return fail(error, "invalid JSON in asset manifest '" + path + "': " + parseError);
 
     std::string manifestError;

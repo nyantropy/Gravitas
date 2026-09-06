@@ -22,6 +22,7 @@ target_compile_definitions(gravitas_core PUBLIC
 )
 
 target_include_directories(gravitas_core PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/json"
     # Core root
     "${CMAKE_CURRENT_SOURCE_DIR}"
 

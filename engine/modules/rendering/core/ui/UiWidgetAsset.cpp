@@ -1,9 +1,11 @@
 #include "UiWidgetAsset.h"
+#include "GtsJsonParser.h"
 
 #include <algorithm>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 #include <unordered_set>
 #include <utility>
 
@@ -11,22 +13,22 @@
 
 namespace
 {
-    using Object = UiJsonValue::Object;
-    using Array = UiJsonValue::Array;
+    using Object = GtsJsonValue::Object;
+    using Array = GtsJsonValue::Array;
 
-    const Object* asObject(const UiJsonValue& value)
+    const Object* asObject(const GtsJsonValue& value)
     {
         return std::get_if<Object>(&value.value);
     }
 
-    const Array* asArray(const UiJsonValue& value)
+    const Array* asArray(const GtsJsonValue& value)
     {
         return std::get_if<Array>(&value.value);
     }
 
-    std::optional<std::string> getString(const UiJsonValue& object, const std::string& key)
+    std::optional<std::string> getString(const GtsJsonValue& object, const std::string& key)
     {
-        const UiJsonValue* value = object.find(key);
+        const GtsJsonValue* value = object.find(key);
         if (value == nullptr)
             return std::nullopt;
         if (const auto* string = std::get_if<std::string>(&value->value))
@@ -34,19 +36,19 @@ namespace
         return std::nullopt;
     }
 
-    std::optional<double> getNumber(const UiJsonValue& object, const std::string& key)
+    std::optional<double> getNumber(const GtsJsonValue& object, const std::string& key)
     {
-        const UiJsonValue* value = object.find(key);
+        const GtsJsonValue* value = object.find(key);
         if (value == nullptr)
             return std::nullopt;
-        if (const auto* number = std::get_if<double>(&value->value))
-            return *number;
+        if (value->isNumber())
+            return value->asNumber();
         return std::nullopt;
     }
 
-    std::optional<bool> getBool(const UiJsonValue& object, const std::string& key)
+    std::optional<bool> getBool(const GtsJsonValue& object, const std::string& key)
     {
-        const UiJsonValue* value = object.find(key);
+        const GtsJsonValue* value = object.find(key);
         if (value == nullptr)
             return std::nullopt;
         if (const auto* boolean = std::get_if<bool>(&value->value))
@@ -54,19 +56,19 @@ namespace
         return std::nullopt;
     }
 
-    int intOr(const UiJsonValue& object, const std::string& key, int fallback)
+    int intOr(const GtsJsonValue& object, const std::string& key, int fallback)
     {
         const auto value = getNumber(object, key);
         return value.has_value() ? static_cast<int>(*value) : fallback;
     }
 
-    bool boolOr(const UiJsonValue& object, const std::string& key, bool fallback)
+    bool boolOr(const GtsJsonValue& object, const std::string& key, bool fallback)
     {
         const auto value = getBool(object, key);
         return value.value_or(fallback);
     }
 
-    std::string stringOr(const UiJsonValue& object,
+    std::string stringOr(const GtsJsonValue& object,
                          const std::string& key,
                          const std::string& fallback = {})
     {
@@ -74,49 +76,14 @@ namespace
         return value.value_or(fallback);
     }
 
-    UiJsonValue jsonString(const std::string& value)
-    {
-        UiJsonValue json;
-        json.value = value;
-        return json;
-    }
-
-    UiJsonValue jsonNumber(double value)
-    {
-        UiJsonValue json;
-        json.value = value;
-        return json;
-    }
-
-    UiJsonValue jsonBool(bool value)
-    {
-        UiJsonValue json;
-        json.value = value;
-        return json;
-    }
-
-    UiJsonValue jsonArray(Array array)
-    {
-        UiJsonValue json;
-        json.value = std::move(array);
-        return json;
-    }
-
-    UiJsonValue jsonObject(Object object)
-    {
-        UiJsonValue json;
-        json.value = std::move(object);
-        return json;
-    }
-
-    std::string scalarToString(const UiJsonValue& value)
+    std::string scalarToString(const GtsJsonValue& value)
     {
         if (const auto* string = std::get_if<std::string>(&value.value))
             return *string;
-        if (const auto* number = std::get_if<double>(&value.value))
+        if (value.isNumber())
         {
             std::ostringstream out;
-            out << *number;
+            out << value.asNumber();
             return out.str();
         }
         if (const auto* boolean = std::get_if<bool>(&value.value))
@@ -124,13 +91,13 @@ namespace
         return {};
     }
 
-    std::vector<std::string> parseStringArray(const UiJsonValue* value)
+    std::vector<std::string> parseStringArray(const GtsJsonValue* value)
     {
         std::vector<std::string> result;
         const Array* array = value == nullptr ? nullptr : asArray(*value);
         if (array == nullptr)
             return result;
-        for (const UiJsonValue& item : *array)
+        for (const GtsJsonValue& item : *array)
         {
             if (const auto* string = std::get_if<std::string>(&item.value))
                 result.push_back(*string);
@@ -138,12 +105,12 @@ namespace
         return result;
     }
 
-    UiJsonValue serializeStringArray(const std::vector<std::string>& values)
+    GtsJsonValue serializeStringArray(const std::vector<std::string>& values)
     {
         Array array;
         for (const std::string& value : values)
-            array.push_back(jsonString(value));
-        return jsonArray(std::move(array));
+            array.push_back(GtsJsonValue(value));
+        return GtsJsonValue::Array(std::move(array));
     }
 
     UiWidgetAssetParameterType parseParameterType(const std::string& value)
@@ -170,7 +137,7 @@ namespace
         }
     }
 
-    std::unordered_map<std::string, std::string> parseStringMap(const UiJsonValue* value)
+    std::unordered_map<std::string, std::string> parseStringMap(const GtsJsonValue* value)
     {
         std::unordered_map<std::string, std::string> result;
         const Object* object = value == nullptr ? nullptr : asObject(*value);
@@ -181,15 +148,15 @@ namespace
         return result;
     }
 
-    UiJsonValue serializeStringMap(const std::unordered_map<std::string, std::string>& values)
+    GtsJsonValue serializeStringMap(const std::unordered_map<std::string, std::string>& values)
     {
         Object object;
         for (const auto& [key, value] : values)
-            object.emplace_back(key, jsonString(value));
-        return jsonObject(std::move(object));
+            object.emplace_back(key, GtsJsonValue(value));
+        return GtsJsonValue::Object(std::move(object));
     }
 
-    std::unordered_map<std::string, std::vector<UiSerializedWidget>> parseSlotContent(const UiJsonValue* value)
+    std::unordered_map<std::string, std::vector<UiSerializedWidget>> parseSlotContent(const GtsJsonValue* value)
     {
         std::unordered_map<std::string, std::vector<UiSerializedWidget>> result;
         const Object* object = value == nullptr ? nullptr : asObject(*value);
@@ -201,7 +168,7 @@ namespace
             if (array == nullptr)
                 continue;
             std::vector<UiSerializedWidget>& children = result[slotName];
-            for (const UiJsonValue& item : *array)
+            for (const GtsJsonValue& item : *array)
             {
                 UiSerializedWidget child;
                 parseUiSerializedWidget(item, child);
@@ -211,7 +178,7 @@ namespace
         return result;
     }
 
-    UiJsonValue serializeSlotContent(
+    GtsJsonValue serializeSlotContent(
         const std::unordered_map<std::string, std::vector<UiSerializedWidget>>& values)
     {
         Object object;
@@ -220,37 +187,37 @@ namespace
             Array array;
             for (const UiSerializedWidget& child : children)
                 array.push_back(serializeUiSerializedWidget(child));
-            object.emplace_back(slotName, jsonArray(std::move(array)));
+            object.emplace_back(slotName, GtsJsonValue::Array(std::move(array)));
         }
-        return jsonObject(std::move(object));
+        return GtsJsonValue::Object(std::move(object));
     }
 
-    UiWidgetAssetParameter parseParameter(const UiJsonValue& json)
+    UiWidgetAssetParameter parseParameter(const GtsJsonValue& json)
     {
         UiWidgetAssetParameter parameter;
         if (!json.isObject())
             return parameter;
         parameter.name = stringOr(json, "name", parameter.name);
         parameter.type = parseParameterType(stringOr(json, "type", "String"));
-        if (const UiJsonValue* defaultValue = json.find("default"))
+        if (const GtsJsonValue* defaultValue = json.find("default"))
             parameter.defaultValue = scalarToString(*defaultValue);
         parameter.description = stringOr(json, "description", parameter.description);
         parameter.required = boolOr(json, "required", parameter.required);
         return parameter;
     }
 
-    UiJsonValue serializeParameter(const UiWidgetAssetParameter& parameter)
+    GtsJsonValue serializeParameter(const UiWidgetAssetParameter& parameter)
     {
-        return jsonObject({
-            {"name", jsonString(parameter.name)},
-            {"type", jsonString(parameterTypeString(parameter.type))},
-            {"default", jsonString(parameter.defaultValue)},
-            {"description", jsonString(parameter.description)},
-            {"required", jsonBool(parameter.required)}
+        return GtsJsonValue::Object({
+            {"name", GtsJsonValue(parameter.name)},
+            {"type", GtsJsonValue(parameterTypeString(parameter.type))},
+            {"default", GtsJsonValue(parameter.defaultValue)},
+            {"description", GtsJsonValue(parameter.description)},
+            {"required", GtsJsonValue(parameter.required)}
         });
     }
 
-    UiWidgetAssetSlot parseSlot(const UiJsonValue& json)
+    UiWidgetAssetSlot parseSlot(const GtsJsonValue& json)
     {
         UiWidgetAssetSlot slot;
         if (!json.isObject())
@@ -258,11 +225,11 @@ namespace
         slot.name = stringOr(json, "name", slot.name);
         slot.target = stringOr(json, "target", slot.target);
         slot.description = stringOr(json, "description", slot.description);
-        if (const UiJsonValue* children = json.find("children"))
+        if (const GtsJsonValue* children = json.find("children"))
         {
             if (const Array* array = asArray(*children))
             {
-                for (const UiJsonValue& item : *array)
+                for (const GtsJsonValue& item : *array)
                 {
                     UiSerializedWidget child;
                     parseUiSerializedWidget(item, child);
@@ -273,20 +240,20 @@ namespace
         return slot;
     }
 
-    UiJsonValue serializeSlot(const UiWidgetAssetSlot& slot)
+    GtsJsonValue serializeSlot(const UiWidgetAssetSlot& slot)
     {
         Array children;
         for (const UiSerializedWidget& child : slot.defaultChildren)
             children.push_back(serializeUiSerializedWidget(child));
-        return jsonObject({
-            {"name", jsonString(slot.name)},
-            {"target", jsonString(slot.target)},
-            {"description", jsonString(slot.description)},
-            {"children", jsonArray(std::move(children))}
+        return GtsJsonValue::Object({
+            {"name", GtsJsonValue(slot.name)},
+            {"target", GtsJsonValue(slot.target)},
+            {"description", GtsJsonValue(slot.description)},
+            {"children", GtsJsonValue::Array(std::move(children))}
         });
     }
 
-    UiWidgetAssetVariant parseVariant(const UiJsonValue& json)
+    UiWidgetAssetVariant parseVariant(const GtsJsonValue& json)
     {
         UiWidgetAssetVariant variant;
         if (!json.isObject())
@@ -297,7 +264,7 @@ namespace
         variant.tags = parseStringArray(json.find("tags"));
         variant.parameterDefaults = parseStringMap(json.find("parameters"));
         variant.slotDefaults = parseSlotContent(json.find("slots"));
-        if (const UiJsonValue* root = json.find("root"))
+        if (const GtsJsonValue* root = json.find("root"))
         {
             parseUiSerializedWidget(*root, variant.rootOverride);
             variant.hasRootOverride = true;
@@ -305,19 +272,19 @@ namespace
         return variant;
     }
 
-    UiJsonValue serializeVariant(const UiWidgetAssetVariant& variant)
+    GtsJsonValue serializeVariant(const UiWidgetAssetVariant& variant)
     {
         Object object = {
-            {"name", jsonString(variant.name)},
-            {"displayName", jsonString(variant.displayName)},
-            {"description", jsonString(variant.description)},
+            {"name", GtsJsonValue(variant.name)},
+            {"displayName", GtsJsonValue(variant.displayName)},
+            {"description", GtsJsonValue(variant.description)},
             {"tags", serializeStringArray(variant.tags)},
             {"parameters", serializeStringMap(variant.parameterDefaults)},
             {"slots", serializeSlotContent(variant.slotDefaults)}
         };
         if (variant.hasRootOverride)
             object.emplace_back("root", serializeUiSerializedWidget(variant.rootOverride));
-        return jsonObject(std::move(object));
+        return GtsJsonValue::Object(std::move(object));
     }
 
     bool hasWidgetDefinition(const UiSerializedWidget& widget)
@@ -769,14 +736,14 @@ namespace
         return values;
     }
 
-    UiJsonValue serializeAssetJson(const UiWidgetAssetDefinition& asset)
+    GtsJsonValue serializeAssetJson(const UiWidgetAssetDefinition& asset)
     {
         Array tags;
         for (const std::string& tag : asset.tags)
-            tags.push_back(jsonString(tag));
+            tags.push_back(GtsJsonValue(tag));
         Array dependencies;
         for (const std::string& dependency : asset.dependencies)
-            dependencies.push_back(jsonString(dependency));
+            dependencies.push_back(GtsJsonValue(dependency));
         Array parameters;
         for (const auto& [_, parameter] : asset.parameters)
             parameters.push_back(serializeParameter(parameter));
@@ -787,18 +754,18 @@ namespace
         for (const auto& [_, variant] : asset.variants)
             variants.push_back(serializeVariant(variant));
 
-        return jsonObject({
-            {"schema", jsonNumber(asset.schemaVersion)},
-            {"id", jsonString(asset.id)},
-            {"version", jsonNumber(asset.version)},
-            {"displayName", jsonString(asset.displayName)},
-            {"description", jsonString(asset.description)},
-            {"tags", jsonArray(std::move(tags))},
-            {"dependencies", jsonArray(std::move(dependencies))},
-            {"base", jsonString(asset.baseAsset)},
-            {"parameters", jsonArray(std::move(parameters))},
-            {"slots", jsonArray(std::move(slots))},
-            {"variants", jsonArray(std::move(variants))},
+        return GtsJsonValue::Object({
+            {"schema", GtsJsonValue(asset.schemaVersion)},
+            {"id", GtsJsonValue(asset.id)},
+            {"version", GtsJsonValue(asset.version)},
+            {"displayName", GtsJsonValue(asset.displayName)},
+            {"description", GtsJsonValue(asset.description)},
+            {"tags", GtsJsonValue::Array(std::move(tags))},
+            {"dependencies", GtsJsonValue::Array(std::move(dependencies))},
+            {"base", GtsJsonValue(asset.baseAsset)},
+            {"parameters", GtsJsonValue::Array(std::move(parameters))},
+            {"slots", GtsJsonValue::Array(std::move(slots))},
+            {"variants", GtsJsonValue::Array(std::move(variants))},
             {"root", serializeUiSerializedWidget(asset.root)}
         });
     }
@@ -809,9 +776,9 @@ bool parseUiWidgetAssetDefinition(const std::string& json,
                                   UiSerializedValidationResult* outValidation)
 {
     UiSerializedValidationResult validation;
-    UiJsonValue root;
+    GtsJsonValue root;
     std::string error;
-    if (!parseUiJson(json, root, &error))
+    if (!GtsJsonParser::parse(json, root, &error))
     {
         validation.error("$", error);
         if (outValidation != nullptr)
@@ -836,11 +803,11 @@ bool parseUiWidgetAssetDefinition(const std::string& json,
     asset.dependencies = parseStringArray(root.find("dependencies"));
     asset.baseAsset = stringOr(root, "base", stringOr(root, "baseAsset", asset.baseAsset));
 
-    if (const UiJsonValue* parameters = root.find("parameters"))
+    if (const GtsJsonValue* parameters = root.find("parameters"))
     {
         if (const Array* array = asArray(*parameters))
         {
-            for (const UiJsonValue& item : *array)
+            for (const GtsJsonValue& item : *array)
             {
                 UiWidgetAssetParameter parameter = parseParameter(item);
                 if (!parameter.name.empty())
@@ -859,11 +826,11 @@ bool parseUiWidgetAssetDefinition(const std::string& json,
         }
     }
 
-    if (const UiJsonValue* slots = root.find("slots"))
+    if (const GtsJsonValue* slots = root.find("slots"))
     {
         if (const Array* array = asArray(*slots))
         {
-            for (const UiJsonValue& item : *array)
+            for (const GtsJsonValue& item : *array)
             {
                 UiWidgetAssetSlot slot = parseSlot(item);
                 if (!slot.name.empty())
@@ -872,11 +839,11 @@ bool parseUiWidgetAssetDefinition(const std::string& json,
         }
     }
 
-    if (const UiJsonValue* variants = root.find("variants"))
+    if (const GtsJsonValue* variants = root.find("variants"))
     {
         if (const Array* array = asArray(*variants))
         {
-            for (const UiJsonValue& item : *array)
+            for (const GtsJsonValue& item : *array)
             {
                 UiWidgetAssetVariant variant = parseVariant(item);
                 if (!variant.name.empty())
@@ -885,7 +852,7 @@ bool parseUiWidgetAssetDefinition(const std::string& json,
         }
     }
 
-    if (const UiJsonValue* widget = root.find("root"))
+    if (const GtsJsonValue* widget = root.find("root"))
         parseUiSerializedWidget(*widget, asset.root);
     else if (asset.baseAsset.empty())
         validation.error("$.root", "root widget is required for non-derived widget assets");
@@ -910,7 +877,7 @@ bool parseUiWidgetAssetDefinition(const std::string& json,
 
 std::string serializeUiWidgetAssetDefinition(const UiWidgetAssetDefinition& asset)
 {
-    return serializeUiJson(serializeAssetJson(asset), 0);
+    return GtsJsonParser::serialize(serializeAssetJson(asset), 0);
 }
 
 bool loadUiWidgetAssetFromFile(const std::string& path,
@@ -930,10 +897,19 @@ bool loadUiWidgetAssetFromFile(const std::string& path,
     return parseUiWidgetAssetDefinition(buffer.str(), outAsset, outValidation);
 }
 
-bool saveUiWidgetAssetToFile(const std::string& path,
-                             const UiWidgetAssetDefinition& asset,
-                             std::string* outError)
+bool saveUiWidgetAssetToFile(const std::string& path, const UiWidgetAssetDefinition& asset, std::string* outError)
 {
+    std::string json;
+    try
+    {
+        json = serializeUiWidgetAssetDefinition(asset);
+    }
+    catch (const std::invalid_argument& failure)
+    {
+        if (outError != nullptr)
+            *outError = failure.what();
+        return false;
+    }
     std::ofstream file(path);
     if (!file)
     {
@@ -941,12 +917,20 @@ bool saveUiWidgetAssetToFile(const std::string& path,
             *outError = "failed to open widget asset file for writing";
         return false;
     }
-    file << serializeUiWidgetAssetDefinition(asset);
+    file << json;
+    if (!file.good())
+    {
+        if (outError != nullptr)
+            *outError = "failed to write JSON file";
+        return false;
+    }
+    if (outError != nullptr)
+        outError->clear();
     return true;
 }
 
 bool UiWidgetAssetRegistry::registerAsset(const UiWidgetAssetDefinition& asset,
-                                          UiSerializedValidationResult* outValidation)
+                                          UiSerializedValidationResult*  outValidation)
 {
     UiSerializedValidationResult validation = validateAsset(asset);
     if (outValidation != nullptr)

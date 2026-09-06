@@ -1,326 +1,70 @@
 #include "ParticleEffectAssetIO.h"
+#include "GtsJsonParser.h"
 
 #include <algorithm>
-#include <cctype>
-#include <cstdlib>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
-#include <iomanip>
+#include <limits>
 #include <sstream>
+#include <stdexcept>
 
 #include "ParticleGraphAuthoring.h"
 #include "ParticleProgramCompiler.h"
 
 namespace
 {
-    struct JsonValue
+    const GtsJsonValue* findTypedMemberDeep(const GtsJsonValue& source, const std::string& key, GtsJsonValue::Type type)
     {
-        enum class Type
-        {
-            Null,
-            Bool,
-            Number,
-            String,
-            Array,
-            Object
-        };
-
-        Type                                     type   = Type::Null;
-        bool                                     boolean = false;
-        double                                   number  = 0.0;
-        std::string                              string;
-        std::vector<JsonValue>                   array;
-        std::vector<std::pair<std::string, JsonValue>> object;
-    };
-
-    void skipWhitespace(const std::string& source, size_t& pos)
-    {
-        while (pos < source.size() && std::isspace(static_cast<unsigned char>(source[pos])))
-            ++pos;
-    }
-
-    bool consume(const std::string& source, size_t& pos, char expected)
-    {
-        skipWhitespace(source, pos);
-        if (pos >= source.size() || source[pos] != expected)
-            return false;
-        ++pos;
-        return true;
-    }
-
-    bool parseJsonValue(const std::string& source, size_t& pos, JsonValue& value);
-
-    bool parseJsonStringToken(const std::string& source, size_t& pos, std::string& value)
-    {
-        skipWhitespace(source, pos);
-        if (pos >= source.size() || source[pos] != '"')
-            return false;
-        ++pos;
-
-        std::string result;
-        while (pos < source.size())
-        {
-            const char ch = source[pos++];
-            if (ch == '"')
-            {
-                value = result;
-                return true;
-            }
-            if (ch != '\\')
-            {
-                result.push_back(ch);
-                continue;
-            }
-            if (pos >= source.size())
-                return false;
-
-            const char escaped = source[pos++];
-            switch (escaped)
-            {
-            case '"':
-            case '\\':
-            case '/':
-                result.push_back(escaped);
-                break;
-            case 'b':
-                result.push_back('\b');
-                break;
-            case 'f':
-                result.push_back('\f');
-                break;
-            case 'n':
-                result.push_back('\n');
-                break;
-            case 'r':
-                result.push_back('\r');
-                break;
-            case 't':
-                result.push_back('\t');
-                break;
-            case 'u':
-                if (pos + 4 > source.size())
-                    return false;
-                result.push_back('?');
-                pos += 4;
-                break;
-            default:
-                return false;
-            }
-        }
-
-        return false;
-    }
-
-    bool parseJsonNumberToken(const std::string& source, size_t& pos, double& value)
-    {
-        skipWhitespace(source, pos);
-        const char* begin = source.c_str() + pos;
-        char*       end   = nullptr;
-        value             = std::strtod(begin, &end);
-        if (end == begin)
-            return false;
-        pos = static_cast<size_t>(end - source.c_str());
-        return true;
-    }
-
-    bool parseJsonArrayToken(const std::string& source, size_t& pos, JsonValue& value)
-    {
-        if (!consume(source, pos, '['))
-            return false;
-
-        JsonValue parsed;
-        parsed.type = JsonValue::Type::Array;
-        while (pos < source.size())
-        {
-            skipWhitespace(source, pos);
-            if (pos < source.size() && source[pos] == ']')
-            {
-                ++pos;
-                value = std::move(parsed);
-                return true;
-            }
-
-            JsonValue item;
-            if (!parseJsonValue(source, pos, item))
-                return false;
-            parsed.array.push_back(std::move(item));
-
-            skipWhitespace(source, pos);
-            if (pos < source.size() && source[pos] == ',')
-            {
-                ++pos;
-                continue;
-            }
-            if (pos < source.size() && source[pos] == ']')
-                continue;
-            return false;
-        }
-
-        return false;
-    }
-
-    bool parseJsonObjectToken(const std::string& source, size_t& pos, JsonValue& value)
-    {
-        if (!consume(source, pos, '{'))
-            return false;
-
-        JsonValue parsed;
-        parsed.type = JsonValue::Type::Object;
-        while (pos < source.size())
-        {
-            skipWhitespace(source, pos);
-            if (pos < source.size() && source[pos] == '}')
-            {
-                ++pos;
-                value = std::move(parsed);
-                return true;
-            }
-
-            std::string key;
-            if (!parseJsonStringToken(source, pos, key))
-                return false;
-            if (!consume(source, pos, ':'))
-                return false;
-
-            JsonValue member;
-            if (!parseJsonValue(source, pos, member))
-                return false;
-            parsed.object.push_back({std::move(key), std::move(member)});
-
-            skipWhitespace(source, pos);
-            if (pos < source.size() && source[pos] == ',')
-            {
-                ++pos;
-                continue;
-            }
-            if (pos < source.size() && source[pos] == '}')
-                continue;
-            return false;
-        }
-
-        return false;
-    }
-
-    bool parseJsonValue(const std::string& source, size_t& pos, JsonValue& value)
-    {
-        skipWhitespace(source, pos);
-        if (pos >= source.size())
-            return false;
-
-        if (source[pos] == '{')
-            return parseJsonObjectToken(source, pos, value);
-        if (source[pos] == '[')
-            return parseJsonArrayToken(source, pos, value);
-        if (source[pos] == '"')
-        {
-            JsonValue parsed;
-            parsed.type = JsonValue::Type::String;
-            if (!parseJsonStringToken(source, pos, parsed.string))
-                return false;
-            value = std::move(parsed);
-            return true;
-        }
-        if (source.compare(pos, 4, "true") == 0)
-        {
-            value.type    = JsonValue::Type::Bool;
-            value.boolean = true;
-            pos += 4;
-            return true;
-        }
-        if (source.compare(pos, 5, "false") == 0)
-        {
-            value.type    = JsonValue::Type::Bool;
-            value.boolean = false;
-            pos += 5;
-            return true;
-        }
-        if (source.compare(pos, 4, "null") == 0)
-        {
-            value = JsonValue{};
-            pos += 4;
-            return true;
-        }
-
-        JsonValue parsed;
-        parsed.type = JsonValue::Type::Number;
-        if (!parseJsonNumberToken(source, pos, parsed.number))
-            return false;
-        value = parsed;
-        return true;
-    }
-
-    bool parseJson(const std::string& source, JsonValue& value)
-    {
-        size_t pos = 0;
-        if (!parseJsonValue(source, pos, value))
-            return false;
-        skipWhitespace(source, pos);
-        return pos == source.size();
-    }
-
-    const JsonValue* findMember(const JsonValue& source, const std::string& key)
-    {
-        if (source.type != JsonValue::Type::Object)
-            return nullptr;
-        for (const auto& entry : source.object)
-        {
-            if (entry.first == key)
-                return &entry.second;
-        }
-        return nullptr;
-    }
-
-    const JsonValue* findTypedMemberDeep(const JsonValue& source, const std::string& key, JsonValue::Type type)
-    {
-        if (source.type != JsonValue::Type::Object)
+        if (source.type() != GtsJsonValue::Type::Object)
             return nullptr;
 
-        for (const auto& entry : source.object)
+        for (const auto& entry : source.asObject())
         {
-            if (entry.first == key && entry.second.type == type)
+            if (entry.first == key && entry.second.type() == type)
                 return &entry.second;
         }
-        for (const auto& entry : source.object)
+        for (const auto& entry : source.asObject())
         {
-            if (entry.second.type == JsonValue::Type::Object)
+            if (entry.second.type() == GtsJsonValue::Type::Object)
             {
-                if (const JsonValue* found = findTypedMemberDeep(entry.second, key, type))
+                if (const GtsJsonValue* found = findTypedMemberDeep(entry.second, key, type))
                     return found;
             }
         }
         return nullptr;
     }
 
-    const JsonValue* findTypedMember(const JsonValue& source,
+    const GtsJsonValue* findTypedMember(const GtsJsonValue& source,
                                      const std::string& key,
-                                     JsonValue::Type    type,
+                                     GtsJsonValue::Type    type,
                                      bool               deep = true)
     {
-        const JsonValue* direct = findMember(source, key);
-        if (direct != nullptr && direct->type == type)
+        const GtsJsonValue* direct = source.find(key);
+        if (direct != nullptr && direct->type() == type)
             return direct;
         return deep ? findTypedMemberDeep(source, key, type) : nullptr;
     }
 
-    bool readObject(const JsonValue& source, const std::string& key, const JsonValue*& objectValue)
+    bool readObject(const GtsJsonValue& source, const std::string& key, const GtsJsonValue*& objectValue)
     {
-        objectValue = findTypedMember(source, key, JsonValue::Type::Object, false);
+        objectValue = findTypedMember(source, key, GtsJsonValue::Type::Object, false);
         return objectValue != nullptr;
     }
 
-    bool readObjectArray(const JsonValue& source,
+    bool readObjectArray(const GtsJsonValue& source,
                          const std::string& key,
-                         std::vector<const JsonValue*>& objectValues)
+                         std::vector<const GtsJsonValue*>& objectValues)
     {
-        const JsonValue* arrayValue = findTypedMember(source, key, JsonValue::Type::Array, false);
+        const GtsJsonValue* arrayValue = findTypedMember(source, key, GtsJsonValue::Type::Array, false);
         if (arrayValue == nullptr)
             return false;
 
-        std::vector<const JsonValue*> parsed;
-        parsed.reserve(arrayValue->array.size());
-        for (const JsonValue& item : arrayValue->array)
+        std::vector<const GtsJsonValue*> parsed;
+        parsed.reserve(arrayValue->asArray().size());
+        for (const GtsJsonValue& item : arrayValue->asArray())
         {
-            if (item.type != JsonValue::Type::Object)
+            if (item.type() != GtsJsonValue::Type::Object)
                 return false;
             parsed.push_back(&item);
         }
@@ -329,101 +73,104 @@ namespace
         return true;
     }
 
-    bool readString(const JsonValue& source, const std::string& key, std::string& value, bool deep = true)
+    bool readString(const GtsJsonValue& source, const std::string& key, std::string& value, bool deep = true)
     {
-        const JsonValue* stringValue = findTypedMember(source, key, JsonValue::Type::String, deep);
+        const GtsJsonValue* stringValue = findTypedMember(source, key, GtsJsonValue::Type::String, deep);
         if (stringValue == nullptr)
             return false;
-        value = stringValue->string;
+        value = stringValue->asString();
         return true;
     }
 
-    bool readFloat(const JsonValue& source, const std::string& key, float& value, bool deep = true)
+    bool readFloat(const GtsJsonValue& source, const std::string& key, float& value, bool deep = true)
     {
-        const JsonValue* numberValue = findTypedMember(source, key, JsonValue::Type::Number, deep);
+        const GtsJsonValue* numberValue = findTypedMember(source, key, GtsJsonValue::Type::Number, deep);
         if (numberValue == nullptr)
             return false;
-        value = static_cast<float>(numberValue->number);
+        value = static_cast<float>(numberValue->asNumber());
         return true;
     }
 
-    bool readUint(const JsonValue& source, const std::string& key, uint32_t& value, bool deep = true)
+    bool readUint(const GtsJsonValue& source, const std::string& key, uint32_t& value, bool deep = true)
     {
-        float parsed = 0.0f;
-        if (!readFloat(source, key, parsed, deep))
+        const auto* number = findTypedMember(source, key, GtsJsonValue::Type::Number, deep);
+        if (number == nullptr)
             return false;
-        value = static_cast<uint32_t>(std::max(0.0f, parsed));
+        const double parsed = number->asNumber();
+        if (parsed < 0 || parsed > std::numeric_limits<uint32_t>::max() || std::trunc(parsed) != parsed)
+            return false;
+        value = static_cast<uint32_t>(parsed);
         return true;
     }
 
-    bool readBool(const JsonValue& source, const std::string& key, bool& value, bool deep = true)
+    bool readBool(const GtsJsonValue& source, const std::string& key, bool& value, bool deep = true)
     {
-        const JsonValue* boolValue = findTypedMember(source, key, JsonValue::Type::Bool, deep);
+        const GtsJsonValue* boolValue = findTypedMember(source, key, GtsJsonValue::Type::Bool, deep);
         if (boolValue == nullptr)
             return false;
-        value = boolValue->boolean;
+        value = boolValue->asBool();
         return true;
     }
 
-    bool readVec3Value(const JsonValue& source, glm::vec3& value)
+    bool readVec3Value(const GtsJsonValue& source, glm::vec3& value)
     {
-        if (source.type != JsonValue::Type::Array || source.array.size() != 3u)
+        if (source.type() != GtsJsonValue::Type::Array || source.asArray().size() != 3u)
             return false;
-        for (const JsonValue& item : source.array)
+        for (const GtsJsonValue& item : source.asArray())
         {
-            if (item.type != JsonValue::Type::Number)
+            if (item.type() != GtsJsonValue::Type::Number)
                 return false;
         }
-        value = {static_cast<float>(source.array[0].number),
-                 static_cast<float>(source.array[1].number),
-                 static_cast<float>(source.array[2].number)};
+        value = {static_cast<float>(source.asArray()[0].asNumber()),
+                 static_cast<float>(source.asArray()[1].asNumber()),
+                 static_cast<float>(source.asArray()[2].asNumber())};
         return true;
     }
 
-    bool readVec2Value(const JsonValue& source, glm::vec2& value)
+    bool readVec2Value(const GtsJsonValue& source, glm::vec2& value)
     {
-        if (source.type != JsonValue::Type::Array || source.array.size() != 2u)
+        if (source.type() != GtsJsonValue::Type::Array || source.asArray().size() != 2u)
             return false;
-        for (const JsonValue& item : source.array)
+        for (const GtsJsonValue& item : source.asArray())
         {
-            if (item.type != JsonValue::Type::Number)
+            if (item.type() != GtsJsonValue::Type::Number)
                 return false;
         }
-        value = {static_cast<float>(source.array[0].number), static_cast<float>(source.array[1].number)};
+        value = {static_cast<float>(source.asArray()[0].asNumber()), static_cast<float>(source.asArray()[1].asNumber())};
         return true;
     }
 
-    bool readVec4Value(const JsonValue& source, glm::vec4& value)
+    bool readVec4Value(const GtsJsonValue& source, glm::vec4& value)
     {
-        if (source.type != JsonValue::Type::Array || source.array.size() != 4u)
+        if (source.type() != GtsJsonValue::Type::Array || source.asArray().size() != 4u)
             return false;
-        for (const JsonValue& item : source.array)
+        for (const GtsJsonValue& item : source.asArray())
         {
-            if (item.type != JsonValue::Type::Number)
+            if (item.type() != GtsJsonValue::Type::Number)
                 return false;
         }
-        value = {static_cast<float>(source.array[0].number),
-                 static_cast<float>(source.array[1].number),
-                 static_cast<float>(source.array[2].number),
-                 static_cast<float>(source.array[3].number)};
+        value = {static_cast<float>(source.asArray()[0].asNumber()),
+                 static_cast<float>(source.asArray()[1].asNumber()),
+                 static_cast<float>(source.asArray()[2].asNumber()),
+                 static_cast<float>(source.asArray()[3].asNumber())};
         return true;
     }
 
-    bool readVec3(const JsonValue& source, const std::string& key, glm::vec3& value, bool deep = true)
+    bool readVec3(const GtsJsonValue& source, const std::string& key, glm::vec3& value, bool deep = true)
     {
-        const JsonValue* arrayValue = findTypedMember(source, key, JsonValue::Type::Array, deep);
+        const GtsJsonValue* arrayValue = findTypedMember(source, key, GtsJsonValue::Type::Array, deep);
         return arrayValue != nullptr && readVec3Value(*arrayValue, value);
     }
 
-    bool readVec2(const JsonValue& source, const std::string& key, glm::vec2& value, bool deep = true)
+    bool readVec2(const GtsJsonValue& source, const std::string& key, glm::vec2& value, bool deep = true)
     {
-        const JsonValue* arrayValue = findTypedMember(source, key, JsonValue::Type::Array, deep);
+        const GtsJsonValue* arrayValue = findTypedMember(source, key, GtsJsonValue::Type::Array, deep);
         return arrayValue != nullptr && readVec2Value(*arrayValue, value);
     }
 
-    bool readVec4(const JsonValue& source, const std::string& key, glm::vec4& value, bool deep = true)
+    bool readVec4(const GtsJsonValue& source, const std::string& key, glm::vec4& value, bool deep = true)
     {
-        const JsonValue* arrayValue = findTypedMember(source, key, JsonValue::Type::Array, deep);
+        const GtsJsonValue* arrayValue = findTypedMember(source, key, GtsJsonValue::Type::Array, deep);
         return arrayValue != nullptr && readVec4Value(*arrayValue, value);
     }
 
@@ -594,20 +341,20 @@ namespace
         return false;
     }
 
-    bool readColorCurveValue(const JsonValue& source, ParticleColorCurve& curve)
+    bool readColorCurveValue(const GtsJsonValue& source, ParticleColorCurve& curve)
     {
-        if (source.type != JsonValue::Type::Array)
+        if (source.type() != GtsJsonValue::Type::Array)
             return false;
 
         ParticleColorCurve parsed;
-        for (const JsonValue& itemValue : source.array)
+        for (const GtsJsonValue& itemValue : source.asArray())
         {
-            if (itemValue.type != JsonValue::Type::Array || itemValue.array.size() != 2u ||
-                itemValue.array[0].type != JsonValue::Type::Number)
+            if (itemValue.type() != GtsJsonValue::Type::Array || itemValue.asArray().size() != 2u ||
+                itemValue.asArray()[0].type() != GtsJsonValue::Type::Number)
                 return false;
             ParticleColorKey item;
-            item.t = static_cast<float>(itemValue.array[0].number);
-            if (!readVec4Value(itemValue.array[1], item.color))
+            item.t = static_cast<float>(itemValue.asArray()[0].asNumber());
+            if (!readVec4Value(itemValue.asArray()[1], item.color))
                 return false;
             parsed.push_back(item);
         }
@@ -616,27 +363,27 @@ namespace
         return true;
     }
 
-    bool readColorCurve(const JsonValue& source, const std::string& key, ParticleColorCurve& curve, bool deep = true)
+    bool readColorCurve(const GtsJsonValue& source, const std::string& key, ParticleColorCurve& curve, bool deep = true)
     {
-        const JsonValue* arrayValue = findTypedMember(source, key, JsonValue::Type::Array, deep);
+        const GtsJsonValue* arrayValue = findTypedMember(source, key, GtsJsonValue::Type::Array, deep);
         return arrayValue != nullptr && readColorCurveValue(*arrayValue, curve);
     }
 
-    bool readFloatCurveValue(const JsonValue& source, ParticleFloatCurve& curve)
+    bool readFloatCurveValue(const GtsJsonValue& source, ParticleFloatCurve& curve)
     {
-        if (source.type != JsonValue::Type::Array)
+        if (source.type() != GtsJsonValue::Type::Array)
             return false;
 
         ParticleFloatCurve parsed;
-        for (const JsonValue& itemValue : source.array)
+        for (const GtsJsonValue& itemValue : source.asArray())
         {
-            if (itemValue.type != JsonValue::Type::Array || itemValue.array.size() != 2u ||
-                itemValue.array[0].type != JsonValue::Type::Number ||
-                itemValue.array[1].type != JsonValue::Type::Number)
+            if (itemValue.type() != GtsJsonValue::Type::Array || itemValue.asArray().size() != 2u ||
+                itemValue.asArray()[0].type() != GtsJsonValue::Type::Number ||
+                itemValue.asArray()[1].type() != GtsJsonValue::Type::Number)
                 return false;
             ParticleFloatKey item;
-            item.t     = static_cast<float>(itemValue.array[0].number);
-            item.value = static_cast<float>(itemValue.array[1].number);
+            item.t     = static_cast<float>(itemValue.asArray()[0].asNumber());
+            item.value = static_cast<float>(itemValue.asArray()[1].asNumber());
             parsed.push_back(item);
         }
 
@@ -644,33 +391,33 @@ namespace
         return true;
     }
 
-    bool readFloatCurve(const JsonValue& source, const std::string& key, ParticleFloatCurve& curve, bool deep = true)
+    bool readFloatCurve(const GtsJsonValue& source, const std::string& key, ParticleFloatCurve& curve, bool deep = true)
     {
-        const JsonValue* arrayValue = findTypedMember(source, key, JsonValue::Type::Array, deep);
+        const GtsJsonValue* arrayValue = findTypedMember(source, key, GtsJsonValue::Type::Array, deep);
         return arrayValue != nullptr && readFloatCurveValue(*arrayValue, curve);
     }
 
-    bool readBurstsValue(const JsonValue& source, std::vector<ParticleBurst>& bursts)
+    bool readBurstsValue(const GtsJsonValue& source, std::vector<ParticleBurst>& bursts)
     {
-        if (source.type != JsonValue::Type::Array)
+        if (source.type() != GtsJsonValue::Type::Array)
             return false;
 
         std::vector<ParticleBurst> parsed;
-        for (const JsonValue& itemValue : source.array)
+        for (const GtsJsonValue& itemValue : source.asArray())
         {
-            if (itemValue.type != JsonValue::Type::Array || itemValue.array.size() != 5u)
+            if (itemValue.type() != GtsJsonValue::Type::Array || itemValue.asArray().size() != 5u)
                 return false;
             ParticleBurst burst;
-            for (const JsonValue& numberValue : itemValue.array)
+            for (const GtsJsonValue& numberValue : itemValue.asArray())
             {
-                if (numberValue.type != JsonValue::Type::Number)
+                if (numberValue.type() != GtsJsonValue::Type::Number)
                     return false;
             }
-            const float countMin    = static_cast<float>(itemValue.array[1].number);
-            const float countMax    = static_cast<float>(itemValue.array[2].number);
-            const float repeatCount = static_cast<float>(itemValue.array[4].number);
-            burst.time             = static_cast<float>(itemValue.array[0].number);
-            burst.repeatInterval   = static_cast<float>(itemValue.array[3].number);
+            const float countMin    = static_cast<float>(itemValue.asArray()[1].asNumber());
+            const float countMax    = static_cast<float>(itemValue.asArray()[2].asNumber());
+            const float repeatCount = static_cast<float>(itemValue.asArray()[4].asNumber());
+            burst.time             = static_cast<float>(itemValue.asArray()[0].asNumber());
+            burst.repeatInterval   = static_cast<float>(itemValue.asArray()[3].asNumber());
             burst.countMin    = static_cast<uint32_t>(std::max(0.0f, countMin));
             burst.countMax    = static_cast<uint32_t>(std::max(countMin, countMax));
             burst.repeatCount = static_cast<uint32_t>(std::max(0.0f, repeatCount));
@@ -681,13 +428,13 @@ namespace
         return true;
     }
 
-    bool readBursts(const JsonValue& source, ParticleEmitterComponent& emitter)
+    bool readBursts(const GtsJsonValue& source, ParticleEmitterComponent& emitter)
     {
-        const JsonValue* arrayValue = findTypedMember(source, "bursts", JsonValue::Type::Array, true);
+        const GtsJsonValue* arrayValue = findTypedMember(source, "bursts", GtsJsonValue::Type::Array, true);
         return arrayValue != nullptr && readBurstsValue(*arrayValue, emitter.bursts);
     }
 
-    void readEmitter(const JsonValue& source, ParticleEmitterComponent& emitter)
+    void readEmitter(const GtsJsonValue& source, ParticleEmitterComponent& emitter)
     {
         std::string text;
         readUint(source, "schemaVersion", emitter.schemaVersion);
@@ -784,174 +531,108 @@ namespace
         readUint(source, "maxEventSpawnsPerFrame", emitter.collision.maxEventSpawnsPerFrame);
     }
 
-    std::string escaped(const std::string& value)
+    GtsJsonValue vec2Json(const glm::vec2& value)
     {
-        std::string result;
-        result.reserve(value.size());
-        for (char ch : value)
-        {
-            if (ch == '"' || ch == '\\')
-                result.push_back('\\');
-            result.push_back(ch);
-        }
-        return result;
+        return GtsJsonValue::Array{value.x, value.y};
     }
 
-    void writeVec3(std::ostream& out, const glm::vec3& value)
+    GtsJsonValue vec3Json(const glm::vec3& value)
     {
-        out << '[' << value.x << ", " << value.y << ", " << value.z << ']';
+        return GtsJsonValue::Array{value.x, value.y, value.z};
     }
 
-    void writeVec2(std::ostream& out, const glm::vec2& value)
+    GtsJsonValue vec4Json(const glm::vec4& value)
     {
-        out << '[' << value.x << ", " << value.y << ']';
+        return GtsJsonValue::Array{value.x, value.y, value.z, value.w};
     }
 
-    void writeVec4(std::ostream& out, const glm::vec4& value)
+    GtsJsonValue colorCurveJson(const ParticleColorCurve& curve)
     {
-        out << '[' << value.x << ", " << value.y << ", " << value.z << ", " << value.w << ']';
+        GtsJsonValue::Array array;
+        for (const auto& point : curve)
+            array.emplace_back(GtsJsonValue::Array{point.t, vec4Json(point.color)});
+        return array;
     }
 
-    void writeColorCurve(std::ostream& out, const ParticleColorCurve& curve)
+    GtsJsonValue floatCurveJson(const ParticleFloatCurve& curve)
     {
-        out << '[';
-        for (size_t i = 0; i < curve.size(); ++i)
-        {
-            if (i > 0)
-                out << ", ";
-            out << '[' << curve[i].t << ", ";
-            writeVec4(out, curve[i].color);
-            out << ']';
-        }
-        out << ']';
+        GtsJsonValue::Array array;
+        for (const auto& point : curve)
+            array.emplace_back(GtsJsonValue::Array{point.t, point.value});
+        return array;
     }
 
-    void writeFloatCurve(std::ostream& out, const ParticleFloatCurve& curve)
+    GtsJsonValue burstsJson(const std::vector<ParticleBurst>& bursts)
     {
-        out << '[';
-        for (size_t i = 0; i < curve.size(); ++i)
-        {
-            if (i > 0)
-                out << ", ";
-            out << '[' << curve[i].t << ", " << curve[i].value << ']';
-        }
-        out << ']';
+        GtsJsonValue::Array array;
+        for (const auto& burst : bursts)
+            array.emplace_back(GtsJsonValue::Array{
+                burst.time, burst.countMin, burst.countMax, burst.repeatInterval, burst.repeatCount});
+        return array;
     }
 
-    void writeBursts(std::ostream& out, const std::vector<ParticleBurst>& bursts)
+    GtsJsonValue moduleParameterJson(const gts::particles::ParticleModuleParameter& parameter)
     {
-        out << '[';
-        for (size_t i = 0; i < bursts.size(); ++i)
-        {
-            if (i > 0)
-                out << ", ";
-            const ParticleBurst& burst = bursts[i];
-            out << '[' << burst.time << ", " << burst.countMin << ", " << burst.countMax << ", " << burst.repeatInterval
-                << ", " << burst.repeatCount << ']';
-        }
-        out << ']';
-    }
-
-    void writeModuleParameter(std::ostream& out, const gts::particles::ParticleModuleParameter& parameter, bool last)
-    {
-        out << "          {\"id\": \"" << escaped(parameter.id) << "\", \"type\": \""
-            << moduleParameterTypeToString(parameter.type) << "\", \"value\": ";
+        GtsJsonValue value;
         switch (parameter.type)
         {
         case gts::particles::ParticleModuleParameterType::Float:
-            out << parameter.floatValue;
+            value = parameter.floatValue;
             break;
         case gts::particles::ParticleModuleParameterType::UInt:
         case gts::particles::ParticleModuleParameterType::Enum:
-            out << parameter.uintValue;
+            value = parameter.uintValue;
             break;
         case gts::particles::ParticleModuleParameterType::Bool:
-            out << (parameter.boolValue ? "true" : "false");
+            value = parameter.boolValue;
             break;
         case gts::particles::ParticleModuleParameterType::String:
-            out << '"' << escaped(parameter.stringValue) << '"';
+            value = parameter.stringValue;
             break;
         case gts::particles::ParticleModuleParameterType::FloatCurve:
-            writeFloatCurve(out, parameter.floatCurveValue);
+            value = floatCurveJson(parameter.floatCurveValue);
             break;
         case gts::particles::ParticleModuleParameterType::ColorGradient:
-            writeColorCurve(out, parameter.colorGradientValue);
+            value = colorCurveJson(parameter.colorGradientValue);
             break;
         case gts::particles::ParticleModuleParameterType::BurstTimeline:
-            writeBursts(out, parameter.burstTimelineValue);
+            value = burstsJson(parameter.burstTimelineValue);
             break;
         }
-        out << "}" << (last ? "\n" : ",\n");
+        return GtsJsonValue::Object{
+            {"id", parameter.id}, {"type", moduleParameterTypeToString(parameter.type)}, {"value", std::move(value)}};
     }
 
-    void writeModuleObject(std::ostream& out, const gts::particles::ParticleModuleInstance& module, bool last)
+    GtsJsonValue moduleJson(const gts::particles::ParticleModuleInstance& module)
     {
-        out << "        {\n";
-        out << "          \"id\": \"" << escaped(module.stableId) << "\",\n";
-        out << "          \"type\": \"" << escaped(module.typeId) << "\",\n";
-        out << "          \"displayName\": \"" << escaped(module.displayName) << "\",\n";
-        out << "          \"version\": " << module.version << ",\n";
-        out << "          \"enabled\": " << (module.enabled ? "true" : "false") << ",\n";
-        out << "          \"parameters\": [\n";
-        for (size_t i = 0; i < module.parameters.size(); ++i)
-            writeModuleParameter(out, module.parameters[i], i + 1 == module.parameters.size());
-        out << "          ]\n";
-        out << "        }" << (last ? "\n" : ",\n");
+        GtsJsonValue::Array parameters;
+        for (const auto& parameter : module.parameters)
+            parameters.push_back(moduleParameterJson(parameter));
+        return GtsJsonValue::Object{
+            {"id", module.stableId}, {"type", module.typeId}, {"displayName", module.displayName},
+            {"version", module.version}, {"enabled", module.enabled}, {"parameters", std::move(parameters)}};
     }
 
-    void writeGraphObject(std::ostream& out, const ParticleEffectGraph& graph)
+    GtsJsonValue graphJson(const ParticleEffectGraph& graph)
     {
-        out << "      \"graph\": {\n";
-        out << "        \"schemaVersion\": " << graph.schemaVersion << ",\n";
-
-        out << "        \"nodes\": [\n";
-        for (size_t i = 0; i < graph.nodes.size(); ++i)
-        {
-            const ParticleGraphNode& node = graph.nodes[i];
-            out << "          {\"id\": \"" << escaped(node.id) << "\", \"moduleStableId\": \""
-                << escaped(node.moduleStableId) << "\", \"type\": \"" << escaped(node.typeId)
-                << "\", \"displayName\": \"" << escaped(node.displayName) << "\", \"frameId\": \""
-                << escaped(node.frameId) << "\", \"position\": ";
-            writeVec2(out, node.position);
-            out << "}" << (i + 1 == graph.nodes.size() ? "\n" : ",\n");
-        }
-        out << "        ],\n";
-
-        out << "        \"links\": [\n";
-        for (size_t i = 0; i < graph.links.size(); ++i)
-        {
-            const ParticleGraphLink& link = graph.links[i];
-            out << "          {\"id\": \"" << escaped(link.id) << "\", \"from\": \"" << escaped(link.fromNodeId)
-                << "\", \"fromPort\": \"" << escaped(link.fromPortId) << "\", \"to\": \""
-                << escaped(link.toNodeId) << "\", \"toPort\": \"" << escaped(link.toPortId) << "\"}"
-                << (i + 1 == graph.links.size() ? "\n" : ",\n");
-        }
-        out << "        ],\n";
-
-        out << "        \"frames\": [\n";
-        for (size_t i = 0; i < graph.frames.size(); ++i)
-        {
-            const ParticleGraphFrame& frame = graph.frames[i];
-            out << "          {\"id\": \"" << escaped(frame.id) << "\", \"title\": \"" << escaped(frame.title)
-                << "\", \"position\": ";
-            writeVec2(out, frame.position);
-            out << ", \"size\": ";
-            writeVec2(out, frame.size);
-            out << "}" << (i + 1 == graph.frames.size() ? "\n" : ",\n");
-        }
-        out << "        ],\n";
-
-        out << "        \"comments\": [\n";
-        for (size_t i = 0; i < graph.comments.size(); ++i)
-        {
-            const ParticleGraphComment& comment = graph.comments[i];
-            out << "          {\"id\": \"" << escaped(comment.id) << "\", \"text\": \"" << escaped(comment.text)
-                << "\", \"position\": ";
-            writeVec2(out, comment.position);
-            out << "}" << (i + 1 == graph.comments.size() ? "\n" : ",\n");
-        }
-        out << "        ]\n";
-        out << "      }";
+        GtsJsonValue::Array nodes, links, frames, comments;
+        for (const auto& node : graph.nodes)
+            nodes.emplace_back(GtsJsonValue::Object{
+                {"id", node.id}, {"moduleStableId", node.moduleStableId}, {"type", node.typeId},
+                {"displayName", node.displayName}, {"frameId", node.frameId}, {"position", vec2Json(node.position)}});
+        for (const auto& link : graph.links)
+            links.emplace_back(GtsJsonValue::Object{
+                {"id", link.id}, {"from", link.fromNodeId}, {"fromPort", link.fromPortId},
+                {"to", link.toNodeId}, {"toPort", link.toPortId}});
+        for (const auto& frame : graph.frames)
+            frames.emplace_back(GtsJsonValue::Object{
+                {"id", frame.id}, {"title", frame.title}, {"position", vec2Json(frame.position)}, {"size", vec2Json(frame.size)}});
+        for (const auto& comment : graph.comments)
+            comments.emplace_back(GtsJsonValue::Object{
+                {"id", comment.id}, {"text", comment.text}, {"position", vec2Json(comment.position)}});
+        return GtsJsonValue::Object{
+            {"schemaVersion", graph.schemaVersion}, {"nodes", std::move(nodes)}, {"links", std::move(links)},
+            {"frames", std::move(frames)}, {"comments", std::move(comments)}};
     }
 
     std::string defaultEmitterId(size_t index)
@@ -971,9 +652,9 @@ namespace
         return stem.empty() ? "Particle Effect" : stem;
     }
 
-    void readMetadata(const JsonValue& source, ParticleEffectMetadata& metadata)
+    void readMetadata(const GtsJsonValue& source, ParticleEffectMetadata& metadata)
     {
-        const JsonValue* metadataObject = nullptr;
+        const GtsJsonValue* metadataObject = nullptr;
         if (!readObject(source, "metadata", metadataObject))
             return;
 
@@ -982,9 +663,9 @@ namespace
         readString(*metadataObject, "author", metadata.author, false);
     }
 
-    void readPreview(const JsonValue& source, ParticleEffectPreviewSettings& preview)
+    void readPreview(const GtsJsonValue& source, ParticleEffectPreviewSettings& preview)
     {
-        const JsonValue* previewObject = nullptr;
+        const GtsJsonValue* previewObject = nullptr;
         if (!readObject(source, "preview", previewObject))
             return;
 
@@ -1009,7 +690,7 @@ namespace
         return it == definition->parameters.end() ? nullptr : &*it;
     }
 
-    bool readModuleParameter(const JsonValue&                                source,
+    bool readModuleParameter(const GtsJsonValue&                                source,
                              const gts::particles::ParticleModuleDefinition* definition,
                              gts::particles::ParticleModuleParameter&        parameter)
     {
@@ -1027,32 +708,29 @@ namespace
             parameter.type = parameterDefinition->type;
         }
 
-        const JsonValue* value = findMember(source, "value");
+        const GtsJsonValue* value = source.find("value");
         if (value == nullptr)
             return true;
 
         switch (parameter.type)
         {
         case gts::particles::ParticleModuleParameterType::Float:
-            if (value->type != JsonValue::Type::Number)
+            if (value->type() != GtsJsonValue::Type::Number)
                 return false;
-            parameter.floatValue = static_cast<float>(value->number);
+            parameter.floatValue = static_cast<float>(value->asNumber());
             return true;
         case gts::particles::ParticleModuleParameterType::UInt:
         case gts::particles::ParticleModuleParameterType::Enum:
-            if (value->type != JsonValue::Type::Number)
-                return false;
-            parameter.uintValue = static_cast<uint32_t>(std::max(0.0, value->number));
-            return true;
+            return readUint(source, "value", parameter.uintValue, false);
         case gts::particles::ParticleModuleParameterType::Bool:
-            if (value->type != JsonValue::Type::Bool)
+            if (value->type() != GtsJsonValue::Type::Bool)
                 return false;
-            parameter.boolValue = value->boolean;
+            parameter.boolValue = value->asBool();
             return true;
         case gts::particles::ParticleModuleParameterType::String:
-            if (value->type != JsonValue::Type::String)
+            if (value->type() != GtsJsonValue::Type::String)
                 return false;
-            parameter.stringValue = value->string;
+            parameter.stringValue = value->asString();
             return true;
         case gts::particles::ParticleModuleParameterType::FloatCurve:
             return readFloatCurveValue(*value, parameter.floatCurveValue);
@@ -1064,15 +742,15 @@ namespace
         return false;
     }
 
-    bool readEmitterModules(const JsonValue& source, std::vector<gts::particles::ParticleModuleInstance>& modules)
+    bool readEmitterModules(const GtsJsonValue& source, std::vector<gts::particles::ParticleModuleInstance>& modules)
     {
-        std::vector<const JsonValue*> moduleObjects;
+        std::vector<const GtsJsonValue*> moduleObjects;
         if (!readObjectArray(source, "modules", moduleObjects))
             return false;
 
         std::vector<gts::particles::ParticleModuleInstance> parsedModules;
         parsedModules.reserve(moduleObjects.size());
-        for (const JsonValue* moduleObject : moduleObjects)
+        for (const GtsJsonValue* moduleObject : moduleObjects)
         {
             gts::particles::ParticleModuleInstance module;
             readString(*moduleObject, "id", module.stableId, false);
@@ -1083,11 +761,11 @@ namespace
 
             const gts::particles::ParticleModuleDefinition* definition =
                 gts::particles::findParticleModuleDefinition(module.typeId);
-            std::vector<const JsonValue*> parameterObjects;
+            std::vector<const GtsJsonValue*> parameterObjects;
             if (readObjectArray(*moduleObject, "parameters", parameterObjects))
             {
                 module.parameters.reserve(parameterObjects.size());
-                for (const JsonValue* parameterObject : parameterObjects)
+                for (const GtsJsonValue* parameterObject : parameterObjects)
                 {
                     gts::particles::ParticleModuleParameter parameter;
                     if (readModuleParameter(*parameterObject, definition, parameter))
@@ -1102,20 +780,20 @@ namespace
         return true;
     }
 
-    bool readEmitterGraph(const JsonValue& source, ParticleEffectGraph& graph)
+    bool readEmitterGraph(const GtsJsonValue& source, ParticleEffectGraph& graph)
     {
-        const JsonValue* graphObject = nullptr;
+        const GtsJsonValue* graphObject = nullptr;
         if (!readObject(source, "graph", graphObject))
             return false;
 
         ParticleEffectGraph parsed;
         readUint(*graphObject, "schemaVersion", parsed.schemaVersion, false);
 
-        std::vector<const JsonValue*> nodeObjects;
+        std::vector<const GtsJsonValue*> nodeObjects;
         if (readObjectArray(*graphObject, "nodes", nodeObjects))
         {
             parsed.nodes.reserve(nodeObjects.size());
-            for (const JsonValue* nodeObject : nodeObjects)
+            for (const GtsJsonValue* nodeObject : nodeObjects)
             {
                 ParticleGraphNode node;
                 readString(*nodeObject, "id", node.id, false);
@@ -1128,11 +806,11 @@ namespace
             }
         }
 
-        std::vector<const JsonValue*> linkObjects;
+        std::vector<const GtsJsonValue*> linkObjects;
         if (readObjectArray(*graphObject, "links", linkObjects))
         {
             parsed.links.reserve(linkObjects.size());
-            for (const JsonValue* linkObject : linkObjects)
+            for (const GtsJsonValue* linkObject : linkObjects)
             {
                 ParticleGraphLink link;
                 readString(*linkObject, "id", link.id, false);
@@ -1144,11 +822,11 @@ namespace
             }
         }
 
-        std::vector<const JsonValue*> frameObjects;
+        std::vector<const GtsJsonValue*> frameObjects;
         if (readObjectArray(*graphObject, "frames", frameObjects))
         {
             parsed.frames.reserve(frameObjects.size());
-            for (const JsonValue* frameObject : frameObjects)
+            for (const GtsJsonValue* frameObject : frameObjects)
             {
                 ParticleGraphFrame frame;
                 readString(*frameObject, "id", frame.id, false);
@@ -1159,11 +837,11 @@ namespace
             }
         }
 
-        std::vector<const JsonValue*> commentObjects;
+        std::vector<const GtsJsonValue*> commentObjects;
         if (readObjectArray(*graphObject, "comments", commentObjects))
         {
             parsed.comments.reserve(commentObjects.size());
-            for (const JsonValue* commentObject : commentObjects)
+            for (const GtsJsonValue* commentObject : commentObjects)
             {
                 ParticleGraphComment comment;
                 readString(*commentObject, "id", comment.id, false);
@@ -1177,9 +855,9 @@ namespace
         return true;
     }
 
-    bool readEffectEmitters(const JsonValue& source, ParticleEffectAsset& asset)
+    bool readEffectEmitters(const GtsJsonValue& source, ParticleEffectAsset& asset)
     {
-        std::vector<const JsonValue*> emitterObjects;
+        std::vector<const GtsJsonValue*> emitterObjects;
         if (!readObjectArray(source, "emitters", emitterObjects))
             return false;
 
@@ -1202,163 +880,113 @@ namespace
         return true;
     }
 
-    void writeEmitterObject(std::ostream& out, const ParticleEffectEmitter& effectEmitter, bool last)
+    GtsJsonValue emitterJson(const ParticleEffectEmitter& effectEmitter)
     {
-        const ParticleEmitterComponent& emitter = effectEmitter.descriptor;
-
-        out << "    {\n";
-        out << "      \"id\": \"" << escaped(effectEmitter.stableId) << "\",\n";
-        out << "      \"name\": \"" << escaped(effectEmitter.name) << "\",\n";
-
-        out << "      \"modules\": [\n";
-        for (size_t i = 0; i < effectEmitter.modules.size(); ++i)
-            writeModuleObject(out, effectEmitter.modules[i], i + 1 == effectEmitter.modules.size());
-        out << "      ],\n";
-
-        writeGraphObject(out, effectEmitter.graph);
-        out << ",\n";
-
-        out << "      \"simulation\": {\n";
-        out << "        \"schemaVersion\": " << emitter.schemaVersion << ",\n";
-        out << "        \"enabled\": " << (emitter.enabled ? "true" : "false") << ",\n";
-        out << "        \"localSpace\": " << (emitter.localSpace ? "true" : "false") << ",\n";
-        out << "        \"looping\": " << (emitter.looping ? "true" : "false") << ",\n";
-        out << "        \"duration\": " << emitter.duration << ",\n";
-        out << "        \"startDelay\": " << emitter.startDelay << ",\n";
-        out << "        \"intensity\": " << emitter.intensity << ",\n";
-        out << "        \"effectScale\": " << emitter.runtime.effectScale << ",\n";
-        out << "        \"importance\": " << emitter.runtime.importance << ",\n";
-        out << "        \"budgetWeight\": " << emitter.runtime.budgetWeight << ",\n";
-        out << "        \"maxSpawnPerFrame\": " << emitter.runtime.maxSpawnPerFrame << "\n";
-        out << "      },\n";
-
-        out << "      \"renderer\": {\n";
-        out << "        \"primitive\": \"" << primitiveToString(emitter.primitive) << "\",\n";
-        out << "        \"blend\": \"" << blendToString(emitter.blend) << "\",\n";
-        out << "        \"spriteShape\": \"" << spriteShapeToString(emitter.spriteShape) << "\",\n";
-        out << "        \"texturePath\": \"" << escaped(emitter.texturePath) << "\",\n";
-        out << "        \"meshPath\": \"" << escaped(emitter.meshPath) << "\",\n";
-        out << "        \"materialPath\": \"" << escaped(emitter.materialPath) << "\",\n";
-        out << "        \"spriteEdgeSoftness\": " << emitter.spriteEdgeSoftness << ",\n";
-        out << "        \"softness\": " << emitter.softness << ",\n";
-        out << "        \"meshSoftness\": " << emitter.runtime.meshSoftness << ",\n";
-        out << "        \"lightingInfluence\": " << emitter.runtime.lightingInfluence << ",\n";
-        out << "        \"frustumCulling\": " << (emitter.runtime.frustumCulling ? "true" : "false") << ",\n";
-        out << "        \"distanceCulling\": " << (emitter.runtime.distanceCulling ? "true" : "false") << ",\n";
-        out << "        \"simulateWhenCulled\": " << (emitter.runtime.simulateWhenCulled ? "true" : "false") << ",\n";
-        out << "        \"cullPadding\": " << emitter.runtime.cullPadding << ",\n";
-        out << "        \"maxDrawDistance\": " << emitter.runtime.maxDrawDistance << ",\n";
-        out << "        \"lodNearDistance\": " << emitter.runtime.lodNearDistance << ",\n";
-        out << "        \"lodFarDistance\": " << emitter.runtime.lodFarDistance << ",\n";
-        out << "        \"lodMinSpawnScale\": " << emitter.runtime.lodMinSpawnScale << ",\n";
-        out << "        \"lodMinRenderScale\": " << emitter.runtime.lodMinRenderScale << ",\n";
-        out << "        \"velocityStretch\": " << emitter.runtime.velocityStretch << ",\n";
-        out << "        \"velocityStretchMax\": " << emitter.runtime.velocityStretchMax << ",\n";
-        out << "        \"meshScale\": ";
-        writeVec3(out, emitter.meshScale);
-        out << "\n";
-        out << "      },\n";
-
-        out << "      \"spawn\": {\n";
-        out << "        \"emissionRate\": " << emitter.emissionRate << ",\n";
-        out << "        \"maxParticles\": " << emitter.maxParticles << ",\n";
-        out << "        \"lifetimeMin\": " << emitter.lifetimeMin << ",\n";
-        out << "        \"lifetimeMax\": " << emitter.lifetimeMax << "\n";
-        out << "      },\n";
-
-        out << "      \"shape\": {\n";
-        out << "        \"shape\": \"" << shapeToString(emitter.shape) << "\",\n";
-        out << "        \"sphereRadius\": " << emitter.sphereRadius << ",\n";
-        out << "        \"boxExtents\": ";
-        writeVec3(out, emitter.boxExtents);
-        out << ",\n";
-        out << "        \"discRadius\": " << emitter.discRadius << ",\n";
-        out << "        \"ringInnerRadius\": " << emitter.ringInnerRadius << ",\n";
-        out << "        \"ringOuterRadius\": " << emitter.ringOuterRadius << ",\n";
-        out << "        \"cylinderRadius\": " << emitter.cylinderRadius << ",\n";
-        out << "        \"cylinderHeight\": " << emitter.cylinderHeight << "\n";
-        out << "      },\n";
-
-        out << "      \"velocity\": {\n";
-        out << "        \"initialVelocity\": ";
-        writeVec3(out, emitter.initialVelocity);
-        out << ",\n";
-        out << "        \"velocitySpread\": " << emitter.velocitySpread << ",\n";
-        out << "        \"radialVelocityMin\": " << emitter.radialVelocityMin << ",\n";
-        out << "        \"radialVelocityMax\": " << emitter.radialVelocityMax << ",\n";
-        out << "        \"tangentVelocity\": " << emitter.tangentVelocity << ",\n";
-        out << "        \"drag\": " << emitter.drag << "\n";
-        out << "      },\n";
-
-        out << "      \"forces\": {\n";
-        out << "        \"forceAcceleration\": ";
-        writeVec3(out, emitter.forces.acceleration);
-        out << ",\n";
-        out << "        \"forceWind\": ";
-        writeVec3(out, emitter.forces.wind);
-        out << ",\n";
-        out << "        \"forceVortex\": " << emitter.forces.vortex << ",\n";
-        out << "        \"forceRadial\": " << emitter.forces.radial << ",\n";
-        out << "        \"forceNoiseStrength\": " << emitter.forces.noiseStrength << ",\n";
-        out << "        \"forceNoiseScale\": " << emitter.forces.noiseScale << ",\n";
-        out << "        \"collisionMode\": \"" << collisionModeToString(emitter.collision.mode) << "\",\n";
-        out << "        \"collisionGroundY\": " << emitter.collision.groundY << ",\n";
-        out << "        \"collisionBounce\": " << emitter.collision.bounce << ",\n";
-        out << "        \"collisionDamping\": " << emitter.collision.damping << ",\n";
-        out << "        \"killOnCollision\": " << (emitter.collision.killOnCollision ? "true" : "false") << ",\n";
-        out << "        \"spawnOnDeathCount\": " << emitter.collision.spawnOnDeathCount << ",\n";
-        out << "        \"spawnOnCollisionCount\": " << emitter.collision.spawnOnCollisionCount << ",\n";
-        out << "        \"maxEventSpawnsPerFrame\": " << emitter.collision.maxEventSpawnsPerFrame << "\n";
-        out << "      },\n";
-
-        out << "      \"color\": {\n";
-        out << "        \"baseTint\": ";
-        writeVec4(out, emitter.baseTint);
-        out << ",\n";
-        out << "        \"hueVariation\": " << emitter.hueVariation << ",\n";
-        out << "        \"valueVariation\": " << emitter.valueVariation << ",\n";
-        out << "        \"colorOverLifetime\": ";
-        writeColorCurve(out, emitter.colorOverLifetime);
-        out << ",\n";
-        out << "        \"alphaOverLifetime\": ";
-        writeFloatCurve(out, emitter.alphaOverLifetime);
-        out << "\n";
-        out << "      },\n";
-
-        out << "      \"size\": {\n";
-        out << "        \"sizeRandomness\": " << emitter.sizeRandomness << ",\n";
-        out << "        \"aspectRatioMin\": " << emitter.aspectRatioMin << ",\n";
-        out << "        \"aspectRatioMax\": " << emitter.aspectRatioMax << ",\n";
-        out << "        \"sizeOverLifetime\": ";
-        writeFloatCurve(out, emitter.sizeOverLifetime);
-        out << "\n";
-        out << "      },\n";
-
-        out << "      \"rotation\": {\n";
-        out << "        \"spinMin\": " << emitter.spinMin << ",\n";
-        out << "        \"spinMax\": " << emitter.spinMax << ",\n";
-        out << "        \"meshAngularVelocityMin\": ";
-        writeVec3(out, emitter.meshAngularVelocityMin);
-        out << ",\n";
-        out << "        \"meshAngularVelocityMax\": ";
-        writeVec3(out, emitter.meshAngularVelocityMax);
-        out << ",\n";
-        out << "        \"randomMeshRotation\": " << (emitter.randomMeshRotation ? "true" : "false") << "\n";
-        out << "      },\n";
-
-        out << "      \"bursts\": ";
-        writeBursts(out, emitter.bursts);
-        out << ",\n";
-
-        out << "      \"flipbook\": {\n";
-        out << "        \"flipbookColumns\": " << emitter.flipbook.columns << ",\n";
-        out << "        \"flipbookRows\": " << emitter.flipbook.rows << ",\n";
-        out << "        \"flipbookFrameCount\": " << emitter.flipbook.frameCount << ",\n";
-        out << "        \"flipbookFrameRate\": " << emitter.flipbook.frameRate << ",\n";
-        out << "        \"flipbookLifetimeDriven\": " << (emitter.flipbook.lifetimeDriven ? "true" : "false") << ",\n";
-        out << "        \"flipbookRandomStart\": " << (emitter.flipbook.randomStart ? "true" : "false") << "\n";
-        out << "      }\n";
-        out << "    }" << (last ? "\n" : ",\n");
+        const auto&         emitter = effectEmitter.descriptor;
+        GtsJsonValue::Array modules;
+        for (const auto& module : effectEmitter.modules)
+            modules.push_back(moduleJson(module));
+        return GtsJsonValue::Object{
+            {"id", effectEmitter.stableId},
+            {"name", effectEmitter.name},
+            {"modules", std::move(modules)},
+            {"graph", graphJson(effectEmitter.graph)},
+            {"simulation",
+             GtsJsonValue::Object{{"schemaVersion", emitter.schemaVersion},
+                                  {"enabled", emitter.enabled},
+                                  {"localSpace", emitter.localSpace},
+                                  {"looping", emitter.looping},
+                                  {"duration", emitter.duration},
+                                  {"startDelay", emitter.startDelay},
+                                  {"intensity", emitter.intensity},
+                                  {"effectScale", emitter.runtime.effectScale},
+                                  {"importance", emitter.runtime.importance},
+                                  {"budgetWeight", emitter.runtime.budgetWeight},
+                                  {"maxSpawnPerFrame", emitter.runtime.maxSpawnPerFrame}}},
+            {"renderer",
+             GtsJsonValue::Object{{"primitive", primitiveToString(emitter.primitive)},
+                                  {"blend", blendToString(emitter.blend)},
+                                  {"spriteShape", spriteShapeToString(emitter.spriteShape)},
+                                  {"texturePath", emitter.texturePath},
+                                  {"meshPath", emitter.meshPath},
+                                  {"materialPath", emitter.materialPath},
+                                  {"spriteEdgeSoftness", emitter.spriteEdgeSoftness},
+                                  {"softness", emitter.softness},
+                                  {"meshSoftness", emitter.runtime.meshSoftness},
+                                  {"lightingInfluence", emitter.runtime.lightingInfluence},
+                                  {"frustumCulling", emitter.runtime.frustumCulling},
+                                  {"distanceCulling", emitter.runtime.distanceCulling},
+                                  {"simulateWhenCulled", emitter.runtime.simulateWhenCulled},
+                                  {"cullPadding", emitter.runtime.cullPadding},
+                                  {"maxDrawDistance", emitter.runtime.maxDrawDistance},
+                                  {"lodNearDistance", emitter.runtime.lodNearDistance},
+                                  {"lodFarDistance", emitter.runtime.lodFarDistance},
+                                  {"lodMinSpawnScale", emitter.runtime.lodMinSpawnScale},
+                                  {"lodMinRenderScale", emitter.runtime.lodMinRenderScale},
+                                  {"velocityStretch", emitter.runtime.velocityStretch},
+                                  {"velocityStretchMax", emitter.runtime.velocityStretchMax},
+                                  {"meshScale", vec3Json(emitter.meshScale)}}},
+            {"spawn",
+             GtsJsonValue::Object{{"emissionRate", emitter.emissionRate},
+                                  {"maxParticles", emitter.maxParticles},
+                                  {"lifetimeMin", emitter.lifetimeMin},
+                                  {"lifetimeMax", emitter.lifetimeMax}}},
+            {"shape",
+             GtsJsonValue::Object{{"shape", shapeToString(emitter.shape)},
+                                  {"sphereRadius", emitter.sphereRadius},
+                                  {"boxExtents", vec3Json(emitter.boxExtents)},
+                                  {"discRadius", emitter.discRadius},
+                                  {"ringInnerRadius", emitter.ringInnerRadius},
+                                  {"ringOuterRadius", emitter.ringOuterRadius},
+                                  {"cylinderRadius", emitter.cylinderRadius},
+                                  {"cylinderHeight", emitter.cylinderHeight}}},
+            {"velocity",
+             GtsJsonValue::Object{{"initialVelocity", vec3Json(emitter.initialVelocity)},
+                                  {"velocitySpread", emitter.velocitySpread},
+                                  {"radialVelocityMin", emitter.radialVelocityMin},
+                                  {"radialVelocityMax", emitter.radialVelocityMax},
+                                  {"tangentVelocity", emitter.tangentVelocity},
+                                  {"drag", emitter.drag}}},
+            {"forces",
+             GtsJsonValue::Object{{"forceAcceleration", vec3Json(emitter.forces.acceleration)},
+                                  {"forceWind", vec3Json(emitter.forces.wind)},
+                                  {"forceVortex", emitter.forces.vortex},
+                                  {"forceRadial", emitter.forces.radial},
+                                  {"forceNoiseStrength", emitter.forces.noiseStrength},
+                                  {"forceNoiseScale", emitter.forces.noiseScale},
+                                  {"collisionMode", collisionModeToString(emitter.collision.mode)},
+                                  {"collisionGroundY", emitter.collision.groundY},
+                                  {"collisionBounce", emitter.collision.bounce},
+                                  {"collisionDamping", emitter.collision.damping},
+                                  {"killOnCollision", emitter.collision.killOnCollision},
+                                  {"spawnOnDeathCount", emitter.collision.spawnOnDeathCount},
+                                  {"spawnOnCollisionCount", emitter.collision.spawnOnCollisionCount},
+                                  {"maxEventSpawnsPerFrame", emitter.collision.maxEventSpawnsPerFrame}}},
+            {"color",
+             GtsJsonValue::Object{{"baseTint", vec4Json(emitter.baseTint)},
+                                  {"hueVariation", emitter.hueVariation},
+                                  {"valueVariation", emitter.valueVariation},
+                                  {"colorOverLifetime", colorCurveJson(emitter.colorOverLifetime)},
+                                  {"alphaOverLifetime", floatCurveJson(emitter.alphaOverLifetime)}}},
+            {"size",
+             GtsJsonValue::Object{{"sizeRandomness", emitter.sizeRandomness},
+                                  {"aspectRatioMin", emitter.aspectRatioMin},
+                                  {"aspectRatioMax", emitter.aspectRatioMax},
+                                  {"sizeOverLifetime", floatCurveJson(emitter.sizeOverLifetime)}}},
+            {"rotation",
+             GtsJsonValue::Object{{"spinMin", emitter.spinMin},
+                                  {"spinMax", emitter.spinMax},
+                                  {"meshAngularVelocityMin", vec3Json(emitter.meshAngularVelocityMin)},
+                                  {"meshAngularVelocityMax", vec3Json(emitter.meshAngularVelocityMax)},
+                                  {"randomMeshRotation", emitter.randomMeshRotation}}},
+            {"flipbook",
+             GtsJsonValue::Object{{"flipbookColumns", emitter.flipbook.columns},
+                                  {"flipbookRows", emitter.flipbook.rows},
+                                  {"flipbookFrameCount", emitter.flipbook.frameCount},
+                                  {"flipbookFrameRate", emitter.flipbook.frameRate},
+                                  {"flipbookLifetimeDriven", emitter.flipbook.lifetimeDriven},
+                                  {"flipbookRandomStart", emitter.flipbook.randomStart}}},
+            {"bursts", burstsJson(emitter.bursts)}};
     }
 } // namespace
 
@@ -1445,8 +1073,8 @@ namespace gts::particles
         buffer << file.rdbuf();
         const std::string source = buffer.str();
 
-        JsonValue root;
-        if (!parseJson(source, root) || root.type != JsonValue::Type::Object)
+        GtsJsonValue root;
+        if (!GtsJsonParser::parse(source, root) || root.type() != GtsJsonValue::Type::Object)
             return false;
 
         ParticleEffectAsset loaded;
@@ -1483,43 +1111,38 @@ namespace gts::particles
         if (!migrateParticleEffectAsset(migrated, &migrationError))
             return false;
 
+        GtsJsonValue::Array emitters;
+        for (const auto& emitter : migrated.emitters)
+            emitters.push_back(emitterJson(emitter));
+        const GtsJsonValue root =
+            GtsJsonValue::Object{{"schemaVersion", migrated.schemaVersion},
+                                 {"metadata",
+                                  GtsJsonValue::Object{{"name", migrated.metadata.name},
+                                                       {"description", migrated.metadata.description},
+                                                       {"author", migrated.metadata.author}}},
+                                 {"preview",
+                                  GtsJsonValue::Object{{"backgroundColor", vec4Json(migrated.preview.backgroundColor)},
+                                                       {"cameraPosition", vec3Json(migrated.preview.cameraPosition)},
+                                                       {"cameraTarget", vec3Json(migrated.preview.cameraTarget)},
+                                                       {"orbitDistance", migrated.preview.orbitDistance}}},
+                                 {"emitters", std::move(emitters)}};
+        std::string json;
+        try
+        {
+            json = GtsJsonParser::serialize(root);
+        }
+        catch (const std::invalid_argument&)
+        {
+            return false;
+        }
         const std::filesystem::path parent = std::filesystem::path(path).parent_path();
         if (!parent.empty())
             std::filesystem::create_directories(parent);
         std::ofstream out(path);
         if (!out)
             return false;
-
-        out << std::fixed << std::setprecision(4);
-        out << "{\n";
-        out << "  \"schemaVersion\": " << migrated.schemaVersion << ",\n";
-        out << "  \"metadata\": {\n";
-        out << "    \"name\": \"" << escaped(migrated.metadata.name) << "\",\n";
-        out << "    \"description\": \"" << escaped(migrated.metadata.description) << "\",\n";
-        out << "    \"author\": \"" << escaped(migrated.metadata.author) << "\"\n";
-        out << "  },\n";
-
-        out << "  \"preview\": {\n";
-        out << "    \"backgroundColor\": ";
-        writeVec4(out, migrated.preview.backgroundColor);
-        out << ",\n";
-        out << "    \"cameraPosition\": ";
-        writeVec3(out, migrated.preview.cameraPosition);
-        out << ",\n";
-        out << "    \"cameraTarget\": ";
-        writeVec3(out, migrated.preview.cameraTarget);
-        out << ",\n";
-        out << "    \"orbitDistance\": " << migrated.preview.orbitDistance << "\n";
-        out << "  },\n";
-
-        out << "  \"emitters\": [\n";
-        for (size_t i = 0; i < migrated.emitters.size(); ++i)
-        {
-            writeEmitterObject(out, migrated.emitters[i], i + 1 == migrated.emitters.size());
-        }
-        out << "  ]\n";
-        out << "}\n";
-        return true;
+        out << json << '\n';
+        return out.good();
     }
 
     bool loadParticleEffect(const std::string& path, ParticleEmitterComponent& emitter)

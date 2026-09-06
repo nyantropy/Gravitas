@@ -36,7 +36,7 @@ This file is the engine architecture entrypoint. Feature details live under
 
 ```text
 engine/
-  core/                  pure ECS, input, scene, command, event, UI runtime
+  core/                  pure ECS, input, scene, command, event, UI runtime, JSON
   modules/
     transform/           local/world transforms and hierarchy
     animation/           keyframe animation
@@ -58,6 +58,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
 
 ## Feature Documentation Map
 
+- [docs/json/architecture.md](docs/json/architecture.md): shared JSON syntax,
+  value trees, schema ownership, error handling, and migration contracts.
 - [docs/settings/architecture.md](docs/settings/architecture.md): subsystem-owned
   settings, immutable startup configuration, runtime requests, and effective state.
 - [docs/ui/architecture.md](docs/ui/architecture.md): retained UI runtime.
@@ -252,6 +254,12 @@ the current frame is drawn. Scene changes and quit remain post-render commands,
 so a screenshot requested alongside quit still captures the final frame.
 
 ## Resource Model
+
+JSON syntax belongs to `core/json/GtsJsonParser`, backed by `GtsJsonValue`.
+Feature loaders own file access, schema validation, defaults, and typed-data
+conversion. Do not add module-local JSON parsers or escaping/writer logic.
+Keep parser dependencies out of data-only headers; see the
+[JSON architecture](docs/json/architecture.md) for the contract and limits.
 
 Assets are accessed through `IResourceProvider`. Binding/lifecycle systems load
 and upload meshes, textures, fonts, shaders, and engine assets as needed.

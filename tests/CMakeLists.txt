@@ -1,3 +1,13 @@
+add_executable(JsonMigrationTest core/JsonMigrationTest.cpp)
+target_link_libraries(JsonMigrationTest PRIVATE gravitas_rendering)
+add_test(NAME json_migration COMMAND JsonMigrationTest)
+
+add_executable(GtsJsonParserTest core/GtsJsonParserTest.cpp)
+target_link_libraries(GtsJsonParserTest PRIVATE gravitas_core)
+add_test(NAME gts_json_parser COMMAND GtsJsonParserTest
+    "${GTS_ENGINE_ROOT}/resources" "${GTS_ENGINE_ROOT}/docs"
+    "${GTS_ENGINE_ROOT}/benchmarks/fixtures")
+
 add_executable(ToolLaunchPresetTest tooling/ToolLaunchPresetTest.cpp)
 target_link_libraries(ToolLaunchPresetTest PRIVATE gravitas_tools)
 add_test(NAME tool_launch_preset COMMAND ToolLaunchPresetTest)

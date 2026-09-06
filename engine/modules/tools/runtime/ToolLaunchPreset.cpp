@@ -1,4 +1,5 @@
 #include "ToolLaunchPreset.h"
+#include "GtsJsonParser.h"
 
 #include <algorithm>
 #include <cctype>
@@ -12,7 +13,6 @@
 #include <variant>
 
 #include "GtsPaths.h"
-#include "UiSerialization.h"
 
 namespace gts::tools
 {
@@ -30,35 +30,35 @@ namespace gts::tools
             return value;
         }
 
-        const UiJsonValue* objectMember(const UiJsonValue& value, const char* key)
+        const GtsJsonValue* objectMember(const GtsJsonValue& value, const char* key)
         {
             if (!value.isObject())
                 return nullptr;
             return value.find(key);
         }
 
-        std::optional<std::string> stringMember(const UiJsonValue& value, const char* key)
+        std::optional<std::string> stringMember(const GtsJsonValue& value, const char* key)
         {
-            const UiJsonValue* member = objectMember(value, key);
+            const GtsJsonValue* member = objectMember(value, key);
             if (member == nullptr || !member->isString())
                 return std::nullopt;
             return std::get<std::string>(member->value);
         }
 
-        std::optional<bool> boolMember(const UiJsonValue& value, const char* key)
+        std::optional<bool> boolMember(const GtsJsonValue& value, const char* key)
         {
-            const UiJsonValue* member = objectMember(value, key);
+            const GtsJsonValue* member = objectMember(value, key);
             if (member == nullptr || !member->isBool())
                 return std::nullopt;
             return std::get<bool>(member->value);
         }
 
-        std::optional<double> numberMember(const UiJsonValue& value, const char* key)
+        std::optional<double> numberMember(const GtsJsonValue& value, const char* key)
         {
-            const UiJsonValue* member = objectMember(value, key);
+            const GtsJsonValue* member = objectMember(value, key);
             if (member == nullptr || !member->isNumber())
                 return std::nullopt;
-            return std::get<double>(member->value);
+            return member->asNumber();
         }
 
         bool parseWorkspace(const std::string& value, ToolWorkspace& outWorkspace)
@@ -119,9 +119,9 @@ namespace gts::tools
         std::ostringstream buffer;
         buffer << file.rdbuf();
 
-        UiJsonValue root;
+        GtsJsonValue root;
         std::string parseError;
-        if (!parseUiJson(buffer.str(), root, &parseError) || !root.isObject())
+        if (!GtsJsonParser::parse(buffer.str(), root, &parseError) || !root.isObject())
         {
             if (outError != nullptr)
                 *outError = parseError.empty() ? "Invalid tooling preset JSON" : parseError;
@@ -130,7 +130,7 @@ namespace gts::tools
 
         ToolLaunchPreset preset;
 
-        if (const UiJsonValue* tools = objectMember(root, "tools"))
+        if (const GtsJsonValue* tools = objectMember(root, "tools"))
         {
             if (const auto visible = boolMember(*tools, "visible"))
             {
@@ -180,7 +180,7 @@ namespace gts::tools
             }
         }
 
-        if (const UiJsonValue* screenshots = objectMember(root, "screenshots"))
+        if (const GtsJsonValue* screenshots = objectMember(root, "screenshots"))
         {
             if (const auto enabled = boolMember(*screenshots, "enabled"))
                 preset.screenshots.enabled = *enabled;

@@ -1,12 +1,13 @@
 #include "GltfAssetImporter.h"
+#include "GtsJsonParser.h"
 
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <cstring>
 #include <fstream>
 #include <limits>
-#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -22,354 +23,80 @@ namespace gts::rendering
 {
 namespace
 {
-    struct JsonValue
+    const GtsJsonValue* member(const GtsJsonValue& value, const std::string& key)
     {
-        enum class Type
-        {
-            Null,
-            Bool,
-            Number,
-            String,
-            Array,
-            Object
-        };
-
-        Type type = Type::Null;
-        bool boolean = false;
-        double number = 0.0;
-        std::string string;
-        std::vector<JsonValue> array;
-        std::map<std::string, JsonValue> object;
-
-        bool isObject() const { return type == Type::Object; }
-        bool isArray() const { return type == Type::Array; }
-        bool isString() const { return type == Type::String; }
-        bool isNumber() const { return type == Type::Number; }
-        bool isBool() const { return type == Type::Bool; }
-    };
-
-    class JsonParser
-    {
-    public:
-        explicit JsonParser(std::string_view text)
-            : text(text)
-        {
-        }
-
-        bool parse(JsonValue& out, std::string& error)
-        {
-            skipWhitespace();
-            if (!parseValue(out, error))
-                return false;
-            skipWhitespace();
-            if (cursor != text.size())
-            {
-                error = "Unexpected trailing JSON data";
-                return false;
-            }
-            return true;
-        }
-
-    private:
-        bool parseValue(JsonValue& out, std::string& error)
-        {
-            skipWhitespace();
-            if (cursor >= text.size())
-            {
-                error = "Unexpected end of JSON";
-                return false;
-            }
-
-            const char ch = text[cursor];
-            if (ch == '{')
-                return parseObject(out, error);
-            if (ch == '[')
-                return parseArray(out, error);
-            if (ch == '"')
-                return parseStringValue(out, error);
-            if (ch == '-' || std::isdigit(static_cast<unsigned char>(ch)) != 0)
-                return parseNumber(out, error);
-            if (consumeLiteral("true"))
-            {
-                out.type = JsonValue::Type::Bool;
-                out.boolean = true;
-                return true;
-            }
-            if (consumeLiteral("false"))
-            {
-                out.type = JsonValue::Type::Bool;
-                out.boolean = false;
-                return true;
-            }
-            if (consumeLiteral("null"))
-            {
-                out.type = JsonValue::Type::Null;
-                return true;
-            }
-
-            error = "Unexpected JSON token";
-            return false;
-        }
-
-        bool parseObject(JsonValue& out, std::string& error)
-        {
-            out = {};
-            out.type = JsonValue::Type::Object;
-            cursor += 1;
-            skipWhitespace();
-            if (consume('}'))
-                return true;
-
-            while (cursor < text.size())
-            {
-                JsonValue key;
-                if (!parseStringValue(key, error))
-                    return false;
-                skipWhitespace();
-                if (!consume(':'))
-                {
-                    error = "Expected ':' in JSON object";
-                    return false;
-                }
-                JsonValue value;
-                if (!parseValue(value, error))
-                    return false;
-                out.object.emplace(std::move(key.string), std::move(value));
-                skipWhitespace();
-                if (consume('}'))
-                    return true;
-                if (!consume(','))
-                {
-                    error = "Expected ',' in JSON object";
-                    return false;
-                }
-                skipWhitespace();
-            }
-
-            error = "Unterminated JSON object";
-            return false;
-        }
-
-        bool parseArray(JsonValue& out, std::string& error)
-        {
-            out = {};
-            out.type = JsonValue::Type::Array;
-            cursor += 1;
-            skipWhitespace();
-            if (consume(']'))
-                return true;
-
-            while (cursor < text.size())
-            {
-                JsonValue value;
-                if (!parseValue(value, error))
-                    return false;
-                out.array.push_back(std::move(value));
-                skipWhitespace();
-                if (consume(']'))
-                    return true;
-                if (!consume(','))
-                {
-                    error = "Expected ',' in JSON array";
-                    return false;
-                }
-                skipWhitespace();
-            }
-
-            error = "Unterminated JSON array";
-            return false;
-        }
-
-        bool parseStringValue(JsonValue& out, std::string& error)
-        {
-            if (!consume('"'))
-            {
-                error = "Expected JSON string";
-                return false;
-            }
-
-            out = {};
-            out.type = JsonValue::Type::String;
-            while (cursor < text.size())
-            {
-                const char ch = text[cursor++];
-                if (ch == '"')
-                    return true;
-                if (ch != '\\')
-                {
-                    out.string.push_back(ch);
-                    continue;
-                }
-                if (cursor >= text.size())
-                {
-                    error = "Unterminated JSON string escape";
-                    return false;
-                }
-                const char escaped = text[cursor++];
-                switch (escaped)
-                {
-                    case '"': out.string.push_back('"'); break;
-                    case '\\': out.string.push_back('\\'); break;
-                    case '/': out.string.push_back('/'); break;
-                    case 'b': out.string.push_back('\b'); break;
-                    case 'f': out.string.push_back('\f'); break;
-                    case 'n': out.string.push_back('\n'); break;
-                    case 'r': out.string.push_back('\r'); break;
-                    case 't': out.string.push_back('\t'); break;
-                    case 'u':
-                        if (cursor + 4u > text.size())
-                        {
-                            error = "Truncated JSON unicode escape";
-                            return false;
-                        }
-                        cursor += 4u;
-                        out.string.push_back('?');
-                        break;
-                    default:
-                        error = "Unsupported JSON string escape";
-                        return false;
-                }
-            }
-
-            error = "Unterminated JSON string";
-            return false;
-        }
-
-        bool parseNumber(JsonValue& out, std::string& error)
-        {
-            const size_t begin = cursor;
-            if (text[cursor] == '-')
-                cursor += 1;
-            while (cursor < text.size() && std::isdigit(static_cast<unsigned char>(text[cursor])) != 0)
-                cursor += 1;
-            if (cursor < text.size() && text[cursor] == '.')
-            {
-                cursor += 1;
-                while (cursor < text.size() && std::isdigit(static_cast<unsigned char>(text[cursor])) != 0)
-                    cursor += 1;
-            }
-            if (cursor < text.size() && (text[cursor] == 'e' || text[cursor] == 'E'))
-            {
-                cursor += 1;
-                if (cursor < text.size() && (text[cursor] == '+' || text[cursor] == '-'))
-                    cursor += 1;
-                while (cursor < text.size() && std::isdigit(static_cast<unsigned char>(text[cursor])) != 0)
-                    cursor += 1;
-            }
-
-            try
-            {
-                out = {};
-                out.type = JsonValue::Type::Number;
-                out.number = std::stod(std::string(text.substr(begin, cursor - begin)));
-                return true;
-            }
-            catch (const std::exception&)
-            {
-                error = "Invalid JSON number";
-                return false;
-            }
-        }
-
-        bool consume(char ch)
-        {
-            if (cursor >= text.size() || text[cursor] != ch)
-                return false;
-            cursor += 1;
-            return true;
-        }
-
-        bool consumeLiteral(std::string_view literal)
-        {
-            if (text.substr(cursor, literal.size()) != literal)
-                return false;
-            cursor += literal.size();
-            return true;
-        }
-
-        void skipWhitespace()
-        {
-            while (cursor < text.size() &&
-                   std::isspace(static_cast<unsigned char>(text[cursor])) != 0)
-            {
-                cursor += 1;
-            }
-        }
-
-        std::string_view text;
-        size_t cursor = 0;
-    };
-
-    const JsonValue* member(const JsonValue& value, const std::string& key)
-    {
-        if (!value.isObject())
-            return nullptr;
-        auto it = value.object.find(key);
-        return it == value.object.end() ? nullptr : &it->second;
+        return value.find(key);
     }
 
-    const JsonValue* at(const JsonValue& value, size_t index)
+    const GtsJsonValue* at(const GtsJsonValue& value, size_t index)
     {
-        if (!value.isArray() || index >= value.array.size())
+        if (!value.isArray() || index >= value.asArray().size())
             return nullptr;
-        return &value.array[index];
+        return &value.asArray()[index];
     }
 
-    int32_t intValue(const JsonValue* value, int32_t fallback = 0)
+    int32_t intValue(const GtsJsonValue* value, int32_t fallback = 0)
     {
         if (value == nullptr || !value->isNumber())
             return fallback;
-        return static_cast<int32_t>(value->number);
-    }
-
-    uint32_t uintValue(const JsonValue* value, uint32_t fallback = 0)
-    {
-        if (value == nullptr || !value->isNumber() || value->number < 0.0)
+        if (value->asNumber() < std::numeric_limits<int32_t>::min()
+            || value->asNumber() > std::numeric_limits<int32_t>::max()
+            || std::trunc(value->asNumber()) != value->asNumber())
             return fallback;
-        return static_cast<uint32_t>(value->number);
+        return static_cast<int32_t>(value->asNumber());
     }
 
-    float floatValue(const JsonValue* value, float fallback = 0.0f)
+    uint32_t uintValue(const GtsJsonValue* value, uint32_t fallback = 0)
+    {
+        if (value == nullptr || !value->isNumber() || value->asNumber() < 0.0)
+            return fallback;
+        if (value->asNumber() > std::numeric_limits<uint32_t>::max()
+            || std::trunc(value->asNumber()) != value->asNumber())
+            return fallback;
+        return static_cast<uint32_t>(value->asNumber());
+    }
+
+    float floatValue(const GtsJsonValue* value, float fallback = 0.0f)
     {
         if (value == nullptr || !value->isNumber())
             return fallback;
-        return static_cast<float>(value->number);
+        return static_cast<float>(value->asNumber());
     }
 
-    bool boolValue(const JsonValue* value, bool fallback = false)
+    bool boolValue(const GtsJsonValue* value, bool fallback = false)
     {
         if (value == nullptr || !value->isBool())
             return fallback;
-        return value->boolean;
+        return value->asBool();
     }
 
-    std::string stringValue(const JsonValue* value, std::string fallback = {})
+    std::string stringValue(const GtsJsonValue* value, std::string fallback = {})
     {
         if (value == nullptr || !value->isString())
             return fallback;
-        return value->string;
+        return value->asString();
     }
 
-    glm::vec3 vec3Value(const JsonValue* value, glm::vec3 fallback = {})
+    glm::vec3 vec3Value(const GtsJsonValue* value, glm::vec3 fallback = {})
     {
-        if (value == nullptr || !value->isArray() || value->array.size() < 3u)
+        if (value == nullptr || !value->isArray() || value->asArray().size() < 3u)
             return fallback;
         return {
-            floatValue(&value->array[0], fallback.x),
-            floatValue(&value->array[1], fallback.y),
-            floatValue(&value->array[2], fallback.z)
+            floatValue(&value->asArray()[0], fallback.x),
+            floatValue(&value->asArray()[1], fallback.y),
+            floatValue(&value->asArray()[2], fallback.z)
         };
     }
 
-    glm::vec4 vec4Value(const JsonValue* value, glm::vec4 fallback = {})
+    glm::vec4 vec4Value(const GtsJsonValue* value, glm::vec4 fallback = {})
     {
-        if (value == nullptr || !value->isArray() || value->array.size() < 4u)
+        if (value == nullptr || !value->isArray() || value->asArray().size() < 4u)
             return fallback;
         return {
-            floatValue(&value->array[0], fallback.x),
-            floatValue(&value->array[1], fallback.y),
-            floatValue(&value->array[2], fallback.z),
-            floatValue(&value->array[3], fallback.w)
+            floatValue(&value->asArray()[0], fallback.x),
+            floatValue(&value->asArray()[1], fallback.y),
+            floatValue(&value->asArray()[2], fallback.z),
+            floatValue(&value->asArray()[3], fallback.w)
         };
     }
 
@@ -534,7 +261,7 @@ namespace
 
     struct GltfData
     {
-        JsonValue root;
+        GtsJsonValue root;
         std::filesystem::path sourcePath;
         std::filesystem::path baseDirectory;
         std::vector<std::vector<uint8_t>> buffers;
@@ -696,18 +423,18 @@ namespace
         return true;
     }
 
-    int32_t attributeAccessor(const JsonValue& attributes, const std::string& name)
+    int32_t attributeAccessor(const GtsJsonValue& attributes, const std::string& name)
     {
         return intValue(member(attributes, name), -1);
     }
 
-    bool appendAccessorArray(const JsonValue& array,
+    bool appendAccessorArray(const GtsJsonValue& array,
                              std::vector<Accessor>& accessors)
     {
         if (!array.isArray())
             return true;
-        accessors.reserve(array.array.size());
-        for (const JsonValue& value : array.array)
+        accessors.reserve(array.asArray().size());
+        for (const GtsJsonValue& value : array.asArray())
         {
             Accessor accessor;
             accessor.bufferView = intValue(member(value, "bufferView"), -1);
@@ -721,13 +448,13 @@ namespace
         return true;
     }
 
-    bool appendBufferViews(const JsonValue& array,
+    bool appendBufferViews(const GtsJsonValue& array,
                            std::vector<BufferView>& bufferViews)
     {
         if (!array.isArray())
             return true;
-        bufferViews.reserve(array.array.size());
-        for (const JsonValue& value : array.array)
+        bufferViews.reserve(array.asArray().size());
+        for (const GtsJsonValue& value : array.asArray())
         {
             BufferView view;
             view.buffer = intValue(member(value, "buffer"), -1);
@@ -792,16 +519,16 @@ namespace
     }
 
     bool loadBuffers(GltfData& data,
-                     const JsonValue& buffersValue,
+                     const GtsJsonValue& buffersValue,
                      const std::vector<uint8_t>& binChunk,
                      AssetImportResult& result)
     {
         if (!buffersValue.isArray())
             return true;
-        data.buffers.resize(buffersValue.array.size());
-        for (size_t i = 0; i < buffersValue.array.size(); ++i)
+        data.buffers.resize(buffersValue.asArray().size());
+        for (size_t i = 0; i < buffersValue.asArray().size(); ++i)
         {
-            const JsonValue& buffer = buffersValue.array[i];
+            const GtsJsonValue& buffer = buffersValue.asArray()[i];
             const std::string uri = stringValue(member(buffer, "uri"));
             if (uri.empty() && i == 0 && !binChunk.empty())
             {
@@ -867,21 +594,21 @@ namespace
 
     void importTextures(const GltfData& data, AssetImportResult& result)
     {
-        const JsonValue* textures = member(data.root, "textures");
-        const JsonValue* images = member(data.root, "images");
+        const GtsJsonValue* textures = member(data.root, "textures");
+        const GtsJsonValue* images = member(data.root, "images");
         if (textures == nullptr || !textures->isArray())
             return;
 
-        result.textures.resize(textures->array.size());
-        for (size_t textureIndex = 0; textureIndex < textures->array.size(); ++textureIndex)
+        result.textures.resize(textures->asArray().size());
+        for (size_t textureIndex = 0; textureIndex < textures->asArray().size(); ++textureIndex)
         {
-            const JsonValue& textureValue = textures->array[textureIndex];
+            const GtsJsonValue& textureValue = textures->asArray()[textureIndex];
             const int32_t imageIndex = intValue(member(textureValue, "source"), -1);
             ImportedTexture imported;
             imported.debugName = "texture_" + std::to_string(textureIndex);
             imported.logicalPath = imported.debugName;
 
-            const JsonValue* image = images == nullptr ? nullptr : at(*images, static_cast<size_t>(imageIndex));
+            const GtsJsonValue* image = images == nullptr ? nullptr : at(*images, static_cast<size_t>(imageIndex));
             if (image != nullptr)
             {
                 imported.debugName = stringValue(member(*image, "name"), imported.debugName);
@@ -942,30 +669,30 @@ namespace
 
     void importMaterials(const GltfData& data, AssetImportResult& result)
     {
-        const JsonValue* materials = member(data.root, "materials");
+        const GtsJsonValue* materials = member(data.root, "materials");
         if (materials == nullptr || !materials->isArray())
             return;
 
-        result.materials.reserve(materials->array.size());
-        for (size_t materialIndex = 0; materialIndex < materials->array.size(); ++materialIndex)
+        result.materials.reserve(materials->asArray().size());
+        for (size_t materialIndex = 0; materialIndex < materials->asArray().size(); ++materialIndex)
         {
-            const JsonValue& materialValue = materials->array[materialIndex];
+            const GtsJsonValue& materialValue = materials->asArray()[materialIndex];
             ImportedMaterial material;
             material.name = stringValue(member(materialValue, "name"), "material_" + std::to_string(materialIndex));
 
-            const JsonValue* pbr = member(materialValue, "pbrMetallicRoughness");
+            const GtsJsonValue* pbr = member(materialValue, "pbrMetallicRoughness");
             if (pbr != nullptr)
             {
                 material.baseColor = vec4Value(member(*pbr, "baseColorFactor"), {1.0f, 1.0f, 1.0f, 1.0f});
                 material.metallic = floatValue(member(*pbr, "metallicFactor"), 1.0f);
                 material.roughness = floatValue(member(*pbr, "roughnessFactor"), 1.0f);
-                if (const JsonValue* texture = member(*pbr, "baseColorTexture"))
+                if (const GtsJsonValue* texture = member(*pbr, "baseColorTexture"))
                 {
                     material.baseColorTextureIndex = intValue(member(*texture, "index"), -1);
                     setTextureRole(result, material.baseColorTextureIndex,
                                    MaterialTextureRole::BaseColor, TextureColorSpace::SRgb);
                 }
-                if (const JsonValue* texture = member(*pbr, "metallicRoughnessTexture"))
+                if (const GtsJsonValue* texture = member(*pbr, "metallicRoughnessTexture"))
                 {
                     material.metallicRoughnessTextureIndex = intValue(member(*texture, "index"), -1);
                     setTextureRole(result, material.metallicRoughnessTextureIndex,
@@ -973,21 +700,21 @@ namespace
                 }
             }
 
-            if (const JsonValue* texture = member(materialValue, "normalTexture"))
+            if (const GtsJsonValue* texture = member(materialValue, "normalTexture"))
             {
                 material.normalTextureIndex = intValue(member(*texture, "index"), -1);
                 material.normalScale = floatValue(member(*texture, "scale"), 1.0f);
                 setTextureRole(result, material.normalTextureIndex,
                                MaterialTextureRole::Normal, TextureColorSpace::Linear);
             }
-            if (const JsonValue* texture = member(materialValue, "occlusionTexture"))
+            if (const GtsJsonValue* texture = member(materialValue, "occlusionTexture"))
             {
                 material.ambientOcclusionTextureIndex = intValue(member(*texture, "index"), -1);
                 material.ambientOcclusionStrength = floatValue(member(*texture, "strength"), 1.0f);
                 setTextureRole(result, material.ambientOcclusionTextureIndex,
                                MaterialTextureRole::AmbientOcclusion, TextureColorSpace::Linear);
             }
-            if (const JsonValue* texture = member(materialValue, "emissiveTexture"))
+            if (const GtsJsonValue* texture = member(materialValue, "emissiveTexture"))
             {
                 material.emissiveTextureIndex = intValue(member(*texture, "index"), -1);
                 setTextureRole(result, material.emissiveTextureIndex,
@@ -996,9 +723,9 @@ namespace
 
             material.emissiveFactor =
                 vec3Value(member(materialValue, "emissiveFactor"), {0.0f, 0.0f, 0.0f});
-            if (const JsonValue* extensions = member(materialValue, "extensions"))
+            if (const GtsJsonValue* extensions = member(materialValue, "extensions"))
             {
-                if (const JsonValue* emissiveStrength = member(*extensions, "KHR_materials_emissive_strength"))
+                if (const GtsJsonValue* emissiveStrength = member(*extensions, "KHR_materials_emissive_strength"))
                     material.emissiveStrength = floatValue(member(*emissiveStrength, "emissiveStrength"), 1.0f);
             }
 
@@ -1023,10 +750,10 @@ namespace
         const std::unordered_set<std::string> supportedExtensions = {
             "KHR_materials_emissive_strength"
         };
-        const JsonValue* extensionsRequired = member(data.root, "extensionsRequired");
+        const GtsJsonValue* extensionsRequired = member(data.root, "extensionsRequired");
         if (extensionsRequired != nullptr && extensionsRequired->isArray())
         {
-            for (const JsonValue& extension : extensionsRequired->array)
+            for (const GtsJsonValue& extension : extensionsRequired->asArray())
             {
                 const std::string name = stringValue(&extension);
                 if (!name.empty() && !supportedExtensions.contains(name))
@@ -1037,10 +764,10 @@ namespace
             }
         }
 
-        const JsonValue* extensionsUsed = member(data.root, "extensionsUsed");
+        const GtsJsonValue* extensionsUsed = member(data.root, "extensionsUsed");
         if (extensionsUsed != nullptr && extensionsUsed->isArray())
         {
-            for (const JsonValue& extension : extensionsUsed->array)
+            for (const GtsJsonValue& extension : extensionsUsed->asArray())
             {
                 const std::string name = stringValue(&extension);
                 if (name == "KHR_lights_punctual")
@@ -1056,18 +783,18 @@ namespace
             }
         }
 
-        if (const JsonValue* skins = member(data.root, "skins"); skins != nullptr && skins->isArray() && !skins->array.empty())
+        if (const GtsJsonValue* skins = member(data.root, "skins"); skins != nullptr && skins->isArray() && !skins->asArray().empty())
         {
             addDiagnostic(result, AssetDiagnosticSeverity::Warning, "GLTF_SKINNING_NOT_IMPLEMENTED",
                           "glTF skins are not imported", data.sourcePath);
         }
-        if (const JsonValue* animations = member(data.root, "animations");
-            animations != nullptr && animations->isArray() && !animations->array.empty())
+        if (const GtsJsonValue* animations = member(data.root, "animations");
+            animations != nullptr && animations->isArray() && !animations->asArray().empty())
         {
             addDiagnostic(result, AssetDiagnosticSeverity::Warning, "GLTF_ANIMATION_SKIPPED",
                           "glTF animations are not imported", data.sourcePath);
         }
-        if (const JsonValue* cameras = member(data.root, "cameras"); cameras != nullptr && cameras->isArray() && !cameras->array.empty())
+        if (const GtsJsonValue* cameras = member(data.root, "cameras"); cameras != nullptr && cameras->isArray() && !cameras->asArray().empty())
         {
             addDiagnostic(result, AssetDiagnosticSeverity::Warning, "GLTF_CAMERA_SKIPPED",
                           "glTF cameras are not imported", data.sourcePath);
@@ -1076,14 +803,14 @@ namespace
 
     bool importMeshes(const GltfData& data, bool flipTexCoordV, AssetImportResult& result)
     {
-        const JsonValue* meshes = member(data.root, "meshes");
+        const GtsJsonValue* meshes = member(data.root, "meshes");
         if (meshes == nullptr || !meshes->isArray())
             return true;
 
-        result.meshes.reserve(meshes->array.size());
-        for (size_t meshIndex = 0; meshIndex < meshes->array.size(); ++meshIndex)
+        result.meshes.reserve(meshes->asArray().size());
+        for (size_t meshIndex = 0; meshIndex < meshes->asArray().size(); ++meshIndex)
         {
-            const JsonValue& meshValue = meshes->array[meshIndex];
+            const GtsJsonValue& meshValue = meshes->asArray()[meshIndex];
             ImportedMesh mesh;
             mesh.debugName = stringValue(member(meshValue, "name"), "mesh_" + std::to_string(meshIndex));
             mesh.sourcePath = data.sourcePath;
@@ -1091,13 +818,13 @@ namespace
             bool allNormalsPresent = true;
             bool allTangentsPresent = true;
             bool allTexCoordsPresent = true;
-            const JsonValue* primitives = member(meshValue, "primitives");
+            const GtsJsonValue* primitives = member(meshValue, "primitives");
             if (primitives == nullptr || !primitives->isArray())
                 continue;
 
-            for (size_t primitiveIndex = 0; primitiveIndex < primitives->array.size(); ++primitiveIndex)
+            for (size_t primitiveIndex = 0; primitiveIndex < primitives->asArray().size(); ++primitiveIndex)
             {
-                const JsonValue& primitive = primitives->array[primitiveIndex];
+                const GtsJsonValue& primitive = primitives->asArray()[primitiveIndex];
                 const uint32_t mode = uintValue(member(primitive, "mode"), 4u);
                 if (mode != 4u)
                 {
@@ -1106,7 +833,7 @@ namespace
                     return false;
                 }
 
-                const JsonValue* attributes = member(primitive, "attributes");
+                const GtsJsonValue* attributes = member(primitive, "attributes");
                 if (attributes == nullptr || !attributes->isObject())
                 {
                     addDiagnostic(result, AssetDiagnosticSeverity::Error, "GLTF_PRIMITIVE_MISSING_ATTRIBUTES",
@@ -1148,8 +875,8 @@ namespace
                     addDiagnostic(result, AssetDiagnosticSeverity::Warning, "GLTF_SKINNING_NOT_IMPLEMENTED",
                                   "glTF joint and weight attributes are not imported", data.sourcePath);
                 }
-                if (const JsonValue* targets = member(primitive, "targets");
-                    targets != nullptr && targets->isArray() && !targets->array.empty())
+                if (const GtsJsonValue* targets = member(primitive, "targets");
+                    targets != nullptr && targets->isArray() && !targets->asArray().empty())
                 {
                     addDiagnostic(result, AssetDiagnosticSeverity::Warning, "GLTF_MORPH_TARGETS_NOT_IMPLEMENTED",
                                   "glTF morph targets are not imported", data.sourcePath);
@@ -1283,17 +1010,17 @@ namespace
         return true;
     }
 
-    glm::mat4 nodeTransform(const JsonValue& node)
+    glm::mat4 nodeTransform(const GtsJsonValue& node)
     {
-        if (const JsonValue* matrix = member(node, "matrix");
-            matrix != nullptr && matrix->isArray() && matrix->array.size() >= 16u)
+        if (const GtsJsonValue* matrix = member(node, "matrix");
+            matrix != nullptr && matrix->isArray() && matrix->asArray().size() >= 16u)
         {
             glm::mat4 result(1.0f);
             for (size_t col = 0; col < 4u; ++col)
             {
                 for (size_t row = 0; row < 4u; ++row)
                     result[static_cast<int>(col)][static_cast<int>(row)] =
-                        floatValue(&matrix->array[col * 4u + row], col == row ? 1.0f : 0.0f);
+                        floatValue(&matrix->asArray()[col * 4u + row], col == row ? 1.0f : 0.0f);
             }
             return result;
         }
@@ -1309,14 +1036,14 @@ namespace
 
     void importNodes(const GltfData& data, AssetImportResult& result)
     {
-        const JsonValue* nodes = member(data.root, "nodes");
+        const GtsJsonValue* nodes = member(data.root, "nodes");
         if (nodes == nullptr || !nodes->isArray())
             return;
 
-        result.nodes.resize(nodes->array.size());
-        for (size_t nodeIndex = 0; nodeIndex < nodes->array.size(); ++nodeIndex)
+        result.nodes.resize(nodes->asArray().size());
+        for (size_t nodeIndex = 0; nodeIndex < nodes->asArray().size(); ++nodeIndex)
         {
-            const JsonValue& node = nodes->array[nodeIndex];
+            const GtsJsonValue& node = nodes->asArray()[nodeIndex];
             ImportedNode imported;
             imported.name = stringValue(member(node, "name"), "node_" + std::to_string(nodeIndex));
             imported.meshIndex = intValue(member(node, "mesh"), -1);
@@ -1335,12 +1062,12 @@ namespace
             }
         }
 
-        for (size_t nodeIndex = 0; nodeIndex < nodes->array.size(); ++nodeIndex)
+        for (size_t nodeIndex = 0; nodeIndex < nodes->asArray().size(); ++nodeIndex)
         {
-            const JsonValue* children = member(nodes->array[nodeIndex], "children");
+            const GtsJsonValue* children = member(nodes->asArray()[nodeIndex], "children");
             if (children == nullptr || !children->isArray())
                 continue;
-            for (const JsonValue& child : children->array)
+            for (const GtsJsonValue& child : children->asArray())
             {
                 const int32_t childIndex = intValue(&child, -1);
                 if (childIndex >= 0 && static_cast<size_t>(childIndex) < result.nodes.size())
@@ -1422,8 +1149,7 @@ AssetImportResult GltfAssetImporter::importAsset(const AssetImportRequest& reque
     GltfData data;
     data.sourcePath = sourcePath;
     data.baseDirectory = sourcePath.parent_path();
-    JsonParser parser(jsonText);
-    if (!parser.parse(data.root, error))
+    if (!GtsJsonParser::parse(jsonText, data.root, &error))
     {
         addDiagnostic(result, AssetDiagnosticSeverity::Error, "GLTF_JSON_INVALID", error, sourcePath);
         return result;
@@ -1433,11 +1159,11 @@ AssetImportResult GltfAssetImporter::importAsset(const AssetImportRequest& reque
     if (result.hasErrors())
         return result;
 
-    if (const JsonValue* bufferViews = member(data.root, "bufferViews"))
+    if (const GtsJsonValue* bufferViews = member(data.root, "bufferViews"))
         appendBufferViews(*bufferViews, data.bufferViews);
-    if (const JsonValue* accessors = member(data.root, "accessors"))
+    if (const GtsJsonValue* accessors = member(data.root, "accessors"))
         appendAccessorArray(*accessors, data.accessors);
-    const JsonValue* buffers = member(data.root, "buffers");
+    const GtsJsonValue* buffers = member(data.root, "buffers");
     if (buffers != nullptr && !loadBuffers(data, *buffers, binChunk, result))
         return result;
 

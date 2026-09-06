@@ -2,10 +2,10 @@
 
 #include <optional>
 #include <string>
-#include <string_view>
 #include <unordered_map>
-#include <variant>
 #include <vector>
+
+#include "GtsJsonValue.h"
 
 #include "UiAccessibilityTypes.h"
 #include "UiAnimationTypes.h"
@@ -20,26 +20,6 @@ class UiSystem;
 class UiWidgetAssetRegistry;
 
 inline constexpr int UI_SERIALIZATION_SCHEMA_VERSION = 1;
-
-struct UiJsonValue
-{
-    using Object = std::vector<std::pair<std::string, UiJsonValue>>;
-    using Array = std::vector<UiJsonValue>;
-
-    std::variant<std::monostate, bool, double, std::string, Object, Array> value;
-
-    bool isNull() const { return std::holds_alternative<std::monostate>(value); }
-    bool isBool() const { return std::holds_alternative<bool>(value); }
-    bool isNumber() const { return std::holds_alternative<double>(value); }
-    bool isString() const { return std::holds_alternative<std::string>(value); }
-    bool isObject() const { return std::holds_alternative<Object>(value); }
-    bool isArray() const { return std::holds_alternative<Array>(value); }
-
-    const UiJsonValue* find(const std::string& key) const;
-};
-
-bool parseUiJson(std::string_view source, UiJsonValue& outValue, std::string* outError = nullptr);
-std::string serializeUiJson(const UiJsonValue& value, int indent = 0);
 
 struct UiSerializedBinding
 {
@@ -243,8 +223,8 @@ bool parseUiSerializedAsset(const std::string& json,
                             UiSerializedAsset& outAsset,
                             UiSerializedValidationResult* outValidation = nullptr);
 std::string serializeUiSerializedAsset(const UiSerializedAsset& asset);
-bool parseUiSerializedWidget(const UiJsonValue& json, UiSerializedWidget& outWidget);
-UiJsonValue serializeUiSerializedWidget(const UiSerializedWidget& widget);
+bool parseUiSerializedWidget(const GtsJsonValue& json, UiSerializedWidget& outWidget);
+GtsJsonValue serializeUiSerializedWidget(const UiSerializedWidget& widget);
 bool loadUiSerializedAssetFromFile(const std::string& path,
                                    UiSerializedAsset& outAsset,
                                    UiSerializedValidationResult* outValidation = nullptr);

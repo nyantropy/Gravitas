@@ -1,4 +1,5 @@
 #include "UiLocalizationRuntime.h"
+#include "GtsJsonParser.h"
 
 #include <algorithm>
 #include <cctype>
@@ -92,44 +93,23 @@ namespace
             candidates.push_back(std::move(candidate));
     }
 
-    const UiJsonValue* findField(const UiJsonValue& value, const std::string& key)
+    const GtsJsonValue* findField(const GtsJsonValue& value, const std::string& key)
     {
         return value.find(key);
     }
 
-    std::string jsonStringValue(const UiJsonValue* value, const std::string& fallback = {})
+    std::string jsonStringValue(const GtsJsonValue* value, const std::string& fallback = {})
     {
         if (value == nullptr || !value->isString())
             return fallback;
         return std::get<std::string>(value->value);
     }
 
-    int jsonIntValue(const UiJsonValue* value, int fallback = 0)
+    int jsonIntValue(const GtsJsonValue* value, int fallback = 0)
     {
         if (value == nullptr || !value->isNumber())
             return fallback;
-        return static_cast<int>(std::get<double>(value->value));
-    }
-
-    UiJsonValue jsonString(std::string value)
-    {
-        UiJsonValue json;
-        json.value = std::move(value);
-        return json;
-    }
-
-    UiJsonValue jsonNumber(double value)
-    {
-        UiJsonValue json;
-        json.value = value;
-        return json;
-    }
-
-    UiJsonValue jsonObject(UiJsonValue::Object values)
-    {
-        UiJsonValue json;
-        json.value = std::move(values);
-        return json;
+        return static_cast<int>(value->asNumber());
     }
 
     bool hasBalancedPlaceholders(const std::string& text)
@@ -219,9 +199,9 @@ bool parseUiLocalizationAsset(const std::string& json,
                               UiSerializedValidationResult* outValidation)
 {
     UiSerializedValidationResult validation;
-    UiJsonValue root;
+    GtsJsonValue root;
     std::string parseError;
-    if (!parseUiJson(json, root, &parseError))
+    if (!GtsJsonParser::parse(json, root, &parseError))
     {
         validation.error("$", parseError.empty() ? "localization asset JSON parse failed" : parseError);
         if (outValidation != nullptr)
@@ -251,7 +231,7 @@ bool parseUiLocalizationAsset(const std::string& json,
     if (!fallbackLocale.empty())
         asset.fallbackLocale = parseUiLocaleId(fallbackLocale);
 
-    const UiJsonValue* entries = findField(root, "entries");
+    const GtsJsonValue* entries = findField(root, "entries");
     if (entries == nullptr || !entries->isObject())
     {
         validation.error("$.entries", "localization asset entries object is required");
@@ -259,7 +239,7 @@ bool parseUiLocalizationAsset(const std::string& json,
     else
     {
         std::unordered_set<std::string> seenKeys;
-        for (const auto& [key, value] : std::get<UiJsonValue::Object>(entries->value))
+        for (const auto& [key, value] : std::get<GtsJsonValue::Object>(entries->value))
         {
             const std::string path = "$.entries." + key;
             if (!seenKeys.insert(key).second)
@@ -306,18 +286,18 @@ bool parseUiLocalizationAsset(const std::string& json,
 
 std::string serializeUiLocalizationAsset(const UiLocalizationAsset& asset)
 {
-    UiJsonValue::Object root;
-    root.emplace_back("schema", jsonNumber(asset.schemaVersion));
-    root.emplace_back("id", jsonString(asset.asset.id));
+    GtsJsonValue::Object root;
+    root.emplace_back("schema", GtsJsonValue(asset.schemaVersion));
+    root.emplace_back("id", GtsJsonValue(asset.asset.id));
     if (!asset.packageId.empty())
-        root.emplace_back("package", jsonString(asset.packageId));
+        root.emplace_back("package", GtsJsonValue(asset.packageId));
     if (!asset.namespaceId.empty())
-        root.emplace_back("namespace", jsonString(asset.namespaceId));
-    root.emplace_back("locale", jsonString(asset.locale.tag));
+        root.emplace_back("namespace", GtsJsonValue(asset.namespaceId));
+    root.emplace_back("locale", GtsJsonValue(asset.locale.tag));
     if (asset.sourceLocale)
-        root.emplace_back("sourceLocale", jsonString(asset.sourceLocale->tag));
+        root.emplace_back("sourceLocale", GtsJsonValue(asset.sourceLocale->tag));
     if (asset.fallbackLocale)
-        root.emplace_back("fallbackLocale", jsonString(asset.fallbackLocale->tag));
+        root.emplace_back("fallbackLocale", GtsJsonValue(asset.fallbackLocale->tag));
 
     std::vector<std::string> keys;
     keys.reserve(asset.entries.size());
@@ -325,20 +305,20 @@ std::string serializeUiLocalizationAsset(const UiLocalizationAsset& asset)
         keys.push_back(key);
     std::sort(keys.begin(), keys.end());
 
-    UiJsonValue::Object entries;
+    GtsJsonValue::Object entries;
     for (const std::string& key : keys)
     {
         const UiLocalizationEntry& entry = asset.entries.at(key);
-        UiJsonValue::Object entryObject;
-        entryObject.emplace_back("text", jsonString(entry.text));
+        GtsJsonValue::Object entryObject;
+        entryObject.emplace_back("text", GtsJsonValue(entry.text));
         if (!entry.context.empty())
-            entryObject.emplace_back("context", jsonString(entry.context));
+            entryObject.emplace_back("context", GtsJsonValue(entry.context));
         if (!entry.translatorNote.empty())
-            entryObject.emplace_back("note", jsonString(entry.translatorNote));
-        entries.emplace_back(key, jsonObject(std::move(entryObject)));
+            entryObject.emplace_back("note", GtsJsonValue(entry.translatorNote));
+        entries.emplace_back(key, GtsJsonValue::Object(std::move(entryObject)));
     }
-    root.emplace_back("entries", jsonObject(std::move(entries)));
-    return serializeUiJson(jsonObject(std::move(root)));
+    root.emplace_back("entries", GtsJsonValue::Object(std::move(entries)));
+    return GtsJsonParser::serialize(GtsJsonValue::Object(std::move(root)));
 }
 
 bool UiLocalizationRuntime::registerCatalog(const UiLocalizationAsset& asset,

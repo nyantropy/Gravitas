@@ -1,9 +1,11 @@
 #include "UiSerialization.h"
+#include "GtsJsonParser.h"
 
 #include <algorithm>
 #include <cctype>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 #include <string_view>
 #include <utility>
 
@@ -13,358 +15,22 @@
 
 namespace
 {
-    using Object = UiJsonValue::Object;
-    using Array = UiJsonValue::Array;
+    using Object = GtsJsonValue::Object;
+    using Array = GtsJsonValue::Array;
 
-    class JsonParser
-    {
-    public:
-        explicit JsonParser(std::string_view inSource)
-            : source(inSource)
-        {
-        }
-
-        bool parse(UiJsonValue& value, std::string* outError)
-        {
-            skipWhitespace();
-            if (!parseValue(value))
-                return fail(outError);
-
-            skipWhitespace();
-            if (position != source.size())
-            {
-                error = "unexpected trailing content";
-                return fail(outError);
-            }
-            return true;
-        }
-
-    private:
-        std::string_view source;
-        size_t position = 0;
-        std::string error;
-
-        bool fail(std::string* outError) const
-        {
-            if (outError != nullptr)
-                *outError = error.empty() ? "invalid JSON" : error;
-            return false;
-        }
-
-        void skipWhitespace()
-        {
-            while (position < source.size() &&
-                   std::isspace(static_cast<unsigned char>(source[position])))
-            {
-                ++position;
-            }
-        }
-
-        bool consume(char ch)
-        {
-            skipWhitespace();
-            if (position >= source.size() || source[position] != ch)
-                return false;
-
-            ++position;
-            return true;
-        }
-
-        bool parseValue(UiJsonValue& value)
-        {
-            skipWhitespace();
-            if (position >= source.size())
-            {
-                error = "unexpected end of JSON";
-                return false;
-            }
-
-            const char ch = source[position];
-            if (ch == '{')
-                return parseObject(value);
-            if (ch == '[')
-                return parseArray(value);
-            if (ch == '"')
-            {
-                std::string string;
-                if (!parseString(string))
-                    return false;
-                value.value = std::move(string);
-                return true;
-            }
-            if (ch == '-' || std::isdigit(static_cast<unsigned char>(ch)))
-                return parseNumber(value);
-            if (source.substr(position, 4) == "true")
-            {
-                position += 4;
-                value.value = true;
-                return true;
-            }
-            if (source.substr(position, 5) == "false")
-            {
-                position += 5;
-                value.value = false;
-                return true;
-            }
-            if (source.substr(position, 4) == "null")
-            {
-                position += 4;
-                value.value = std::monostate{};
-                return true;
-            }
-
-            error = "unexpected JSON token";
-            return false;
-        }
-
-        bool parseObject(UiJsonValue& value)
-        {
-            if (!consume('{'))
-                return false;
-
-            Object object;
-            skipWhitespace();
-            if (consume('}'))
-            {
-                value.value = std::move(object);
-                return true;
-            }
-
-            while (position < source.size())
-            {
-                std::string key;
-                if (!parseString(key))
-                    return false;
-                if (!consume(':'))
-                {
-                    error = "expected ':' after object key";
-                    return false;
-                }
-
-                UiJsonValue member;
-                if (!parseValue(member))
-                    return false;
-                object.emplace_back(std::move(key), std::move(member));
-
-                skipWhitespace();
-                if (consume('}'))
-                {
-                    value.value = std::move(object);
-                    return true;
-                }
-                if (!consume(','))
-                {
-                    error = "expected ',' or '}' in object";
-                    return false;
-                }
-            }
-
-            error = "unterminated object";
-            return false;
-        }
-
-        bool parseArray(UiJsonValue& value)
-        {
-            if (!consume('['))
-                return false;
-
-            Array array;
-            skipWhitespace();
-            if (consume(']'))
-            {
-                value.value = std::move(array);
-                return true;
-            }
-
-            while (position < source.size())
-            {
-                UiJsonValue item;
-                if (!parseValue(item))
-                    return false;
-                array.push_back(std::move(item));
-
-                skipWhitespace();
-                if (consume(']'))
-                {
-                    value.value = std::move(array);
-                    return true;
-                }
-                if (!consume(','))
-                {
-                    error = "expected ',' or ']' in array";
-                    return false;
-                }
-            }
-
-            error = "unterminated array";
-            return false;
-        }
-
-        bool parseString(std::string& value)
-        {
-            skipWhitespace();
-            if (position >= source.size() || source[position] != '"')
-            {
-                error = "expected string";
-                return false;
-            }
-
-            ++position;
-            value.clear();
-            while (position < source.size())
-            {
-                const char ch = source[position++];
-                if (ch == '"')
-                    return true;
-
-                if (ch == '\\')
-                {
-                    if (position >= source.size())
-                    {
-                        error = "unterminated escape sequence";
-                        return false;
-                    }
-
-                    const char escaped = source[position++];
-                    switch (escaped)
-                    {
-                        case '"': value.push_back('"'); break;
-                        case '\\': value.push_back('\\'); break;
-                        case '/': value.push_back('/'); break;
-                        case 'b': value.push_back('\b'); break;
-                        case 'f': value.push_back('\f'); break;
-                        case 'n': value.push_back('\n'); break;
-                        case 'r': value.push_back('\r'); break;
-                        case 't': value.push_back('\t'); break;
-                        default:
-                            error = "unsupported escape sequence";
-                            return false;
-                    }
-                    continue;
-                }
-
-                value.push_back(ch);
-            }
-
-            error = "unterminated string";
-            return false;
-        }
-
-        bool parseNumber(UiJsonValue& value)
-        {
-            size_t end = position;
-            if (source[end] == '-')
-                ++end;
-            while (end < source.size() && std::isdigit(static_cast<unsigned char>(source[end])))
-                ++end;
-            if (end < source.size() && source[end] == '.')
-            {
-                ++end;
-                while (end < source.size() && std::isdigit(static_cast<unsigned char>(source[end])))
-                    ++end;
-            }
-            if (end < source.size() && (source[end] == 'e' || source[end] == 'E'))
-            {
-                ++end;
-                if (end < source.size() && (source[end] == '+' || source[end] == '-'))
-                    ++end;
-                while (end < source.size() && std::isdigit(static_cast<unsigned char>(source[end])))
-                    ++end;
-            }
-            if (end == position)
-            {
-                error = "expected number";
-                return false;
-            }
-
-            try
-            {
-                value.value = std::stod(std::string(source.substr(position, end - position)));
-            }
-            catch (...)
-            {
-                error = "invalid number";
-                return false;
-            }
-            position = end;
-            return true;
-        }
-    };
-
-    std::string escapeJson(const std::string& value)
-    {
-        std::string out;
-        out.reserve(value.size() + 2);
-        for (char ch : value)
-        {
-            switch (ch)
-            {
-                case '"': out += "\\\""; break;
-                case '\\': out += "\\\\"; break;
-                case '\b': out += "\\b"; break;
-                case '\f': out += "\\f"; break;
-                case '\n': out += "\\n"; break;
-                case '\r': out += "\\r"; break;
-                case '\t': out += "\\t"; break;
-                default: out.push_back(ch); break;
-            }
-        }
-        return out;
-    }
-
-    std::string indentString(int indent)
-    {
-        return std::string(static_cast<size_t>(std::max(0, indent)), ' ');
-    }
-
-    UiJsonValue jsonString(const std::string& value)
-    {
-        UiJsonValue json;
-        json.value = value;
-        return json;
-    }
-
-    UiJsonValue jsonNumber(double value)
-    {
-        UiJsonValue json;
-        json.value = value;
-        return json;
-    }
-
-    UiJsonValue jsonBool(bool value)
-    {
-        UiJsonValue json;
-        json.value = value;
-        return json;
-    }
-
-    UiJsonValue jsonObject(Object object)
-    {
-        UiJsonValue json;
-        json.value = std::move(object);
-        return json;
-    }
-
-    UiJsonValue jsonArray(Array array)
-    {
-        UiJsonValue json;
-        json.value = std::move(array);
-        return json;
-    }
-
-    const Object* asObject(const UiJsonValue& value)
+    const Object* asObject(const GtsJsonValue& value)
     {
         return std::get_if<Object>(&value.value);
     }
 
-    const Array* asArray(const UiJsonValue& value)
+    const Array* asArray(const GtsJsonValue& value)
     {
         return std::get_if<Array>(&value.value);
     }
 
-    std::optional<std::string> getString(const UiJsonValue& object, const std::string& key)
+    std::optional<std::string> getString(const GtsJsonValue& object, const std::string& key)
     {
-        const UiJsonValue* value = object.find(key);
+        const GtsJsonValue* value = object.find(key);
         if (value == nullptr)
             return std::nullopt;
         if (const auto* string = std::get_if<std::string>(&value->value))
@@ -372,19 +38,19 @@ namespace
         return std::nullopt;
     }
 
-    std::optional<double> getNumber(const UiJsonValue& object, const std::string& key)
+    std::optional<double> getNumber(const GtsJsonValue& object, const std::string& key)
     {
-        const UiJsonValue* value = object.find(key);
+        const GtsJsonValue* value = object.find(key);
         if (value == nullptr)
             return std::nullopt;
-        if (const auto* number = std::get_if<double>(&value->value))
-            return *number;
+        if (value->isNumber())
+            return value->asNumber();
         return std::nullopt;
     }
 
-    std::optional<bool> getBool(const UiJsonValue& object, const std::string& key)
+    std::optional<bool> getBool(const GtsJsonValue& object, const std::string& key)
     {
-        const UiJsonValue* value = object.find(key);
+        const GtsJsonValue* value = object.find(key);
         if (value == nullptr)
             return std::nullopt;
         if (const auto* boolean = std::get_if<bool>(&value->value))
@@ -392,106 +58,92 @@ namespace
         return std::nullopt;
     }
 
-    float numberOr(const UiJsonValue& object, const std::string& key, float fallback)
+    float numberOr(const GtsJsonValue& object, const std::string& key, float fallback)
     {
         const auto value = getNumber(object, key);
         return value.has_value() ? static_cast<float>(*value) : fallback;
     }
 
-    int intOr(const UiJsonValue& object, const std::string& key, int fallback)
+    int intOr(const GtsJsonValue& object, const std::string& key, int fallback)
     {
         const auto value = getNumber(object, key);
         return value.has_value() ? static_cast<int>(*value) : fallback;
     }
 
-    bool boolOr(const UiJsonValue& object, const std::string& key, bool fallback)
+    bool boolOr(const GtsJsonValue& object, const std::string& key, bool fallback)
     {
         const auto value = getBool(object, key);
         return value.value_or(fallback);
     }
 
-    std::string stringOr(const UiJsonValue& object, const std::string& key, const std::string& fallback = {})
+    std::string stringOr(const GtsJsonValue& object, const std::string& key, const std::string& fallback = {})
     {
         const auto value = getString(object, key);
         return value.value_or(fallback);
     }
 
-    UiVec2 parseVec2(const UiJsonValue& value, UiVec2 fallback)
+    UiVec2 parseVec2(const GtsJsonValue& value, UiVec2 fallback)
     {
         const Array* array = asArray(value);
         if (array == nullptr || array->size() < 2)
             return fallback;
 
-        const auto* x = std::get_if<double>(&(*array)[0].value);
-        const auto* y = std::get_if<double>(&(*array)[1].value);
-        return x != nullptr && y != nullptr
-            ? UiVec2{static_cast<float>(*x), static_cast<float>(*y)}
+        return (*array)[0].isNumber() && (*array)[1].isNumber()
+            ? UiVec2{static_cast<float>((*array)[0].asNumber()), static_cast<float>((*array)[1].asNumber())}
             : fallback;
     }
 
-    UiRect parseRect(const UiJsonValue& value, UiRect fallback)
+    UiRect parseRect(const GtsJsonValue& value, UiRect fallback)
     {
         const Array* array = asArray(value);
         if (array == nullptr || array->size() < 4)
             return fallback;
 
-        const auto* x = std::get_if<double>(&(*array)[0].value);
-        const auto* y = std::get_if<double>(&(*array)[1].value);
-        const auto* w = std::get_if<double>(&(*array)[2].value);
-        const auto* h = std::get_if<double>(&(*array)[3].value);
-        return x != nullptr && y != nullptr && w != nullptr && h != nullptr
-            ? UiRect{static_cast<float>(*x), static_cast<float>(*y), static_cast<float>(*w), static_cast<float>(*h)}
+        return (*array)[0].isNumber() && (*array)[1].isNumber() && (*array)[2].isNumber() && (*array)[3].isNumber()
+            ? UiRect{static_cast<float>((*array)[0].asNumber()), static_cast<float>((*array)[1].asNumber()), static_cast<float>((*array)[2].asNumber()), static_cast<float>((*array)[3].asNumber())}
             : fallback;
     }
 
-    UiThickness parseThickness(const UiJsonValue& value, UiThickness fallback)
+    UiThickness parseThickness(const GtsJsonValue& value, UiThickness fallback)
     {
         const Array* array = asArray(value);
         if (array == nullptr || array->size() < 4)
             return fallback;
 
-        const auto* l = std::get_if<double>(&(*array)[0].value);
-        const auto* t = std::get_if<double>(&(*array)[1].value);
-        const auto* r = std::get_if<double>(&(*array)[2].value);
-        const auto* b = std::get_if<double>(&(*array)[3].value);
-        return l != nullptr && t != nullptr && r != nullptr && b != nullptr
-            ? UiThickness{static_cast<float>(*l), static_cast<float>(*t), static_cast<float>(*r), static_cast<float>(*b)}
+        return (*array)[0].isNumber() && (*array)[1].isNumber() && (*array)[2].isNumber() && (*array)[3].isNumber()
+            ? UiThickness{static_cast<float>((*array)[0].asNumber()), static_cast<float>((*array)[1].asNumber()), static_cast<float>((*array)[2].asNumber()), static_cast<float>((*array)[3].asNumber())}
             : fallback;
     }
 
-    UiColor parseColor(const UiJsonValue& value, UiColor fallback)
+    UiColor parseColor(const GtsJsonValue& value, UiColor fallback)
     {
         const Array* array = asArray(value);
         if (array == nullptr || array->size() < 4)
             return fallback;
 
-        const auto* r = std::get_if<double>(&(*array)[0].value);
-        const auto* g = std::get_if<double>(&(*array)[1].value);
-        const auto* b = std::get_if<double>(&(*array)[2].value);
-        const auto* a = std::get_if<double>(&(*array)[3].value);
-        return r != nullptr && g != nullptr && b != nullptr && a != nullptr
-            ? UiColor{static_cast<float>(*r), static_cast<float>(*g), static_cast<float>(*b), static_cast<float>(*a)}
+        return (*array)[0].isNumber() && (*array)[1].isNumber() && (*array)[2].isNumber() && (*array)[3].isNumber()
+            ? UiColor{static_cast<float>((*array)[0].asNumber()), static_cast<float>((*array)[1].asNumber()), static_cast<float>((*array)[2].asNumber()), static_cast<float>((*array)[3].asNumber())}
             : fallback;
     }
 
-    UiJsonValue serializeVec2(UiVec2 value)
+    GtsJsonValue serializeVec2(UiVec2 value)
     {
-        return jsonArray({jsonNumber(value.x), jsonNumber(value.y)});
+        return GtsJsonValue::Array({GtsJsonValue(value.x), GtsJsonValue(value.y)});
     }
 
-    UiJsonValue serializeRect(UiRect value)
+    GtsJsonValue serializeRect(UiRect value)
     {
-        return jsonArray({jsonNumber(value.x), jsonNumber(value.y), jsonNumber(value.width), jsonNumber(value.height)});
+        return GtsJsonValue::Array({GtsJsonValue(value.x), GtsJsonValue(value.y), GtsJsonValue(value.width), GtsJsonValue(value.height)});
     }
 
-    UiJsonValue serializeThickness(UiThickness value)
+    GtsJsonValue serializeThickness(UiThickness value)
     {
-        return jsonArray({jsonNumber(value.left), jsonNumber(value.top), jsonNumber(value.right), jsonNumber(value.bottom)});
+        return GtsJsonValue::Array({GtsJsonValue(value.left), GtsJsonValue(value.top), GtsJsonValue(value.right), GtsJsonValue(value.bottom)});
     }
 
-    UiJsonValue serializeColor(UiColor value)
+    GtsJsonValue serializeColor(UiColor value)
     {
-        return jsonArray({jsonNumber(value.r), jsonNumber(value.g), jsonNumber(value.b), jsonNumber(value.a)});
+        return GtsJsonValue::Array({GtsJsonValue(value.r), GtsJsonValue(value.g), GtsJsonValue(value.b), GtsJsonValue(value.a)});
     }
 
     template <typename Enum>
@@ -717,7 +369,7 @@ namespace
         return entries;
     }
 
-    UiLayoutLength parseLength(const UiJsonValue& value, UiLayoutLength fallback)
+    UiLayoutLength parseLength(const GtsJsonValue& value, UiLayoutLength fallback)
     {
         const Object* object = asObject(value);
         if (object == nullptr)
@@ -731,22 +383,22 @@ namespace
         return length;
     }
 
-    UiJsonValue serializeLength(const UiLayoutLength& length)
+    GtsJsonValue serializeLength(const UiLayoutLength& length)
     {
-        return jsonObject({
-            {"unit", jsonString(enumToString(length.unit, unitEntries(), "Auto"))},
-            {"value", jsonNumber(length.value)}
+        return GtsJsonValue::Object({
+            {"unit", GtsJsonValue(enumToString(length.unit, unitEntries(), "Auto"))},
+            {"value", GtsJsonValue(length.value)}
         });
     }
 
-    void parseLayoutConstraints(const UiJsonValue& json, UiLayoutConstraints& constraints)
+    void parseLayoutConstraints(const GtsJsonValue& json, UiLayoutConstraints& constraints)
     {
-        if (const UiJsonValue* value = json.find("minWidth")) constraints.minWidth = parseLength(*value, constraints.minWidth);
-        if (const UiJsonValue* value = json.find("minHeight")) constraints.minHeight = parseLength(*value, constraints.minHeight);
-        if (const UiJsonValue* value = json.find("maxWidth")) constraints.maxWidth = parseLength(*value, constraints.maxWidth);
-        if (const UiJsonValue* value = json.find("maxHeight")) constraints.maxHeight = parseLength(*value, constraints.maxHeight);
-        if (const UiJsonValue* value = json.find("preferredWidth")) constraints.preferredWidth = parseLength(*value, constraints.preferredWidth);
-        if (const UiJsonValue* value = json.find("preferredHeight")) constraints.preferredHeight = parseLength(*value, constraints.preferredHeight);
+        if (const GtsJsonValue* value = json.find("minWidth")) constraints.minWidth = parseLength(*value, constraints.minWidth);
+        if (const GtsJsonValue* value = json.find("minHeight")) constraints.minHeight = parseLength(*value, constraints.minHeight);
+        if (const GtsJsonValue* value = json.find("maxWidth")) constraints.maxWidth = parseLength(*value, constraints.maxWidth);
+        if (const GtsJsonValue* value = json.find("maxHeight")) constraints.maxHeight = parseLength(*value, constraints.maxHeight);
+        if (const GtsJsonValue* value = json.find("preferredWidth")) constraints.preferredWidth = parseLength(*value, constraints.preferredWidth);
+        if (const GtsJsonValue* value = json.find("preferredHeight")) constraints.preferredHeight = parseLength(*value, constraints.preferredHeight);
         constraints.grow = numberOr(json, "grow", constraints.grow);
         constraints.shrink = numberOr(json, "shrink", constraints.shrink);
         constraints.aspectRatio = numberOr(json, "aspectRatio", constraints.aspectRatio);
@@ -756,24 +408,24 @@ namespace
             constraints.verticalAlignment = parseEnumString(*value, alignmentEntries(), constraints.verticalAlignment);
     }
 
-    UiJsonValue serializeConstraints(const UiLayoutConstraints& constraints)
+    GtsJsonValue serializeConstraints(const UiLayoutConstraints& constraints)
     {
-        return jsonObject({
+        return GtsJsonValue::Object({
             {"minWidth", serializeLength(constraints.minWidth)},
             {"minHeight", serializeLength(constraints.minHeight)},
             {"maxWidth", serializeLength(constraints.maxWidth)},
             {"maxHeight", serializeLength(constraints.maxHeight)},
             {"preferredWidth", serializeLength(constraints.preferredWidth)},
             {"preferredHeight", serializeLength(constraints.preferredHeight)},
-            {"grow", jsonNumber(constraints.grow)},
-            {"shrink", jsonNumber(constraints.shrink)},
-            {"aspectRatio", jsonNumber(constraints.aspectRatio)},
-            {"horizontalAlignment", jsonString(enumToString(constraints.horizontalAlignment, alignmentEntries(), "Stretch"))},
-            {"verticalAlignment", jsonString(enumToString(constraints.verticalAlignment, alignmentEntries(), "Stretch"))}
+            {"grow", GtsJsonValue(constraints.grow)},
+            {"shrink", GtsJsonValue(constraints.shrink)},
+            {"aspectRatio", GtsJsonValue(constraints.aspectRatio)},
+            {"horizontalAlignment", GtsJsonValue(enumToString(constraints.horizontalAlignment, alignmentEntries(), "Stretch"))},
+            {"verticalAlignment", GtsJsonValue(enumToString(constraints.verticalAlignment, alignmentEntries(), "Stretch"))}
         });
     }
 
-    UiLayoutSpec parseLayout(const UiJsonValue& json, UiLayoutSpec layout = {})
+    UiLayoutSpec parseLayout(const GtsJsonValue& json, UiLayoutSpec layout = {})
     {
         if (!json.isObject())
             return layout;
@@ -786,11 +438,11 @@ namespace
             layout.widthMode = parseEnumString(*value, sizeModeEntries(), layout.widthMode);
         if (const auto value = getString(json, "height"))
             layout.heightMode = parseEnumString(*value, sizeModeEntries(), layout.heightMode);
-        if (const UiJsonValue* value = json.find("anchorMin")) layout.anchorMin = parseVec2(*value, layout.anchorMin);
-        if (const UiJsonValue* value = json.find("anchorMax")) layout.anchorMax = parseVec2(*value, layout.anchorMax);
-        if (const UiJsonValue* value = json.find("offsetMin")) layout.offsetMin = parseVec2(*value, layout.offsetMin);
-        if (const UiJsonValue* value = json.find("offsetMax")) layout.offsetMax = parseVec2(*value, layout.offsetMax);
-        if (const UiJsonValue* value = json.find("fixedSize"))
+        if (const GtsJsonValue* value = json.find("anchorMin")) layout.anchorMin = parseVec2(*value, layout.anchorMin);
+        if (const GtsJsonValue* value = json.find("anchorMax")) layout.anchorMax = parseVec2(*value, layout.anchorMax);
+        if (const GtsJsonValue* value = json.find("offsetMin")) layout.offsetMin = parseVec2(*value, layout.offsetMin);
+        if (const GtsJsonValue* value = json.find("offsetMax")) layout.offsetMax = parseVec2(*value, layout.offsetMax);
+        if (const GtsJsonValue* value = json.find("fixedSize"))
         {
             const UiVec2 size = parseVec2(*value, {layout.fixedWidth, layout.fixedHeight});
             layout.fixedWidth = size.x;
@@ -798,11 +450,11 @@ namespace
         }
         layout.fixedWidth = numberOr(json, "fixedWidth", layout.fixedWidth);
         layout.fixedHeight = numberOr(json, "fixedHeight", layout.fixedHeight);
-        if (const UiJsonValue* value = json.find("margin")) layout.margin = parseThickness(*value, layout.margin);
-        if (const UiJsonValue* value = json.find("padding")) layout.padding = parseThickness(*value, layout.padding);
+        if (const GtsJsonValue* value = json.find("margin")) layout.margin = parseThickness(*value, layout.margin);
+        if (const GtsJsonValue* value = json.find("padding")) layout.padding = parseThickness(*value, layout.padding);
         if (const auto value = getString(json, "clip"))
             layout.clipMode = parseEnumString(*value, clipModeEntries(), layout.clipMode);
-        if (const UiJsonValue* value = json.find("contentOffset")) layout.contentOffset = parseVec2(*value, layout.contentOffset);
+        if (const GtsJsonValue* value = json.find("contentOffset")) layout.contentOffset = parseVec2(*value, layout.contentOffset);
         layout.gap = numberOr(json, "gap", layout.gap);
         if (const auto value = getString(json, "stackAxis"))
             layout.stackAxis = parseEnumString(*value, axisEntries(), layout.stackAxis);
@@ -820,18 +472,18 @@ namespace
         layout.gridRowSpan = intOr(json, "gridRowSpan", layout.gridRowSpan);
         if (const auto value = getString(json, "dock"))
             layout.dock = parseEnumString(*value, dockEntries(), layout.dock);
-        if (const UiJsonValue* value = json.find("constraints"))
+        if (const GtsJsonValue* value = json.find("constraints"))
             parseLayoutConstraints(*value, layout.constraints);
         return layout;
     }
 
-    UiJsonValue serializeLayout(const UiLayoutSpec& layout)
+    GtsJsonValue serializeLayout(const UiLayoutSpec& layout)
     {
-        return jsonObject({
-            {"mode", jsonString(enumToString(layout.layoutMode, layoutModeEntries(), "Canvas"))},
-            {"position", jsonString(enumToString(layout.positionMode, positionModeEntries(), "Absolute"))},
-            {"width", jsonString(enumToString(layout.widthMode, sizeModeEntries(), "Fixed"))},
-            {"height", jsonString(enumToString(layout.heightMode, sizeModeEntries(), "Fixed"))},
+        return GtsJsonValue::Object({
+            {"mode", GtsJsonValue(enumToString(layout.layoutMode, layoutModeEntries(), "Canvas"))},
+            {"position", GtsJsonValue(enumToString(layout.positionMode, positionModeEntries(), "Absolute"))},
+            {"width", GtsJsonValue(enumToString(layout.widthMode, sizeModeEntries(), "Fixed"))},
+            {"height", GtsJsonValue(enumToString(layout.heightMode, sizeModeEntries(), "Fixed"))},
             {"anchorMin", serializeVec2(layout.anchorMin)},
             {"anchorMax", serializeVec2(layout.anchorMax)},
             {"offsetMin", serializeVec2(layout.offsetMin)},
@@ -839,26 +491,26 @@ namespace
             {"fixedSize", serializeVec2({layout.fixedWidth, layout.fixedHeight})},
             {"margin", serializeThickness(layout.margin)},
             {"padding", serializeThickness(layout.padding)},
-            {"clip", jsonString(enumToString(layout.clipMode, clipModeEntries(), "None"))},
+            {"clip", GtsJsonValue(enumToString(layout.clipMode, clipModeEntries(), "None"))},
             {"contentOffset", serializeVec2(layout.contentOffset)},
-            {"gap", jsonNumber(layout.gap)},
-            {"stackAxis", jsonString(enumToString(layout.stackAxis, axisEntries(), "Vertical"))},
-            {"mainAxisAlignment", jsonString(enumToString(layout.mainAxisAlignment, alignmentEntries(), "Start"))},
-            {"crossAxisAlignment", jsonString(enumToString(layout.crossAxisAlignment, alignmentEntries(), "Stretch"))},
-            {"gridColumns", jsonNumber(layout.gridColumns)},
-            {"gridRows", jsonNumber(layout.gridRows)},
-            {"gridColumnGap", jsonNumber(layout.gridColumnGap)},
-            {"gridRowGap", jsonNumber(layout.gridRowGap)},
-            {"gridColumn", jsonNumber(layout.gridColumn)},
-            {"gridRow", jsonNumber(layout.gridRow)},
-            {"gridColumnSpan", jsonNumber(layout.gridColumnSpan)},
-            {"gridRowSpan", jsonNumber(layout.gridRowSpan)},
-            {"dock", jsonString(enumToString(layout.dock, dockEntries(), "Fill"))},
+            {"gap", GtsJsonValue(layout.gap)},
+            {"stackAxis", GtsJsonValue(enumToString(layout.stackAxis, axisEntries(), "Vertical"))},
+            {"mainAxisAlignment", GtsJsonValue(enumToString(layout.mainAxisAlignment, alignmentEntries(), "Start"))},
+            {"crossAxisAlignment", GtsJsonValue(enumToString(layout.crossAxisAlignment, alignmentEntries(), "Stretch"))},
+            {"gridColumns", GtsJsonValue(layout.gridColumns)},
+            {"gridRows", GtsJsonValue(layout.gridRows)},
+            {"gridColumnGap", GtsJsonValue(layout.gridColumnGap)},
+            {"gridRowGap", GtsJsonValue(layout.gridRowGap)},
+            {"gridColumn", GtsJsonValue(layout.gridColumn)},
+            {"gridRow", GtsJsonValue(layout.gridRow)},
+            {"gridColumnSpan", GtsJsonValue(layout.gridColumnSpan)},
+            {"gridRowSpan", GtsJsonValue(layout.gridRowSpan)},
+            {"dock", GtsJsonValue(enumToString(layout.dock, dockEntries(), "Fill"))},
             {"constraints", serializeConstraints(layout.constraints)}
         });
     }
 
-    UiAnimationTiming parseTiming(const UiJsonValue& json, UiAnimationTiming timing = {})
+    UiAnimationTiming parseTiming(const GtsJsonValue& json, UiAnimationTiming timing = {})
     {
         if (!json.isObject())
             return timing;
@@ -873,32 +525,32 @@ namespace
         return timing;
     }
 
-    UiJsonValue serializeTiming(const UiAnimationTiming& timing)
+    GtsJsonValue serializeTiming(const UiAnimationTiming& timing)
     {
-        return jsonObject({
-            {"duration", jsonNumber(timing.durationSeconds)},
-            {"delay", jsonNumber(timing.delaySeconds)},
-            {"ease", jsonString(enumToString(timing.ease, easeEntries(), "SmoothStep"))},
-            {"repeat", jsonNumber(timing.repeatCount)},
-            {"loop", jsonBool(timing.loop)},
-            {"pingPong", jsonBool(timing.pingPong)},
-            {"snapToEnd", jsonBool(timing.snapToEnd)}
+        return GtsJsonValue::Object({
+            {"duration", GtsJsonValue(timing.durationSeconds)},
+            {"delay", GtsJsonValue(timing.delaySeconds)},
+            {"ease", GtsJsonValue(enumToString(timing.ease, easeEntries(), "SmoothStep"))},
+            {"repeat", GtsJsonValue(timing.repeatCount)},
+            {"loop", GtsJsonValue(timing.loop)},
+            {"pingPong", GtsJsonValue(timing.pingPong)},
+            {"snapToEnd", GtsJsonValue(timing.snapToEnd)}
         });
     }
 
-    UiSemanticRelationship parseRelationship(const UiJsonValue& json)
+    UiSemanticRelationship parseRelationship(const GtsJsonValue& json)
     {
         UiSemanticRelationship relationship;
         const auto parseHandleIds = [&](const char* key, std::vector<UiHandle>& target)
         {
-            const UiJsonValue* value = json.find(key);
+            const GtsJsonValue* value = json.find(key);
             const Array* array = value == nullptr ? nullptr : asArray(*value);
             if (array == nullptr)
                 return;
-            for (const UiJsonValue& item : *array)
+            for (const GtsJsonValue& item : *array)
             {
-                if (const auto* number = std::get_if<double>(&item.value))
-                    target.push_back(static_cast<UiHandle>(*number));
+                if (item.isNumber())
+                    target.push_back(static_cast<UiHandle>(item.asNumber()));
             }
         };
         parseHandleIds("labelledBy", relationship.labelledBy);
@@ -911,7 +563,7 @@ namespace
         return relationship;
     }
 
-    UiSerializedSemanticRelationships parseRelationshipIds(const UiJsonValue& json)
+    UiSerializedSemanticRelationships parseRelationshipIds(const GtsJsonValue& json)
     {
         UiSerializedSemanticRelationships relationships;
         if (!json.isObject())
@@ -919,12 +571,12 @@ namespace
 
         const auto parseIds = [&](const char* key, std::vector<std::string>& target)
         {
-            const UiJsonValue* value = json.find(key);
+            const GtsJsonValue* value = json.find(key);
             const Array* array = value == nullptr ? nullptr : asArray(*value);
             if (array == nullptr)
                 return;
 
-            for (const UiJsonValue& item : *array)
+            for (const GtsJsonValue& item : *array)
             {
                 if (const auto* string = std::get_if<std::string>(&item.value))
                     target.push_back(*string);
@@ -952,16 +604,16 @@ namespace
             || !relationships.tooltip.empty();
     }
 
-    UiSerializedSemanticRelationships parseSemanticRelationshipIds(const UiJsonValue& json)
+    UiSerializedSemanticRelationships parseSemanticRelationshipIds(const GtsJsonValue& json)
     {
         if (!json.isObject())
             return {};
 
-        const UiJsonValue* relationships = json.find("relationships");
+        const GtsJsonValue* relationships = json.find("relationships");
         return relationships == nullptr ? UiSerializedSemanticRelationships{} : parseRelationshipIds(*relationships);
     }
 
-    void readLocalizationKeyField(const UiJsonValue& json,
+    void readLocalizationKeyField(const GtsJsonValue& json,
                                   const std::string& field,
                                   std::string& outKey,
                                   bool& outPresent)
@@ -972,7 +624,7 @@ namespace
         outPresent = true;
     }
 
-    UiSerializedSemanticLocalizationRefs parseSemanticLocalizationRefs(const UiJsonValue& json)
+    UiSerializedSemanticLocalizationRefs parseSemanticLocalizationRefs(const GtsJsonValue& json)
     {
         UiSerializedSemanticLocalizationRefs refs;
         if (!json.isObject())
@@ -986,7 +638,7 @@ namespace
         return refs;
     }
 
-    void parseTopLevelSemanticLocalizationAliases(const UiJsonValue& json,
+    void parseTopLevelSemanticLocalizationAliases(const GtsJsonValue& json,
                                                   UiSerializedSemanticLocalizationRefs& refs)
     {
         readLocalizationKeyField(json, "semanticNameKey", refs.nameKey, refs.hasNameKey);
@@ -996,37 +648,37 @@ namespace
         readLocalizationKeyField(json, "semanticLiveRegionTextKey", refs.valueKey, refs.hasValueKey);
     }
 
-    UiJsonValue serializeHandleArray(const std::vector<UiHandle>& values,
+    GtsJsonValue serializeHandleArray(const std::vector<UiHandle>& values,
                                      const std::vector<std::string>& ids = {})
     {
         Array array;
         for (const std::string& id : ids)
-            array.push_back(jsonString(id));
+            array.push_back(GtsJsonValue(id));
         for (UiHandle handle : values)
         {
             if (handle != UI_INVALID_HANDLE)
-                array.push_back(jsonNumber(handle));
+                array.push_back(GtsJsonValue(handle));
         }
-        return jsonArray(std::move(array));
+        return GtsJsonValue::Array(std::move(array));
     }
 
-    UiJsonValue serializeRelationship(const UiSemanticRelationship& relationship,
+    GtsJsonValue serializeRelationship(const UiSemanticRelationship& relationship,
                                       const UiSerializedSemanticRelationships* ids = nullptr)
     {
-        return jsonObject({
+        return GtsJsonValue::Object({
             {"labelledBy", serializeHandleArray(relationship.labelledBy, ids == nullptr ? std::vector<std::string>{} : ids->labelledBy)},
             {"describedBy", serializeHandleArray(relationship.describedBy, ids == nullptr ? std::vector<std::string>{} : ids->describedBy)},
             {"controls", serializeHandleArray(relationship.controls, ids == nullptr ? std::vector<std::string>{} : ids->controls)},
             {"owns", serializeHandleArray(relationship.owns, ids == nullptr ? std::vector<std::string>{} : ids->owns)},
             {"activeDescendant", ids != nullptr && !ids->activeDescendant.empty()
-                ? jsonString(ids->activeDescendant)
-                : jsonNumber(relationship.activeDescendant)},
-            {"popup", ids != nullptr && !ids->popup.empty() ? jsonString(ids->popup) : jsonNumber(relationship.popup)},
-            {"tooltip", ids != nullptr && !ids->tooltip.empty() ? jsonString(ids->tooltip) : jsonNumber(relationship.tooltip)}
+                ? GtsJsonValue(ids->activeDescendant)
+                : GtsJsonValue(relationship.activeDescendant)},
+            {"popup", ids != nullptr && !ids->popup.empty() ? GtsJsonValue(ids->popup) : GtsJsonValue(relationship.popup)},
+            {"tooltip", ids != nullptr && !ids->tooltip.empty() ? GtsJsonValue(ids->tooltip) : GtsJsonValue(relationship.tooltip)}
         });
     }
 
-    UiSemanticDesc parseSemantic(const UiJsonValue& json)
+    UiSemanticDesc parseSemantic(const GtsJsonValue& json)
     {
         UiSemanticDesc semantic;
         if (!json.isObject())
@@ -1054,53 +706,53 @@ namespace
         semantic.level = intOr(json, "level", semantic.level);
         semantic.index = intOr(json, "index", semantic.index);
         semantic.count = intOr(json, "count", semantic.count);
-        if (const UiJsonValue* value = json.find("relationships"))
+        if (const GtsJsonValue* value = json.find("relationships"))
             semantic.relationships = parseRelationship(*value);
         return semantic;
     }
 
-    UiJsonValue serializeSemantic(const UiSemanticDesc& semantic,
+    GtsJsonValue serializeSemantic(const UiSemanticDesc& semantic,
                                   const UiSerializedSemanticRelationships* relationships = nullptr,
                                   const UiSerializedSemanticLocalizationRefs* localization = nullptr)
     {
         Object object = {
-            {"role", jsonString(enumToString(semantic.role, semanticRoleEntries(), "Unknown"))},
-            {"name", jsonString(semantic.name)},
-            {"description", jsonString(semantic.description)},
-            {"hint", jsonString(semantic.hint)},
-            {"value", jsonString(semantic.value)},
-            {"liveRegion", jsonString(enumToString(semantic.liveRegion, liveRegionEntries(), "Off"))},
+            {"role", GtsJsonValue(enumToString(semantic.role, semanticRoleEntries(), "Unknown"))},
+            {"name", GtsJsonValue(semantic.name)},
+            {"description", GtsJsonValue(semantic.description)},
+            {"hint", GtsJsonValue(semantic.hint)},
+            {"value", GtsJsonValue(semantic.value)},
+            {"liveRegion", GtsJsonValue(enumToString(semantic.liveRegion, liveRegionEntries(), "Off"))},
             {"relationships", serializeRelationship(semantic.relationships, relationships)},
-            {"hidden", jsonBool(semantic.hidden)},
-            {"decorative", jsonBool(semantic.decorative)},
-            {"selected", jsonBool(semantic.selected)},
-            {"checked", jsonBool(semantic.checked)},
-            {"expanded", jsonBool(semantic.expanded)},
-            {"readOnly", jsonBool(semantic.readOnly)},
-            {"busy", jsonBool(semantic.busy)},
-            {"hasRange", jsonBool(semantic.hasRange)},
-            {"rangeMin", jsonNumber(semantic.rangeMin)},
-            {"rangeMax", jsonNumber(semantic.rangeMax)},
-            {"rangeValue", jsonNumber(semantic.rangeValue)},
-            {"level", jsonNumber(semantic.level)},
-            {"index", jsonNumber(semantic.index)},
-            {"count", jsonNumber(semantic.count)}
+            {"hidden", GtsJsonValue(semantic.hidden)},
+            {"decorative", GtsJsonValue(semantic.decorative)},
+            {"selected", GtsJsonValue(semantic.selected)},
+            {"checked", GtsJsonValue(semantic.checked)},
+            {"expanded", GtsJsonValue(semantic.expanded)},
+            {"readOnly", GtsJsonValue(semantic.readOnly)},
+            {"busy", GtsJsonValue(semantic.busy)},
+            {"hasRange", GtsJsonValue(semantic.hasRange)},
+            {"rangeMin", GtsJsonValue(semantic.rangeMin)},
+            {"rangeMax", GtsJsonValue(semantic.rangeMax)},
+            {"rangeValue", GtsJsonValue(semantic.rangeValue)},
+            {"level", GtsJsonValue(semantic.level)},
+            {"index", GtsJsonValue(semantic.index)},
+            {"count", GtsJsonValue(semantic.count)}
         };
         if (localization != nullptr)
         {
             if (localization->hasNameKey || !localization->nameKey.empty())
-                object.emplace_back("nameKey", jsonString(localization->nameKey));
+                object.emplace_back("nameKey", GtsJsonValue(localization->nameKey));
             if (localization->hasDescriptionKey || !localization->descriptionKey.empty())
-                object.emplace_back("descriptionKey", jsonString(localization->descriptionKey));
+                object.emplace_back("descriptionKey", GtsJsonValue(localization->descriptionKey));
             if (localization->hasHintKey || !localization->hintKey.empty())
-                object.emplace_back("hintKey", jsonString(localization->hintKey));
+                object.emplace_back("hintKey", GtsJsonValue(localization->hintKey));
             if (localization->hasValueKey || !localization->valueKey.empty())
-                object.emplace_back("valueKey", jsonString(localization->valueKey));
+                object.emplace_back("valueKey", GtsJsonValue(localization->valueKey));
         }
-        return jsonObject(std::move(object));
+        return GtsJsonValue::Object(std::move(object));
     }
 
-    UiSerializedBinding parseBinding(const UiJsonValue& json)
+    UiSerializedBinding parseBinding(const GtsJsonValue& json)
     {
         UiSerializedBinding binding;
         if (!json.isObject())
@@ -1112,27 +764,27 @@ namespace
         binding.transform = stringOr(json, "transform", binding.transform);
         binding.animateInitial = boolOr(json, "animateInitial", binding.animateInitial);
         binding.applyImmediately = boolOr(json, "applyImmediately", binding.applyImmediately);
-        if (const UiJsonValue* value = json.find("animation"))
+        if (const GtsJsonValue* value = json.find("animation"))
             binding.animation = parseTiming(*value);
         return binding;
     }
 
-    UiJsonValue serializeBinding(const UiSerializedBinding& binding)
+    GtsJsonValue serializeBinding(const UiSerializedBinding& binding)
     {
         Object object = {
-            {"property", jsonString(enumToString(binding.property, bindingPropertyEntries(), "Text"))},
-            {"path", jsonString(binding.path)},
-            {"formatter", jsonString(binding.formatter)},
-            {"transform", jsonString(binding.transform)},
-            {"animateInitial", jsonBool(binding.animateInitial)},
-            {"applyImmediately", jsonBool(binding.applyImmediately)}
+            {"property", GtsJsonValue(enumToString(binding.property, bindingPropertyEntries(), "Text"))},
+            {"path", GtsJsonValue(binding.path)},
+            {"formatter", GtsJsonValue(binding.formatter)},
+            {"transform", GtsJsonValue(binding.transform)},
+            {"animateInitial", GtsJsonValue(binding.animateInitial)},
+            {"applyImmediately", GtsJsonValue(binding.applyImmediately)}
         };
         if (binding.animation)
             object.emplace_back("animation", serializeTiming(*binding.animation));
-        return jsonObject(std::move(object));
+        return GtsJsonValue::Object(std::move(object));
     }
 
-    UiSerializedNavigation parseNavigation(const UiJsonValue& json)
+    UiSerializedNavigation parseNavigation(const GtsJsonValue& json)
     {
         UiSerializedNavigation navigation;
         if (!json.isObject())
@@ -1147,7 +799,7 @@ namespace
         navigation.tabIndex = intOr(json, "tabIndex", navigation.tabIndex);
         navigation.wrapNavigation = boolOr(json, "wrapNavigation", navigation.wrapNavigation);
         navigation.activateOnSubmit = boolOr(json, "activateOnSubmit", navigation.activateOnSubmit);
-        if (const UiJsonValue* neighbors = json.find("neighbors"))
+        if (const GtsJsonValue* neighbors = json.find("neighbors"))
         {
             if (const Object* object = asObject(*neighbors))
             {
@@ -1166,26 +818,26 @@ namespace
         return navigation;
     }
 
-    UiJsonValue serializeNavigation(const UiSerializedNavigation& navigation)
+    GtsJsonValue serializeNavigation(const UiSerializedNavigation& navigation)
     {
         Object neighbors;
         for (const auto& [direction, target] : navigation.neighbors)
-            neighbors.emplace_back(enumToString(direction, navigationDirectionEntries(), "None"), jsonString(target));
+            neighbors.emplace_back(enumToString(direction, navigationDirectionEntries(), "None"), GtsJsonValue(target));
 
-        return jsonObject({
-            {"enabled", jsonBool(navigation.enabled)},
-            {"focusable", jsonBool(navigation.focusable)},
-            {"role", jsonString(enumToString(navigation.role, navigationRoleEntries(), "Generic"))},
-            {"scope", jsonNumber(navigation.scope)},
-            {"group", jsonString(navigation.group)},
-            {"tabIndex", jsonNumber(navigation.tabIndex)},
-            {"wrapNavigation", jsonBool(navigation.wrapNavigation)},
-            {"activateOnSubmit", jsonBool(navigation.activateOnSubmit)},
-            {"neighbors", jsonObject(std::move(neighbors))}
+        return GtsJsonValue::Object({
+            {"enabled", GtsJsonValue(navigation.enabled)},
+            {"focusable", GtsJsonValue(navigation.focusable)},
+            {"role", GtsJsonValue(enumToString(navigation.role, navigationRoleEntries(), "Generic"))},
+            {"scope", GtsJsonValue(navigation.scope)},
+            {"group", GtsJsonValue(navigation.group)},
+            {"tabIndex", GtsJsonValue(navigation.tabIndex)},
+            {"wrapNavigation", GtsJsonValue(navigation.wrapNavigation)},
+            {"activateOnSubmit", GtsJsonValue(navigation.activateOnSubmit)},
+            {"neighbors", GtsJsonValue::Object(std::move(neighbors))}
         });
     }
 
-    UiSerializedDragSource parseDragSource(const UiJsonValue& json)
+    UiSerializedDragSource parseDragSource(const GtsJsonValue& json)
     {
         UiSerializedDragSource source;
         if (!json.isObject())
@@ -1199,30 +851,30 @@ namespace
         return source;
     }
 
-    UiJsonValue serializeDragSource(const UiSerializedDragSource& source)
+    GtsJsonValue serializeDragSource(const UiSerializedDragSource& source)
     {
-        return jsonObject({
-            {"enabled", jsonBool(source.enabled)},
-            {"payloadType", jsonString(source.payloadType)},
-            {"payloadId", jsonNumber(static_cast<double>(source.payloadId))},
-            {"payloadLabel", jsonString(source.payloadLabel)},
-            {"startThreshold", jsonNumber(source.startThreshold)},
-            {"capturePointer", jsonBool(source.capturePointer)}
+        return GtsJsonValue::Object({
+            {"enabled", GtsJsonValue(source.enabled)},
+            {"payloadType", GtsJsonValue(source.payloadType)},
+            {"payloadId", GtsJsonValue(static_cast<double>(source.payloadId))},
+            {"payloadLabel", GtsJsonValue(source.payloadLabel)},
+            {"startThreshold", GtsJsonValue(source.startThreshold)},
+            {"capturePointer", GtsJsonValue(source.capturePointer)}
         });
     }
 
-    UiSerializedDropTarget parseDropTarget(const UiJsonValue& json)
+    UiSerializedDropTarget parseDropTarget(const GtsJsonValue& json)
     {
         UiSerializedDropTarget target;
         if (!json.isObject())
             return target;
         target.enabled = boolOr(json, "enabled", target.enabled);
         target.acceptsAnyPayload = boolOr(json, "acceptsAnyPayload", target.acceptsAnyPayload);
-        if (const UiJsonValue* accepted = json.find("acceptedPayloadTypes"))
+        if (const GtsJsonValue* accepted = json.find("acceptedPayloadTypes"))
         {
             if (const Array* array = asArray(*accepted))
             {
-                for (const UiJsonValue& value : *array)
+                for (const GtsJsonValue& value : *array)
                 {
                     if (const auto* string = std::get_if<std::string>(&value.value))
                         target.acceptedPayloadTypes.push_back(*string);
@@ -1232,24 +884,24 @@ namespace
         return target;
     }
 
-    UiJsonValue serializeDropTarget(const UiSerializedDropTarget& target)
+    GtsJsonValue serializeDropTarget(const UiSerializedDropTarget& target)
     {
         Array accepted;
         for (const std::string& type : target.acceptedPayloadTypes)
-            accepted.push_back(jsonString(type));
-        return jsonObject({
-            {"enabled", jsonBool(target.enabled)},
-            {"acceptsAnyPayload", jsonBool(target.acceptsAnyPayload)},
-            {"acceptedPayloadTypes", jsonArray(std::move(accepted))}
+            accepted.push_back(GtsJsonValue(type));
+        return GtsJsonValue::Object({
+            {"enabled", GtsJsonValue(target.enabled)},
+            {"acceptsAnyPayload", GtsJsonValue(target.acceptsAnyPayload)},
+            {"acceptedPayloadTypes", GtsJsonValue::Array(std::move(accepted))}
         });
     }
 
-    std::optional<UiStyleTransitionDesc> parseStyleTransition(const UiJsonValue& json)
+    std::optional<UiStyleTransitionDesc> parseStyleTransition(const GtsJsonValue& json)
     {
         if (!json.isObject())
             return std::nullopt;
         UiStyleTransitionDesc transition;
-        if (const UiJsonValue* value = json.find("timing"))
+        if (const GtsJsonValue* value = json.find("timing"))
             transition.timing = parseTiming(*value);
         transition.animateBackground = boolOr(json, "animateBackground", transition.animateBackground);
         transition.animateForeground = boolOr(json, "animateForeground", transition.animateForeground);
@@ -1257,17 +909,17 @@ namespace
         return transition;
     }
 
-    UiJsonValue serializeStyleTransition(const UiStyleTransitionDesc& transition)
+    GtsJsonValue serializeStyleTransition(const UiStyleTransitionDesc& transition)
     {
-        return jsonObject({
+        return GtsJsonValue::Object({
             {"timing", serializeTiming(transition.timing)},
-            {"animateBackground", jsonBool(transition.animateBackground)},
-            {"animateForeground", jsonBool(transition.animateForeground)},
-            {"animateOpacity", jsonBool(transition.animateOpacity)}
+            {"animateBackground", GtsJsonValue(transition.animateBackground)},
+            {"animateForeground", GtsJsonValue(transition.animateForeground)},
+            {"animateOpacity", GtsJsonValue(transition.animateOpacity)}
         });
     }
 
-    UiSerializedWidget parseWidget(const UiJsonValue& json)
+    UiSerializedWidget parseWidget(const GtsJsonValue& json)
     {
         UiSerializedWidget widget;
         if (!json.isObject())
@@ -1285,7 +937,7 @@ namespace
         widget.styleClass = stringOr(json, "styleClass", widget.styleClass);
         widget.labelStyleClass = stringOr(json, "labelStyleClass", widget.labelStyleClass);
         widget.imageAsset = stringOr(json, "imageAsset", widget.imageAsset);
-        if (const UiJsonValue* parameters = json.find("parameters"))
+        if (const GtsJsonValue* parameters = json.find("parameters"))
         {
             if (const Object* object = asObject(*parameters))
             {
@@ -1293,10 +945,10 @@ namespace
                 {
                     if (const auto* string = std::get_if<std::string>(&value.value))
                         widget.parameters[key] = *string;
-                    else if (const auto* number = std::get_if<double>(&value.value))
+                    else if (value.isNumber())
                     {
                         std::ostringstream out;
-                        out << *number;
+                        out << value.asNumber();
                         widget.parameters[key] = out.str();
                     }
                     else if (const auto* boolean = std::get_if<bool>(&value.value))
@@ -1311,11 +963,11 @@ namespace
         if (const auto value = getString(json, "wrapMode"))
             widget.wrapMode = parseEnumString(*value, wrapModeEntries(), widget.wrapMode);
         widget.maxLines = intOr(json, "maxLines", widget.maxLines);
-        if (const UiJsonValue* value = json.find("imageTint")) widget.imageTint = parseColor(*value, widget.imageTint);
+        if (const GtsJsonValue* value = json.find("imageTint")) widget.imageTint = parseColor(*value, widget.imageTint);
         widget.imageAspect = numberOr(json, "imageAspect", widget.imageAspect);
         widget.rotation = numberOr(json, "rotation", widget.rotation);
         widget.progressValue = numberOr(json, "value", widget.progressValue);
-        if (const UiJsonValue* value = json.find("contentOffset")) widget.contentOffset = parseVec2(*value, widget.contentOffset);
+        if (const GtsJsonValue* value = json.find("contentOffset")) widget.contentOffset = parseVec2(*value, widget.contentOffset);
         if (json.find("visible") != nullptr)
         {
             widget.visible = boolOr(json, "visible", widget.visible);
@@ -1336,12 +988,12 @@ namespace
             widget.decorative = boolOr(json, "decorative", widget.decorative);
             widget.hasDecorative = true;
         }
-        if (const UiJsonValue* value = json.find("layout"))
+        if (const GtsJsonValue* value = json.find("layout"))
         {
             widget.layout = parseLayout(*value, widget.layout);
             widget.hasLayout = true;
         }
-        if (const UiJsonValue* value = json.find("semantics"))
+        if (const GtsJsonValue* value = json.find("semantics"))
         {
             widget.semantics = parseSemantic(*value);
             widget.semanticLocalization = parseSemanticLocalizationRefs(*value);
@@ -1352,31 +1004,31 @@ namespace
         parseTopLevelSemanticLocalizationAliases(json, widget.semanticLocalization);
         if (widget.semanticLocalization.any())
             widget.hasSemantics = true;
-        if (const UiJsonValue* value = json.find("navigation"))
+        if (const GtsJsonValue* value = json.find("navigation"))
         {
             widget.navigation = parseNavigation(*value);
             widget.hasNavigation = true;
         }
-        if (const UiJsonValue* value = json.find("dragSource")) widget.dragSource = parseDragSource(*value);
-        if (const UiJsonValue* value = json.find("dropTarget")) widget.dropTarget = parseDropTarget(*value);
-        if (const UiJsonValue* value = json.find("stateTransition")) widget.stateTransition = parseStyleTransition(*value);
-        if (const UiJsonValue* value = json.find("bindings"))
+        if (const GtsJsonValue* value = json.find("dragSource")) widget.dragSource = parseDragSource(*value);
+        if (const GtsJsonValue* value = json.find("dropTarget")) widget.dropTarget = parseDropTarget(*value);
+        if (const GtsJsonValue* value = json.find("stateTransition")) widget.stateTransition = parseStyleTransition(*value);
+        if (const GtsJsonValue* value = json.find("bindings"))
         {
             if (const Array* array = asArray(*value))
             {
-                for (const UiJsonValue& item : *array)
+                for (const GtsJsonValue& item : *array)
                     widget.bindings.push_back(parseBinding(item));
             }
         }
-        if (const UiJsonValue* value = json.find("children"))
+        if (const GtsJsonValue* value = json.find("children"))
         {
             if (const Array* array = asArray(*value))
             {
-                for (const UiJsonValue& item : *array)
+                for (const GtsJsonValue& item : *array)
                     widget.children.push_back(parseWidget(item));
             }
         }
-        if (const UiJsonValue* value = json.find("slots"))
+        if (const GtsJsonValue* value = json.find("slots"))
         {
             if (const Object* object = asObject(*value))
             {
@@ -1385,7 +1037,7 @@ namespace
                     if (const Array* array = asArray(slotValue))
                     {
                         std::vector<UiSerializedWidget>& children = widget.slots[slotName];
-                        for (const UiJsonValue& item : *array)
+                        for (const GtsJsonValue& item : *array)
                             children.push_back(parseWidget(item));
                     }
                 }
@@ -1394,7 +1046,7 @@ namespace
         return widget;
     }
 
-    UiJsonValue serializeWidget(const UiSerializedWidget& widget)
+    GtsJsonValue serializeWidget(const UiSerializedWidget& widget)
     {
         Array bindings;
         for (const UiSerializedBinding& binding : widget.bindings)
@@ -1404,47 +1056,47 @@ namespace
             children.push_back(serializeWidget(child));
         Object parameters;
         for (const auto& [key, value] : widget.parameters)
-            parameters.emplace_back(key, jsonString(value));
+            parameters.emplace_back(key, GtsJsonValue(value));
         Object slots;
         for (const auto& [slotName, slotChildren] : widget.slots)
         {
             Array slotArray;
             for (const UiSerializedWidget& child : slotChildren)
                 slotArray.push_back(serializeWidget(child));
-            slots.emplace_back(slotName, jsonArray(std::move(slotArray)));
+            slots.emplace_back(slotName, GtsJsonValue::Array(std::move(slotArray)));
         }
 
         Object object = {
-            {"id", jsonString(widget.id)},
-            {"type", jsonString(widget.type)},
-            {"asset", jsonString(widget.asset)},
-            {"variant", jsonString(widget.variant)},
-            {"parameters", jsonObject(std::move(parameters))},
+            {"id", GtsJsonValue(widget.id)},
+            {"type", GtsJsonValue(widget.type)},
+            {"asset", GtsJsonValue(widget.asset)},
+            {"variant", GtsJsonValue(widget.variant)},
+            {"parameters", GtsJsonValue::Object(std::move(parameters))},
             {"layout", serializeLayout(widget.layout)},
-            {"styleClass", jsonString(widget.styleClass)},
-            {"labelStyleClass", jsonString(widget.labelStyleClass)},
-            {"text", jsonString(widget.text)},
-            {"imageAsset", jsonString(widget.imageAsset)},
-            {"horizontalAlign", jsonString(enumToString(widget.horizontalAlign, horizontalAlignEntries(), "Left"))},
-            {"verticalAlign", jsonString(enumToString(widget.verticalAlign, verticalAlignEntries(), "Top"))},
-            {"wrapMode", jsonString(enumToString(widget.wrapMode, wrapModeEntries(), "None"))},
-            {"maxLines", jsonNumber(widget.maxLines)},
+            {"styleClass", GtsJsonValue(widget.styleClass)},
+            {"labelStyleClass", GtsJsonValue(widget.labelStyleClass)},
+            {"text", GtsJsonValue(widget.text)},
+            {"imageAsset", GtsJsonValue(widget.imageAsset)},
+            {"horizontalAlign", GtsJsonValue(enumToString(widget.horizontalAlign, horizontalAlignEntries(), "Left"))},
+            {"verticalAlign", GtsJsonValue(enumToString(widget.verticalAlign, verticalAlignEntries(), "Top"))},
+            {"wrapMode", GtsJsonValue(enumToString(widget.wrapMode, wrapModeEntries(), "None"))},
+            {"maxLines", GtsJsonValue(widget.maxLines)},
             {"imageTint", serializeColor(widget.imageTint)},
-            {"imageAspect", jsonNumber(widget.imageAspect)},
-            {"rotation", jsonNumber(widget.rotation)},
-            {"value", jsonNumber(widget.progressValue)},
+            {"imageAspect", GtsJsonValue(widget.imageAspect)},
+            {"rotation", GtsJsonValue(widget.rotation)},
+            {"value", GtsJsonValue(widget.progressValue)},
             {"contentOffset", serializeVec2(widget.contentOffset)},
-            {"visible", jsonBool(widget.visible)},
-            {"enabled", jsonBool(widget.enabled)},
-            {"interactable", jsonBool(widget.interactable)},
-            {"decorative", jsonBool(widget.decorative)},
+            {"visible", GtsJsonValue(widget.visible)},
+            {"enabled", GtsJsonValue(widget.enabled)},
+            {"interactable", GtsJsonValue(widget.interactable)},
+            {"decorative", GtsJsonValue(widget.decorative)},
             {"navigation", serializeNavigation(widget.navigation)},
-            {"bindings", jsonArray(std::move(bindings))},
-            {"children", jsonArray(std::move(children))},
-            {"slots", jsonObject(std::move(slots))}
+            {"bindings", GtsJsonValue::Array(std::move(bindings))},
+            {"children", GtsJsonValue::Array(std::move(children))},
+            {"slots", GtsJsonValue::Object(std::move(slots))}
         };
         if (widget.hasTextKey || !widget.textKey.empty())
-            object.emplace_back("textKey", jsonString(widget.textKey));
+            object.emplace_back("textKey", GtsJsonValue(widget.textKey));
         if (widget.hasSemantics)
         {
             object.emplace_back("semantics",
@@ -1460,10 +1112,10 @@ namespace
             object.emplace_back("dropTarget", serializeDropTarget(*widget.dropTarget));
         if (widget.stateTransition)
             object.emplace_back("stateTransition", serializeStyleTransition(*widget.stateTransition));
-        return jsonObject(std::move(object));
+        return GtsJsonValue::Object(std::move(object));
     }
 
-    UiSerializedSurface parseSurface(const UiJsonValue& json)
+    UiSerializedSurface parseSurface(const GtsJsonValue& json)
     {
         UiSerializedSurface surface;
         if (!json.isObject())
@@ -1472,7 +1124,7 @@ namespace
         if (const auto value = getString(json, "kind"))
             surface.kind = parseEnumString(*value, surfaceKindEntries(), surface.kind);
         surface.order = intOr(json, "order", surface.order);
-        if (const UiJsonValue* value = json.find("rect"))
+        if (const GtsJsonValue* value = json.find("rect"))
             surface.rect = parseRect(*value, surface.rect);
         surface.visible = boolOr(json, "visible", surface.visible);
         surface.enabled = boolOr(json, "enabled", surface.enabled);
@@ -1481,21 +1133,21 @@ namespace
         return surface;
     }
 
-    UiJsonValue serializeSurface(const UiSerializedSurface& surface)
+    GtsJsonValue serializeSurface(const UiSerializedSurface& surface)
     {
-        return jsonObject({
-            {"name", jsonString(surface.name)},
-            {"kind", jsonString(enumToString(surface.kind, surfaceKindEntries(), "Screen"))},
-            {"order", jsonNumber(surface.order)},
+        return GtsJsonValue::Object({
+            {"name", GtsJsonValue(surface.name)},
+            {"kind", GtsJsonValue(enumToString(surface.kind, surfaceKindEntries(), "Screen"))},
+            {"order", GtsJsonValue(surface.order)},
             {"rect", serializeRect(surface.rect)},
-            {"visible", jsonBool(surface.visible)},
-            {"enabled", jsonBool(surface.enabled)},
-            {"inputEnabled", jsonBool(surface.inputEnabled)},
-            {"renderEnabled", jsonBool(surface.renderEnabled)}
+            {"visible", GtsJsonValue(surface.visible)},
+            {"enabled", GtsJsonValue(surface.enabled)},
+            {"inputEnabled", GtsJsonValue(surface.inputEnabled)},
+            {"renderEnabled", GtsJsonValue(surface.renderEnabled)}
         });
     }
 
-    UiSerializedLayer parseLayer(const UiJsonValue& json)
+    UiSerializedLayer parseLayer(const GtsJsonValue& json)
     {
         UiSerializedLayer layer;
         if (!json.isObject())
@@ -1507,22 +1159,22 @@ namespace
         return layer;
     }
 
-    UiJsonValue serializeLayer(const UiSerializedLayer& layer)
+    GtsJsonValue serializeLayer(const UiSerializedLayer& layer)
     {
-        return jsonObject({
-            {"name", jsonString(layer.name)},
-            {"order", jsonNumber(layer.order)},
-            {"visible", jsonBool(layer.state.visible)},
-            {"inputEnabled", jsonBool(layer.state.inputEnabled)}
+        return GtsJsonValue::Object({
+            {"name", GtsJsonValue(layer.name)},
+            {"order", GtsJsonValue(layer.order)},
+            {"visible", GtsJsonValue(layer.state.visible)},
+            {"inputEnabled", GtsJsonValue(layer.state.inputEnabled)}
         });
     }
 
-    UiJsonValue serializeAssetJson(const UiSerializedAsset& asset)
+    GtsJsonValue serializeAssetJson(const UiSerializedAsset& asset)
     {
         Object object = {
-            {"schema", jsonNumber(asset.schemaVersion)},
-            {"id", jsonString(asset.id)},
-            {"theme", jsonString(asset.theme)},
+            {"schema", GtsJsonValue(asset.schemaVersion)},
+            {"id", GtsJsonValue(asset.id)},
+            {"theme", GtsJsonValue(asset.theme)},
             {"root", serializeWidget(asset.root)}
         };
         if (asset.surface)
@@ -1531,8 +1183,8 @@ namespace
         Array layers;
         for (const UiSerializedLayer& layer : asset.layers)
             layers.push_back(serializeLayer(layer));
-        object.emplace_back("layers", jsonArray(std::move(layers)));
-        return jsonObject(std::move(object));
+        object.emplace_back("layers", GtsJsonValue::Array(std::move(layers)));
+        return GtsJsonValue::Object(std::move(object));
     }
 
     bool isKnownWidgetType(const std::string& type)
@@ -2132,72 +1784,6 @@ namespace
     }
 }
 
-const UiJsonValue* UiJsonValue::find(const std::string& key) const
-{
-    const Object* object = std::get_if<Object>(&value);
-    if (object == nullptr)
-        return nullptr;
-
-    for (const auto& [memberKey, memberValue] : *object)
-    {
-        if (memberKey == key)
-            return &memberValue;
-    }
-    return nullptr;
-}
-
-bool parseUiJson(std::string_view source, UiJsonValue& outValue, std::string* outError)
-{
-    JsonParser parser(source);
-    return parser.parse(outValue, outError);
-}
-
-std::string serializeUiJson(const UiJsonValue& value, int indent)
-{
-    const std::string prefix = indentString(indent);
-    if (std::holds_alternative<std::monostate>(value.value))
-        return "null";
-    if (const auto* boolean = std::get_if<bool>(&value.value))
-        return *boolean ? "true" : "false";
-    if (const auto* number = std::get_if<double>(&value.value))
-    {
-        std::ostringstream out;
-        out << *number;
-        return out.str();
-    }
-    if (const auto* string = std::get_if<std::string>(&value.value))
-        return "\"" + escapeJson(*string) + "\"";
-    if (const auto* array = std::get_if<Array>(&value.value))
-    {
-        if (array->empty())
-            return "[]";
-        std::string out = "[\n";
-        for (size_t i = 0; i < array->size(); ++i)
-        {
-            out += indentString(indent + 2) + serializeUiJson((*array)[i], indent + 2);
-            out += i + 1 == array->size() ? "\n" : ",\n";
-        }
-        out += prefix + "]";
-        return out;
-    }
-    if (const auto* object = std::get_if<Object>(&value.value))
-    {
-        if (object->empty())
-            return "{}";
-        std::string out = "{\n";
-        for (size_t i = 0; i < object->size(); ++i)
-        {
-            const auto& [key, member] = (*object)[i];
-            out += indentString(indent + 2) + "\"" + escapeJson(key) + "\": " +
-                   serializeUiJson(member, indent + 2);
-            out += i + 1 == object->size() ? "\n" : ",\n";
-        }
-        out += prefix + "}";
-        return out;
-    }
-    return "null";
-}
-
 bool UiSerializedValidationResult::valid() const
 {
     return std::none_of(issues.begin(),
@@ -2227,9 +1813,9 @@ bool parseUiSerializedAsset(const std::string& json,
                             UiSerializedValidationResult* outValidation)
 {
     UiSerializedValidationResult validation;
-    UiJsonValue root;
+    GtsJsonValue root;
     std::string error;
-    if (!parseUiJson(json, root, &error))
+    if (!GtsJsonParser::parse(json, root, &error))
     {
         validation.error("$", error);
         if (outValidation != nullptr)
@@ -2248,17 +1834,17 @@ bool parseUiSerializedAsset(const std::string& json,
     asset.schemaVersion = intOr(root, "schema", asset.schemaVersion);
     asset.id = stringOr(root, "id", asset.id);
     asset.theme = stringOr(root, "theme", asset.theme);
-    if (const UiJsonValue* surface = root.find("surface"))
+    if (const GtsJsonValue* surface = root.find("surface"))
         asset.surface = parseSurface(*surface);
-    if (const UiJsonValue* layers = root.find("layers"))
+    if (const GtsJsonValue* layers = root.find("layers"))
     {
         if (const Array* array = asArray(*layers))
         {
-            for (const UiJsonValue& item : *array)
+            for (const GtsJsonValue& item : *array)
                 asset.layers.push_back(parseLayer(item));
         }
     }
-    if (const UiJsonValue* widget = root.find("root"))
+    if (const GtsJsonValue* widget = root.find("root"))
         asset.root = parseWidget(*widget);
     else
         validation.error("$.root", "root widget is required");
@@ -2285,16 +1871,16 @@ bool parseUiSerializedAsset(const std::string& json,
 
 std::string serializeUiSerializedAsset(const UiSerializedAsset& asset)
 {
-    return serializeUiJson(serializeAssetJson(asset), 0);
+    return GtsJsonParser::serialize(serializeAssetJson(asset), 0);
 }
 
-bool parseUiSerializedWidget(const UiJsonValue& json, UiSerializedWidget& outWidget)
+bool parseUiSerializedWidget(const GtsJsonValue& json, UiSerializedWidget& outWidget)
 {
     outWidget = parseWidget(json);
     return !outWidget.type.empty() || !outWidget.asset.empty();
 }
 
-UiJsonValue serializeUiSerializedWidget(const UiSerializedWidget& widget)
+GtsJsonValue serializeUiSerializedWidget(const UiSerializedWidget& widget)
 {
     return serializeWidget(widget);
 }
@@ -2316,10 +1902,19 @@ bool loadUiSerializedAssetFromFile(const std::string& path,
     return parseUiSerializedAsset(buffer.str(), outAsset, outValidation);
 }
 
-bool saveUiSerializedAssetToFile(const std::string& path,
-                                 const UiSerializedAsset& asset,
-                                 std::string* outError)
+bool saveUiSerializedAssetToFile(const std::string& path, const UiSerializedAsset& asset, std::string* outError)
 {
+    std::string json;
+    try
+    {
+        json = serializeUiSerializedAsset(asset);
+    }
+    catch (const std::invalid_argument& failure)
+    {
+        if (outError != nullptr)
+            *outError = failure.what();
+        return false;
+    }
     std::ofstream file(path);
     if (!file)
     {
@@ -2327,18 +1922,25 @@ bool saveUiSerializedAssetToFile(const std::string& path,
             *outError = "failed to open UI asset file for writing";
         return false;
     }
-    file << serializeUiSerializedAsset(asset);
+    file << json;
+    if (!file.good())
+    {
+        if (outError != nullptr)
+            *outError = "failed to write JSON file";
+        return false;
+    }
+    if (outError != nullptr)
+        outError->clear();
     return true;
 }
 
-UiSerializedValidationResult validateUiSerializedAsset(const UiSerializedAsset& asset,
-                                                       const UiTheme* theme)
+UiSerializedValidationResult validateUiSerializedAsset(const UiSerializedAsset& asset, const UiTheme* theme)
 {
     return validateUiSerializedAsset(asset, theme, nullptr);
 }
 
-UiSerializedValidationResult validateUiSerializedAsset(const UiSerializedAsset& asset,
-                                                       const UiTheme* theme,
+UiSerializedValidationResult validateUiSerializedAsset(const UiSerializedAsset&     asset,
+                                                       const UiTheme*               theme,
                                                        const UiWidgetAssetRegistry* widgetAssets)
 {
     UiSerializedValidationResult result;

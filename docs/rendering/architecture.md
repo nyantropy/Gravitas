@@ -5,6 +5,11 @@ engine-level only; application scene composition belongs in application docs.
 
 ## Ownership Model
 
+Particle effects, font metadata, and glTF/GLB JSON use
+[`GtsJsonParser`](../json/architecture.md) from core. These rendering-owned
+loaders retain schema validation and conversion; font loading implementation
+lives in `FontAssetIO.cpp`, not its data-facing header.
+
 Rendering follows a descriptor/runtime split:
 
 - Application or scene code writes descriptor components that describe intent.

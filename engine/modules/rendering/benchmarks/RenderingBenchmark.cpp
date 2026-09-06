@@ -1,4 +1,5 @@
 #include "RenderingBenchmark.h"
+#include "GtsJsonParser.h"
 
 #include <algorithm>
 #include <chrono>
@@ -11,6 +12,7 @@
 #include <optional>
 #include <random>
 #include <sstream>
+#include <stdexcept>
 #include <thread>
 #include <unordered_map>
 
@@ -295,24 +297,6 @@ namespace gts::rendering::benchmarks
 
             const double weight = rank - static_cast<double>(lo);
             return sorted[lo] * (1.0 - weight) + sorted[hi] * weight;
-        }
-
-        std::string escapedJson(std::string_view value)
-        {
-            std::ostringstream out;
-            for (char c : value)
-            {
-                switch (c)
-                {
-                    case '\\': out << "\\\\"; break;
-                    case '"': out << "\\\""; break;
-                    case '\n': out << "\\n"; break;
-                    case '\r': out << "\\r"; break;
-                    case '\t': out << "\\t"; break;
-                    default: out << c; break;
-                }
-            }
-            return out.str();
         }
 
         std::string cpuModel()
@@ -2681,246 +2665,164 @@ namespace gts::rendering::benchmarks
 
     std::string benchmarkResultToJson(const BenchmarkRunResult& result)
     {
-        std::ostringstream out;
-        out << std::fixed << std::setprecision(6);
-        out << "{\n";
-        out << "  \"benchmark\": \"" << escapedJson(result.config.presetName) << "\",\n";
-        out << "  \"preset_version\": " << result.config.presetVersion << ",\n";
-        out << "  \"mode\": \"" << escapedJson(benchmarkRunModeName(result.config.mode)) << "\",\n";
-        out << "  \"seed\": " << result.config.seed << ",\n";
-        out << "  \"warmup_frames\": " << result.config.warmupFrames << ",\n";
-        out << "  \"measured_frames\": " << result.config.measuredFrames << ",\n";
-        out << "  \"render_resolution\": {\n";
-        out << "    \"width\": " << result.config.renderWidth << ",\n";
-        out << "    \"height\": " << result.config.renderHeight << "\n";
-        out << "  },\n";
-        out << "  \"gpu_supported\": " << (result.gpuTimingSupported ? "true" : "false") << ",\n";
-        out << "  \"gpu_timing\": {\n";
-        out << "    \"supported\": " << (result.gpuTimingSupported ? "true" : "false") << ",\n";
-        out << "    \"available\": " << (result.gpuTimingAvailable ? "true" : "false") << ",\n";
-        out << "    \"status\": \"" << escapedJson(result.gpuTimingStatus) << "\"\n";
-        out << "  },\n";
-        out << "  \"config\": {\n";
-        out << "    \"renderable_count\": " << result.config.renderableCount << ",\n";
-        out << "    \"visible_renderable_count\": " << result.config.visibleRenderableCount << ",\n";
-        out << "    \"unique_mesh_count\": " << result.config.uniqueMeshCount << ",\n";
-        out << "    \"unique_material_count\": " << result.config.uniqueMaterialCount << ",\n";
-        out << "    \"moving_object_count\": " << result.config.movingObjectCount << ",\n";
-        out << "    \"material_mutation_count_per_frame\": " << result.config.materialMutationCountPerFrame << ",\n";
-        out << "    \"topology_mutation_count_per_frame\": " << result.config.topologyMutationCountPerFrame << ",\n";
-        out << "    \"directional_light_count\": " << result.config.directionalLightCount << ",\n";
-        out << "    \"point_light_count\": " << result.config.pointLightCount << ",\n";
-        out << "    \"spot_light_count\": " << result.config.spotLightCount << ",\n";
-        out << "    \"moving_light_count\": " << result.config.movingLightCount << ",\n";
-        out << "    \"dynamic_mesh_count\": " << result.config.dynamicMeshCount << ",\n";
-        out << "    \"dynamic_mesh_mutation_count_per_frame\": " << result.config.dynamicMeshMutationCountPerFrame << ",\n";
-        out << "    \"particle_emitter_count\": " << result.config.particleEmitterCount << ",\n";
-        out << "    \"particle_emission_rate\": " << result.config.particleEmissionRate << ",\n";
-        out << "    \"particle_max_particles\": " << result.config.particleMaxParticles << ",\n";
-        out << "    \"particle_mesh_emitter_count\": " << result.config.particleMeshEmitterCount << ",\n";
-        out << "    \"particle_max_simulated_particles\": " << result.config.particleMaxSimulatedParticles << ",\n";
-        out << "    \"particle_max_rendered_particles\": " << result.config.particleMaxRenderedParticles << ",\n";
-        out << "    \"particle_max_spawned_per_frame\": " << result.config.particleMaxSpawnedPerFrame << ",\n";
-        out << "    \"world_text_count\": " << result.config.worldTextCount << ",\n";
-        out << "    \"enable_pbr\": " << (result.config.enablePbr ? "true" : "false") << ",\n";
-        out << "    \"enable_normal_maps\": " << (result.config.enableNormalMaps ? "true" : "false") << ",\n";
-        out << "    \"enable_ibl\": " << (result.config.enableIbl ? "true" : "false") << ",\n";
-        out << "    \"enable_ui\": " << (result.config.enableUi ? "true" : "false") << ",\n";
-        out << "    \"enable_frustum_culling\": " << (result.config.enableFrustumCulling ? "true" : "false") << ",\n";
-        out << "    \"enable_tooling\": " << (result.config.enableTooling ? "true" : "false") << ",\n";
-        out << "    \"tooling_visible\": " << (result.config.toolingVisible ? "true" : "false") << ",\n";
-        out << "    \"tooling_debug_draw\": " << (result.config.toolingDebugDraw ? "true" : "false") << ",\n";
-        out << "    \"tooling_gizmos\": " << (result.config.toolingGizmos ? "true" : "false") << ",\n";
-        out << "    \"tooling_workspace\": \"" << escapedJson(result.config.toolingWorkspace) << "\",\n";
-        out << "    \"hitch_threshold_ms\": " << result.config.hitchThresholdMs << ",\n";
-        out << "    \"hitch_context_frames\": " << result.config.hitchContextFrames << ",\n";
-        out << "    \"max_hitch_events\": " << result.config.maxHitchEvents << ",\n";
-        out << "    \"request_screenshot\": " << (result.config.requestScreenshot ? "true" : "false") << ",\n";
-        out << "    \"screenshot_measured_frame\": " << result.config.screenshotMeasuredFrame << ",\n";
-        out << "    \"screenshot_output_directory\": \""
-            << escapedJson(result.config.screenshotOutputDirectory) << "\"\n";
-        out << "  },\n";
-        out << "  \"environment\": {\n";
-        size_t index = 0;
-        for (const auto& [key, value] : result.environment.values)
+        using Object = GtsJsonValue::Object;
+        using Array  = GtsJsonValue::Array;
+        auto mapJson = [](const auto& values)
         {
-            out << "    \"" << escapedJson(key) << "\": \"" << escapedJson(value) << "\"";
-            out << (++index < result.environment.values.size() ? ",\n" : "\n");
-        }
-        out << "  },\n";
-        out << "  \"timings_ms\": {\n";
-        index = 0;
+            Object object;
+            for (const auto& [key, value] : values)
+                object.emplace_back(key, value);
+            return object;
+        };
+        auto summaryJson = [](const auto& summary)
+        {
+            return Object{{"min", summary.minimum},
+                          {"median", summary.median},
+                          {"mean", summary.mean},
+                          {"p90", summary.p90},
+                          {"p95", summary.p95},
+                          {"p99", summary.p99},
+                          {"p999", summary.p999},
+                          {"max", summary.maximum},
+                          {"stddev", summary.standardDeviation},
+                          {"sample_count", summary.sampleCount}};
+        };
+        auto compactSummaryJson = [](const auto& summary)
+        {
+            return Object{{"median", summary.median},
+                          {"p95", summary.p95},
+                          {"p99", summary.p99},
+                          {"p999", summary.p999},
+                          {"sample_count", summary.sampleCount}};
+        };
+        Object timings, gpuTimings, controllerTimings, flushTimings, substages;
         for (const auto& [key, summary] : result.timingsMs)
-        {
-            out << "    \"" << escapedJson(key) << "\": {\n";
-            out << "      \"min\": " << summary.minimum << ",\n";
-            out << "      \"median\": " << summary.median << ",\n";
-            out << "      \"mean\": " << summary.mean << ",\n";
-            out << "      \"p90\": " << summary.p90 << ",\n";
-            out << "      \"p95\": " << summary.p95 << ",\n";
-            out << "      \"p99\": " << summary.p99 << ",\n";
-            out << "      \"p999\": " << summary.p999 << ",\n";
-            out << "      \"max\": " << summary.maximum << ",\n";
-            out << "      \"stddev\": " << summary.standardDeviation << ",\n";
-            out << "      \"sample_count\": " << summary.sampleCount << "\n";
-            out << "    }" << (++index < result.timingsMs.size() ? ",\n" : "\n");
-        }
-        out << "  },\n";
-        out << "  \"gpu_timings_ms\": {\n";
-        index = 0;
+            timings.emplace_back(key, summaryJson(summary));
         for (const auto& [key, summary] : result.gpuTimingsMs)
-        {
-            out << "    \"" << escapedJson(key) << "\": {\n";
-            out << "      \"min\": " << summary.minimum << ",\n";
-            out << "      \"median\": " << summary.median << ",\n";
-            out << "      \"mean\": " << summary.mean << ",\n";
-            out << "      \"p90\": " << summary.p90 << ",\n";
-            out << "      \"p95\": " << summary.p95 << ",\n";
-            out << "      \"p99\": " << summary.p99 << ",\n";
-            out << "      \"p999\": " << summary.p999 << ",\n";
-            out << "      \"max\": " << summary.maximum << ",\n";
-            out << "      \"stddev\": " << summary.standardDeviation << ",\n";
-            out << "      \"sample_count\": " << summary.sampleCount << "\n";
-            out << "    }" << (++index < result.gpuTimingsMs.size() ? ",\n" : "\n");
-        }
-        out << "  },\n";
-        out << "  \"controller_timings_ms\": {\n";
-        index = 0;
+            gpuTimings.emplace_back(key, summaryJson(summary));
         for (const auto& [key, summary] : result.controllerTimingsMs)
         {
-            const auto groupIt = result.controllerTimingGroups.find(key);
-            out << "    \"" << escapedJson(key) << "\": {\n";
-            out << "      \"group\": \"" << escapedJson(groupIt == result.controllerTimingGroups.end()
-                                                        ? "Unknown"
-                                                        : groupIt->second) << "\",\n";
-            out << "      \"min\": " << summary.minimum << ",\n";
-            out << "      \"median\": " << summary.median << ",\n";
-            out << "      \"mean\": " << summary.mean << ",\n";
-            out << "      \"p90\": " << summary.p90 << ",\n";
-            out << "      \"p95\": " << summary.p95 << ",\n";
-            out << "      \"p99\": " << summary.p99 << ",\n";
-            out << "      \"p999\": " << summary.p999 << ",\n";
-            out << "      \"max\": " << summary.maximum << ",\n";
-            out << "      \"stddev\": " << summary.standardDeviation << ",\n";
-            out << "      \"sample_count\": " << summary.sampleCount << "\n";
-            out << "    }" << (++index < result.controllerTimingsMs.size() ? ",\n" : "\n");
+            auto       object = summaryJson(summary);
+            const auto group  = result.controllerTimingGroups.find(key);
+            object.emplace_back("group", group == result.controllerTimingGroups.end() ? "Unknown" : group->second);
+            controllerTimings.emplace_back(key, std::move(object));
         }
-        out << "  },\n";
-        out << "  \"controller_flush_timings_ms\": {\n";
-        index = 0;
         for (const auto& [key, summary] : result.controllerFlushTimingsMs)
-        {
-            out << "    \"" << escapedJson(key) << "\": {\n";
-            out << "      \"median\": " << summary.median << ",\n";
-            out << "      \"p95\": " << summary.p95 << ",\n";
-            out << "      \"p99\": " << summary.p99 << ",\n";
-            out << "      \"p999\": " << summary.p999 << ",\n";
-            out << "      \"sample_count\": " << summary.sampleCount << "\n";
-            out << "    }" << (++index < result.controllerFlushTimingsMs.size() ? ",\n" : "\n");
-        }
-        out << "  },\n";
-        out << "  \"controller_substages_ms\": {\n";
-        index = 0;
+            flushTimings.emplace_back(key, compactSummaryJson(summary));
         for (const auto& [key, summary] : result.controllerSubstageTimingsMs)
+            substages.emplace_back(key, compactSummaryJson(summary));
+        Array events;
+        for (const auto& event : result.hitchEvents)
         {
-            out << "    \"" << escapedJson(key) << "\": {\n";
-            out << "      \"median\": " << summary.median << ",\n";
-            out << "      \"p95\": " << summary.p95 << ",\n";
-            out << "      \"p99\": " << summary.p99 << ",\n";
-            out << "      \"p999\": " << summary.p999 << ",\n";
-            out << "      \"sample_count\": " << summary.sampleCount << "\n";
-            out << "    }" << (++index < result.controllerSubstageTimingsMs.size() ? ",\n" : "\n");
-        }
-        out << "  },\n";
-        out << "  \"counters\": {\n";
-        index = 0;
-        for (const auto& [key, value] : result.counters)
-        {
-            out << "    \"" << escapedJson(key) << "\": " << value;
-            out << (++index < result.counters.size() ? ",\n" : "\n");
-        }
-        out << "  },\n";
-        out << "  \"hitch_capture\": {\n";
-        out << "    \"enabled\": " << (result.config.hitchThresholdMs > 0.0 ? "true" : "false") << ",\n";
-        out << "    \"threshold_ms\": " << result.config.hitchThresholdMs << ",\n";
-        out << "    \"context_frames\": " << result.config.hitchContextFrames << ",\n";
-        out << "    \"max_events\": " << result.config.maxHitchEvents << ",\n";
-        out << "    \"events\": [";
-        for (size_t eventIndex = 0; eventIndex < result.hitchEvents.size(); ++eventIndex)
-        {
-            const BenchmarkHitchEvent& event = result.hitchEvents[eventIndex];
-            out << (eventIndex == 0 ? "\n" : ",\n");
-            out << "      {\n";
-            out << "        \"trigger_frame_index\": " << event.triggerFrameIndex << ",\n";
-            out << "        \"trigger_measured_frame_index\": " << event.triggerMeasuredFrameIndex << ",\n";
-            out << "        \"trigger_frame_cpu_ms\": " << event.triggerFrameCpuMs << ",\n";
-            out << "        \"frames\": [";
-            for (size_t frameIndex = 0; frameIndex < event.frames.size(); ++frameIndex)
+            Array frames;
+            for (const auto& frame : event.frames)
             {
-                const BenchmarkHitchFrame& frame = event.frames[frameIndex];
-                out << (frameIndex == 0 ? "\n" : ",\n");
-                out << "          {\n";
-                out << "            \"frame_index\": " << frame.frameIndex << ",\n";
-                out << "            \"measured_frame_index\": " << frame.measuredFrameIndex << ",\n";
-                out << "            \"relative_frame\": " << frame.relativeFrame << ",\n";
-                out << "            \"trigger\": " << (frame.trigger ? "true" : "false") << ",\n";
-                out << "            \"timings_ms\": {\n";
-                size_t timingIndex = 0;
-                for (const auto& [key, value] : frame.timingsMs)
-                {
-                    out << "              \"" << escapedJson(key) << "\": " << value;
-                    out << (++timingIndex < frame.timingsMs.size() ? ",\n" : "\n");
-                }
-                out << "            },\n";
-                out << "            \"counters\": {\n";
-                size_t counterIndex = 0;
-                for (const auto& [key, value] : frame.counters)
-                {
-                    out << "              \"" << escapedJson(key) << "\": " << value;
-                    out << (++counterIndex < frame.counters.size() ? ",\n" : "\n");
-                }
-                out << "            },\n";
-                out << "            \"controller_timings_ms\": [";
-                for (size_t controllerIndex = 0; controllerIndex < frame.controllerTimings.size(); ++controllerIndex)
-                {
-                    const BenchmarkControllerFrameTiming& controller = frame.controllerTimings[controllerIndex];
-                    out << (controllerIndex == 0 ? "\n" : ",\n");
-                    out << "              {"
-                        << "\"name\": \"" << escapedJson(controller.name) << "\", "
-                        << "\"group\": \"" << escapedJson(controller.group) << "\", "
-                        << "\"update\": " << controller.updateMs << ", "
-                        << "\"command_flush\": " << controller.commandFlushMs << "}";
-                }
-                out << (frame.controllerTimings.empty() ? "" : "\n            ") << "]\n";
-                out << "          }";
+                Array controllers;
+                for (const auto& controller : frame.controllerTimings)
+                    controllers.emplace_back(Object{{"name", controller.name},
+                                                    {"group", controller.group},
+                                                    {"update", controller.updateMs},
+                                                    {"command_flush", controller.commandFlushMs}});
+                frames.emplace_back(Object{{"frame_index", frame.frameIndex},
+                                           {"measured_frame_index", frame.measuredFrameIndex},
+                                           {"relative_frame", frame.relativeFrame},
+                                           {"trigger", frame.trigger},
+                                           {"timings_ms", mapJson(frame.timingsMs)},
+                                           {"counters", mapJson(frame.counters)},
+                                           {"controller_timings_ms", std::move(controllers)}});
             }
-            out << (event.frames.empty() ? "" : "\n        ") << "]\n";
-            out << "      }";
+            events.emplace_back(Object{{"trigger_frame_index", event.triggerFrameIndex},
+                                       {"trigger_measured_frame_index", event.triggerMeasuredFrameIndex},
+                                       {"trigger_frame_cpu_ms", event.triggerFrameCpuMs},
+                                       {"frames", std::move(frames)}});
         }
-        out << (result.hitchEvents.empty() ? "" : "\n    ") << "]\n";
-        out << "  },\n";
-        out << "  \"warnings\": [";
-        for (size_t i = 0; i < result.warnings.size(); ++i)
-        {
-            out << (i == 0 ? "\n    " : ",\n    ")
-                << "\"" << escapedJson(result.warnings[i]) << "\"";
-        }
-        out << (result.warnings.empty() ? "" : "\n  ") << "],\n";
-        out << "  \"invariant_failures\": [";
-        for (size_t i = 0; i < result.invariantFailures.size(); ++i)
-        {
-            out << (i == 0 ? "\n    " : ",\n    ")
-                << "\"" << escapedJson(result.invariantFailures[i]) << "\"";
-        }
-        out << (result.invariantFailures.empty() ? "" : "\n  ") << "]\n";
-        out << "}\n";
-        return out.str();
+        Array warnings, failures;
+        for (const auto& warning : result.warnings)
+            warnings.emplace_back(warning);
+        for (const auto& failure : result.invariantFailures)
+            failures.emplace_back(failure);
+        const Object root{
+            {"benchmark", result.config.presetName},
+            {"preset_version", result.config.presetVersion},
+            {"mode", benchmarkRunModeName(result.config.mode)},
+            {"seed", result.config.seed},
+            {"warmup_frames", result.config.warmupFrames},
+            {"measured_frames", result.config.measuredFrames},
+            {"render_resolution", Object{{"width", result.config.renderWidth}, {"height", result.config.renderHeight}}},
+            {"gpu_supported", result.gpuTimingSupported},
+            {"gpu_timing",
+             Object{{"supported", result.gpuTimingSupported},
+                    {"available", result.gpuTimingAvailable},
+                    {"status", result.gpuTimingStatus}}},
+            {"config",
+             Object{{"renderable_count", result.config.renderableCount},
+                    {"visible_renderable_count", result.config.visibleRenderableCount},
+                    {"unique_mesh_count", result.config.uniqueMeshCount},
+                    {"unique_material_count", result.config.uniqueMaterialCount},
+                    {"moving_object_count", result.config.movingObjectCount},
+                    {"material_mutation_count_per_frame", result.config.materialMutationCountPerFrame},
+                    {"topology_mutation_count_per_frame", result.config.topologyMutationCountPerFrame},
+                    {"directional_light_count", result.config.directionalLightCount},
+                    {"point_light_count", result.config.pointLightCount},
+                    {"spot_light_count", result.config.spotLightCount},
+                    {"moving_light_count", result.config.movingLightCount},
+                    {"dynamic_mesh_count", result.config.dynamicMeshCount},
+                    {"dynamic_mesh_mutation_count_per_frame", result.config.dynamicMeshMutationCountPerFrame},
+                    {"particle_emitter_count", result.config.particleEmitterCount},
+                    {"particle_emission_rate", result.config.particleEmissionRate},
+                    {"particle_max_particles", result.config.particleMaxParticles},
+                    {"particle_mesh_emitter_count", result.config.particleMeshEmitterCount},
+                    {"particle_max_simulated_particles", result.config.particleMaxSimulatedParticles},
+                    {"particle_max_rendered_particles", result.config.particleMaxRenderedParticles},
+                    {"particle_max_spawned_per_frame", result.config.particleMaxSpawnedPerFrame},
+                    {"world_text_count", result.config.worldTextCount},
+                    {"enable_pbr", result.config.enablePbr},
+                    {"enable_normal_maps", result.config.enableNormalMaps},
+                    {"enable_ibl", result.config.enableIbl},
+                    {"enable_ui", result.config.enableUi},
+                    {"enable_frustum_culling", result.config.enableFrustumCulling},
+                    {"enable_tooling", result.config.enableTooling},
+                    {"tooling_visible", result.config.toolingVisible},
+                    {"tooling_debug_draw", result.config.toolingDebugDraw},
+                    {"tooling_gizmos", result.config.toolingGizmos},
+                    {"tooling_workspace", result.config.toolingWorkspace},
+                    {"hitch_threshold_ms", result.config.hitchThresholdMs},
+                    {"hitch_context_frames", result.config.hitchContextFrames},
+                    {"max_hitch_events", result.config.maxHitchEvents},
+                    {"request_screenshot", result.config.requestScreenshot},
+                    {"screenshot_measured_frame", result.config.screenshotMeasuredFrame},
+                    {"screenshot_output_directory", result.config.screenshotOutputDirectory}}},
+            {"environment", mapJson(result.environment.values)},
+            {"timings_ms", std::move(timings)},
+            {"gpu_timings_ms", std::move(gpuTimings)},
+            {"controller_timings_ms", std::move(controllerTimings)},
+            {"controller_flush_timings_ms", std::move(flushTimings)},
+            {"controller_substages_ms", std::move(substages)},
+            {"counters", mapJson(result.counters)},
+            {"hitch_capture",
+             Object{{"enabled", result.config.hitchThresholdMs > 0.0},
+                    {"threshold_ms", result.config.hitchThresholdMs},
+                    {"context_frames", result.config.hitchContextFrames},
+                    {"max_events", result.config.maxHitchEvents},
+                    {"events", std::move(events)}}},
+            {"warnings", std::move(warnings)},
+            {"invariant_failures", std::move(failures)}};
+        return GtsJsonParser::serialize(root) + "\n";
     }
 
-    bool writeBenchmarkResultJson(const BenchmarkRunResult& result,
-                                  const std::string& outputPath,
-                                  std::string* error)
+    bool writeBenchmarkResultJson(const BenchmarkRunResult& result, const std::string& outputPath, std::string* error)
     {
+        std::string json;
+        try
+        {
+            json = benchmarkResultToJson(result);
+        }
+        catch (const std::invalid_argument& failure)
+        {
+            if (error != nullptr)
+                *error = failure.what();
+            return false;
+        }
         std::ofstream output(outputPath);
         if (!output)
         {
@@ -2928,7 +2830,15 @@ namespace gts::rendering::benchmarks
                 *error = "failed to open benchmark output path: " + outputPath;
             return false;
         }
-        output << benchmarkResultToJson(result);
+        output << json;
+        if (!output.good())
+        {
+            if (error != nullptr)
+                *error = "failed to write JSON file";
+            return false;
+        }
+        if (error != nullptr)
+            error->clear();
         return true;
     }
 

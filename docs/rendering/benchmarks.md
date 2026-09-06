@@ -8,6 +8,11 @@ produce better numbers.
 
 ## Application Structure
 
+Native JSON reports build `GtsJsonValue` objects and use core
+[`GtsJsonParser`](../json/architecture.md) for serialization. Report schemas
+remain benchmark-owned; escaping is shared, and integer counters retain
+their exact 64-bit values.
+
 The native benchmark entry point is:
 
 ```text

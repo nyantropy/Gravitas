@@ -9,6 +9,11 @@ For practical authoring rules, use
 
 ## Runtime Hierarchy
 
+UI asset, widget, package, and localization loaders use the shared
+[`GtsJsonParser`](../json/architecture.md). UI owns schema conversion and
+validation, not JSON syntax. `UiSerialization.h` exposes JSON values only for
+the widget schema conversion API.
+
 The standard runtime hierarchy is:
 
 ```text
