@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include "types/EnumName.h"
+
 #include <cstdint>
 
 struct UiVec2
@@ -58,10 +61,20 @@ enum class UiPositionMode : uint8_t
     Anchored
 };
 
+inline constexpr std::array uiPositionModeNames{
+    gts::EnumName{UiPositionMode::Absolute, "Absolute"},
+    gts::EnumName{UiPositionMode::Anchored, "Anchored"}
+};
+
 enum class UiSizeMode : uint8_t
 {
     FromAnchors = 0,
     Fixed
+};
+
+inline constexpr std::array uiSizeModeNames{
+    gts::EnumName{UiSizeMode::FromAnchors, "FromAnchors"},
+    gts::EnumName{UiSizeMode::Fixed, "Fixed"}
 };
 
 enum class UiClipMode : uint8_t
@@ -70,10 +83,20 @@ enum class UiClipMode : uint8_t
     ClipChildren
 };
 
+inline constexpr std::array uiClipModeNames{
+    gts::EnumName{UiClipMode::None, "None"},
+    gts::EnumName{UiClipMode::ClipChildren, "ClipChildren"}
+};
+
 enum class UiTextWrapMode : uint8_t
 {
     None = 0,
     Word
+};
+
+inline constexpr std::array uiTextWrapModeNames{
+    gts::EnumName{UiTextWrapMode::None, "None"},
+    gts::EnumName{UiTextWrapMode::Word, "Word"}
 };
 
 enum class UiHorizontalAlign : uint8_t
@@ -83,11 +106,23 @@ enum class UiHorizontalAlign : uint8_t
     Right
 };
 
+inline constexpr std::array uiHorizontalAlignNames{
+    gts::EnumName{UiHorizontalAlign::Left, "Left"},
+    gts::EnumName{UiHorizontalAlign::Center, "Center"},
+    gts::EnumName{UiHorizontalAlign::Right, "Right"}
+};
+
 enum class UiVerticalAlign : uint8_t
 {
     Top = 0,
     Middle,
     Bottom
+};
+
+inline constexpr std::array uiVerticalAlignNames{
+    gts::EnumName{UiVerticalAlign::Top, "Top"},
+    gts::EnumName{UiVerticalAlign::Middle, "Middle"},
+    gts::EnumName{UiVerticalAlign::Bottom, "Bottom"}
 };
 
 struct UiTextMeasurement

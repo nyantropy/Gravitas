@@ -14,6 +14,12 @@ UI asset, widget, package, and localization loaders use the shared
 validation, not JSON syntax. `UiSerialization.h` exposes JSON values only for
 the widget schema conversion API.
 
+Serialized enum names live beside their enums in core `EnumName` tables.
+Loaders use shared enum lookups and keep their existing fallback values.
+Simple geometry/color arrays are constructed directly in writers. Numeric
+parameter text uses the shared JSON serializer, preserving integer and
+floating-point precision independently of stream formatting.
+
 The standard runtime hierarchy is:
 
 ```text

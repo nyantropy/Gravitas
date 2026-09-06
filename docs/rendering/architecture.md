@@ -10,6 +10,11 @@ Particle effects, font metadata, and glTF/GLB JSON use
 loaders retain schema validation and conversion; font loading implementation
 lives in `FontAssetIO.cpp`, not its data-facing header.
 
+Particle descriptor loading follows the named sections written by the asset
+serializer. Each section uses core JSON typed accessors directly, with flat
+emitter fields used when the section is not an object. Lookup never descends
+into unrelated objects; module and graph data cannot supply descriptor fields.
+
 Rendering follows a descriptor/runtime split:
 
 - Application or scene code writes descriptor components that describe intent.

@@ -14,6 +14,27 @@
 
 namespace
 {
+    constexpr bool enumNamesRoundtrip(const auto& names)
+    {
+        for (const auto& entry : names)
+        {
+            if (gts::enumValue(names, entry.name) != entry.value ||
+                gts::enumName(names, entry.value) != entry.name)
+                return false;
+        }
+        return true;
+    }
+
+    static_assert(enumNamesRoundtrip(particleEmitterShapeNames));
+    static_assert(enumNamesRoundtrip(particleBlendModeNames));
+    static_assert(enumNamesRoundtrip(particlePrimitiveNames));
+    static_assert(enumNamesRoundtrip(particleSpriteShapeNames));
+    static_assert(enumNamesRoundtrip(particleCollisionModeNames));
+    static_assert(enumNamesRoundtrip(gts::particles::particleModuleParameterTypeNames));
+    static_assert(!gts::enumValue(particleEmitterShapeNames, "unknown"));
+    static_assert(!gts::enumValue(particleEmitterShapeNames, "Box"));
+    static_assert(!gts::enumName(particleEmitterShapeNames, static_cast<ParticleEmitterShape>(999)));
+
     void require(bool condition, const std::string& message)
     {
         if (condition)
@@ -560,6 +581,14 @@ int main()
             "flat preset emission rate was not preserved");
     require(flatLoaded.emitters.front().descriptor.texturePath == "resources/textures/flat.png",
             "flat preset texture path was not preserved");
+    require(flatLoaded.emitters.front().descriptor.shape == ParticleEmitterShape::Box,
+            "flat shape string was not preserved");
+    require(flatLoaded.emitters.front().descriptor.boxExtents == glm::vec3(1, 2, 3),
+            "flat shape vector was not preserved");
+    require(flatLoaded.emitters.front().descriptor.colorOverLifetime.size() == 2u,
+            "flat color curve was not preserved");
+    require(flatLoaded.emitters.front().descriptor.bursts.size() == 1u,
+            "flat bursts were not preserved");
     require(flatLoaded.emitters.front().compiledProgram.valid, "flat preset did not compile after migration");
 
     const std::filesystem::path collisionPath =
@@ -597,7 +626,47 @@ int main()
     require(collisionLoaded.emitters.front().compiledProgram.valid,
             "structured parser collision asset did not compile after migration");
 
+    const auto sectionPath = std::filesystem::temp_directory_path() / "gravitas_particle_sections_test.json";
+    {
+        std::ofstream sections(sectionPath);
+        sections << R"({
+          "schemaVersion": 7,
+          "emitters": [{
+            "id": "sections",
+            "unrelated": {
+              "schemaVersion": 999, "enabled": true, "texturePath": "wrong.png",
+              "meshPath": "wrong.obj", "emissionRate": 999, "maxParticles": 999,
+              "initialVelocity": [9, 9, 9], "bursts": [[0, 9, 9, 0, 0]]
+            },
+            "texturePath": "wrong-flat.png",
+            "simulation": {"schemaVersion": 3, "enabled": false},
+            "renderer": {"texturePath": "", "meshScale": [2, 3, 4]},
+            "spawn": {"emissionRate": 0, "maxParticles": 12},
+            "shape": {"shape": "box", "boxExtents": [4, 5, 6]},
+            "velocity": {"initialVelocity": [1, 2, 3]},
+            "color": {"colorOverLifetime": [[0, [1, 0, 0, 1]], [1, [0, 1, 0, 0]]]},
+            "bursts": [[0.2, 1, 4, 0, 0]]
+          }]
+        })";
+    }
+    ParticleEffectAsset sectionLoaded;
+    require(loadParticleEffectAsset(sectionPath.string(), sectionLoaded), "failed to load sectioned particle asset");
+    const auto& sectionDescriptor = sectionLoaded.emitters.front().descriptor;
+    require(!sectionDescriptor.enabled, "unrelated bool overrode simulation section");
+    require(sectionDescriptor.texturePath.empty(), "empty section string fell back to another field");
+    require(sectionDescriptor.meshPath.empty(), "missing section field searched unrelated objects");
+    require(near(sectionDescriptor.emissionRate, 0), "zero section number fell back to another field");
+    require(sectionDescriptor.maxParticles == 12u, "section integer was not preserved");
+    require(sectionDescriptor.meshScale == glm::vec3(2, 3, 4), "renderer vector was not preserved");
+    require(sectionDescriptor.shape == ParticleEmitterShape::Box, "section shape was not preserved");
+    require(sectionDescriptor.boxExtents == glm::vec3(4, 5, 6), "section shape vector was not preserved");
+    require(sectionDescriptor.initialVelocity == glm::vec3(1, 2, 3), "unrelated vector overrode velocity section");
+    require(sectionDescriptor.colorOverLifetime.size() == 2u, "section color curve was not preserved");
+    require(sectionDescriptor.bursts.size() == 1u && sectionDescriptor.bursts.front().countMax == 4u,
+            "emitter bursts were not preserved");
+
     std::error_code ec;
+    std::filesystem::remove(sectionPath, ec);
     std::filesystem::remove(path, ec);
     std::filesystem::remove(flatPath, ec);
     std::filesystem::remove(collisionPath, ec);

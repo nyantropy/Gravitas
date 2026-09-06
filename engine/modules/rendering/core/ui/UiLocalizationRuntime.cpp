@@ -93,25 +93,6 @@ namespace
             candidates.push_back(std::move(candidate));
     }
 
-    const GtsJsonValue* findField(const GtsJsonValue& value, const std::string& key)
-    {
-        return value.find(key);
-    }
-
-    std::string jsonStringValue(const GtsJsonValue* value, const std::string& fallback = {})
-    {
-        if (value == nullptr || !value->isString())
-            return fallback;
-        return std::get<std::string>(value->value);
-    }
-
-    int jsonIntValue(const GtsJsonValue* value, int fallback = 0)
-    {
-        if (value == nullptr || !value->isNumber())
-            return fallback;
-        return static_cast<int>(value->asNumber());
-    }
-
     bool hasBalancedPlaceholders(const std::string& text)
     {
         bool open = false;
@@ -218,20 +199,20 @@ bool parseUiLocalizationAsset(const std::string& json,
     }
 
     UiLocalizationAsset asset;
-    asset.schemaVersion = jsonIntValue(findField(root, "schema"), UI_LOCALIZATION_SCHEMA_VERSION);
-    asset.asset = UiAssetReference{UiAssetType::Localization, jsonStringValue(findField(root, "id"))};
-    asset.packageId = jsonStringValue(findField(root, "package"));
-    asset.namespaceId = jsonStringValue(findField(root, "namespace"));
-    asset.locale = parseUiLocaleId(jsonStringValue(findField(root, "locale")));
+    asset.schemaVersion = root.findInt32("schema").value_or(UI_LOCALIZATION_SCHEMA_VERSION);
+    asset.asset = UiAssetReference{UiAssetType::Localization, root.findString("id").value_or("")};
+    asset.packageId = root.findString("package").value_or("");
+    asset.namespaceId = root.findString("namespace").value_or("");
+    asset.locale = parseUiLocaleId(root.findString("locale").value_or(""));
 
-    const std::string sourceLocale = jsonStringValue(findField(root, "sourceLocale"));
+    const std::string sourceLocale = root.findString("sourceLocale").value_or("");
     if (!sourceLocale.empty())
         asset.sourceLocale = parseUiLocaleId(sourceLocale);
-    const std::string fallbackLocale = jsonStringValue(findField(root, "fallbackLocale"));
+    const std::string fallbackLocale = root.findString("fallbackLocale").value_or("");
     if (!fallbackLocale.empty())
         asset.fallbackLocale = parseUiLocaleId(fallbackLocale);
 
-    const GtsJsonValue* entries = findField(root, "entries");
+    const GtsJsonValue* entries = root.find("entries");
     if (entries == nullptr || !entries->isObject())
     {
         validation.error("$.entries", "localization asset entries object is required");
@@ -239,7 +220,7 @@ bool parseUiLocalizationAsset(const std::string& json,
     else
     {
         std::unordered_set<std::string> seenKeys;
-        for (const auto& [key, value] : std::get<GtsJsonValue::Object>(entries->value))
+        for (const auto& [key, value] : entries->asObject())
         {
             const std::string path = "$.entries." + key;
             if (!seenKeys.insert(key).second)
@@ -251,13 +232,13 @@ bool parseUiLocalizationAsset(const std::string& json,
             UiLocalizationEntry entry;
             if (value.isString())
             {
-                entry.text = std::get<std::string>(value.value);
+                entry.text = value.asString();
             }
             else if (value.isObject())
             {
-                entry.text = jsonStringValue(findField(value, "text"));
-                entry.context = jsonStringValue(findField(value, "context"));
-                entry.translatorNote = jsonStringValue(findField(value, "note"));
+                entry.text = value.findString("text").value_or("");
+                entry.context = value.findString("context").value_or("");
+                entry.translatorNote = value.findString("note").value_or("");
             }
             else
             {

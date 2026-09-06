@@ -470,15 +470,6 @@ namespace
     }
 }
 
-const GtsJsonValue* GtsJsonValue::find(std::string_view key) const
-{
-    if (!isObject())
-        return nullptr;
-    for (const auto& [name, member] : asObject())
-        if (name == key)
-            return &member;
-    return nullptr;
-}
 
 bool GtsJsonParser::parse(std::string_view source, GtsJsonValue& output, std::string* error)
 {

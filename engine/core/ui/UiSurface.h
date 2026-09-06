@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include "types/EnumName.h"
+
 #include <cstdint>
 #include <string>
 
@@ -25,6 +28,15 @@ enum class UiSurfaceKind : uint8_t
     World,
     Window,
     Custom
+};
+
+inline constexpr std::array uiSurfaceKindNames{
+    gts::EnumName{UiSurfaceKind::Screen, "Screen"},
+    gts::EnumName{UiSurfaceKind::Viewport, "Viewport"},
+    gts::EnumName{UiSurfaceKind::RenderTarget, "RenderTarget"},
+    gts::EnumName{UiSurfaceKind::World, "World"},
+    gts::EnumName{UiSurfaceKind::Window, "Window"},
+    gts::EnumName{UiSurfaceKind::Custom, "Custom"}
 };
 
 struct UiSurfaceDesc

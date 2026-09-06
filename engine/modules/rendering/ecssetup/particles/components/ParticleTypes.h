@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "types/EnumName.h"
 #include "GlmConfig.h"
 
 enum class ParticleEmitterShape
@@ -14,16 +15,34 @@ enum class ParticleEmitterShape
     Ring
 };
 
+inline constexpr std::array particleEmitterShapeNames{
+    gts::EnumName{ParticleEmitterShape::Sphere, "sphere"},
+    gts::EnumName{ParticleEmitterShape::Box, "box"},
+    gts::EnumName{ParticleEmitterShape::Disc, "disc"},
+    gts::EnumName{ParticleEmitterShape::Cylinder, "cylinder"},
+    gts::EnumName{ParticleEmitterShape::Ring, "ring"}
+};
+
 enum class ParticleBlendMode
 {
     Alpha = 0,
     Additive
 };
 
+inline constexpr std::array particleBlendModeNames{
+    gts::EnumName{ParticleBlendMode::Alpha, "alpha"},
+    gts::EnumName{ParticleBlendMode::Additive, "additive"}
+};
+
 enum class ParticlePrimitive
 {
     Billboard = 0,
     Mesh
+};
+
+inline constexpr std::array particlePrimitiveNames{
+    gts::EnumName{ParticlePrimitive::Billboard, "billboard"},
+    gts::EnumName{ParticlePrimitive::Mesh, "mesh"}
 };
 
 enum class ParticleSpriteShape
@@ -35,10 +54,23 @@ enum class ParticleSpriteShape
     Streak
 };
 
+inline constexpr std::array particleSpriteShapeNames{
+    gts::EnumName{ParticleSpriteShape::SoftCircle, "softCircle"},
+    gts::EnumName{ParticleSpriteShape::Square, "square"},
+    gts::EnumName{ParticleSpriteShape::Diamond, "diamond"},
+    gts::EnumName{ParticleSpriteShape::Petal, "petal"},
+    gts::EnumName{ParticleSpriteShape::Streak, "streak"}
+};
+
 enum class ParticleCollisionMode
 {
     None = 0,
     GroundPlane
+};
+
+inline constexpr std::array particleCollisionModeNames{
+    gts::EnumName{ParticleCollisionMode::None, "none"},
+    gts::EnumName{ParticleCollisionMode::GroundPlane, "groundPlane"}
 };
 
 enum class ParticleCullReason : uint32_t

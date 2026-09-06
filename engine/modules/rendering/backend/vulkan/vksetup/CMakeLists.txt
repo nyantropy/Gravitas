@@ -38,6 +38,7 @@ elseif(UNIX AND NOT APPLE)
 endif()
 
 target_include_directories(gravitas_vulkan_setup PUBLIC
+    "${GTS_ENGINE_ROOT}/engine/core"
     # vksetup sub-directories
     "${CMAKE_CURRENT_SOURCE_DIR}/context"
     "${CMAKE_CURRENT_SOURCE_DIR}/instance"

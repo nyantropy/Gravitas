@@ -4,10 +4,8 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <cmath>
 #include <cstring>
 #include <fstream>
-#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -23,68 +21,15 @@ namespace gts::rendering
 {
 namespace
 {
-    const GtsJsonValue* member(const GtsJsonValue& value, const std::string& key)
-    {
-        return value.find(key);
-    }
-
-    const GtsJsonValue* at(const GtsJsonValue& value, size_t index)
-    {
-        if (!value.isArray() || index >= value.asArray().size())
-            return nullptr;
-        return &value.asArray()[index];
-    }
-
-    int32_t intValue(const GtsJsonValue* value, int32_t fallback = 0)
-    {
-        if (value == nullptr || !value->isNumber())
-            return fallback;
-        if (value->asNumber() < std::numeric_limits<int32_t>::min()
-            || value->asNumber() > std::numeric_limits<int32_t>::max()
-            || std::trunc(value->asNumber()) != value->asNumber())
-            return fallback;
-        return static_cast<int32_t>(value->asNumber());
-    }
-
-    uint32_t uintValue(const GtsJsonValue* value, uint32_t fallback = 0)
-    {
-        if (value == nullptr || !value->isNumber() || value->asNumber() < 0.0)
-            return fallback;
-        if (value->asNumber() > std::numeric_limits<uint32_t>::max()
-            || std::trunc(value->asNumber()) != value->asNumber())
-            return fallback;
-        return static_cast<uint32_t>(value->asNumber());
-    }
-
-    float floatValue(const GtsJsonValue* value, float fallback = 0.0f)
-    {
-        if (value == nullptr || !value->isNumber())
-            return fallback;
-        return static_cast<float>(value->asNumber());
-    }
-
-    bool boolValue(const GtsJsonValue* value, bool fallback = false)
-    {
-        if (value == nullptr || !value->isBool())
-            return fallback;
-        return value->asBool();
-    }
-
-    std::string stringValue(const GtsJsonValue* value, std::string fallback = {})
-    {
-        if (value == nullptr || !value->isString())
-            return fallback;
-        return value->asString();
-    }
 
     glm::vec3 vec3Value(const GtsJsonValue* value, glm::vec3 fallback = {})
     {
         if (value == nullptr || !value->isArray() || value->asArray().size() < 3u)
             return fallback;
         return {
-            floatValue(&value->asArray()[0], fallback.x),
-            floatValue(&value->asArray()[1], fallback.y),
-            floatValue(&value->asArray()[2], fallback.z)
+            value->asArray()[0].tryFloat().value_or(fallback.x),
+            value->asArray()[1].tryFloat().value_or(fallback.y),
+            value->asArray()[2].tryFloat().value_or(fallback.z)
         };
     }
 
@@ -93,10 +38,10 @@ namespace
         if (value == nullptr || !value->isArray() || value->asArray().size() < 4u)
             return fallback;
         return {
-            floatValue(&value->asArray()[0], fallback.x),
-            floatValue(&value->asArray()[1], fallback.y),
-            floatValue(&value->asArray()[2], fallback.z),
-            floatValue(&value->asArray()[3], fallback.w)
+            value->asArray()[0].tryFloat().value_or(fallback.x),
+            value->asArray()[1].tryFloat().value_or(fallback.y),
+            value->asArray()[2].tryFloat().value_or(fallback.z),
+            value->asArray()[3].tryFloat().value_or(fallback.w)
         };
     }
 
@@ -425,7 +370,7 @@ namespace
 
     int32_t attributeAccessor(const GtsJsonValue& attributes, const std::string& name)
     {
-        return intValue(member(attributes, name), -1);
+        return attributes.findInt32(name).value_or(-1);
     }
 
     bool appendAccessorArray(const GtsJsonValue& array,
@@ -437,12 +382,12 @@ namespace
         for (const GtsJsonValue& value : array.asArray())
         {
             Accessor accessor;
-            accessor.bufferView = intValue(member(value, "bufferView"), -1);
-            accessor.byteOffset = uintValue(member(value, "byteOffset"), 0);
-            accessor.count = uintValue(member(value, "count"), 0);
-            accessor.componentType = intValue(member(value, "componentType"), 0);
-            accessor.type = stringValue(member(value, "type"));
-            accessor.normalized = boolValue(member(value, "normalized"), false);
+            accessor.bufferView = value.findInt32("bufferView").value_or(-1);
+            accessor.byteOffset = value.findUInt32("byteOffset").value_or(0);
+            accessor.count = value.findUInt32("count").value_or(0);
+            accessor.componentType = value.findInt32("componentType").value_or(0);
+            accessor.type = value.findString("type").value_or("");
+            accessor.normalized = value.findBool("normalized").value_or(false);
             accessors.push_back(std::move(accessor));
         }
         return true;
@@ -457,10 +402,10 @@ namespace
         for (const GtsJsonValue& value : array.asArray())
         {
             BufferView view;
-            view.buffer = intValue(member(value, "buffer"), -1);
-            view.byteOffset = uintValue(member(value, "byteOffset"), 0);
-            view.byteLength = uintValue(member(value, "byteLength"), 0);
-            view.byteStride = uintValue(member(value, "byteStride"), 0);
+            view.buffer = value.findInt32("buffer").value_or(-1);
+            view.byteOffset = value.findUInt32("byteOffset").value_or(0);
+            view.byteLength = value.findUInt32("byteLength").value_or(0);
+            view.byteStride = value.findUInt32("byteStride").value_or(0);
             bufferViews.push_back(view);
         }
         return true;
@@ -529,7 +474,7 @@ namespace
         for (size_t i = 0; i < buffersValue.asArray().size(); ++i)
         {
             const GtsJsonValue& buffer = buffersValue.asArray()[i];
-            const std::string uri = stringValue(member(buffer, "uri"));
+            const std::string uri = buffer.findString("uri").value_or("");
             if (uri.empty() && i == 0 && !binChunk.empty())
             {
                 data.buffers[i] = binChunk;
@@ -594,8 +539,8 @@ namespace
 
     void importTextures(const GltfData& data, AssetImportResult& result)
     {
-        const GtsJsonValue* textures = member(data.root, "textures");
-        const GtsJsonValue* images = member(data.root, "images");
+        const GtsJsonValue* textures = data.root.find("textures");
+        const GtsJsonValue* images = data.root.find("images");
         if (textures == nullptr || !textures->isArray())
             return;
 
@@ -603,17 +548,17 @@ namespace
         for (size_t textureIndex = 0; textureIndex < textures->asArray().size(); ++textureIndex)
         {
             const GtsJsonValue& textureValue = textures->asArray()[textureIndex];
-            const int32_t imageIndex = intValue(member(textureValue, "source"), -1);
+            const int32_t imageIndex = textureValue.findInt32("source").value_or(-1);
             ImportedTexture imported;
             imported.debugName = "texture_" + std::to_string(textureIndex);
             imported.logicalPath = imported.debugName;
 
-            const GtsJsonValue* image = images == nullptr ? nullptr : at(*images, static_cast<size_t>(imageIndex));
+            const GtsJsonValue* image = images == nullptr ? nullptr : images->at(static_cast<size_t>(imageIndex));
             if (image != nullptr)
             {
-                imported.debugName = stringValue(member(*image, "name"), imported.debugName);
-                const std::string uri = stringValue(member(*image, "uri"));
-                imported.mimeType = stringValue(member(*image, "mimeType"));
+                imported.debugName = image->findString("name").value_or(imported.debugName);
+                const std::string uri = image->findString("uri").value_or("");
+                imported.mimeType = image->findString("mimeType").value_or("");
                 if (!uri.empty() && uri.starts_with("data:"))
                 {
                     imported.source = ImportedTextureSource::EmbeddedBytes;
@@ -636,7 +581,7 @@ namespace
                 }
                 else
                 {
-                    const int32_t bufferView = intValue(member(*image, "bufferView"), -1);
+                    const int32_t bufferView = image->findInt32("bufferView").value_or(-1);
                     imported.source = ImportedTextureSource::EmbeddedBytes;
                     imported.embeddedBytes = bytesFromBufferView(data, bufferView);
                     imported.logicalPath =
@@ -669,7 +614,7 @@ namespace
 
     void importMaterials(const GltfData& data, AssetImportResult& result)
     {
-        const GtsJsonValue* materials = member(data.root, "materials");
+        const GtsJsonValue* materials = data.root.find("materials");
         if (materials == nullptr || !materials->isArray())
             return;
 
@@ -678,59 +623,59 @@ namespace
         {
             const GtsJsonValue& materialValue = materials->asArray()[materialIndex];
             ImportedMaterial material;
-            material.name = stringValue(member(materialValue, "name"), "material_" + std::to_string(materialIndex));
+            material.name = materialValue.findString("name").value_or("material_" + std::to_string(materialIndex));
 
-            const GtsJsonValue* pbr = member(materialValue, "pbrMetallicRoughness");
+            const GtsJsonValue* pbr = materialValue.find("pbrMetallicRoughness");
             if (pbr != nullptr)
             {
-                material.baseColor = vec4Value(member(*pbr, "baseColorFactor"), {1.0f, 1.0f, 1.0f, 1.0f});
-                material.metallic = floatValue(member(*pbr, "metallicFactor"), 1.0f);
-                material.roughness = floatValue(member(*pbr, "roughnessFactor"), 1.0f);
-                if (const GtsJsonValue* texture = member(*pbr, "baseColorTexture"))
+                material.baseColor = vec4Value(pbr->find("baseColorFactor"), {1.0f, 1.0f, 1.0f, 1.0f});
+                material.metallic = pbr->findFloat("metallicFactor").value_or(1.0f);
+                material.roughness = pbr->findFloat("roughnessFactor").value_or(1.0f);
+                if (const GtsJsonValue* texture = pbr->find("baseColorTexture"))
                 {
-                    material.baseColorTextureIndex = intValue(member(*texture, "index"), -1);
+                    material.baseColorTextureIndex = texture->findInt32("index").value_or(-1);
                     setTextureRole(result, material.baseColorTextureIndex,
                                    MaterialTextureRole::BaseColor, TextureColorSpace::SRgb);
                 }
-                if (const GtsJsonValue* texture = member(*pbr, "metallicRoughnessTexture"))
+                if (const GtsJsonValue* texture = pbr->find("metallicRoughnessTexture"))
                 {
-                    material.metallicRoughnessTextureIndex = intValue(member(*texture, "index"), -1);
+                    material.metallicRoughnessTextureIndex = texture->findInt32("index").value_or(-1);
                     setTextureRole(result, material.metallicRoughnessTextureIndex,
                                    MaterialTextureRole::MetallicRoughness, TextureColorSpace::Linear);
                 }
             }
 
-            if (const GtsJsonValue* texture = member(materialValue, "normalTexture"))
+            if (const GtsJsonValue* texture = materialValue.find("normalTexture"))
             {
-                material.normalTextureIndex = intValue(member(*texture, "index"), -1);
-                material.normalScale = floatValue(member(*texture, "scale"), 1.0f);
+                material.normalTextureIndex = texture->findInt32("index").value_or(-1);
+                material.normalScale = texture->findFloat("scale").value_or(1.0f);
                 setTextureRole(result, material.normalTextureIndex,
                                MaterialTextureRole::Normal, TextureColorSpace::Linear);
             }
-            if (const GtsJsonValue* texture = member(materialValue, "occlusionTexture"))
+            if (const GtsJsonValue* texture = materialValue.find("occlusionTexture"))
             {
-                material.ambientOcclusionTextureIndex = intValue(member(*texture, "index"), -1);
-                material.ambientOcclusionStrength = floatValue(member(*texture, "strength"), 1.0f);
+                material.ambientOcclusionTextureIndex = texture->findInt32("index").value_or(-1);
+                material.ambientOcclusionStrength = texture->findFloat("strength").value_or(1.0f);
                 setTextureRole(result, material.ambientOcclusionTextureIndex,
                                MaterialTextureRole::AmbientOcclusion, TextureColorSpace::Linear);
             }
-            if (const GtsJsonValue* texture = member(materialValue, "emissiveTexture"))
+            if (const GtsJsonValue* texture = materialValue.find("emissiveTexture"))
             {
-                material.emissiveTextureIndex = intValue(member(*texture, "index"), -1);
+                material.emissiveTextureIndex = texture->findInt32("index").value_or(-1);
                 setTextureRole(result, material.emissiveTextureIndex,
                                MaterialTextureRole::Emissive, TextureColorSpace::SRgb);
             }
 
             material.emissiveFactor =
-                vec3Value(member(materialValue, "emissiveFactor"), {0.0f, 0.0f, 0.0f});
-            if (const GtsJsonValue* extensions = member(materialValue, "extensions"))
+                vec3Value(materialValue.find("emissiveFactor"), {0.0f, 0.0f, 0.0f});
+            if (const GtsJsonValue* extensions = materialValue.find("extensions"))
             {
-                if (const GtsJsonValue* emissiveStrength = member(*extensions, "KHR_materials_emissive_strength"))
-                    material.emissiveStrength = floatValue(member(*emissiveStrength, "emissiveStrength"), 1.0f);
+                if (const GtsJsonValue* emissiveStrength = extensions->find("KHR_materials_emissive_strength"))
+                    material.emissiveStrength = emissiveStrength->findFloat("emissiveStrength").value_or(1.0f);
             }
 
-            const std::string alphaMode = stringValue(member(materialValue, "alphaMode"), "OPAQUE");
-            material.renderState.alphaCutoff = floatValue(member(materialValue, "alphaCutoff"), 0.5f);
+            const std::string alphaMode = materialValue.findString("alphaMode").value_or("OPAQUE");
+            material.renderState.alphaCutoff = materialValue.findFloat("alphaCutoff").value_or(0.5f);
             if (alphaMode == "BLEND")
             {
                 material.renderState.alphaMode = MaterialAlphaMode::Blend;
@@ -740,7 +685,7 @@ namespace
             {
                 material.renderState.alphaMode = MaterialAlphaMode::Mask;
             }
-            material.renderState.doubleSided = boolValue(member(materialValue, "doubleSided"), false);
+            material.renderState.doubleSided = materialValue.findBool("doubleSided").value_or(false);
             result.materials.push_back(std::move(material));
         }
     }
@@ -750,12 +695,12 @@ namespace
         const std::unordered_set<std::string> supportedExtensions = {
             "KHR_materials_emissive_strength"
         };
-        const GtsJsonValue* extensionsRequired = member(data.root, "extensionsRequired");
+        const GtsJsonValue* extensionsRequired = data.root.find("extensionsRequired");
         if (extensionsRequired != nullptr && extensionsRequired->isArray())
         {
             for (const GtsJsonValue& extension : extensionsRequired->asArray())
             {
-                const std::string name = stringValue(&extension);
+                const std::string name = extension.tryString().value_or("");
                 if (!name.empty() && !supportedExtensions.contains(name))
                 {
                     addDiagnostic(result, AssetDiagnosticSeverity::Error, "GLTF_UNSUPPORTED_EXTENSION",
@@ -764,12 +709,12 @@ namespace
             }
         }
 
-        const GtsJsonValue* extensionsUsed = member(data.root, "extensionsUsed");
+        const GtsJsonValue* extensionsUsed = data.root.find("extensionsUsed");
         if (extensionsUsed != nullptr && extensionsUsed->isArray())
         {
             for (const GtsJsonValue& extension : extensionsUsed->asArray())
             {
-                const std::string name = stringValue(&extension);
+                const std::string name = extension.tryString().value_or("");
                 if (name == "KHR_lights_punctual")
                 {
                     addDiagnostic(result, AssetDiagnosticSeverity::Warning, "GLTF_LIGHT_SKIPPED",
@@ -783,18 +728,18 @@ namespace
             }
         }
 
-        if (const GtsJsonValue* skins = member(data.root, "skins"); skins != nullptr && skins->isArray() && !skins->asArray().empty())
+        if (const GtsJsonValue* skins = data.root.find("skins"); skins != nullptr && skins->isArray() && !skins->asArray().empty())
         {
             addDiagnostic(result, AssetDiagnosticSeverity::Warning, "GLTF_SKINNING_NOT_IMPLEMENTED",
                           "glTF skins are not imported", data.sourcePath);
         }
-        if (const GtsJsonValue* animations = member(data.root, "animations");
+        if (const GtsJsonValue* animations = data.root.find("animations");
             animations != nullptr && animations->isArray() && !animations->asArray().empty())
         {
             addDiagnostic(result, AssetDiagnosticSeverity::Warning, "GLTF_ANIMATION_SKIPPED",
                           "glTF animations are not imported", data.sourcePath);
         }
-        if (const GtsJsonValue* cameras = member(data.root, "cameras"); cameras != nullptr && cameras->isArray() && !cameras->asArray().empty())
+        if (const GtsJsonValue* cameras = data.root.find("cameras"); cameras != nullptr && cameras->isArray() && !cameras->asArray().empty())
         {
             addDiagnostic(result, AssetDiagnosticSeverity::Warning, "GLTF_CAMERA_SKIPPED",
                           "glTF cameras are not imported", data.sourcePath);
@@ -803,7 +748,7 @@ namespace
 
     bool importMeshes(const GltfData& data, bool flipTexCoordV, AssetImportResult& result)
     {
-        const GtsJsonValue* meshes = member(data.root, "meshes");
+        const GtsJsonValue* meshes = data.root.find("meshes");
         if (meshes == nullptr || !meshes->isArray())
             return true;
 
@@ -812,20 +757,20 @@ namespace
         {
             const GtsJsonValue& meshValue = meshes->asArray()[meshIndex];
             ImportedMesh mesh;
-            mesh.debugName = stringValue(member(meshValue, "name"), "mesh_" + std::to_string(meshIndex));
+            mesh.debugName = meshValue.findString("name").value_or("mesh_" + std::to_string(meshIndex));
             mesh.sourcePath = data.sourcePath;
 
             bool allNormalsPresent = true;
             bool allTangentsPresent = true;
             bool allTexCoordsPresent = true;
-            const GtsJsonValue* primitives = member(meshValue, "primitives");
+            const GtsJsonValue* primitives = meshValue.find("primitives");
             if (primitives == nullptr || !primitives->isArray())
                 continue;
 
             for (size_t primitiveIndex = 0; primitiveIndex < primitives->asArray().size(); ++primitiveIndex)
             {
                 const GtsJsonValue& primitive = primitives->asArray()[primitiveIndex];
-                const uint32_t mode = uintValue(member(primitive, "mode"), 4u);
+                const uint32_t mode = primitive.findUInt32("mode").value_or(4u);
                 if (mode != 4u)
                 {
                     addDiagnostic(result, AssetDiagnosticSeverity::Error, "GLTF_PRIMITIVE_MODE_UNSUPPORTED",
@@ -833,7 +778,7 @@ namespace
                     return false;
                 }
 
-                const GtsJsonValue* attributes = member(primitive, "attributes");
+                const GtsJsonValue* attributes = primitive.find("attributes");
                 if (attributes == nullptr || !attributes->isObject())
                 {
                     addDiagnostic(result, AssetDiagnosticSeverity::Error, "GLTF_PRIMITIVE_MISSING_ATTRIBUTES",
@@ -853,7 +798,7 @@ namespace
                 const int32_t tangentAccessor = attributeAccessor(*attributes, "TANGENT");
                 const int32_t texCoordAccessor = attributeAccessor(*attributes, "TEXCOORD_0");
                 const int32_t colorAccessor = attributeAccessor(*attributes, "COLOR_0");
-                const int32_t indexAccessor = intValue(member(primitive, "indices"), -1);
+                const int32_t indexAccessor = primitive.findInt32("indices").value_or(-1);
                 const Accessor& positions = data.accessors[static_cast<size_t>(positionAccessor)];
                 const size_t vertexOffset = mesh.vertices.size();
                 const uint32_t firstIndex = static_cast<uint32_t>(mesh.indices.size());
@@ -865,17 +810,17 @@ namespace
                 if (texCoordAccessor < 0)
                     allTexCoordsPresent = false;
 
-                if (member(*attributes, "TEXCOORD_1") != nullptr)
+                if (attributes->find("TEXCOORD_1") != nullptr)
                 {
                     addDiagnostic(result, AssetDiagnosticSeverity::Warning, "GLTF_MULTIPLE_UV_SETS_IGNORED",
                                   "Additional glTF UV sets are not imported", data.sourcePath);
                 }
-                if (member(*attributes, "JOINTS_0") != nullptr || member(*attributes, "WEIGHTS_0") != nullptr)
+                if (attributes->find("JOINTS_0") != nullptr || attributes->find("WEIGHTS_0") != nullptr)
                 {
                     addDiagnostic(result, AssetDiagnosticSeverity::Warning, "GLTF_SKINNING_NOT_IMPLEMENTED",
                                   "glTF joint and weight attributes are not imported", data.sourcePath);
                 }
-                if (const GtsJsonValue* targets = member(primitive, "targets");
+                if (const GtsJsonValue* targets = primitive.find("targets");
                     targets != nullptr && targets->isArray() && !targets->asArray().empty())
                 {
                     addDiagnostic(result, AssetDiagnosticSeverity::Warning, "GLTF_MORPH_TARGETS_NOT_IMPLEMENTED",
@@ -969,7 +914,7 @@ namespace
                 importedPrimitive.name = mesh.debugName + "_primitive_" + std::to_string(primitiveIndex);
                 importedPrimitive.firstIndex = firstIndex;
                 importedPrimitive.indexCount = static_cast<uint32_t>(mesh.indices.size()) - firstIndex;
-                importedPrimitive.materialIndex = intValue(member(primitive, "material"), -1);
+                importedPrimitive.materialIndex = primitive.findInt32("material").value_or(-1);
                 if (importedPrimitive.materialIndex >= 0 &&
                     static_cast<size_t>(importedPrimitive.materialIndex) < result.materials.size())
                 {
@@ -1012,7 +957,7 @@ namespace
 
     glm::mat4 nodeTransform(const GtsJsonValue& node)
     {
-        if (const GtsJsonValue* matrix = member(node, "matrix");
+        if (const GtsJsonValue* matrix = node.find("matrix");
             matrix != nullptr && matrix->isArray() && matrix->asArray().size() >= 16u)
         {
             glm::mat4 result(1.0f);
@@ -1020,14 +965,14 @@ namespace
             {
                 for (size_t row = 0; row < 4u; ++row)
                     result[static_cast<int>(col)][static_cast<int>(row)] =
-                        floatValue(&matrix->asArray()[col * 4u + row], col == row ? 1.0f : 0.0f);
+                        matrix->asArray()[col * 4u + row].tryFloat().value_or(col == row ? 1.0f : 0.0f);
             }
             return result;
         }
 
-        const glm::vec3 translation = vec3Value(member(node, "translation"), {0.0f, 0.0f, 0.0f});
-        const glm::vec4 rotationValue = vec4Value(member(node, "rotation"), {0.0f, 0.0f, 0.0f, 1.0f});
-        const glm::vec3 scale = vec3Value(member(node, "scale"), {1.0f, 1.0f, 1.0f});
+        const glm::vec3 translation = vec3Value(node.find("translation"), {0.0f, 0.0f, 0.0f});
+        const glm::vec4 rotationValue = vec4Value(node.find("rotation"), {0.0f, 0.0f, 0.0f, 1.0f});
+        const glm::vec3 scale = vec3Value(node.find("scale"), {1.0f, 1.0f, 1.0f});
         const glm::quat rotation(rotationValue.w, rotationValue.x, rotationValue.y, rotationValue.z);
         return glm::translate(glm::mat4(1.0f), translation)
             * glm::mat4_cast(rotation)
@@ -1036,7 +981,7 @@ namespace
 
     void importNodes(const GltfData& data, AssetImportResult& result)
     {
-        const GtsJsonValue* nodes = member(data.root, "nodes");
+        const GtsJsonValue* nodes = data.root.find("nodes");
         if (nodes == nullptr || !nodes->isArray())
             return;
 
@@ -1045,17 +990,17 @@ namespace
         {
             const GtsJsonValue& node = nodes->asArray()[nodeIndex];
             ImportedNode imported;
-            imported.name = stringValue(member(node, "name"), "node_" + std::to_string(nodeIndex));
-            imported.meshIndex = intValue(member(node, "mesh"), -1);
+            imported.name = node.findString("name").value_or("node_" + std::to_string(nodeIndex));
+            imported.meshIndex = node.findInt32("mesh").value_or(-1);
             imported.localTransform = nodeTransform(node);
             result.nodes[nodeIndex] = std::move(imported);
 
-            if (member(node, "skin") != nullptr)
+            if (node.find("skin") != nullptr)
             {
                 addDiagnostic(result, AssetDiagnosticSeverity::Warning, "GLTF_SKINNING_NOT_IMPLEMENTED",
                               "glTF node skin binding is not imported", data.sourcePath);
             }
-            if (member(node, "camera") != nullptr)
+            if (node.find("camera") != nullptr)
             {
                 addDiagnostic(result, AssetDiagnosticSeverity::Warning, "GLTF_CAMERA_SKIPPED",
                               "glTF node camera binding is not imported", data.sourcePath);
@@ -1064,12 +1009,12 @@ namespace
 
         for (size_t nodeIndex = 0; nodeIndex < nodes->asArray().size(); ++nodeIndex)
         {
-            const GtsJsonValue* children = member(nodes->asArray()[nodeIndex], "children");
+            const GtsJsonValue* children = nodes->asArray()[nodeIndex].find("children");
             if (children == nullptr || !children->isArray())
                 continue;
             for (const GtsJsonValue& child : children->asArray())
             {
-                const int32_t childIndex = intValue(&child, -1);
+                const int32_t childIndex = child.tryInt32().value_or(-1);
                 if (childIndex >= 0 && static_cast<size_t>(childIndex) < result.nodes.size())
                     result.nodes[static_cast<size_t>(childIndex)].parentIndex = static_cast<int32_t>(nodeIndex);
             }
@@ -1159,11 +1104,11 @@ AssetImportResult GltfAssetImporter::importAsset(const AssetImportRequest& reque
     if (result.hasErrors())
         return result;
 
-    if (const GtsJsonValue* bufferViews = member(data.root, "bufferViews"))
+    if (const GtsJsonValue* bufferViews = data.root.find("bufferViews"))
         appendBufferViews(*bufferViews, data.bufferViews);
-    if (const GtsJsonValue* accessors = member(data.root, "accessors"))
+    if (const GtsJsonValue* accessors = data.root.find("accessors"))
         appendAccessorArray(*accessors, data.accessors);
-    const GtsJsonValue* buffers = member(data.root, "buffers");
+    const GtsJsonValue* buffers = data.root.find("buffers");
     if (buffers != nullptr && !loadBuffers(data, *buffers, binChunk, result))
         return result;
 

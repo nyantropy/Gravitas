@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include "types/EnumName.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -12,6 +15,14 @@ namespace gts::tween
         EaseOutQuad,
         EaseInOutQuad,
         SmoothStep
+    };
+
+    inline constexpr std::array tweenEaseNames{
+        gts::EnumName{TweenEase::Linear, "Linear"},
+        gts::EnumName{TweenEase::EaseInQuad, "EaseInQuad"},
+        gts::EnumName{TweenEase::EaseOutQuad, "EaseOutQuad"},
+        gts::EnumName{TweenEase::EaseInOutQuad, "EaseInOutQuad"},
+        gts::EnumName{TweenEase::SmoothStep, "SmoothStep"}
     };
 
     inline float applyEase(TweenEase ease, float t)

@@ -1,7 +1,9 @@
 #pragma once
 
 #include <concepts>
+#include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -103,5 +105,24 @@ struct GtsJsonValue
     {
         return std::get<Object>(value);
     }
-    const GtsJsonValue* find(std::string_view key) const;
+    const GtsJsonValue*        find(std::string_view key) const;
+    std::optional<bool>        tryBool() const;
+    std::optional<bool>        findBool(std::string_view key) const;
+    std::optional<std::string> tryString() const;
+    std::optional<std::string> findString(std::string_view key) const;
+    std::optional<double>      tryNumber() const;
+    std::optional<double>      findNumber(std::string_view key) const;
+    std::optional<int32_t>     tryInt32() const;
+    std::optional<int32_t>     findInt32(std::string_view key) const;
+    std::optional<uint32_t>    tryUInt32() const;
+    std::optional<uint32_t>    findUInt32(std::string_view key) const;
+    std::optional<uint64_t>    tryUInt64() const;
+    std::optional<uint64_t>    findUInt64(std::string_view key) const;
+    std::optional<float>       tryFloat() const;
+    std::optional<float>       findFloat(std::string_view key) const;
+    const Array*               tryArray() const;
+    const Object*              tryObject() const;
+    const Array*               findArray(std::string_view key) const;
+    const Object*              findObject(std::string_view key) const;
+    const GtsJsonValue*        at(size_t index) const;
 };

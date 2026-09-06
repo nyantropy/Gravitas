@@ -8,7 +8,7 @@ JSON dependency.
 
 - `GtsJsonValue.h` defines the owned value tree: null, bool, number, string, array,
   and object. Objects preserve insertion order; `find(key)` returns a borrowed
-  pointer or null. Check the type before calling a typed accessor.
+  pointer or null. Checked access and lookup live in `GtsJsonValue.cpp`.
 - `GtsJsonParser.h/.cpp` provides stateless text parsing and serialization.
   The implementation is compiled once into `gravitas_core`.
 - Feature loaders own file/resource access, schema validation, defaults, version
@@ -37,6 +37,68 @@ Small schema-specific helpers belong with their feature; they are not reasons
 to expand the core parser into a general conversion framework.
 
 ## API And Limits
+
+### Value Access
+
+Use `findBool`, `findString`, `findNumber`, `findInt32`, `findUInt32`,
+`findUInt64`, and `findFloat` for typed object-member lookup. They return
+`std::optional`; missing, null, wrong-type, or unconvertible values produce an
+empty result. A present `false`, zero, or empty string remains a present value.
+For a value already obtained from an array or `find`, use the matching `try*`
+operation. Member lookup reuses these conversions rather than defining its own.
+
+```cpp
+visible = tools.findBool("visible").value_or(visible);
+const auto version = root.findInt32("version");
+if (!version)
+    return false;
+```
+
+There are no string-to-number or bool-to-number coercions. Integer conversion
+requires a whole number within the target range; signed and unsigned integer
+storage is checked directly without converting through double. `tryUInt64`
+preserves the full unsigned range. `tryNumber` converts to finite double and can
+round large integers, just like `asNumber`. `tryFloat` rejects non-finite values
+and overflow; normal floating-point rounding, including underflow to zero, is
+allowed. Integer sign policy is separate from representation: a positive value
+stored as `int64_t` can pass `tryUInt32`.
+
+`tryArray` and `tryObject` return borrowed pointers to containers or null;
+`findArray` and `findObject` combine member lookup with that check. `at(index)`
+returns a borrowed value pointer, or null for a non-array or out-of-bounds index.
+These pointers require the owning tree to remain alive and unmodified. String
+optionals own their text. Existing `as*` accessors remain available when the
+caller has established the type; they do not perform checked narrowing.
+
+Fallbacks stay at call sites via `value_or`, not extra `*Or` wrappers. Strict
+loaders use `find` first when they need distinct diagnostics for missing, null,
+and invalid fields. Required/nonempty fields, enum interpretation, positive
+dimensions, vector shapes, and array element filtering remain feature rules.
+Do not recreate generic lookup or numeric-conversion helpers inside loaders.
+
+Stable enum names are declared once beside the enum using `gts::EnumName`
+tables from `core/types/EnumName.h`. Shared `enumValue` and `enumName` lookups
+return an optional; the loader owns rejection or fallback for unknown values.
+The tables do not depend on JSON. Particle descriptors, module parameter types,
+retained UI, widget parameter types, input bindings, presentation/window settings,
+and tool workspace names use this mapping. Existing serialized spellings and
+fallback policies remain unchanged. Tables may list accepted aliases after the
+canonical name; enum-to-text lookup returns the first entry for a value.
+Write simple vector arrays directly at the call site; retain helpers for actual
+validation or multi-step conversion, not single-expression construction.
+
+UI numeric parameters that become text use `GtsJsonParser::serialize` for the
+number itself. They must not pass through default stream precision or convert
+exact integers to double. String parameters remain unquoted text.
+
+Particle descriptors read each defined section directly with the shared typed
+accessors. When a section is not an object, its fields are read directly from
+the emitter to support flat presets (including the flat `shape` string).
+An existing section owns its fields: missing or invalid members retain their
+defaults, without searching other sections or arbitrary nested objects.
+Preset negative-count clamping also remains explicit feature policy.
+
+### Text Parsing
 
 `GtsJsonParser::parse(source, output, error)` returns false for invalid input,
 leaves output unchanged, and optionally reports a reason with a zero-based byte
@@ -98,6 +160,12 @@ by individual readers can now fail consistently, notably duplicate keys and
 malformed numbers/escapes. Unicode escapes no longer degrade to placeholder
 characters. Numeric input codes require the whole code string to be numeric.
 Font dimensions and particle unsigned fields require an in-range integer.
+Checked access also rejects fractional/out-of-range integer fields in UI and
+presets instead of truncating them or risking an invalid C++ cast. Optional
+fields keep their feature defaults when conversion fails; strict fields fail
+with feature diagnostics. Particle burst counts reject negative/fractional or
+overflowing values, and finite values too large for float no longer become
+infinities in vector, curve, or scalar conversions.
 
 Saved files remain human-readable, but whitespace, escape spelling, and number
 formatting can change. Particle and font floats are no longer truncated to four
@@ -109,3 +177,6 @@ invalid writer inputs. It also roundtrips checked-in engine JSON documents.
 `JsonMigrationTest` checks input, font, particle, and benchmark conversions,
 including escaping and failed saves preserving existing files. Existing UI,
 glTF/GLB, particle, preset, and benchmark tests cover their feature contracts.
+`GtsJsonValueTest` covers typed lookup, missing/null/false distinctions, borrowed
+containers, numeric boundaries, and exact 64-bit access. `AssetManifestAccessTest`
+checks required-field diagnostics, optional nulls, and numeric range failures.

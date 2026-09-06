@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include "types/EnumName.h"
+
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -40,6 +43,27 @@ enum class UiBindableProperty : uint8_t
     LayoutAnchorMax,
     LayoutFixedSize,
     LayoutContentOffset
+};
+
+inline constexpr std::array uiBindablePropertyNames{
+    gts::EnumName{UiBindableProperty::Text, "Text"},
+    gts::EnumName{UiBindableProperty::Visible, "Visible"},
+    gts::EnumName{UiBindableProperty::Enabled, "Enabled"},
+    gts::EnumName{UiBindableProperty::Interactable, "Interactable"},
+    gts::EnumName{UiBindableProperty::Opacity, "Opacity"},
+    gts::EnumName{UiBindableProperty::Progress, "Progress"},
+    gts::EnumName{UiBindableProperty::RectColor, "RectColor"},
+    gts::EnumName{UiBindableProperty::TextColor, "TextColor"},
+    gts::EnumName{UiBindableProperty::ImageAsset, "ImageAsset"},
+    gts::EnumName{UiBindableProperty::ImageTint, "ImageTint"},
+    gts::EnumName{UiBindableProperty::StyleClass, "StyleClass"},
+    gts::EnumName{UiBindableProperty::Layout, "Layout"},
+    gts::EnumName{UiBindableProperty::LayoutOffsetMin, "LayoutOffsetMin"},
+    gts::EnumName{UiBindableProperty::LayoutOffsetMax, "LayoutOffsetMax"},
+    gts::EnumName{UiBindableProperty::LayoutAnchorMin, "LayoutAnchorMin"},
+    gts::EnumName{UiBindableProperty::LayoutAnchorMax, "LayoutAnchorMax"},
+    gts::EnumName{UiBindableProperty::LayoutFixedSize, "LayoutFixedSize"},
+    gts::EnumName{UiBindableProperty::LayoutContentOffset, "LayoutContentOffset"}
 };
 
 using UiBindingValue = std::variant<std::monostate,

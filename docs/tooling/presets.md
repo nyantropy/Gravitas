@@ -4,6 +4,9 @@ Tooling launch presets configure the engine into a deterministic startup state.
 They are intended for development, screenshot capture, visual verification, and
 future regression tests.
 
+Workspace text uses the `EnumName` table beside `ToolWorkspace`. Preset loading
+normalizes case before lookup; existing workspace aliases remain accepted.
+
 A preset is not:
 
 - an editor workspace save file

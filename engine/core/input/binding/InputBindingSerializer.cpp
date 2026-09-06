@@ -1,9 +1,7 @@
 #include "InputBindingSerializer.h"
 
 #include <charconv>
-#include <cmath>
 #include <fstream>
-#include <limits>
 #include <sstream>
 #include <stdexcept>
 
@@ -19,12 +17,12 @@ namespace
         InputBinding binding;
         std::string  type = "key";
         std::string  codeName;
-        const auto*  action = json.find("action");
-        const auto*  code   = json.find("code");
-        if (!action || !action->isString() || !code || !code->isString())
+        const auto action = json.findString("action");
+        const auto code = json.findString("code");
+        if (!action || !code)
             return std::nullopt;
-        binding.action = action->asString();
-        codeName       = code->asString();
+        binding.action = *action;
+        codeName = *code;
         for (const auto& [key, value] : json.asObject())
         {
             if (key == "type")
@@ -49,28 +47,19 @@ namespace
             {
                 if (!value.isString())
                     return std::nullopt;
-                const auto& mode = value.asString();
-                if (mode == "pressed")
-                    binding.mode = ActivationMode::Pressed;
-                else if (mode == "released")
-                    binding.mode = ActivationMode::Released;
-                else if (mode == "held")
-                    binding.mode = ActivationMode::Held;
-                else if (mode == "repeated")
-                    binding.mode = ActivationMode::Repeated;
-                else
+                const auto mode = gts::enumValue(activationModeNames, value.asString());
+                if (!mode)
                     return std::nullopt;
+                binding.mode = *mode;
             }
             else if (key == "pausePolicy")
             {
                 if (!value.isString())
                     return std::nullopt;
-                if (value.asString() == "gameplay")
-                    binding.pausePolicy = PausePolicy::Gameplay;
-                else if (value.asString() == "always_active")
-                    binding.pausePolicy = PausePolicy::AlwaysActive;
-                else
+                const auto policy = gts::enumValue(pausePolicyNames, value.asString());
+                if (!policy)
                     return std::nullopt;
+                binding.pausePolicy = *policy;
             }
             else if (key == "modifiers")
             {
@@ -80,20 +69,18 @@ namespace
                 {
                     if (!modifier.isString())
                         return std::nullopt;
-                    if (modifier.asString() == "shift")
-                        binding.trigger.modifiers |= ModifierFlags::Shift;
-                    else if (modifier.asString() == "ctrl")
-                        binding.trigger.modifiers |= ModifierFlags::Ctrl;
-                    else if (modifier.asString() == "alt")
-                        binding.trigger.modifiers |= ModifierFlags::Alt;
-                    else if (modifier.asString() == "super")
-                        binding.trigger.modifiers |= ModifierFlags::Super;
-                    else
+                    const auto flag = gts::enumValue(modifierFlagNames, modifier.asString());
+                    if (!flag)
                         return std::nullopt;
+                    binding.trigger.modifiers |= *flag;
                 }
             }
         }
-        if (type == "key")
+        const auto triggerType = gts::enumValue(inputTriggerTypeNames, type);
+        if (!triggerType)
+            return std::nullopt;
+        binding.trigger.type = *triggerType;
+        if (binding.trigger.type == InputTrigger::Type::Key)
         {
             const auto keyCode = stringToKeyCode(codeName);
             if (!keyCode)
@@ -102,62 +89,16 @@ namespace
         }
         else
         {
-            if (type == "mouse_button")
-                binding.trigger.type = InputTrigger::Type::MouseButton;
-            else if (type == "gamepad_button")
-                binding.trigger.type = InputTrigger::Type::GamepadButton;
-            else if (type == "gamepad_axis")
-                binding.trigger.type = InputTrigger::Type::GamepadAxis;
-            else
-                return std::nullopt;
             const auto result =
                 std::from_chars(codeName.data(), codeName.data() + codeName.size(), binding.trigger.code);
             if (result.ec != std::errc{} || result.ptr != codeName.data() + codeName.size())
                 return std::nullopt;
-            if (type == "gamepad_axis")
+            if (binding.trigger.type == InputTrigger::Type::GamepadAxis)
                 binding.trigger.axisIndex = binding.trigger.code;
         }
         return binding;
     }
 
-    const char* activationModeToString(ActivationMode mode)
-    {
-        switch (mode)
-        {
-        case ActivationMode::Pressed:
-            return "pressed";
-        case ActivationMode::Released:
-            return "released";
-        case ActivationMode::Held:
-            return "held";
-        case ActivationMode::Repeated:
-            return "repeated";
-        }
-
-        return "pressed";
-    }
-
-    const char* pausePolicyToString(PausePolicy policy)
-    {
-        return policy == PausePolicy::AlwaysActive ? "always_active" : "gameplay";
-    }
-
-    const char* triggerTypeToString(InputTrigger::Type type)
-    {
-        switch (type)
-        {
-        case InputTrigger::Type::Key:
-            return "key";
-        case InputTrigger::Type::MouseButton:
-            return "mouse_button";
-        case InputTrigger::Type::GamepadButton:
-            return "gamepad_button";
-        case InputTrigger::Type::GamepadAxis:
-            return "gamepad_axis";
-        }
-
-        return "key";
-    }
 } // namespace
 
 std::optional<InputBindingDocument> parseInputBindingDocument(const std::string& source)
@@ -165,17 +106,13 @@ std::optional<InputBindingDocument> parseInputBindingDocument(const std::string&
     GtsJsonValue root;
     if (!GtsJsonParser::parse(source, root) || !root.isObject())
         return std::nullopt;
-    const auto* version  = root.find("version");
-    const auto* bindings = root.find("bindings");
-    if (!version || !version->isNumber() || !bindings || !bindings->isArray())
-        return std::nullopt;
-    const double number = version->asNumber();
-    if (std::trunc(number) != number || number < std::numeric_limits<int>::min() ||
-        number > std::numeric_limits<int>::max())
+    const auto version = root.findInt32("version");
+    const auto* bindings = root.findArray("bindings");
+    if (!version || !bindings)
         return std::nullopt;
     InputBindingDocument document;
-    document.version = static_cast<int>(number);
-    for (const auto& value : bindings->asArray())
+    document.version = *version;
+    for (const auto& value : *bindings)
     {
         const auto binding = readBinding(value);
         if (!binding)
@@ -191,24 +128,19 @@ std::string serializeInputBindingDocument(const std::vector<InputBinding>& bindi
     for (const auto& binding : bindings)
     {
         GtsJsonValue::Array modifiers;
-        if (has(binding.trigger.modifiers, ModifierFlags::Shift))
-            modifiers.emplace_back("shift");
-        if (has(binding.trigger.modifiers, ModifierFlags::Ctrl))
-            modifiers.emplace_back("ctrl");
-        if (has(binding.trigger.modifiers, ModifierFlags::Alt))
-            modifiers.emplace_back("alt");
-        if (has(binding.trigger.modifiers, ModifierFlags::Super))
-            modifiers.emplace_back("super");
-        GtsJsonValue::Object object{{"action", binding.action},
-                                    {"type", triggerTypeToString(binding.trigger.type)},
-                                    {"code",
-                                     binding.trigger.type == InputTrigger::Type::Key
-                                         ? keyCodeToString(binding.trigger.code)
-                                         : std::to_string(binding.trigger.code)},
-                                    {"modifiers", std::move(modifiers)},
-                                    {"mode", activationModeToString(binding.mode)},
-                                    {"context", binding.context},
-                                    {"pausePolicy", pausePolicyToString(binding.pausePolicy)}};
+        for (const auto& entry : modifierFlagNames)
+            if (has(binding.trigger.modifiers, entry.value))
+                modifiers.emplace_back(std::string(entry.name));
+        GtsJsonValue::Object object{
+            {"action", binding.action},
+            {"type", std::string(gts::enumName(inputTriggerTypeNames, binding.trigger.type).value_or("key"))},
+            {"code",
+             binding.trigger.type == InputTrigger::Type::Key ? keyCodeToString(binding.trigger.code)
+                                                             : std::to_string(binding.trigger.code)},
+            {"modifiers", std::move(modifiers)},
+            {"mode", std::string(gts::enumName(activationModeNames, binding.mode).value_or("pressed"))},
+            {"context", binding.context},
+            {"pausePolicy", std::string(gts::enumName(pausePolicyNames, binding.pausePolicy).value_or("gameplay"))}};
         if (binding.passthrough)
             object.emplace_back("passthrough", true);
         array.emplace_back(std::move(object));

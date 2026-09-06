@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include "types/EnumName.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -11,6 +14,13 @@ enum class ModifierFlags : uint8_t
     Ctrl  = 1 << 1,
     Alt   = 1 << 2,
     Super = 1 << 3
+};
+
+inline constexpr std::array modifierFlagNames{
+    gts::EnumName{ModifierFlags::Shift, "shift"},
+    gts::EnumName{ModifierFlags::Ctrl, "ctrl"},
+    gts::EnumName{ModifierFlags::Alt, "alt"},
+    gts::EnumName{ModifierFlags::Super, "super"}
 };
 
 inline ModifierFlags operator|(ModifierFlags lhs, ModifierFlags rhs)
@@ -47,10 +57,22 @@ enum class ActivationMode : uint8_t
     Repeated
 };
 
+inline constexpr std::array activationModeNames{
+    gts::EnumName{ActivationMode::Pressed, "pressed"},
+    gts::EnumName{ActivationMode::Released, "released"},
+    gts::EnumName{ActivationMode::Held, "held"},
+    gts::EnumName{ActivationMode::Repeated, "repeated"}
+};
+
 enum class PausePolicy : uint8_t
 {
     Gameplay,
     AlwaysActive
+};
+
+inline constexpr std::array pausePolicyNames{
+    gts::EnumName{PausePolicy::Gameplay, "gameplay"},
+    gts::EnumName{PausePolicy::AlwaysActive, "always_active"}
 };
 
 struct InputTrigger
@@ -72,6 +94,13 @@ struct InputTrigger
 
     bool operator==(const InputTrigger& other) const;
     size_t hash() const;
+};
+
+inline constexpr std::array inputTriggerTypeNames{
+    gts::EnumName{InputTrigger::Type::Key, "key"},
+    gts::EnumName{InputTrigger::Type::MouseButton, "mouse_button"},
+    gts::EnumName{InputTrigger::Type::GamepadButton, "gamepad_button"},
+    gts::EnumName{InputTrigger::Type::GamepadAxis, "gamepad_axis"}
 };
 
 struct InputBinding

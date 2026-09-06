@@ -1,8 +1,6 @@
 #include "FontAssetIO.h"
 
-#include <cmath>
 #include <fstream>
-#include <limits>
 #include <sstream>
 #include <stdexcept>
 
@@ -12,26 +10,6 @@ namespace gts::fonts
 {
     namespace
     {
-        bool readUint(const GtsJsonValue& root, const char* key, uint32_t& output)
-        {
-            const auto* value = root.find(key);
-            if (!value || !value->isNumber())
-                return false;
-            const double number = value->asNumber();
-            if (number < 0 || number > std::numeric_limits<uint32_t>::max() || std::trunc(number) != number)
-                return false;
-            output = static_cast<uint32_t>(number);
-            return true;
-        }
-
-        bool readFloat(const GtsJsonValue& root, const char* key, float& output)
-        {
-            const auto* value = root.find(key);
-            if (!value || !value->isNumber() || std::abs(value->asNumber()) > std::numeric_limits<float>::max())
-                return false;
-            output = static_cast<float>(value->asNumber());
-            return true;
-        }
 
         bool readMetrics(const GtsJsonValue& value, FontGlyphMetrics& output)
         {
@@ -40,9 +18,9 @@ namespace gts::fonts
             for (const auto& [key, member] : value.asObject())
                 if (!member.isNumber())
                     return false;
-            readFloat(value, "sizeX", output.sizeX);
-            readFloat(value, "sizeY", output.sizeY);
-            readFloat(value, "advance", output.advance);
+            output.sizeX = value.findFloat("sizeX").value_or(output.sizeX);
+            output.sizeY = value.findFloat("sizeY").value_or(output.sizeY);
+            output.advance = value.findFloat("advance").value_or(output.advance);
             return true;
         }
 
@@ -64,23 +42,30 @@ namespace gts::fonts
         if (!GtsJsonParser::parse(buffer.str(), root) || !root.isObject())
             return false;
         FontAsset   parsed;
-        const auto* atlas = root.find("atlas");
-        const auto* order = root.find("charOrder");
-        if (!atlas || !atlas->isString() || !order || !order->isString())
+        const auto atlas = root.findString("atlas");
+        const auto order = root.findString("charOrder");
+        const auto atlasWidth = root.findUInt32("atlasWidth");
+        const auto atlasHeight = root.findUInt32("atlasHeight");
+        const auto cellWidth = root.findUInt32("cellWidth");
+        const auto cellHeight = root.findUInt32("cellHeight");
+        const auto columns = root.findUInt32("columns");
+        const auto lineHeight = root.findFloat("lineHeight");
+        if (!atlas || !order || !atlasWidth || !atlasHeight || !cellWidth || !cellHeight || !columns || !lineHeight)
             return false;
-        parsed.atlasPath = atlas->asString();
-        parsed.charOrder = order->asString();
-        if (!readUint(root, "atlasWidth", parsed.atlasWidth) || !readUint(root, "atlasHeight", parsed.atlasHeight) ||
-            !readUint(root, "cellWidth", parsed.cellWidth) || !readUint(root, "cellHeight", parsed.cellHeight) ||
-            !readUint(root, "columns", parsed.columns) || !readFloat(root, "lineHeight", parsed.lineHeight))
-            return false;
-        if (const auto* sampling = root.find("pixelSampling"); sampling && sampling->isBool())
-            parsed.pixelSampling = sampling->asBool();
+        parsed.atlasPath = *atlas;
+        parsed.charOrder = *order;
+        parsed.atlasWidth = *atlasWidth;
+        parsed.atlasHeight = *atlasHeight;
+        parsed.cellWidth = *cellWidth;
+        parsed.cellHeight = *cellHeight;
+        parsed.columns = *columns;
+        parsed.lineHeight = *lineHeight;
+        parsed.pixelSampling = root.findBool("pixelSampling").value_or(parsed.pixelSampling);
         if (const auto* defaults = root.find("glyphDefaults"))
             readMetrics(*defaults, parsed.glyphDefaults);
-        if (const auto* overrides = root.find("glyphOverrides"); overrides && overrides->isObject())
+        if (const auto* overrides = root.findObject("glyphOverrides"))
         {
-            for (const auto& [characters, value] : overrides->asObject())
+            for (const auto& [characters, value] : *overrides)
             {
                 FontGlyphMetrics metrics;
                 if (!readMetrics(value, metrics))

@@ -1,6 +1,9 @@
 #pragma once
 
 #include <array>
+#include "types/EnumName.h"
+
+#include <array>
 #include <cstdint>
 #include <string>
 
@@ -22,6 +25,22 @@ enum class UiNavigationRole : uint8_t
     Toolbar,
     Graph,
     Viewport
+};
+
+inline constexpr std::array uiNavigationRoleNames{
+    gts::EnumName{UiNavigationRole::Generic, "Generic"},
+    gts::EnumName{UiNavigationRole::Button, "Button"},
+    gts::EnumName{UiNavigationRole::Checkbox, "Checkbox"},
+    gts::EnumName{UiNavigationRole::Slider, "Slider"},
+    gts::EnumName{UiNavigationRole::List, "List"},
+    gts::EnumName{UiNavigationRole::Tree, "Tree"},
+    gts::EnumName{UiNavigationRole::TextBox, "TextBox"},
+    gts::EnumName{UiNavigationRole::Menu, "Menu"},
+    gts::EnumName{UiNavigationRole::Tab, "Tab"},
+    gts::EnumName{UiNavigationRole::Window, "Window"},
+    gts::EnumName{UiNavigationRole::Toolbar, "Toolbar"},
+    gts::EnumName{UiNavigationRole::Graph, "Graph"},
+    gts::EnumName{UiNavigationRole::Viewport, "Viewport"}
 };
 
 static constexpr int UI_NAVIGATION_AUTO_TAB_INDEX = -1;

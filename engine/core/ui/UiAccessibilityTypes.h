@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include "types/EnumName.h"
+
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -46,11 +49,53 @@ enum class UiSemanticRole : uint8_t
     Inspector
 };
 
+inline constexpr std::array uiSemanticRoleNames{
+    gts::EnumName{UiSemanticRole::Unknown, "Unknown"},
+    gts::EnumName{UiSemanticRole::Window, "Window"},
+    gts::EnumName{UiSemanticRole::Dialog, "Dialog"},
+    gts::EnumName{UiSemanticRole::Panel, "Panel"},
+    gts::EnumName{UiSemanticRole::Button, "Button"},
+    gts::EnumName{UiSemanticRole::Toggle, "Toggle"},
+    gts::EnumName{UiSemanticRole::Checkbox, "Checkbox"},
+    gts::EnumName{UiSemanticRole::Radio, "Radio"},
+    gts::EnumName{UiSemanticRole::Slider, "Slider"},
+    gts::EnumName{UiSemanticRole::Textbox, "Textbox"},
+    gts::EnumName{UiSemanticRole::Password, "Password"},
+    gts::EnumName{UiSemanticRole::Image, "Image"},
+    gts::EnumName{UiSemanticRole::Label, "Label"},
+    gts::EnumName{UiSemanticRole::Heading, "Heading"},
+    gts::EnumName{UiSemanticRole::Group, "Group"},
+    gts::EnumName{UiSemanticRole::List, "List"},
+    gts::EnumName{UiSemanticRole::ListItem, "ListItem"},
+    gts::EnumName{UiSemanticRole::Tree, "Tree"},
+    gts::EnumName{UiSemanticRole::TreeItem, "TreeItem"},
+    gts::EnumName{UiSemanticRole::Table, "Table"},
+    gts::EnumName{UiSemanticRole::Row, "Row"},
+    gts::EnumName{UiSemanticRole::Cell, "Cell"},
+    gts::EnumName{UiSemanticRole::ProgressBar, "ProgressBar"},
+    gts::EnumName{UiSemanticRole::Status, "Status"},
+    gts::EnumName{UiSemanticRole::Toolbar, "Toolbar"},
+    gts::EnumName{UiSemanticRole::Menu, "Menu"},
+    gts::EnumName{UiSemanticRole::MenuItem, "MenuItem"},
+    gts::EnumName{UiSemanticRole::Tab, "Tab"},
+    gts::EnumName{UiSemanticRole::TabPanel, "TabPanel"},
+    gts::EnumName{UiSemanticRole::Viewport, "Viewport"},
+    gts::EnumName{UiSemanticRole::Canvas, "Canvas"},
+    gts::EnumName{UiSemanticRole::Graph, "Graph"},
+    gts::EnumName{UiSemanticRole::Inspector, "Inspector"}
+};
+
 enum class UiAccessibilityLiveRegion : uint8_t
 {
     Off = 0,
     Polite,
     Assertive
+};
+
+inline constexpr std::array uiAccessibilityLiveRegionNames{
+    gts::EnumName{UiAccessibilityLiveRegion::Off, "Off"},
+    gts::EnumName{UiAccessibilityLiveRegion::Polite, "Polite"},
+    gts::EnumName{UiAccessibilityLiveRegion::Assertive, "Assertive"}
 };
 
 enum class UiAccessibilityAnnouncementKind : uint8_t

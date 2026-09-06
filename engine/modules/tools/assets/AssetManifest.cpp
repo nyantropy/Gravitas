@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -87,7 +86,7 @@ namespace
         if (!json->isString())
             return fail(error, "manifest field '" + valuePath(key) + "' must be a string");
 
-        value = std::get<std::string>(json->value);
+        value = json->asString();
         if (value.empty())
             return fail(error, "manifest field '" + valuePath(key) + "' must not be empty");
         return true;
@@ -104,7 +103,7 @@ namespace
         if (!json->isString())
             return fail(error, "manifest field '" + valuePath(key) + "' must be a string");
 
-        value = std::get<std::string>(json->value);
+        value = json->asString();
         return true;
     }
 
@@ -119,13 +118,13 @@ namespace
         if (!json->isNumber())
             return fail(error, "manifest field '" + valuePath(key) + "' must be a number");
 
-        const double number = json->asNumber();
-        if (!std::isfinite(number))
+        if (!json->tryNumber())
             return fail(error, "manifest field '" + valuePath(key) + "' must be finite");
 
-        value = static_cast<int>(number);
-        if (static_cast<double>(value) != number)
-            return fail(error, "manifest field '" + valuePath(key) + "' must be an integer");
+        const auto integer = json->tryInt32();
+        if (!integer)
+            return fail(error, "manifest field '" + valuePath(key) + "' must be an in-range integer");
+        value = *integer;
         return true;
     }
 
@@ -140,7 +139,7 @@ namespace
         if (!json->isBool())
             return fail(error, "manifest field '" + valuePath(key) + "' must be a boolean");
 
-        value = std::get<bool>(json->value);
+        value = json->asBool();
         return true;
     }
 
@@ -155,11 +154,13 @@ namespace
         if (!json->isNumber())
             return fail(error, "manifest field '" + valuePath(key) + "' must be a number");
 
-        const double number = json->asNumber();
-        if (!std::isfinite(number))
+        if (!json->tryNumber())
             return fail(error, "manifest field '" + valuePath(key) + "' must be finite");
 
-        value = static_cast<float>(number);
+        const auto converted = json->tryFloat();
+        if (!converted)
+            return fail(error, "manifest field '" + valuePath(key) + "' must fit in a float");
+        value = *converted;
         return true;
     }
 
@@ -171,7 +172,7 @@ namespace
         if (!json.isArray())
             return fail(error, "manifest field '" + path + "' must be a 3-number array");
 
-        const auto& array = std::get<GtsJsonValue::Array>(json.value);
+        const auto& array = json.asArray();
         if (array.size() != 3u)
             return fail(error, "manifest field '" + path + "' must contain exactly 3 numbers");
 
@@ -180,10 +181,12 @@ namespace
         {
             if (!array[i].isNumber())
                 return fail(error, "manifest field '" + path + "' must contain only numbers");
-            const double number = array[i].asNumber();
-            if (!std::isfinite(number))
+            if (!array[i].tryNumber())
                 return fail(error, "manifest field '" + path + "' must contain finite numbers");
-            parsed[static_cast<glm::length_t>(i)] = static_cast<float>(number);
+            const auto converted = array[i].tryFloat();
+            if (!converted)
+                return fail(error, "manifest field '" + path + "' must contain values that fit in a float");
+            parsed[static_cast<glm::length_t>(i)] = *converted;
         }
 
         value = parsed;

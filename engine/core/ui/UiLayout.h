@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include "types/EnumName.h"
+
 #include <cstdint>
 
 #include "UiTypes.h"
@@ -20,10 +23,26 @@ enum class UiLayoutMode : uint8_t
     Constraint
 };
 
+inline constexpr std::array uiLayoutModeNames{
+    gts::EnumName{UiLayoutMode::Canvas, "Canvas"},
+    gts::EnumName{UiLayoutMode::Stack, "Stack"},
+    gts::EnumName{UiLayoutMode::Grid, "Grid"},
+    gts::EnumName{UiLayoutMode::Dock, "Dock"},
+    gts::EnumName{UiLayoutMode::Overlay, "Overlay"},
+    gts::EnumName{UiLayoutMode::Scroll, "Scroll"},
+    gts::EnumName{UiLayoutMode::Aspect, "Aspect"},
+    gts::EnumName{UiLayoutMode::Constraint, "Constraint"}
+};
+
 enum class UiLayoutAxis : uint8_t
 {
     Horizontal = 0,
     Vertical
+};
+
+inline constexpr std::array uiLayoutAxisNames{
+    gts::EnumName{UiLayoutAxis::Horizontal, "Horizontal"},
+    gts::EnumName{UiLayoutAxis::Vertical, "Vertical"}
 };
 
 enum class UiLayoutAlignment : uint8_t
@@ -34,6 +53,13 @@ enum class UiLayoutAlignment : uint8_t
     Stretch
 };
 
+inline constexpr std::array uiLayoutAlignmentNames{
+    gts::EnumName{UiLayoutAlignment::Start, "Start"},
+    gts::EnumName{UiLayoutAlignment::Center, "Center"},
+    gts::EnumName{UiLayoutAlignment::End, "End"},
+    gts::EnumName{UiLayoutAlignment::Stretch, "Stretch"}
+};
+
 enum class UiDockEdge : uint8_t
 {
     Left = 0,
@@ -41,6 +67,14 @@ enum class UiDockEdge : uint8_t
     Top,
     Bottom,
     Fill
+};
+
+inline constexpr std::array uiDockEdgeNames{
+    gts::EnumName{UiDockEdge::Left, "Left"},
+    gts::EnumName{UiDockEdge::Right, "Right"},
+    gts::EnumName{UiDockEdge::Top, "Top"},
+    gts::EnumName{UiDockEdge::Bottom, "Bottom"},
+    gts::EnumName{UiDockEdge::Fill, "Fill"}
 };
 
 enum class UiLayoutUnit : uint8_t
@@ -55,6 +89,19 @@ enum class UiLayoutUnit : uint8_t
     Content,
     Em,
     Pixels
+};
+
+inline constexpr std::array uiLayoutUnitNames{
+    gts::EnumName{UiLayoutUnit::Auto, "Auto"},
+    gts::EnumName{UiLayoutUnit::Normalized, "Normalized"},
+    gts::EnumName{UiLayoutUnit::Percent, "Percent"},
+    gts::EnumName{UiLayoutUnit::SurfaceWidth, "SurfaceWidth"},
+    gts::EnumName{UiLayoutUnit::SurfaceHeight, "SurfaceHeight"},
+    gts::EnumName{UiLayoutUnit::ParentWidth, "ParentWidth"},
+    gts::EnumName{UiLayoutUnit::ParentHeight, "ParentHeight"},
+    gts::EnumName{UiLayoutUnit::Content, "Content"},
+    gts::EnumName{UiLayoutUnit::Em, "Em"},
+    gts::EnumName{UiLayoutUnit::Pixels, "Pixels"}
 };
 
 struct UiLayoutLength

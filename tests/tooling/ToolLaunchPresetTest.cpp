@@ -7,6 +7,9 @@
 
 #include "ToolLaunchPreset.h"
 
+static_assert(gts::enumValue(gts::tools::toolWorkspaceNames, "particle_editor") == gts::tools::ToolWorkspace::Particles);
+static_assert(gts::enumName(gts::tools::toolWorkspaceNames, gts::tools::ToolWorkspace::Particles) == "particles");
+
 void require(bool condition, const char* message)
 {
     if (!condition)
@@ -74,6 +77,12 @@ int main()
                 && preset.tools.selectedEmitter == 0 && preset.screenshots.afterSeconds == 0
                 && preset.screenshots.intervalSeconds == 0 && preset.screenshots.count == 0,
                 "Clamping or optional-field behavior changed");
+        write(R"({"tools":{"selectedEmitter":1.5,"selectedModule":1e100},
+                  "screenshots":{"count":4294967296,"afterSeconds":1e100}})");
+        require(gts::tools::loadToolLaunchPreset(path.string(), preset), "Invalid optional numbers failed load");
+        require(!preset.tools.hasSelectedEmitter && !preset.tools.hasSelectedModule
+                && preset.screenshots.count == 1 && preset.screenshots.afterSeconds == 2.0f,
+                "Invalid optional numbers did not retain defaults");
     }
     catch (const std::exception& error)
     {

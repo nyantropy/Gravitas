@@ -257,7 +257,12 @@ so a screenshot requested alongside quit still captures the final frame.
 
 JSON syntax belongs to `core/json/GtsJsonParser`, backed by `GtsJsonValue`.
 Feature loaders own file access, schema validation, defaults, and typed-data
-conversion. Do not add module-local JSON parsers or escaping/writer logic.
+conversion. Checked primitive access and narrowing belong to `GtsJsonValue`;
+loaders use its `find*`/`try*` methods and keep feature defaults and diagnostics
+local. Do not add module-local JSON parsers, typed lookup wrappers, or
+escaping/writer logic.
+Stable enum text belongs beside its enum in `gts::EnumName` tables, using
+JSON-independent lookups from `core/types/EnumName.h`.
 Keep parser dependencies out of data-only headers; see the
 [JSON architecture](docs/json/architecture.md) for the contract and limits.
 

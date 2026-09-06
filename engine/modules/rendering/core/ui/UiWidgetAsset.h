@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include "types/EnumName.h"
+
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -17,6 +20,15 @@ enum class UiWidgetAssetParameterType
     Color,
     Asset,
     BindingPath
+};
+
+inline constexpr std::array uiWidgetAssetParameterTypeNames{
+    gts::EnumName{UiWidgetAssetParameterType::Number, "Number"},
+    gts::EnumName{UiWidgetAssetParameterType::Bool, "Bool"},
+    gts::EnumName{UiWidgetAssetParameterType::Color, "Color"},
+    gts::EnumName{UiWidgetAssetParameterType::Asset, "Asset"},
+    gts::EnumName{UiWidgetAssetParameterType::BindingPath, "BindingPath"},
+    gts::EnumName{UiWidgetAssetParameterType::String, "String"}
 };
 
 struct UiWidgetAssetParameter

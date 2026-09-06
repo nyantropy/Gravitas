@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include "types/EnumName.h"
+
 #include <cstdint>
 
 #include "UiDragTypes.h"
@@ -27,6 +30,15 @@ enum class UiNavigationDirection : uint8_t
     Right,
     Next,
     Previous
+};
+
+inline constexpr std::array uiNavigationDirectionNames{
+    gts::EnumName{UiNavigationDirection::Up, "Up"},
+    gts::EnumName{UiNavigationDirection::Down, "Down"},
+    gts::EnumName{UiNavigationDirection::Left, "Left"},
+    gts::EnumName{UiNavigationDirection::Right, "Right"},
+    gts::EnumName{UiNavigationDirection::Next, "Next"},
+    gts::EnumName{UiNavigationDirection::Previous, "Previous"}
 };
 
 struct UiInputFrame

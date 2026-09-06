@@ -21,42 +21,16 @@ namespace
         return uiAssetKey(reference);
     }
 
-    const GtsJsonValue* findField(const GtsJsonValue& value, const std::string& key)
-    {
-        return value.find(key);
-    }
-
-    std::string jsonStringValue(const GtsJsonValue* value, const std::string& fallback = {})
-    {
-        if (value == nullptr || !value->isString())
-            return fallback;
-        return std::get<std::string>(value->value);
-    }
-
-    bool jsonBoolValue(const GtsJsonValue* value, bool fallback = false)
-    {
-        if (value == nullptr || !value->isBool())
-            return fallback;
-        return std::get<bool>(value->value);
-    }
-
-    int jsonIntValue(const GtsJsonValue* value, int fallback = 0)
-    {
-        if (value == nullptr || !value->isNumber())
-            return fallback;
-        return static_cast<int>(value->asNumber());
-    }
-
     std::vector<std::string> jsonStringArray(const GtsJsonValue* value)
     {
         std::vector<std::string> result;
         if (value == nullptr || !value->isArray())
             return result;
 
-        for (const GtsJsonValue& item : std::get<GtsJsonValue::Array>(value->value))
+        for (const GtsJsonValue& item : value->asArray())
         {
             if (item.isString())
-                result.push_back(std::get<std::string>(item.value));
+                result.push_back(item.asString());
         }
         return result;
     }
@@ -67,16 +41,16 @@ namespace
         dependency.optional = optionalFallback;
         if (value.isString())
         {
-            dependency.packageId = std::get<std::string>(value.value);
+            dependency.packageId = value.asString();
             return dependency;
         }
 
         if (!value.isObject())
             return dependency;
 
-        dependency.packageId = jsonStringValue(findField(value, "id"));
-        dependency.minVersion = jsonStringValue(findField(value, "minVersion"));
-        dependency.optional = jsonBoolValue(findField(value, "optional"), optionalFallback);
+        dependency.packageId = value.findString("id").value_or("");
+        dependency.minVersion = value.findString("minVersion").value_or("");
+        dependency.optional = value.findBool("optional").value_or(optionalFallback);
         return dependency;
     }
 
@@ -86,7 +60,7 @@ namespace
         if (value == nullptr || !value->isArray())
             return result;
 
-        for (const GtsJsonValue& item : std::get<GtsJsonValue::Array>(value->value))
+        for (const GtsJsonValue& item : value->asArray())
         {
             UiPackageDependency dependency = parseDependency(item, optional);
             if (!dependency.packageId.empty())
@@ -101,12 +75,12 @@ namespace
         if (!value.isObject())
             return plugin;
 
-        plugin.id = jsonStringValue(findField(value, "id"));
-        plugin.displayName = jsonStringValue(findField(value, "displayName"));
-        plugin.version = jsonStringValue(findField(value, "version"));
-        plugin.description = jsonStringValue(findField(value, "description"));
-        plugin.nativeCode = jsonBoolValue(findField(value, "nativeCode"));
-        plugin.capabilities = jsonStringArray(findField(value, "capabilities"));
+        plugin.id = value.findString("id").value_or("");
+        plugin.displayName = value.findString("displayName").value_or("");
+        plugin.version = value.findString("version").value_or("");
+        plugin.description = value.findString("description").value_or("");
+        plugin.nativeCode = value.findBool("nativeCode").value_or(false);
+        plugin.capabilities = jsonStringArray(value.find("capabilities"));
         return plugin;
     }
 
@@ -116,7 +90,7 @@ namespace
         if (value == nullptr || !value->isArray())
             return result;
 
-        for (const GtsJsonValue& item : std::get<GtsJsonValue::Array>(value->value))
+        for (const GtsJsonValue& item : value->asArray())
         {
             UiPluginMetadata plugin = parsePlugin(item);
             if (!plugin.id.empty())
@@ -283,19 +257,19 @@ bool parseUiPackageManifest(const std::string& json,
     }
 
     UiPackageManifest manifest;
-    manifest.schemaVersion = jsonIntValue(findField(root, "schema"), UI_PACKAGE_MANIFEST_SCHEMA_VERSION);
-    manifest.id = jsonStringValue(findField(root, "id"));
-    manifest.displayName = jsonStringValue(findField(root, "displayName"));
-    manifest.author = jsonStringValue(findField(root, "author"));
-    manifest.version = jsonStringValue(findField(root, "version"), "1.0.0");
-    manifest.namespaceId = jsonStringValue(findField(root, "namespace"));
-    manifest.engineCompatibility = jsonStringValue(findField(root, "engineCompatibility"));
-    manifest.description = jsonStringValue(findField(root, "description"));
-    manifest.tags = jsonStringArray(findField(root, "tags"));
-    manifest.assetRoots = jsonStringArray(findField(root, "assetRoots"));
-    manifest.dependencies = parseDependencies(findField(root, "dependencies"), false);
-    manifest.optionalDependencies = parseDependencies(findField(root, "optionalDependencies"), true);
-    manifest.plugins = parsePlugins(findField(root, "plugins"));
+    manifest.schemaVersion = root.findInt32("schema").value_or(UI_PACKAGE_MANIFEST_SCHEMA_VERSION);
+    manifest.id = root.findString("id").value_or("");
+    manifest.displayName = root.findString("displayName").value_or("");
+    manifest.author = root.findString("author").value_or("");
+    manifest.version = root.findString("version").value_or("1.0.0");
+    manifest.namespaceId = root.findString("namespace").value_or("");
+    manifest.engineCompatibility = root.findString("engineCompatibility").value_or("");
+    manifest.description = root.findString("description").value_or("");
+    manifest.tags = jsonStringArray(root.find("tags"));
+    manifest.assetRoots = jsonStringArray(root.find("assetRoots"));
+    manifest.dependencies = parseDependencies(root.find("dependencies"), false);
+    manifest.optionalDependencies = parseDependencies(root.find("optionalDependencies"), true);
+    manifest.plugins = parsePlugins(root.find("plugins"));
 
     if (manifest.id.empty())
         validation.error("$.id", "package id is required");

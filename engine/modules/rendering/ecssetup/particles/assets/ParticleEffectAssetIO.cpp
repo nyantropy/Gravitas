@@ -2,10 +2,8 @@
 #include "GtsJsonParser.h"
 
 #include <algorithm>
-#include <cmath>
 #include <filesystem>
 #include <fstream>
-#include <limits>
 #include <sstream>
 #include <stdexcept>
 
@@ -14,55 +12,17 @@
 
 namespace
 {
-    const GtsJsonValue* findTypedMemberDeep(const GtsJsonValue& source, const std::string& key, GtsJsonValue::Type type)
-    {
-        if (source.type() != GtsJsonValue::Type::Object)
-            return nullptr;
-
-        for (const auto& entry : source.asObject())
-        {
-            if (entry.first == key && entry.second.type() == type)
-                return &entry.second;
-        }
-        for (const auto& entry : source.asObject())
-        {
-            if (entry.second.type() == GtsJsonValue::Type::Object)
-            {
-                if (const GtsJsonValue* found = findTypedMemberDeep(entry.second, key, type))
-                    return found;
-            }
-        }
-        return nullptr;
-    }
-
-    const GtsJsonValue* findTypedMember(const GtsJsonValue& source,
-                                     const std::string& key,
-                                     GtsJsonValue::Type    type,
-                                     bool               deep = true)
-    {
-        const GtsJsonValue* direct = source.find(key);
-        if (direct != nullptr && direct->type() == type)
-            return direct;
-        return deep ? findTypedMemberDeep(source, key, type) : nullptr;
-    }
-
-    bool readObject(const GtsJsonValue& source, const std::string& key, const GtsJsonValue*& objectValue)
-    {
-        objectValue = findTypedMember(source, key, GtsJsonValue::Type::Object, false);
-        return objectValue != nullptr;
-    }
-
     bool readObjectArray(const GtsJsonValue& source,
                          const std::string& key,
                          std::vector<const GtsJsonValue*>& objectValues)
     {
-        const GtsJsonValue* arrayValue = findTypedMember(source, key, GtsJsonValue::Type::Array, false);
+        const auto* arrayValue = source.findArray(key);
         if (arrayValue == nullptr)
             return false;
 
         std::vector<const GtsJsonValue*> parsed;
-        parsed.reserve(arrayValue->asArray().size());
-        for (const GtsJsonValue& item : arrayValue->asArray())
+        parsed.reserve(arrayValue->size());
+        for (const GtsJsonValue& item : *arrayValue)
         {
             if (item.type() != GtsJsonValue::Type::Object)
                 return false;
@@ -73,272 +33,64 @@ namespace
         return true;
     }
 
-    bool readString(const GtsJsonValue& source, const std::string& key, std::string& value, bool deep = true)
-    {
-        const GtsJsonValue* stringValue = findTypedMember(source, key, GtsJsonValue::Type::String, deep);
-        if (stringValue == nullptr)
-            return false;
-        value = stringValue->asString();
-        return true;
-    }
-
-    bool readFloat(const GtsJsonValue& source, const std::string& key, float& value, bool deep = true)
-    {
-        const GtsJsonValue* numberValue = findTypedMember(source, key, GtsJsonValue::Type::Number, deep);
-        if (numberValue == nullptr)
-            return false;
-        value = static_cast<float>(numberValue->asNumber());
-        return true;
-    }
-
-    bool readUint(const GtsJsonValue& source, const std::string& key, uint32_t& value, bool deep = true)
-    {
-        const auto* number = findTypedMember(source, key, GtsJsonValue::Type::Number, deep);
-        if (number == nullptr)
-            return false;
-        const double parsed = number->asNumber();
-        if (parsed < 0 || parsed > std::numeric_limits<uint32_t>::max() || std::trunc(parsed) != parsed)
-            return false;
-        value = static_cast<uint32_t>(parsed);
-        return true;
-    }
-
-    bool readBool(const GtsJsonValue& source, const std::string& key, bool& value, bool deep = true)
-    {
-        const GtsJsonValue* boolValue = findTypedMember(source, key, GtsJsonValue::Type::Bool, deep);
-        if (boolValue == nullptr)
-            return false;
-        value = boolValue->asBool();
-        return true;
-    }
-
     bool readVec3Value(const GtsJsonValue& source, glm::vec3& value)
     {
-        if (source.type() != GtsJsonValue::Type::Array || source.asArray().size() != 3u)
+        const auto* array = source.tryArray();
+        if (array == nullptr || array->size() != 3u)
             return false;
-        for (const GtsJsonValue& item : source.asArray())
-        {
-            if (item.type() != GtsJsonValue::Type::Number)
-                return false;
-        }
-        value = {static_cast<float>(source.asArray()[0].asNumber()),
-                 static_cast<float>(source.asArray()[1].asNumber()),
-                 static_cast<float>(source.asArray()[2].asNumber())};
+        const auto x = (*array)[0].tryFloat();
+        const auto y = (*array)[1].tryFloat();
+        const auto z = (*array)[2].tryFloat();
+        if (!x || !y || !z)
+            return false;
+        value = {*x, *y, *z};
         return true;
     }
 
     bool readVec2Value(const GtsJsonValue& source, glm::vec2& value)
     {
-        if (source.type() != GtsJsonValue::Type::Array || source.asArray().size() != 2u)
+        const auto* array = source.tryArray();
+        if (array == nullptr || array->size() != 2u)
             return false;
-        for (const GtsJsonValue& item : source.asArray())
-        {
-            if (item.type() != GtsJsonValue::Type::Number)
-                return false;
-        }
-        value = {static_cast<float>(source.asArray()[0].asNumber()), static_cast<float>(source.asArray()[1].asNumber())};
+        const auto x = (*array)[0].tryFloat();
+        const auto y = (*array)[1].tryFloat();
+        if (!x || !y)
+            return false;
+        value = {*x, *y};
         return true;
     }
 
     bool readVec4Value(const GtsJsonValue& source, glm::vec4& value)
     {
-        if (source.type() != GtsJsonValue::Type::Array || source.asArray().size() != 4u)
+        const auto* array = source.tryArray();
+        if (array == nullptr || array->size() != 4u)
             return false;
-        for (const GtsJsonValue& item : source.asArray())
-        {
-            if (item.type() != GtsJsonValue::Type::Number)
-                return false;
-        }
-        value = {static_cast<float>(source.asArray()[0].asNumber()),
-                 static_cast<float>(source.asArray()[1].asNumber()),
-                 static_cast<float>(source.asArray()[2].asNumber()),
-                 static_cast<float>(source.asArray()[3].asNumber())};
+        const auto x = (*array)[0].tryFloat();
+        const auto y = (*array)[1].tryFloat();
+        const auto z = (*array)[2].tryFloat();
+        const auto w = (*array)[3].tryFloat();
+        if (!x || !y || !z || !w)
+            return false;
+        value = {*x, *y, *z, *w};
         return true;
     }
 
-    bool readVec3(const GtsJsonValue& source, const std::string& key, glm::vec3& value, bool deep = true)
+    bool readVec3(const GtsJsonValue& source, const std::string& key, glm::vec3& value)
     {
-        const GtsJsonValue* arrayValue = findTypedMember(source, key, GtsJsonValue::Type::Array, deep);
+        const GtsJsonValue* arrayValue = source.find(key);
         return arrayValue != nullptr && readVec3Value(*arrayValue, value);
     }
 
-    bool readVec2(const GtsJsonValue& source, const std::string& key, glm::vec2& value, bool deep = true)
+    bool readVec2(const GtsJsonValue& source, const std::string& key, glm::vec2& value)
     {
-        const GtsJsonValue* arrayValue = findTypedMember(source, key, GtsJsonValue::Type::Array, deep);
+        const GtsJsonValue* arrayValue = source.find(key);
         return arrayValue != nullptr && readVec2Value(*arrayValue, value);
     }
 
-    bool readVec4(const GtsJsonValue& source, const std::string& key, glm::vec4& value, bool deep = true)
+    bool readVec4(const GtsJsonValue& source, const std::string& key, glm::vec4& value)
     {
-        const GtsJsonValue* arrayValue = findTypedMember(source, key, GtsJsonValue::Type::Array, deep);
+        const GtsJsonValue* arrayValue = source.find(key);
         return arrayValue != nullptr && readVec4Value(*arrayValue, value);
-    }
-
-    ParticleEmitterShape shapeFromString(const std::string& value)
-    {
-        if (value == "box")
-            return ParticleEmitterShape::Box;
-        if (value == "disc")
-            return ParticleEmitterShape::Disc;
-        if (value == "cylinder")
-            return ParticleEmitterShape::Cylinder;
-        if (value == "ring")
-            return ParticleEmitterShape::Ring;
-        return ParticleEmitterShape::Sphere;
-    }
-
-    std::string shapeToString(ParticleEmitterShape shape)
-    {
-        switch (shape)
-        {
-        case ParticleEmitterShape::Sphere:
-            return "sphere";
-        case ParticleEmitterShape::Box:
-            return "box";
-        case ParticleEmitterShape::Disc:
-            return "disc";
-        case ParticleEmitterShape::Cylinder:
-            return "cylinder";
-        case ParticleEmitterShape::Ring:
-            return "ring";
-        }
-        return "sphere";
-    }
-
-    ParticleBlendMode blendFromString(const std::string& value)
-    {
-        if (value == "additive")
-            return ParticleBlendMode::Additive;
-        return ParticleBlendMode::Alpha;
-    }
-
-    std::string blendToString(ParticleBlendMode blend)
-    {
-        return blend == ParticleBlendMode::Additive ? "additive" : "alpha";
-    }
-
-    ParticlePrimitive primitiveFromString(const std::string& value)
-    {
-        if (value == "mesh")
-            return ParticlePrimitive::Mesh;
-        return ParticlePrimitive::Billboard;
-    }
-
-    std::string primitiveToString(ParticlePrimitive primitive)
-    {
-        return primitive == ParticlePrimitive::Mesh ? "mesh" : "billboard";
-    }
-
-    ParticleSpriteShape spriteShapeFromString(const std::string& value)
-    {
-        if (value == "square")
-            return ParticleSpriteShape::Square;
-        if (value == "diamond")
-            return ParticleSpriteShape::Diamond;
-        if (value == "petal")
-            return ParticleSpriteShape::Petal;
-        if (value == "streak")
-            return ParticleSpriteShape::Streak;
-        return ParticleSpriteShape::SoftCircle;
-    }
-
-    std::string spriteShapeToString(ParticleSpriteShape shape)
-    {
-        switch (shape)
-        {
-        case ParticleSpriteShape::SoftCircle:
-            return "softCircle";
-        case ParticleSpriteShape::Square:
-            return "square";
-        case ParticleSpriteShape::Diamond:
-            return "diamond";
-        case ParticleSpriteShape::Petal:
-            return "petal";
-        case ParticleSpriteShape::Streak:
-            return "streak";
-        }
-        return "softCircle";
-    }
-
-    ParticleCollisionMode collisionModeFromString(const std::string& value)
-    {
-        if (value == "groundPlane")
-            return ParticleCollisionMode::GroundPlane;
-        return ParticleCollisionMode::None;
-    }
-
-    std::string collisionModeToString(ParticleCollisionMode mode)
-    {
-        return mode == ParticleCollisionMode::GroundPlane ? "groundPlane" : "none";
-    }
-
-    std::string moduleParameterTypeToString(gts::particles::ParticleModuleParameterType type)
-    {
-        switch (type)
-        {
-        case gts::particles::ParticleModuleParameterType::Float:
-            return "float";
-        case gts::particles::ParticleModuleParameterType::UInt:
-            return "uint";
-        case gts::particles::ParticleModuleParameterType::Bool:
-            return "bool";
-        case gts::particles::ParticleModuleParameterType::Enum:
-            return "enum";
-        case gts::particles::ParticleModuleParameterType::String:
-            return "string";
-        case gts::particles::ParticleModuleParameterType::FloatCurve:
-            return "floatCurve";
-        case gts::particles::ParticleModuleParameterType::ColorGradient:
-            return "colorGradient";
-        case gts::particles::ParticleModuleParameterType::BurstTimeline:
-            return "burstTimeline";
-        }
-        return "float";
-    }
-
-    bool moduleParameterTypeFromString(const std::string& value, gts::particles::ParticleModuleParameterType& type)
-    {
-        if (value == "float")
-        {
-            type = gts::particles::ParticleModuleParameterType::Float;
-            return true;
-        }
-        if (value == "uint")
-        {
-            type = gts::particles::ParticleModuleParameterType::UInt;
-            return true;
-        }
-        if (value == "bool")
-        {
-            type = gts::particles::ParticleModuleParameterType::Bool;
-            return true;
-        }
-        if (value == "enum")
-        {
-            type = gts::particles::ParticleModuleParameterType::Enum;
-            return true;
-        }
-        if (value == "string")
-        {
-            type = gts::particles::ParticleModuleParameterType::String;
-            return true;
-        }
-        if (value == "floatCurve")
-        {
-            type = gts::particles::ParticleModuleParameterType::FloatCurve;
-            return true;
-        }
-        if (value == "colorGradient")
-        {
-            type = gts::particles::ParticleModuleParameterType::ColorGradient;
-            return true;
-        }
-        if (value == "burstTimeline")
-        {
-            type = gts::particles::ParticleModuleParameterType::BurstTimeline;
-            return true;
-        }
-        return false;
     }
 
     bool readColorCurveValue(const GtsJsonValue& source, ParticleColorCurve& curve)
@@ -350,10 +102,10 @@ namespace
         for (const GtsJsonValue& itemValue : source.asArray())
         {
             if (itemValue.type() != GtsJsonValue::Type::Array || itemValue.asArray().size() != 2u ||
-                itemValue.asArray()[0].type() != GtsJsonValue::Type::Number)
+                !itemValue.asArray()[0].tryFloat())
                 return false;
             ParticleColorKey item;
-            item.t = static_cast<float>(itemValue.asArray()[0].asNumber());
+            item.t = *itemValue.asArray()[0].tryFloat();
             if (!readVec4Value(itemValue.asArray()[1], item.color))
                 return false;
             parsed.push_back(item);
@@ -363,9 +115,9 @@ namespace
         return true;
     }
 
-    bool readColorCurve(const GtsJsonValue& source, const std::string& key, ParticleColorCurve& curve, bool deep = true)
+    bool readColorCurve(const GtsJsonValue& source, const std::string& key, ParticleColorCurve& curve)
     {
-        const GtsJsonValue* arrayValue = findTypedMember(source, key, GtsJsonValue::Type::Array, deep);
+        const GtsJsonValue* arrayValue = source.find(key);
         return arrayValue != nullptr && readColorCurveValue(*arrayValue, curve);
     }
 
@@ -378,12 +130,12 @@ namespace
         for (const GtsJsonValue& itemValue : source.asArray())
         {
             if (itemValue.type() != GtsJsonValue::Type::Array || itemValue.asArray().size() != 2u ||
-                itemValue.asArray()[0].type() != GtsJsonValue::Type::Number ||
-                itemValue.asArray()[1].type() != GtsJsonValue::Type::Number)
+                !itemValue.asArray()[0].tryFloat() ||
+                !itemValue.asArray()[1].tryFloat())
                 return false;
             ParticleFloatKey item;
-            item.t     = static_cast<float>(itemValue.asArray()[0].asNumber());
-            item.value = static_cast<float>(itemValue.asArray()[1].asNumber());
+            item.t     = *itemValue.asArray()[0].tryFloat();
+            item.value = *itemValue.asArray()[1].tryFloat();
             parsed.push_back(item);
         }
 
@@ -391,9 +143,9 @@ namespace
         return true;
     }
 
-    bool readFloatCurve(const GtsJsonValue& source, const std::string& key, ParticleFloatCurve& curve, bool deep = true)
+    bool readFloatCurve(const GtsJsonValue& source, const std::string& key, ParticleFloatCurve& curve)
     {
-        const GtsJsonValue* arrayValue = findTypedMember(source, key, GtsJsonValue::Type::Array, deep);
+        const GtsJsonValue* arrayValue = source.find(key);
         return arrayValue != nullptr && readFloatCurveValue(*arrayValue, curve);
     }
 
@@ -407,20 +159,20 @@ namespace
         {
             if (itemValue.type() != GtsJsonValue::Type::Array || itemValue.asArray().size() != 5u)
                 return false;
+            const auto& fields = itemValue.asArray();
+            const auto time = fields[0].tryFloat();
+            const auto countMin = fields[1].tryUInt32();
+            const auto countMax = fields[2].tryUInt32();
+            const auto interval = fields[3].tryFloat();
+            const auto repeat = fields[4].tryUInt32();
+            if (!time || !countMin || !countMax || !interval || !repeat)
+                return false;
             ParticleBurst burst;
-            for (const GtsJsonValue& numberValue : itemValue.asArray())
-            {
-                if (numberValue.type() != GtsJsonValue::Type::Number)
-                    return false;
-            }
-            const float countMin    = static_cast<float>(itemValue.asArray()[1].asNumber());
-            const float countMax    = static_cast<float>(itemValue.asArray()[2].asNumber());
-            const float repeatCount = static_cast<float>(itemValue.asArray()[4].asNumber());
-            burst.time             = static_cast<float>(itemValue.asArray()[0].asNumber());
-            burst.repeatInterval   = static_cast<float>(itemValue.asArray()[3].asNumber());
-            burst.countMin    = static_cast<uint32_t>(std::max(0.0f, countMin));
-            burst.countMax    = static_cast<uint32_t>(std::max(countMin, countMax));
-            burst.repeatCount = static_cast<uint32_t>(std::max(0.0f, repeatCount));
+            burst.time = *time;
+            burst.countMin = *countMin;
+            burst.countMax = std::max(*countMin, *countMax);
+            burst.repeatInterval = *interval;
+            burst.repeatCount = *repeat;
             parsed.push_back(burst);
         }
 
@@ -430,127 +182,165 @@ namespace
 
     bool readBursts(const GtsJsonValue& source, ParticleEmitterComponent& emitter)
     {
-        const GtsJsonValue* arrayValue = findTypedMember(source, "bursts", GtsJsonValue::Type::Array, true);
+        const GtsJsonValue* arrayValue = source.find("bursts");
         return arrayValue != nullptr && readBurstsValue(*arrayValue, emitter.bursts);
     }
 
     void readEmitter(const GtsJsonValue& source, ParticleEmitterComponent& emitter)
     {
-        std::string text;
-        readUint(source, "schemaVersion", emitter.schemaVersion);
-        if (readString(source, "shape", text))
-            emitter.shape = shapeFromString(text);
-        if (readString(source, "blend", text))
-            emitter.blend = blendFromString(text);
-        if (readString(source, "primitive", text))
-            emitter.primitive = primitiveFromString(text);
-        if (readString(source, "spriteShape", text))
-            emitter.spriteShape = spriteShapeFromString(text);
-        if (readString(source, "collisionMode", text))
-            emitter.collision.mode = collisionModeFromString(text);
-        readString(source, "texturePath", emitter.texturePath);
-        readString(source, "effectEmitterId", emitter.effectEmitterId);
-        readString(source, "meshPath", emitter.meshPath);
-        readString(source, "materialPath", emitter.materialPath);
-        readBool(source, "enabled", emitter.enabled);
-        readBool(source, "localSpace", emitter.localSpace);
-        readBool(source, "looping", emitter.looping);
-        readFloat(source, "emissionRate", emitter.emissionRate);
-        readUint(source, "maxParticles", emitter.maxParticles);
-        readFloat(source, "lifetimeMin", emitter.lifetimeMin);
-        readFloat(source, "lifetimeMax", emitter.lifetimeMax);
-        readFloat(source, "duration", emitter.duration);
-        readFloat(source, "startDelay", emitter.startDelay);
-        readFloat(source, "intensity", emitter.intensity);
-        readFloat(source, "effectScale", emitter.runtime.effectScale);
-        readFloat(source, "importance", emitter.runtime.importance);
-        readUint(source, "budgetWeight", emitter.runtime.budgetWeight);
-        readUint(source, "maxSpawnPerFrame", emitter.runtime.maxSpawnPerFrame);
-        readVec3(source, "initialVelocity", emitter.initialVelocity);
-        readFloat(source, "velocitySpread", emitter.velocitySpread);
-        readFloat(source, "radialVelocityMin", emitter.radialVelocityMin);
-        readFloat(source, "radialVelocityMax", emitter.radialVelocityMax);
-        readFloat(source, "tangentVelocity", emitter.tangentVelocity);
-        readFloat(source, "drag", emitter.drag);
-        readFloat(source, "spinMin", emitter.spinMin);
-        readFloat(source, "spinMax", emitter.spinMax);
-        readFloat(source, "sizeRandomness", emitter.sizeRandomness);
-        readFloat(source, "aspectRatioMin", emitter.aspectRatioMin);
-        readFloat(source, "aspectRatioMax", emitter.aspectRatioMax);
-        readFloat(source, "spriteEdgeSoftness", emitter.spriteEdgeSoftness);
-        readFloat(source, "softness", emitter.softness);
-        readFloat(source, "meshSoftness", emitter.runtime.meshSoftness);
-        readFloat(source, "lightingInfluence", emitter.runtime.lightingInfluence);
-        readBool(source, "frustumCulling", emitter.runtime.frustumCulling);
-        readBool(source, "distanceCulling", emitter.runtime.distanceCulling);
-        readBool(source, "simulateWhenCulled", emitter.runtime.simulateWhenCulled);
-        readFloat(source, "cullPadding", emitter.runtime.cullPadding);
-        readFloat(source, "maxDrawDistance", emitter.runtime.maxDrawDistance);
-        readFloat(source, "lodNearDistance", emitter.runtime.lodNearDistance);
-        readFloat(source, "lodFarDistance", emitter.runtime.lodFarDistance);
-        readFloat(source, "lodMinSpawnScale", emitter.runtime.lodMinSpawnScale);
-        readFloat(source, "lodMinRenderScale", emitter.runtime.lodMinRenderScale);
-        readFloat(source, "velocityStretch", emitter.runtime.velocityStretch);
-        readFloat(source, "velocityStretchMax", emitter.runtime.velocityStretchMax);
-        readFloat(source, "hueVariation", emitter.hueVariation);
-        readFloat(source, "valueVariation", emitter.valueVariation);
-        readVec3(source, "meshScale", emitter.meshScale);
-        readVec3(source, "meshAngularVelocityMin", emitter.meshAngularVelocityMin);
-        readVec3(source, "meshAngularVelocityMax", emitter.meshAngularVelocityMax);
-        readBool(source, "randomMeshRotation", emitter.randomMeshRotation);
-        readVec4(source, "baseTint", emitter.baseTint);
-        readFloat(source, "sphereRadius", emitter.sphereRadius);
-        readVec3(source, "boxExtents", emitter.boxExtents);
-        readFloat(source, "discRadius", emitter.discRadius);
-        readFloat(source, "ringInnerRadius", emitter.ringInnerRadius);
-        readFloat(source, "ringOuterRadius", emitter.ringOuterRadius);
-        readFloat(source, "cylinderRadius", emitter.cylinderRadius);
-        readFloat(source, "cylinderHeight", emitter.cylinderHeight);
-        readColorCurve(source, "colorOverLifetime", emitter.colorOverLifetime);
-        readFloatCurve(source, "alphaOverLifetime", emitter.alphaOverLifetime);
-        readFloatCurve(source, "sizeOverLifetime", emitter.sizeOverLifetime);
+        {
+            const auto* section = source.find("simulation");
+            const auto& simulation = section != nullptr && section->isObject() ? *section : source;
+            emitter.schemaVersion = simulation.findUInt32("schemaVersion").value_or(emitter.schemaVersion);
+            emitter.enabled = simulation.findBool("enabled").value_or(emitter.enabled);
+            emitter.localSpace = simulation.findBool("localSpace").value_or(emitter.localSpace);
+            emitter.looping = simulation.findBool("looping").value_or(emitter.looping);
+            emitter.duration = simulation.findFloat("duration").value_or(emitter.duration);
+            emitter.startDelay = simulation.findFloat("startDelay").value_or(emitter.startDelay);
+            emitter.intensity = simulation.findFloat("intensity").value_or(emitter.intensity);
+            emitter.runtime.effectScale = simulation.findFloat("effectScale").value_or(emitter.runtime.effectScale);
+            emitter.runtime.importance = simulation.findFloat("importance").value_or(emitter.runtime.importance);
+            emitter.runtime.budgetWeight = simulation.findUInt32("budgetWeight").value_or(emitter.runtime.budgetWeight);
+            emitter.runtime.maxSpawnPerFrame = simulation.findUInt32("maxSpawnPerFrame").value_or(emitter.runtime.maxSpawnPerFrame);
+        }
+
+        {
+            const auto* section = source.find("renderer");
+            const auto& renderer = section != nullptr && section->isObject() ? *section : source;
+            if (const auto text = renderer.findString("blend"))
+                emitter.blend = gts::enumValue(particleBlendModeNames, *text).value_or(ParticleBlendMode::Alpha);
+            if (const auto text = renderer.findString("primitive"))
+                emitter.primitive =
+                    gts::enumValue(particlePrimitiveNames, *text).value_or(ParticlePrimitive::Billboard);
+            if (const auto text = renderer.findString("spriteShape"))
+                emitter.spriteShape =
+                    gts::enumValue(particleSpriteShapeNames, *text).value_or(ParticleSpriteShape::SoftCircle);
+            emitter.texturePath = renderer.findString("texturePath").value_or(emitter.texturePath);
+            emitter.meshPath = renderer.findString("meshPath").value_or(emitter.meshPath);
+            emitter.materialPath = renderer.findString("materialPath").value_or(emitter.materialPath);
+            emitter.spriteEdgeSoftness = renderer.findFloat("spriteEdgeSoftness").value_or(emitter.spriteEdgeSoftness);
+            emitter.softness = renderer.findFloat("softness").value_or(emitter.softness);
+            emitter.runtime.meshSoftness = renderer.findFloat("meshSoftness").value_or(emitter.runtime.meshSoftness);
+            emitter.runtime.lightingInfluence = renderer.findFloat("lightingInfluence").value_or(emitter.runtime.lightingInfluence);
+            emitter.runtime.frustumCulling = renderer.findBool("frustumCulling").value_or(emitter.runtime.frustumCulling);
+            emitter.runtime.distanceCulling = renderer.findBool("distanceCulling").value_or(emitter.runtime.distanceCulling);
+            emitter.runtime.simulateWhenCulled = renderer.findBool("simulateWhenCulled").value_or(emitter.runtime.simulateWhenCulled);
+            emitter.runtime.cullPadding = renderer.findFloat("cullPadding").value_or(emitter.runtime.cullPadding);
+            emitter.runtime.maxDrawDistance = renderer.findFloat("maxDrawDistance").value_or(emitter.runtime.maxDrawDistance);
+            emitter.runtime.lodNearDistance = renderer.findFloat("lodNearDistance").value_or(emitter.runtime.lodNearDistance);
+            emitter.runtime.lodFarDistance = renderer.findFloat("lodFarDistance").value_or(emitter.runtime.lodFarDistance);
+            emitter.runtime.lodMinSpawnScale = renderer.findFloat("lodMinSpawnScale").value_or(emitter.runtime.lodMinSpawnScale);
+            emitter.runtime.lodMinRenderScale = renderer.findFloat("lodMinRenderScale").value_or(emitter.runtime.lodMinRenderScale);
+            emitter.runtime.velocityStretch = renderer.findFloat("velocityStretch").value_or(emitter.runtime.velocityStretch);
+            emitter.runtime.velocityStretchMax = renderer.findFloat("velocityStretchMax").value_or(emitter.runtime.velocityStretchMax);
+            readVec3(renderer, "meshScale", emitter.meshScale);
+        }
+
+        {
+            const auto* section = source.find("spawn");
+            const auto& spawn = section != nullptr && section->isObject() ? *section : source;
+            emitter.emissionRate = spawn.findFloat("emissionRate").value_or(emitter.emissionRate);
+            emitter.maxParticles = spawn.findUInt32("maxParticles").value_or(emitter.maxParticles);
+            emitter.lifetimeMin = spawn.findFloat("lifetimeMin").value_or(emitter.lifetimeMin);
+            emitter.lifetimeMax = spawn.findFloat("lifetimeMax").value_or(emitter.lifetimeMax);
+        }
+
+        {
+            const auto* section = source.find("shape");
+            const auto& shape = section != nullptr && section->isObject() ? *section : source;
+            if (const auto text = shape.findString("shape"))
+                emitter.shape = gts::enumValue(particleEmitterShapeNames, *text).value_or(ParticleEmitterShape::Sphere);
+            emitter.sphereRadius = shape.findFloat("sphereRadius").value_or(emitter.sphereRadius);
+            readVec3(shape, "boxExtents", emitter.boxExtents);
+            emitter.discRadius = shape.findFloat("discRadius").value_or(emitter.discRadius);
+            emitter.ringInnerRadius = shape.findFloat("ringInnerRadius").value_or(emitter.ringInnerRadius);
+            emitter.ringOuterRadius = shape.findFloat("ringOuterRadius").value_or(emitter.ringOuterRadius);
+            emitter.cylinderRadius = shape.findFloat("cylinderRadius").value_or(emitter.cylinderRadius);
+            emitter.cylinderHeight = shape.findFloat("cylinderHeight").value_or(emitter.cylinderHeight);
+        }
+
+        {
+            const auto* section = source.find("velocity");
+            const auto& velocity = section != nullptr && section->isObject() ? *section : source;
+            readVec3(velocity, "initialVelocity", emitter.initialVelocity);
+            emitter.velocitySpread = velocity.findFloat("velocitySpread").value_or(emitter.velocitySpread);
+            emitter.radialVelocityMin = velocity.findFloat("radialVelocityMin").value_or(emitter.radialVelocityMin);
+            emitter.radialVelocityMax = velocity.findFloat("radialVelocityMax").value_or(emitter.radialVelocityMax);
+            emitter.tangentVelocity = velocity.findFloat("tangentVelocity").value_or(emitter.tangentVelocity);
+            emitter.drag = velocity.findFloat("drag").value_or(emitter.drag);
+        }
+
+        {
+            const auto* section = source.find("forces");
+            const auto& forces = section != nullptr && section->isObject() ? *section : source;
+            if (const auto text = forces.findString("collisionMode"))
+                emitter.collision.mode =
+                    gts::enumValue(particleCollisionModeNames, *text).value_or(ParticleCollisionMode::None);
+            readVec3(forces, "forceAcceleration", emitter.forces.acceleration);
+            readVec3(forces, "forceWind", emitter.forces.wind);
+            emitter.forces.vortex = forces.findFloat("forceVortex").value_or(emitter.forces.vortex);
+            emitter.forces.radial = forces.findFloat("forceRadial").value_or(emitter.forces.radial);
+            emitter.forces.noiseStrength = forces.findFloat("forceNoiseStrength").value_or(emitter.forces.noiseStrength);
+            emitter.forces.noiseScale = forces.findFloat("forceNoiseScale").value_or(emitter.forces.noiseScale);
+            emitter.collision.groundY = forces.findFloat("collisionGroundY").value_or(emitter.collision.groundY);
+            emitter.collision.bounce = forces.findFloat("collisionBounce").value_or(emitter.collision.bounce);
+            emitter.collision.damping = forces.findFloat("collisionDamping").value_or(emitter.collision.damping);
+            emitter.collision.killOnCollision = forces.findBool("killOnCollision").value_or(emitter.collision.killOnCollision);
+            emitter.collision.spawnOnDeathCount = forces.findUInt32("spawnOnDeathCount").value_or(emitter.collision.spawnOnDeathCount);
+            emitter.collision.spawnOnCollisionCount = forces.findUInt32("spawnOnCollisionCount").value_or(emitter.collision.spawnOnCollisionCount);
+            emitter.collision.maxEventSpawnsPerFrame = forces.findUInt32("maxEventSpawnsPerFrame").value_or(emitter.collision.maxEventSpawnsPerFrame);
+        }
+
+        {
+            const auto* section = source.find("color");
+            const auto& color = section != nullptr && section->isObject() ? *section : source;
+            emitter.hueVariation = color.findFloat("hueVariation").value_or(emitter.hueVariation);
+            emitter.valueVariation = color.findFloat("valueVariation").value_or(emitter.valueVariation);
+            readVec4(color, "baseTint", emitter.baseTint);
+            readColorCurve(color, "colorOverLifetime", emitter.colorOverLifetime);
+            readFloatCurve(color, "alphaOverLifetime", emitter.alphaOverLifetime);
+        }
+
+        {
+            const auto* section = source.find("size");
+            const auto& size = section != nullptr && section->isObject() ? *section : source;
+            emitter.sizeRandomness = size.findFloat("sizeRandomness").value_or(emitter.sizeRandomness);
+            emitter.aspectRatioMin = size.findFloat("aspectRatioMin").value_or(emitter.aspectRatioMin);
+            emitter.aspectRatioMax = size.findFloat("aspectRatioMax").value_or(emitter.aspectRatioMax);
+            readFloatCurve(size, "sizeOverLifetime", emitter.sizeOverLifetime);
+        }
+
+        {
+            const auto* section = source.find("rotation");
+            const auto& rotation = section != nullptr && section->isObject() ? *section : source;
+            emitter.spinMin = rotation.findFloat("spinMin").value_or(emitter.spinMin);
+            emitter.spinMax = rotation.findFloat("spinMax").value_or(emitter.spinMax);
+            readVec3(rotation, "meshAngularVelocityMin", emitter.meshAngularVelocityMin);
+            readVec3(rotation, "meshAngularVelocityMax", emitter.meshAngularVelocityMax);
+            emitter.randomMeshRotation = rotation.findBool("randomMeshRotation").value_or(emitter.randomMeshRotation);
+        }
+
+        {
+            const auto* section = source.find("flipbook");
+            const auto& flipbook = section != nullptr && section->isObject() ? *section : source;
+            emitter.flipbook.columns = flipbook.findUInt32("flipbookColumns").value_or(emitter.flipbook.columns);
+            emitter.flipbook.rows = flipbook.findUInt32("flipbookRows").value_or(emitter.flipbook.rows);
+            emitter.flipbook.frameCount = flipbook.findUInt32("flipbookFrameCount").value_or(emitter.flipbook.frameCount);
+            emitter.flipbook.frameRate = flipbook.findFloat("flipbookFrameRate").value_or(emitter.flipbook.frameRate);
+            emitter.flipbook.lifetimeDriven = flipbook.findBool("flipbookLifetimeDriven").value_or(emitter.flipbook.lifetimeDriven);
+            emitter.flipbook.randomStart = flipbook.findBool("flipbookRandomStart").value_or(emitter.flipbook.randomStart);
+        }
+
+        emitter.effectEmitterId = source.findString("effectEmitterId").value_or(emitter.effectEmitterId);
         readBursts(source, emitter);
-        readUint(source, "flipbookColumns", emitter.flipbook.columns);
-        readUint(source, "flipbookRows", emitter.flipbook.rows);
-        readUint(source, "flipbookFrameCount", emitter.flipbook.frameCount);
-        readFloat(source, "flipbookFrameRate", emitter.flipbook.frameRate);
-        readBool(source, "flipbookLifetimeDriven", emitter.flipbook.lifetimeDriven);
-        readBool(source, "flipbookRandomStart", emitter.flipbook.randomStart);
-        readVec3(source, "forceAcceleration", emitter.forces.acceleration);
-        readVec3(source, "forceWind", emitter.forces.wind);
-        readFloat(source, "forceVortex", emitter.forces.vortex);
-        readFloat(source, "forceRadial", emitter.forces.radial);
-        readFloat(source, "forceNoiseStrength", emitter.forces.noiseStrength);
-        readFloat(source, "forceNoiseScale", emitter.forces.noiseScale);
-        readFloat(source, "collisionGroundY", emitter.collision.groundY);
-        readFloat(source, "collisionBounce", emitter.collision.bounce);
-        readFloat(source, "collisionDamping", emitter.collision.damping);
-        readBool(source, "killOnCollision", emitter.collision.killOnCollision);
-        readUint(source, "spawnOnDeathCount", emitter.collision.spawnOnDeathCount);
-        readUint(source, "spawnOnCollisionCount", emitter.collision.spawnOnCollisionCount);
-        readUint(source, "maxEventSpawnsPerFrame", emitter.collision.maxEventSpawnsPerFrame);
-    }
-
-    GtsJsonValue vec2Json(const glm::vec2& value)
-    {
-        return GtsJsonValue::Array{value.x, value.y};
-    }
-
-    GtsJsonValue vec3Json(const glm::vec3& value)
-    {
-        return GtsJsonValue::Array{value.x, value.y, value.z};
-    }
-
-    GtsJsonValue vec4Json(const glm::vec4& value)
-    {
-        return GtsJsonValue::Array{value.x, value.y, value.z, value.w};
     }
 
     GtsJsonValue colorCurveJson(const ParticleColorCurve& curve)
     {
         GtsJsonValue::Array array;
         for (const auto& point : curve)
-            array.emplace_back(GtsJsonValue::Array{point.t, vec4Json(point.color)});
+            array.emplace_back(GtsJsonValue::Array{
+                point.t, GtsJsonValue::Array{point.color.x, point.color.y, point.color.z, point.color.w}});
         return array;
     }
 
@@ -600,7 +390,11 @@ namespace
             break;
         }
         return GtsJsonValue::Object{
-            {"id", parameter.id}, {"type", moduleParameterTypeToString(parameter.type)}, {"value", std::move(value)}};
+            {"id", parameter.id},
+            {"type",
+             std::string(
+                 gts::enumName(gts::particles::particleModuleParameterTypeNames, parameter.type).value_or("float"))},
+            {"value", std::move(value)}};
     }
 
     GtsJsonValue moduleJson(const gts::particles::ParticleModuleInstance& module)
@@ -617,19 +411,30 @@ namespace
     {
         GtsJsonValue::Array nodes, links, frames, comments;
         for (const auto& node : graph.nodes)
-            nodes.emplace_back(GtsJsonValue::Object{
-                {"id", node.id}, {"moduleStableId", node.moduleStableId}, {"type", node.typeId},
-                {"displayName", node.displayName}, {"frameId", node.frameId}, {"position", vec2Json(node.position)}});
+            nodes.emplace_back(
+                GtsJsonValue::Object{{"id", node.id},
+                                     {"moduleStableId", node.moduleStableId},
+                                     {"type", node.typeId},
+                                     {"displayName", node.displayName},
+                                     {"frameId", node.frameId},
+                                     {"position", GtsJsonValue::Array{node.position.x, node.position.y}}});
         for (const auto& link : graph.links)
-            links.emplace_back(GtsJsonValue::Object{
-                {"id", link.id}, {"from", link.fromNodeId}, {"fromPort", link.fromPortId},
-                {"to", link.toNodeId}, {"toPort", link.toPortId}});
+            links.emplace_back(GtsJsonValue::Object{{"id", link.id},
+                                                    {"from", link.fromNodeId},
+                                                    {"fromPort", link.fromPortId},
+                                                    {"to", link.toNodeId},
+                                                    {"toPort", link.toPortId}});
         for (const auto& frame : graph.frames)
-            frames.emplace_back(GtsJsonValue::Object{
-                {"id", frame.id}, {"title", frame.title}, {"position", vec2Json(frame.position)}, {"size", vec2Json(frame.size)}});
+            frames.emplace_back(
+                GtsJsonValue::Object{{"id", frame.id},
+                                     {"title", frame.title},
+                                     {"position", GtsJsonValue::Array{frame.position.x, frame.position.y}},
+                                     {"size", GtsJsonValue::Array{frame.size.x, frame.size.y}}});
         for (const auto& comment : graph.comments)
-            comments.emplace_back(GtsJsonValue::Object{
-                {"id", comment.id}, {"text", comment.text}, {"position", vec2Json(comment.position)}});
+            comments.emplace_back(
+                GtsJsonValue::Object{{"id", comment.id},
+                                     {"text", comment.text},
+                                     {"position", GtsJsonValue::Array{comment.position.x, comment.position.y}}});
         return GtsJsonValue::Object{
             {"schemaVersion", graph.schemaVersion}, {"nodes", std::move(nodes)}, {"links", std::move(links)},
             {"frames", std::move(frames)}, {"comments", std::move(comments)}};
@@ -654,25 +459,25 @@ namespace
 
     void readMetadata(const GtsJsonValue& source, ParticleEffectMetadata& metadata)
     {
-        const GtsJsonValue* metadataObject = nullptr;
-        if (!readObject(source, "metadata", metadataObject))
+        const auto* metadataObject = source.find("metadata");
+        if (metadataObject == nullptr || !metadataObject->isObject())
             return;
 
-        readString(*metadataObject, "name", metadata.name, false);
-        readString(*metadataObject, "description", metadata.description, false);
-        readString(*metadataObject, "author", metadata.author, false);
+        metadata.name = metadataObject->findString("name").value_or(metadata.name);
+        metadata.description = metadataObject->findString("description").value_or(metadata.description);
+        metadata.author = metadataObject->findString("author").value_or(metadata.author);
     }
 
     void readPreview(const GtsJsonValue& source, ParticleEffectPreviewSettings& preview)
     {
-        const GtsJsonValue* previewObject = nullptr;
-        if (!readObject(source, "preview", previewObject))
+        const auto* previewObject = source.find("preview");
+        if (previewObject == nullptr || !previewObject->isObject())
             return;
 
-        readVec4(*previewObject, "backgroundColor", preview.backgroundColor, false);
-        readVec3(*previewObject, "cameraPosition", preview.cameraPosition, false);
-        readVec3(*previewObject, "cameraTarget", preview.cameraTarget, false);
-        readFloat(*previewObject, "orbitDistance", preview.orbitDistance, false);
+        readVec4(*previewObject, "backgroundColor", preview.backgroundColor);
+        readVec3(*previewObject, "cameraPosition", preview.cameraPosition);
+        readVec3(*previewObject, "cameraTarget", preview.cameraTarget);
+        preview.orbitDistance = previewObject->findFloat("orbitDistance").value_or(preview.orbitDistance);
     }
 
     const gts::particles::ParticleModuleParameterDefinition*
@@ -694,14 +499,17 @@ namespace
                              const gts::particles::ParticleModuleDefinition* definition,
                              gts::particles::ParticleModuleParameter&        parameter)
     {
-        if (!readString(source, "id", parameter.id, false) || parameter.id.empty())
+        const auto id = source.findString("id");
+        if (!id || id->empty())
             return false;
 
-        std::string typeString;
-        if (readString(source, "type", typeString, false))
+        parameter.id = *id;
+        if (const auto typeString = source.findString("type"))
         {
-            if (!moduleParameterTypeFromString(typeString, parameter.type))
+            const auto type = gts::enumValue(gts::particles::particleModuleParameterTypeNames, *typeString);
+            if (!type)
                 return false;
+            parameter.type = *type;
         }
         else if (const auto* parameterDefinition = findParameterDefinition(definition, parameter.id))
         {
@@ -715,13 +523,20 @@ namespace
         switch (parameter.type)
         {
         case gts::particles::ParticleModuleParameterType::Float:
-            if (value->type() != GtsJsonValue::Type::Number)
-                return false;
-            parameter.floatValue = static_cast<float>(value->asNumber());
-            return true;
+            if (const auto number = value->tryFloat())
+            {
+                parameter.floatValue = *number;
+                return true;
+            }
+            return false;
         case gts::particles::ParticleModuleParameterType::UInt:
         case gts::particles::ParticleModuleParameterType::Enum:
-            return readUint(source, "value", parameter.uintValue, false);
+            if (const auto number = value->tryUInt32())
+            {
+                parameter.uintValue = *number;
+                return true;
+            }
+            return false;
         case gts::particles::ParticleModuleParameterType::Bool:
             if (value->type() != GtsJsonValue::Type::Bool)
                 return false;
@@ -753,11 +568,11 @@ namespace
         for (const GtsJsonValue* moduleObject : moduleObjects)
         {
             gts::particles::ParticleModuleInstance module;
-            readString(*moduleObject, "id", module.stableId, false);
-            readString(*moduleObject, "type", module.typeId, false);
-            readString(*moduleObject, "displayName", module.displayName, false);
-            readUint(*moduleObject, "version", module.version, false);
-            readBool(*moduleObject, "enabled", module.enabled, false);
+            module.stableId = moduleObject->findString("id").value_or(module.stableId);
+            module.typeId = moduleObject->findString("type").value_or(module.typeId);
+            module.displayName = moduleObject->findString("displayName").value_or(module.displayName);
+            module.version = moduleObject->findUInt32("version").value_or(module.version);
+            module.enabled = moduleObject->findBool("enabled").value_or(module.enabled);
 
             const gts::particles::ParticleModuleDefinition* definition =
                 gts::particles::findParticleModuleDefinition(module.typeId);
@@ -782,12 +597,12 @@ namespace
 
     bool readEmitterGraph(const GtsJsonValue& source, ParticleEffectGraph& graph)
     {
-        const GtsJsonValue* graphObject = nullptr;
-        if (!readObject(source, "graph", graphObject))
+        const auto* graphObject = source.find("graph");
+        if (graphObject == nullptr || !graphObject->isObject())
             return false;
 
         ParticleEffectGraph parsed;
-        readUint(*graphObject, "schemaVersion", parsed.schemaVersion, false);
+        parsed.schemaVersion = graphObject->findUInt32("schemaVersion").value_or(parsed.schemaVersion);
 
         std::vector<const GtsJsonValue*> nodeObjects;
         if (readObjectArray(*graphObject, "nodes", nodeObjects))
@@ -796,12 +611,12 @@ namespace
             for (const GtsJsonValue* nodeObject : nodeObjects)
             {
                 ParticleGraphNode node;
-                readString(*nodeObject, "id", node.id, false);
-                readString(*nodeObject, "moduleStableId", node.moduleStableId, false);
-                readString(*nodeObject, "type", node.typeId, false);
-                readString(*nodeObject, "displayName", node.displayName, false);
-                readString(*nodeObject, "frameId", node.frameId, false);
-                readVec2(*nodeObject, "position", node.position, false);
+                node.id = nodeObject->findString("id").value_or(node.id);
+                node.moduleStableId = nodeObject->findString("moduleStableId").value_or(node.moduleStableId);
+                node.typeId = nodeObject->findString("type").value_or(node.typeId);
+                node.displayName = nodeObject->findString("displayName").value_or(node.displayName);
+                node.frameId = nodeObject->findString("frameId").value_or(node.frameId);
+                readVec2(*nodeObject, "position", node.position);
                 parsed.nodes.push_back(std::move(node));
             }
         }
@@ -813,11 +628,11 @@ namespace
             for (const GtsJsonValue* linkObject : linkObjects)
             {
                 ParticleGraphLink link;
-                readString(*linkObject, "id", link.id, false);
-                readString(*linkObject, "from", link.fromNodeId, false);
-                readString(*linkObject, "fromPort", link.fromPortId, false);
-                readString(*linkObject, "to", link.toNodeId, false);
-                readString(*linkObject, "toPort", link.toPortId, false);
+                link.id = linkObject->findString("id").value_or(link.id);
+                link.fromNodeId = linkObject->findString("from").value_or(link.fromNodeId);
+                link.fromPortId = linkObject->findString("fromPort").value_or(link.fromPortId);
+                link.toNodeId = linkObject->findString("to").value_or(link.toNodeId);
+                link.toPortId = linkObject->findString("toPort").value_or(link.toPortId);
                 parsed.links.push_back(std::move(link));
             }
         }
@@ -829,10 +644,10 @@ namespace
             for (const GtsJsonValue* frameObject : frameObjects)
             {
                 ParticleGraphFrame frame;
-                readString(*frameObject, "id", frame.id, false);
-                readString(*frameObject, "title", frame.title, false);
-                readVec2(*frameObject, "position", frame.position, false);
-                readVec2(*frameObject, "size", frame.size, false);
+                frame.id = frameObject->findString("id").value_or(frame.id);
+                frame.title = frameObject->findString("title").value_or(frame.title);
+                readVec2(*frameObject, "position", frame.position);
+                readVec2(*frameObject, "size", frame.size);
                 parsed.frames.push_back(std::move(frame));
             }
         }
@@ -844,9 +659,9 @@ namespace
             for (const GtsJsonValue* commentObject : commentObjects)
             {
                 ParticleGraphComment comment;
-                readString(*commentObject, "id", comment.id, false);
-                readString(*commentObject, "text", comment.text, false);
-                readVec2(*commentObject, "position", comment.position, false);
+                comment.id = commentObject->findString("id").value_or(comment.id);
+                comment.text = commentObject->findString("text").value_or(comment.text);
+                readVec2(*commentObject, "position", comment.position);
                 parsed.comments.push_back(std::move(comment));
             }
         }
@@ -868,8 +683,8 @@ namespace
             ParticleEffectEmitter emitter;
             emitter.stableId = defaultEmitterId(i);
             emitter.name     = defaultEmitterName(i);
-            readString(*emitterObjects[i], "id", emitter.stableId, false);
-            readString(*emitterObjects[i], "name", emitter.name, false);
+            emitter.stableId = emitterObjects[i]->findString("id").value_or(emitter.stableId);
+            emitter.name = emitterObjects[i]->findString("name").value_or(emitter.name);
             readEmitter(*emitterObjects[i], emitter.descriptor);
             readEmitterModules(*emitterObjects[i], emitter.modules);
             readEmitterGraph(*emitterObjects[i], emitter.graph);
@@ -904,70 +719,83 @@ namespace
                                   {"budgetWeight", emitter.runtime.budgetWeight},
                                   {"maxSpawnPerFrame", emitter.runtime.maxSpawnPerFrame}}},
             {"renderer",
-             GtsJsonValue::Object{{"primitive", primitiveToString(emitter.primitive)},
-                                  {"blend", blendToString(emitter.blend)},
-                                  {"spriteShape", spriteShapeToString(emitter.spriteShape)},
-                                  {"texturePath", emitter.texturePath},
-                                  {"meshPath", emitter.meshPath},
-                                  {"materialPath", emitter.materialPath},
-                                  {"spriteEdgeSoftness", emitter.spriteEdgeSoftness},
-                                  {"softness", emitter.softness},
-                                  {"meshSoftness", emitter.runtime.meshSoftness},
-                                  {"lightingInfluence", emitter.runtime.lightingInfluence},
-                                  {"frustumCulling", emitter.runtime.frustumCulling},
-                                  {"distanceCulling", emitter.runtime.distanceCulling},
-                                  {"simulateWhenCulled", emitter.runtime.simulateWhenCulled},
-                                  {"cullPadding", emitter.runtime.cullPadding},
-                                  {"maxDrawDistance", emitter.runtime.maxDrawDistance},
-                                  {"lodNearDistance", emitter.runtime.lodNearDistance},
-                                  {"lodFarDistance", emitter.runtime.lodFarDistance},
-                                  {"lodMinSpawnScale", emitter.runtime.lodMinSpawnScale},
-                                  {"lodMinRenderScale", emitter.runtime.lodMinRenderScale},
-                                  {"velocityStretch", emitter.runtime.velocityStretch},
-                                  {"velocityStretchMax", emitter.runtime.velocityStretchMax},
-                                  {"meshScale", vec3Json(emitter.meshScale)}}},
+             GtsJsonValue::Object{
+                 {"primitive",
+                  std::string(gts::enumName(particlePrimitiveNames, emitter.primitive).value_or("billboard"))},
+                 {"blend", std::string(gts::enumName(particleBlendModeNames, emitter.blend).value_or("alpha"))},
+                 {"spriteShape",
+                  std::string(gts::enumName(particleSpriteShapeNames, emitter.spriteShape).value_or("softCircle"))},
+                 {"texturePath", emitter.texturePath},
+                 {"meshPath", emitter.meshPath},
+                 {"materialPath", emitter.materialPath},
+                 {"spriteEdgeSoftness", emitter.spriteEdgeSoftness},
+                 {"softness", emitter.softness},
+                 {"meshSoftness", emitter.runtime.meshSoftness},
+                 {"lightingInfluence", emitter.runtime.lightingInfluence},
+                 {"frustumCulling", emitter.runtime.frustumCulling},
+                 {"distanceCulling", emitter.runtime.distanceCulling},
+                 {"simulateWhenCulled", emitter.runtime.simulateWhenCulled},
+                 {"cullPadding", emitter.runtime.cullPadding},
+                 {"maxDrawDistance", emitter.runtime.maxDrawDistance},
+                 {"lodNearDistance", emitter.runtime.lodNearDistance},
+                 {"lodFarDistance", emitter.runtime.lodFarDistance},
+                 {"lodMinSpawnScale", emitter.runtime.lodMinSpawnScale},
+                 {"lodMinRenderScale", emitter.runtime.lodMinRenderScale},
+                 {"velocityStretch", emitter.runtime.velocityStretch},
+                 {"velocityStretchMax", emitter.runtime.velocityStretchMax},
+                 {"meshScale", GtsJsonValue::Array{emitter.meshScale.x, emitter.meshScale.y, emitter.meshScale.z}}}},
             {"spawn",
              GtsJsonValue::Object{{"emissionRate", emitter.emissionRate},
                                   {"maxParticles", emitter.maxParticles},
                                   {"lifetimeMin", emitter.lifetimeMin},
                                   {"lifetimeMax", emitter.lifetimeMax}}},
             {"shape",
-             GtsJsonValue::Object{{"shape", shapeToString(emitter.shape)},
-                                  {"sphereRadius", emitter.sphereRadius},
-                                  {"boxExtents", vec3Json(emitter.boxExtents)},
-                                  {"discRadius", emitter.discRadius},
-                                  {"ringInnerRadius", emitter.ringInnerRadius},
-                                  {"ringOuterRadius", emitter.ringOuterRadius},
-                                  {"cylinderRadius", emitter.cylinderRadius},
-                                  {"cylinderHeight", emitter.cylinderHeight}}},
+             GtsJsonValue::Object{
+                 {"shape", std::string(gts::enumName(particleEmitterShapeNames, emitter.shape).value_or("sphere"))},
+                 {"sphereRadius", emitter.sphereRadius},
+                 {"boxExtents", GtsJsonValue::Array{emitter.boxExtents.x, emitter.boxExtents.y, emitter.boxExtents.z}},
+                 {"discRadius", emitter.discRadius},
+                 {"ringInnerRadius", emitter.ringInnerRadius},
+                 {"ringOuterRadius", emitter.ringOuterRadius},
+                 {"cylinderRadius", emitter.cylinderRadius},
+                 {"cylinderHeight", emitter.cylinderHeight}}},
             {"velocity",
-             GtsJsonValue::Object{{"initialVelocity", vec3Json(emitter.initialVelocity)},
-                                  {"velocitySpread", emitter.velocitySpread},
-                                  {"radialVelocityMin", emitter.radialVelocityMin},
-                                  {"radialVelocityMax", emitter.radialVelocityMax},
-                                  {"tangentVelocity", emitter.tangentVelocity},
-                                  {"drag", emitter.drag}}},
+             GtsJsonValue::Object{
+                 {"initialVelocity",
+                  GtsJsonValue::Array{emitter.initialVelocity.x, emitter.initialVelocity.y, emitter.initialVelocity.z}},
+                 {"velocitySpread", emitter.velocitySpread},
+                 {"radialVelocityMin", emitter.radialVelocityMin},
+                 {"radialVelocityMax", emitter.radialVelocityMax},
+                 {"tangentVelocity", emitter.tangentVelocity},
+                 {"drag", emitter.drag}}},
             {"forces",
-             GtsJsonValue::Object{{"forceAcceleration", vec3Json(emitter.forces.acceleration)},
-                                  {"forceWind", vec3Json(emitter.forces.wind)},
-                                  {"forceVortex", emitter.forces.vortex},
-                                  {"forceRadial", emitter.forces.radial},
-                                  {"forceNoiseStrength", emitter.forces.noiseStrength},
-                                  {"forceNoiseScale", emitter.forces.noiseScale},
-                                  {"collisionMode", collisionModeToString(emitter.collision.mode)},
-                                  {"collisionGroundY", emitter.collision.groundY},
-                                  {"collisionBounce", emitter.collision.bounce},
-                                  {"collisionDamping", emitter.collision.damping},
-                                  {"killOnCollision", emitter.collision.killOnCollision},
-                                  {"spawnOnDeathCount", emitter.collision.spawnOnDeathCount},
-                                  {"spawnOnCollisionCount", emitter.collision.spawnOnCollisionCount},
-                                  {"maxEventSpawnsPerFrame", emitter.collision.maxEventSpawnsPerFrame}}},
+             GtsJsonValue::Object{
+                 {"forceAcceleration",
+                  GtsJsonValue::Array{
+                      emitter.forces.acceleration.x, emitter.forces.acceleration.y, emitter.forces.acceleration.z}},
+                 {"forceWind",
+                  GtsJsonValue::Array{emitter.forces.wind.x, emitter.forces.wind.y, emitter.forces.wind.z}},
+                 {"forceVortex", emitter.forces.vortex},
+                 {"forceRadial", emitter.forces.radial},
+                 {"forceNoiseStrength", emitter.forces.noiseStrength},
+                 {"forceNoiseScale", emitter.forces.noiseScale},
+                 {"collisionMode",
+                  std::string(gts::enumName(particleCollisionModeNames, emitter.collision.mode).value_or("none"))},
+                 {"collisionGroundY", emitter.collision.groundY},
+                 {"collisionBounce", emitter.collision.bounce},
+                 {"collisionDamping", emitter.collision.damping},
+                 {"killOnCollision", emitter.collision.killOnCollision},
+                 {"spawnOnDeathCount", emitter.collision.spawnOnDeathCount},
+                 {"spawnOnCollisionCount", emitter.collision.spawnOnCollisionCount},
+                 {"maxEventSpawnsPerFrame", emitter.collision.maxEventSpawnsPerFrame}}},
             {"color",
-             GtsJsonValue::Object{{"baseTint", vec4Json(emitter.baseTint)},
-                                  {"hueVariation", emitter.hueVariation},
-                                  {"valueVariation", emitter.valueVariation},
-                                  {"colorOverLifetime", colorCurveJson(emitter.colorOverLifetime)},
-                                  {"alphaOverLifetime", floatCurveJson(emitter.alphaOverLifetime)}}},
+             GtsJsonValue::Object{
+                 {"baseTint",
+                  GtsJsonValue::Array{emitter.baseTint.x, emitter.baseTint.y, emitter.baseTint.z, emitter.baseTint.w}},
+                 {"hueVariation", emitter.hueVariation},
+                 {"valueVariation", emitter.valueVariation},
+                 {"colorOverLifetime", colorCurveJson(emitter.colorOverLifetime)},
+                 {"alphaOverLifetime", floatCurveJson(emitter.alphaOverLifetime)}}},
             {"size",
              GtsJsonValue::Object{{"sizeRandomness", emitter.sizeRandomness},
                                   {"aspectRatioMin", emitter.aspectRatioMin},
@@ -976,8 +804,14 @@ namespace
             {"rotation",
              GtsJsonValue::Object{{"spinMin", emitter.spinMin},
                                   {"spinMax", emitter.spinMax},
-                                  {"meshAngularVelocityMin", vec3Json(emitter.meshAngularVelocityMin)},
-                                  {"meshAngularVelocityMax", vec3Json(emitter.meshAngularVelocityMax)},
+                                  {"meshAngularVelocityMin",
+                                   GtsJsonValue::Array{emitter.meshAngularVelocityMin.x,
+                                                       emitter.meshAngularVelocityMin.y,
+                                                       emitter.meshAngularVelocityMin.z}},
+                                  {"meshAngularVelocityMax",
+                                   GtsJsonValue::Array{emitter.meshAngularVelocityMax.x,
+                                                       emitter.meshAngularVelocityMax.y,
+                                                       emitter.meshAngularVelocityMax.z}},
                                   {"randomMeshRotation", emitter.randomMeshRotation}}},
             {"flipbook",
              GtsJsonValue::Object{{"flipbookColumns", emitter.flipbook.columns},
@@ -1078,7 +912,9 @@ namespace gts::particles
             return false;
 
         ParticleEffectAsset loaded;
-        const bool          schemaRead = readUint(root, "schemaVersion", loaded.schemaVersion, false);
+        const auto schema = root.findUInt32("schemaVersion");
+        const bool schemaRead = schema.has_value();
+        if (schema) loaded.schemaVersion = *schema;
         readMetadata(root, loaded.metadata);
         readPreview(root, loaded.preview);
         if (!readEffectEmitters(root, loaded))
@@ -1121,9 +957,19 @@ namespace gts::particles
                                                        {"description", migrated.metadata.description},
                                                        {"author", migrated.metadata.author}}},
                                  {"preview",
-                                  GtsJsonValue::Object{{"backgroundColor", vec4Json(migrated.preview.backgroundColor)},
-                                                       {"cameraPosition", vec3Json(migrated.preview.cameraPosition)},
-                                                       {"cameraTarget", vec3Json(migrated.preview.cameraTarget)},
+                                  GtsJsonValue::Object{{"backgroundColor",
+                                                        GtsJsonValue::Array{migrated.preview.backgroundColor.x,
+                                                                            migrated.preview.backgroundColor.y,
+                                                                            migrated.preview.backgroundColor.z,
+                                                                            migrated.preview.backgroundColor.w}},
+                                                       {"cameraPosition",
+                                                        GtsJsonValue::Array{migrated.preview.cameraPosition.x,
+                                                                            migrated.preview.cameraPosition.y,
+                                                                            migrated.preview.cameraPosition.z}},
+                                                       {"cameraTarget",
+                                                        GtsJsonValue::Array{migrated.preview.cameraTarget.x,
+                                                                            migrated.preview.cameraTarget.y,
+                                                                            migrated.preview.cameraTarget.z}},
                                                        {"orbitDistance", migrated.preview.orbitDistance}}},
                                  {"emitters", std::move(emitters)}};
         std::string json;

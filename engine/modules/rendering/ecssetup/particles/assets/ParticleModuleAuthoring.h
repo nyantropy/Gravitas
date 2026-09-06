@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "types/EnumName.h"
 #include "GlmConfig.h"
 #include "ParticleEmitterComponent.h"
 #include "ParticleTypes.h"
@@ -27,6 +28,17 @@ namespace gts::particles
         FloatCurve,
         ColorGradient,
         BurstTimeline
+    };
+
+    inline constexpr std::array particleModuleParameterTypeNames{
+        gts::EnumName{ParticleModuleParameterType::Float, "float"},
+        gts::EnumName{ParticleModuleParameterType::UInt, "uint"},
+        gts::EnumName{ParticleModuleParameterType::Bool, "bool"},
+        gts::EnumName{ParticleModuleParameterType::Enum, "enum"},
+        gts::EnumName{ParticleModuleParameterType::String, "string"},
+        gts::EnumName{ParticleModuleParameterType::FloatCurve, "floatCurve"},
+        gts::EnumName{ParticleModuleParameterType::ColorGradient, "colorGradient"},
+        gts::EnumName{ParticleModuleParameterType::BurstTimeline, "burstTimeline"}
     };
 
     enum class ParticleModuleAssetPicker
