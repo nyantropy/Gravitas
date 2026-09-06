@@ -86,6 +86,13 @@ fallback policies remain unchanged. Tables may list accepted aliases after the
 canonical name; enum-to-text lookup returns the first entry for a value.
 Write simple vector arrays directly at the call site; retain helpers for actual
 validation or multi-step conversion, not single-expression construction.
+Use implicit JSON value construction in object entries and array writes when
+the surrounding type is already known. Keep explicit construction where an
+expression must choose between different JSON types.
+Particle readers accept borrowed nullable values directly and only assign
+validated vectors/curves/bursts after the entire value succeeds. Object-array
+validation borrows the original array after checking every element, rather
+than allocating an intermediate pointer list.
 
 UI numeric parameters that become text use `GtsJsonParser::serialize` for the
 number itself. They must not pass through default stream precision or convert

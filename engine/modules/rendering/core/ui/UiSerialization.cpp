@@ -85,8 +85,8 @@ namespace
     GtsJsonValue serializeLength(const UiLayoutLength& length)
     {
         return GtsJsonValue::Object({
-            {"unit", GtsJsonValue(std::string(gts::enumName(uiLayoutUnitNames, length.unit).value_or("Auto")))},
-            {"value", GtsJsonValue(length.value)}
+            {"unit", std::string(gts::enumName(uiLayoutUnitNames, length.unit).value_or("Auto"))},
+            {"value", length.value}
         });
     }
 
@@ -118,15 +118,15 @@ namespace
              {"maxHeight", serializeLength(constraints.maxHeight)},
              {"preferredWidth", serializeLength(constraints.preferredWidth)},
              {"preferredHeight", serializeLength(constraints.preferredHeight)},
-             {"grow", GtsJsonValue(constraints.grow)},
-             {"shrink", GtsJsonValue(constraints.shrink)},
-             {"aspectRatio", GtsJsonValue(constraints.aspectRatio)},
+             {"grow", constraints.grow},
+             {"shrink", constraints.shrink},
+             {"aspectRatio", constraints.aspectRatio},
              {"horizontalAlignment",
-              GtsJsonValue(std::string(
-                  gts::enumName(uiLayoutAlignmentNames, constraints.horizontalAlignment).value_or("Stretch")))},
+              std::string(
+                  gts::enumName(uiLayoutAlignmentNames, constraints.horizontalAlignment).value_or("Stretch"))},
              {"verticalAlignment",
-              GtsJsonValue(std::string(
-                  gts::enumName(uiLayoutAlignmentNames, constraints.verticalAlignment).value_or("Stretch")))}});
+              std::string(
+                  gts::enumName(uiLayoutAlignmentNames, constraints.verticalAlignment).value_or("Stretch"))}});
     }
 
     UiLayoutSpec parseLayout(const GtsJsonValue& json, UiLayoutSpec layout = {})
@@ -187,11 +187,11 @@ namespace
     {
         return GtsJsonValue::Object(
             {{"mode",
-              GtsJsonValue(std::string(gts::enumName(uiLayoutModeNames, layout.layoutMode).value_or("Canvas")))},
+              std::string(gts::enumName(uiLayoutModeNames, layout.layoutMode).value_or("Canvas"))},
              {"position",
-              GtsJsonValue(std::string(gts::enumName(uiPositionModeNames, layout.positionMode).value_or("Absolute")))},
-             {"width", GtsJsonValue(std::string(gts::enumName(uiSizeModeNames, layout.widthMode).value_or("Fixed")))},
-             {"height", GtsJsonValue(std::string(gts::enumName(uiSizeModeNames, layout.heightMode).value_or("Fixed")))},
+              std::string(gts::enumName(uiPositionModeNames, layout.positionMode).value_or("Absolute"))},
+             {"width", std::string(gts::enumName(uiSizeModeNames, layout.widthMode).value_or("Fixed"))},
+             {"height", std::string(gts::enumName(uiSizeModeNames, layout.heightMode).value_or("Fixed"))},
              {"anchorMin", Array{layout.anchorMin.x, layout.anchorMin.y}},
              {"anchorMax", Array{layout.anchorMax.x, layout.anchorMax.y}},
              {"offsetMin", Array{layout.offsetMin.x, layout.offsetMin.y}},
@@ -199,26 +199,24 @@ namespace
              {"fixedSize", Array{layout.fixedWidth, layout.fixedHeight}},
              {"margin", Array{layout.margin.left, layout.margin.top, layout.margin.right, layout.margin.bottom}},
              {"padding", Array{layout.padding.left, layout.padding.top, layout.padding.right, layout.padding.bottom}},
-             {"clip", GtsJsonValue(std::string(gts::enumName(uiClipModeNames, layout.clipMode).value_or("None")))},
+             {"clip", std::string(gts::enumName(uiClipModeNames, layout.clipMode).value_or("None"))},
              {"contentOffset", Array{layout.contentOffset.x, layout.contentOffset.y}},
-             {"gap", GtsJsonValue(layout.gap)},
+             {"gap", layout.gap},
              {"stackAxis",
-              GtsJsonValue(std::string(gts::enumName(uiLayoutAxisNames, layout.stackAxis).value_or("Vertical")))},
+              std::string(gts::enumName(uiLayoutAxisNames, layout.stackAxis).value_or("Vertical"))},
              {"mainAxisAlignment",
-              GtsJsonValue(
-                  std::string(gts::enumName(uiLayoutAlignmentNames, layout.mainAxisAlignment).value_or("Start")))},
+                  std::string(gts::enumName(uiLayoutAlignmentNames, layout.mainAxisAlignment).value_or("Start"))},
              {"crossAxisAlignment",
-              GtsJsonValue(
-                  std::string(gts::enumName(uiLayoutAlignmentNames, layout.crossAxisAlignment).value_or("Stretch")))},
-             {"gridColumns", GtsJsonValue(layout.gridColumns)},
-             {"gridRows", GtsJsonValue(layout.gridRows)},
-             {"gridColumnGap", GtsJsonValue(layout.gridColumnGap)},
-             {"gridRowGap", GtsJsonValue(layout.gridRowGap)},
-             {"gridColumn", GtsJsonValue(layout.gridColumn)},
-             {"gridRow", GtsJsonValue(layout.gridRow)},
-             {"gridColumnSpan", GtsJsonValue(layout.gridColumnSpan)},
-             {"gridRowSpan", GtsJsonValue(layout.gridRowSpan)},
-             {"dock", GtsJsonValue(std::string(gts::enumName(uiDockEdgeNames, layout.dock).value_or("Fill")))},
+                  std::string(gts::enumName(uiLayoutAlignmentNames, layout.crossAxisAlignment).value_or("Stretch"))},
+             {"gridColumns", layout.gridColumns},
+             {"gridRows", layout.gridRows},
+             {"gridColumnGap", layout.gridColumnGap},
+             {"gridRowGap", layout.gridRowGap},
+             {"gridColumn", layout.gridColumn},
+             {"gridRow", layout.gridRow},
+             {"gridColumnSpan", layout.gridColumnSpan},
+             {"gridRowSpan", layout.gridRowSpan},
+             {"dock", std::string(gts::enumName(uiDockEdgeNames, layout.dock).value_or("Fill"))},
              {"constraints", serializeConstraints(layout.constraints)}});
     }
 
@@ -240,14 +238,14 @@ namespace
     GtsJsonValue serializeTiming(const UiAnimationTiming& timing)
     {
         return GtsJsonValue::Object(
-            {{"duration", GtsJsonValue(timing.durationSeconds)},
-             {"delay", GtsJsonValue(timing.delaySeconds)},
+            {{"duration", timing.durationSeconds},
+             {"delay", timing.delaySeconds},
              {"ease",
-              GtsJsonValue(std::string(gts::enumName(gts::tween::tweenEaseNames, timing.ease).value_or("SmoothStep")))},
-             {"repeat", GtsJsonValue(timing.repeatCount)},
-             {"loop", GtsJsonValue(timing.loop)},
-             {"pingPong", GtsJsonValue(timing.pingPong)},
-             {"snapToEnd", GtsJsonValue(timing.snapToEnd)}});
+              std::string(gts::enumName(gts::tween::tweenEaseNames, timing.ease).value_or("SmoothStep"))},
+             {"repeat", timing.repeatCount},
+             {"loop", timing.loop},
+             {"pingPong", timing.pingPong},
+             {"snapToEnd", timing.snapToEnd}});
     }
 
     UiSemanticRelationship parseRelationship(const GtsJsonValue& json)
@@ -363,13 +361,13 @@ namespace
     {
         Array array;
         for (const std::string& id : ids)
-            array.push_back(GtsJsonValue(id));
+            array.push_back(id);
         for (UiHandle handle : values)
         {
             if (handle != UI_INVALID_HANDLE)
-                array.push_back(GtsJsonValue(handle));
+                array.push_back(handle);
         }
-        return GtsJsonValue::Array(std::move(array));
+        return array;
     }
 
     GtsJsonValue serializeRelationship(const UiSemanticRelationship& relationship,
@@ -426,41 +424,40 @@ namespace
                                   const UiSerializedSemanticLocalizationRefs* localization = nullptr)
     {
         Object object = {
-            {"role", GtsJsonValue(std::string(gts::enumName(uiSemanticRoleNames, semantic.role).value_or("Unknown")))},
-            {"name", GtsJsonValue(semantic.name)},
-            {"description", GtsJsonValue(semantic.description)},
-            {"hint", GtsJsonValue(semantic.hint)},
-            {"value", GtsJsonValue(semantic.value)},
+            {"role", std::string(gts::enumName(uiSemanticRoleNames, semantic.role).value_or("Unknown"))},
+            {"name", semantic.name},
+            {"description", semantic.description},
+            {"hint", semantic.hint},
+            {"value", semantic.value},
             {"liveRegion",
-             GtsJsonValue(
-                 std::string(gts::enumName(uiAccessibilityLiveRegionNames, semantic.liveRegion).value_or("Off")))},
+                 std::string(gts::enumName(uiAccessibilityLiveRegionNames, semantic.liveRegion).value_or("Off"))},
             {"relationships", serializeRelationship(semantic.relationships, relationships)},
-            {"hidden", GtsJsonValue(semantic.hidden)},
-            {"decorative", GtsJsonValue(semantic.decorative)},
-            {"selected", GtsJsonValue(semantic.selected)},
-            {"checked", GtsJsonValue(semantic.checked)},
-            {"expanded", GtsJsonValue(semantic.expanded)},
-            {"readOnly", GtsJsonValue(semantic.readOnly)},
-            {"busy", GtsJsonValue(semantic.busy)},
-            {"hasRange", GtsJsonValue(semantic.hasRange)},
-            {"rangeMin", GtsJsonValue(semantic.rangeMin)},
-            {"rangeMax", GtsJsonValue(semantic.rangeMax)},
-            {"rangeValue", GtsJsonValue(semantic.rangeValue)},
-            {"level", GtsJsonValue(semantic.level)},
-            {"index", GtsJsonValue(semantic.index)},
-            {"count", GtsJsonValue(semantic.count)}};
+            {"hidden", semantic.hidden},
+            {"decorative", semantic.decorative},
+            {"selected", semantic.selected},
+            {"checked", semantic.checked},
+            {"expanded", semantic.expanded},
+            {"readOnly", semantic.readOnly},
+            {"busy", semantic.busy},
+            {"hasRange", semantic.hasRange},
+            {"rangeMin", semantic.rangeMin},
+            {"rangeMax", semantic.rangeMax},
+            {"rangeValue", semantic.rangeValue},
+            {"level", semantic.level},
+            {"index", semantic.index},
+            {"count", semantic.count}};
         if (localization != nullptr)
         {
             if (localization->hasNameKey || !localization->nameKey.empty())
-                object.emplace_back("nameKey", GtsJsonValue(localization->nameKey));
+                object.emplace_back("nameKey", localization->nameKey);
             if (localization->hasDescriptionKey || !localization->descriptionKey.empty())
-                object.emplace_back("descriptionKey", GtsJsonValue(localization->descriptionKey));
+                object.emplace_back("descriptionKey", localization->descriptionKey);
             if (localization->hasHintKey || !localization->hintKey.empty())
-                object.emplace_back("hintKey", GtsJsonValue(localization->hintKey));
+                object.emplace_back("hintKey", localization->hintKey);
             if (localization->hasValueKey || !localization->valueKey.empty())
-                object.emplace_back("valueKey", GtsJsonValue(localization->valueKey));
+                object.emplace_back("valueKey", localization->valueKey);
         }
-        return GtsJsonValue::Object(std::move(object));
+        return object;
     }
 
     UiSerializedBinding parseBinding(const GtsJsonValue& json)
@@ -484,15 +481,15 @@ namespace
     {
         Object object = {
             {"property",
-             GtsJsonValue(std::string(gts::enumName(uiBindablePropertyNames, binding.property).value_or("Text")))},
-            {"path", GtsJsonValue(binding.path)},
-            {"formatter", GtsJsonValue(binding.formatter)},
-            {"transform", GtsJsonValue(binding.transform)},
-            {"animateInitial", GtsJsonValue(binding.animateInitial)},
-            {"applyImmediately", GtsJsonValue(binding.applyImmediately)}};
+             std::string(gts::enumName(uiBindablePropertyNames, binding.property).value_or("Text"))},
+            {"path", binding.path},
+            {"formatter", binding.formatter},
+            {"transform", binding.transform},
+            {"animateInitial", binding.animateInitial},
+            {"applyImmediately", binding.applyImmediately}};
         if (binding.animation)
             object.emplace_back("animation", serializeTiming(*binding.animation));
-        return GtsJsonValue::Object(std::move(object));
+        return object;
     }
 
     UiSerializedNavigation parseNavigation(const GtsJsonValue& json)
@@ -534,19 +531,19 @@ namespace
         Object neighbors;
         for (const auto& [direction, target] : navigation.neighbors)
             neighbors.emplace_back(std::string(gts::enumName(uiNavigationDirectionNames, direction).value_or("None")),
-                                   GtsJsonValue(target));
+                                   target);
 
         return GtsJsonValue::Object(
-            {{"enabled", GtsJsonValue(navigation.enabled)},
-             {"focusable", GtsJsonValue(navigation.focusable)},
+            {{"enabled", navigation.enabled},
+             {"focusable", navigation.focusable},
              {"role",
-              GtsJsonValue(std::string(gts::enumName(uiNavigationRoleNames, navigation.role).value_or("Generic")))},
-             {"scope", GtsJsonValue(navigation.scope)},
-             {"group", GtsJsonValue(navigation.group)},
-             {"tabIndex", GtsJsonValue(navigation.tabIndex)},
-             {"wrapNavigation", GtsJsonValue(navigation.wrapNavigation)},
-             {"activateOnSubmit", GtsJsonValue(navigation.activateOnSubmit)},
-             {"neighbors", GtsJsonValue::Object(std::move(neighbors))}});
+              std::string(gts::enumName(uiNavigationRoleNames, navigation.role).value_or("Generic"))},
+             {"scope", navigation.scope},
+             {"group", navigation.group},
+             {"tabIndex", navigation.tabIndex},
+             {"wrapNavigation", navigation.wrapNavigation},
+             {"activateOnSubmit", navigation.activateOnSubmit},
+             {"neighbors", std::move(neighbors)}});
     }
 
     UiSerializedDragSource parseDragSource(const GtsJsonValue& json)
@@ -566,12 +563,12 @@ namespace
     GtsJsonValue serializeDragSource(const UiSerializedDragSource& source)
     {
         return GtsJsonValue::Object({
-            {"enabled", GtsJsonValue(source.enabled)},
-            {"payloadType", GtsJsonValue(source.payloadType)},
-            {"payloadId", GtsJsonValue(source.payloadId)},
-            {"payloadLabel", GtsJsonValue(source.payloadLabel)},
-            {"startThreshold", GtsJsonValue(source.startThreshold)},
-            {"capturePointer", GtsJsonValue(source.capturePointer)}
+            {"enabled", source.enabled},
+            {"payloadType", source.payloadType},
+            {"payloadId", source.payloadId},
+            {"payloadLabel", source.payloadLabel},
+            {"startThreshold", source.startThreshold},
+            {"capturePointer", source.capturePointer}
         });
     }
 
@@ -600,11 +597,11 @@ namespace
     {
         Array accepted;
         for (const std::string& type : target.acceptedPayloadTypes)
-            accepted.push_back(GtsJsonValue(type));
+            accepted.push_back(type);
         return GtsJsonValue::Object({
-            {"enabled", GtsJsonValue(target.enabled)},
-            {"acceptsAnyPayload", GtsJsonValue(target.acceptsAnyPayload)},
-            {"acceptedPayloadTypes", GtsJsonValue::Array(std::move(accepted))}
+            {"enabled", target.enabled},
+            {"acceptsAnyPayload", target.acceptsAnyPayload},
+            {"acceptedPayloadTypes", std::move(accepted)}
         });
     }
 
@@ -625,9 +622,9 @@ namespace
     {
         return GtsJsonValue::Object({
             {"timing", serializeTiming(transition.timing)},
-            {"animateBackground", GtsJsonValue(transition.animateBackground)},
-            {"animateForeground", GtsJsonValue(transition.animateForeground)},
-            {"animateOpacity", GtsJsonValue(transition.animateOpacity)}
+            {"animateBackground", transition.animateBackground},
+            {"animateForeground", transition.animateForeground},
+            {"animateOpacity", transition.animateOpacity}
         });
     }
 
@@ -766,49 +763,49 @@ namespace
             children.push_back(serializeWidget(child));
         Object parameters;
         for (const auto& [key, value] : widget.parameters)
-            parameters.emplace_back(key, GtsJsonValue(value));
+            parameters.emplace_back(key, value);
         Object slots;
         for (const auto& [slotName, slotChildren] : widget.slots)
         {
             Array slotArray;
             for (const UiSerializedWidget& child : slotChildren)
                 slotArray.push_back(serializeWidget(child));
-            slots.emplace_back(slotName, GtsJsonValue::Array(std::move(slotArray)));
+            slots.emplace_back(slotName, std::move(slotArray));
         }
 
         Object object = {
-            {"id", GtsJsonValue(widget.id)},
-            {"type", GtsJsonValue(widget.type)},
-            {"asset", GtsJsonValue(widget.asset)},
-            {"variant", GtsJsonValue(widget.variant)},
-            {"parameters", GtsJsonValue::Object(std::move(parameters))},
+            {"id", widget.id},
+            {"type", widget.type},
+            {"asset", widget.asset},
+            {"variant", widget.variant},
+            {"parameters", std::move(parameters)},
             {"layout", serializeLayout(widget.layout)},
-            {"styleClass", GtsJsonValue(widget.styleClass)},
-            {"labelStyleClass", GtsJsonValue(widget.labelStyleClass)},
-            {"text", GtsJsonValue(widget.text)},
-            {"imageAsset", GtsJsonValue(widget.imageAsset)},
+            {"styleClass", widget.styleClass},
+            {"labelStyleClass", widget.labelStyleClass},
+            {"text", widget.text},
+            {"imageAsset", widget.imageAsset},
             {"horizontalAlign",
-             GtsJsonValue(std::string(gts::enumName(uiHorizontalAlignNames, widget.horizontalAlign).value_or("Left")))},
+             std::string(gts::enumName(uiHorizontalAlignNames, widget.horizontalAlign).value_or("Left"))},
             {"verticalAlign",
-             GtsJsonValue(std::string(gts::enumName(uiVerticalAlignNames, widget.verticalAlign).value_or("Top")))},
+             std::string(gts::enumName(uiVerticalAlignNames, widget.verticalAlign).value_or("Top"))},
             {"wrapMode",
-             GtsJsonValue(std::string(gts::enumName(uiTextWrapModeNames, widget.wrapMode).value_or("None")))},
-            {"maxLines", GtsJsonValue(widget.maxLines)},
+             std::string(gts::enumName(uiTextWrapModeNames, widget.wrapMode).value_or("None"))},
+            {"maxLines", widget.maxLines},
             {"imageTint", Array{widget.imageTint.r, widget.imageTint.g, widget.imageTint.b, widget.imageTint.a}},
-            {"imageAspect", GtsJsonValue(widget.imageAspect)},
-            {"rotation", GtsJsonValue(widget.rotation)},
-            {"value", GtsJsonValue(widget.progressValue)},
+            {"imageAspect", widget.imageAspect},
+            {"rotation", widget.rotation},
+            {"value", widget.progressValue},
             {"contentOffset", Array{widget.contentOffset.x, widget.contentOffset.y}},
-            {"visible", GtsJsonValue(widget.visible)},
-            {"enabled", GtsJsonValue(widget.enabled)},
-            {"interactable", GtsJsonValue(widget.interactable)},
-            {"decorative", GtsJsonValue(widget.decorative)},
+            {"visible", widget.visible},
+            {"enabled", widget.enabled},
+            {"interactable", widget.interactable},
+            {"decorative", widget.decorative},
             {"navigation", serializeNavigation(widget.navigation)},
-            {"bindings", GtsJsonValue::Array(std::move(bindings))},
-            {"children", GtsJsonValue::Array(std::move(children))},
-            {"slots", GtsJsonValue::Object(std::move(slots))}};
+            {"bindings", std::move(bindings)},
+            {"children", std::move(children)},
+            {"slots", std::move(slots)}};
         if (widget.hasTextKey || !widget.textKey.empty())
-            object.emplace_back("textKey", GtsJsonValue(widget.textKey));
+            object.emplace_back("textKey", widget.textKey);
         if (widget.hasSemantics)
         {
             object.emplace_back("semantics",
@@ -824,7 +821,7 @@ namespace
             object.emplace_back("dropTarget", serializeDropTarget(*widget.dropTarget));
         if (widget.stateTransition)
             object.emplace_back("stateTransition", serializeStyleTransition(*widget.stateTransition));
-        return GtsJsonValue::Object(std::move(object));
+        return object;
     }
 
     UiSerializedSurface parseSurface(const GtsJsonValue& json)
@@ -848,14 +845,14 @@ namespace
     GtsJsonValue serializeSurface(const UiSerializedSurface& surface)
     {
         return GtsJsonValue::Object({
-            {"name", GtsJsonValue(surface.name)},
-            {"kind", GtsJsonValue(std::string(gts::enumName(uiSurfaceKindNames, surface.kind).value_or("Screen")))},
-            {"order", GtsJsonValue(surface.order)},
+            {"name", surface.name},
+            {"kind", std::string(gts::enumName(uiSurfaceKindNames, surface.kind).value_or("Screen"))},
+            {"order", surface.order},
             {"rect", Array{surface.rect.x, surface.rect.y, surface.rect.width, surface.rect.height}},
-            {"visible", GtsJsonValue(surface.visible)},
-            {"enabled", GtsJsonValue(surface.enabled)},
-            {"inputEnabled", GtsJsonValue(surface.inputEnabled)},
-            {"renderEnabled", GtsJsonValue(surface.renderEnabled)}
+            {"visible", surface.visible},
+            {"enabled", surface.enabled},
+            {"inputEnabled", surface.inputEnabled},
+            {"renderEnabled", surface.renderEnabled}
         });
     }
 
@@ -874,19 +871,19 @@ namespace
     GtsJsonValue serializeLayer(const UiSerializedLayer& layer)
     {
         return GtsJsonValue::Object({
-            {"name", GtsJsonValue(layer.name)},
-            {"order", GtsJsonValue(layer.order)},
-            {"visible", GtsJsonValue(layer.state.visible)},
-            {"inputEnabled", GtsJsonValue(layer.state.inputEnabled)}
+            {"name", layer.name},
+            {"order", layer.order},
+            {"visible", layer.state.visible},
+            {"inputEnabled", layer.state.inputEnabled}
         });
     }
 
     GtsJsonValue serializeAssetJson(const UiSerializedAsset& asset)
     {
         Object object = {
-            {"schema", GtsJsonValue(asset.schemaVersion)},
-            {"id", GtsJsonValue(asset.id)},
-            {"theme", GtsJsonValue(asset.theme)},
+            {"schema", asset.schemaVersion},
+            {"id", asset.id},
+            {"theme", asset.theme},
             {"root", serializeWidget(asset.root)}
         };
         if (asset.surface)
@@ -895,8 +892,8 @@ namespace
         Array layers;
         for (const UiSerializedLayer& layer : asset.layers)
             layers.push_back(serializeLayer(layer));
-        object.emplace_back("layers", GtsJsonValue::Array(std::move(layers)));
-        return GtsJsonValue::Object(std::move(object));
+        object.emplace_back("layers", std::move(layers));
+        return object;
     }
 
     bool isKnownWidgetType(const std::string& type)

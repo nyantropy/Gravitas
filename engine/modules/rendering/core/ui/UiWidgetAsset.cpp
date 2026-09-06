@@ -47,8 +47,8 @@ namespace
     {
         Array array;
         for (const std::string& value : values)
-            array.push_back(GtsJsonValue(value));
-        return GtsJsonValue::Array(std::move(array));
+            array.push_back(value);
+        return array;
     }
 
     std::unordered_map<std::string, std::string> parseStringMap(const GtsJsonValue* value)
@@ -66,8 +66,8 @@ namespace
     {
         Object object;
         for (const auto& [key, value] : values)
-            object.emplace_back(key, GtsJsonValue(value));
-        return GtsJsonValue::Object(std::move(object));
+            object.emplace_back(key, value);
+        return object;
     }
 
     std::unordered_map<std::string, std::vector<UiSerializedWidget>> parseSlotContent(const GtsJsonValue* value)
@@ -101,9 +101,9 @@ namespace
             Array array;
             for (const UiSerializedWidget& child : children)
                 array.push_back(serializeUiSerializedWidget(child));
-            object.emplace_back(slotName, GtsJsonValue::Array(std::move(array)));
+            object.emplace_back(slotName, std::move(array));
         }
-        return GtsJsonValue::Object(std::move(object));
+        return object;
     }
 
     UiWidgetAssetParameter parseParameter(const GtsJsonValue& json)
@@ -124,13 +124,12 @@ namespace
     GtsJsonValue serializeParameter(const UiWidgetAssetParameter& parameter)
     {
         return GtsJsonValue::Object(
-            {{"name", GtsJsonValue(parameter.name)},
+            {{"name", parameter.name},
              {"type",
-              GtsJsonValue(
-                  std::string(gts::enumName(uiWidgetAssetParameterTypeNames, parameter.type).value_or("String")))},
-             {"default", GtsJsonValue(parameter.defaultValue)},
-             {"description", GtsJsonValue(parameter.description)},
-             {"required", GtsJsonValue(parameter.required)}});
+                  std::string(gts::enumName(uiWidgetAssetParameterTypeNames, parameter.type).value_or("String"))},
+             {"default", parameter.defaultValue},
+             {"description", parameter.description},
+             {"required", parameter.required}});
     }
 
     UiWidgetAssetSlot parseSlot(const GtsJsonValue& json)
@@ -162,10 +161,10 @@ namespace
         for (const UiSerializedWidget& child : slot.defaultChildren)
             children.push_back(serializeUiSerializedWidget(child));
         return GtsJsonValue::Object({
-            {"name", GtsJsonValue(slot.name)},
-            {"target", GtsJsonValue(slot.target)},
-            {"description", GtsJsonValue(slot.description)},
-            {"children", GtsJsonValue::Array(std::move(children))}
+            {"name", slot.name},
+            {"target", slot.target},
+            {"description", slot.description},
+            {"children", std::move(children)}
         });
     }
 
@@ -191,16 +190,16 @@ namespace
     GtsJsonValue serializeVariant(const UiWidgetAssetVariant& variant)
     {
         Object object = {
-            {"name", GtsJsonValue(variant.name)},
-            {"displayName", GtsJsonValue(variant.displayName)},
-            {"description", GtsJsonValue(variant.description)},
+            {"name", variant.name},
+            {"displayName", variant.displayName},
+            {"description", variant.description},
             {"tags", serializeStringArray(variant.tags)},
             {"parameters", serializeStringMap(variant.parameterDefaults)},
             {"slots", serializeSlotContent(variant.slotDefaults)}
         };
         if (variant.hasRootOverride)
             object.emplace_back("root", serializeUiSerializedWidget(variant.rootOverride));
-        return GtsJsonValue::Object(std::move(object));
+        return object;
     }
 
     bool hasWidgetDefinition(const UiSerializedWidget& widget)
@@ -656,10 +655,10 @@ namespace
     {
         Array tags;
         for (const std::string& tag : asset.tags)
-            tags.push_back(GtsJsonValue(tag));
+            tags.push_back(tag);
         Array dependencies;
         for (const std::string& dependency : asset.dependencies)
-            dependencies.push_back(GtsJsonValue(dependency));
+            dependencies.push_back(dependency);
         Array parameters;
         for (const auto& [_, parameter] : asset.parameters)
             parameters.push_back(serializeParameter(parameter));
@@ -671,17 +670,17 @@ namespace
             variants.push_back(serializeVariant(variant));
 
         return GtsJsonValue::Object({
-            {"schema", GtsJsonValue(asset.schemaVersion)},
-            {"id", GtsJsonValue(asset.id)},
-            {"version", GtsJsonValue(asset.version)},
-            {"displayName", GtsJsonValue(asset.displayName)},
-            {"description", GtsJsonValue(asset.description)},
-            {"tags", GtsJsonValue::Array(std::move(tags))},
-            {"dependencies", GtsJsonValue::Array(std::move(dependencies))},
-            {"base", GtsJsonValue(asset.baseAsset)},
-            {"parameters", GtsJsonValue::Array(std::move(parameters))},
-            {"slots", GtsJsonValue::Array(std::move(slots))},
-            {"variants", GtsJsonValue::Array(std::move(variants))},
+            {"schema", asset.schemaVersion},
+            {"id", asset.id},
+            {"version", asset.version},
+            {"displayName", asset.displayName},
+            {"description", asset.description},
+            {"tags", std::move(tags)},
+            {"dependencies", std::move(dependencies)},
+            {"base", asset.baseAsset},
+            {"parameters", std::move(parameters)},
+            {"slots", std::move(slots)},
+            {"variants", std::move(variants)},
             {"root", serializeUiSerializedWidget(asset.root)}
         });
     }

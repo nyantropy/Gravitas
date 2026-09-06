@@ -12,30 +12,20 @@
 
 namespace
 {
-    bool readObjectArray(const GtsJsonValue& source,
-                         const std::string& key,
-                         std::vector<const GtsJsonValue*>& objectValues)
+    const GtsJsonValue::Array* readObjectArray(const GtsJsonValue& source, const std::string& key)
     {
-        const auto* arrayValue = source.findArray(key);
-        if (arrayValue == nullptr)
-            return false;
-
-        std::vector<const GtsJsonValue*> parsed;
-        parsed.reserve(arrayValue->size());
-        for (const GtsJsonValue& item : *arrayValue)
-        {
-            if (item.type() != GtsJsonValue::Type::Object)
-                return false;
-            parsed.push_back(&item);
-        }
-
-        objectValues = std::move(parsed);
-        return true;
+        const auto* array = source.findArray(key);
+        if (array == nullptr)
+            return nullptr;
+        for (const auto& item : *array)
+            if (!item.isObject())
+                return nullptr;
+        return array;
     }
 
-    bool readVec3Value(const GtsJsonValue& source, glm::vec3& value)
+    bool readVec3(const GtsJsonValue* source, glm::vec3& value)
     {
-        const auto* array = source.tryArray();
+        const auto* array = source == nullptr ? nullptr : source->tryArray();
         if (array == nullptr || array->size() != 3u)
             return false;
         const auto x = (*array)[0].tryFloat();
@@ -47,9 +37,9 @@ namespace
         return true;
     }
 
-    bool readVec2Value(const GtsJsonValue& source, glm::vec2& value)
+    bool readVec2(const GtsJsonValue* source, glm::vec2& value)
     {
-        const auto* array = source.tryArray();
+        const auto* array = source == nullptr ? nullptr : source->tryArray();
         if (array == nullptr || array->size() != 2u)
             return false;
         const auto x = (*array)[0].tryFloat();
@@ -60,9 +50,9 @@ namespace
         return true;
     }
 
-    bool readVec4Value(const GtsJsonValue& source, glm::vec4& value)
+    bool readVec4(const GtsJsonValue* source, glm::vec4& value)
     {
-        const auto* array = source.tryArray();
+        const auto* array = source == nullptr ? nullptr : source->tryArray();
         if (array == nullptr || array->size() != 4u)
             return false;
         const auto x = (*array)[0].tryFloat();
@@ -75,115 +65,73 @@ namespace
         return true;
     }
 
-    bool readVec3(const GtsJsonValue& source, const std::string& key, glm::vec3& value)
+    bool readColorCurve(const GtsJsonValue* source, ParticleColorCurve& curve)
     {
-        const GtsJsonValue* arrayValue = source.find(key);
-        return arrayValue != nullptr && readVec3Value(*arrayValue, value);
-    }
-
-    bool readVec2(const GtsJsonValue& source, const std::string& key, glm::vec2& value)
-    {
-        const GtsJsonValue* arrayValue = source.find(key);
-        return arrayValue != nullptr && readVec2Value(*arrayValue, value);
-    }
-
-    bool readVec4(const GtsJsonValue& source, const std::string& key, glm::vec4& value)
-    {
-        const GtsJsonValue* arrayValue = source.find(key);
-        return arrayValue != nullptr && readVec4Value(*arrayValue, value);
-    }
-
-    bool readColorCurveValue(const GtsJsonValue& source, ParticleColorCurve& curve)
-    {
-        if (source.type() != GtsJsonValue::Type::Array)
+        const auto* array = source == nullptr ? nullptr : source->tryArray();
+        if (array == nullptr)
             return false;
 
         ParticleColorCurve parsed;
-        for (const GtsJsonValue& itemValue : source.asArray())
+        for (const auto& point : *array)
         {
-            if (itemValue.type() != GtsJsonValue::Type::Array || itemValue.asArray().size() != 2u ||
-                !itemValue.asArray()[0].tryFloat())
+            const auto* fields = point.tryArray();
+            if (fields == nullptr || fields->size() != 2u)
                 return false;
-            ParticleColorKey item;
-            item.t = *itemValue.asArray()[0].tryFloat();
-            if (!readVec4Value(itemValue.asArray()[1], item.color))
+            const auto time = (*fields)[0].tryFloat();
+            glm::vec4 color;
+            if (!time || !readVec4(&(*fields)[1], color))
                 return false;
-            parsed.push_back(item);
+            parsed.push_back({*time, color});
         }
-
         curve = std::move(parsed);
         return true;
     }
 
-    bool readColorCurve(const GtsJsonValue& source, const std::string& key, ParticleColorCurve& curve)
+    bool readFloatCurve(const GtsJsonValue* source, ParticleFloatCurve& curve)
     {
-        const GtsJsonValue* arrayValue = source.find(key);
-        return arrayValue != nullptr && readColorCurveValue(*arrayValue, curve);
-    }
-
-    bool readFloatCurveValue(const GtsJsonValue& source, ParticleFloatCurve& curve)
-    {
-        if (source.type() != GtsJsonValue::Type::Array)
+        const auto* array = source == nullptr ? nullptr : source->tryArray();
+        if (array == nullptr)
             return false;
 
         ParticleFloatCurve parsed;
-        for (const GtsJsonValue& itemValue : source.asArray())
+        for (const auto& point : *array)
         {
-            if (itemValue.type() != GtsJsonValue::Type::Array || itemValue.asArray().size() != 2u ||
-                !itemValue.asArray()[0].tryFloat() ||
-                !itemValue.asArray()[1].tryFloat())
+            const auto* fields = point.tryArray();
+            if (fields == nullptr || fields->size() != 2u)
                 return false;
-            ParticleFloatKey item;
-            item.t     = *itemValue.asArray()[0].tryFloat();
-            item.value = *itemValue.asArray()[1].tryFloat();
-            parsed.push_back(item);
+            const auto time = (*fields)[0].tryFloat();
+            const auto value = (*fields)[1].tryFloat();
+            if (!time || !value)
+                return false;
+            parsed.push_back({*time, *value});
         }
-
         curve = std::move(parsed);
         return true;
     }
 
-    bool readFloatCurve(const GtsJsonValue& source, const std::string& key, ParticleFloatCurve& curve)
+    bool readBursts(const GtsJsonValue* source, std::vector<ParticleBurst>& bursts)
     {
-        const GtsJsonValue* arrayValue = source.find(key);
-        return arrayValue != nullptr && readFloatCurveValue(*arrayValue, curve);
-    }
-
-    bool readBurstsValue(const GtsJsonValue& source, std::vector<ParticleBurst>& bursts)
-    {
-        if (source.type() != GtsJsonValue::Type::Array)
+        const auto* array = source == nullptr ? nullptr : source->tryArray();
+        if (array == nullptr)
             return false;
 
         std::vector<ParticleBurst> parsed;
-        for (const GtsJsonValue& itemValue : source.asArray())
+        for (const auto& point : *array)
         {
-            if (itemValue.type() != GtsJsonValue::Type::Array || itemValue.asArray().size() != 5u)
+            const auto* fields = point.tryArray();
+            if (fields == nullptr || fields->size() != 5u)
                 return false;
-            const auto& fields = itemValue.asArray();
-            const auto time = fields[0].tryFloat();
-            const auto countMin = fields[1].tryUInt32();
-            const auto countMax = fields[2].tryUInt32();
-            const auto interval = fields[3].tryFloat();
-            const auto repeat = fields[4].tryUInt32();
+            const auto time = (*fields)[0].tryFloat();
+            const auto countMin = (*fields)[1].tryUInt32();
+            const auto countMax = (*fields)[2].tryUInt32();
+            const auto interval = (*fields)[3].tryFloat();
+            const auto repeat = (*fields)[4].tryUInt32();
             if (!time || !countMin || !countMax || !interval || !repeat)
                 return false;
-            ParticleBurst burst;
-            burst.time = *time;
-            burst.countMin = *countMin;
-            burst.countMax = std::max(*countMin, *countMax);
-            burst.repeatInterval = *interval;
-            burst.repeatCount = *repeat;
-            parsed.push_back(burst);
+            parsed.push_back({*time, *countMin, std::max(*countMin, *countMax), *interval, *repeat});
         }
-
         bursts = std::move(parsed);
         return true;
-    }
-
-    bool readBursts(const GtsJsonValue& source, ParticleEmitterComponent& emitter)
-    {
-        const GtsJsonValue* arrayValue = source.find("bursts");
-        return arrayValue != nullptr && readBurstsValue(*arrayValue, emitter.bursts);
     }
 
     void readEmitter(const GtsJsonValue& source, ParticleEmitterComponent& emitter)
@@ -233,7 +181,7 @@ namespace
             emitter.runtime.lodMinRenderScale = renderer.findFloat("lodMinRenderScale").value_or(emitter.runtime.lodMinRenderScale);
             emitter.runtime.velocityStretch = renderer.findFloat("velocityStretch").value_or(emitter.runtime.velocityStretch);
             emitter.runtime.velocityStretchMax = renderer.findFloat("velocityStretchMax").value_or(emitter.runtime.velocityStretchMax);
-            readVec3(renderer, "meshScale", emitter.meshScale);
+            readVec3(renderer.find("meshScale"), emitter.meshScale);
         }
 
         {
@@ -251,7 +199,7 @@ namespace
             if (const auto text = shape.findString("shape"))
                 emitter.shape = gts::enumValue(particleEmitterShapeNames, *text).value_or(ParticleEmitterShape::Sphere);
             emitter.sphereRadius = shape.findFloat("sphereRadius").value_or(emitter.sphereRadius);
-            readVec3(shape, "boxExtents", emitter.boxExtents);
+            readVec3(shape.find("boxExtents"), emitter.boxExtents);
             emitter.discRadius = shape.findFloat("discRadius").value_or(emitter.discRadius);
             emitter.ringInnerRadius = shape.findFloat("ringInnerRadius").value_or(emitter.ringInnerRadius);
             emitter.ringOuterRadius = shape.findFloat("ringOuterRadius").value_or(emitter.ringOuterRadius);
@@ -262,7 +210,7 @@ namespace
         {
             const auto* section = source.find("velocity");
             const auto& velocity = section != nullptr && section->isObject() ? *section : source;
-            readVec3(velocity, "initialVelocity", emitter.initialVelocity);
+            readVec3(velocity.find("initialVelocity"), emitter.initialVelocity);
             emitter.velocitySpread = velocity.findFloat("velocitySpread").value_or(emitter.velocitySpread);
             emitter.radialVelocityMin = velocity.findFloat("radialVelocityMin").value_or(emitter.radialVelocityMin);
             emitter.radialVelocityMax = velocity.findFloat("radialVelocityMax").value_or(emitter.radialVelocityMax);
@@ -276,8 +224,8 @@ namespace
             if (const auto text = forces.findString("collisionMode"))
                 emitter.collision.mode =
                     gts::enumValue(particleCollisionModeNames, *text).value_or(ParticleCollisionMode::None);
-            readVec3(forces, "forceAcceleration", emitter.forces.acceleration);
-            readVec3(forces, "forceWind", emitter.forces.wind);
+            readVec3(forces.find("forceAcceleration"), emitter.forces.acceleration);
+            readVec3(forces.find("forceWind"), emitter.forces.wind);
             emitter.forces.vortex = forces.findFloat("forceVortex").value_or(emitter.forces.vortex);
             emitter.forces.radial = forces.findFloat("forceRadial").value_or(emitter.forces.radial);
             emitter.forces.noiseStrength = forces.findFloat("forceNoiseStrength").value_or(emitter.forces.noiseStrength);
@@ -296,9 +244,9 @@ namespace
             const auto& color = section != nullptr && section->isObject() ? *section : source;
             emitter.hueVariation = color.findFloat("hueVariation").value_or(emitter.hueVariation);
             emitter.valueVariation = color.findFloat("valueVariation").value_or(emitter.valueVariation);
-            readVec4(color, "baseTint", emitter.baseTint);
-            readColorCurve(color, "colorOverLifetime", emitter.colorOverLifetime);
-            readFloatCurve(color, "alphaOverLifetime", emitter.alphaOverLifetime);
+            readVec4(color.find("baseTint"), emitter.baseTint);
+            readColorCurve(color.find("colorOverLifetime"), emitter.colorOverLifetime);
+            readFloatCurve(color.find("alphaOverLifetime"), emitter.alphaOverLifetime);
         }
 
         {
@@ -307,7 +255,7 @@ namespace
             emitter.sizeRandomness = size.findFloat("sizeRandomness").value_or(emitter.sizeRandomness);
             emitter.aspectRatioMin = size.findFloat("aspectRatioMin").value_or(emitter.aspectRatioMin);
             emitter.aspectRatioMax = size.findFloat("aspectRatioMax").value_or(emitter.aspectRatioMax);
-            readFloatCurve(size, "sizeOverLifetime", emitter.sizeOverLifetime);
+            readFloatCurve(size.find("sizeOverLifetime"), emitter.sizeOverLifetime);
         }
 
         {
@@ -315,8 +263,8 @@ namespace
             const auto& rotation = section != nullptr && section->isObject() ? *section : source;
             emitter.spinMin = rotation.findFloat("spinMin").value_or(emitter.spinMin);
             emitter.spinMax = rotation.findFloat("spinMax").value_or(emitter.spinMax);
-            readVec3(rotation, "meshAngularVelocityMin", emitter.meshAngularVelocityMin);
-            readVec3(rotation, "meshAngularVelocityMax", emitter.meshAngularVelocityMax);
+            readVec3(rotation.find("meshAngularVelocityMin"), emitter.meshAngularVelocityMin);
+            readVec3(rotation.find("meshAngularVelocityMax"), emitter.meshAngularVelocityMax);
             emitter.randomMeshRotation = rotation.findBool("randomMeshRotation").value_or(emitter.randomMeshRotation);
         }
 
@@ -332,7 +280,7 @@ namespace
         }
 
         emitter.effectEmitterId = source.findString("effectEmitterId").value_or(emitter.effectEmitterId);
-        readBursts(source, emitter);
+        readBursts(source.find("bursts"), emitter.bursts);
     }
 
     GtsJsonValue colorCurveJson(const ParticleColorCurve& curve)
@@ -474,9 +422,9 @@ namespace
         if (previewObject == nullptr || !previewObject->isObject())
             return;
 
-        readVec4(*previewObject, "backgroundColor", preview.backgroundColor);
-        readVec3(*previewObject, "cameraPosition", preview.cameraPosition);
-        readVec3(*previewObject, "cameraTarget", preview.cameraTarget);
+        readVec4(previewObject->find("backgroundColor"), preview.backgroundColor);
+        readVec3(previewObject->find("cameraPosition"), preview.cameraPosition);
+        readVec3(previewObject->find("cameraTarget"), preview.cameraTarget);
         preview.orbitDistance = previewObject->findFloat("orbitDistance").value_or(preview.orbitDistance);
     }
 
@@ -548,42 +496,41 @@ namespace
             parameter.stringValue = value->asString();
             return true;
         case gts::particles::ParticleModuleParameterType::FloatCurve:
-            return readFloatCurveValue(*value, parameter.floatCurveValue);
+            return readFloatCurve(value, parameter.floatCurveValue);
         case gts::particles::ParticleModuleParameterType::ColorGradient:
-            return readColorCurveValue(*value, parameter.colorGradientValue);
+            return readColorCurve(value, parameter.colorGradientValue);
         case gts::particles::ParticleModuleParameterType::BurstTimeline:
-            return readBurstsValue(*value, parameter.burstTimelineValue);
+            return readBursts(value, parameter.burstTimelineValue);
         }
         return false;
     }
 
     bool readEmitterModules(const GtsJsonValue& source, std::vector<gts::particles::ParticleModuleInstance>& modules)
     {
-        std::vector<const GtsJsonValue*> moduleObjects;
-        if (!readObjectArray(source, "modules", moduleObjects))
+        const auto* moduleObjects = readObjectArray(source, "modules");
+        if (moduleObjects == nullptr)
             return false;
 
         std::vector<gts::particles::ParticleModuleInstance> parsedModules;
-        parsedModules.reserve(moduleObjects.size());
-        for (const GtsJsonValue* moduleObject : moduleObjects)
+        parsedModules.reserve(moduleObjects->size());
+        for (const auto& moduleObject : *moduleObjects)
         {
             gts::particles::ParticleModuleInstance module;
-            module.stableId = moduleObject->findString("id").value_or(module.stableId);
-            module.typeId = moduleObject->findString("type").value_or(module.typeId);
-            module.displayName = moduleObject->findString("displayName").value_or(module.displayName);
-            module.version = moduleObject->findUInt32("version").value_or(module.version);
-            module.enabled = moduleObject->findBool("enabled").value_or(module.enabled);
+            module.stableId = moduleObject.findString("id").value_or(module.stableId);
+            module.typeId = moduleObject.findString("type").value_or(module.typeId);
+            module.displayName = moduleObject.findString("displayName").value_or(module.displayName);
+            module.version = moduleObject.findUInt32("version").value_or(module.version);
+            module.enabled = moduleObject.findBool("enabled").value_or(module.enabled);
 
             const gts::particles::ParticleModuleDefinition* definition =
                 gts::particles::findParticleModuleDefinition(module.typeId);
-            std::vector<const GtsJsonValue*> parameterObjects;
-            if (readObjectArray(*moduleObject, "parameters", parameterObjects))
+            if (const auto* parameterObjects = readObjectArray(moduleObject, "parameters"))
             {
-                module.parameters.reserve(parameterObjects.size());
-                for (const GtsJsonValue* parameterObject : parameterObjects)
+                module.parameters.reserve(parameterObjects->size());
+                for (const auto& parameterObject : *parameterObjects)
                 {
                     gts::particles::ParticleModuleParameter parameter;
-                    if (readModuleParameter(*parameterObject, definition, parameter))
+                    if (readModuleParameter(parameterObject, definition, parameter))
                         module.parameters.push_back(std::move(parameter));
                 }
             }
@@ -604,64 +551,60 @@ namespace
         ParticleEffectGraph parsed;
         parsed.schemaVersion = graphObject->findUInt32("schemaVersion").value_or(parsed.schemaVersion);
 
-        std::vector<const GtsJsonValue*> nodeObjects;
-        if (readObjectArray(*graphObject, "nodes", nodeObjects))
+        if (const auto* nodeObjects = readObjectArray(*graphObject, "nodes"))
         {
-            parsed.nodes.reserve(nodeObjects.size());
-            for (const GtsJsonValue* nodeObject : nodeObjects)
+            parsed.nodes.reserve(nodeObjects->size());
+            for (const auto& nodeObject : *nodeObjects)
             {
                 ParticleGraphNode node;
-                node.id = nodeObject->findString("id").value_or(node.id);
-                node.moduleStableId = nodeObject->findString("moduleStableId").value_or(node.moduleStableId);
-                node.typeId = nodeObject->findString("type").value_or(node.typeId);
-                node.displayName = nodeObject->findString("displayName").value_or(node.displayName);
-                node.frameId = nodeObject->findString("frameId").value_or(node.frameId);
-                readVec2(*nodeObject, "position", node.position);
+                node.id = nodeObject.findString("id").value_or(node.id);
+                node.moduleStableId = nodeObject.findString("moduleStableId").value_or(node.moduleStableId);
+                node.typeId = nodeObject.findString("type").value_or(node.typeId);
+                node.displayName = nodeObject.findString("displayName").value_or(node.displayName);
+                node.frameId = nodeObject.findString("frameId").value_or(node.frameId);
+                readVec2(nodeObject.find("position"), node.position);
                 parsed.nodes.push_back(std::move(node));
             }
         }
 
-        std::vector<const GtsJsonValue*> linkObjects;
-        if (readObjectArray(*graphObject, "links", linkObjects))
+        if (const auto* linkObjects = readObjectArray(*graphObject, "links"))
         {
-            parsed.links.reserve(linkObjects.size());
-            for (const GtsJsonValue* linkObject : linkObjects)
+            parsed.links.reserve(linkObjects->size());
+            for (const auto& linkObject : *linkObjects)
             {
                 ParticleGraphLink link;
-                link.id = linkObject->findString("id").value_or(link.id);
-                link.fromNodeId = linkObject->findString("from").value_or(link.fromNodeId);
-                link.fromPortId = linkObject->findString("fromPort").value_or(link.fromPortId);
-                link.toNodeId = linkObject->findString("to").value_or(link.toNodeId);
-                link.toPortId = linkObject->findString("toPort").value_or(link.toPortId);
+                link.id = linkObject.findString("id").value_or(link.id);
+                link.fromNodeId = linkObject.findString("from").value_or(link.fromNodeId);
+                link.fromPortId = linkObject.findString("fromPort").value_or(link.fromPortId);
+                link.toNodeId = linkObject.findString("to").value_or(link.toNodeId);
+                link.toPortId = linkObject.findString("toPort").value_or(link.toPortId);
                 parsed.links.push_back(std::move(link));
             }
         }
 
-        std::vector<const GtsJsonValue*> frameObjects;
-        if (readObjectArray(*graphObject, "frames", frameObjects))
+        if (const auto* frameObjects = readObjectArray(*graphObject, "frames"))
         {
-            parsed.frames.reserve(frameObjects.size());
-            for (const GtsJsonValue* frameObject : frameObjects)
+            parsed.frames.reserve(frameObjects->size());
+            for (const auto& frameObject : *frameObjects)
             {
                 ParticleGraphFrame frame;
-                frame.id = frameObject->findString("id").value_or(frame.id);
-                frame.title = frameObject->findString("title").value_or(frame.title);
-                readVec2(*frameObject, "position", frame.position);
-                readVec2(*frameObject, "size", frame.size);
+                frame.id = frameObject.findString("id").value_or(frame.id);
+                frame.title = frameObject.findString("title").value_or(frame.title);
+                readVec2(frameObject.find("position"), frame.position);
+                readVec2(frameObject.find("size"), frame.size);
                 parsed.frames.push_back(std::move(frame));
             }
         }
 
-        std::vector<const GtsJsonValue*> commentObjects;
-        if (readObjectArray(*graphObject, "comments", commentObjects))
+        if (const auto* commentObjects = readObjectArray(*graphObject, "comments"))
         {
-            parsed.comments.reserve(commentObjects.size());
-            for (const GtsJsonValue* commentObject : commentObjects)
+            parsed.comments.reserve(commentObjects->size());
+            for (const auto& commentObject : *commentObjects)
             {
                 ParticleGraphComment comment;
-                comment.id = commentObject->findString("id").value_or(comment.id);
-                comment.text = commentObject->findString("text").value_or(comment.text);
-                readVec2(*commentObject, "position", comment.position);
+                comment.id = commentObject.findString("id").value_or(comment.id);
+                comment.text = commentObject.findString("text").value_or(comment.text);
+                readVec2(commentObject.find("position"), comment.position);
                 parsed.comments.push_back(std::move(comment));
             }
         }
@@ -672,22 +615,22 @@ namespace
 
     bool readEffectEmitters(const GtsJsonValue& source, ParticleEffectAsset& asset)
     {
-        std::vector<const GtsJsonValue*> emitterObjects;
-        if (!readObjectArray(source, "emitters", emitterObjects))
+        const auto* emitterObjects = readObjectArray(source, "emitters");
+        if (emitterObjects == nullptr)
             return false;
 
         std::vector<ParticleEffectEmitter> emitters;
-        emitters.reserve(emitterObjects.size());
-        for (size_t i = 0; i < emitterObjects.size(); ++i)
+        emitters.reserve(emitterObjects->size());
+        for (size_t i = 0; i < emitterObjects->size(); ++i)
         {
             ParticleEffectEmitter emitter;
             emitter.stableId = defaultEmitterId(i);
             emitter.name     = defaultEmitterName(i);
-            emitter.stableId = emitterObjects[i]->findString("id").value_or(emitter.stableId);
-            emitter.name = emitterObjects[i]->findString("name").value_or(emitter.name);
-            readEmitter(*emitterObjects[i], emitter.descriptor);
-            readEmitterModules(*emitterObjects[i], emitter.modules);
-            readEmitterGraph(*emitterObjects[i], emitter.graph);
+            emitter.stableId = (*emitterObjects)[i].findString("id").value_or(emitter.stableId);
+            emitter.name = (*emitterObjects)[i].findString("name").value_or(emitter.name);
+            readEmitter((*emitterObjects)[i], emitter.descriptor);
+            readEmitterModules((*emitterObjects)[i], emitter.modules);
+            readEmitterGraph((*emitterObjects)[i], emitter.graph);
             emitters.push_back(std::move(emitter));
         }
 

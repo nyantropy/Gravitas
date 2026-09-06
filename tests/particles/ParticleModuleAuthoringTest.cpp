@@ -666,6 +666,34 @@ int main()
             "emitter bursts were not preserved");
 
     std::error_code ec;
+    const auto invalidPath = std::filesystem::temp_directory_path() / "gravitas_particle_invalid_arrays_test.json";
+    {
+        std::ofstream invalid(invalidPath);
+        invalid << R"({
+          "emitters": [{
+            "id": "invalid",
+            "velocity": {"initialVelocity": [9, 8, "bad"]},
+            "color": {"colorOverLifetime": [[0, [1, 0, 0, 1]], [1, [0, "bad", 0, 1]]]},
+            "size": {"sizeOverLifetime": [[0, 9], [1, "bad"]]},
+            "bursts": [[0, 5, 6, 0, 0], [1, -1, 2, 0, 0]],
+            "graph": {"comments": [{"id":"must-not-survive","text":"partial"}, false]}
+          }]
+        })";
+    }
+    ParticleEffectAsset invalidLoaded;
+    require(loadParticleEffectAsset(invalidPath.string(), invalidLoaded), "invalid optional arrays failed asset load");
+    const auto& invalidDescriptor = invalidLoaded.emitters.front().descriptor;
+    const ParticleEmitterComponent defaults;
+    require(invalidDescriptor.initialVelocity == defaults.initialVelocity, "invalid vector was partially assigned");
+    require(invalidDescriptor.bursts.empty(), "invalid bursts were partially assigned");
+    require(invalidDescriptor.sizeOverLifetime.size() == defaults.sizeOverLifetime.size()
+            && near(invalidDescriptor.sizeOverLifetime.front().value, defaults.sizeOverLifetime.front().value),
+            "invalid float curve was partially assigned");
+    require(invalidDescriptor.colorOverLifetime.size() == defaults.colorOverLifetime.size()
+            && invalidDescriptor.colorOverLifetime.front().color == defaults.colorOverLifetime.front().color,
+            "invalid color curve was partially assigned");
+    require(invalidLoaded.emitters.front().graph.comments.empty(), "mixed object array was partially accepted");
+    std::filesystem::remove(invalidPath, ec);
     std::filesystem::remove(sectionPath, ec);
     std::filesystem::remove(path, ec);
     std::filesystem::remove(flatPath, ec);

@@ -103,19 +103,19 @@ namespace
     {
         GtsJsonValue::Array array;
         for (const std::string& value : values)
-            array.push_back(GtsJsonValue(value));
-        return GtsJsonValue::Array(std::move(array));
+            array.push_back(value);
+        return array;
     }
 
     GtsJsonValue serializeDependency(const UiPackageDependency& dependency)
     {
         GtsJsonValue::Object object;
-        object.emplace_back("id", GtsJsonValue(dependency.packageId));
+        object.emplace_back("id", dependency.packageId);
         if (!dependency.minVersion.empty())
-            object.emplace_back("minVersion", GtsJsonValue(dependency.minVersion));
+            object.emplace_back("minVersion", dependency.minVersion);
         if (dependency.optional)
-            object.emplace_back("optional", GtsJsonValue(true));
-        return GtsJsonValue::Object(std::move(object));
+            object.emplace_back("optional", true);
+        return object;
     }
 
     GtsJsonValue serializeDependencies(const std::vector<UiPackageDependency>& dependencies)
@@ -123,7 +123,7 @@ namespace
         GtsJsonValue::Array array;
         for (const UiPackageDependency& dependency : dependencies)
             array.push_back(serializeDependency(dependency));
-        return GtsJsonValue::Array(std::move(array));
+        return array;
     }
 
     GtsJsonValue serializePlugins(const std::vector<UiPluginMetadata>& plugins)
@@ -132,20 +132,20 @@ namespace
         for (const UiPluginMetadata& plugin : plugins)
         {
             GtsJsonValue::Object object;
-            object.emplace_back("id", GtsJsonValue(plugin.id));
+            object.emplace_back("id", plugin.id);
             if (!plugin.displayName.empty())
-                object.emplace_back("displayName", GtsJsonValue(plugin.displayName));
+                object.emplace_back("displayName", plugin.displayName);
             if (!plugin.version.empty())
-                object.emplace_back("version", GtsJsonValue(plugin.version));
+                object.emplace_back("version", plugin.version);
             if (!plugin.description.empty())
-                object.emplace_back("description", GtsJsonValue(plugin.description));
+                object.emplace_back("description", plugin.description);
             if (!plugin.capabilities.empty())
                 object.emplace_back("capabilities", serializeStringArray(plugin.capabilities));
             if (plugin.nativeCode)
-                object.emplace_back("nativeCode", GtsJsonValue(true));
-            array.push_back(GtsJsonValue::Object(std::move(object)));
+                object.emplace_back("nativeCode", true);
+            array.push_back(std::move(object));
         }
-        return GtsJsonValue::Array(std::move(array));
+        return array;
     }
 
     UiPackageEvent makePackageEvent(UiPackageEventKind kind,
@@ -287,18 +287,18 @@ bool parseUiPackageManifest(const std::string& json,
 std::string serializeUiPackageManifest(const UiPackageManifest& manifest)
 {
     GtsJsonValue::Object root;
-    root.emplace_back("schema", GtsJsonValue(manifest.schemaVersion));
-    root.emplace_back("id", GtsJsonValue(manifest.id));
-    root.emplace_back("version", GtsJsonValue(manifest.version));
-    root.emplace_back("namespace", GtsJsonValue(manifest.namespaceId));
+    root.emplace_back("schema", manifest.schemaVersion);
+    root.emplace_back("id", manifest.id);
+    root.emplace_back("version", manifest.version);
+    root.emplace_back("namespace", manifest.namespaceId);
     if (!manifest.displayName.empty())
-        root.emplace_back("displayName", GtsJsonValue(manifest.displayName));
+        root.emplace_back("displayName", manifest.displayName);
     if (!manifest.author.empty())
-        root.emplace_back("author", GtsJsonValue(manifest.author));
+        root.emplace_back("author", manifest.author);
     if (!manifest.engineCompatibility.empty())
-        root.emplace_back("engineCompatibility", GtsJsonValue(manifest.engineCompatibility));
+        root.emplace_back("engineCompatibility", manifest.engineCompatibility);
     if (!manifest.description.empty())
-        root.emplace_back("description", GtsJsonValue(manifest.description));
+        root.emplace_back("description", manifest.description);
     if (!manifest.tags.empty())
         root.emplace_back("tags", serializeStringArray(manifest.tags));
     if (!manifest.assetRoots.empty())
@@ -309,7 +309,7 @@ std::string serializeUiPackageManifest(const UiPackageManifest& manifest)
         root.emplace_back("optionalDependencies", serializeDependencies(manifest.optionalDependencies));
     if (!manifest.plugins.empty())
         root.emplace_back("plugins", serializePlugins(manifest.plugins));
-    return GtsJsonParser::serialize(GtsJsonValue::Object(std::move(root)));
+    return GtsJsonParser::serialize(std::move(root));
 }
 
 UiPackageLoadResult UiPackageRuntime::registerPackage(UiSystem& ui, const UiPackageDesc& package)
