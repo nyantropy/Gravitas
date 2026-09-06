@@ -23,13 +23,22 @@
 #include "EngineToolWorldPickerSystem.hpp"
 #include "EngineToolWorkspaceComponent.h"
 #include "ToolLaunchPreset.h"
+#include "IEngineModule.h"
+#include "../input/ToolDefaultBindings.hpp"
 
 namespace gts::tools
 {
     // Engine-owned tooling runner that keeps editor state outside individual scenes.
-    class EngineToolRuntime
+    class EngineToolRuntime : public IEngineModule
     {
         public:
+        const char* name() const override { return "tools"; }
+
+        void registerInputBindings(InputBindingRegistry& input) override
+        {
+            gts::input::defaults::tools::install(input);
+        }
+
         EngineToolRuntime()
         {
             resetSceneSystems();

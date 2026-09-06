@@ -31,6 +31,7 @@ namespace gts::rendering
         ~RenderingRuntime() override;
 
         const char* name() const override;
+        void registerInputBindings(InputBindingRegistry& input) override;
         void registerServices(EngineServiceRegistry& services) override;
         void unregisterServices(EngineServiceRegistry& services) override;
         void afterSceneUnload(EngineServiceRegistry& services) override;

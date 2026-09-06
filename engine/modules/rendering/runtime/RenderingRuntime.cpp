@@ -1,4 +1,6 @@
 #include "RenderingRuntime.h"
+#include "../ecssetup/camera/input/CameraDefaultBindings.hpp"
+#include "../../../core/ui/input/UiDefaultBindings.hpp"
 
 #include <algorithm>
 #include <any>
@@ -50,6 +52,12 @@ namespace gts::rendering
     const char* RenderingRuntime::name() const
     {
         return "rendering";
+    }
+
+    void RenderingRuntime::registerInputBindings(InputBindingRegistry& input)
+    {
+        gts::input::defaults::ui::install(input);
+        gts::input::defaults::camera::install(input);
     }
 
     void RenderingRuntime::registerServices(EngineServiceRegistry& services)

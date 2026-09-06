@@ -9,9 +9,19 @@
 
 class HeadlessRuntimeSmokeScene : public GtsScene
 {
+    bool toolsEnabled;
 public:
-    void onLoad(EcsControllerContext&, const GtsSceneTransitionData*) override
+    explicit HeadlessRuntimeSmokeScene(bool toolsEnabled) : toolsEnabled(toolsEnabled) {}
+
+    void onLoad(EcsControllerContext& ctx, const GtsSceneTransitionData*) override
     {
+        for (const char* action : {"engine.pause", "engine.ui_submit", "engine.zoom_in"})
+        {
+            if (ctx.input->getTriggersForAction(action).empty())
+                throw std::runtime_error("Module input registration missing");
+        }
+        if (ctx.input->getTriggersForAction("engine.tools_toggle").empty() == toolsEnabled)
+            throw std::runtime_error("Tool bindings do not match enabled modules");
     }
 
     void onUpdateSimulation(const EcsSimulationContext&) override
@@ -40,14 +50,18 @@ int main()
         config.simulation.tickRate = 60;
         config.tools.debugOverlayEnabledByDefault = false;
 
-        GravitasEngine engine(config);
-        engine.registerScene("headless_smoke",
-                             []()
-                             {
-                                 return std::make_unique<HeadlessRuntimeSmokeScene>();
-                             });
-        engine.setActiveScene("headless_smoke");
-        engine.start();
+        for (bool toolsEnabled : {false, true})
+        {
+            config.tools.enabled = toolsEnabled;
+            GravitasEngine engine(config);
+            engine.registerScene("headless_smoke",
+                                 [toolsEnabled]()
+                                 {
+                                     return std::make_unique<HeadlessRuntimeSmokeScene>(toolsEnabled);
+                                 });
+            engine.setActiveScene("headless_smoke");
+            engine.start();
+        }
     }
     catch (const std::runtime_error& error)
     {

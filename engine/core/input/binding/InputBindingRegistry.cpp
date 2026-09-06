@@ -1,6 +1,7 @@
 #include "InputBindingRegistry.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -103,6 +104,18 @@ size_t InputBindingRegistry::ConsumedInput::hash() const
     hashCombine(seed, axisIndex);
     hashCombine(seed, static_cast<int>(axisDirection * 10000.0f));
     return seed;
+}
+
+void InputBindingRegistry::bindDefaults(std::span<const InputBinding> defaults)
+{
+    std::unordered_set<std::string> existingActions;
+    for (const auto& binding : bindings)
+        existingActions.insert(binding.action);
+    for (const auto& binding : defaults)
+    {
+        if (!existingActions.contains(binding.action))
+            bind(binding);
+    }
 }
 
 void InputBindingRegistry::bind(const InputBinding& binding)
@@ -312,6 +325,7 @@ bool InputBindingRegistry::isPaused() const
 void InputBindingRegistry::update(const InputSnapshot& rawInput)
 {
     applyPendingContextOps();
+    routingConflicts.clear();
     currentMouseX = rawInput.mouseX();
     currentMouseY = rawInput.mouseY();
     currentScrollX = rawInput.scrollX();
@@ -371,14 +385,17 @@ void InputBindingRegistry::update(const InputSnapshot& rawInput)
 
     std::unordered_set<ConsumedInput, ConsumedInputHash> consumed;
     consumed.reserve(bindings.size());
-    std::unordered_set<std::string> queuedPressedActions;
-    std::unordered_set<std::string> queuedReleasedActions;
+    std::array<std::unordered_set<std::string>, 2> queuedPressedActions;
+    std::array<std::unordered_set<std::string>, 2> queuedReleasedActions;
 
     auto processContext = [&](const std::string& context)
     {
+        std::unordered_map<ConsumedInput, std::vector<const InputBinding*>, ConsumedInputHash> candidates;
         for (const auto& binding : bindings)
         {
             if (binding.context != context)
+                continue;
+            if (paused && binding.pausePolicy == PausePolicy::Gameplay)
                 continue;
             if (!matchesTrigger(rawInput, binding.trigger, currentModifiers))
                 continue;
@@ -387,31 +404,55 @@ void InputBindingRegistry::update(const InputSnapshot& rawInput)
             if (consumed.contains(consumedInput))
                 continue;
 
-            ActionState& actionState = actionStates[binding.action];
-            PolicyState& policyState = binding.pausePolicy == PausePolicy::AlwaysActive
-                ? actionState.alwaysActive
-                : actionState.gameplay;
-            if (signalActive(rawInput, binding))
+            candidates[consumedInput].push_back(&binding);
+        }
+
+        for (const auto& [physicalInput, group] : candidates)
+        {
+            std::vector<std::string> exclusiveActions;
+            for (const auto* binding : group)
             {
-                policyState.current = true;
-                if (binding.mode == ActivationMode::Pressed
-                    && queuedPressedActions.insert(binding.action).second)
-                {
-                    queueSimulationEdge(binding);
-                }
-                else if (binding.mode == ActivationMode::Released
-                    && queuedReleasedActions.insert(binding.action).second)
-                {
-                    queueSimulationEdge(binding);
-                }
+                if (!binding->passthrough)
+                    exclusiveActions.push_back(binding->action);
             }
+            std::sort(exclusiveActions.begin(), exclusiveActions.end());
+            exclusiveActions.erase(std::unique(exclusiveActions.begin(), exclusiveActions.end()),
+                                   exclusiveActions.end());
+            const bool conflicting = exclusiveActions.size() > 1;
+            if (conflicting)
+                routingConflicts.push_back({context, physicalInput.type, physicalInput.code, exclusiveActions});
+            if (!exclusiveActions.empty())
+                consumed.insert(physicalInput);
 
-            const float signalAxis = signalAxisValue(rawInput, binding);
-            if (std::fabs(signalAxis) > std::fabs(policyState.axisCurrent))
-                policyState.axisCurrent = signalAxis;
+            for (const auto* candidate : group)
+            {
+                const auto& binding = *candidate;
+                if (conflicting && !binding.passthrough)
+                    continue;
 
-            if (!binding.passthrough)
-                consumed.insert(consumedInput);
+                ActionState& actionState = actionStates[binding.action];
+                const size_t policyIndex = binding.pausePolicy == PausePolicy::AlwaysActive ? 1 : 0;
+                PolicyState& policyState =
+                    binding.pausePolicy == PausePolicy::AlwaysActive ? actionState.alwaysActive : actionState.gameplay;
+                if (signalActive(rawInput, binding))
+                {
+                    policyState.current = true;
+                    if (binding.mode == ActivationMode::Pressed &&
+                        queuedPressedActions[policyIndex].insert(binding.action).second)
+                    {
+                        queueSimulationEdge(binding);
+                    }
+                    else if (binding.mode == ActivationMode::Released &&
+                             queuedReleasedActions[policyIndex].insert(binding.action).second)
+                    {
+                        queueSimulationEdge(binding);
+                    }
+                }
+
+                const float signalAxis = signalAxisValue(rawInput, binding);
+                if (std::fabs(signalAxis) > std::fabs(policyState.axisCurrent))
+                    policyState.axisCurrent = signalAxis;
+            }
         }
     };
 
@@ -419,6 +460,18 @@ void InputBindingRegistry::update(const InputSnapshot& rawInput)
         processContext(*it);
 
     processContext("");
+    std::sort(routingConflicts.begin(),
+              routingConflicts.end(),
+              [](const auto& lhs, const auto& rhs)
+              {
+                  if (lhs.context != rhs.context)
+                      return lhs.context < rhs.context;
+                  if (lhs.type != rhs.type)
+                      return lhs.type < rhs.type;
+                  if (lhs.code != rhs.code)
+                      return lhs.code < rhs.code;
+                  return lhs.actions < rhs.actions;
+              });
 }
 
 void InputBindingRegistry::finishSimulationTick()
@@ -579,6 +632,7 @@ void InputBindingRegistry::queueSimulationEdge(const InputBinding& binding)
 
 void InputBindingRegistry::clearActionRuntimeState()
 {
+    routingConflicts.clear();
     for (auto& [_, state] : actionStates)
         state = {};
     clearSimulationEdges();

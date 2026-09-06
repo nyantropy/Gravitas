@@ -175,6 +175,11 @@ material bindings from the cooked mesh and use the standard lit material path.
 
 ## Input Capture
 
+`EngineToolRuntime` participates in the engine module lifecycle and installs
+`input/ToolDefaultBindings.hpp` through `registerInputBindings`. Disabled tooling
+does not install shortcuts. Hiding the editor changes its active input context;
+it does not reinstall or remove user bindings.
+
 `EngineToolInputCaptureSystem` converts retained UI dispatch state, mouse
 motion, scroll input, action bindings, and the current render viewport into the
 singleton `EngineToolInputCaptureComponent`. World-view cameras, particle

@@ -13,6 +13,7 @@
 #include "TimeContext.h"
 
 #include "GtsPlatform.h"
+#include "input/EngineControlBindings.hpp"
 #include "GtsGameLoop.h"
 
 #include "SceneManager.hpp"
@@ -97,6 +98,7 @@ class GravitasEngine
     {
         engineModules.push_back(&module);
         module.registerServices(serviceRegistry);
+        module.registerInputBindings(*platform.getInputBindingRegistry());
     }
 
     void uninstallEngineModules()
@@ -271,8 +273,11 @@ class GravitasEngine
     public:
     explicit GravitasEngine(EngineConfig config = EngineConfig{})
         : engineConfig(std::move(config))
-        , platform(engineConfig, createDefaultGraphicsBackendRegistry())
+        , platform(engineConfig.graphics, createDefaultGraphicsBackendRegistry())
     {
+        if (engineConfig.tools.debugOverlayEnabledByDefault)
+            platform.toggleDebugOverlay();
+        gts::input::defaults::engine::install(*platform.getInputBindingRegistry());
         gameLoop.init(engineConfig);
         maxFrameRate   = engineConfig.graphics.settings.framePacing.maxFrameRate;
         sceneManager   = std::make_unique<SceneManager>();
@@ -286,7 +291,10 @@ class GravitasEngine
                 });
         installEngineModule(*renderingRuntime);
         if (engineConfig.tools.enabled)
+        {
             toolRuntime = std::make_unique<gts::tools::EngineToolRuntime>();
+            installEngineModule(*toolRuntime);
+        }
     }
 
     ~GravitasEngine() = default;
@@ -458,10 +466,10 @@ class GravitasEngine
         if (toolRuntime != nullptr)
         {
             toolRuntime->shutdown();
-            toolRuntime.reset();
         }
         renderingRuntime->clearUi();
         uninstallEngineModules();
+        toolRuntime.reset();
 
         // shutdown graphics module after we close the window
         platform.shutdown();

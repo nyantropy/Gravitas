@@ -1,3 +1,11 @@
+add_executable(InputBindingRoutingTest input/InputBindingRoutingTest.cpp)
+target_link_libraries(InputBindingRoutingTest PRIVATE gravitas_core)
+add_test(NAME input_binding_routing COMMAND InputBindingRoutingTest)
+
+add_executable(EngineDefaultInputBindingsTest input/EngineDefaultInputBindingsTest.cpp)
+target_link_libraries(EngineDefaultInputBindingsTest PRIVATE gravitas_engine)
+add_test(NAME engine_default_input_bindings COMMAND EngineDefaultInputBindingsTest)
+
 add_executable(GraphicsSettingsTest rendering/GraphicsSettingsTest.cpp)
 target_link_libraries(GraphicsSettingsTest PRIVATE gravitas_rendering)
 add_test(NAME graphics_settings COMMAND GraphicsSettingsTest)

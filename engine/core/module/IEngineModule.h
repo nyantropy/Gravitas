@@ -1,5 +1,7 @@
 #pragma once
 
+#include "InputBindingRegistry.h"
+
 class EngineServiceRegistry;
 class GtsScene;
 struct EcsControllerContext;
@@ -10,6 +12,8 @@ public:
     virtual ~IEngineModule() = default;
 
     virtual const char* name() const = 0;
+
+    virtual void registerInputBindings(InputBindingRegistry&) {}
 
     virtual void registerServices(EngineServiceRegistry&) {}
     virtual void unregisterServices(EngineServiceRegistry&) {}

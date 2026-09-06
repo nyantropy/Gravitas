@@ -1,0 +1,78 @@
+#pragma once
+
+#include "InputBindingRegistry.h"
+#include "GtsKey.h"
+
+namespace gts::input::defaults::ui
+{
+    inline void install(InputBindingRegistry& registry)
+    {
+        const InputBinding bindings[]{
+            InputBinding{"engine.ui_cancel",
+                         InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Escape)},
+                         ActivationMode::Pressed,
+                         "",
+                         PausePolicy::AlwaysActive,
+                         true},
+            InputBinding{"engine.toggle_ui",
+                         InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F2)},
+                         ActivationMode::Pressed,
+                         "",
+                         PausePolicy::AlwaysActive},
+            InputBinding{"engine.ui_nav_next",
+                         InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Tab)},
+                         ActivationMode::Pressed,
+                         "",
+                         PausePolicy::AlwaysActive,
+                         true},
+            InputBinding{"engine.ui_nav_previous",
+                         InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Tab), ModifierFlags::Shift},
+                         ActivationMode::Pressed,
+                         "",
+                         PausePolicy::AlwaysActive,
+                         true},
+            InputBinding{"engine.ui_primary",
+                         InputTrigger{InputTrigger::Type::MouseButton, 0},
+                         ActivationMode::Held,
+                         "",
+                         PausePolicy::AlwaysActive},
+            InputBinding{"engine.ui_submit",
+                         InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Enter)},
+                         ActivationMode::Pressed,
+                         "",
+                         PausePolicy::AlwaysActive,
+                         true},
+            InputBinding{"engine.ui_submit",
+                         InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Space)},
+                         ActivationMode::Pressed,
+                         "",
+                         PausePolicy::AlwaysActive,
+                         true},
+            InputBinding{"engine.ui_nav_up",
+                         InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowUp)},
+                         ActivationMode::Pressed,
+                         "",
+                         PausePolicy::AlwaysActive,
+                         true},
+            InputBinding{"engine.ui_nav_down",
+                         InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowDown)},
+                         ActivationMode::Pressed,
+                         "",
+                         PausePolicy::AlwaysActive,
+                         true},
+            InputBinding{"engine.ui_nav_left",
+                         InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowLeft)},
+                         ActivationMode::Pressed,
+                         "",
+                         PausePolicy::AlwaysActive,
+                         true},
+            InputBinding{"engine.ui_nav_right",
+                         InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowRight)},
+                         ActivationMode::Pressed,
+                         "",
+                         PausePolicy::AlwaysActive,
+                         true},
+        };
+        registry.bindDefaults(bindings);
+    }
+}

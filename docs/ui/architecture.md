@@ -73,6 +73,10 @@ application state.
 
 ## Input, Focus, Navigation, And Modals
 
+`RenderingRuntime` installs `core/ui/input/UiDefaultBindings.hpp` through its
+engine module input-registration hook. These engine-lifetime defaults are not
+reinstalled when surfaces or scenes change.
+
 `UiInputDispatcher` creates retained `UiEvent` values from frame input.
 `UiSystem` resolves each event's surface, target path, layer, mount, and
 composition, then delivers capture, target, and bubble phases.

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -14,6 +15,7 @@ class InputBindingRegistry
 {
 public:
     void bind(const InputBinding& binding);
+    void bindDefaults(std::span<const InputBinding> defaults);
     void bind(const std::string& action, InputTrigger trigger,
               ActivationMode mode = ActivationMode::Pressed,
               const std::string& context = "",
@@ -52,6 +54,16 @@ public:
     void update(const InputSnapshot& rawInput);
     void finishSimulationTick();
     void clearSimulationEdges();
+
+    struct RoutingConflict
+    {
+        std::string context;
+        InputTrigger::Type type;
+        int code;
+        std::vector<std::string> actions;
+    };
+
+    const std::vector<RoutingConflict>& getRoutingConflicts() const { return routingConflicts; }
 
     std::vector<InputTrigger> getTriggersForAction(const std::string& action) const;
     std::optional<std::string> getActionForTrigger(const InputTrigger& trigger,
@@ -133,6 +145,7 @@ private:
     };
 
     std::vector<InputBinding> bindings;
+    std::vector<RoutingConflict> routingConflicts;
     std::vector<std::string> activeContexts;
     std::vector<PendingContextOp> pendingContextOps;
     std::unordered_map<std::string, ActionState> actionStates;

@@ -139,6 +139,47 @@ effectively stops for masked system groups.
 
 ## Input Model
 
+`GtsPlatform` owns raw input and the binding registry, bridges platform events,
+and updates action states each frame. It does not choose default controls.
+`GravitasEngine` installs its own controls during startup. Installing an engine
+module invokes its `registerInputBindings` hook. `RenderingRuntime` installs UI
+and default camera bindings; `EngineToolRuntime` installs tool bindings only when
+tooling is enabled. There is no central enumeration of individual bindings:
+
+- `input/EngineControlBindings.hpp`: engine lifecycle and diagnostic controls.
+- `core/ui/input/UiDefaultBindings.hpp`: retained UI controls.
+- `modules/rendering/ecssetup/camera/input/CameraDefaultBindings.hpp`: default camera controls.
+- `modules/tools/input/ToolDefaultBindings.hpp`: tooling and editor camera controls.
+
+Registration order does not determine action routing. Active contexts are
+processed newest-first, followed by the global context. Each context evaluates
+matching bindings together. Passthrough bindings observe input without reserving
+it; non-passthrough bindings reserve it against lower contexts, not siblings.
+Distinct exclusive actions claiming the same physical input in one context are
+suppressed and reported by `getRoutingConflicts()` for the latest update. The
+conflicted input remains reserved against lower contexts; shared observers still
+run. Multiple bindings for the same action do not conflict with one another.
+Paused gameplay bindings neither evaluate nor reserve input.
+
+Reservations cover matching held/pressed/released physical input, independently
+of whether the binding's activation mode fires that frame. They express input
+ownership, not successful handling by a UI or gameplay consumer. UI-first
+handled-event fallback and modal capture are not implemented by this registry;
+engine commands still run before UI dispatch. Legacy `checkConflict()` remains
+a first-match editing query, not the runtime routing diagnostic.
+
+Feature installers use `bindDefaults`, which adds defaults only for actions
+without existing bindings. All alternatives for a new action are installed
+together; existing rebindings are preserved. Explicitly unbound actions are not
+tracked as overrides by this API. Applications continue to register their own
+gameplay bindings and apply saved settings after engine startup.
+
+Module input registration runs once per engine instance, not per scene or editor
+visibility change. Bindings remain in the platform-owned registry for that
+engine's lifetime; scene transitions clear contexts without reinstalling defaults.
+Modules are unregistered before their runtime objects are destroyed. Runtime
+module unloading/reloading and binding ownership tokens are not supported yet.
+
 Raw input flows through `IInputSource` into `InputBindingRegistry`, then systems
 poll semantic action strings through their ECS contexts.
 

@@ -1,10 +1,9 @@
 #pragma once
 
 #include <memory>
-#include <string>
 #include <vector>
 
-#include "EngineConfig.h"
+#include "GraphicsConfig.h"
 #include "GtsEventTypes.h"
 #include "GtsPlatformEventBus.hpp"
 #include "SubscriptionToken.hpp"
@@ -18,13 +17,13 @@
 class GtsPlatform
 {
     public:
-        GtsPlatform(const EngineConfig& config,
+        GtsPlatform(const GraphicsConfig& config,
                     const gts::rendering::GraphicsBackendRegistry& graphicsBackendRegistry)
+            : graphics(graphicsBackendRegistry.create(config))
+            , inputManager(std::make_unique<InputManager>())
+            , bindingRegistry(std::make_unique<InputBindingRegistry>())
         {
-            inputManager  = std::make_unique<InputManager>();
-            bindingRegistry = std::make_unique<InputBindingRegistry>();
-            initializeGraphicsModule(config, graphicsBackendRegistry);
-            bindDefaultActions();
+            connectInputEvents();
         }
 
         // Snapshot previous frame, poll OS events, then derive action states.
@@ -116,11 +115,8 @@ class GtsPlatform
         SubscriptionToken                          cursorPositionEventToken;
         SubscriptionToken                          scrollEventToken;
 
-        void initializeGraphicsModule(const EngineConfig& config,
-                                      const gts::rendering::GraphicsBackendRegistry& graphicsBackendRegistry)
+        void connectInputEvents()
         {
-            graphics = graphicsBackendRegistry.create(config.graphics);
-
             keyEventToken = graphics->getEventBus().subscribe<GtsKeyEvent>([this](const GtsKeyEvent& e)
             {
                 inputManager->onKeyEvent(e.key, e.pressed, e.mods);
@@ -137,189 +133,5 @@ class GtsPlatform
             {
                 inputManager->onScrollEvent(e.x, e.y);
             });
-
-            if (config.tools.debugOverlayEnabledByDefault)
-                graphics->toggleDebugOverlay();
-        }
-
-        void bindDefaultActions()
-        {
-            bindingRegistry->bind("engine.pause",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::X)},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive);
-            bindingRegistry->bind(InputBinding{
-                                  "engine.ui_cancel",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Escape)},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive,
-                                  true});
-            bindingRegistry->bind("engine.close",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Escape)},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive);
-            bindingRegistry->bind("engine.toggle_ui",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F2)},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive);
-            bindingRegistry->bind("engine.debug_overlay",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F3)},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive);
-            bindingRegistry->bind(InputBinding{
-                                  "engine.ui_nav_next",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Tab)},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive,
-                                  true});
-            bindingRegistry->bind(InputBinding{
-                                  "engine.ui_nav_previous",
-                                  InputTrigger{
-                                      InputTrigger::Type::Key,
-                                      static_cast<int>(GtsKey::Tab),
-                                      ModifierFlags::Shift},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive,
-                                  true});
-            bindingRegistry->bind("engine.debug_overlay_page",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Tab)},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive);
-            bindingRegistry->bind("engine.screenshot",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F12)},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive);
-            bindingRegistry->bind("engine.tools_toggle",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::F6)},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive);
-            bindingRegistry->bind("engine.ui_primary",
-                                  InputTrigger{InputTrigger::Type::MouseButton, 0},
-                                  ActivationMode::Held,
-                                  "",
-                                  PausePolicy::AlwaysActive);
-            bindingRegistry->bind(InputBinding{
-                                  "engine.ui_submit",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Enter)},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive,
-                                  true});
-            bindingRegistry->bind(InputBinding{
-                                  "engine.ui_submit",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::Space)},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive,
-                                  true});
-            bindingRegistry->bind(InputBinding{
-                                  "engine.tools_select",
-                                  InputTrigger{InputTrigger::Type::MouseButton, 0},
-                                  ActivationMode::Held,
-                                  "engine.tools",
-                                  PausePolicy::AlwaysActive,
-                                  false});
-            bindingRegistry->bind(InputBinding{
-                                  "engine.ui_nav_up",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowUp)},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive,
-                                  true});
-            bindingRegistry->bind("engine.zoom_in",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowUp)},
-                                  ActivationMode::Held,
-                                  "",
-                                  PausePolicy::AlwaysActive);
-            bindingRegistry->bind(InputBinding{
-                                  "engine.ui_nav_down",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowDown)},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive,
-                                  true});
-            bindingRegistry->bind("engine.zoom_out",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowDown)},
-                                  ActivationMode::Held,
-                                  "",
-                                  PausePolicy::AlwaysActive);
-            bindingRegistry->bind(InputBinding{
-                                  "engine.ui_nav_left",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowLeft)},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive,
-                                  true});
-            bindingRegistry->bind("engine.orbit_left",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowLeft)},
-                                  ActivationMode::Held,
-                                  "",
-                                  PausePolicy::AlwaysActive);
-            bindingRegistry->bind(InputBinding{
-                                  "engine.ui_nav_right",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowRight)},
-                                  ActivationMode::Pressed,
-                                  "",
-                                  PausePolicy::AlwaysActive,
-                                  true});
-            bindingRegistry->bind("engine.orbit_right",
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(GtsKey::ArrowRight)},
-                                  ActivationMode::Held,
-                                  "",
-                                  PausePolicy::AlwaysActive);
-            bindCameraKeyAction("engine.tools", "engine.tool_camera_yaw_left", GtsKey::Q);
-            bindCameraKeyAction("engine.tools", "engine.tool_camera_yaw_right", GtsKey::E);
-            bindCameraKeyAction("engine.tools", "engine.tool_camera_pitch_up", GtsKey::ArrowUp);
-            bindCameraKeyAction("engine.tools", "engine.tool_camera_pitch_down", GtsKey::ArrowDown);
-            bindCameraKeyAction("engine.tools", "engine.tool_camera_forward", GtsKey::W);
-            bindCameraKeyAction("engine.tools", "engine.tool_camera_backward", GtsKey::S);
-            bindCameraKeyAction("engine.tools", "engine.tool_camera_left", GtsKey::A);
-            bindCameraKeyAction("engine.tools", "engine.tool_camera_right", GtsKey::D);
-            bindCameraKeyAction("engine.tools", "engine.tool_camera_up", GtsKey::R);
-            bindCameraKeyAction("engine.tools", "engine.tool_camera_down", GtsKey::F);
-            bindCameraMouseAction("engine.tools", "engine.tool_camera_look");
-            bindingRegistry->bind(InputBinding{
-                                  "engine.tool_viewport_pan",
-                                  InputTrigger{InputTrigger::Type::MouseButton, 2},
-                                  ActivationMode::Held,
-                                  "engine.tools",
-                                  PausePolicy::AlwaysActive,
-                                  false});
-        }
-
-        void bindCameraKeyAction(const std::string& context,
-                                 const std::string& action,
-                                 GtsKey key,
-                                 ActivationMode mode = ActivationMode::Held)
-        {
-            bindingRegistry->bind(InputBinding{
-                                  action,
-                                  InputTrigger{InputTrigger::Type::Key, static_cast<int>(key)},
-                                  mode,
-                                  context,
-                                  PausePolicy::AlwaysActive,
-                                  false});
-        }
-
-        void bindCameraMouseAction(const std::string& context,
-                                   const std::string& action)
-        {
-            bindingRegistry->bind(InputBinding{
-                                  action,
-                                  InputTrigger{InputTrigger::Type::MouseButton, 1},
-                                  ActivationMode::Held,
-                                  context,
-                                  PausePolicy::AlwaysActive,
-                                  false});
         }
 };
