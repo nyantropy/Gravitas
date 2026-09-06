@@ -22,7 +22,10 @@ This document records the repository style contract for the Gravitas engine. It 
 
 ## Files
 
-- Use `.hpp` for a combined codefile - try to avoid splitting code into .cpp and .hpp files.
+- Keep small value types, templates, and genuinely small inline functions header-only.
+- Put substantial non-template implementations in a neighboring `.cpp` file. Keep the public header focused on the contract, using the feature's existing `.h` or `.hpp` convention.
+- Keep header/implementation pairs together in the owning feature folder; do not create separate include/source directory trees just for this split.
+- Use a private implementation (`std::unique_ptr<Impl>`) selectively when private state otherwise exposes large implementation dependencies. Define its destructor out of line. Do not apply this pattern to small types or hot-path data by default.
 - Use `#pragma once` for headers.
 - Keep one primary type or tightly related type group per file.
 - Put code in the module that owns the behavior. Avoid adding catch-all helper files.
@@ -41,7 +44,9 @@ This document records the repository style contract for the Gravitas engine. It 
 ## Includes
 
 - Include what a file uses directly.
-- Do not use forward declarations. Include the header for the type instead.
+- Forward-declare project types when declarations only need incomplete types, such as pointer/reference parameters. Include complete definitions for base classes, value members, and code that accesses the type.
+- Do not manually forward-declare standard-library types. Include their standard headers.
+- Implementation files include their own public header first, then their implementation dependencies.
 - Keep include ordering simple: standard library, external libraries, then engine headers.
 - Avoid hidden dependencies through transitive includes.
 
@@ -95,6 +100,8 @@ This document records the repository style contract for the Gravitas engine. It 
 
 ## Cleanup Policy
 
+- Treat compile-time dependencies as part of module boundaries. Implementation-only edits should not recompile unrelated clients.
+- Measure representative compile/rebuild costs before and after build-performance work. Keep optimization flags and workload consistent, and distinguish per-file compile time from full-build time.
 - Remove dead code after confirming there are no first-party references.
 - Prefer deleting obsolete abstractions over layering new code around them.
 - Keep behavioral changes small and verifiable.

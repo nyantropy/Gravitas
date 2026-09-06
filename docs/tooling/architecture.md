@@ -17,6 +17,13 @@ individual scenes. It updates against the active scene ECS world so tools can
 inspect and edit the currently running scene without applications installing
 editor systems.
 
+`EngineToolRuntime.hpp` is the small public runtime contract. Its concrete
+systems and persistent editor state live in `EngineToolRuntime.cpp`, behind one
+privately owned implementation object. Tool-system changes therefore do not
+propagate through this header into engine clients. The tooling target declares
+its physics implementation dependency directly instead of relying on application
+include paths. Public lifecycle behavior is unchanged.
+
 The active editor surface is:
 
 - a retained `EngineToolShellComposition`

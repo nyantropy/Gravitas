@@ -30,4 +30,5 @@ target_link_libraries(gravitas_tools PUBLIC
     gravitas_core
     gravitas_rendering
     gravitas_debugdraw
+    PRIVATE gravitas_physics
 )
