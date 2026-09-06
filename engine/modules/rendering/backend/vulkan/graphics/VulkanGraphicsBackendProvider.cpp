@@ -16,6 +16,7 @@ namespace gts::rendering
 
     void installDefaultGraphicsBackends(GraphicsBackendRegistry& registry)
     {
+        // static lifetime keeps the registrys borrowed provider pointer valid
         static const VulkanGraphicsBackendProvider provider;
         registry.registerProvider(provider);
     }

@@ -27,6 +27,11 @@ EngineConfig
 rewrite it. `GraphicsConfig` similarly remains a const initialization snapshot
 inside the graphics backend; accepted preferences are stored separately.
 
+The default backend registry is a temporary passed to the `GtsPlatform`
+constructor. The platform uses it to create the selected backend and owns the
+returned graphics module. Neither the engine nor the platform retains the
+registry after construction.
+
 Types live beside their owners, not inside `EngineConfig.h`:
 
 | Type | Source ownership | Application |

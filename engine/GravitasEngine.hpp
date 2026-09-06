@@ -34,10 +34,8 @@
 class GravitasEngine
 {
     private:
+    // how the engine is configured
     const EngineConfig engineConfig;
-
-    // registered graphics backends installed before platform creation
-    gts::rendering::GraphicsBackendRegistry graphicsBackends;
 
     // OS-facing subsystems: graphics, windowing, input
     GtsPlatform platform;
@@ -87,6 +85,7 @@ class GravitasEngine
     uint32_t           lastSimulationTickCount = 0;
     ProfileAccumulator profiler;
 
+    // registered graphics backends installed before platform creation
     static gts::rendering::GraphicsBackendRegistry createDefaultGraphicsBackendRegistry()
     {
         gts::rendering::GraphicsBackendRegistry registry;
@@ -272,8 +271,7 @@ class GravitasEngine
     public:
     explicit GravitasEngine(EngineConfig config = EngineConfig{})
         : engineConfig(std::move(config))
-        , graphicsBackends(createDefaultGraphicsBackendRegistry())
-        , platform(engineConfig, graphicsBackends)
+        , platform(engineConfig, createDefaultGraphicsBackendRegistry())
     {
         gameLoop.init(engineConfig);
         maxFrameRate   = engineConfig.graphics.settings.framePacing.maxFrameRate;
