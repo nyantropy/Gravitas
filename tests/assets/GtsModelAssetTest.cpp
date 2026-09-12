@@ -1,7 +1,7 @@
 #include "assets/model/GtsModelAsset.h"
 #include "assets/model/GtsModelImportResult.h"
 #include "assets/model/GtsModelValidation.h"
-#include "assets/model/IGtsModelImporter.h"
+#include "assets/importer/IGtsModelImporter.h"
 
 #include <cstdint>
 #include <cstdio>

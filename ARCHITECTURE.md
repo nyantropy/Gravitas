@@ -60,6 +60,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
 
 - [docs/assets/model-domain.md](docs/assets/model-domain.md): canonical CPU model
   assets, semantic vertex streams, validation, and the model-importer boundary.
+- [docs/assets/obj-importer.md](docs/assets/obj-importer.md): standalone canonical
+  OBJ strategy, source interpretation, diagnostics, and transitional parser sharing.
 - [docs/json/architecture.md](docs/json/architecture.md): shared JSON syntax,
   value trees, schema ownership, error handling, and migration contracts.
 - [docs/settings/architecture.md](docs/settings/architecture.md): subsystem-owned
@@ -258,10 +260,13 @@ so a screenshot requested alongside quit still captures the final frame.
 ## Resource Model
 
 `core/assets/model/` owns the source-format-independent, renderer-independent
-`GtsModelAsset` domain and `IGtsModelImporter` contract. Future file-backed model
-importers return validated assets through `GtsModelImportResult`; runtime
-realization is a separate responsibility. No existing importer or runtime path
-has been migrated to this contract yet.
+`GtsModelAsset` domain. `core/assets/importer/` owns the `IGtsModelImporter`
+contract and concrete strategies. File-backed model importers return validated
+assets through `GtsModelImportResult`; runtime realization is a
+separate responsibility. `core/assets/importer/obj/` provides the first
+standalone strategy, `GtsObjModelImporter`. Its target depends on core and TinyOBJ,
+and is not linked into the runtime umbrella. Existing cooker/runtime consumers
+still use the legacy importers; no consumer has been migrated yet.
 Model materials describe CPU appearance and reference model-local image inputs
 with explicit UV sets and scalar channels. Shader policy, cooked texture identity,
 and runtime material state remain outside the canonical domain.

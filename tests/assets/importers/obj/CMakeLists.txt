@@ -1,0 +1,4 @@
+add_executable(GtsObjModelImporterTest GtsObjModelImporterTest.cpp)
+target_link_libraries(GtsObjModelImporterTest PRIVATE gravitas_obj_importer)
+add_test(NAME gts_obj_model_importer COMMAND GtsObjModelImporterTest)
+set_tests_properties(gts_obj_model_importer PROPERTIES LABELS "gravitas;assets;importer;cpu")

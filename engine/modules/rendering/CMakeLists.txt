@@ -16,7 +16,6 @@ file(GLOB_RECURSE RENDERING_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/runtime/*.cpp"
 )
 list(APPEND RENDERING_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/external/tiny_obj_loader_impl.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/external/stb_image_impl.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/external/stb_image_write_impl.cpp"
 )
@@ -102,6 +101,7 @@ target_include_directories(gravitas_rendering PUBLIC
 target_link_libraries(gravitas_rendering PUBLIC
     glfw
     gravitas_core
+    PRIVATE gravitas_tinyobj
 )
 
 if(TARGET gravitas_vulkan_backend)

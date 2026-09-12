@@ -1,7 +1,8 @@
 # Canonical Model Asset Domain
 
-`engine/core/assets/model/` owns `GtsModelAsset` and `IGtsModelImporter`.
-It compiles into `gravitas_core` and depends only on the standard library and
+`engine/core/assets/model/` owns `GtsModelAsset`. The `IGtsModelImporter` interface
+and its concrete strategies live together under `engine/core/assets/importer/`.
+The model domain compiles into `gravitas_core` and depends only on the standard library and
 the engine's `GlmConfig.h`. It has no renderer, Vulkan, ECS, or parser dependency.
 
 The boundary for future file-backed model importers is:
@@ -12,10 +13,10 @@ source file -> IGtsModelImporter -> GtsModelImportResult -> GtsModelAsset
                                                     future runtime realization
 ```
 
-This is a domain and contract foundation only. No concrete importer or runtime
-consumer uses it yet. Existing OBJ loading, tooling OBJ/glTF importers, cooked
-asset types, and runtime realization remain unchanged. Their migration is a
-separate task; the old model representation is not a permanent alternative.
+The standalone [GtsObjModelImporter](obj-importer.md) now produces this domain.
+No cooker or runtime consumer uses it yet. Existing OBJ loading, tooling OBJ/glTF
+importers, cooked asset types, and runtime realization remain unchanged. Their
+migration is a separate task; the old representation is not a permanent alternative.
 
 ## Ownership and geometry
 
@@ -199,7 +200,7 @@ requires an explicit importer diagnostic/conversion decision, not silent repair.
 `GtsModelImportResult` by value. Include `GtsModelImportResult.h` when implementing
 or calling the interface; the interface header only forward-declares the result.
 No selection registry, importer options, file IO implementation, or loader exists
-in this domain yet.
+in the model domain. Source file IO belongs to the neighboring importer strategies.
 
 Use `GtsModelImportResult::success(asset, diagnostics)` to finalize an import.
 It validates the asset before exposing it. Any validation or importer error
