@@ -105,7 +105,7 @@ target_include_directories(gravitas_rendering PUBLIC
 target_link_libraries(gravitas_rendering PUBLIC
     glfw
     gravitas_core
-    PRIVATE gravitas_obj_importer gravitas_static_geometry
+    PRIVATE gravitas_obj_importer gravitas_static_geometry gravitas_gltf_source
     PUBLIC gravitas_assets
 )
 

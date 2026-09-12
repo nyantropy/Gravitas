@@ -14,7 +14,9 @@ source file -> IGtsModelImporter -> GtsModelImportResult -> GtsModelAsset
 ```
 
 [GtsObjModelImporter](obj-importer.md) produces this domain for both OBJ cooking
-and development runtime source loading. glTF/GLB remains on its legacy cooking path.
+and development runtime source loading. [GtsGltfModelImporter](gltf-importer.md)
+now also produces the canonical domain independently. glTF/GLB consumers remain
+on their legacy cooking path until the later cutover.
 See [consumer adaptation](obj-consumers.md) for cooked-v1 and runtime limitations.
 The source-neutral [static geometry preparation stage](static-geometry.md) now
 consumes individual canonical meshes below the format wall. Its generated/default
@@ -149,7 +151,7 @@ even outside Mask so dormant fields cannot carry malformed values. Validation
 does not clamp, decode, generate UVs, or check image channel availability.
 `GtsModelImportResult::success` applies these checks automatically.
 
-### Importer mappings (OBJ implemented; glTF remains legacy)
+### Importer mappings (canonical strategies implemented; glTF consumers remain legacy)
 
 | Existing OBJ import output | Canonical destination |
 | --- | --- |

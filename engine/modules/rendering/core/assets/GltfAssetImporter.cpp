@@ -1,5 +1,6 @@
 #include "GltfAssetImporter.h"
 #include "GtsJsonParser.h"
+#include "assets/importer/gltf/GltfSourceUtilities.h"
 
 #include <algorithm>
 #include <array>
@@ -21,6 +22,7 @@ namespace gts::rendering
 {
 namespace
 {
+    using namespace gts::gltf;
 
     glm::vec3 vec3Value(const GtsJsonValue* value, glm::vec3 fallback = {})
     {
@@ -74,94 +76,12 @@ namespace
         result.dependencies.push_back({std::move(path), type, required});
     }
 
-    bool readFileBytes(const std::filesystem::path& path,
-                       std::vector<uint8_t>& bytes)
-    {
-        std::ifstream file(path, std::ios::binary | std::ios::ate);
-        if (!file)
-            return false;
-        const std::streamsize size = file.tellg();
-        if (size < 0)
-            return false;
-        file.seekg(0, std::ios::beg);
-        bytes.resize(static_cast<size_t>(size));
-        return bytes.empty() || static_cast<bool>(file.read(reinterpret_cast<char*>(bytes.data()), size));
-    }
-
     std::string readFileText(const std::filesystem::path& path)
     {
         std::ifstream file(path, std::ios::binary);
         std::ostringstream stream;
         stream << file.rdbuf();
         return stream.str();
-    }
-
-    uint32_t readU32LE(const std::vector<uint8_t>& bytes, size_t offset)
-    {
-        if (offset + 4u > bytes.size())
-            return 0;
-        return static_cast<uint32_t>(bytes[offset + 0u])
-            | (static_cast<uint32_t>(bytes[offset + 1u]) << 8u)
-            | (static_cast<uint32_t>(bytes[offset + 2u]) << 16u)
-            | (static_cast<uint32_t>(bytes[offset + 3u]) << 24u);
-    }
-
-    int base64Value(char ch)
-    {
-        if (ch >= 'A' && ch <= 'Z')
-            return ch - 'A';
-        if (ch >= 'a' && ch <= 'z')
-            return ch - 'a' + 26;
-        if (ch >= '0' && ch <= '9')
-            return ch - '0' + 52;
-        if (ch == '+')
-            return 62;
-        if (ch == '/')
-            return 63;
-        return -1;
-    }
-
-    bool decodeBase64(std::string_view encoded, std::vector<uint8_t>& bytes)
-    {
-        bytes.clear();
-        uint32_t accumulator = 0;
-        int bits = 0;
-        for (char ch : encoded)
-        {
-            if (std::isspace(static_cast<unsigned char>(ch)) != 0)
-                continue;
-            if (ch == '=')
-                break;
-            const int value = base64Value(ch);
-            if (value < 0)
-                return false;
-            accumulator = (accumulator << 6u) | static_cast<uint32_t>(value);
-            bits += 6;
-            if (bits >= 8)
-            {
-                bits -= 8;
-                bytes.push_back(static_cast<uint8_t>((accumulator >> bits) & 0xFFu));
-            }
-        }
-        return true;
-    }
-
-    bool decodeDataUri(const std::string& uri,
-                       std::string& mimeType,
-                       std::vector<uint8_t>& bytes)
-    {
-        if (!uri.starts_with("data:"))
-            return false;
-        const size_t comma = uri.find(',');
-        if (comma == std::string::npos)
-            return false;
-        const std::string metadata = uri.substr(5u, comma - 5u);
-        const bool base64 = metadata.find(";base64") != std::string::npos;
-        const size_t semicolon = metadata.find(';');
-        mimeType = metadata.substr(0u, semicolon == std::string::npos ? metadata.size() : semicolon);
-        if (!base64)
-            return false;
-        return decodeBase64(std::string_view(uri).substr(comma + 1u), bytes);
     }
 
     std::string extensionForMimeType(const std::string& mimeType)
@@ -213,54 +133,6 @@ namespace
         std::vector<BufferView> bufferViews;
         std::vector<Accessor> accessors;
     };
-
-    size_t componentSize(int32_t componentType)
-    {
-        switch (componentType)
-        {
-            case 5120:
-            case 5121:
-                return 1;
-            case 5122:
-            case 5123:
-                return 2;
-            case 5125:
-            case 5126:
-                return 4;
-        }
-        return 0;
-    }
-
-    size_t componentCountForType(const std::string& type)
-    {
-        if (type == "SCALAR")
-            return 1;
-        if (type == "VEC2")
-            return 2;
-        if (type == "VEC3")
-            return 3;
-        if (type == "VEC4")
-            return 4;
-        if (type == "MAT4")
-            return 16;
-        return 0;
-    }
-
-    float normalizedIntegerValue(int64_t value, int32_t componentType)
-    {
-        switch (componentType)
-        {
-            case 5120:
-                return std::max(static_cast<float>(value) / 127.0f, -1.0f);
-            case 5121:
-                return static_cast<float>(value) / 255.0f;
-            case 5122:
-                return std::max(static_cast<float>(value) / 32767.0f, -1.0f);
-            case 5123:
-                return static_cast<float>(value) / 65535.0f;
-        }
-        return static_cast<float>(value);
-    }
 
     bool readAccessorComponent(const GltfData& data,
                                const Accessor& accessor,
@@ -407,58 +279,6 @@ namespace
             view.byteLength = value.findUInt32("byteLength").value_or(0);
             view.byteStride = value.findUInt32("byteStride").value_or(0);
             bufferViews.push_back(view);
-        }
-        return true;
-    }
-
-    bool readGlb(const std::filesystem::path& sourcePath,
-                 std::string& jsonText,
-                 std::vector<uint8_t>& binChunk,
-                 std::string& error)
-    {
-        std::vector<uint8_t> bytes;
-        if (!readFileBytes(sourcePath, bytes))
-        {
-            error = "Could not read GLB file";
-            return false;
-        }
-        if (bytes.size() < 12u ||
-            readU32LE(bytes, 0u) != 0x46546C67u ||
-            readU32LE(bytes, 4u) != 2u)
-        {
-            error = "GLB header is invalid or unsupported";
-            return false;
-        }
-
-        size_t cursor = 12u;
-        while (cursor + 8u <= bytes.size())
-        {
-            const uint32_t chunkLength = readU32LE(bytes, cursor);
-            const uint32_t chunkType = readU32LE(bytes, cursor + 4u);
-            cursor += 8u;
-            if (cursor + chunkLength > bytes.size())
-            {
-                error = "GLB chunk range is invalid";
-                return false;
-            }
-            if (chunkType == 0x4E4F534Au)
-            {
-                jsonText.assign(
-                    reinterpret_cast<const char*>(bytes.data() + cursor),
-                    chunkLength);
-            }
-            else if (chunkType == 0x004E4942u)
-            {
-                binChunk.assign(bytes.begin() + static_cast<std::ptrdiff_t>(cursor),
-                                bytes.begin() + static_cast<std::ptrdiff_t>(cursor + chunkLength));
-            }
-            cursor += chunkLength;
-        }
-
-        if (jsonText.empty())
-        {
-            error = "GLB file does not contain a JSON chunk";
-            return false;
         }
         return true;
     }

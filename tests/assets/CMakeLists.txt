@@ -10,3 +10,4 @@ set_tests_properties(gts_model_material PROPERTIES LABELS "gravitas;assets;cpu")
 
 add_subdirectory(importers/obj)
 add_subdirectory(processing/geometry)
+add_subdirectory(importers/gltf)

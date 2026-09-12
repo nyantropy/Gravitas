@@ -63,6 +63,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
   assets, semantic vertex streams, validation, and the model-importer boundary.
 - [docs/assets/obj-importer.md](docs/assets/obj-importer.md): standalone canonical
   OBJ strategy, source interpretation, diagnostics, and canonical consumer integration.
+- [docs/assets/gltf-importer.md](docs/assets/gltf-importer.md): canonical glTF/GLB
+  strategy, shared source decoding, scene policy, and explicit unsupported features.
 - [docs/assets/static-geometry.md](docs/assets/static-geometry.md): source-neutral
   static geometry preparation, primitive ranges, defaults, generation, and metadata.
 - [docs/json/architecture.md](docs/json/architecture.md): shared JSON syntax,
@@ -279,7 +281,10 @@ to the existing single-mesh storage/resource contract. `modules/assets/runtime/`
 owns CPU mesh loading and cooked/source selection, with the existing strict policy.
 The renderer links the importer and preparation targets through these consumers;
 TinyOBJ remains private to the importer. glTF/GLB still uses `GltfAssetImporter`
-and legacy import DTOs in the cooker. Cooked v1 serializers and GPU upload are unchanged.
+and legacy import DTOs in the cooker. `modules/assets/importer/gltf/` now also
+provides the independent canonical `GtsGltfModelImporter`, with no consumer cutover.
+Its CPU source utilities and stricter GLB framing are shared with the legacy
+importer. Cooked v1 serializers and GPU upload are unchanged.
 See [OBJ consumer migration](docs/assets/obj-consumers.md) for adaptation limits.
 `modules/assets/processing/geometry/` consumes canonical meshes for the current
 static rendering profile. It prepares CPU `Vertex` buffers and primitive ranges
