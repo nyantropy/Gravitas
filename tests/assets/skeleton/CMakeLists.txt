@@ -1,0 +1,4 @@
+add_executable(GtsSkeletonAssetTest GtsSkeletonAssetTest.cpp)
+target_link_libraries(GtsSkeletonAssetTest PRIVATE gravitas_skeleton_assets)
+add_test(NAME gts_skeleton_asset COMMAND GtsSkeletonAssetTest)
+set_tests_properties(gts_skeleton_asset PROPERTIES LABELS "gravitas;assets;skeleton;cpu")

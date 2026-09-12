@@ -38,7 +38,7 @@ This file is the engine architecture entrypoint. Feature details live under
 engine/
   core/                  pure ECS, input, scene, command, event, UI runtime, JSON
   modules/
-    assets/              canonical model domain, importers, static geometry processing
+    assets/              canonical model/skeleton domains, importers, static geometry processing
     transform/           local/world transforms and hierarchy
     animation/           keyframe animation
     tween/               reusable tween/easing helpers
@@ -61,6 +61,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
 
 - [docs/assets/model-domain.md](docs/assets/model-domain.md): canonical CPU model
   assets, semantic vertex streams, validation, and the model-importer boundary.
+- [docs/assets/skeleton-domain.md](docs/assets/skeleton-domain.md): reusable CPU
+  evaluation hierarchies, default transforms, validation, and exact compatibility.
 - [docs/assets/obj-importer.md](docs/assets/obj-importer.md): standalone canonical
   OBJ strategy, source interpretation, diagnostics, and canonical consumer integration.
 - [docs/assets/gltf-importer.md](docs/assets/gltf-importer.md): canonical glTF/GLB
@@ -268,6 +270,15 @@ so a screenshot requested alongside quit still captures the final frame.
 source-neutral processing. `gravitas_assets` owns the CPU domain and depends on
 core; parser and static-profile processing dependencies stay in separate targets
 within the same module. Core has no dependency on the assets module.
+
+`modules/assets/skeleton/` owns the separate CPU-only `gravitas_skeleton_assets`
+target. `GtsSkeletonAsset` stores stable local node IDs, display names,
+parent-before-child forests, and quaternion-TRS or exact affine default local
+transforms. Helpers may be evaluation nodes. Validation rejects malformed data
+without repair; exact compatibility compares ordered IDs, parents, and stored
+transforms, ignoring display names. This is immutable asset data, not a runtime
+pose or mesh skin binding. No importer/model/cooker/runtime integration exists;
+canonical glTF import still rejects actual skin references.
 
 `modules/assets/model/` owns the source-format-independent, renderer-independent
 `GtsModelAsset` domain. `modules/assets/importer/` owns the `IGtsModelImporter`
