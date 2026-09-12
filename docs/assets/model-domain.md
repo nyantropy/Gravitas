@@ -10,13 +10,12 @@ The boundary for future file-backed model importers is:
 ```text
 source file -> IGtsModelImporter -> GtsModelImportResult -> GtsModelAsset
                                                                |
-                                                    future runtime realization
+                                                    static preparation / runtime realization
 ```
 
-The standalone [GtsObjModelImporter](obj-importer.md) now produces this domain.
-No cooker or runtime consumer uses it yet. Existing OBJ loading, tooling OBJ/glTF
-importers, cooked asset types, and runtime realization remain unchanged. Their
-migration is a separate task; the old representation is not a permanent alternative.
+[GtsObjModelImporter](obj-importer.md) produces this domain for both OBJ cooking
+and development runtime source loading. glTF/GLB remains on its legacy cooking path.
+See [consumer adaptation](obj-consumers.md) for cooked-v1 and runtime limitations.
 The source-neutral [static geometry preparation stage](static-geometry.md) now
 consumes individual canonical meshes below the format wall. Its generated/default
 vertex fields belong only to the prepared static profile and never alter this domain.
@@ -48,7 +47,7 @@ Nodes store names, local `glm::mat4` transforms (identity by default), children,
 and optional mesh indices. Matrices preserve imported transforms without forcing
 them through the ECS Euler-angle transform representation. Children are the only
 stored parent/child relationship; parents can be derived. World transforms would
-compose as `parentWorld * localTransform` during future runtime realization.
+compose as `parentWorld * localTransform` during static preparation / runtime realization.
 
 `validateGtsModelPrimitive` checks nonempty Position[0], canonical semantic types,
 unique semantic/set pairs, equal nonzero stream lengths, finite attribute values,
@@ -116,8 +115,8 @@ remain **independent inputs**. Separate OBJ maps can retain both images, while
 a packed image can be shared by metallic/Blue and roughness/Green (and AO/Red).
 This is channel selection, not a source-format flag. Downstream processing can
 combine maps using these explicit semantics without inspecting the source
-format. Existing cooking currently chooses the metallic path or the roughness
-path, and does not combine the two; that implementation is unchanged here.
+format. Canonical OBJ cooking now packs these channels explicitly into the current
+v1 metallic/roughness output; glTF cooking still uses its legacy packed input.
 
 `GtsModelImage.h` provides only the input ownership needed to make embedded
 references meaningful. Each image has an optional name and exactly one source:
@@ -150,7 +149,7 @@ even outside Mask so dormant fields cannot carry malformed values. Validation
 does not clamp, decode, generate UVs, or check image channel availability.
 `GtsModelImportResult::success` applies these checks automatically.
 
-### Mapping the existing importers (no migration yet)
+### Importer mappings (OBJ implemented; glTF remains legacy)
 
 | Existing OBJ import output | Canonical destination |
 | --- | --- |
@@ -163,7 +162,7 @@ does not clamp, decode, generate UVs, or check image channel availability.
 | Ambient texture path | Scalar `ambientOcclusionImage`, retaining the existing AO interpretation |
 | Emissive texture path | `emissiveImage` |
 | Dissolve < 1 gives Blend | `alphaMode = Blend`; otherwise Opaque |
-| Other factors / cutoff / sidedness | Canonical defaults unless the future importer interprets additional source data |
+| Other factors / cutoff / sidedness | Canonical defaults unless the importer interprets additional source data |
 
 | Existing glTF import output | Canonical destination |
 | --- | --- |
@@ -186,10 +185,8 @@ versions, and resolved texture IDs. `.gmat` IDs, dependencies, and cooked refere
 are storage concerns. None enter this domain. The legacy importer does not
 implement a source-authored unlit material semantic.
 
-The OBJ fallback that calls a bump/height map a normal map is not a correct height
-interpretation. This contract defines normal maps only; future OBJ migration
-must deliberately convert, diagnose, or omit height maps rather than label them
-as tangent normals. OBJ ambient color, specular/shininess, optical density,
+The former OBJ fallback treated height maps as normal maps. Canonical OBJ import
+now diagnoses and omits height maps, preserving only actual normal maps. OBJ ambient color, specular/shininess, optical density,
 illumination modes, displacement, separate opacity maps, map options, and glTF
 material extensions other than emissive strength are not currently preserved by
 the legacy importers and are not added here. Samplers, UV transforms, height-map

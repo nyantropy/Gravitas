@@ -1,5 +1,9 @@
 # Asset Pipeline Phase 4.5 Migration Report
 
+> Historical architecture/phase record. OBJ now uses the canonical pipeline;
+> old importer/loader names below describe superseded code, not available APIs.
+> See [current OBJ consumers](assets/obj-consumers.md).
+
 ## Inventory
 
 Required root-level documents named in the task were not present in this

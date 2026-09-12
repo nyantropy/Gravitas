@@ -14,7 +14,7 @@
 
 #include "MeshAssetLoader.h"
 #include "MeshResource.h"
-#include "GtsModelLoader.hpp"
+#include "assets/runtime/RuntimeMeshLoading.h"
 #include "IResourceProvider.hpp"
 #include "RuntimeAssetPolicy.h"
 #include "VulkanBackendContext.h"
@@ -39,32 +39,10 @@ class MeshManager
 
         std::string preferredMeshLoadPath(const std::string& path)
         {
-            if (gts::rendering::isCookedMeshAssetPath(path))
-                return path;
-
-            const std::filesystem::path cookedPath =
-                gts::rendering::expectedCookedMeshAssetPath(path);
-            if (std::filesystem::exists(cookedPath))
-                return cookedPath.string();
-
-            if (!gts::rendering::isRuntimeSourceMeshAssetPath(path))
-                return path;
-
-            if (!gts::rendering::runtimeSourceAssetFallbackAllowed())
-            {
-                throw std::runtime_error(
-                    "Cooked mesh asset is required by the runtime asset policy.\n"
-                    "  Source asset: " + path + "\n"
-                    "  Expected cooked asset: " + cookedPath.string());
-            }
-
-            if (!gts::rendering::runtimeSourceMeshFallbackSupported(path))
-            {
-                throw std::runtime_error(
-                    "Cooked mesh asset is missing and no runtime source loader exists for this source format.\n"
-                    "  Source asset: " + path + "\n"
-                    "  Expected cooked asset: " + cookedPath.string());
-            }
+            const auto resolved = gts::rendering::resolveRuntimeMeshPath(path);
+            if (gts::rendering::isCookedMeshAssetPath(resolved))
+                return resolved.string();
+            const auto cookedPath = gts::rendering::expectedCookedMeshAssetPath(path);
 
             if (sourceFallbackWarnings.insert(path).second)
             {
@@ -205,6 +183,15 @@ class MeshManager
             mesh.submeshes = std::move(asset.submeshes);
         }
 
+        static void loadMeshCpu(const std::string& path, MeshResource& mesh)
+        {
+            std::vector<GtsModelDiagnostic> diagnostics;
+            auto asset = gts::rendering::loadRuntimeMeshAsset(path, diagnostics);
+            for (const auto& diagnostic : diagnostics)
+                std::cerr << "[assets] " << diagnostic.code << ": " << diagnostic.message << '\n';
+            populateMeshResourceFromAssetData(mesh, std::move(asset));
+        }
+
         explicit MeshManager(VulkanBackendContext& backendContext) : backendContext(backendContext) {}
 
         ~MeshManager()
@@ -251,18 +238,7 @@ class MeshManager
 
             auto mesh = std::make_unique<MeshResource>();
 
-            if (gts::rendering::isCookedMeshAssetPath(loadPath))
-            {
-                gts::rendering::MeshAssetData asset;
-                std::string error;
-                if (!gts::rendering::MeshAssetLoader::load(loadPath, asset, &error))
-                    throw std::runtime_error("Failed to load cooked mesh asset '" + loadPath + "': " + error);
-                populateMeshResourceFromAssetData(*mesh, std::move(asset));
-            }
-            else
-            {
-                mesh->metadata = GtsModelLoader::loadModel(loadPath, mesh->vertices, mesh->indices);
-            }
+            loadMeshCpu(loadPath, *mesh);
 
             BufferUtil::createVertexBuffer(
                 backendContext.device(), backendContext.physicalDevice(),

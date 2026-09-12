@@ -432,7 +432,7 @@ int main()
 
     gts::rendering::MeshAssetData meshAsset;
     assert(gts::rendering::MeshAssetLoader::load(meshPath, meshAsset, &error));
-    assert(meshAsset.vertices.size() == 4);
+    assert(meshAsset.vertices.size() == 6);
     assert(meshAsset.indices.size() == 6);
     assert(meshAsset.submeshes.size() == 2);
     assert(meshAsset.submeshes[0].indexCount == 3);
@@ -441,10 +441,10 @@ int main()
 
     MeshResource resource;
     MeshManager::populateMeshResourceFromAssetData(resource, std::move(meshAsset));
-    assert(resource.vertices.size() == 4);
+    assert(resource.vertices.size() == 6);
     assert(resource.indices.size() == 6);
     assert(resource.submeshes.size() == 2);
-    assert(resource.metadata.vertexCount == 4);
+    assert(resource.metadata.vertexCount == 6);
     assert(resource.metadata.indexCount == 6);
     assert(resource.vertexBuffer == VK_NULL_HANDLE);
     assert(resource.indexBuffer == VK_NULL_HANDLE);

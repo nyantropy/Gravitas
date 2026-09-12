@@ -1,5 +1,9 @@
 # Asset Pipeline Phase 1 Implementation Report
 
+> Historical architecture/phase record. OBJ now uses the canonical pipeline;
+> old importer/loader names below describe superseded code, not available APIs.
+> See [current OBJ consumers](assets/obj-consumers.md).
+
 ## Summary
 
 Implemented the first engine-owned, CPU-only asset boundary for OBJ mesh import.

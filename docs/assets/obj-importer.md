@@ -9,36 +9,27 @@ OBJ / MTL -> TinyOBJ -> GtsObjModelImporter -> GtsModelAsset
                                                |
                                            FORMAT WALL
                                                |
-                              future processing/cooking/realization
+                              static preparation -> cooking / runtime realization
 ```
 
 It does not use legacy imported DTOs, renderer vertices, runtime resources,
-Vulkan, ECS, image decoders, or cooked formats. No selection registry or production
-consumer integration is introduced. The existing OBJ importer remains operational
-only until its consumers migrate; the new strategy is the intended authority.
+Vulkan, ECS, image decoders, or cooked formats. It is the sole OBJ interpretation
+implementation. Both production consumers use it; the former renderer-coupled
+OBJ importer and backend OBJ loader have been deleted.
 
 ## Build boundary and reuse
 
-`gravitas_obj_importer` is a standalone static target depending publicly on
-`gravitas_assets` and privately on `gravitas_tinyobj`. Its public header includes
-only the Strategy interface; TinyOBJ types stay in private implementation files.
-The importer is not linked into `gravitas_engine` or `gravitas_modules`.
-The interface lives at `modules/assets/importer/IGtsModelImporter.h`, alongside the
-`obj/` strategy folder. The collective assets module builds its canonical domain,
-importers, and static processing through focused targets; core owns none of their sources.
+`gravitas_obj_importer` depends publicly on `gravitas_assets` and privately on
+`gravitas_tinyobj`. TinyOBJ headers and implementation remain in this strategy's
+folder. Rendering links the strategy for its cooking/runtime consumers and has
+no direct TinyOBJ target dependency. Canonical domain and preparation remain
+independently testable with rendering disabled.
 
-The unchanged TinyOBJ implementation translation unit moved out of rendering
-into a shared `gravitas_tinyobj` target. Legacy `gravitas_rendering` links that
-parser target, so both importers use the same parser implementation and build
-settings without duplicate parser definitions. Legacy importer behavior and
-callers are unchanged. No renderer implementation code was modified.
+The implementation reuses TinyOBJ's `LoadObj`, triangulation, independent corner
+indices, `LoadMtl`, and map-option decoding. `ObjSourceReader` handles source
+validation, authored color detection, and MTL-relative image identity.
 
-The new implementation reuses TinyOBJ's `LoadObj`, triangulation, independent
-corner indices, material lookup, `LoadMtl`, and map-option decoding directly.
-Renderer-coupled legacy conversion helpers are not called. The small tuple and
-source-value interpretation is implemented locally because the required partial
-stream policy differs from legacy mesh-wide defaults. It must supersede the old
-conversion when consumers migrate, rather than become a permanent second path.
+See [OBJ consumers](obj-consumers.md) for cooking and runtime adaptation.
 
 ## Geometry
 
@@ -119,7 +110,7 @@ provide separate scalar channels without source-specific downstream behavior.
 
 Unauthored Kd/Pm/Pr/Ke use canonical defaults, rather than TinyOBJ's zero-filled
 material initialization. This deliberately differs from the old conversion for
-unspecified Kd/Pr; existing consumers still run that old conversion unchanged.
+unspecified Kd/Pr; cooking and development source loading now use these canonical defaults.
 TinyOBJ handles `d` versus `Tr` precedence. Canonical validation rejects malformed
 factor ranges instead of silently clamping them.
 
@@ -141,7 +132,7 @@ The current request carries only a source path; the result carries an asset and
 diagnostics. There is no importer-facing dependency/provenance carrier. External
 image paths remain available in the model, and diagnostics identify source
 locations, but OBJ/MTL dependency lists are not exported. Add an appropriate
-import/cooker-facing contract when consumer migration needs it; no dependency
+import/cooker-facing contract when dependency tracking requires it; no dependency
 tables or cooked IDs were added to `GtsModelAsset` here.
 
 ## Tests

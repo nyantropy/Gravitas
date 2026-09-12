@@ -103,12 +103,9 @@ authoritative for future consumers needing individual capabilities.
 
 ## Bounds and dependencies
 
-Bounds are deliberately deferred in this step. The current `AssetBounds` is in
-renderer-coupled `AssetTypes.h`, and `computeAssetBounds` is in `AssetCooker.h`.
-The runtime alternative is an ECS `BoundsComponent`. Reusing those would import
-forbidden dependencies; moving them would change cooker/runtime contracts outside
-this task. No duplicate bounds type or calculation is introduced. A narrow shared
-CPU bounds contract can be extracted when the next consumer migration needs it.
+The prepared type does not own bounds. The downstream flat-model adapter computes
+existing `AssetBounds` over all combined prepared positions using the cooker's
+CPU bounds function. This keeps storage/runtime headers out of preparation.
 
 The preparation target links `gravitas_assets` (and transitively core) and exposes the existing narrow
 `rendering/core/geometry` header directory for `Vertex` and metadata. The reused
@@ -117,9 +114,9 @@ to `gravitas_rendering`, GLFW, Vulkan, TinyOBJ, or the importer is required, and
 existing geometry source needed extraction. The module location preserves the
 rule that core domain headers must not depend on module contracts.
 
-The target is available with rendering disabled and is not linked into the runtime
-umbrella. No importer, cooker, serializer, runtime loader, ECS binding, or renderer
-calls it yet. Existing production paths continue to use their unchanged preparation.
+The target is available with rendering disabled. OBJ cooking and development
+runtime loading now consume it through the source-neutral flat-model adapter.
+glTF and procedural geometry still use their existing preparation calls.
 
 ## Tests
 

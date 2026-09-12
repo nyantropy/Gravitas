@@ -1,7 +1,5 @@
 #include <cmath>
 #include <cstdio>
-#include <fstream>
-#include <string>
 #include <type_traits>
 #include <vector>
 
@@ -10,7 +8,6 @@
 #include "BitmapFont.h"
 #include "DynamicMeshComponent.h"
 #include "GlyphLayoutEngine.h"
-#include "GtsModelLoader.hpp"
 #include "MeshGeometryProcessor.h"
 #include "Vertex.h"
 #include "VulkanVertexDescription.h"
@@ -51,13 +48,6 @@ namespace
     {
         return gts::rendering::finiteVec4(vertex.tangent)
             && near(glm::dot(glm::vec3(vertex.tangent), vertex.normal), 0.0f, 0.0005f);
-    }
-
-    bool writeTextFile(const std::string& path, const std::string& contents)
-    {
-        std::ofstream out(path);
-        out << contents;
-        return out.good();
     }
 
     bool vertexLayoutMatchesBackendContract()
@@ -132,71 +122,6 @@ namespace
         return ok;
     }
 
-    bool objTupleDeduplicationPreservesSplitNormals()
-    {
-        const std::string path = "/tmp/gravitas_obj_split_normals.obj";
-        const std::string contents =
-            "o split\n"
-            "v 0 0 0\n"
-            "v 1 0 0\n"
-            "v 0 1 0\n"
-            "vt 0 0\n"
-            "vt 1 0\n"
-            "vt 0 1\n"
-            "vn 0 0 1\n"
-            "vn 0 0 -1\n"
-            "f 1/1/1 2/2/1 3/3/1\n"
-            "f 1/1/2 3/3/2 2/2/2\n";
-
-        if (!require(writeTextFile(path, contents), "test OBJ with split normals can be written"))
-            return false;
-
-        std::vector<Vertex> vertices;
-        std::vector<uint32_t> indices;
-        const MeshGeometryMetadata metadata = GtsModelLoader::loadModel(path, vertices, indices);
-        std::remove(path.c_str());
-
-        return require(vertices.size() == 6, "OBJ dedupes by position/normal/UV tuple")
-            && require(indices.size() == 6, "OBJ indices are preserved")
-            && require(!metadata.generatedNormals, "imported split normals are preserved")
-            && require(metadata.generatedTangents, "OBJ tangents are generated from imported UVs")
-            && require(hasVertexAttribute(metadata.attributes, VertexAttributeFlags::Normal), "OBJ metadata reports imported normals")
-            && require(hasVertexAttribute(metadata.attributes, VertexAttributeFlags::UV0), "OBJ metadata reports imported UVs")
-            && require(nearVec3(vertices[0].normal, {0.0f, 0.0f, 1.0f}), "first OBJ face uses +Z normal")
-            && require(nearVec3(vertices[3].normal, {0.0f, 0.0f, -1.0f}), "second OBJ face uses -Z normal");
-    }
-
-    bool objMissingNormalsAreGenerated()
-    {
-        const std::string path = "/tmp/gravitas_obj_missing_normals.obj";
-        const std::string contents =
-            "o generated\n"
-            "v 0 0 0\n"
-            "v 1 0 0\n"
-            "v 0 1 0\n"
-            "vt 0 0\n"
-            "vt 1 0\n"
-            "vt 0 1\n"
-            "f 1/1 2/2 3/3\n";
-
-        if (!require(writeTextFile(path, contents), "test OBJ without normals can be written"))
-            return false;
-
-        std::vector<Vertex> vertices;
-        std::vector<uint32_t> indices;
-        const MeshGeometryMetadata metadata = GtsModelLoader::loadModel(path, vertices, indices);
-        std::remove(path.c_str());
-
-        bool ok = require(vertices.size() == 3, "missing-normal OBJ creates expected vertices")
-            && require(metadata.generatedNormals, "missing OBJ normals are generated")
-            && require(metadata.generatedTangents, "missing OBJ tangents are generated");
-
-        for (const Vertex& vertex : vertices)
-            ok = require(nearVec3(vertex.normal, {0.0f, 0.0f, 1.0f}), "generated OBJ normal is +Z") && ok;
-
-        return ok;
-    }
-
     bool worldTextBuildsSurfaceFrame()
     {
         BitmapFont font;
@@ -246,8 +171,6 @@ int main()
     ok = vertexLayoutMatchesBackendContract() && ok;
     ok = normalAndTangentGeneration() && ok;
     ok = degenerateTangentsUseFiniteFallback() && ok;
-    ok = objTupleDeduplicationPreservesSplitNormals() && ok;
-    ok = objMissingNormalsAreGenerated() && ok;
     ok = worldTextBuildsSurfaceFrame() && ok;
     ok = dynamicMeshDefaultContractRemainsUnlit() && ok;
 

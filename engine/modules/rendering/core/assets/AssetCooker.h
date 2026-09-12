@@ -9,6 +9,8 @@
 #include "AssetImporter.h"
 #include "MeshGeometryProcessor.h"
 
+struct GtsModelAsset;
+
 namespace gts::rendering
 {
     inline AssetBounds computeAssetBounds(const std::vector<Vertex>& vertices)
@@ -182,6 +184,10 @@ namespace gts::rendering
     class AssetCooker
     {
     public:
+        static AssetCookResult cookModelAsset(const GtsModelAsset& model,
+                                              const std::filesystem::path& sourcePath,
+                                              const AssetCookerOptions& options);
+
         static AssetCookResult cookImportResult(const AssetImportResult& importResult,
                                                 const std::filesystem::path& sourcePath,
                                                 const AssetCookerOptions& options);

@@ -1,5 +1,9 @@
 # Asset Pipeline Phase 4 Implementation Report
 
+> Historical architecture/phase record. OBJ now uses the canonical pipeline;
+> old importer/loader names below describe superseded code, not available APIs.
+> See [current OBJ consumers](assets/obj-consumers.md).
+
 ## Summary
 
 Implemented glTF/GLB as a second source importer feeding the existing

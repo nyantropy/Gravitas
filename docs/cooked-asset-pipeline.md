@@ -1,8 +1,9 @@
 # Cooked Asset Pipeline
 
-The new [canonical model domain](assets/model-domain.md) establishes the future
-`IGtsModelImporter -> GtsModelAsset` boundary in core. It has no concrete importer
-or runtime integration yet; the existing pipeline described below is unchanged.
+OBJ uses the [canonical model pipeline](assets/obj-consumers.md):
+`GtsObjModelImporter -> GtsModelAsset -> static preparation -> cooked-v1 adaptation`.
+glTF/GLB continues to use its legacy imported DTOs. Both converge at cooked storage,
+not at imported model data. File versions and runtime cooked loaders are unchanged.
 
 This document describes the current cooked asset implementation through
 Phase 5. OBJ, glTF/GLB, PNG, JPG, and embedded glTF images are source formats
@@ -11,13 +12,13 @@ and does not parse glTF or decode PNG/JPG on the cooked path.
 
 ## Runtime Flow
 
-OBJ and GLB source assets converge on the same imported CPU data, then the same
-cooker and runtime loaders:
+OBJ and GLB use distinct import domains and converge on the existing cooked formats:
 
 ```text
 OBJ
-  -> ObjAssetImporter
-  -> AssetImportResult
+  -> GtsObjModelImporter
+  -> GtsModelAsset
+  -> static preparation / v1 adaptation
   -> AssetCooker
   -> .gmesh
   -> MeshAssetLoader
@@ -40,8 +41,9 @@ GLB / glTF
 
 ```text
 OBJ + MTL
-  -> ObjAssetImporter
-  -> AssetImportResult
+  -> GtsObjModelImporter
+  -> GtsModelAsset
+  -> static preparation / v1 adaptation
   -> AssetCooker
   -> .gmat
   -> MaterialAssetLoader
@@ -189,7 +191,7 @@ pitches, invalid mip payload ranges, and overlapping mip payloads.
 ## glTF Import Support
 
 `GltfAssetImporter` supports static `.gltf` and `.glb` assets. It produces the
-same `AssetImportResult` contract as `ObjAssetImporter`.
+legacy `AssetImportResult` contract; OBJ uses `GtsModelAsset`.
 
 Imported geometry:
 
@@ -364,7 +366,7 @@ renderer uses the matching material for each submesh draw range.
 These runtime paths still load source assets directly for compatibility:
 
 - In development policy, `MeshManager::loadMesh` can fall back to
-  `GtsModelLoader`/`ObjAssetImporter` when no cooked `.gmesh` exists. This is
+  canonical OBJ import and static preparation when no cooked `.gmesh` exists. This is
   logged with the source path and expected cooked path.
 - Development source fallback currently supports OBJ only. Missing cooked
   `.gltf`/`.glb` requests fail clearly because the runtime has no source glTF

@@ -19,6 +19,10 @@ list(APPEND RENDERING_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/external/stb_image_impl.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/external/stb_image_write_impl.cpp"
 )
+list(APPEND RENDERING_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/../assets/realization/GtsStaticModelRealization.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../assets/runtime/RuntimeMeshLoading.cpp"
+)
 add_library(gravitas_rendering STATIC ${RENDERING_SOURCES})
 
 target_compile_features(gravitas_rendering PUBLIC cxx_std_20)
@@ -101,7 +105,8 @@ target_include_directories(gravitas_rendering PUBLIC
 target_link_libraries(gravitas_rendering PUBLIC
     glfw
     gravitas_core
-    PRIVATE gravitas_tinyobj
+    PRIVATE gravitas_obj_importer gravitas_static_geometry
+    PUBLIC gravitas_assets
 )
 
 if(TARGET gravitas_vulkan_backend)

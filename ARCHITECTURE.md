@@ -62,7 +62,7 @@ vendored documentation and should not be rewritten as first-party engine docs.
 - [docs/assets/model-domain.md](docs/assets/model-domain.md): canonical CPU model
   assets, semantic vertex streams, validation, and the model-importer boundary.
 - [docs/assets/obj-importer.md](docs/assets/obj-importer.md): standalone canonical
-  OBJ strategy, source interpretation, diagnostics, and transitional parser sharing.
+  OBJ strategy, source interpretation, diagnostics, and canonical consumer integration.
 - [docs/assets/static-geometry.md](docs/assets/static-geometry.md): source-neutral
   static geometry preparation, primitive ranges, defaults, generation, and metadata.
 - [docs/json/architecture.md](docs/json/architecture.md): shared JSON syntax,
@@ -272,9 +272,15 @@ within the same module. Core has no dependency on the assets module.
 contract and concrete strategies. File-backed model importers return validated
 assets through `GtsModelImportResult`; runtime realization is a
 separate responsibility. `modules/assets/importer/obj/` provides the first
-standalone strategy, `GtsObjModelImporter`. Its target depends on the asset domain and TinyOBJ,
-and is not linked into the runtime umbrella. Existing cooker/runtime consumers
-still use the legacy importers; no consumer has been migrated yet.
+strategy, `GtsObjModelImporter`. It is the only OBJ interpreter. Offline cooking
+and permitted development runtime loading both consume its canonical model through
+static preparation. `modules/assets/realization/` adapts flat identity-root models
+to the existing single-mesh storage/resource contract. `modules/assets/runtime/`
+owns CPU mesh loading and cooked/source selection, with the existing strict policy.
+The renderer links the importer and preparation targets through these consumers;
+TinyOBJ remains private to the importer. glTF/GLB still uses `GltfAssetImporter`
+and legacy import DTOs in the cooker. Cooked v1 serializers and GPU upload are unchanged.
+See [OBJ consumer migration](docs/assets/obj-consumers.md) for adaptation limits.
 `modules/assets/processing/geometry/` consumes canonical meshes for the current
 static rendering profile. It prepares CPU `Vertex` buffers and primitive ranges
 without modifying canonical inputs. This standalone target reuses CPU geometry

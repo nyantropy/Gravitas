@@ -12,7 +12,11 @@
 #include "AssetSerializers.h"
 #include "GltfAssetImporter.h"
 #include "ImageAssetImporter.h"
-#include "ObjAssetImporter.h"
+#include "assets/importer/obj/GtsObjModelImporter.h"
+#include "assets/model/GtsModelImportResult.h"
+#include "assets/model/GtsModelAsset.h"
+#include "assets/model/GtsModelValidation.h"
+#include "assets/realization/GtsStaticModelRealization.h"
 #include "TextureCooker.h"
 
 namespace gts::rendering
@@ -457,9 +461,10 @@ namespace
                                    TextureCookRole role,
                                    const std::string& outputSuffix,
                                    const std::string& fallbackName,
-                                   const std::filesystem::path& diagnosticSource)
+                                   const std::filesystem::path& diagnosticSource,
+                                   const std::string& identityOverride = {})
         {
-            const std::string identity = textureIdentityFor(texture);
+            const std::string identity = identityOverride.empty() ? textureIdentityFor(texture) : identityOverride;
             const auto roleFound = firstRoleByIdentity.find(identity);
             if (roleFound == firstRoleByIdentity.end())
             {
@@ -905,11 +910,237 @@ AssetCookResult AssetCooker::cookImportResult(const AssetImportResult& importRes
     return result;
 }
 
+AssetCookResult AssetCooker::cookModelAsset(const GtsModelAsset& model,
+                                            const std::filesystem::path& sourcePath,
+                                            const AssetCookerOptions& options)
+{
+    AssetCookResult result;
+    std::vector<GtsModelDiagnostic> diagnostics;
+    auto mesh = realizeGtsFlatStaticModel(model, diagnostics);
+    for (const auto& diagnostic : diagnostics)
+        addCookDiagnostic(result,
+            diagnostic.severity == GtsModelDiagnosticSeverity::Error
+                ? AssetDiagnosticSeverity::Error : AssetDiagnosticSeverity::Warning,
+            diagnostic.code, diagnostic.location + ": " + diagnostic.message, sourcePath);
+    if (!mesh)
+        return result;
+
+    const auto outputDirectory = outputDirectoryFor(sourcePath, options);
+    const auto sourceStem = sanitizedName(sourcePath.stem().string(), "asset");
+    // v1 has only UV0; reject image bindings that preparation cannot realize.
+    auto checkBinding = [&](const GtsModelImageBinding& binding)
+    {
+        if (binding.texCoordSet != 0)
+            addCookDiagnostic(result, AssetDiagnosticSeverity::Error, "ASSET_COOK_UV_SET_UNSUPPORTED",
+                "Cooked v1 materials sample UV0 only; use UV0 or a future material storage profile", sourcePath);
+    };
+    for (const auto& material : model.materials)
+    {
+        for (const auto& binding : {material.baseColorImage, material.normalImage, material.emissiveImage})
+            if (binding) checkBinding(*binding);
+        for (const auto& binding : {material.metallicImage, material.roughnessImage, material.ambientOcclusionImage})
+            if (binding) checkBinding(binding->image);
+    }
+    if (result.hasErrors() || !ensureOutputDirectory(outputDirectory, result, sourcePath))
+        return result;
+
+    TextureCookCache cache(outputDirectory, sourceStem, options, result, sourcePath);
+    // Reuse the existing image decoder/mip machinery, never legacy model DTOs.
+    auto imageInput = [&](uint32_t index)
+    {
+        const auto& image = model.images[index];
+        ImportedTexture texture;
+        texture.debugName = image.name;
+        if (const auto* path = std::get_if<std::filesystem::path>(&image.source))
+        {
+            texture.source = ImportedTextureSource::ExternalFile;
+            texture.sourcePath = *path;
+        }
+        else
+        {
+            const auto& embedded = std::get<GtsModelEmbeddedImage>(image.source);
+            texture.source = ImportedTextureSource::EmbeddedBytes;
+            texture.embeddedBytes = embedded.bytes;
+            texture.mimeType = embedded.mimeType;
+        }
+        return texture;
+    };
+    auto cookImage = [&](const std::optional<GtsModelImageBinding>& binding,
+                         MaterialTextureRole role, const std::string& name)
+    {
+        if (!binding) return AssetReference{};
+        return cache.cookTexture(imageInput(binding->imageIndex), cookRoleForMaterialRole(role),
+                                 materialRoleSuffix(role), name, sourcePath);
+    };
+    auto decode = [&](const GtsModelScalarImageBinding& binding) -> std::optional<ImportedTexture>
+    {
+        auto texture = imageInput(binding.image.imageIndex);
+        std::string error;
+        const bool loaded = texture.source == ImportedTextureSource::ExternalFile
+            ? ImageAssetImporter::decodeFile(texture.sourcePath, texture, &error)
+            : ImageAssetImporter::decodeBytes(texture.embeddedBytes, texture, &error);
+        if (!loaded)
+        {
+            addCookDiagnostic(result, AssetDiagnosticSeverity::Error, "ASSET_COOK_SCALAR_IMAGE_FAILED",
+                "Cannot decode scalar image: " + error, sourcePath);
+            return std::nullopt;
+        }
+        return texture;
+    };
+    auto scalarKey = [](const std::optional<GtsModelScalarImageBinding>& binding)
+    {
+        return binding ? std::to_string(binding->image.imageIndex) + "_" +
+            std::to_string(static_cast<int>(binding->channel)) : "none";
+    };
+    auto cookScalars = [&](const std::optional<GtsModelScalarImageBinding>& first,
+                           const std::optional<GtsModelScalarImageBinding>& second,
+                           bool metallicRoughness, const std::string& name)
+    {
+        if (!first && !second) return AssetReference{};
+        const auto a = first ? decode(*first) : std::nullopt;
+        const auto b = second ? decode(*second) : std::nullopt;
+        if ((first && !a) || (second && !b)) return AssetReference{};
+        if (a && b && (a->width != b->width || a->height != b->height))
+        {
+            addCookDiagnostic(result, AssetDiagnosticSeverity::Error, "ASSET_COOK_SCALAR_IMAGE_SIZE",
+                "Metallic and roughness images must have equal dimensions for v1 packing; resample them before cooking", sourcePath);
+            return AssetReference{};
+        }
+        ImportedTexture packed;
+        packed.width = a ? a->width : b->width;
+        packed.height = a ? a->height : b->height;
+        packed.sourceChannelCount = 4;
+        packed.debugName = sourceStem + "_" + name;
+        packed.logicalPath = packed.debugName;
+        packed.rgba8Pixels.assign(static_cast<size_t>(packed.width) * packed.height * 4, 255);
+        for (size_t pixel = 0; pixel < packed.rgba8Pixels.size(); pixel += 4)
+        {
+            if (a) packed.rgba8Pixels[pixel + (metallicRoughness ? 2 : 0)] =
+                a->rgba8Pixels[pixel + static_cast<size_t>(first->channel)];
+            if (b) packed.rgba8Pixels[pixel + 1] = b->rgba8Pixels[pixel + static_cast<size_t>(second->channel)];
+        }
+        const auto role = metallicRoughness ? TextureCookRole::MetallicRoughness : TextureCookRole::AmbientOcclusion;
+        const auto suffix = metallicRoughness ? "_metallic_roughness" : "_ao";
+        return cache.cookTexture(std::move(packed), role, suffix, name, sourcePath,
+                                 "scalar:" + scalarKey(first) + ":" + scalarKey(second));
+    };
+
+    std::vector<AssetReference> materialReferences;
+    std::set<std::string> materialNames;
+    auto cookMaterial = [&](const GtsModelMaterial& imported, bool isDefault)
+    {
+        std::string name = sanitizedName(imported.name, "material_" + std::to_string(materialReferences.size()));
+        const auto baseName = name;
+        for (uint32_t i = 1; !materialNames.insert(name).second; ++i)
+            name = baseName + "_" + std::to_string(i);
+        const auto path = outputDirectory / (sourceStem + "_" + name + ".gmat");
+        const auto reference = referenceForCookedOutput(path);
+        MaterialAssetData material;
+        material.id = reference.id;
+        material.debugName = imported.name;
+        material.baseColor = imported.baseColor;
+        material.metallic = imported.metallic;
+        material.roughness = imported.roughness;
+        material.normalScale = imported.normalScale;
+        material.ambientOcclusionStrength = imported.ambientOcclusionStrength;
+        material.emissiveFactor = imported.emissiveFactor;
+        material.emissiveStrength = imported.emissiveStrength;
+        switch (imported.alphaMode)
+        {
+            case GtsModelAlphaMode::Opaque: material.renderState.alphaMode = MaterialAlphaMode::Opaque; break;
+            case GtsModelAlphaMode::Mask: material.renderState.alphaMode = MaterialAlphaMode::Mask; break;
+            case GtsModelAlphaMode::Blend: material.renderState.alphaMode = MaterialAlphaMode::Blend; break;
+        }
+        material.renderState.alphaCutoff = imported.alphaCutoff;
+        material.renderState.doubleSided = imported.doubleSided;
+        material.renderState.depthWrite = imported.alphaMode != GtsModelAlphaMode::Blend;
+        material.vertexColorOnly = options.vertexColorOnly;
+        material.shaderFamily = options.vertexColorOnly ? MaterialShaderFamily::Unlit : MaterialShaderFamily::StandardSurface;
+        material.baseColorTexture = cookImage(imported.baseColorImage, MaterialTextureRole::BaseColor, name);
+        if (isDefault && !options.baseColorTextureOverride.empty())
+            material.baseColorTexture = cache.cookTexture(
+                importedTextureForPath(options.baseColorTextureOverride, MaterialTextureRole::BaseColor),
+                TextureCookRole::BaseColor, "", name, sourcePath);
+        material.normalTexture = cookImage(imported.normalImage, MaterialTextureRole::Normal, name);
+        material.emissiveTexture = cookImage(imported.emissiveImage, MaterialTextureRole::Emissive, name);
+        material.metallicRoughnessTexture = cookScalars(imported.metallicImage, imported.roughnessImage, true, name);
+        material.ambientOcclusionTexture = cookScalars(imported.ambientOcclusionImage, std::nullopt, false, name);
+        addMaterialTextureDependencies(material);
+        if (material.baseColorTexture.empty())
+            addCookDiagnostic(result, AssetDiagnosticSeverity::Warning, "ASSET_COOK_DEFAULT_BASE_COLOR_TEXTURE",
+                "Cooked material uses the runtime fallback base color texture", sourcePath);
+        result.materials.push_back(std::move(material));
+        materialReferences.push_back(reference);
+        if (!result.hasErrors() && writeMaterial(result.materials.back(), path, result, sourcePath))
+            result.outputs.push_back({CookedAssetOutputType::Material, path, reference});
+        return reference;
+    };
+    for (const auto& material : model.materials)
+        cookMaterial(material, false);
+    bool unassigned = model.materials.empty();
+    for (const auto& sourceMesh : model.meshes)
+        for (const auto& primitive : sourceMesh.primitives)
+            unassigned |= !primitive.materialIndex.has_value();
+    AssetReference defaultMaterial;
+    if (unassigned)
+    {
+        GtsModelMaterial material;
+        material.name = options.vertexColorOnly ? "vertex_color" : "default";
+        if (!model.materials.empty()) material.name += "_unassigned";
+        defaultMaterial = cookMaterial(material, true);
+        addCookDiagnostic(result, AssetDiagnosticSeverity::Warning, "ASSET_COOK_DEFAULT_MATERIAL",
+            "Cooker emitted a default material for unassigned primitives", sourcePath);
+    }
+    if (result.hasErrors()) return result;
+
+    size_t primitiveIndex = 0;
+    for (const auto& sourceMesh : model.meshes)
+        for (const auto& primitive : sourceMesh.primitives)
+        {
+            const auto reference = primitive.materialIndex ? materialReferences[*primitive.materialIndex] : defaultMaterial;
+            mesh->submeshes[primitiveIndex++].material = reference;
+            addUniqueReference(mesh->dependencies, reference);
+        }
+    const auto path = outputDirectory / (sourceStem + ".gmesh");
+    const auto reference = referenceForCookedOutput(path);
+    mesh->id = reference.id;
+    mesh->debugName = sourceStem;
+    if (mesh->generatedNormals)
+        addCookDiagnostic(result, AssetDiagnosticSeverity::Warning, "ASSET_COOK_GENERATED_NORMALS",
+            "Static preparation generated missing normals", sourcePath);
+    if (mesh->generatedTangents)
+        addCookDiagnostic(result, AssetDiagnosticSeverity::Warning, "ASSET_COOK_GENERATED_TANGENTS",
+            "Static preparation generated missing tangents", sourcePath);
+    if (!options.vertexColorOnly && hasNonWhiteVertexColor(*mesh))
+        addCookDiagnostic(result, AssetDiagnosticSeverity::Warning, "ASSET_COOK_VERTEX_COLORS_PRESENT",
+            "Cooked mesh contains vertex colors; vertexColorOnly remains an explicit cooking option", sourcePath);
+    result.meshes.push_back(std::move(*mesh));
+    if (writeMesh(result.meshes.back(), path, result, sourcePath))
+        result.outputs.push_back({CookedAssetOutputType::Mesh, path, reference});
+    return result;
+}
+
 AssetCookResult AssetCooker::cookSourceAsset(const std::filesystem::path& sourcePath,
                                              const AssetCookerOptions& options)
 {
+    std::string extension = sourcePath.extension().string();
+    std::transform(extension.begin(), extension.end(), extension.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    if (options.explicitImporter == "obj" || (options.explicitImporter.empty() && extension == ".obj"))
+    {
+        const auto imported = GtsObjModelImporter{}.importAsset({sourcePath});
+        AssetCookResult result;
+        if (imported.succeeded())
+            result = cookModelAsset(*imported.asset(), sourcePath, options);
+        for (const auto& diagnostic : imported.diagnostics())
+            addCookDiagnostic(result,
+                diagnostic.severity == GtsModelDiagnosticSeverity::Error
+                    ? AssetDiagnosticSeverity::Error : AssetDiagnosticSeverity::Warning,
+                diagnostic.code, diagnostic.location + ": " + diagnostic.message, sourcePath);
+        return result;
+    }
+
     AssetImporterRegistry registry;
-    registry.registerImporter(std::make_unique<ObjAssetImporter>());
     registry.registerImporter(std::make_unique<GltfAssetImporter>());
     registry.registerImporter(std::make_unique<ImageAssetImporter>());
 

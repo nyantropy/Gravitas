@@ -183,24 +183,6 @@ set_tests_properties(geometry_pbr_preparation
         LABELS "gravitas;rendering;geometry"
 )
 
-add_executable(ObjAssetImporterTest
-    assets/ObjAssetImporterTest.cpp
-)
-
-target_compile_features(ObjAssetImporterTest PRIVATE cxx_std_20)
-
-target_link_libraries(ObjAssetImporterTest PRIVATE gravitas_rendering)
-
-add_test(
-    NAME obj_asset_importer
-    COMMAND ObjAssetImporterTest
-)
-
-set_tests_properties(obj_asset_importer
-    PROPERTIES
-        LABELS "gravitas;assets;importer"
-)
-
 add_executable(GltfAssetImporterTest
     assets/GltfAssetImporterTest.cpp
 )
@@ -779,3 +761,9 @@ set_tests_properties(ui_localization_runtime
     PROPERTIES
         LABELS "gravitas;ui;runtime"
 )
+
+add_executable(CanonicalObjPipelineTest assets/CanonicalObjPipelineTest.cpp)
+target_compile_features(CanonicalObjPipelineTest PRIVATE cxx_std_20)
+target_link_libraries(CanonicalObjPipelineTest PRIVATE gravitas_vulkan_backend gravitas_obj_importer)
+add_test(NAME canonical_obj_pipeline COMMAND CanonicalObjPipelineTest)
+set_tests_properties(canonical_obj_pipeline PROPERTIES LABELS "gravitas;assets;integration")

@@ -1,5 +1,4 @@
-# Shared parser implementation; legacy rendering and canonical OBJ import use
-# the same TinyOBJ build without linking the importer into production consumers.
+# TinyOBJ implementation stays private to the canonical OBJ strategy.
 add_library(gravitas_tinyobj STATIC TinyObjImplementation.cpp)
 target_compile_features(gravitas_tinyobj PRIVATE cxx_std_20)
 target_include_directories(gravitas_tinyobj PUBLIC "${GTS_ENGINE_ROOT}/external/stb")
