@@ -58,6 +58,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
 
 ## Feature Documentation Map
 
+- [docs/assets/model-domain.md](docs/assets/model-domain.md): canonical CPU model
+  assets, semantic vertex streams, validation, and the model-importer boundary.
 - [docs/json/architecture.md](docs/json/architecture.md): shared JSON syntax,
   value trees, schema ownership, error handling, and migration contracts.
 - [docs/settings/architecture.md](docs/settings/architecture.md): subsystem-owned
@@ -254,6 +256,12 @@ the current frame is drawn. Scene changes and quit remain post-render commands,
 so a screenshot requested alongside quit still captures the final frame.
 
 ## Resource Model
+
+`core/assets/model/` owns the source-format-independent, renderer-independent
+`GtsModelAsset` domain and `IGtsModelImporter` contract. Future file-backed model
+importers return validated assets through `GtsModelImportResult`; runtime
+realization is a separate responsibility. No existing importer or runtime path
+has been migrated to this contract yet.
 
 JSON syntax belongs to `core/json/GtsJsonParser`, backed by `GtsJsonValue`.
 Feature loaders own file access, schema validation, defaults, and typed-data

@@ -1,5 +1,9 @@
 # Cooked Asset Pipeline
 
+The new [canonical model domain](assets/model-domain.md) establishes the future
+`IGtsModelImporter -> GtsModelAsset` boundary in core. It has no concrete importer
+or runtime integration yet; the existing pipeline described below is unchanged.
+
 This document describes the current cooked asset implementation through
 Phase 5. OBJ, glTF/GLB, PNG, JPG, and embedded glTF images are source formats
 handled by tooling importers. Runtime rendering consumes cooked engine assets
