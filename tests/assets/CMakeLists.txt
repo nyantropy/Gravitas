@@ -2,3 +2,8 @@ add_executable(GtsModelAssetTest GtsModelAssetTest.cpp)
 target_link_libraries(GtsModelAssetTest PRIVATE gravitas_core)
 add_test(NAME gts_model_asset COMMAND GtsModelAssetTest)
 set_tests_properties(gts_model_asset PROPERTIES LABELS "gravitas;assets;cpu")
+
+add_executable(GtsModelMaterialTest GtsModelMaterialTest.cpp)
+target_link_libraries(GtsModelMaterialTest PRIVATE gravitas_core)
+add_test(NAME gts_model_material COMMAND GtsModelMaterialTest)
+set_tests_properties(gts_model_material PROPERTIES LABELS "gravitas;assets;cpu")

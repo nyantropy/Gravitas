@@ -1,8 +1,10 @@
 #include "GtsModelValidation.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <set>
 #include <string>
 #include <utility>
@@ -18,6 +20,100 @@ namespace
     {
         result.diagnostics.push_back({GtsModelDiagnosticSeverity::Error,
                                       std::move(code), std::move(message), std::move(location)});
+    }
+
+    template<class Visitor>
+    void visitMaterialImages(const GtsModelMaterial& material, Visitor visitor)
+    {
+        if (material.baseColorImage)
+        {
+            visitor(*material.baseColorImage, "baseColorImage");
+        }
+        if (material.metallicImage)
+        {
+            visitor(material.metallicImage->image, "metallicImage");
+        }
+        if (material.roughnessImage)
+        {
+            visitor(material.roughnessImage->image, "roughnessImage");
+        }
+        if (material.normalImage)
+        {
+            visitor(*material.normalImage, "normalImage");
+        }
+        if (material.ambientOcclusionImage)
+        {
+            visitor(material.ambientOcclusionImage->image, "ambientOcclusionImage");
+        }
+        if (material.emissiveImage)
+        {
+            visitor(*material.emissiveImage, "emissiveImage");
+        }
+    }
+
+    void validateMaterial(const GtsModelMaterial& material, const std::string& location,
+                          GtsModelValidationResult& result)
+    {
+        visitMaterialImages(material, [&](const GtsModelImageBinding& binding, const char* field)
+        {
+            if (binding.imageIndex == GtsModelImageBinding::InvalidImageIndex)
+            {
+                addError(result, "MODEL_IMAGE_OUT_OF_RANGE", "Image binding requires an initialized image index.", location + "." + field);
+            }
+        });
+        const auto checkFactor = [&](float value, float minimum, float maximum, const std::string& field)
+        {
+            if (!std::isfinite(value))
+            {
+                addError(result, "MODEL_MATERIAL_NONFINITE", "Material factor must be finite.", location + "." + field);
+            }
+            else if (value < minimum || value > maximum)
+            {
+                addError(result, "MODEL_MATERIAL_RANGE", "Material factor is outside its semantic range.", location + "." + field);
+            }
+        };
+        const float maximum = std::numeric_limits<float>::max();
+        for (glm::length_t i = 0; i < 4; ++i)
+        {
+            checkFactor(material.baseColor[i], 0.0f, 1.0f, "baseColor[" + std::to_string(i) + "]");
+        }
+        for (glm::length_t i = 0; i < 3; ++i)
+        {
+            checkFactor(material.emissiveFactor[i], 0.0f, maximum, "emissiveFactor[" + std::to_string(i) + "]");
+        }
+        checkFactor(material.metallic, 0.0f, 1.0f, "metallic");
+        checkFactor(material.roughness, 0.0f, 1.0f, "roughness");
+        checkFactor(material.emissiveStrength, 0.0f, maximum, "emissiveStrength");
+        checkFactor(material.normalScale, -maximum, maximum, "normalScale");
+        checkFactor(material.ambientOcclusionStrength, 0.0f, 1.0f, "ambientOcclusionStrength");
+        checkFactor(material.alphaCutoff, 0.0f, 1.0f, "alphaCutoff");
+
+        switch (material.alphaMode)
+        {
+        case GtsModelAlphaMode::Opaque:
+        case GtsModelAlphaMode::Mask:
+        case GtsModelAlphaMode::Blend: break;
+        default:
+            addError(result, "MODEL_ALPHA_MODE_INVALID", "Unknown material alpha mode.", location + ".alphaMode");
+        }
+        const auto checkChannel = [&](const std::optional<GtsModelScalarImageBinding>& binding, const char* field)
+        {
+            if (!binding)
+            {
+                return;
+            }
+            switch (binding->channel)
+            {
+            case GtsModelTextureChannel::Red:
+            case GtsModelTextureChannel::Green:
+            case GtsModelTextureChannel::Blue:
+            case GtsModelTextureChannel::Alpha: return;
+            }
+            addError(result, "MODEL_TEXTURE_CHANNEL_INVALID", "Unknown scalar texture channel.", location + "." + field);
+        };
+        checkChannel(material.metallicImage, "metallicImage");
+        checkChannel(material.roughnessImage, "roughnessImage");
+        checkChannel(material.ambientOcclusionImage, "ambientOcclusionImage");
     }
 
     bool hasCanonicalType(const GtsVertexAttribute& attribute)
@@ -130,6 +226,43 @@ GtsModelValidationResult validateGtsModelPrimitive(const GtsModelPrimitive& prim
 GtsModelValidationResult validateGtsModelAsset(const GtsModelAsset& asset)
 {
     GtsModelValidationResult result;
+    for (size_t i = 0; i < asset.images.size(); ++i)
+    {
+        const auto& source = asset.images[i].source;
+        const std::string location = "images[" + std::to_string(i) + "]";
+        if (const auto* path = std::get_if<std::filesystem::path>(&source))
+        {
+            if (path->empty() || !path->is_absolute())
+            {
+                addError(result, "MODEL_IMAGE_PATH_INVALID", "External image requires an absolute source path.", location);
+            }
+        }
+        else if (const auto* embedded = std::get_if<GtsModelEmbeddedImage>(&source))
+        {
+            if (embedded->bytes.empty())
+            {
+                addError(result, "MODEL_IMAGE_BYTES_REQUIRED", "Embedded image requires encoded bytes.", location);
+            }
+        }
+        else
+        {
+            addError(result, "MODEL_IMAGE_SOURCE_INVALID", "Image requires a source.", location);
+        }
+    }
+    for (size_t i = 0; i < asset.materials.size(); ++i)
+    {
+        const GtsModelMaterial& material = asset.materials[i];
+        const std::string location = "materials[" + std::to_string(i) + "]";
+        validateMaterial(material, location, result);
+        visitMaterialImages(material, [&](const GtsModelImageBinding& binding, const char* field)
+        {
+            if (binding.imageIndex != GtsModelImageBinding::InvalidImageIndex
+                && binding.imageIndex >= asset.images.size())
+            {
+                addError(result, "MODEL_IMAGE_OUT_OF_RANGE", "Binding must reference a model image.", location + "." + field);
+            }
+        });
+    }
     for (size_t meshIndex = 0; meshIndex < asset.meshes.size(); ++meshIndex)
     {
         const GtsModelMesh& mesh = asset.meshes[meshIndex];
@@ -142,6 +275,23 @@ GtsModelValidationResult validateGtsModelAsset(const GtsModelAsset& asset)
             if (primitive.materialIndex && *primitive.materialIndex >= asset.materials.size())
             {
                 addError(result, "MODEL_MATERIAL_OUT_OF_RANGE", "Material index does not reference a model material.", location);
+            }
+            else if (primitive.materialIndex)
+            {
+                visitMaterialImages(asset.materials[*primitive.materialIndex],
+                    [&](const GtsModelImageBinding& binding, const char* field)
+                {
+                    const bool hasTexCoords = std::any_of(primitive.attributes.begin(), primitive.attributes.end(),
+                        [&](const GtsVertexAttribute& attribute)
+                    {
+                        return attribute.semantic == GtsVertexSemantic::TexCoord && attribute.setIndex == binding.texCoordSet;
+                    });
+                    if (!hasTexCoords)
+                    {
+                        addError(result, "MODEL_TEXCOORD_REQUIRED", "Material image binding requires TexCoord["
+                            + std::to_string(binding.texCoordSet) + "] on this primitive.", location + ".material." + field);
+                    }
+                });
             }
         }
     }
@@ -229,5 +379,12 @@ GtsModelValidationResult validateGtsModelAsset(const GtsModelAsset& asset)
                      "nodes[" + std::to_string(nodeIndex) + "]");
         }
     }
+    return result;
+}
+
+GtsModelValidationResult validateGtsModelMaterial(const GtsModelMaterial& material)
+{
+    GtsModelValidationResult result;
+    validateMaterial(material, "material", result);
     return result;
 }

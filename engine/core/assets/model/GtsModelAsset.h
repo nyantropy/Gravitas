@@ -6,6 +6,8 @@
 #include <vector>
 
 #include "GlmConfig.h"
+#include "GtsModelImage.h"
+#include "GtsModelMaterial.h"
 #include "GtsVertexAttribute.h"
 
 // 3 types of topology, but we are most likely only gonna use triangles
@@ -38,11 +40,6 @@ struct GtsModelMesh
     std::vector<GtsModelPrimitive> primitives;
 };
 
-struct GtsModelMaterial
-{
-    std::string name;
-};
-
 struct GtsModelNode
 {
     std::string name;
@@ -60,4 +57,5 @@ struct GtsModelAsset
     std::vector<uint32_t> rootNodes;
     std::vector<GtsModelMesh> meshes;
     std::vector<GtsModelMaterial> materials;
+    std::vector<GtsModelImage> images;
 };

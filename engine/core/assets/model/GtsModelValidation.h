@@ -6,6 +6,7 @@
 
 struct GtsModelAsset;
 struct GtsModelPrimitive;
+struct GtsModelMaterial;
 
 struct GtsModelValidationResult
 {
@@ -19,4 +20,6 @@ struct GtsModelValidationResult
 // primitive validation checks geometry; asset validation also checks references
 // and requires every node to belong to exactly one rooted, acyclic tree
 [[nodiscard]] GtsModelValidationResult validateGtsModelPrimitive(const GtsModelPrimitive& primitive);
+// checks appearance values and enums; image bounds and UV availability need the asset
+[[nodiscard]] GtsModelValidationResult validateGtsModelMaterial(const GtsModelMaterial& material);
 [[nodiscard]] GtsModelValidationResult validateGtsModelAsset(const GtsModelAsset& asset);

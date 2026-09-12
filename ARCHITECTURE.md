@@ -262,6 +262,9 @@ so a screenshot requested alongside quit still captures the final frame.
 importers return validated assets through `GtsModelImportResult`; runtime
 realization is a separate responsibility. No existing importer or runtime path
 has been migrated to this contract yet.
+Model materials describe CPU appearance and reference model-local image inputs
+with explicit UV sets and scalar channels. Shader policy, cooked texture identity,
+and runtime material state remain outside the canonical domain.
 
 JSON syntax belongs to `core/json/GtsJsonParser`, backed by `GtsJsonValue`.
 Feature loaders own file access, schema validation, defaults, and typed-data
