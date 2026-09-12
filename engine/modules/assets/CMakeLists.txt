@@ -9,5 +9,6 @@ target_include_directories(gravitas_assets PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/.
 target_compile_features(gravitas_assets PUBLIC cxx_std_20)
 
 add_subdirectory(skeleton)
+add_subdirectory(skin)
 add_subdirectory(importer)
 add_subdirectory(processing/geometry)

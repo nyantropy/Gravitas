@@ -18,7 +18,8 @@ A skeleton owns an optional display `name` and a nonempty `nodes` array. Each
 `defaultLocalTransform`. Nodes may be deforming joints or necessary non-deforming
 ancestors/helpers. There is no separate deform-joint list.
 
-`GtsSkeletonNodeId` wraps an opaque string `value`. Empty is invalid; values must
+`GtsSkeletonTypes.h` holds the shared node-ID and local-transform values;
+asset and compatibility headers both use these types. `GtsSkeletonNodeId` wraps an opaque string `value`. Empty is invalid; values must
 be unique within a skeleton. Equality is exact and case-sensitive, with no
 trimming, Unicode normalization, or name matching. Display names may be empty or
 duplicated and never define compatibility. Producers must assign deterministic
@@ -61,8 +62,9 @@ check follows the existing canonical importer rule without importing its code.
 Finite zero/negative scale and singular affine matrices are valid: this asset
 contract does not require inverses or global-transform evaluation.
 
-Default local transforms are not mesh bind data. A future skin binding owns
-mesh-specific joint remapping and inverse bind matrices; a future runtime pose
+Default local transforms are not mesh bind data. A
+[skin binding](skin-binding-domain.md) owns mesh-specific joint remapping and
+inverse bind matrices; a future runtime pose
 owns mutable evaluated transforms. Neither belongs in this skeleton.
 
 ## Validation and exact compatibility
@@ -73,11 +75,31 @@ owns mutable evaluated transforms. Neither belongs in this skeleton.
 shape without making the skeleton depend on model-named diagnostics or adding a
 generic diagnostic framework. Errors are deterministic in node/field order.
 
-`areGtsSkeletonsCompatible(left, right)` validates both definitions and returns
-false if either is invalid. For valid definitions it compares node count/order,
-stable IDs, parent indices, transform alternative, and every stored transform
-component. Asset/node display names are ignored. There is no redundant stored
-descriptor that could become stale and no persistent hash.
+`GtsSkeletonCompatibility` is a self-contained structural value with ordered
+`GtsSkeletonCompatibilityNode` records: `id`, `parentIndex`, and
+`defaultLocalTransform`. It stores no asset/node display names, skeleton pointers,
+asset references, or runtime state. Its owned records are exposed read-only via
+`nodes()`. Replacing/copying the whole value does not change the source skeleton.
+
+`makeGtsSkeletonCompatibility(asset)` is the authoritative derivation API.
+`GtsSkeletonCompatibilityResult` exposes `succeeded()`, `compatibility()`, and
+`diagnostics()`. Invalid assets produce errors and no descriptor; valid assets
+produce an independent snapshot. Later source changes/destruction cannot change
+that snapshot. Default construction yields an invalid empty descriptor; explicit
+record construction must be validated before use. This supports checking
+untrusted canonical values without silently repairing them.
+
+`validateGtsSkeletonCompatibility` and `validateGtsSkeletonAsset` share the same
+private node validation implementation and `GtsSkeletonValidationResult`:
+nonempty parent-first forest, valid unique IDs, finite transforms, unit quaternion
+validity threshold, and affine matrix rule. There is no duplicated transform or
+hierarchy validation math.
+
+`areGtsSkeletonCompatibilitiesEqual` is the sole structural comparison algorithm.
+It validates both values and compares ordered IDs, parents, transform alternatives,
+and numeric components. Invalid descriptors never match. `isGtsSkeletonCompatible`
+derives a supplied asset's descriptor and delegates to this comparison;
+`areGtsSkeletonsCompatible` derives both descriptors and delegates as well.
 
 Comparison uses exact numeric equality, not a tolerance or matrix equivalence:
 signed zero compares equal, quaternion `q` and `-q` compare differently, and
@@ -90,25 +112,36 @@ aggregate equality operators do not implement this contract consistently.
 Compatibility inputs include the fixed reference-space/composition convention
 above; no asset-specific convention field exists.
 
-The comparison is an asset validation/linking operation, not a per-frame hot
-path. It does not cache validation or mutate either input.
+Compatibility is not asset identity, source pointer identity, or a shared pose.
+Skin bindings store this structural expectation; future model uses will reference
+particular skeleton definitions. Persistent asset IDs, references, hashes, and
+serialization remain undefined.
+
+The value stores O(node count) records including ID strings and transform values.
+Derivation copies that data, and asset comparisons currently derive temporary
+values. These are asset validation/linking operations, not per-frame hot paths.
+No caching, interning, hashing, or binary layout is introduced.
 
 ## Tests and scope
 
-`tests/assets/skeleton/GtsSkeletonAssetTest` links only `gravitas_skeleton_assets`.
+`tests/assets/skeleton/GtsSkeletonAssetTest` and `GtsSkeletonCompatibilityTest`
+link only `gravitas_skeleton_assets`.
 Checks remain active in Release builds. Coverage includes empty/minimal/deep
 forests, helpers, names versus IDs, invalid hierarchy, both transform forms,
-numeric errors, singular matrices, exact compatibility, and deterministic
+numeric errors, singular matrices, exact compatibility, descriptor derivation,
+source-lifetime independence, shared validation errors, and deterministic
 non-mutating validation/comparison.
 
 Using the CPU-only configuration documented in [model-domain.md](model-domain.md):
 
 ```sh
-cmake --build /tmp/gravitas-model-domain-cpu --target GtsSkeletonAssetTest --parallel 2
-ctest --test-dir /tmp/gravitas-model-domain-cpu -R '^gts_skeleton_asset$' --output-on-failure
+cmake --build /tmp/gravitas-model-domain-cpu --target GtsSkeletonAssetTest GtsSkeletonCompatibilityTest --parallel 2
+ctest --test-dir /tmp/gravitas-model-domain-cpu -R '^gts_skeleton_(asset|compatibility)$' --output-on-failure
 ```
 
-No skin binding, animation clip, pose evaluation, model association, import
-bundle, cooker, runtime, ECS, or rendering integration is implemented. The glTF
-importer still rejects actual skin references. Introducing this asset does not
+The separate [skin-binding domain](skin-binding-domain.md) now provides remaps,
+inverse binds, and validation against a supplied skeleton. The skeleton itself
+still owns none of that data. No animation clip, pose evaluation, model
+association, import bundle, cooker, runtime, ECS, or rendering integration is
+implemented. The glTF importer still rejects actual skin references. Introducing this asset does not
 change the existing model/import result or the static rendering profile.

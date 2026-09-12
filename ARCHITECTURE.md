@@ -63,6 +63,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
   assets, semantic vertex streams, validation, and the model-importer boundary.
 - [docs/assets/skeleton-domain.md](docs/assets/skeleton-domain.md): reusable CPU
   evaluation hierarchies, default transforms, validation, and exact compatibility.
+- [docs/assets/skin-binding-domain.md](docs/assets/skin-binding-domain.md): CPU
+  skin-local remaps, inverse binds, and exact target-skeleton validation.
 - [docs/assets/obj-importer.md](docs/assets/obj-importer.md): standalone canonical
   OBJ strategy, source interpretation, diagnostics, and canonical consumer integration.
 - [docs/assets/gltf-importer.md](docs/assets/gltf-importer.md): canonical glTF/GLB
@@ -276,9 +278,20 @@ target. `GtsSkeletonAsset` stores stable local node IDs, display names,
 parent-before-child forests, and quaternion-TRS or exact affine default local
 transforms. Helpers may be evaluation nodes. Validation rejects malformed data
 without repair; exact compatibility compares ordered IDs, parents, and stored
-transforms, ignoring display names. This is immutable asset data, not a runtime
+transforms, ignoring display names. `GtsSkeletonCompatibility` captures those
+fields in a self-contained value. Asset and descriptor validation share one
+implementation, and all compatibility APIs use one exact descriptor comparison.
+Compatibility is neither asset identity nor a runtime pose association.
+This is immutable asset data, not a runtime
 pose or mesh skin binding. No importer/model/cooker/runtime integration exists;
 canonical glTF import still rejects actual skin references.
+
+`modules/assets/skin/` owns `GtsSkinBinding` in the CPU-only `gravitas_skin_assets`
+target, depending on skeleton assets. Each local slot pairs a skeleton-node
+index with an authored inverse bind. A self-contained `GtsSkeletonCompatibility`
+value retains the expected exact structural contract without owning a skeleton. Structural and skeleton-context
+validation are separate; duplicate mappings and singular affine inverse binds
+are allowed. No mesh/model association or runtime pose is introduced.
 
 `modules/assets/model/` owns the source-format-independent, renderer-independent
 `GtsModelAsset` domain. `modules/assets/importer/` owns the `IGtsModelImporter`

@@ -1,5 +1,6 @@
 add_library(gravitas_skeleton_assets STATIC
     GtsSkeletonAsset.cpp
+    GtsSkeletonCompatibility.cpp
     GtsSkeletonValidation.cpp
 )
 target_link_libraries(gravitas_skeleton_assets PUBLIC gravitas_core)

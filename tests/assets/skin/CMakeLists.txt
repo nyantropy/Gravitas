@@ -1,0 +1,4 @@
+add_executable(GtsSkinBindingTest GtsSkinBindingTest.cpp)
+target_link_libraries(GtsSkinBindingTest PRIVATE gravitas_skin_assets)
+add_test(NAME gts_skin_binding COMMAND GtsSkinBindingTest)
+set_tests_properties(gts_skin_binding PROPERTIES LABELS "gravitas;assets;skin;cpu")
