@@ -1,6 +1,6 @@
 # Canonical OBJ Importer
 
-`engine/core/assets/importer/obj/GtsObjModelImporter` is the first concrete
+`engine/modules/assets/importer/obj/GtsObjModelImporter` is the first concrete
 `IGtsModelImporter`. It accepts a filesystem source path and returns a validated
 `GtsModelAsset` through `GtsModelImportResult`:
 
@@ -20,12 +20,12 @@ only until its consumers migrate; the new strategy is the intended authority.
 ## Build boundary and reuse
 
 `gravitas_obj_importer` is a standalone static target depending publicly on
-`gravitas_core` and privately on `gravitas_tinyobj`. Its public header includes
+`gravitas_assets` and privately on `gravitas_tinyobj`. Its public header includes
 only the Strategy interface; TinyOBJ types stay in private implementation files.
 The importer is not linked into `gravitas_engine` or `gravitas_modules`.
-The interface lives at `core/assets/importer/IGtsModelImporter.h`, alongside the
-`obj/` strategy folder. Core CMake excludes importer implementation sources from
-its recursive source list and builds them through their focused targets.
+The interface lives at `modules/assets/importer/IGtsModelImporter.h`, alongside the
+`obj/` strategy folder. The collective assets module builds its canonical domain,
+importers, and static processing through focused targets; core owns none of their sources.
 
 The unchanged TinyOBJ implementation translation unit moved out of rendering
 into a shared `gravitas_tinyobj` target. Legacy `gravitas_rendering` links that

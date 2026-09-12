@@ -5,8 +5,6 @@ file(GLOB_RECURSE CORE_SOURCES
     CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
 )
-# Format strategies have their own targets beside the core importer interface.
-list(FILTER CORE_SOURCES EXCLUDE REGEX "/assets/importer/")
 add_library(gravitas_core STATIC ${CORE_SOURCES})
 
 target_compile_features(gravitas_core PUBLIC cxx_std_20)
@@ -73,5 +71,3 @@ target_include_directories(gravitas_core PUBLIC
     # Bundled GLM (GlmConfig.h uses #include <glm.hpp>)
     "${GTS_ENGINE_ROOT}/external/glm/glm"
 )
-
-add_subdirectory(assets/importer)

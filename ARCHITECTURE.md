@@ -38,6 +38,7 @@ This file is the engine architecture entrypoint. Feature details live under
 engine/
   core/                  pure ECS, input, scene, command, event, UI runtime, JSON
   modules/
+    assets/              canonical model domain, importers, static geometry processing
     transform/           local/world transforms and hierarchy
     animation/           keyframe animation
     tween/               reusable tween/easing helpers
@@ -62,6 +63,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
   assets, semantic vertex streams, validation, and the model-importer boundary.
 - [docs/assets/obj-importer.md](docs/assets/obj-importer.md): standalone canonical
   OBJ strategy, source interpretation, diagnostics, and transitional parser sharing.
+- [docs/assets/static-geometry.md](docs/assets/static-geometry.md): source-neutral
+  static geometry preparation, primitive ranges, defaults, generation, and metadata.
 - [docs/json/architecture.md](docs/json/architecture.md): shared JSON syntax,
   value trees, schema ownership, error handling, and migration contracts.
 - [docs/settings/architecture.md](docs/settings/architecture.md): subsystem-owned
@@ -259,14 +262,23 @@ so a screenshot requested alongside quit still captures the final frame.
 
 ## Resource Model
 
-`core/assets/model/` owns the source-format-independent, renderer-independent
-`GtsModelAsset` domain. `core/assets/importer/` owns the `IGtsModelImporter`
+`modules/assets/` groups the canonical domain, importer contracts/strategies, and
+source-neutral processing. `gravitas_assets` owns the CPU domain and depends on
+core; parser and static-profile processing dependencies stay in separate targets
+within the same module. Core has no dependency on the assets module.
+
+`modules/assets/model/` owns the source-format-independent, renderer-independent
+`GtsModelAsset` domain. `modules/assets/importer/` owns the `IGtsModelImporter`
 contract and concrete strategies. File-backed model importers return validated
 assets through `GtsModelImportResult`; runtime realization is a
-separate responsibility. `core/assets/importer/obj/` provides the first
-standalone strategy, `GtsObjModelImporter`. Its target depends on core and TinyOBJ,
+separate responsibility. `modules/assets/importer/obj/` provides the first
+standalone strategy, `GtsObjModelImporter`. Its target depends on the asset domain and TinyOBJ,
 and is not linked into the runtime umbrella. Existing cooker/runtime consumers
 still use the legacy importers; no consumer has been migrated yet.
+`modules/assets/processing/geometry/` consumes canonical meshes for the current
+static rendering profile. It prepares CPU `Vertex` buffers and primitive ranges
+without modifying canonical inputs. This standalone target reuses CPU geometry
+algorithms and has no importer, cooker, runtime, or backend dependency.
 Model materials describe CPU appearance and reference model-local image inputs
 with explicit UV sets and scalar channels. Shader policy, cooked texture identity,
 and runtime material state remain outside the canonical domain.

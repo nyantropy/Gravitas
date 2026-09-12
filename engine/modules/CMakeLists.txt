@@ -1,4 +1,7 @@
-# rendering must be first — it defines gravitas_rendering and any selected
+# Assets defines the CPU domain and shared parser before rendering uses them.
+add_subdirectory(assets)
+
+# rendering must precede ECS modules — it defines gravitas_rendering and any selected
 # backend before other modules reference graphics types.
 if(GTS_ENABLE_RENDERING)
     add_subdirectory(rendering)

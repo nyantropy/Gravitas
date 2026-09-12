@@ -1,8 +1,8 @@
 # Canonical Model Asset Domain
 
-`engine/core/assets/model/` owns `GtsModelAsset`. The `IGtsModelImporter` interface
-and its concrete strategies live together under `engine/core/assets/importer/`.
-The model domain compiles into `gravitas_core` and depends only on the standard library and
+`engine/modules/assets/model/` owns `GtsModelAsset`. The `IGtsModelImporter` interface
+and its concrete strategies live together under `engine/modules/assets/importer/`.
+The model domain compiles into `gravitas_assets`, which links `gravitas_core`, and uses only the standard library and
 the engine's `GlmConfig.h`. It has no renderer, Vulkan, ECS, or parser dependency.
 
 The boundary for future file-backed model importers is:
@@ -17,6 +17,9 @@ The standalone [GtsObjModelImporter](obj-importer.md) now produces this domain.
 No cooker or runtime consumer uses it yet. Existing OBJ loading, tooling OBJ/glTF
 importers, cooked asset types, and runtime realization remain unchanged. Their
 migration is a separate task; the old representation is not a permanent alternative.
+The source-neutral [static geometry preparation stage](static-geometry.md) now
+consumes individual canonical meshes below the format wall. Its generated/default
+vertex fields belong only to the prepared static profile and never alter this domain.
 
 ## Ownership and geometry
 
@@ -218,7 +221,7 @@ on source format or diagnostic text.
 
 ## CPU-only test
 
-`GtsModelAssetTest` and `GtsModelMaterialTest` link only `gravitas_core` and are registered independently of
+`GtsModelAssetTest` and `GtsModelMaterialTest` link `gravitas_assets` and are registered independently of
 the existing Vulkan-gated test suite. For an entirely backend-free build:
 
 ```sh
