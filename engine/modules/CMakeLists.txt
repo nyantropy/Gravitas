@@ -1,5 +1,6 @@
 # Assets defines the CPU domain and shared parser before rendering uses them.
 add_subdirectory(assets)
+add_subdirectory(animation/skeletal)
 
 # rendering must precede ECS modules — it defines gravitas_rendering and any selected
 # backend before other modules reference graphics types.

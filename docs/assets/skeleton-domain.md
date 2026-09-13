@@ -45,7 +45,8 @@ including shear. TRS and matrix forms are mutually exclusive.
 Transforms use GLM column vectors. TRS means `T * R * S`, rotations are
 quaternions, and local transforms are relative to the parent; root transforms
 are relative to the skeleton reference frame. Eventual composition is
-`parentGlobal * local`. No evaluation is implemented. There is one convention
+`parentGlobal * local`. The separate [CPU evaluator](../animation/skeletal-evaluation.md)
+now implements this composition. There is one convention
 for all assets, not a per-skeleton format/coordinate flag. Source conversion
 must make geometry, binding spaces, and the chosen skeleton frame consistent;
 asset identity and character/world placement are separate future contracts.
@@ -147,7 +148,8 @@ now owns skeleton-use and skin-binding associations and mesh-context validation.
 The [import bundle](import-bundle.md) now enumerates shared immutable definitions.
 The independent [animation clip domain](animation-clip-domain.md) now stores timed
 TRS overrides against a compatibility value. Canonical glTF skeletal animation
-import now produces clips in the associated-asset bundle. No pose evaluation,
-cooker, runtime, ECS, or rendering integration is implemented. The canonical glTF importer now produces skeletons and model uses
+import now produces clips in the associated-asset bundle. The separate animation
+module now evaluates CPU poses; the skeleton asset retains no evaluated state.
+No cooker, playback, ECS, or rendering integration is implemented. The canonical glTF importer now produces skeletons and model uses
 for actual skins, preserving helper nodes and TRS/matrix forms. This does not
 change the importer result or the static rendering profile.

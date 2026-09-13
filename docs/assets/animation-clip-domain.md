@@ -125,5 +125,7 @@ owns clip values, and validation requires at least one enumerated compatible
 skeleton. Several matching definitions are valid; neither definition pointer nor
 model occurrence becomes part of clip targeting.
 
-No sampling, pose, playback, cooking, serialization,
-runtime, ECS, rendering, or Vulkan integration is implemented here.
+The separate [CPU skeletal evaluator](../animation/skeletal-evaluation.md) now
+samples these assets and produces local/reference-space poses. Clip data and
+validation remain unchanged. No playback, cooking, serialization, ECS, rendering,
+or Vulkan integration is implemented here.

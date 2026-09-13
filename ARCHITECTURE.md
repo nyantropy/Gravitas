@@ -40,7 +40,7 @@ engine/
   modules/
     assets/              canonical model/skeleton domains, importers, static geometry processing
     transform/           local/world transforms and hierarchy
-    animation/           keyframe animation
+    animation/           CPU skeletal evaluation and object-animation components
     tween/               reusable tween/easing helpers
     narrative/           headless narrative/dialogue runtimes
     dialogue/            dialogue module surface kept in tree
@@ -67,6 +67,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
   evaluation hierarchies, default transforms, validation, and exact compatibility.
 - [docs/assets/animation-clip-domain.md](docs/assets/animation-clip-domain.md): CPU
   skeletal clip data, typed TRS keys, cubic derivatives, and compatibility validation.
+- [docs/animation/skeletal-evaluation.md](docs/animation/skeletal-evaluation.md):
+  CPU track sampling, local poses, and parent-first reference-space evaluation.
 - [docs/assets/skin-binding-domain.md](docs/assets/skin-binding-domain.md): CPU
   skin-local remaps, inverse binds, and exact target-skeleton validation.
 - [docs/assets/obj-importer.md](docs/assets/obj-importer.md): standalone canonical
@@ -305,8 +307,17 @@ with Step/Linear/CubicSpline keys. Rotation values are quaternions; cubic rotati
 tangents are XYZW component derivatives. Structural/contextual validation rejects
 malformed timing, values, duplicate targets, and matrix-node TRS animation without
 repair. The clip owns no skeleton definition or runtime state. Canonical glTF now
-imports skeletal TRS clips and enumerates them as bundle values. Sampling and
-runtime integration remain unimplemented.
+imports skeletal TRS clips and enumerates them as bundle values.
+
+`modules/animation/skeletal/` owns the separate CPU `gravitas_skeletal_animation`
+target, consuming animation/skeleton assets without model, skin, ECS or rendering
+dependencies. `evaluateGtsDefaultPose` and `evaluateGtsAnimationPose` produce
+`GtsSkeletonPose` local TRS/matrix values and skeleton-reference-space matrices.
+Explicit clip-domain times use STEP, LINEAR vectors/shortest-path SLERP, or
+time-scaled Hermite (XYZW then normalization for cubic rotation). Missing tracks
+retain defaults; exact matrix nodes stay fixed. Parent-first composition uses
+`parent * local` with `T * R * S`. Validation/arithmetic failures expose no pose.
+No skin matrices, world placement or playback controller is implemented.
 
 `GtsModelSkeletonUse` shares an immutable skeleton definition; each table entry
 is a distinct occurrence. `GtsModelSkinBinding` pairs a binding value with a
