@@ -14,6 +14,8 @@ namespace
     GtsSkeletonPose defaultLocals(const GtsSkeletonAsset& skeleton)
     {
         GtsSkeletonPose pose;
+        // Both entry points validate the skeleton before constructing its pose.
+        pose.skeletonCompatibility = *makeGtsSkeletonCompatibility(skeleton).compatibility();
         pose.localTransforms.reserve(skeleton.nodes.size());
         for (const auto& node : skeleton.nodes)
             pose.localTransforms.push_back(node.defaultLocalTransform);

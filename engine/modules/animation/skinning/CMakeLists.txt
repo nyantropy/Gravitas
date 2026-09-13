@@ -1,0 +1,4 @@
+add_library(gravitas_skin_palette STATIC GtsSkinPaletteEvaluation.cpp)
+target_link_libraries(gravitas_skin_palette PUBLIC gravitas_skeletal_animation gravitas_skin_assets)
+target_include_directories(gravitas_skin_palette PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../..")
+target_compile_features(gravitas_skin_palette PUBLIC cxx_std_20)

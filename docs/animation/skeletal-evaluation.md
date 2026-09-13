@@ -20,6 +20,7 @@ GtsSkeletonAsset defaults
 `GtsSkeletonPose` is evaluated occurrence data, outside the immutable asset graph:
 
 ```cpp
+GtsSkeletonCompatibility skeletonCompatibility;
 std::vector<GtsSkeletonLocalTransform> localTransforms;
 std::vector<glm::mat4> modelTransforms;
 ```
@@ -28,9 +29,17 @@ Both arrays have exactly `skeleton.nodes.size()` entries in canonical node order
 Local values retain TRS or the original exact affine matrix; no decomposition is
 needed. Keeping locals permits inspection and future property-level processing
 without losing the matrix alternative. Keeping composed matrices avoids a second
-hierarchy pass for consumers. No skeleton pointer, compatibility copy, source
-indices, pose IDs, weights, inverse binds, or runtime state are stored in the pose.
-The caller associates the returned arrays with the supplied skeleton definition.
+hierarchy pass for consumers. `skeletonCompatibility` records the exact structural
+index contract as a self-contained value, so downstream palette validation can
+reject a same-sized pose from a different skeleton. Both evaluators derive it from
+the validated definition. It owns no skeleton pointer, source indices, pose IDs,
+weights, inverse binds, or playback state. This adds descriptor storage proportional
+to node count; it does not establish asset identity.
+
+`validateGtsSkeletonPose(pose, skeleton)` validates the exact contract, array sizes,
+local transform forms/values, and finite affine model matrices without rebuilding
+the hierarchy. Pose producers remain responsible for keeping local and composed
+arrays synchronized. See [skin palettes](skin-palette.md) for the first consumer.
 
 Public entry points are:
 
@@ -122,8 +131,8 @@ No invertibility requirement is added; finite singular transforms remain allowed
 `modelTransforms[i]` maps node `i` local coordinates into the skeleton's canonical
 reference space. It is **not a world transform, model occurrence transform, inverse
 bind, or final skin matrix**. The evaluator never applies `GtsModelNode` transforms.
-A later skin consumer may multiply a mapped pose matrix by its binding-specific
-inverse bind; that multiplication is not implemented here.
+The separate [skin palette evaluator](skin-palette.md) multiplies mapped pose
+matrices by binding-specific inverse binds; pose evaluation itself remains skin-independent.
 
 There are no mutable caches, traversal state, wall-clock inputs, frame deltas, or
 unordered iteration. Repeating identical inputs gives identical output on the same

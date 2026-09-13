@@ -69,6 +69,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
   skeletal clip data, typed TRS keys, cubic derivatives, and compatibility validation.
 - [docs/animation/skeletal-evaluation.md](docs/animation/skeletal-evaluation.md):
   CPU track sampling, local poses, and parent-first reference-space evaluation.
+- [docs/animation/skin-palette.md](docs/animation/skin-palette.md): CPU pose/binding
+  validation and skin-local deformation matrix palettes.
 - [docs/animation/transform-animation.md](docs/animation/transform-animation.md):
   procedural entity transforms, scene installation, and fixed-step playback.
 - [docs/assets/skin-binding-domain.md](docs/assets/skin-binding-domain.md): CPU
@@ -316,12 +318,21 @@ imports skeletal TRS clips and enumerates them as bundle values.
 `modules/animation/skeletal/` owns the separate CPU `gravitas_skeletal_animation`
 target, consuming animation/skeleton assets without model, skin, ECS or rendering
 dependencies. `evaluateGtsDefaultPose` and `evaluateGtsAnimationPose` produce
-`GtsSkeletonPose` local TRS/matrix values and skeleton-reference-space matrices.
+`GtsSkeletonPose` local TRS/matrix values, skeleton-reference-space matrices and
+a self-contained exact skeleton compatibility contract for downstream validation.
 Explicit clip-domain times use STEP, LINEAR vectors/shortest-path SLERP, or
 time-scaled Hermite (XYZW then normalization for cubic rotation). Missing tracks
 retain defaults; exact matrix nodes stay fixed. Parent-first composition uses
 `parent * local` with `T * R * S`. Validation/arithmetic failures expose no pose.
-No skin matrices, world placement or playback controller is implemented.
+This pose target implements no skin matrices, world placement or playback controller.
+
+`modules/animation/skinning/` owns the separate CPU `gravitas_skin_palette` target,
+linking skeletal pose evaluation and skin assets. `evaluateGtsSkinPalette` validates
+pose and binding against a supplied skeleton, then emits one matrix per skin-local
+slot: `pose.modelTransforms[mappedNode] * inverseBind`. One pose can feed multiple
+mesh-specific bindings without reevaluation. Finite checks reject overflow without
+partial results; singular affine products are valid. There are no model/mesh,
+world-placement, ECS, renderer, Vulkan or playback dependencies in this layer.
 
 `GtsModelSkeletonUse` shares an immutable skeleton definition; each table entry
 is a distinct occurrence. `GtsModelSkinBinding` pairs a binding value with a

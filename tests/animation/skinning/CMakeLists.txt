@@ -1,0 +1,9 @@
+add_executable(GtsSkinPaletteTest GtsSkinPaletteTest.cpp)
+target_link_libraries(GtsSkinPaletteTest PRIVATE gravitas_skin_palette)
+add_test(NAME gts_skin_palette COMMAND GtsSkinPaletteTest)
+set_tests_properties(gts_skin_palette PROPERTIES LABELS "gravitas;animation;skin;cpu")
+
+add_executable(GtsImportedSkinPaletteTest GtsImportedSkinPaletteTest.cpp)
+target_link_libraries(GtsImportedSkinPaletteTest PRIVATE gravitas_skin_palette gravitas_gltf_importer gravitas_skinned_geometry)
+add_test(NAME gts_imported_skin_palette COMMAND GtsImportedSkinPaletteTest)
+set_tests_properties(gts_imported_skin_palette PROPERTIES LABELS "gravitas;animation;skin;integration;cpu")
