@@ -3,6 +3,11 @@ target_link_libraries(GtsModelAssetTest PRIVATE gravitas_assets)
 add_test(NAME gts_model_asset COMMAND GtsModelAssetTest)
 set_tests_properties(gts_model_asset PROPERTIES LABELS "gravitas;assets;cpu")
 
+add_executable(GtsModelSkinTest GtsModelSkinTest.cpp)
+target_link_libraries(GtsModelSkinTest PRIVATE gravitas_assets)
+add_test(NAME gts_model_skin COMMAND GtsModelSkinTest)
+set_tests_properties(gts_model_skin PROPERTIES LABELS "gravitas;assets;cpu")
+
 add_executable(GtsModelMaterialTest GtsModelMaterialTest.cpp)
 target_link_libraries(GtsModelMaterialTest PRIVATE gravitas_assets)
 add_test(NAME gts_model_material COMMAND GtsModelMaterialTest)

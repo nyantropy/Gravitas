@@ -9,7 +9,8 @@ not runtime pose buffers.
 `gravitas_skeleton_assets` is a separate CPU-only target linked only to
 `gravitas_core` for core math/build conventions. Its headers use the standard
 library and `GlmConfig.h`, without model, parser, renderer, or ECS types. The
-existing model/importer targets do not link it.
+model domain now depends on it through the skin domain; the reverse dependency
+does not exist.
 
 ## Ownership and identity
 
@@ -113,8 +114,8 @@ Compatibility inputs include the fixed reference-space/composition convention
 above; no asset-specific convention field exists.
 
 Compatibility is not asset identity, source pointer identity, or a shared pose.
-Skin bindings store this structural expectation; future model uses will reference
-particular skeleton definitions. Persistent asset IDs, references, hashes, and
+Skin bindings store this structural expectation; model skeleton uses now reference
+particular immutable definitions in memory. Persistent asset IDs, references, hashes, and
 serialization remain undefined.
 
 The value stores O(node count) records including ID strings and transform values.
@@ -141,7 +142,8 @@ ctest --test-dir /tmp/gravitas-model-domain-cpu -R '^gts_skeleton_(asset|compati
 
 The separate [skin-binding domain](skin-binding-domain.md) now provides remaps,
 inverse binds, and validation against a supplied skeleton. The skeleton itself
-still owns none of that data. No animation clip, pose evaluation, model
-association, import bundle, cooker, runtime, ECS, or rendering integration is
+still owns none of that data. The [model domain](model-domain.md#skeleton-uses-and-skin-associations)
+now owns skeleton-use and skin-binding associations and mesh-context validation.
+No animation clip, pose evaluation, import bundle, cooker, runtime, ECS, or rendering integration is
 implemented. The glTF importer still rejects actual skin references. Introducing this asset does not
-change the existing model/import result or the static rendering profile.
+change the importer result or the static rendering profile.

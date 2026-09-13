@@ -13,7 +13,7 @@ pairs `skeletonNodeIndex` with `inverseBindMatrix`, so independent remap/matrix
 counts cannot disagree.
 
 ```text
-vertex JOINTS value = skin-local slot (future mesh association)
+vertex JOINTS value = skin-local slot (model association)
           |
 binding.joints[slot]
           |-- skeletonNodeIndex -> canonical evaluation hierarchy index
@@ -58,7 +58,7 @@ is performed.
 GtsSkeletonAsset         = reusable definition
 GtsSkeletonCompatibility = exact structural requirement, independent value
 GtsSkinBinding          = requires a compatible structure
-future model use        = selects a particular skeleton definition
+GtsModelSkeletonUse     = selects a particular skeleton definition
 future runtime pose     = mutable occurrence
 ```
 
@@ -131,6 +131,8 @@ cmake --build /tmp/gravitas-model-domain-cpu --target GtsSkinBindingTest --paral
 ctest --test-dir /tmp/gravitas-model-domain-cpu --output-on-failure
 ```
 
-No model skin tables, mesh-context validation, importer/bundle changes, glTF skin
-decoding, animation, runtime, serialization, ECS, or rendering integration is
-added. Canonical glTF import continues rejecting actual skin references.
+The [model domain](model-domain.md#skeleton-uses-and-skin-associations) now owns
+model-local binding/use tables and contextual JOINTS/WEIGHTS validation. Those
+responsibilities do not move into this independent skin domain. No importer/bundle
+changes, glTF skin decoding, animation, runtime, serialization, ECS, or rendering
+integration is added. Canonical glTF import continues rejecting actual skin references.

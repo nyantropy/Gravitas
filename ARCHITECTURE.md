@@ -270,7 +270,7 @@ so a screenshot requested alongside quit still captures the final frame.
 
 `modules/assets/` groups the canonical domain, importer contracts/strategies, and
 source-neutral processing. `gravitas_assets` owns the CPU domain and depends on
-core; parser and static-profile processing dependencies stay in separate targets
+core and the CPU skin/skeleton domains; parser and static-profile processing dependencies stay in separate targets
 within the same module. Core has no dependency on the assets module.
 
 `modules/assets/skeleton/` owns the separate CPU-only `gravitas_skeleton_assets`
@@ -283,7 +283,8 @@ fields in a self-contained value. Asset and descriptor validation share one
 implementation, and all compatibility APIs use one exact descriptor comparison.
 Compatibility is neither asset identity nor a runtime pose association.
 This is immutable asset data, not a runtime
-pose or mesh skin binding. No importer/model/cooker/runtime integration exists;
+pose or mesh skin binding. Model-local skeleton uses now reference definitions;
+no importer/cooker/runtime integration exists;
 canonical glTF import still rejects actual skin references.
 
 `modules/assets/skin/` owns `GtsSkinBinding` in the CPU-only `gravitas_skin_assets`
@@ -291,7 +292,15 @@ target, depending on skeleton assets. Each local slot pairs a skeleton-node
 index with an authored inverse bind. A self-contained `GtsSkeletonCompatibility`
 value retains the expected exact structural contract without owning a skeleton. Structural and skeleton-context
 validation are separate; duplicate mappings and singular affine inverse binds
-are allowed. No mesh/model association or runtime pose is introduced.
+are allowed. The skin target has no model dependency or runtime pose.
+
+`GtsModelSkeletonUse` shares an immutable skeleton definition; each table entry
+is a distinct occurrence. `GtsModelSkinBinding` pairs a binding value with a
+skeleton-use index. Nodes optionally select mesh + binding. Model validation
+checks these references, delegates exact compatibility to the skin domain, and
+checks paired influence sets, local-slot bounds and nonnegative unit-sum weights
+across all sets (absolute tolerance `1e-4`). Unbound streams retain generic
+geometry validation. See [model associations](docs/assets/model-domain.md#skeleton-uses-and-skin-associations).
 
 `modules/assets/model/` owns the source-format-independent, renderer-independent
 `GtsModelAsset` domain. `modules/assets/importer/` owns the `IGtsModelImporter`

@@ -2,8 +2,8 @@
 
 `engine/modules/assets/model/` owns `GtsModelAsset`. The `IGtsModelImporter` interface
 and its concrete strategies live together under `engine/modules/assets/importer/`.
-The model domain compiles into `gravitas_assets`, which links `gravitas_core`, and uses only the standard library and
-the engine's `GlmConfig.h`. It has no renderer, Vulkan, ECS, or parser dependency.
+The model domain compiles into `gravitas_assets`, which links `gravitas_core` and the CPU-only `gravitas_skin_assets` target
+(and transitively `gravitas_skeleton_assets`). It has no renderer, Vulkan, ECS, or parser dependency.
 
 The boundary for future file-backed model importers is:
 
@@ -35,7 +35,8 @@ are `vec3` for Position/Normal, `vec2` for TexCoord, `vec4` for Tangent/Color/We
 and `uvec4` for Joints. The variant stores exactly one typed vector per stream.
 Importers decode source encodings into these GLM values. Multiple UV, color, joint,
 or weight sets require no new vertex structure. Joint values are geometry data;
-no skeleton binding, weight normalization, animation, or morph storage is defined.
+their skin-local interpretation is checked when a node selects a binding.
+No weight normalization, animation, or morph storage is defined.
 
 Primitives use point, line, or triangle lists. Empty indices select sequential
 vertices; populated indices must address Position[0]. There are no strips, fans,
@@ -46,7 +47,7 @@ or generate, normalize, or otherwise repair attributes.
 ## Hierarchy and validation
 
 Nodes store names, local `glm::mat4` transforms (identity by default), children,
-and optional mesh indices. Matrices preserve imported transforms without forcing
+and optional mesh/skin-binding indices. Matrices preserve imported transforms without forcing
 them through the ECS Euler-angle transform representation. Children are the only
 stored parent/child relationship; parents can be derived. World transforms would
 compose as `parentWorld * localTransform` during static preparation / runtime realization.
@@ -68,6 +69,85 @@ Empty asset containers, empty meshes, transform-only nodes, and unreferenced
 meshes/materials are valid. Every primitive that is present must pass geometry
 validation. Multiple nodes may reference the same mesh. Validation checks no
 GPU capabilities, filesystem state, or source-format rules.
+
+## Skeleton uses and skin associations
+
+`GtsModelSkin.h` defines two model-owned association values:
+
+```text
+GtsModelAsset
+  skeletonUses[]: GtsModelSkeletonUse
+    skeleton: shared_ptr<const GtsSkeletonAsset>
+  skinBindings[]: GtsModelSkinBinding
+    binding: GtsSkinBinding
+    skeletonUseIndex: uint32_t
+  nodes[]: GtsModelNode
+    meshIndex: optional<uint32_t>
+    skinBindingIndex: optional<uint32_t>
+```
+
+`GtsSkeletonAsset` is the reusable definition; `GtsSkeletonCompatibility` is its
+exact structural contract. `GtsSkinBinding` still stores only the required
+compatibility contract and paired local-slot remaps/inverse binds. It owns no
+skeleton reference. `GtsModelSkeletonUse` supplies actual in-memory definition
+identity and shared lifetime. Producers must treat published definitions as
+immutable, including through any retained mutable aliases. Persistent identity,
+import-bundle ownership and serialization remain deferred.
+
+Each skeleton-use entry is a distinct occurrence. Two entries referencing the
+same definition are not deduplicated and need not eventually share a runtime
+pose. Multiple bindings may target one use, and multiple nodes may select one
+binding. One mesh can be instantiated with different bindings. The selected
+binding belongs to the node occurrence, never to the mesh/primitive. Sharing a
+skeleton pose does not imply sharing final skin matrices: inverse binds remain
+binding-specific. There is no mutable pose or model-node/skeleton-node transform
+correspondence in these association values yet.
+
+Static models naturally leave both tables empty and node binding indices absent.
+A node selecting a binding must also select a mesh. Transform-only nodes remain
+valid. `skeletonUseIndex` defaults to `InvalidSkeletonUseIndex` (`uint32_t` max),
+which is rejected; explicit zero is valid. Default skeleton uses contain null
+references and are rejected if inserted into the model.
+
+`validateGtsModelAsset` runs a focused internal model-skin validation phase in
+`GtsModelSkinValidation.cpp`. It validates all use definitions and binding
+associations, including unused entries. Existing skeleton and skin validators
+own hierarchy, transform, compatibility, inverse-bind and skeleton-remap checks.
+There is no second compatibility algorithm. Errors retain those domains' codes
+with model binding/use context. Null/invalid uses and invalid node/table indices
+are diagnosed without dereferencing them.
+
+For **each bound node**, every primitive of its selected mesh must have at least
+one paired `Joints[n]`/`Weights[n]` set. Pairing is bidirectional. Generic primitive
+validation still owns canonical types, unique keys, finite values and stream
+lengths matching Position[0]. The contextual phase checks:
+
+- every joint component is a skin-local slot strictly below the selected binding's
+  joint count, including components whose weights are zero;
+- weights are nonnegative; every vertex has positive total weight;
+- total weight across **all** numbered sets satisfies `abs(total - 1) <= 1e-4`
+  (`GtsModelSkinWeightSumTolerance`), accumulated in double precision.
+
+Validation never normalizes, clamps, fills streams, rewrites slots to skeleton
+indices, or mutates inputs. Numbered sets need not be consecutive or start at
+zero. More than four positive influences are valid. Runtime-profile limits belong
+below the format wall. Empty meshes retain the existing policy: they have no
+primitives to validate, even when bound.
+
+Unbound JOINTS/WEIGHTS remain permitted under generic primitive validation,
+including unpaired sets and weights without a usable total. Such geometry is
+not asserted to be a usable skinned instance. The current canonical glTF importer
+preserves unbound influence streams and checks individual weights, but does not
+check their cross-set sum; later skin import must satisfy this new contextual
+contract explicitly. Actual source skin references still fail import. Static
+preparation still rejects skeletal semantics.
+
+`tests/assets/GtsModelSkinTest.cpp` covers shared occurrences/definitions,
+association/reference failures, contextual compatibility, node-specific binding
+reuse, paired and arbitrary-numbered sets, slot bounds (including zero weights),
+weight validity/tolerance, eight influences, unbound behavior, generic malformed
+streams, deterministic diagnostics and non-mutating validation. It links only
+`gravitas_assets` and runs with rendering/Vulkan disabled.
 
 ## Material appearance and image inputs
 

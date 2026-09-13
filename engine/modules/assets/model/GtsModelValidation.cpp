@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "GtsModelAsset.h"
+#include "GtsModelSkinValidation.h"
 
 namespace
 {
@@ -295,6 +296,8 @@ GtsModelValidationResult validateGtsModelAsset(const GtsModelAsset& asset)
             }
         }
     }
+
+    gtsModelValidationDetail::validateSkinAssociations(asset, result);
 
     std::vector<size_t> parentCounts(asset.nodes.size(), 0);
     for (size_t nodeIndex = 0; nodeIndex < asset.nodes.size(); ++nodeIndex)

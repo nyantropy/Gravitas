@@ -8,6 +8,7 @@
 #include "GlmConfig.h"
 #include "GtsModelImage.h"
 #include "GtsModelMaterial.h"
+#include "GtsModelSkin.h"
 #include "GtsVertexAttribute.h"
 
 // 3 types of topology, but we are most likely only gonna use triangles
@@ -48,6 +49,7 @@ struct GtsModelNode
     // children are authoritative, meaning that a parent can be derived without duplicated state
     std::vector<uint32_t> children;
     std::optional<uint32_t> meshIndex;
+    std::optional<uint32_t> skinBindingIndex;
 };
 
 // core struct, everything is accessed with indices
@@ -58,4 +60,6 @@ struct GtsModelAsset
     std::vector<GtsModelMesh> meshes;
     std::vector<GtsModelMaterial> materials;
     std::vector<GtsModelImage> images;
+    std::vector<GtsModelSkeletonUse> skeletonUses;
+    std::vector<GtsModelSkinBinding> skinBindings;
 };

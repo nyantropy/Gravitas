@@ -8,6 +8,9 @@ struct GtsModelAsset;
 struct GtsModelPrimitive;
 struct GtsModelMaterial;
 
+// Absolute tolerance on the per-vertex sum across every bound Weights[n] set.
+inline constexpr double GtsModelSkinWeightSumTolerance = 1e-4;
+
 struct GtsModelValidationResult
 {
     std::vector<GtsModelDiagnostic> diagnostics;
