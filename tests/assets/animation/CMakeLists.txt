@@ -1,0 +1,4 @@
+add_executable(GtsAnimationClipAssetTest GtsAnimationClipAssetTest.cpp)
+target_link_libraries(GtsAnimationClipAssetTest PRIVATE gravitas_animation_assets)
+add_test(NAME gts_animation_clip_asset COMMAND GtsAnimationClipAssetTest)
+set_tests_properties(gts_animation_clip_asset PROPERTIES LABELS "gravitas;assets;animation;cpu")

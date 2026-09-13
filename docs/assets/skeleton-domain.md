@@ -145,7 +145,8 @@ inverse binds, and validation against a supplied skeleton. The skeleton itself
 still owns none of that data. The [model domain](model-domain.md#skeleton-uses-and-skin-associations)
 now owns skeleton-use and skin-binding associations and mesh-context validation.
 The [import bundle](import-bundle.md) now enumerates shared immutable definitions.
-No animation clip, pose evaluation, cooker, runtime, ECS, or rendering integration is
-implemented. The canonical glTF importer now produces skeletons and model uses
+The independent [animation clip domain](animation-clip-domain.md) now stores timed
+TRS overrides against a compatibility value. No animation import, pose evaluation,
+cooker, runtime, ECS, or rendering integration is implemented. The canonical glTF importer now produces skeletons and model uses
 for actual skins, preserving helper nodes and TRS/matrix forms. This does not
 change the importer result or the static rendering profile.

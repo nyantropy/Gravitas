@@ -11,6 +11,7 @@ target_include_directories(gravitas_assets PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/.
 target_compile_features(gravitas_assets PUBLIC cxx_std_20)
 
 add_subdirectory(skeleton)
+add_subdirectory(animation)
 add_subdirectory(skin)
 target_link_libraries(gravitas_assets PUBLIC gravitas_skin_assets)
 add_subdirectory(importer)

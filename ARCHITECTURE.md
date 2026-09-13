@@ -65,6 +65,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
   import products, definition ownership, enumeration and result validation.
 - [docs/assets/skeleton-domain.md](docs/assets/skeleton-domain.md): reusable CPU
   evaluation hierarchies, default transforms, validation, and exact compatibility.
+- [docs/assets/animation-clip-domain.md](docs/assets/animation-clip-domain.md): CPU
+  skeletal clip data, typed TRS keys, cubic derivatives, and compatibility validation.
 - [docs/assets/skin-binding-domain.md](docs/assets/skin-binding-domain.md): CPU
   skin-local remaps, inverse binds, and exact target-skeleton validation.
 - [docs/assets/obj-importer.md](docs/assets/obj-importer.md): standalone canonical
@@ -295,6 +297,15 @@ index with an authored inverse bind. A self-contained `GtsSkeletonCompatibility`
 value retains the expected exact structural contract without owning a skeleton. Structural and skeleton-context
 validation are separate; duplicate mappings and singular affine inverse binds
 are allowed. The skin target has no model dependency or runtime pose.
+
+`modules/assets/animation/` owns the independent CPU-only `gravitas_animation_assets`
+target, depending only on skeleton assets and core math. `GtsAnimationClipAsset`
+stores an exact compatibility expectation, duration, and per-property TRS tracks
+with Step/Linear/CubicSpline keys. Rotation values are quaternions; cubic rotation
+tangents are XYZW component derivatives. Structural/contextual validation rejects
+malformed timing, values, duplicate targets, and matrix-node TRS animation without
+repair. The clip owns no skeleton definition or runtime state. Animation import,
+bundle enumeration, sampling, and runtime integration remain unimplemented.
 
 `GtsModelSkeletonUse` shares an immutable skeleton definition; each table entry
 is a distinct occurrence. `GtsModelSkinBinding` pairs a binding value with a
