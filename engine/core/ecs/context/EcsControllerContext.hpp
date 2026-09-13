@@ -9,6 +9,7 @@
 #include "RegisteredSceneInfo.h"
 
 class ECSWorld;
+class GtsModelRegistry;
 class IGtsPhysicsModule;
 class IResourceProvider;
 class UiSystem;
@@ -37,4 +38,5 @@ struct EcsControllerContext
     float                           sceneViewportPixelWidth = 1.0f;
     float                           sceneViewportPixelHeight = 1.0f;
     float                           sceneViewportAspectRatio = 1.0f;
+    GtsModelRegistry*                models = nullptr;
 };

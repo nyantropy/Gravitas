@@ -23,3 +23,8 @@ add_subdirectory(importers/gltf)
 add_subdirectory(skeleton)
 add_subdirectory(skin)
 add_subdirectory(animation)
+
+add_executable(GtsModelRegistryTest runtime/GtsModelRegistryTest.cpp)
+target_link_libraries(GtsModelRegistryTest PRIVATE gravitas_model_runtime gravitas_gltf_importer)
+add_test(NAME gts_model_registry COMMAND GtsModelRegistryTest)
+set_tests_properties(gts_model_registry PROPERTIES LABELS "gravitas;assets;runtime;cpu")

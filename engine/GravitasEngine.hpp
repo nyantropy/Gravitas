@@ -21,6 +21,7 @@
 #include "GtsCommand.h"
 #include "GtsCommandBuffer.h"
 #include "EngineServiceRegistry.h"
+#include "assets/runtime/model/GtsModelRegistry.h"
 #include "IEngineModule.h"
 #include "GraphicsBackendInstaller.h"
 #include "GraphicsBackendRegistry.h"
@@ -49,6 +50,7 @@ class GravitasEngine
 
     // installed engine-level service registry and module lifecycle hooks
     EngineServiceRegistry serviceRegistry;
+    GtsModelRegistry modelRegistry;
     std::vector<IEngineModule*> engineModules;
 
     // renderer runtime integration
@@ -123,6 +125,7 @@ class GravitasEngine
 
         EcsControllerContext ctx{world};
         ctx.resources         = renderingRuntime->resources();
+        ctx.models            = &modelRegistry;
         ctx.input             = platform.getInputBindingRegistry();
         ctx.time              = &timeContext;
         ctx.engineCommands    = &engineCommands;
@@ -289,6 +292,7 @@ class GravitasEngine
                 {
                     applyGraphicsSettingsCommand(settings);
                 });
+        serviceRegistry.registerService(modelRegistry);
         installEngineModule(*renderingRuntime);
         if (engineConfig.tools.enabled)
         {

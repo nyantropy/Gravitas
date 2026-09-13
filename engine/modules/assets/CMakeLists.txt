@@ -16,3 +16,5 @@ add_subdirectory(skin)
 target_link_libraries(gravitas_assets PUBLIC gravitas_skin_assets gravitas_animation_assets)
 add_subdirectory(importer)
 add_subdirectory(processing/geometry)
+
+add_subdirectory(runtime/model)

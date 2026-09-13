@@ -1,0 +1,56 @@
+#pragma once
+
+#include <cstddef>
+#include <filesystem>
+#include <map>
+#include <vector>
+
+#include "GtsModelHandle.h"
+#include "assets/model/GtsModelDiagnostic.h"
+
+class GtsModelRequestResult
+{
+    public:
+    bool succeeded() const
+    {
+        return static_cast<bool>(resource);
+    }
+    const GtsModelHandle& handle() const
+    {
+        return resource;
+    }
+    const std::vector<GtsModelDiagnostic>& diagnostics() const
+    {
+        return messages;
+    }
+
+    private:
+    friend class GtsModelRegistry;
+    GtsModelRequestResult(GtsModelHandle resource, std::vector<GtsModelDiagnostic> diagnostics);
+    GtsModelHandle                  resource;
+    std::vector<GtsModelDiagnostic> messages;
+};
+
+// synchronous, main-thread-only - successful entries remain until registry shutdown
+class GtsModelRegistry
+{
+    public:
+    GtsModelRegistry()                                   = default;
+    GtsModelRegistry(const GtsModelRegistry&)            = delete;
+    GtsModelRegistry& operator=(const GtsModelRegistry&) = delete;
+
+    GtsModelRequestResult   requestModel(const std::filesystem::path& path);
+    const GtsModelResource* lookup(const GtsModelHandle& handle) const;
+    std::size_t             size() const
+    {
+        return entries.size();
+    }
+
+    private:
+    struct Entry
+    {
+        GtsModelHandle                  resource;
+        std::vector<GtsModelDiagnostic> diagnostics;
+    };
+    std::map<std::filesystem::path, Entry> entries;
+};

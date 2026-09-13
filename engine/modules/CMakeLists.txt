@@ -56,6 +56,7 @@ target_include_directories(gravitas_modules INTERFACE
 
 target_link_libraries(gravitas_modules INTERFACE
     gravitas_core
+    gravitas_model_runtime
 )
 
 foreach(GTS_OPTIONAL_MODULE_TARGET
