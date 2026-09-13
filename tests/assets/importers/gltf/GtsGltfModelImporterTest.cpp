@@ -229,6 +229,8 @@ namespace
         for (const auto& diagnostic : result.diagnostics())
             message += diagnostic.code + ": " + diagnostic.message + " @ " + diagnostic.location + "\n";
         require(result.succeeded(), message);
+        require(result.bundle() && result.bundle()->model && result.bundle()->skeletons.empty(),
+                "Canonical glTF currently produces a primary model without skeleton products");
     }
     void bad(Fixture& fixture, const std::filesystem::path& root, const std::string& code)
     {

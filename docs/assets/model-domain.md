@@ -8,7 +8,9 @@ The model domain compiles into `gravitas_assets`, which links `gravitas_core` an
 The boundary for future file-backed model importers is:
 
 ```text
-source file -> IGtsModelImporter -> GtsModelImportResult -> GtsModelAsset
+source file -> IGtsModelImporter -> GtsModelImportResult -> GtsModelImportBundle
+                                                               |
+                                                primary model + associated definitions
                                                                |
                                                     static preparation / runtime realization
 ```
@@ -92,7 +94,8 @@ compatibility contract and paired local-slot remaps/inverse binds. It owns no
 skeleton reference. `GtsModelSkeletonUse` supplies actual in-memory definition
 identity and shared lifetime. Producers must treat published definitions as
 immutable, including through any retained mutable aliases. Persistent identity,
-import-bundle ownership and serialization remain deferred.
+serialization remain deferred. The [import bundle](import-bundle.md) now
+enumerates produced definitions and shares their ownership with model uses.
 
 Each skeleton-use entry is a distinct occurrence. Two entries referencing the
 same definition are not deduplicated and need not eventually share a runtime
@@ -284,13 +287,14 @@ or calling the interface; the interface header only forward-declares the result.
 No selection registry, importer options, file IO implementation, or loader exists
 in the model domain. Source file IO belongs to the neighboring importer strategies.
 
-Use `GtsModelImportResult::success(asset, diagnostics)` to finalize an import.
-It validates the asset before exposing it. Any validation or importer error
-produces failure and discards the asset. Warnings preserve success and are queried
-with `hasWarnings()`. `failure(diagnostics)` always returns no asset and at least
-one error, adding a generic error if necessary. `succeeded()`, `asset()`, and
-`diagnostics()` provide read-only inspection; there is no default or partially
-successful result state.
+Use `GtsModelImportResult::success(asset, diagnostics)` for a model-only import,
+or `success(bundle, diagnostics)` for associated skeleton definitions. Both
+validate a [canonical import bundle](import-bundle.md). Errors discard all
+products; warnings preserve success. The result exposes `bundle()`, `asset()`,
+`succeeded()`, `diagnostics()` and `hasWarnings()`. The primary model is optional,
+so a successful skeleton-only bundle has a null `asset()`; use `succeeded()` to
+distinguish success. `failure(diagnostics)` exposes no bundle and always reports
+at least one error. Current OBJ/glTF strategies remain model-only.
 
 Diagnostics use the existing engine pattern of severity, code, and message,
 plus a textual location. Existing `AssetImportResult`/`AssetDiagnostic` reside in

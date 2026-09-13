@@ -4,7 +4,7 @@
 #include <iterator>
 #include <utility>
 
-#include "GtsModelValidation.h"
+#include "assets/importer/GtsModelImportBundleValidation.h"
 
 namespace
 {
@@ -17,16 +17,22 @@ namespace
     }
 }
 
-GtsModelImportResult::GtsModelImportResult(std::optional<GtsModelAsset> asset,
+GtsModelImportResult::GtsModelImportResult(std::optional<GtsModelImportBundle> bundle,
                                          std::vector<GtsModelDiagnostic> diagnostics)
-    : model(std::move(asset)), messages(std::move(diagnostics))
+    : importedAssets(std::move(bundle)), messages(std::move(diagnostics))
 {
 }
 
 GtsModelImportResult GtsModelImportResult::success(GtsModelAsset asset,
                                                  std::vector<GtsModelDiagnostic> diagnostics)
 {
-    GtsModelValidationResult validation = validateGtsModelAsset(asset);
+    return success(GtsModelImportBundle{std::move(asset), {}}, std::move(diagnostics));
+}
+
+GtsModelImportResult GtsModelImportResult::success(GtsModelImportBundle bundle,
+                                                 std::vector<GtsModelDiagnostic> diagnostics)
+{
+    GtsModelImportBundleValidationResult validation = validateGtsModelImportBundle(bundle);
     diagnostics.insert(diagnostics.end(),
                        std::make_move_iterator(validation.diagnostics.begin()),
                        std::make_move_iterator(validation.diagnostics.end()));
@@ -34,7 +40,7 @@ GtsModelImportResult GtsModelImportResult::success(GtsModelAsset asset,
     {
         return failure(std::move(diagnostics));
     }
-    return GtsModelImportResult(std::move(asset), std::move(diagnostics));
+    return GtsModelImportResult(std::move(bundle), std::move(diagnostics));
 }
 
 GtsModelImportResult GtsModelImportResult::failure(std::vector<GtsModelDiagnostic> diagnostics)

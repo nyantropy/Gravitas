@@ -144,6 +144,7 @@ The separate [skin-binding domain](skin-binding-domain.md) now provides remaps,
 inverse binds, and validation against a supplied skeleton. The skeleton itself
 still owns none of that data. The [model domain](model-domain.md#skeleton-uses-and-skin-associations)
 now owns skeleton-use and skin-binding associations and mesh-context validation.
-No animation clip, pose evaluation, import bundle, cooker, runtime, ECS, or rendering integration is
+The [import bundle](import-bundle.md) now enumerates shared immutable definitions.
+No animation clip, pose evaluation, cooker, runtime, ECS, or rendering integration is
 implemented. The glTF importer still rejects actual skin references. Introducing this asset does not
 change the importer result or the static rendering profile.

@@ -61,6 +61,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
 
 - [docs/assets/model-domain.md](docs/assets/model-domain.md): canonical CPU model
   assets, semantic vertex streams, validation, and the model-importer boundary.
+- [docs/assets/import-bundle.md](docs/assets/import-bundle.md): associated canonical
+  import products, definition ownership, enumeration and result validation.
 - [docs/assets/skeleton-domain.md](docs/assets/skeleton-domain.md): reusable CPU
   evaluation hierarchies, default transforms, validation, and exact compatibility.
 - [docs/assets/skin-binding-domain.md](docs/assets/skin-binding-domain.md): CPU
@@ -305,8 +307,13 @@ geometry validation. See [model associations](docs/assets/model-domain.md#skelet
 `modules/assets/model/` owns the source-format-independent, renderer-independent
 `GtsModelAsset` domain. `modules/assets/importer/` owns the `IGtsModelImporter`
 contract and concrete strategies. File-backed model importers return validated
-assets through `GtsModelImportResult`; runtime realization is a
-separate responsibility. `modules/assets/importer/obj/` provides the first
+bundles through `GtsModelImportResult`. `GtsModelImportBundle` contains an optional
+primary model and shared immutable skeleton definitions. Model occurrences share
+those same objects; duplicate definition entries and unlisted uses are rejected.
+Bundle validation composes model/skeleton validation and checks ownership, not
+structural identity. Static importers retain model-only success calls. A successful
+model-less bundle is possible, so `asset() == nullptr` alone no longer means failure.
+Runtime realization remains a separate responsibility. `modules/assets/importer/obj/` provides the first
 strategy, `GtsObjModelImporter`. It is the only OBJ interpreter. Offline cooking
 and permitted development runtime loading both consume its canonical model through
 static preparation. `modules/assets/realization/` adapts flat identity-root models

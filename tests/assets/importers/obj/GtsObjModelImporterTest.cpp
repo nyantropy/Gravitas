@@ -63,6 +63,7 @@ namespace
         for (const auto& diagnostic : result.diagnostics())
             messages += diagnostic.code + ": " + diagnostic.message + "\n";
         require(result.succeeded() && result.asset(), "Import failed:\n" + messages);
+        require(result.bundle() && result.bundle()->skeletons.empty(), "OBJ produces only a primary model");
         require(validateGtsModelAsset(*result.asset()).isValid(), "Success must expose a valid canonical asset");
         return *result.asset();
     }

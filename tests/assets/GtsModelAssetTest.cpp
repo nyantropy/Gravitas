@@ -225,6 +225,7 @@ namespace
         const IGtsModelImporter& importer = fixture;
         const auto imported = importer.importAsset({"fixture.model"});
         require(imported.succeeded() && imported.asset(), "Strategy returns a model on success");
+        require(imported.bundle() && imported.bundle()->skeletons.empty(), "Model-only success exposes a bundle without skeleton placeholders");
         require(imported.diagnostics().empty() && !imported.hasWarnings(), "Clean success is explicit");
         require(imported.asset()->meshes.size() == 2, "Result retains all meshes");
         require(!importer.importAsset({}).succeeded(), "Strategy can report failure");

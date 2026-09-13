@@ -2,6 +2,7 @@
 # separate targets within this module so domain users need neither dependency.
 add_library(gravitas_assets STATIC
     model/GtsModelImportResult.cpp
+    importer/GtsModelImportBundleValidation.cpp
     model/GtsModelValidation.cpp
     model/GtsModelSkinValidation.cpp
 )
