@@ -1,6 +1,6 @@
 # Static Geometry Preparation
 
-`engine/modules/assets/processing/geometry/` owns the standalone CPU target
+`engine/modules/assets/processing/geometry/static/` owns the standalone CPU target
 `gravitas_static_geometry`. It consumes one canonical mesh, independently of any
 source file, importer, material realization, or resource manager:
 
@@ -67,7 +67,8 @@ colors/zero UVs were authored by the source.
 
 ## Algorithm reuse and metadata
 
-The implementation calls the existing CPU-only, header-only
+The shared `GtsPrimitiveGeometryPreparation` helper calls the existing CPU-only,
+header-only
 `gts::rendering::prepareMeshGeometry` once per primitive. Its default initialization,
 area-weighted normal accumulation, tangent generation, handedness, degeneracy
 thresholds, and finite fallbacks are reused unchanged. There is no legacy
@@ -107,12 +108,15 @@ The prepared type does not own bounds. The downstream flat-model adapter compute
 existing `AssetBounds` over all combined prepared positions using the cooker's
 CPU bounds function. This keeps storage/runtime headers out of preparation.
 
-The preparation target links `gravitas_assets` (and transitively core) and exposes the existing narrow
+The preparation target links `gravitas_primitive_geometry`, which links
+`gravitas_assets` (and transitively core) and exposes the existing narrow
 `rendering/core/geometry` header directory for `Vertex` and metadata. The reused
 processor header itself includes only standard headers and `Vertex.h`. No linking
-to `gravitas_rendering`, GLFW, Vulkan, TinyOBJ, or the importer is required, and no
-existing geometry source needed extraction. The module location preserves the
-rule that core domain headers must not depend on module contracts.
+to `gravitas_rendering`, GLFW, Vulkan, TinyOBJ, or the importer is required.
+Primitive stream conversion is shared with the separate
+[skinned profile](skinned-geometry.md); geometry math remains unchanged. The module
+location preserves the rule that core domain headers must not depend on module
+contracts.
 
 The target is available with rendering disabled. OBJ cooking and development
 runtime loading now consume it through the source-neutral flat-model adapter.
@@ -120,7 +124,7 @@ glTF and procedural geometry still use their existing preparation calls.
 
 ## Tests
 
-`tests/assets/processing/geometry/GtsStaticMeshPreparationTest` constructs canonical
+`tests/assets/processing/geometry/static/GtsStaticMeshPreparationTest` constructs canonical
 fixtures directly and links only the preparation target. It covers copied streams,
 normal/tangent generation, finite fallbacks, mixed per-primitive availability,
 indexed and sequential rebasing, ranges/materials, exact authored-data retention,

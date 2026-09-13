@@ -1,0 +1,9 @@
+add_executable(GtsSkinnedMeshPreparationTest GtsSkinnedMeshPreparationTest.cpp)
+target_link_libraries(GtsSkinnedMeshPreparationTest PRIVATE gravitas_skinned_geometry gravitas_static_geometry)
+add_test(NAME gts_skinned_mesh_preparation COMMAND GtsSkinnedMeshPreparationTest)
+set_tests_properties(gts_skinned_mesh_preparation PROPERTIES LABELS "gravitas;assets;processing;cpu")
+
+add_executable(GtsImportedSkinnedMeshTest GtsImportedSkinnedMeshTest.cpp)
+target_link_libraries(GtsImportedSkinnedMeshTest PRIVATE gravitas_skinned_geometry gravitas_gltf_importer)
+add_test(NAME gts_imported_skinned_mesh COMMAND GtsImportedSkinnedMeshTest)
+set_tests_properties(gts_imported_skinned_mesh PROPERTIES LABELS "gravitas;assets;processing;cpu")

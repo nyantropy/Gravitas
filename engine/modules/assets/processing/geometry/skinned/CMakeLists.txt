@@ -1,0 +1,4 @@
+add_library(gravitas_skinned_geometry STATIC GtsSkinnedMeshPreparation.cpp)
+target_link_libraries(gravitas_skinned_geometry PUBLIC gravitas_primitive_geometry gravitas_skin_assets)
+target_include_directories(gravitas_skinned_geometry PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_compile_features(gravitas_skinned_geometry PUBLIC cxx_std_20)

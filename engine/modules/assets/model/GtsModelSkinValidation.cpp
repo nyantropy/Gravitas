@@ -227,3 +227,11 @@ void gtsModelValidationDetail::validateSkinAssociations(const GtsModelAsset& ass
                                   result);
     }
 }
+
+GtsModelValidationResult validateGtsModelPrimitiveSkin(const GtsModelPrimitive& primitive,
+                                                      const GtsSkinBinding& binding)
+{
+    auto result = validateGtsModelPrimitive(primitive);
+    validatePrimitiveSkin(primitive, binding, "primitive", result);
+    return result;
+}

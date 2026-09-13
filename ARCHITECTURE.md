@@ -38,7 +38,7 @@ This file is the engine architecture entrypoint. Feature details live under
 engine/
   core/                  pure ECS, input, scene, command, event, UI runtime, JSON
   modules/
-    assets/              canonical model/skeleton domains, importers, static geometry processing
+    assets/              canonical model/skeleton domains, importers, static/skinned geometry processing
     transform/           local/world transforms and hierarchy
     animation/           transform animation ECS feature and CPU skeletal evaluation
     tween/               reusable tween/easing helpers
@@ -79,6 +79,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
   strategy, shared source decoding, scene policy, and explicit unsupported features.
 - [docs/assets/static-geometry.md](docs/assets/static-geometry.md): source-neutral
   static geometry preparation, primitive ranges, defaults, generation, and metadata.
+- [docs/assets/skinned-geometry.md](docs/assets/skinned-geometry.md): CPU four-influence
+  skinned profile, binding-context validation and deterministic influence reduction.
 - [docs/json/architecture.md](docs/json/architecture.md): shared JSON syntax,
   value trees, schema ownership, error handling, and migration contracts.
 - [docs/settings/architecture.md](docs/settings/architecture.md): subsystem-owned
@@ -361,10 +363,16 @@ STEP/LINEAR/CUBICSPLINE preserve typed keys and derivatives. See
 Its CPU source utilities and stricter GLB framing are shared with the legacy
 importer. Cooked v1 serializers and GPU upload are unchanged.
 See [OBJ consumer migration](docs/assets/obj-consumers.md) for adaptation limits.
-`modules/assets/processing/geometry/` consumes canonical meshes for the current
+`modules/assets/processing/geometry/static/` consumes canonical meshes for the current
 static rendering profile. It prepares CPU `Vertex` buffers and primitive ranges
 without modifying canonical inputs. This standalone target reuses CPU geometry
 algorithms and has no importer, cooker, runtime, or backend dependency.
+The separate `geometry/skinned/` profile prepares `GtsSkinnedVertex` geometry with
+four effective influences, keeping skin-local slots. It validates mesh/binding
+context, selects the strongest four across all sets with deterministic ties, and
+renormalizes prepared weights with explicit reduction metadata/warnings. Both
+profiles share primitive attribute conversion and existing CPU geometry algorithms.
+Neither profile computes poses, skin matrices, world transforms or animated bounds.
 Model materials describe CPU appearance and reference model-local image inputs
 with explicit UV sets and scalar channels. Shader policy, cooked texture identity,
 and runtime material state remain outside the canonical domain.

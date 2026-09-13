@@ -1,0 +1,4 @@
+add_executable(GtsStaticMeshPreparationTest GtsStaticMeshPreparationTest.cpp)
+target_link_libraries(GtsStaticMeshPreparationTest PRIVATE gravitas_static_geometry)
+add_test(NAME gts_static_mesh_preparation COMMAND GtsStaticMeshPreparationTest)
+set_tests_properties(gts_static_mesh_preparation PROPERTIES LABELS "gravitas;assets;processing;cpu")

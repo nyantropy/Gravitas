@@ -6,7 +6,7 @@
 #include "AssetCooker.h"
 #include "assets/model/GtsModelAsset.h"
 #include "assets/model/GtsModelValidation.h"
-#include "assets/processing/geometry/GtsStaticMeshPreparation.h"
+#include "assets/processing/geometry/static/GtsStaticMeshPreparation.h"
 
 namespace gts::rendering
 {

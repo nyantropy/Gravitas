@@ -1,0 +1,4 @@
+add_library(gravitas_static_geometry STATIC GtsStaticMeshPreparation.cpp)
+target_link_libraries(gravitas_static_geometry PUBLIC gravitas_primitive_geometry)
+target_compile_features(gravitas_static_geometry PUBLIC cxx_std_20)
+target_include_directories(gravitas_static_geometry PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")

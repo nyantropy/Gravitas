@@ -3,27 +3,16 @@
 #include <algorithm>
 #include <cstddef>
 #include <limits>
-#include <numeric>
 #include <string>
 #include <utility>
 #include <variant>
 
-#include "MeshGeometryProcessor.h"
+#include "GtsPrimitiveGeometryPreparation.h"
 #include "assets/model/GtsModelAsset.h"
 #include "assets/model/GtsModelValidation.h"
 
 namespace
 {
-    template <class T>
-    void copyStream(const GtsVertexAttribute& attribute, std::vector<Vertex>& vertices, T Vertex::* member)
-    {
-        const auto& values = std::get<std::vector<T>>(attribute.values);
-        for (size_t i = 0; i < vertices.size(); ++i)
-        {
-            vertices[i].*member = values[i];
-        }
-    }
-
     const std::vector<glm::vec3>& positions(const GtsModelPrimitive& primitive)
     {
         const auto found =
@@ -131,54 +120,10 @@ GtsStaticMeshPreparationResult prepareGtsStaticMesh(const GtsModelMesh& mesh)
     prepared.primitives.reserve(mesh.primitives.size());
     for (const auto& primitive : mesh.primitives)
     {
-        std::vector<Vertex>   vertices(positions(primitive).size());
-        std::vector<uint32_t> indices = primitive.indices;
-        if (indices.empty())
-        {
-            indices.resize(vertices.size());
-            std::iota(indices.begin(), indices.end(), uint32_t{0});
-        }
-        VertexAttributeFlags          sourceAttributes = VertexAttributeFlags::None;
-        const std::vector<glm::vec3>* authoredNormals  = nullptr;
-        for (const auto& attribute : primitive.attributes)
-        {
-            if (attribute.setIndex != 0)
-                continue;
-            switch (attribute.semantic)
-            {
-            case GtsVertexSemantic::Position:
-                copyStream(attribute, vertices, &Vertex::pos);
-                sourceAttributes |= VertexAttributeFlags::Position;
-                break;
-            case GtsVertexSemantic::Normal:
-                copyStream(attribute, vertices, &Vertex::normal);
-                sourceAttributes |= VertexAttributeFlags::Normal;
-                authoredNormals = &std::get<std::vector<glm::vec3>>(attribute.values);
-                break;
-            case GtsVertexSemantic::Tangent:
-                copyStream(attribute, vertices, &Vertex::tangent);
-                sourceAttributes |= VertexAttributeFlags::Tangent;
-                break;
-            case GtsVertexSemantic::Color:
-                copyStream(attribute, vertices, &Vertex::color);
-                sourceAttributes |= VertexAttributeFlags::Color;
-                break;
-            case GtsVertexSemantic::TexCoord:
-                copyStream(attribute, vertices, &Vertex::texCoord);
-                sourceAttributes |= VertexAttributeFlags::UV0;
-                break;
-            case GtsVertexSemantic::Joints:
-            case GtsVertexSemantic::Weights:
-                break;
-            }
-        }
-        const auto metadata = gts::rendering::prepareMeshGeometry(vertices, indices, sourceAttributes);
-        // tangent generation normalizes working normals
-        if (authoredNormals)
-        {
-            for (size_t i = 0; i < vertices.size(); ++i)
-                vertices[i].normal = (*authoredNormals)[i];
-        }
+        auto geometry = gtsGeometryPreparationDetail::preparePrimitiveGeometry(primitive);
+        const auto& vertices = geometry.vertices;
+        const auto& indices = geometry.indices;
+        const auto& metadata = geometry.metadata;
         const auto firstVertex = static_cast<uint32_t>(prepared.vertices.size());
         prepared.primitives.push_back({static_cast<uint32_t>(prepared.indices.size()),
                                        static_cast<uint32_t>(indices.size()),
