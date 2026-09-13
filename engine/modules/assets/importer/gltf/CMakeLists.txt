@@ -1,7 +1,7 @@
 add_library(gravitas_gltf_source STATIC GltfSourceUtilities.cpp)
 target_compile_features(gravitas_gltf_source PUBLIC cxx_std_20)
 
-add_library(gravitas_gltf_importer STATIC GtsGltfModelImporter.cpp GltfSourceReader.cpp)
+add_library(gravitas_gltf_importer STATIC GtsGltfModelImporter.cpp GltfSourceReader.cpp GltfSkinImporter.cpp)
 target_link_libraries(gravitas_gltf_importer PUBLIC gravitas_assets PRIVATE gravitas_gltf_source)
 target_include_directories(gravitas_gltf_importer PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_features(gravitas_gltf_importer PUBLIC cxx_std_20)

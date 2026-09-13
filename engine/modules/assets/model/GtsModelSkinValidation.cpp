@@ -1,8 +1,10 @@
 #include "GtsModelSkinValidation.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <map>
+#include <set>
 #include <string>
 #include <utility>
 #include <variant>
@@ -12,6 +14,7 @@
 #include "GtsModelValidation.h"
 #include "assets/skin/GtsSkinBindingValidation.h"
 #include "assets/skeleton/GtsSkeletonValidation.h"
+#include "assets/skeleton/GtsSkeletonAsset.h"
 
 namespace
 {
@@ -146,6 +149,32 @@ void gtsModelValidationDetail::validateSkinAssociations(const GtsModelAsset& ass
         const auto validation = validateGtsSkeletonAsset(*use.skeleton);
         validUses[i]          = validation.isValid();
         appendErrors(validation, location, result);
+        if (!use.modelNodeIndices.empty())
+        {
+            const auto mappingLocation = "skeletonUses[" + std::to_string(i) + "].modelNodeIndices";
+            if (use.modelNodeIndices.size() != use.skeleton->nodes.size())
+                addError(result, "MODEL_SKELETON_NODE_COUNT", "Correspondence must cover every evaluation node.", mappingLocation);
+            std::set<uint32_t> seen;
+            for (size_t j = 0; j < use.modelNodeIndices.size(); ++j)
+            {
+                const auto index = use.modelNodeIndices[j];
+                const auto entry = mappingLocation + "[" + std::to_string(j) + "]";
+                if (index >= asset.nodes.size())
+                    addError(result, "MODEL_SKELETON_NODE_RANGE", "Correspondence must reference a model node.", entry);
+                if (!seen.insert(index).second)
+                    addError(result, "MODEL_SKELETON_NODE_DUPLICATE", "Evaluation nodes must map to distinct model nodes within a use.", entry);
+                if (j < use.skeleton->nodes.size() && use.skeleton->nodes[j].parentIndex)
+                {
+                    const auto parent = *use.skeleton->nodes[j].parentIndex;
+                    if (parent < use.modelNodeIndices.size() && use.modelNodeIndices[parent] < asset.nodes.size())
+                    {
+                        const auto& children = asset.nodes[use.modelNodeIndices[parent]].children;
+                        if (std::find(children.begin(), children.end(), index) == children.end())
+                            addError(result, "MODEL_SKELETON_NODE_HIERARCHY", "Mapped evaluation parent must also be the model parent.", entry);
+                    }
+                }
+            }
+        }
     }
     for (size_t i = 0; i < asset.skinBindings.size(); ++i)
     {

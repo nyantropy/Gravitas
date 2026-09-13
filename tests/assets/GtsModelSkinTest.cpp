@@ -227,6 +227,26 @@ namespace
         requireError(model, "MODEL_SKIN_WEIGHT_SUM", "primitives[1]");
     }
 
+    void correspondence()
+    {
+        auto model = boundModel();
+        model.nodes.resize(3);
+        model.nodes[0].children = {1};
+        model.nodes[1].children = {2};
+        model.skeletonUses[0].modelNodeIndices = {0, 1, 2};
+        require(validateGtsModelAsset(model).isValid(), "Complete evaluation/model correspondence is valid");
+        model.skeletonUses[0].modelNodeIndices.pop_back();
+        requireError(model, "MODEL_SKELETON_NODE_COUNT");
+        model.skeletonUses[0].modelNodeIndices = {0, 1, 99};
+        requireError(model, "MODEL_SKELETON_NODE_RANGE");
+        model.skeletonUses[0].modelNodeIndices = {0, 1, 1};
+        requireError(model, "MODEL_SKELETON_NODE_DUPLICATE");
+        model.skeletonUses[0].modelNodeIndices = {0, 2, 1};
+        requireError(model, "MODEL_SKELETON_NODE_HIERARCHY");
+        model.skeletonUses[0].modelNodeIndices.clear();
+        require(validateGtsModelAsset(model).isValid(), "Unspecified correspondence remains valid for generic model uses");
+    }
+
     void immutableAndDeterministic()
     {
         auto model = boundModel();
@@ -270,6 +290,7 @@ int main()
         associations();
         streams();
         weightRules();
+        correspondence();
         immutableAndDeterministic();
         std::puts("GtsModelSkinTest passed");
         return 0;

@@ -286,8 +286,8 @@ implementation, and all compatibility APIs use one exact descriptor comparison.
 Compatibility is neither asset identity nor a runtime pose association.
 This is immutable asset data, not a runtime
 pose or mesh skin binding. Model-local skeleton uses now reference definitions;
-no importer/cooker/runtime integration exists;
-canonical glTF import still rejects actual skin references.
+canonical glTF skin import now produces definitions/bindings and model occurrences;
+no skinned cooking/runtime integration exists.
 
 `modules/assets/skin/` owns `GtsSkinBinding` in the CPU-only `gravitas_skin_assets`
 target, depending on skeleton assets. Each local slot pairs a skeleton-node
@@ -300,7 +300,8 @@ are allowed. The skin target has no model dependency or runtime pose.
 is a distinct occurrence. `GtsModelSkinBinding` pairs a binding value with a
 skeleton-use index. Nodes optionally select mesh + binding. Model validation
 checks these references, delegates exact compatibility to the skin domain, and
-checks paired influence sets, local-slot bounds and nonnegative unit-sum weights
+checks optional evaluation-node/model-node correspondence, paired influence
+sets, local-slot bounds and nonnegative unit-sum weights
 across all sets (absolute tolerance `1e-4`). Unbound streams retain generic
 geometry validation. See [model associations](docs/assets/model-domain.md#skeleton-uses-and-skin-associations).
 
@@ -323,6 +324,11 @@ The renderer links the importer and preparation targets through these consumers;
 TinyOBJ remains private to the importer. glTF/GLB still uses `GltfAssetImporter`
 and legacy import DTOs in the cooker. `modules/assets/importer/gltf/` now also
 provides the independent canonical `GtsGltfModelImporter`, with no consumer cutover.
+It now imports actual skins before scene pruning, retaining required transform
+ancestors, source TRS/matrix forms and skin-local slot order. Clear shared-rig
+evidence groups skins into definitions/occurrences; inverse binds stay binding-specific.
+Animation and morph import remain explicitly unsupported. See
+[glTF skin policies](docs/assets/gltf-importer.md#skins-definitions-and-occurrences).
 Its CPU source utilities and stricter GLB framing are shared with the legacy
 importer. Cooked v1 serializers and GPU upload are unchanged.
 See [OBJ consumer migration](docs/assets/obj-consumers.md) for adaptation limits.

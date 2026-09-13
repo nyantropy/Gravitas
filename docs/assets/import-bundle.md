@@ -92,10 +92,9 @@ canonical assets.
   successful model-less import**, so it is not a general success indicator.
 - `diagnostics()` and `hasWarnings()` retain their existing meaning.
 
-`IGtsModelImporter` keeps its name and return signature. OBJ and canonical glTF
-keep their existing `success(model, diagnostics)` calls and source behavior:
-model present, skeletons empty. Actual glTF skins, animations and morph targets
-still fail explicitly. The legacy glTF cooker path remains unchanged.
+`IGtsModelImporter` keeps its name and return signature. OBJ remains model-only. Canonical glTF now emits associated skeleton definitions
+when selected nodes use skins; static glTF keeps an empty skeleton list.
+Animations and morph targets still fail explicitly. The legacy glTF cooker path remains unchanged.
 
 ## Tests and next boundary
 
@@ -103,12 +102,12 @@ still fail explicitly. The legacy glTF cooker path remains unchanged.
 model-less products, multiple definitions/occurrences, composed validation,
 nulls, duplicates, missing enumeration, ownership mismatch, warning/error
 semantics, deterministic diagnostics, and independent list/model lifetimes.
-Existing OBJ/glTF tests also assert successful bundles have zero skeletons;
-existing unsupported-skin coverage remains active. All run without Vulkan.
+Existing OBJ/static glTF tests assert successful bundles have zero skeletons;
+rigged glTF tests cover shared definition ownership and model binding coherence. All run without Vulkan.
 
-Before future glTF skin decoding, importers must intentionally choose which
+During glTF skin decoding, importers intentionally choose which
 skins share definitions, create each definition once, enumerate it, and wire
 model uses to that same object. Complete model validation already gates skin
-compatibility and weight totals. This task does not implement that decoding.
+compatibility and weight totals. See the implemented [glTF skin policy](gltf-importer.md#skins-definitions-and-occurrences).
 Persistent IDs, external skeleton resolution, dependency/provenance tracking,
 animation clips, cooking, pose evaluation and runtime realization remain deferred.

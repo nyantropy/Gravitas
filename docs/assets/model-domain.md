@@ -80,6 +80,7 @@ GPU capabilities, filesystem state, or source-format rules.
 GtsModelAsset
   skeletonUses[]: GtsModelSkeletonUse
     skeleton: shared_ptr<const GtsSkeletonAsset>
+    modelNodeIndices: optional full evaluation-node -> model-node correspondence
   skinBindings[]: GtsModelSkinBinding
     binding: GtsSkinBinding
     skeletonUseIndex: uint32_t
@@ -103,8 +104,11 @@ pose. Multiple bindings may target one use, and multiple nodes may select one
 binding. One mesh can be instantiated with different bindings. The selected
 binding belongs to the node occurrence, never to the mesh/primitive. Sharing a
 skeleton pose does not imply sharing final skin matrices: inverse binds remain
-binding-specific. There is no mutable pose or model-node/skeleton-node transform
-correspondence in these association values yet.
+binding-specific. There is no mutable pose. `modelNodeIndices` optionally records which model node
+each evaluation node denotes; an empty vector means unspecified. When populated,
+it must cover the entire skeleton, reference distinct valid model nodes, and
+preserve every evaluation parent edge in the model hierarchy. This records
+identity correspondence without defining runtime transform authority.
 
 Static models naturally leave both tables empty and node binding indices absent.
 A node selecting a binding must also select a mesh. Transform-only nodes remain
@@ -140,10 +144,10 @@ primitives to validate, even when bound.
 Unbound JOINTS/WEIGHTS remain permitted under generic primitive validation,
 including unpaired sets and weights without a usable total. Such geometry is
 not asserted to be a usable skinned instance. The current canonical glTF importer
-preserves unbound influence streams and checks individual weights, but does not
-check their cross-set sum; later skin import must satisfy this new contextual
-contract explicitly. Actual source skin references still fail import. Static
-preparation still rejects skeletal semantics.
+preserves unbound influence streams and checks individual weights without a
+cross-set total requirement. For actual skin associations it validates totals
+through the canonical contextual rule. Static preparation
+still rejects skeletal semantics.
 
 `tests/assets/GtsModelSkinTest.cpp` covers shared occurrences/definitions,
 association/reference failures, contextual compatibility, node-specific binding
@@ -294,7 +298,7 @@ products; warnings preserve success. The result exposes `bundle()`, `asset()`,
 `succeeded()`, `diagnostics()` and `hasWarnings()`. The primary model is optional,
 so a successful skeleton-only bundle has a null `asset()`; use `succeeded()` to
 distinguish success. `failure(diagnostics)` exposes no bundle and always reports
-at least one error. Current OBJ/glTF strategies remain model-only.
+at least one error. OBJ and static glTF remain model-only; rigged glTF also enumerates skeleton definitions.
 
 Diagnostics use the existing engine pattern of severity, code, and message,
 plus a textual location. Existing `AssetImportResult`/`AssetDiagnostic` reside in

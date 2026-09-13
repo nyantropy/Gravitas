@@ -2,3 +2,8 @@ add_executable(GtsGltfModelImporterTest GtsGltfModelImporterTest.cpp)
 target_link_libraries(GtsGltfModelImporterTest PRIVATE gravitas_gltf_importer)
 add_test(NAME gts_gltf_model_importer COMMAND GtsGltfModelImporterTest)
 set_tests_properties(gts_gltf_model_importer PROPERTIES LABELS "gravitas;assets;importer;cpu")
+
+add_executable(GtsGltfSkinImporterTest GtsGltfSkinImporterTest.cpp)
+target_link_libraries(GtsGltfSkinImporterTest PRIVATE gravitas_gltf_importer)
+add_test(NAME gts_gltf_skin_importer COMMAND GtsGltfSkinImporterTest)
+set_tests_properties(gts_gltf_skin_importer PROPERTIES LABELS "gravitas;assets;importer;skin;cpu")

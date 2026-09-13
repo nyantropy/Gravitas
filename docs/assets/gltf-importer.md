@@ -1,7 +1,8 @@
 # Canonical glTF / GLB Importer
 
 `modules/assets/importer/gltf/GtsGltfModelImporter` implements `IGtsModelImporter`
-and returns only `GtsModelImportResult -> GtsModelAsset`. It handles `.gltf` JSON
+and returns `GtsModelImportResult -> GtsModelImportBundle` with a primary model
+and any selected skeleton definitions. It handles `.gltf` JSON
 and `.glb` version 2 containers. No legacy model DTO, renderer vertex, image decoder,
 Vulkan object, or runtime/cooked resource is involved.
 
@@ -10,7 +11,7 @@ Vulkan object, or runtime/cooked resource is involved.
     -> shared source utilities / GLB framing
     -> GltfSourceReader (JSON, buffers, views, validated accessors)
     -> GtsGltfModelImporter (source interpretation)
-    -> canonical validation -> GtsModelImportResult -> GtsModelAsset
+    -> canonical bundle validation -> GtsModelImportResult -> model + skeleton definitions
 ============================ FORMAT WALL =============================
     future consumer cutover (not implemented by this change)
 
@@ -84,6 +85,7 @@ entity library: all existing parentless node trees are preserved with a diagnost
 mesh-only libraries gain no invented nodes. Scene root lists must reference valid,
 unique parentless nodes. An invalid explicit scene fails.
 
+Skin extraction operates on the validated original node forest before pruning.
 Only nodes reachable from the selected scene are returned, in original source
 order, with child/root indices remapped. Excluded nodes produce a diagnostic.
 Meshes, materials, and images remain a shared library and mesh references retain
@@ -95,6 +97,127 @@ Scene semantics and data encoding follow the
 [glTF 2.0 specification](https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/Specification.adoc).
 Choosing scene 0 when no default is declared is an importer policy, not a claim
 that glTF requires that choice.
+
+## Skins, definitions and occurrences
+
+`GltfSkinImporter.h/.cpp` is an importer-private source interpretation stage. It
+uses the existing source reader for accessors and composes canonical definitions,
+bindings and model associations directly. No legacy DTO or rendering vertex is
+used. Skeleton and binding data enter the result only through full canonical
+bundle validation.
+
+### Extraction and identity
+
+Every source skin is checked for a nonempty, unique `joints` list with valid node
+indices. Starting from each joint, extraction retains its full path to the source
+forest root. This is the minimal ancestor closure needed to reproduce its global
+transform without baking or changing reference frames. It includes non-deforming
+ancestors and helpers between joints, but excludes unrelated descendants/siblings.
+A source `skin.skeleton`, if present, must be an ancestor of every listed joint;
+it provides grouping evidence, not a stopping point that discards its parents.
+
+The source joint hierarchy must have a common root. Although the canonical
+skeleton supports forests, a single glTF skin spanning disconnected source trees
+fails explicitly. For a selected skinned mesh, its required hierarchy must be in
+the selected scene. A cross-scene reference fails `GLTF_SKIN_SCENE`; the importer
+does not pull unrelated inactive scene content into the result. In scene-less
+library mode all node trees are available. Unused skins are validated but omitted
+with `GLTF_SKIN_EXCLUDED`.
+
+Evaluation nodes follow deterministic depth-first parent-before-child order,
+using source child-list order and source-array order among forest roots. Stable
+local IDs are structural paths such as `root/1/child/0/child/2`. They contain no
+node names or raw source node indices. Repeated equivalent imports and display
+renames retain IDs; changing root/child ordering may change them. These are
+source-local structural identities, not cross-file rig identity. Garment linking
+and deliberate identity remapping remain future tooling responsibilities.
+
+Node names remain optional display data and may duplicate. Source TRS retains
+translation, exact quaternion components and scale as canonical TRS. Source
+matrices remain exact affine matrices, including helper shear, with no decomposition.
+Canonical skeleton validation still checks finite/default transforms and quaternion
+validity before compatibility is derived.
+
+### Multiple skins and source rig groups
+
+Among skins used by selected nodes, groups are merged transitively when they:
+
+- share at least one listed joint source node;
+- have identical required ancestor closures; or
+- explicitly identify the same `skin.skeleton` root.
+
+The group skeleton contains the union of required evaluation nodes. Joint order
+and inverse binds do not affect grouping. Sharing only a generic scene ancestor
+is insufficient: disjoint subsets without explicit shared-root evidence remain
+separate, with `GLTF_SKIN_GROUP_SEPARATE` when closures overlap. Unrelated source
+joint trees remain separate definitions even if they look structurally similar.
+No name matching, retargeting, compatibility-based interning or placement baking
+is performed.
+
+Each source rig group is one source hierarchy occurrence, producing one skeleton
+use and one shared immutable definition enumerated once in the bundle. Multiple
+body/garment nodes targeting that hierarchy share the use. Each used source skin
+produces a separate model binding; repeated nodes selecting that skin reuse it.
+A mesh selected by nodes with different skins stays one mesh.
+
+Core glTF has no independently transformed instancing of the same joint-node
+tree: reusing the same skin/joints references the same hierarchy occurrence;
+changing only the mesh node transform does not create a second pose occurrence.
+Copied independently placed joint trees produce distinct uses and definitions.
+The canonical domain permits two uses of one definition, but this importer does
+not manufacture such sharing between distinct source trees. That deliberate
+linking/deduplication remains separate from decoding source occurrence semantics.
+
+### Slots, inverse binds and contextual geometry validation
+
+```text
+vertex JOINTS_n component = skin-local slot k (unchanged)
+    -> source skin.joints[k] = source node N
+    -> source-to-evaluation mapping[N] = canonical skeleton node S
+    -> binding.joints[k] = {S, inverseBindMatrix[k]}
+```
+
+Inverse binds use non-normalized, tightly packed MAT4 FLOAT accessors with at least
+as many matrices as joint slots. Matrices are decoded in slot order; permitted
+extra elements are not retained. Consumed matrices must be finite and affine.
+Absent inverse binds become identity, never inverse default-pose transforms.
+Sparse/implicit-zero accessor policies remain unchanged and explicit.
+
+Bindings obtain exact compatibility from their group's emitted skeleton.
+`node.skin` becomes `GtsModelNode::skinBindingIndex`; skin without mesh fails.
+Full canonical model validation then checks every bound primitive: paired
+JOINTS/WEIGHTS, local-slot bounds even for zero weights, finite nonnegative weights,
+positive totals and `abs(total - 1) <= 1e-4` across all influence sets. No normalization,
+slot rewriting, influence truncation or four-influence restriction occurs.
+Quantized weights that do not meet the total tolerance fail and require an explicit
+source conversion decision; the importer does not silently repair them.
+
+### Correspondence and transform ownership
+
+The small canonical addition is `GtsModelSkeletonUse::modelNodeIndices`: an optional
+full array mapping evaluation-node index to returned model-node index. glTF fills
+it before pruning with source indices and remaps it alongside returned model nodes.
+It preserves authored node identity without storing glTF indices below the wall.
+The model validator checks count, bounds, uniqueness and mapped parent edges.
+Generic model producers may still leave it empty when correspondence is unspecified.
+There are no pose buffers or runtime traversal caches.
+
+Positions, normals, node transforms, skeleton defaults and inverse binds use the
+same existing basis. UV V flips and tangent-W negation remain unchanged; neither
+requires a skeleton/inverse-bind basis conversion. Full ancestor retention means
+skeleton root defaults are relative to the model reference frame. No transforms
+are baked into vertices or inverse binds.
+
+For eventual skinning, mapped joint globals and binding-specific inverse binds
+form the deformation in that reference frame. The skinned mesh node's ordinary
+transform must not be multiplied onto that output again. Its authored transform
+is retained for hierarchy/correspondence and possible children, while the joint
+hierarchy supplies skinning transforms. The mapping records the relationship but
+does not choose runtime transform authority. Future realization must use one
+pose authority, handle attachments/overlapping helper mappings deliberately, and
+apply external model/character world placement once.
+
+These source rules follow the [glTF skin and joint-hierarchy specification](https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/Specification.adoc#skins).
 
 ## Materials and encoded images
 
@@ -132,9 +255,9 @@ other unsupported extensions are diagnosed rather than silently claimed supporte
 - Sparse accessors fail with `GLTF_SPARSE_UNSUPPORTED`; expand them first.
   Accessors without a bufferView also fail with a materialization diagnostic.
   Matrix accessor forms other than MAT4 are currently unsupported, even if unused.
-- Actual node skin references fail with `GLTF_SKIN_BINDING_UNSUPPORTED` because
-  essential binding data cannot be retained. Unreferenced skin tables warn.
-  Joint/weight geometry without node skin references is allowed.
+- Actual skins are supported as described above. Unused skins are validated and
+  omitted with a diagnostic. Joint/weight geometry without node skin references
+  remains allowed under the existing generic geometry policy.
 - Morph targets or authored mesh/node morph weights fail. Nonempty animations
   fail, including animations outside the selected scene. No deformation data is
   silently treated as equivalent static content.
@@ -167,5 +290,13 @@ be exported as a manifest. Image identity remains available in the model.
 Before cutover, general model realization must preserve glTF hierarchy/instancing
 (the current OBJ adapter accepts only flat identity roots). Nonzero material UV
 sets need an explicit downstream capability policy. Sampler/texture transforms,
-scene selection options, sparse support, and separate skin/animation/morph contracts
-remain focused future decisions; none were added to the canonical model here.
+scene selection options, sparse support, animation/morph contracts and skinned
+realization remain focused future decisions. No animation or runtime skinning is implemented.
+
+`GtsGltfSkinImporterTest` shares generated JSON/binary fixture utilities with the
+static importer suite. It covers one-joint and helper-rich rigs, out-of-order source
+nodes, exact transforms/IBMs, source slot order, repeated deterministic imports,
+scene pruning/correspondence, grouping/union/reordered skins, separate occurrences,
+shared meshes, malformed roots/indices/accessors/hierarchy, eight influences,
+weight totals, zero-weight slot bounds and unchanged unsupported policies.
+`GtsModelSkinTest` additionally checks malformed correspondence values.

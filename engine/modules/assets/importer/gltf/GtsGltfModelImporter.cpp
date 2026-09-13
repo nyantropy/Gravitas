@@ -15,6 +15,7 @@
 #include <gtc/quaternion.hpp>
 
 #include "GltfSourceReader.h"
+#include "GltfSkinImporter.h"
 #include "GltfSourceUtilities.h"
 #include "assets/model/GtsModelImportResult.h"
 
@@ -80,11 +81,6 @@ namespace
             fail("GLTF_ANIMATION_UNSUPPORTED",
                  "Animation requires a future canonical animation asset; import cannot discard clips",
                  "animations");
-        if (!array(root.find("skins"), "skins").empty())
-            diagnostics.push_back({Severity::Warning,
-                                   "GLTF_SKIN_OBJECTS_UNSUPPORTED",
-                                   "Skin objects are not represented; any node skin reference will fail import",
-                                   "skins"});
         if (!array(root.find("cameras"), "cameras").empty())
             diagnostics.push_back({Severity::Warning,
                                    "GLTF_CAMERAS_UNSUPPORTED",
@@ -482,10 +478,13 @@ namespace
                 }
     }
 
-    void nodes(const SourceDocument& data, GtsModelAsset& model, std::vector<GtsModelDiagnostic>& diagnostics)
+    std::vector<std::shared_ptr<const GtsSkeletonAsset>>
+    nodes(const SourceDocument& data, GtsModelAsset& model, std::vector<GtsModelDiagnostic>& diagnostics)
     {
-        const auto&           sourceNodes = array(data.root.find("nodes"), "nodes");
-        std::vector<uint32_t> parents(sourceNodes.size(), 0);
+        const auto&                            sourceNodes = array(data.root.find("nodes"), "nodes");
+        std::vector<uint32_t>                  parents(sourceNodes.size(), 0);
+        std::vector<uint32_t>                  nodeSkins(sourceNodes.size(), UINT32_MAX);
+        std::vector<GtsSkeletonLocalTransform> localTransforms(sourceNodes.size());
         for (size_t i = 0; i < sourceNodes.size(); ++i)
         {
             const auto  loc   = "nodes[" + std::to_string(i) + "]";
@@ -496,9 +495,9 @@ namespace
                 const auto index = uintField(value, "skin", loc);
                 if (index >= array(data.root.find("skins"), "skins").size())
                     fail("GLTF_SKIN_REFERENCE", "Invalid skin index", loc);
-                fail("GLTF_SKIN_BINDING_UNSUPPORTED",
-                     "Node skin binding requires a future canonical skin/skeleton contract",
-                     loc);
+                if (!value.find("mesh"))
+                    fail("GLTF_SKIN_MESH_REQUIRED", "A node selecting a skin must also select a mesh", loc);
+                nodeSkins[i] = index;
             }
             if (value.find("weights"))
                 fail("GLTF_MORPH_UNSUPPORTED", "Node morph weights are not representable", loc);
@@ -526,6 +525,7 @@ namespace
                 if (node.localTransform[0][3] != 0 || node.localTransform[1][3] != 0 ||
                     node.localTransform[2][3] != 0 || node.localTransform[3][3] != 1)
                     fail("GLTF_NODE_TRANSFORM", "Node matrix must be affine", loc);
+                localTransforms[i] = node.localTransform;
             }
             else
             {
@@ -548,6 +548,8 @@ namespace
                     if (std::abs(glm::dot(rotation, rotation) - 1) > 0.0001f)
                         fail("GLTF_NODE_TRANSFORM", "Rotation quaternion must have unit length", loc);
                 }
+                localTransforms[i] =
+                    GtsSkeletonTrs{translation, glm::quat(rotation.w, rotation.x, rotation.y, rotation.z), scale};
                 node.localTransform = glm::translate(glm::mat4(1), translation) *
                                       glm::mat4_cast(glm::quat(rotation.w, rotation.x, rotation.y, rotation.z)) *
                                       glm::scale(glm::mat4(1), scale);
@@ -621,7 +623,8 @@ namespace
                                    "GLTF_SCENE_LIBRARY",
                                    "No scenes; preserving all node trees as a model library",
                                    "nodes"});
-        const auto                active = reachable(roots);
+        const auto                active    = reachable(roots);
+        auto                      skeletons = importSkins(data, model, localTransforms, nodeSkins, active, diagnostics);
         std::vector<uint32_t>     mapping(model.nodes.size(), UINT32_MAX);
         std::vector<GtsModelNode> selected;
         for (uint32_t i = 0; i < model.nodes.size(); ++i)
@@ -641,7 +644,11 @@ namespace
                 child = mapping[child];
         for (const auto root : roots)
             model.rootNodes.push_back(mapping[root]);
+        for (auto& use : model.skeletonUses)
+            for (auto& nodeIndex : use.modelNodeIndices)
+                nodeIndex = mapping[nodeIndex];
         model.nodes = std::move(selected);
+        return skeletons;
     }
 } // namespace
 
@@ -655,8 +662,9 @@ GtsModelImportResult GtsGltfModelImporter::importAsset(const GtsModelImportReque
         GtsModelAsset model;
         materials(data, model, diagnostics);
         meshes(data, model);
-        nodes(data, model, diagnostics);
-        return GtsModelImportResult::success(std::move(model), std::move(diagnostics));
+        auto skeletons = nodes(data, model, diagnostics);
+        return GtsModelImportResult::success(GtsModelImportBundle{std::move(model), std::move(skeletons)},
+                                             std::move(diagnostics));
     }
     catch (const gts::gltf::DecodeError& error)
     {

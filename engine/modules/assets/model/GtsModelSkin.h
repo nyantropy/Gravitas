@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <vector>
 
 #include "assets/skin/GtsSkinBinding.h"
 
@@ -13,6 +14,9 @@ struct GtsSkeletonAsset;
 struct GtsModelSkeletonUse
 {
     std::shared_ptr<const GtsSkeletonAsset> skeleton;
+    // Optional correspondence: evaluation node i denotes model node at [i].
+    // Empty means unspecified; populated mappings cover the entire hierarchy.
+    std::vector<uint32_t> modelNodeIndices;
 };
 
 struct GtsModelSkinBinding

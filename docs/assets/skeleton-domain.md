@@ -146,5 +146,6 @@ still owns none of that data. The [model domain](model-domain.md#skeleton-uses-a
 now owns skeleton-use and skin-binding associations and mesh-context validation.
 The [import bundle](import-bundle.md) now enumerates shared immutable definitions.
 No animation clip, pose evaluation, cooker, runtime, ECS, or rendering integration is
-implemented. The glTF importer still rejects actual skin references. Introducing this asset does not
+implemented. The canonical glTF importer now produces skeletons and model uses
+for actual skins, preserving helper nodes and TRS/matrix forms. This does not
 change the importer result or the static rendering profile.

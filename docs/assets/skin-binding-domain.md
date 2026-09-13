@@ -134,5 +134,6 @@ ctest --test-dir /tmp/gravitas-model-domain-cpu --output-on-failure
 The [model domain](model-domain.md#skeleton-uses-and-skin-associations) now owns
 model-local binding/use tables and contextual JOINTS/WEIGHTS validation. Those
 responsibilities do not move into this independent skin domain. The [import bundle](import-bundle.md) now enumerates the definitions shared by
-model uses. No glTF skin decoding, animation, runtime, serialization, ECS, or rendering
-integration is added. Canonical glTF import continues rejecting actual skin references.
+model uses. Canonical glTF skin decoding now fills these values and associations;
+source-specific rules remain in that importer. No animation, runtime, serialization,
+ECS, or rendering integration is added.
