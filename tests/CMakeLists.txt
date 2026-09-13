@@ -772,3 +772,29 @@ target_compile_features(CanonicalObjPipelineTest PRIVATE cxx_std_20)
 target_link_libraries(CanonicalObjPipelineTest PRIVATE gravitas_vulkan_backend gravitas_obj_importer)
 add_test(NAME canonical_obj_pipeline COMMAND CanonicalObjPipelineTest)
 set_tests_properties(canonical_obj_pipeline PROPERTIES LABELS "gravitas;assets;integration")
+
+add_executable(VulkanSkinnedGeometryTest rendering/VulkanSkinnedGeometryTest.cpp)
+target_link_libraries(VulkanSkinnedGeometryTest PRIVATE gravitas_vulkan_backend)
+add_test(NAME vulkan_skinned_geometry COMMAND VulkanSkinnedGeometryTest)
+set_tests_properties(vulkan_skinned_geometry PROPERTIES LABELS "gravitas;rendering;geometry;cpu")
+
+add_executable(VulkanSkinnedGpuSmoke rendering/VulkanSkinnedGpuSmoke.cpp)
+target_link_libraries(VulkanSkinnedGpuSmoke PRIVATE gravitas_vulkan_backend)
+add_test(NAME vulkan_skinned_gpu_smoke COMMAND VulkanSkinnedGpuSmoke "${GTS_ENGINE_ROOT}/shaders")
+set_tests_properties(vulkan_skinned_gpu_smoke PROPERTIES LABELS "gravitas;rendering;gpu;smoke" SKIP_RETURN_CODE 77)
+
+find_program(GTS_SKIN_GLSLC glslc)
+find_program(GTS_SPIRV_VAL spirv-val)
+find_program(GTS_SPIRV_DIS spirv-dis)
+if(GTS_SKIN_GLSLC AND GTS_SPIRV_VAL AND GTS_SPIRV_DIS)
+    add_test(NAME vulkan_skinned_shader_abi COMMAND "${CMAKE_COMMAND}"
+        "-DGLSLC=${GTS_SKIN_GLSLC}" "-DSPIRV_VAL=${GTS_SPIRV_VAL}" "-DSPIRV_DIS=${GTS_SPIRV_DIS}"
+        "-DSHADER_DIR=${GTS_ENGINE_ROOT}/shaders" "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/skinned_shader_abi"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/rendering/SkinnedShaderAbiTest.cmake")
+    set_tests_properties(vulkan_skinned_shader_abi PROPERTIES LABELS "gravitas;rendering;shader;cpu")
+endif()
+
+add_executable(VulkanSkinningResourceTest rendering/VulkanSkinningResourceTest.cpp)
+target_link_libraries(VulkanSkinningResourceTest PRIVATE gravitas_vulkan_backend)
+add_test(NAME vulkan_skinning_resource COMMAND VulkanSkinningResourceTest)
+set_tests_properties(vulkan_skinning_resource PROPERTIES LABELS "gravitas;rendering;cpu")

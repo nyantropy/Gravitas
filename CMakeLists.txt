@@ -34,6 +34,7 @@ if(GLSLC)
         COMMAND ${GLSLC} "${SHADER_DIR}/fragmentshader.frag" -o "${SHADER_DIR}/frag.spv"
         COMMAND ${GLSLC} "${SHADER_DIR}/fragmentshader_pbr.frag" -o "${SHADER_DIR}/frag_pbr.spv"
         COMMAND ${GLSLC} "${SHADER_DIR}/vertexshader.vert"  -o "${SHADER_DIR}/vert.spv"
+        COMMAND ${GLSLC} "${SHADER_DIR}/skinned_vertexshader.vert" -o "${SHADER_DIR}/skinned_vert.spv"
         COMMAND ${GLSLC} "${SHADER_DIR}/particle_frag.frag" -o "${SHADER_DIR}/particle_frag.spv"
         COMMAND ${GLSLC} "${SHADER_DIR}/particle_vert.vert" -o "${SHADER_DIR}/particle_vert.spv"
         COMMAND ${GLSLC} "${SHADER_DIR}/particle_mesh_frag.frag" -o "${SHADER_DIR}/particle_mesh_frag.spv"

@@ -3,6 +3,7 @@
 glslc fragmentshader.frag -o frag.spv
 glslc fragmentshader_pbr.frag -o frag_pbr.spv
 glslc vertexshader.vert -o vert.spv
+glslc skinned_vertexshader.vert -o skinned_vert.spv
 glslc particle_frag.frag -o particle_frag.spv
 glslc particle_vert.vert -o particle_vert.spv
 glslc particle_mesh_frag.frag -o particle_mesh_frag.spv

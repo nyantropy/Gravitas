@@ -98,6 +98,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
   screenshot automation.
 - [docs/rendering/architecture.md](docs/rendering/architecture.md): rendering,
   materials, lighting, particles, frame extraction, screenshots.
+- [docs/rendering/skinned-geometry.md](docs/rendering/skinned-geometry.md): explicit
+  Vulkan skinned vertex ABI, per-frame palette SSBOs and shader/resource path.
 - [docs/rendering/authoring-guide.md](docs/rendering/authoring-guide.md):
   rendering authoring rules.
 - [docs/rendering/roadmap.md](docs/rendering/roadmap.md): future rendering work
@@ -387,7 +389,11 @@ renormalizes prepared weights with explicit reduction metadata/warnings. Both
 profiles share primitive attribute conversion and existing CPU geometry algorithms.
 Shared flags/metadata live in `geometry/GtsGeometryMetadata.h`; the static vertex
 has no renderer ownership or dependency. Static/skinned layouts are explicit,
-independent structs, while current GPU resource APIs remain static-only.
+independent structs. The Vulkan backend has explicit static/skinned vertex
+descriptions and a separate skinned mesh/palette upload and shader path. Existing
+world extraction, MeshResource and DynamicMeshComponent remain static-only.
+Skinned backend resources accept externally supplied palettes; they do not sample
+clips, apply inverse binds or orchestrate animation.
 Neither profile computes poses, skin matrices, world transforms or animated bounds.
 Model materials describe CPU appearance and reference model-local image inputs
 with explicit UV sets and scalar channels. Shader policy, cooked texture identity,

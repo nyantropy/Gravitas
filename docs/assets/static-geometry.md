@@ -160,7 +160,7 @@ individual floats; its pre-rename 407-byte triangle fixture is protected by a
 golden fingerprint and full vertex round-trip checks.
 
 `MeshResource`, `DynamicMeshComponent`, dynamic mesh resource APIs and
-`VulkanVertexDescription` still describe this static profile. Procedural meshes,
+`VulkanStaticVertexDescription` still describe this static profile. Procedural meshes,
 world text, debug geometry, previews and the temporary legacy glTF DTO route now
 spell their existing output `GtsStaticVertex`; none are migrated through canonical
 model assets. These broadly named runtime APIs will need deliberate profile choices

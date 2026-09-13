@@ -8,7 +8,7 @@
 
 #include "assets/processing/geometry/static/GtsStaticVertex.h"
 
-struct VulkanVertexDescription
+struct VulkanStaticVertexDescription
 {
     static VkVertexInputBindingDescription getBindingDescription()
     {

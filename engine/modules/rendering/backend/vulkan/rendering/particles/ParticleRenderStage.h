@@ -25,7 +25,7 @@
 #include "VulkanDynamicBuffer.h"
 #include "VulkanPipeline.hpp"
 #include "VulkanPipelineConfig.h"
-#include "VulkanVertexDescription.h"
+#include "VulkanStaticVertexDescription.h"
 #include "VulkanRenderPass.hpp"
 #include "VulkanRenderPassConfig.h"
 #include "DescriptorSetManager.hpp"
@@ -459,7 +459,7 @@ private:
         instanceBinding.stride    = sizeof(ParticleMeshGpuInstance);
         instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 
-        auto vertexAttrs = VulkanVertexDescription::getAttributeDescriptions();
+        auto vertexAttrs = VulkanStaticVertexDescription::getAttributeDescriptions();
         std::vector<VkVertexInputAttributeDescription> attrs(vertexAttrs.begin(), vertexAttrs.end());
 
         for (uint32_t i = 0; i < 4; ++i)
@@ -490,7 +490,7 @@ private:
         config.vertexShaderPath   = GraphicsConstants::PARTICLE_MESH_V_SHADER_PATH;
         config.fragmentShaderPath = GraphicsConstants::PARTICLE_MESH_F_SHADER_PATH;
         config.vkRenderPass       = renderPass->getRenderPass();
-        config.vertexBindings     = {VulkanVertexDescription::getBindingDescription(), instanceBinding};
+        config.vertexBindings     = {VulkanStaticVertexDescription::getBindingDescription(), instanceBinding};
         config.vertexAttributes   = attrs;
         config.cullMode           = VK_CULL_MODE_NONE;
         config.depthTestEnable    = true;

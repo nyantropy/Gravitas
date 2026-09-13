@@ -11,7 +11,7 @@
 #include "MeshGeometryProcessor.h"
 #include "assets/processing/geometry/static/GtsStaticVertex.h"
 #include "assets/processing/geometry/GtsGeometryMetadata.h"
-#include "VulkanVertexDescription.h"
+#include "VulkanStaticVertexDescription.h"
 #include "WorldTextComponent.h"
 
 namespace
@@ -58,8 +58,8 @@ namespace
                       offsetof(GtsStaticVertex, tangent) == 24 && offsetof(GtsStaticVertex, color) == 40 &&
                       offsetof(GtsStaticVertex, texCoord) == 56);
         const GtsStaticVertex defaultVertex;
-        const auto binding = VulkanVertexDescription::getBindingDescription();
-        const auto attributes = VulkanVertexDescription::getAttributeDescriptions();
+        const auto binding = VulkanStaticVertexDescription::getBindingDescription();
+        const auto attributes = VulkanStaticVertexDescription::getAttributeDescriptions();
 
         return require(std::is_standard_layout_v<GtsStaticVertex>, "GtsStaticVertex remains standard layout")
             && require(binding.binding == 0, "GtsStaticVertex binding is zero")

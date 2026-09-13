@@ -184,7 +184,9 @@ ordering as stable secondary keys.
 The current static renderer consumes the explicit `GtsStaticVertex` profile from
 `modules/assets/processing/geometry/static/GtsStaticVertex.h`. It is not a universal
 canonical vertex type. `GtsVertexAttribute` owns canonical semantic streams;
-`GtsSkinnedVertex` is the separate prepared skinned profile, currently CPU-only.
+`GtsSkinnedVertex` is the separate prepared skinned profile. Its backend-owned
+vertex ABI, palette upload and separate shader path are documented in
+[skinned geometry](skinned-geometry.md); runtime world extraction remains static-only.
 
 The static profile remains:
 
