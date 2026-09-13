@@ -93,6 +93,11 @@ set_tests_properties(profile_accumulator
         LABELS "gravitas;core;profiling"
 )
 
+add_executable(TransformAnimationRuntimeTest animation/TransformAnimationRuntimeTest.cpp)
+target_link_libraries(TransformAnimationRuntimeTest PRIVATE gravitas_modules)
+add_test(NAME transform_animation_runtime COMMAND TransformAnimationRuntimeTest)
+set_tests_properties(transform_animation_runtime PROPERTIES LABELS "gravitas;animation;runtime")
+
 add_executable(TransformHierarchyRuntimeTest
     transform/TransformHierarchyRuntimeTest.cpp
 )

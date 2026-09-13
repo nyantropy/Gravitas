@@ -11,9 +11,9 @@
 #include "CameraDescriptionComponent.h"
 #include "RendererSceneFeature.h"
 #include "TransformComponent.h"
-#include "AnimationComponent.h"
+#include "TransformAnimationComponent.h"
 
-#include "TransformAnimationSystem.hpp"
+#include "AnimationSceneFeature.h"
 
 #include "GraphicsConstants.h"
 
@@ -57,11 +57,11 @@ class DefaultScene : public GtsScene
             TransformComponent tc;
             ecsWorld.addComponent<TransformComponent>(controlledCube, tc);
 
-            AnimationComponent anim;
-            anim.enableMode(AnimationMode::Rotate);
-            anim.rotationAxis = glm::vec3(0.5f, 1.0f, 0.2f);
+            TransformAnimationComponent anim;
+            anim.enableMode(TransformAnimationMode::Rotate);
+            anim.rotationEulerFactors = glm::vec3(0.5f, 1.0f, 0.2f);
             anim.rotationSpeed = glm::radians(90.0f);
-            ecsWorld.addComponent<AnimationComponent>(controlledCube, anim);
+            ecsWorld.addComponent<TransformAnimationComponent>(controlledCube, anim);
         }
 
         void secondCube()
@@ -79,15 +79,15 @@ class DefaultScene : public GtsScene
             tc2.position = glm::vec3(2.0f, 2.0f, 2.0f);
             ecsWorld.addComponent<TransformComponent>(cube2, tc2);
 
-            AnimationComponent anim2;
-            anim2.enableMode(AnimationMode::Translate);
-            anim2.enableMode(AnimationMode::Rotate);
+            TransformAnimationComponent anim2;
+            anim2.enableMode(TransformAnimationMode::Translate);
+            anim2.enableMode(TransformAnimationMode::Rotate);
             anim2.translationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
             anim2.translationAmplitude = 1.0f;
             anim2.translationSpeed = 2.0f;
-            anim2.rotationAxis = glm::vec3(0.0f, 0.0f, 1.0f);
+            anim2.rotationEulerFactors = glm::vec3(0.0f, 0.0f, 1.0f);
             anim2.rotationSpeed = glm::radians(30.0f);
-            ecsWorld.addComponent<AnimationComponent>(cube2, anim2);
+            ecsWorld.addComponent<TransformAnimationComponent>(cube2, anim2);
         }
 
         void thirdCube()
@@ -105,11 +105,11 @@ class DefaultScene : public GtsScene
             tc3.position = glm::vec3(-2.0f, -2.0f, -2.0f);
             ecsWorld.addComponent<TransformComponent>(cube3, tc3);
 
-            AnimationComponent anim3;
-            anim3.enableMode(AnimationMode::Scale);
+            TransformAnimationComponent anim3;
+            anim3.enableMode(TransformAnimationMode::Scale);
             anim3.scaleAmplitude = glm::vec3(0.5f, 0.5f, 0.5f);
             anim3.scaleSpeed = 2.0f;
-            ecsWorld.addComponent<AnimationComponent>(cube3, anim3);
+            ecsWorld.addComponent<TransformAnimationComponent>(cube3, anim3);
         }
 
         // scene-level camera setup — no GPU resource calls
@@ -129,7 +129,7 @@ class DefaultScene : public GtsScene
         void addSystems(const EcsControllerContext& ctx)
         {
             gts::rendering::installRendererFeature(*this, ctx);
-            ecsWorld.addSimulationSystem<TransformAnimationSystem>(EcsSystemGroup::Animation);
+            gts::animation::installAnimationFeature(*this);
         }
 
         void onLoad(EcsControllerContext& ctx,

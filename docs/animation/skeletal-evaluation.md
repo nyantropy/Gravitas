@@ -3,7 +3,8 @@
 `modules/animation/skeletal/` owns the independent `gravitas_skeletal_animation`
 target. It links `gravitas_animation_assets`, transitively skeleton assets and
 core math. It does not link model/skin assets, importers, the ECS module aggregator,
-rendering, or Vulkan. Existing object-animation components are unchanged.
+rendering, or Vulkan. The separate [transform animation ECS feature](transform-animation.md)
+owns procedural whole-entity motion and scene installation.
 
 ```text
 GtsSkeletonAsset defaults

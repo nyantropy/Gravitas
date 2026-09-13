@@ -28,7 +28,7 @@ target_compile_features(gravitas_modules INTERFACE cxx_std_20)
 
 target_include_directories(gravitas_modules INTERFACE
     # Animation
-    "${CMAKE_CURRENT_SOURCE_DIR}/animation/components"
+    "${CMAKE_CURRENT_SOURCE_DIR}/animation/transform"
 
     # Tweening
     "${CMAKE_CURRENT_SOURCE_DIR}/tween"

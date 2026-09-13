@@ -40,7 +40,7 @@ engine/
   modules/
     assets/              canonical model/skeleton domains, importers, static geometry processing
     transform/           local/world transforms and hierarchy
-    animation/           CPU skeletal evaluation and object-animation components
+    animation/           transform animation ECS feature and CPU skeletal evaluation
     tween/               reusable tween/easing helpers
     narrative/           headless narrative/dialogue runtimes
     dialogue/            dialogue module surface kept in tree
@@ -69,6 +69,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
   skeletal clip data, typed TRS keys, cubic derivatives, and compatibility validation.
 - [docs/animation/skeletal-evaluation.md](docs/animation/skeletal-evaluation.md):
   CPU track sampling, local poses, and parent-first reference-space evaluation.
+- [docs/animation/transform-animation.md](docs/animation/transform-animation.md):
+  procedural entity transforms, scene installation, and fixed-step playback.
 - [docs/assets/skin-binding-domain.md](docs/assets/skin-binding-domain.md): CPU
   skin-local remaps, inverse binds, and exact target-skeleton validation.
 - [docs/assets/obj-importer.md](docs/assets/obj-importer.md): standalone canonical
