@@ -116,12 +116,14 @@ cmake --build /tmp/gravitas-model-domain-cpu --target GtsAnimationClipAssetTest 
 ctest --test-dir /tmp/gravitas-model-domain-cpu -R '^gts_animation_clip_asset$' --output-on-failure
 ```
 
-Importers and the import bundle remain unchanged. Animated glTF still fails
-explicitly. Future glTF animation import must enforce its source rules (including
-at least two keys for CUBICSPLINE), remap source nodes to skeleton evaluation
-indices, preserve derivative component order, and reject unsupported ordinary
-model-node/morph animation. The canonical one-key cubic constant policy does not
-relax those source rules.
+The [canonical glTF importer](gltf-importer.md#skeletal-animation-import) now
+produces skeletal TRS clips. It enforces source rules (including at least two keys
+for CUBICSPLINE), maps source nodes to evaluation indices, preserves derivatives,
+and rejects unsupported ordinary-node/morph animation. The canonical one-key cubic
+constant policy does not relax source rules. `GtsModelImportBundle::animationClips`
+owns clip values, and validation requires at least one enumerated compatible
+skeleton. Several matching definitions are valid; neither definition pointer nor
+model occurrence becomes part of clip targeting.
 
-No sampling, pose, playback, animation bundle enumeration, cooking, serialization,
+No sampling, pose, playback, cooking, serialization,
 runtime, ECS, rendering, or Vulkan integration is implemented here.

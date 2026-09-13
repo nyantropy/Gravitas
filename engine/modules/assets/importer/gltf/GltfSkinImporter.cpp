@@ -37,13 +37,12 @@ namespace gts::gltf
         }
     } // namespace
 
-    std::vector<std::shared_ptr<const GtsSkeletonAsset>>
-    importSkins(const SourceDocument&                         data,
-                GtsModelAsset&                                model,
-                const std::vector<GtsSkeletonLocalTransform>& localTransforms,
-                const std::vector<uint32_t>&                  nodeSkins,
-                const std::vector<bool>&                      active,
-                std::vector<GtsModelDiagnostic>&              diagnostics)
+    GltfSkinImportResult importSkins(const SourceDocument&                         data,
+                                     GtsModelAsset&                                model,
+                                     const std::vector<GtsSkeletonLocalTransform>& localTransforms,
+                                     const std::vector<uint32_t>&                  nodeSkins,
+                                     const std::vector<bool>&                      active,
+                                     std::vector<GtsModelDiagnostic>&              diagnostics)
     {
         const auto& sources = array(data.root.find("skins"), "skins");
         if (sources.empty())
@@ -215,7 +214,7 @@ namespace gts::gltf
                 pending.push_back(children[i - 1]);
             }
         }
-        std::vector<std::shared_ptr<const GtsSkeletonAsset>> definitions;
+        GltfSkinImportResult                                 result;
         std::map<size_t, uint32_t>                           groupUses;
         std::map<size_t, std::map<uint32_t, uint32_t>>       nodeMappings;
         for (const auto& [rig, required] : requiredByGroup)
@@ -248,7 +247,8 @@ namespace gts::gltf
                      "skins[" + std::to_string(rig) + "]." + error.location);
             }
             use.skeleton = std::make_shared<const GtsSkeletonAsset>(std::move(skeleton));
-            definitions.push_back(use.skeleton);
+            result.skeletons.push_back(use.skeleton);
+            result.sourceNodes.push_back(use.modelNodeIndices);
             groupUses[rig] = static_cast<uint32_t>(model.skeletonUses.size());
             model.skeletonUses.push_back(std::move(use));
         }
@@ -273,6 +273,6 @@ namespace gts::gltf
         for (size_t node = 0; node < nodeSkins.size(); ++node)
             if (active[node] && nodeSkins[node] != UINT32_MAX)
                 model.nodes[node].skinBindingIndex = bindings[nodeSkins[node]];
-        return definitions;
+        return result;
     }
 } // namespace gts::gltf

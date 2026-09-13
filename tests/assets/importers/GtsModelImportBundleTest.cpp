@@ -59,7 +59,8 @@ namespace
     {
         const auto modelOnly = GtsModelImportResult::success(GtsModelAsset{});
         require(modelOnly.succeeded() && modelOnly.bundle() && modelOnly.asset(), "Model-only convenience succeeds");
-        require(modelOnly.bundle()->model.has_value() && modelOnly.bundle()->skeletons.empty(),
+        require(modelOnly.bundle()->model.has_value() && modelOnly.bundle()->skeletons.empty() &&
+                    modelOnly.bundle()->animationClips.empty(),
                 "Static imports need no skeleton placeholders");
         require(modelOnly.asset() == &*modelOnly.bundle()->model, "Model accessor refers to bundle primary model");
 
@@ -90,6 +91,54 @@ namespace
                 "Successful bundle need not have a model");
         require(skeletonOnly.bundle()->skeletons.size() == 3, "Model-less product list is preserved");
         requireFailure({}, "MODEL_IMPORT_BUNDLE_EMPTY", "bundle");
+    }
+
+    void animationProducts()
+    {
+        auto                  bundle = associated();
+        GtsAnimationClipAsset clip;
+        clip.name                        = "Walk";
+        clip.targetSkeletonCompatibility = *makeGtsSkeletonCompatibility(*bundle.skeletons[0]).compatibility();
+        GtsAnimationTrack track;
+        track.skeletonNodeIndex = 0;
+        track.timesSeconds      = {0};
+        track.values            = std::vector<glm::vec3>{{1, 2, 3}};
+        clip.tracks             = {track};
+        bundle.animationClips.push_back(clip);
+        auto result = GtsModelImportResult::success(bundle);
+        require(result.succeeded() && result.bundle()->animationClips.size() == 1 &&
+                    result.asset()->skeletonUses.size() == 2,
+                "Two model occurrences share one structural clip without clip duplication");
+        bundle.skeletons.push_back(skeleton());
+        bundle.model->skeletonUses.push_back({bundle.skeletons.back()});
+        require(validateGtsModelImportBundle(bundle).isValid(),
+                "Several exact compatible definitions can consume one clip");
+        require(bundle.animationClips.size() == 1, "Compatibility matching never duplicates clips");
+        bundle.animationClips.push_back(clip);
+        bundle.animationClips.back().name = "Idle";
+        require(validateGtsModelImportBundle(bundle).isValid(), "Multiple motion definitions may target one contract");
+        bundle.model.reset();
+        require(GtsModelImportResult::success(bundle).succeeded(), "Skeleton and clips can validate without a model");
+        bundle.skeletons.clear();
+        requireFailure(
+            bundle, "MODEL_IMPORT_ANIMATION_SKELETON_MISSING", "animationClips[0].targetSkeletonCompatibility");
+        bundle.skeletons = {skeleton("incompatible")};
+        requireFailure(
+            bundle, "MODEL_IMPORT_ANIMATION_SKELETON_MISSING", "animationClips[0].targetSkeletonCompatibility");
+        bundle.skeletons = {skeleton()};
+        bundle.animationClips[0].tracks.clear();
+        requireFailure(bundle, "ANIMATION_TRACKS_EMPTY", "animationClips[0].tracks");
+        bundle.animationClips[0]                             = clip;
+        bundle.animationClips[0].targetSkeletonCompatibility = {};
+        requireFailure(bundle, "ANIMATION_TARGET_INVALID", "animationClips[0].targetSkeletonCompatibility.nodes");
+        bundle.animationClips[0] = clip;
+        const GtsModelDiagnostic warning{GtsModelDiagnosticSeverity::Warning, "WARN", "Recoverable issue", {}};
+        result = GtsModelImportResult::success(bundle, {warning});
+        require(result.succeeded() && result.hasWarnings() && result.bundle()->animationClips.size() == 2,
+                "Warnings preserve every clip");
+        const auto failed =
+            GtsModelImportResult::success(bundle, {{GtsModelDiagnosticSeverity::Error, "ERR", "Failure", {}}});
+        require(!failed.bundle() && !failed.asset(), "Errors expose no partial clips or graph");
     }
 
     void invalidGraphs()
@@ -213,6 +262,7 @@ int main()
     try
     {
         productsAndOccurrences();
+        animationProducts();
         invalidGraphs();
         diagnostics();
         lifetime();

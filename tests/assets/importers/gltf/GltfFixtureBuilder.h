@@ -6,8 +6,10 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "GtsGltfModelImporter.h"
@@ -158,6 +160,48 @@ namespace
         {
             addVertexStream(name, floats({0, 0.25f, 1, 0, 0, 1}), "VEC2", 5126);
         }
+        uint32_t addAnimation(const std::string& name = {})
+        {
+            if (!root.find("animations"))
+                field(root, "animations") = Array{};
+            Json animation = parse(R"({"samplers":[],"channels":[]})");
+            if (!name.empty())
+                field(animation, "name") = name;
+            auto& animations = std::get<Array>(field(root, "animations").value);
+            animations.push_back(std::move(animation));
+            return static_cast<uint32_t>(animations.size() - 1);
+        }
+        uint32_t addAnimationTimes(std::initializer_list<float> times)
+        {
+            require(times.size() > 0, "Animation fixture needs key times");
+            const auto index       = addAccessor(floats(times), "SCALAR", 5126, static_cast<uint32_t>(times.size()));
+            auto&      accessor    = at(field(root, "accessors"), index);
+            field(accessor, "min") = Array{Json(*std::min_element(times.begin(), times.end()))};
+            field(accessor, "max") = Array{Json(*std::max_element(times.begin(), times.end()))};
+            return index;
+        }
+        uint32_t addAnimationSampler(uint32_t           animation,
+                                     uint32_t           input,
+                                     uint32_t           output,
+                                     const std::string& interpolation = "LINEAR")
+        {
+            Json sampler                    = parse("{}");
+            field(sampler, "input")         = input;
+            field(sampler, "output")        = output;
+            field(sampler, "interpolation") = interpolation;
+            auto& samplers = std::get<Array>(field(at(field(root, "animations"), animation), "samplers").value);
+            samplers.push_back(std::move(sampler));
+            return static_cast<uint32_t>(samplers.size() - 1);
+        }
+        void addAnimationChannel(uint32_t animation, uint32_t sampler, uint32_t node, const std::string& path)
+        {
+            Json channel                            = parse(R"({"target":{}})");
+            field(channel, "sampler")               = sampler;
+            field(field(channel, "target"), "node") = node;
+            field(field(channel, "target"), "path") = path;
+            std::get<Array>(field(at(field(root, "animations"), animation), "channels").value)
+                .push_back(std::move(channel));
+        }
         void setTexturedMaterial()
         {
             addTexCoordStream();
@@ -242,12 +286,14 @@ namespace
         for (const auto& diagnostic : result.diagnostics())
             message += diagnostic.code + ": " + diagnostic.message + " @ " + diagnostic.location + "\n";
         require(result.succeeded(), message);
-        require(result.bundle() && result.bundle()->model && result.bundle()->skeletons.empty(),
-                "Canonical glTF currently produces a primary model without skeleton products");
+        require(result.bundle() && result.bundle()->model && result.bundle()->skeletons.empty() &&
+                    result.bundle()->animationClips.empty(),
+                "Static glTF produces a primary model without skeleton or animation products");
     }
     void requireImportFailure(GltfFixtureBuilder& fixture, const std::filesystem::path& root, const std::string& code)
     {
         const auto result = importFixture(fixture, root);
-        require(!result.succeeded() && !result.asset() && hasDiagnostic(result, code), "Expected failure " + code);
+        require(!result.succeeded() && !result.asset() && !result.bundle() && hasDiagnostic(result, code),
+                "Expected failure " + code);
     }
 } // namespace

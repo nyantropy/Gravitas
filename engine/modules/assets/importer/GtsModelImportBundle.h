@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "assets/model/GtsModelAsset.h"
+#include "assets/animation/GtsAnimationClipAsset.h"
 
 struct GtsSkeletonAsset;
 
@@ -14,4 +15,5 @@ struct GtsModelImportBundle
 {
     std::optional<GtsModelAsset>                         model;
     std::vector<std::shared_ptr<const GtsSkeletonAsset>> skeletons;
+    std::vector<GtsAnimationClipAsset>                   animationClips;
 };

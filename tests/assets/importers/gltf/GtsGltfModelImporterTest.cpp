@@ -328,7 +328,7 @@ int main()
         {
             GltfFixtureBuilder f;
             field(f.root, "animations") = parse("[{}]");
-            requireImportFailure(f, root, "GLTF_ANIMATION_UNSUPPORTED");
+            requireImportFailure(f, root, "GLTF_ANIMATION_EMPTY");
         }
         {
             GltfFixtureBuilder f;

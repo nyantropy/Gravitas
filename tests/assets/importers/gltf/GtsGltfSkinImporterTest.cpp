@@ -55,6 +55,7 @@ namespace
         for (const auto& diagnostic : result.diagnostics())
             errors += diagnostic.code + ": " + diagnostic.message + " @ " + diagnostic.location + "\n";
         require(result.succeeded() && result.bundle() && result.asset(), errors);
+        require(result.bundle()->animationClips.empty(), "Non-animated rig has no clip products");
         require(validateGtsModelImportBundle(*result.bundle()).isValid(), "Complete rigged bundle validates");
         return *result.bundle();
     }
@@ -238,8 +239,8 @@ namespace
         f                           = makeSingleJointRig();
         field(f.root, "animations") = parse("[{}]");
         const auto animated         = importFixture(f, root, GltfFixtureFormat::Glb);
-        require(!animated.succeeded() && !animated.bundle() && hasDiagnostic(animated, "GLTF_ANIMATION_UNSUPPORTED"),
-                "Rigged animated GLB still fails explicitly");
+        require(!animated.succeeded() && !animated.bundle() && hasDiagnostic(animated, "GLTF_ANIMATION_EMPTY"),
+                "Empty animation cannot escape as a successful rigged bundle");
         f                               = makeSingleJointRig();
         field(f.primitive(), "targets") = parse("[{}]");
         requireImportFailure(f, root, "GLTF_MORPH_UNSUPPORTED");

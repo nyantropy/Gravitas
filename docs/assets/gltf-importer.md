@@ -2,7 +2,7 @@
 
 `modules/assets/importer/gltf/GtsGltfModelImporter` implements `IGtsModelImporter`
 and returns `GtsModelImportResult -> GtsModelImportBundle` with a primary model
-and any selected skeleton definitions. It handles `.gltf` JSON
+and any selected skeleton definitions and skeletal animation clips. It handles `.gltf` JSON
 and `.glb` version 2 containers. No legacy model DTO, renderer vertex, image decoder,
 Vulkan object, or runtime/cooked resource is involved.
 
@@ -11,7 +11,7 @@ Vulkan object, or runtime/cooked resource is involved.
     -> shared source utilities / GLB framing
     -> GltfSourceReader (JSON, buffers, views, validated accessors)
     -> GtsGltfModelImporter (source interpretation)
-    -> canonical bundle validation -> GtsModelImportResult -> model + skeleton definitions
+    -> canonical bundle validation -> GtsModelImportResult -> model + skeletons + clips
 ============================ FORMAT WALL =============================
     future consumer cutover (not implemented by this change)
 
@@ -245,6 +245,84 @@ Sampler objects, filters, wrapping policy, source texture objects, and texture
 transforms are not stored in canonical materials. Optional texture-transform or
 other unsupported extensions are diagnosed rather than silently claimed supported.
 
+## Skeletal animation import
+
+`GltfAnimationImporter.h/.cpp` directly decodes skeletal animation using the
+existing `GltfSourceReader`; no legacy DTO, tween, sampler runtime, or renderer
+representation is involved. `GltfSkinImportResult` privately retains each
+definition's evaluation-node-to-original-source-node correspondence. It is copied
+before model scene pruning remaps `modelNodeIndices`, so source animation indices
+cannot accidentally become pruned model indices.
+
+```text
+glTF animation channel target.node
+    -> skin extraction's original source-node memberships
+    -> one resolved skeleton definition
+    -> canonical evaluation-node index
+    -> GtsAnimationTrack
+```
+
+### Source membership versus compatibility versus occurrence
+
+For every channel, candidates are only definitions that actually contain its
+source node. Names and structural similarity never add candidates. Intersect
+these sets across the whole animation:
+
+- A target with no membership fails `GLTF_ANIMATION_NOT_SKELETAL`.
+- An empty intersection fails `GLTF_ANIMATION_MULTIPLE_RIGS`; the animation is
+  never split, partially imported, or used to merge rig definitions.
+- More than one surviving definition fails `GLTF_ANIMATION_AMBIGUOUS`, even if
+  those definitions happen to be compatible. A shared helper alone cannot choose
+  a rig; a helper plus a rig-specific joint channel can disambiguate it.
+- Exactly one candidate supplies the clip's `GtsSkeletonCompatibility`. The clip
+  stores no source rig index, pointer, bundle index or skeleton-use index.
+
+After source resolution, any exactly compatible definition may consume the clip.
+Bundle validation requires at least one such listed definition; several matches
+are valid and produce no duplicate clips. Multiple model occurrences likewise do
+not create clips. One source animation produces exactly one clip in source order.
+Source names become display names; an absent name becomes `animation_<index>`.
+
+Current skin extraction gives copied source trees distinct path IDs and keeps
+their definitions separate. It does not automatically unify compatible rigs or
+create multiple occurrences of one definition. The bundle supports deliberate
+sharing; tests exercise that separately from the source extraction policy.
+
+### Keys and source rules
+
+Input accessors must be tightly packed, non-normalized SCALAR FLOAT with finite,
+nonnegative, strictly increasing times. Required `min`/`max` must match decoded
+first/last times. Output translation/scale is tightly packed VEC3 FLOAT; rotation
+is VEC4 FLOAT or normalized signed/unsigned 8/16-bit values using the existing
+integer decoder. Bounds and sparse/implicit-zero policies remain those of the
+source reader. Missing interpolation means LINEAR; unknown modes fail.
+
+- STEP and LINEAR require one output element per input time.
+- CUBICSPLINE requires at least two source keys and three output elements per
+  key, ordered incoming derivative / value / outgoing derivative.
+- Rotation values explicitly convert source XYZW into `glm::quat(w,x,y,z)`.
+  Cubic rotation derivatives remain XYZW `glm::vec4` values, never normalized or
+  scaled by segment duration. Vector values preserve source axes; no geometry UV
+  or tangent conversion applies to animation.
+- Independent times and producer channel order survive. Duration is the maximum
+  last key time across tracks. One-key STEP/LINEAR constants are valid, including
+  time zero. No uniform timeline, resampling, clamping, or quaternion repair occurs.
+- Channels may reuse a sampler while retaining independent canonical tracks.
+  Duplicate source node/property pairs fail with channel context. Final clip
+  validation enforces canonical quaternion validity and all remaining invariants.
+
+Required evaluation helpers are ordinary skeletal track targets. Exact matrix
+nodes cannot receive TRS tracks and are never decomposed. Ordinary model nodes,
+missing-node/extension targets, morph weights, unsupported paths, mixed channels,
+and empty animations fail explicitly. All source animations are considered; an
+animation for a rig excluded by scene selection fails rather than disappearing.
+Standalone animation-only glTF without an extracted selected skin hierarchy
+remains unsupported. No artificial skeleton or model is created.
+
+Errors retain animation/channel context and sampler/accessor indices where
+relevant. A later unsupported or malformed animation discards the entire bundle,
+including previously decoded valid clips. Warnings retain a fully valid graph.
+
 ## Failure policy and validation limits
 
 - All accessors are checked against both their buffer-view range and the buffer's
@@ -258,9 +336,9 @@ other unsupported extensions are diagnosed rather than silently claimed supporte
 - Actual skins are supported as described above. Unused skins are validated and
   omitted with a diagnostic. Joint/weight geometry without node skin references
   remains allowed under the existing generic geometry policy.
-- Morph targets or authored mesh/node morph weights fail. Nonempty animations
-  fail, including animations outside the selected scene. No deformation data is
-  silently treated as equivalent static content.
+- Morph targets or authored mesh/node morph weights fail. Skeletal TRS animations
+  are supported under the rules above; unsupported animation channels fail rather
+  than silently becoming static content.
 - Unknown required extensions fail. Unknown optional extensions warn once per
   name, including extensions attached without a top-level declaration.
   Cameras warn; their node transforms can still be represented.
@@ -290,8 +368,8 @@ be exported as a manifest. Image identity remains available in the model.
 Before cutover, general model realization must preserve glTF hierarchy/instancing
 (the current OBJ adapter accepts only flat identity roots). Nonzero material UV
 sets need an explicit downstream capability policy. Sampler/texture transforms,
-scene selection options, sparse support, animation/morph contracts and skinned
-realization remain focused future decisions. No animation or runtime skinning is implemented.
+scene selection options, sparse support, ordinary-node/morph animation and skinned
+realization remain focused future decisions. No animation sampling or runtime skinning is implemented.
 
 `GtsGltfSkinImporterTest` shares generated JSON/binary fixture utilities with the
 static importer suite. It covers one-joint and helper-rich rigs, out-of-order source
@@ -300,3 +378,13 @@ scene pruning/correspondence, grouping/union/reordered skins, separate occurrenc
 shared meshes, malformed roots/indices/accessors/hierarchy, eight influences,
 weight totals, zero-weight slot bounds and unchanged unsupported policies.
 `GtsModelSkinTest` additionally checks malformed correspondence values.
+
+`GtsGltfAnimationImporterTest` uses `GltfFixtureBuilder` animation/time/sampler/
+channel helpers and direct JSON/binary mutations. It covers external/data-URI/GLB
+animation, every TRS/interpolation combination, normalized rotation encodings,
+XYZW derivatives, independent timing/duration, helper and source-index mapping,
+malformed samplers/keys, ambiguous and unrelated rigs, deterministic results and
+all-or-nothing failure. A private resolver test supplies compatible definitions
+with separate source memberships to verify that compatibility never introduces
+source candidates. Bundle tests cover multiple actual occurrences and compatible
+definitions consuming one clip, without changing skin extraction's occurrence policy.

@@ -274,7 +274,7 @@ so a screenshot requested alongside quit still captures the final frame.
 
 `modules/assets/` groups the canonical domain, importer contracts/strategies, and
 source-neutral processing. `gravitas_assets` owns the CPU domain and depends on
-core and the CPU skin/skeleton domains; parser and static-profile processing dependencies stay in separate targets
+core and the CPU skin/skeleton/animation domains; parser and static-profile processing dependencies stay in separate targets
 within the same module. Core has no dependency on the assets module.
 
 `modules/assets/skeleton/` owns the separate CPU-only `gravitas_skeleton_assets`
@@ -304,8 +304,9 @@ stores an exact compatibility expectation, duration, and per-property TRS tracks
 with Step/Linear/CubicSpline keys. Rotation values are quaternions; cubic rotation
 tangents are XYZW component derivatives. Structural/contextual validation rejects
 malformed timing, values, duplicate targets, and matrix-node TRS animation without
-repair. The clip owns no skeleton definition or runtime state. Animation import,
-bundle enumeration, sampling, and runtime integration remain unimplemented.
+repair. The clip owns no skeleton definition or runtime state. Canonical glTF now
+imports skeletal TRS clips and enumerates them as bundle values. Sampling and
+runtime integration remain unimplemented.
 
 `GtsModelSkeletonUse` shares an immutable skeleton definition; each table entry
 is a distinct occurrence. `GtsModelSkinBinding` pairs a binding value with a
@@ -320,10 +321,11 @@ geometry validation. See [model associations](docs/assets/model-domain.md#skelet
 `GtsModelAsset` domain. `modules/assets/importer/` owns the `IGtsModelImporter`
 contract and concrete strategies. File-backed model importers return validated
 bundles through `GtsModelImportResult`. `GtsModelImportBundle` contains an optional
-primary model and shared immutable skeleton definitions. Model occurrences share
+primary model, shared immutable skeleton definitions, and animation clip values. Model occurrences share
 those same objects; duplicate definition entries and unlisted uses are rejected.
 Bundle validation composes model/skeleton validation and checks ownership, not
-structural identity. Static importers retain model-only success calls. A successful
+structural identity. Clip validation separately requires at least one listed exact
+compatible skeleton; multiple matches are valid and select no occurrence. Static importers retain model-only success calls. A successful
 model-less bundle is possible, so `asset() == nullptr` alone no longer means failure.
 Runtime realization remains a separate responsibility. `modules/assets/importer/obj/` provides the first
 strategy, `GtsObjModelImporter`. It is the only OBJ interpreter. Offline cooking
@@ -338,7 +340,10 @@ provides the independent canonical `GtsGltfModelImporter`, with no consumer cuto
 It now imports actual skins before scene pruning, retaining required transform
 ancestors, source TRS/matrix forms and skin-local slot order. Clear shared-rig
 evidence groups skins into definitions/occurrences; inverse binds stay binding-specific.
-Animation and morph import remain explicitly unsupported. See
+Skeletal TRS animation channels resolve by intersecting original source-node rig
+memberships, then target the resolved compatibility contract. Shared-helper
+ambiguity, multi-rig, ordinary-node and morph animation remain explicit failures;
+STEP/LINEAR/CUBICSPLINE preserve typed keys and derivatives. See
 [glTF skin policies](docs/assets/gltf-importer.md#skins-definitions-and-occurrences).
 Its CPU source utilities and stricter GLB framing are shared with the legacy
 importer. Cooked v1 serializers and GPU upload are unchanged.

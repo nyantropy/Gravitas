@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "GtsModelImportBundle.h"
+#include "assets/animation/GtsAnimationClipValidation.h"
 #include "assets/model/GtsModelValidation.h"
 #include "assets/skeleton/GtsSkeletonValidation.h"
 
@@ -22,9 +23,8 @@ namespace
 GtsModelImportBundleValidationResult validateGtsModelImportBundle(const GtsModelImportBundle& bundle)
 {
     GtsModelImportBundleValidationResult result;
-    if (!bundle.model && bundle.skeletons.empty())
-        addError(
-            result, "MODEL_IMPORT_BUNDLE_EMPTY", "An import must produce a model or skeleton definition.", "bundle");
+    if (!bundle.model && bundle.skeletons.empty() && bundle.animationClips.empty())
+        addError(result, "MODEL_IMPORT_BUNDLE_EMPTY", "An import must produce at least one canonical asset.", "bundle");
 
     // object addresses locate explicitly enumerated in-memory products only
     // structural compatibility remains entirely in the skeleton/skin domains
@@ -52,6 +52,27 @@ GtsModelImportBundleValidationResult validateGtsModelImportBundle(const GtsModel
         for (const auto& error : validation.diagnostics)
             result.diagnostics.push_back(
                 {GtsModelDiagnosticSeverity::Error, error.code, error.message, location + "." + error.location});
+    }
+
+    for (size_t i = 0; i < bundle.animationClips.size(); ++i)
+    {
+        const auto& clip     = bundle.animationClips[i];
+        const auto  location = "animationClips[" + std::to_string(i) + "]";
+        for (const auto& error : validateGtsAnimationClip(clip).diagnostics)
+            addError(result, error.code.c_str(), error.message, location + "." + error.location);
+        bool matched = false;
+        for (const auto& skeleton : bundle.skeletons)
+            if (skeleton && isGtsSkeletonCompatible(*skeleton, clip.targetSkeletonCompatibility))
+            {
+                matched = true;
+                break;
+            }
+        if (!matched)
+            addError(result,
+                     "MODEL_IMPORT_ANIMATION_SKELETON_MISSING",
+                     "Clip compatibility has no matching skeleton definition in this bundle; external targets are not "
+                     "supported.",
+                     location + ".targetSkeletonCompatibility");
     }
 
     if (!bundle.model)

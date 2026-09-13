@@ -16,6 +16,7 @@
 
 #include "GltfSourceReader.h"
 #include "GltfSkinImporter.h"
+#include "GltfAnimationImporter.h"
 #include "GltfSourceUtilities.h"
 #include "assets/model/GtsModelImportResult.h"
 
@@ -77,10 +78,6 @@ namespace
                 for (size_t i = 0; i < value->asArray().size(); ++i)
                     pending.emplace_back(&value->asArray()[i], location + "[" + std::to_string(i) + "]");
         }
-        if (!array(root.find("animations"), "animations").empty())
-            fail("GLTF_ANIMATION_UNSUPPORTED",
-                 "Animation requires a future canonical animation asset; import cannot discard clips",
-                 "animations");
         if (!array(root.find("cameras"), "cameras").empty())
             diagnostics.push_back({Severity::Warning,
                                    "GLTF_CAMERAS_UNSUPPORTED",
@@ -478,7 +475,7 @@ namespace
                 }
     }
 
-    std::vector<std::shared_ptr<const GtsSkeletonAsset>>
+    GltfSkinImportResult
     nodes(const SourceDocument& data, GtsModelAsset& model, std::vector<GtsModelDiagnostic>& diagnostics)
     {
         const auto&                            sourceNodes = array(data.root.find("nodes"), "nodes");
@@ -662,9 +659,11 @@ GtsModelImportResult GtsGltfModelImporter::importAsset(const GtsModelImportReque
         GtsModelAsset model;
         materials(data, model, diagnostics);
         meshes(data, model);
-        auto skeletons = nodes(data, model, diagnostics);
-        return GtsModelImportResult::success(GtsModelImportBundle{std::move(model), std::move(skeletons)},
-                                             std::move(diagnostics));
+        auto skins = nodes(data, model, diagnostics);
+        auto clips = gts::gltf::importAnimations(data, skins);
+        return GtsModelImportResult::success(
+            GtsModelImportBundle{std::move(model), std::move(skins.skeletons), std::move(clips)},
+            std::move(diagnostics));
     }
     catch (const gts::gltf::DecodeError& error)
     {
