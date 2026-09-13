@@ -493,7 +493,8 @@ class ForwardRenderer : Renderer
                                  uint32_t imageIndex,
                                  bool captureScreenshot,
                                  const std::string& captureOutputDirectory,
-                                 VkFence captureCompletionFence)
+                                 VkFence captureCompletionFence,
+                                 const SkinnedFrameData& skinnedData)
         {
             VkCommandBufferBeginInfo beginInfo{};
             beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -510,6 +511,7 @@ class ForwardRenderer : Renderer
             const RenderViewportFrame viewportFrame = buildViewportFrame(sceneViewport);
             frameGraph.provideData(&renderList);
             frameGraph.provideData(&materialFrameData);
+            frameGraph.provideData(&skinnedData);
             frameGraph.provideData(&particleData);
             frameGraph.provideData(&viewportFrame);
             frameGraph.provideData(&uiBuffer);
@@ -709,7 +711,7 @@ class ForwardRenderer : Renderer
                          const RenderViewportRect& sceneViewport,
                          const UiCommandBuffer& uiBuffer,
                          const EditorPreviewRenderData& editorPreview,
-                         const GtsFrameStats& stats) override
+                         const GtsFrameStats& stats, const SkinnedFrameData& skinnedData = {}) override
         {
             const auto frameStart = std::chrono::steady_clock::now();
             renderedFrameCount += 1;
@@ -899,7 +901,8 @@ class ForwardRenderer : Renderer
                                     imageIndex,
                                     captureScreenshot,
                                     captureOutputDirectory,
-                                    frame.inFlightFence);
+                                    frame.inFlightFence,
+                                    skinnedData);
             }
             catch (...)
             {

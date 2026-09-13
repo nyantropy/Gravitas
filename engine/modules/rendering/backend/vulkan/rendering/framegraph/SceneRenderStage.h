@@ -28,20 +28,12 @@
 #include "DescriptorSetManager.hpp"
 #include "EditorPreviewRenderData.h"
 #include "VulkanBackendContext.h"
+#include "VulkanSceneMaterialPushConstants.h"
+#include "../skinning/VulkanSkinnedSceneRenderer.h"
 
 class SceneRenderStage : public GtsRenderStage
 {
-    struct ScenePushConstants
-    {
-        // x = vertex-color-only, y = material feature flags.
-        glm::ivec4 materialFlags = {0, 0, 0, 0};
-        // Shared material base-color factor.
-        glm::vec4 baseColor = {1.0f, 1.0f, 1.0f, 1.0f};
-        // x = metallic, y = roughness, z = normalScale, w = AO strength.
-        glm::vec4 surfaceFactors = {0.0f, 1.0f, 1.0f, 1.0f};
-        // xyz = emissive factor, w = emissive strength.
-        glm::vec4 emissiveFactorStrength = {0.0f, 0.0f, 0.0f, 1.0f};
-    };
+    using ScenePushConstants = VulkanSceneMaterialPushConstants;
 
 public:
     enum class DataSource
@@ -210,6 +202,7 @@ public:
         {
             graph.requestData<std::vector<RenderCommand>>(this);
             graph.requestData<MaterialFrameData>(this);
+            graph.requestData<SkinnedFrameData>(this);
             graph.requestData<RenderViewportFrame>(this);
         }
 
@@ -232,6 +225,14 @@ public:
         const RenderViewportRect viewport = resolveViewport(graph);
 
         resetFrameStats();
+        if (dataSource == DataSource::RuntimeWorld)
+        {
+            const auto& skins = graph.getData<SkinnedFrameData>();
+            if (!skins.draws.empty() && !skinnedRenderer)
+                skinnedRenderer = std::make_unique<VulkanSkinnedSceneRenderer>(backendContext,
+                    descriptorSetManager, *resources, renderPass->getRenderPass());
+            if (skinnedRenderer) skinnedRenderer->prepare(skins, currentFrame);
+        }
         prepareBatches(renderList, materialFrameData, currentFrame);
 
         if (renderList.empty() || renderList[0].cameraViewID == 0)
@@ -240,7 +241,7 @@ public:
             return;
         }
 
-        if (shouldRecordInParallel(renderList))
+        if ((!skinnedRenderer || !skinnedRenderer->hasDraws(currentFrame)) && shouldRecordInParallel(renderList))
         {
             resetSecondaryCommandPools(currentFrame);
             recordParallel(cmd, imageIndex, currentFrame, renderList, viewport);
@@ -356,6 +357,7 @@ private:
     static constexpr uint32_t PARALLEL_RECORDING_THRESHOLD = 64;
 
     std::unique_ptr<VulkanRenderPass>   renderPass;
+    std::unique_ptr<VulkanSkinnedSceneRenderer> skinnedRenderer;
     std::unique_ptr<VulkanPipeline>     pipeline;
     std::unique_ptr<VulkanPipeline>     pipelineDoubleSided;
     std::unique_ptr<VulkanPipeline>     pipelineAlphaNoDepth;
@@ -1125,19 +1127,23 @@ private:
         vkCmdBeginRenderPass(cmd, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
         setViewportAndScissor(cmd, viewport);
 
-        if (preparedBatches.empty() || renderList[0].cameraViewID == 0)
+        // Opaque skinned draws precede the existing static queues, including transparency.
+        if (skinnedRenderer) skinnedRenderer->record(cmd, currentFrame);
+        if (!preparedBatches.empty() && !renderList.empty() && renderList[0].cameraViewID != 0)
         {
-            vkCmdEndRenderPass(cmd);
-            return;
+            const GlobalDescriptorSets globalSets =
+                resolveGlobalDescriptorSets(currentFrame, renderList[0].cameraViewID);
+            ChunkStats inlineStats{};
+            bindGlobalDescriptorSets(cmd, globalSets, inlineStats);
+            recordBatchRange(cmd, currentFrame, 0, static_cast<uint32_t>(preparedBatches.size()), inlineStats);
+            chunkStats[0] = inlineStats;
+            aggregateChunkStats(1);
         }
-
-        const GlobalDescriptorSets globalSets =
-            resolveGlobalDescriptorSets(currentFrame, renderList[0].cameraViewID);
-        ChunkStats inlineStats{};
-        bindGlobalDescriptorSets(cmd, globalSets, inlineStats);
-        recordBatchRange(cmd, currentFrame, 0, static_cast<uint32_t>(preparedBatches.size()), inlineStats);
-        chunkStats[0] = inlineStats;
-        aggregateChunkStats(1);
+        if (skinnedRenderer)
+        {
+            lastDrawCalls += skinnedRenderer->drawCalls;
+            lastTriangleCount += skinnedRenderer->triangles;
+        }
         vkCmdEndRenderPass(cmd);
     }
 

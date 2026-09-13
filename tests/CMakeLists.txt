@@ -798,3 +798,9 @@ add_executable(VulkanSkinningResourceTest rendering/VulkanSkinningResourceTest.c
 target_link_libraries(VulkanSkinningResourceTest PRIVATE gravitas_vulkan_backend)
 add_test(NAME vulkan_skinning_resource COMMAND VulkanSkinningResourceTest)
 set_tests_properties(vulkan_skinning_resource PROPERTIES LABELS "gravitas;rendering;cpu")
+
+
+add_executable(SkinnedFrameExtractionTest rendering/SkinnedFrameExtractionTest.cpp)
+target_link_libraries(SkinnedFrameExtractionTest PRIVATE gravitas_rendering)
+add_test(NAME skinned_frame_extraction COMMAND SkinnedFrameExtractionTest)
+set_tests_properties(skinned_frame_extraction PROPERTIES LABELS "gravitas;rendering;cpu")

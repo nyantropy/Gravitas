@@ -1,4 +1,5 @@
 #pragma once
+#include "core/skinning/SkinnedFrameData.h"
 
 #include <cstdint>
 #include <functional>
@@ -74,5 +75,6 @@ namespace gts::rendering
         std::unique_ptr<RenderPipeline> renderPipeline;
         std::unique_ptr<UiSystem> uiSystem;
         bool uiEnabled = true;
+        SkinnedFrameData skinnedFrame;
     };
 }

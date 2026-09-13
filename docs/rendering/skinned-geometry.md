@@ -1,7 +1,7 @@
 # Vulkan skinned geometry and palettes
 
-The backend now has an explicitly callable skinned geometry path. It does not
-participate in ordinary world extraction yet and does not evaluate animation.
+The backend has an explicitly callable skinned geometry path and an opaque
+world-submission bridge. It consumes evaluated palettes and never evaluates animation.
 
 ```text
 CPU (Vulkan-independent)                 Vulkan backend
@@ -157,14 +157,14 @@ introduced; this backend path deliberately does not infer it.
 
 `MeshResource` and `DynamicMeshComponent` remain static-profile-only to avoid a
 resource/ECS redesign in this ABI task. Their broad names should be revisited
-when runtime skinned draw extraction is introduced. Static rendering has no new
+during a future broader static resource naming cleanup. Static rendering has no new
 skinning allocation or shader work. Canonical assets, CPU preparation, pose and
 palette evaluation remain unchanged; the backend only includes their data types.
 
-Playback/controller state, ECS animation, world extraction of skinned draws,
-frame scheduling for characters, animated culling bounds, geometry staging pools,
-shadow/depth skinned variants, cooked formats and modular character assembly are
-not implemented here. The shader performs linear-blend skinning, not dual-quaternion
+Minimal playback now lives upstream in `animation/skeletal/runtime`; world
+extraction and frame-safe palette submission are described below. Animated culling
+bounds, geometry staging pools, shadow/depth skinned variants, cooked formats and
+modular character assembly remain deferred. The shader performs linear-blend skinning, not dual-quaternion
 skinning. Finite CPU input can still overflow extreme shader arithmetic; this stage
 does not add per-vertex finite/bounds checks to the production shader.
 
@@ -209,3 +209,50 @@ environment has no Vulkan GPU (`/dev/dri` is absent). Shader source compilation,
 SPIR-V validation and ABI inspection pass; the shipped skinned SPIR-V matches the
 freshly compiled output. Device execution and rendered output remain unverified in
 this environment. No test-only vertex deformation implementation was introduced.
+
+
+## Opaque world submission
+
+`GtsSkinnedModelData` shares immutable prepared mesh parts, binding indices and
+existing material frame values. Each `GtsSkinnedModelInstance` is a distinct
+presentation occurrence. `SkinnedModelComponent` holds that occurrence, an
+immutable snapshot of binding palettes, and `actorFromReference` placement.
+`extractSkinnedFrame` combines the resolved world transform with this presentation
+transform and retains the entire palette snapshot. It does not inspect clips,
+skeletons or source nodes. Cached-world frames preserve that snapshot.
+
+`RenderingRuntime` passes this separate packet through `IGtsGraphicsModule` and
+`ForwardRenderer` to the scene frame graph. `VulkanSkinnedSceneRenderer` lazily
+realizes geometry once per shared render model and palette buffers once per
+occurrence/binding. GPU instances are cached while their CPU occurrence exists;
+each in-flight frame additionally retains the instances it submitted. Removed
+instances are released only after all referencing frame fences complete. Frame
+graph/device reconstruction can rebuild these resources; ordinary animation
+frames never recreate or upload mesh geometry.
+
+The prepare call occurs during recording **after ForwardRenderer waits the current
+frame fence and resets its command buffer**. It writes only that frame's palette
+allocation and object SSBO slot. Other frame allocations remain untouched. No
+per-frame `vkDeviceWaitIdle`, animation sampling, or inverse-bind multiplication
+is added to Vulkan. World placement goes exclusively to the object SSBO.
+
+Each prepared part selects its binding's palette; each primitive retains its
+material range. Existing PBR/unlit fragments, material push constants, camera,
+object, environment and material descriptors are reused. Missing texture handles
+resolve to the existing semantic fallback textures. Palette descriptors remain
+set 4 and mesh joint slots index them directly. The shared 64-byte material push
+constant structure is now `VulkanSceneMaterialPushConstants`.
+
+This first bridge explicitly supports opaque depth-writing materials. It draws
+skinned opaque geometry before the existing static queues in the same scene pass,
+so static transparent surfaces still follow opaque geometry. Static-only frames
+retain the existing parallel recording path and allocate no palette resources.
+Frames with skinned draws record inline. Transparent skinned sorting is deferred
+and rejected explicitly. Animated geometry currently bypasses static frustum
+culling: bind bounds cannot safely cull animated limbs.
+
+`SkinnedFrameExtractionTest` verifies snapshot ownership, binding-specific palette
+values and independent object placement without a GPU. Existing Vulkan ABI,
+shader reflection and intercepted-resource tests remain applicable. Actual
+rendered-image verification requires a Vulkan device; CPU tests do not establish
+visual correctness.

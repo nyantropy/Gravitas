@@ -7,3 +7,8 @@ add_executable(GtsImportedAnimationPoseTest GtsImportedAnimationPoseTest.cpp)
 target_link_libraries(GtsImportedAnimationPoseTest PRIVATE gravitas_skeletal_animation gravitas_gltf_importer)
 add_test(NAME gts_imported_animation_pose COMMAND GtsImportedAnimationPoseTest)
 set_tests_properties(gts_imported_animation_pose PROPERTIES LABELS "gravitas;animation;integration;cpu")
+
+add_executable(GtsAnimationPlaybackTest GtsAnimationPlaybackTest.cpp)
+target_link_libraries(GtsAnimationPlaybackTest PRIVATE gravitas_skeletal_animation)
+add_test(NAME gts_animation_playback COMMAND GtsAnimationPlaybackTest)
+set_tests_properties(gts_animation_playback PROPERTIES LABELS "gravitas;animation;cpu")

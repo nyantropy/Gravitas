@@ -1,3 +1,4 @@
+#include "SkinnedFrameExtraction.h"
 #include "RenderingRuntime.h"
 #include "../ecssetup/camera/input/CameraDefaultBindings.hpp"
 #include "../../../core/ui/input/UiDefaultBindings.hpp"
@@ -109,6 +110,7 @@ namespace gts::rendering
     void RenderingRuntime::resetSceneState()
     {
         renderPipeline->resetSceneState();
+        skinnedFrame = {};
     }
 
     void RenderingRuntime::setVisibilityEnabled(bool enabled)
@@ -354,6 +356,7 @@ namespace gts::rendering
         if (frameBuildMode == FrameBuildMode::FullWorld)
         {
             renderList = &renderPipeline->build(world);
+            skinnedFrame = extractSkinnedFrame(world, renderPipeline->getLatestSnapshot().cameraViewID);
             materialFrameData = &renderPipeline->getLatestSnapshot().materialFrameData;
         }
         else if (frameBuildMode == FrameBuildMode::CachedWorldFrame)
@@ -481,7 +484,10 @@ namespace gts::rendering
                              sceneViewport,
                              *uiBuffer,
                              editorPreview != nullptr && editorPreview->enabled ? *editorPreview : emptyEditorPreview,
-                             stats);
+                             stats,
+                             passVisibility.renderScene && (frameBuildMode == FrameBuildMode::FullWorld ||
+                                 frameBuildMode == FrameBuildMode::CachedWorldFrame)
+                                 ? skinnedFrame : SkinnedFrameData{});
         const auto submitEnd    = std::chrono::steady_clock::now();
         GtsFrameStats finalStats = graphics.getLastFrameStats();
         if (finalStats.frameIndex != stats.frameIndex)

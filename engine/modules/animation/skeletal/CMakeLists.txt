@@ -1,4 +1,5 @@
 add_library(gravitas_skeletal_animation STATIC
+    runtime/GtsAnimationPlayback.cpp
     GtsAnimationSampling.cpp
     GtsSkeletonPoseEvaluation.cpp
     GtsSkeletonPoseValidation.cpp
