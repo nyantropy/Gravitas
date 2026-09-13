@@ -5,7 +5,8 @@
 #include <string>
 #include <vector>
 
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
+#include "assets/processing/geometry/GtsGeometryMetadata.h"
 
 struct GtsPreparedStaticPrimitive
 {
@@ -19,7 +20,7 @@ struct GtsPreparedStaticPrimitive
 struct GtsPreparedStaticMesh
 {
     std::string                             name;
-    std::vector<Vertex>                     vertices;
+    std::vector<GtsStaticVertex>                     vertices;
     std::vector<uint32_t>                   indices;
     std::vector<GtsPreparedStaticPrimitive> primitives;
 

@@ -9,7 +9,8 @@
 #include "DynamicMeshComponent.h"
 #include "GlyphLayoutEngine.h"
 #include "MeshGeometryProcessor.h"
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
+#include "assets/processing/geometry/GtsGeometryMetadata.h"
 #include "VulkanVertexDescription.h"
 #include "WorldTextComponent.h"
 
@@ -44,7 +45,7 @@ namespace
             && near(lhs.w, rhs.w, epsilon);
     }
 
-    bool finiteTangent(const Vertex& vertex)
+    bool finiteTangent(const GtsStaticVertex& vertex)
     {
         return gts::rendering::finiteVec4(vertex.tangent)
             && near(glm::dot(glm::vec3(vertex.tangent), vertex.normal), 0.0f, 0.0005f);
@@ -52,25 +53,29 @@ namespace
 
     bool vertexLayoutMatchesBackendContract()
     {
-        const Vertex defaultVertex;
+        static_assert(sizeof(GtsStaticVertex) == 64 && alignof(GtsStaticVertex) == 4);
+        static_assert(offsetof(GtsStaticVertex, pos) == 0 && offsetof(GtsStaticVertex, normal) == 12 &&
+                      offsetof(GtsStaticVertex, tangent) == 24 && offsetof(GtsStaticVertex, color) == 40 &&
+                      offsetof(GtsStaticVertex, texCoord) == 56);
+        const GtsStaticVertex defaultVertex;
         const auto binding = VulkanVertexDescription::getBindingDescription();
         const auto attributes = VulkanVertexDescription::getAttributeDescriptions();
 
-        return require(std::is_standard_layout_v<Vertex>, "Vertex remains standard layout")
-            && require(binding.binding == 0, "Vertex binding is zero")
-            && require(binding.stride == sizeof(Vertex), "Vulkan vertex stride matches Vertex")
-            && require(binding.inputRate == VK_VERTEX_INPUT_RATE_VERTEX, "Vertex input rate is per-vertex")
+        return require(std::is_standard_layout_v<GtsStaticVertex>, "GtsStaticVertex remains standard layout")
+            && require(binding.binding == 0, "GtsStaticVertex binding is zero")
+            && require(binding.stride == sizeof(GtsStaticVertex), "Vulkan vertex stride matches GtsStaticVertex")
+            && require(binding.inputRate == VK_VERTEX_INPUT_RATE_VERTEX, "GtsStaticVertex input rate is per-vertex")
             && require(attributes.size() == 5, "Standard vertex exposes five attributes")
             && require(attributes[0].location == 0 && attributes[0].format == VK_FORMAT_R32G32B32_SFLOAT &&
-                       attributes[0].offset == offsetof(Vertex, pos), "position attribute matches contract")
+                       attributes[0].offset == offsetof(GtsStaticVertex, pos), "position attribute matches contract")
             && require(attributes[1].location == 1 && attributes[1].format == VK_FORMAT_R32G32B32_SFLOAT &&
-                       attributes[1].offset == offsetof(Vertex, normal), "normal attribute matches contract")
+                       attributes[1].offset == offsetof(GtsStaticVertex, normal), "normal attribute matches contract")
             && require(attributes[2].location == 2 && attributes[2].format == VK_FORMAT_R32G32B32A32_SFLOAT &&
-                       attributes[2].offset == offsetof(Vertex, tangent), "tangent attribute matches contract")
+                       attributes[2].offset == offsetof(GtsStaticVertex, tangent), "tangent attribute matches contract")
             && require(attributes[3].location == 3 && attributes[3].format == VK_FORMAT_R32G32B32A32_SFLOAT &&
-                       attributes[3].offset == offsetof(Vertex, color), "color attribute matches contract")
+                       attributes[3].offset == offsetof(GtsStaticVertex, color), "color attribute matches contract")
             && require(attributes[4].location == 4 && attributes[4].format == VK_FORMAT_R32G32_SFLOAT &&
-                       attributes[4].offset == offsetof(Vertex, texCoord), "UV attribute matches contract")
+                       attributes[4].offset == offsetof(GtsStaticVertex, texCoord), "UV attribute matches contract")
             && require(nearVec3(defaultVertex.normal, {0.0f, 0.0f, 1.0f}), "default normal is +Z")
             && require(nearVec4(defaultVertex.tangent, {1.0f, 0.0f, 0.0f, 1.0f}), "default tangent is +X with positive handedness")
             && require(nearVec4(defaultVertex.color, {1.0f, 1.0f, 1.0f, 1.0f}), "default color is white")
@@ -79,10 +84,10 @@ namespace
 
     bool normalAndTangentGeneration()
     {
-        std::vector<Vertex> vertices = {
-            Vertex{{0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}},
-            Vertex{{1.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}},
-            Vertex{{0.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+        std::vector<GtsStaticVertex> vertices = {
+            GtsStaticVertex{{0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}},
+            GtsStaticVertex{{1.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}},
+            GtsStaticVertex{{0.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
         };
         const std::vector<uint32_t> indices = {0, 1, 2};
 
@@ -94,7 +99,7 @@ namespace
             && require(hasVertexAttribute(metadata.attributes, VertexAttributeFlags::Normal), "metadata reports normals")
             && require(hasVertexAttribute(metadata.attributes, VertexAttributeFlags::Tangent), "metadata reports tangents");
 
-        for (const Vertex& vertex : vertices)
+        for (const GtsStaticVertex& vertex : vertices)
         {
             ok = require(nearVec3(vertex.normal, {0.0f, 0.0f, 1.0f}), "generated normal is +Z") && ok;
             ok = require(nearVec4(vertex.tangent, {1.0f, 0.0f, 0.0f, 1.0f}), "generated tangent is +X/+handedness") && ok;
@@ -105,10 +110,10 @@ namespace
 
     bool degenerateTangentsUseFiniteFallback()
     {
-        std::vector<Vertex> vertices = {
-            Vertex{{0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}},
-            Vertex{{1.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}},
-            Vertex{{0.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}}
+        std::vector<GtsStaticVertex> vertices = {
+            GtsStaticVertex{{0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}},
+            GtsStaticVertex{{1.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}},
+            GtsStaticVertex{{0.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}}
         };
         const std::vector<uint32_t> indices = {0, 1, 2};
 
@@ -116,7 +121,7 @@ namespace
             gts::rendering::prepareMeshGeometry(vertices, indices, UnlitVertexAttributes);
 
         bool ok = require(metadata.generatedTangents, "degenerate UVs still produce deterministic tangent fallback");
-        for (const Vertex& vertex : vertices)
+        for (const GtsStaticVertex& vertex : vertices)
             ok = require(finiteTangent(vertex), "fallback tangent is finite and orthogonal") && ok;
 
         return ok;
@@ -138,14 +143,14 @@ namespace
         text.text = "A";
         text.scale = 1.0f;
 
-        std::vector<Vertex> vertices;
+        std::vector<GtsStaticVertex> vertices;
         std::vector<uint32_t> indices;
         GlyphLayoutEngine::build(text, font, vertices, indices);
 
         bool ok = require(vertices.size() == 4, "world text emits one quad")
             && require(indices.size() == 6, "world text emits two triangles");
 
-        for (const Vertex& vertex : vertices)
+        for (const GtsStaticVertex& vertex : vertices)
         {
             ok = require(nearVec3(vertex.normal, {0.0f, 0.0f, 1.0f}), "world text normal is +Z") && ok;
             ok = require(nearVec4(vertex.tangent, {1.0f, 0.0f, 0.0f, 1.0f}), "world text tangent is +X/+handedness") && ok;

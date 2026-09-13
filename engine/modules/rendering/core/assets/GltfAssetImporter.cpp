@@ -650,7 +650,7 @@ namespace
                 std::vector<float> components;
                 for (size_t vertexIndex = 0; vertexIndex < positions.count; ++vertexIndex)
                 {
-                    Vertex vertex;
+                    GtsStaticVertex vertex;
                     if (!readAccessorElement(data, positionAccessor, vertexIndex, components) ||
                         components.size() < 3u)
                     {

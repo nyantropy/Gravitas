@@ -45,7 +45,7 @@
 #include "TransformHierarchyHelpers.h"
 #include "TransformSystem.hpp"
 #include "ToolLaunchPreset.h"
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
 #include "WorldTextComponent.h"
 
 namespace
@@ -223,7 +223,7 @@ namespace
         return true;
     }
 
-    std::vector<Vertex> benchmarkQuadVertices(float size, uint32_t frame)
+    std::vector<GtsStaticVertex> benchmarkQuadVertices(float size, uint32_t frame)
     {
         const float half = size * 0.5f;
         const float offset = static_cast<float>(frame % 17u) * 0.001f;
@@ -231,18 +231,18 @@ namespace
         const glm::vec4 tangent = {1.0f, 0.0f, 0.0f, 1.0f};
         const glm::vec4 color = {1.0f, 1.0f, 1.0f, 1.0f};
         return {
-            Vertex{{-half, -half + offset, 0.0f}, normal, tangent, color, {0.0f, 0.0f}},
-            Vertex{{ half, -half,          0.0f}, normal, tangent, color, {1.0f, 0.0f}},
-            Vertex{{ half,  half,          0.0f}, normal, tangent, color, {1.0f, 1.0f}},
-            Vertex{{-half,  half,          0.0f}, normal, tangent, color, {0.0f, 1.0f}}
+            GtsStaticVertex{{-half, -half + offset, 0.0f}, normal, tangent, color, {0.0f, 0.0f}},
+            GtsStaticVertex{{ half, -half,          0.0f}, normal, tangent, color, {1.0f, 0.0f}},
+            GtsStaticVertex{{ half,  half,          0.0f}, normal, tangent, color, {1.0f, 1.0f}},
+            GtsStaticVertex{{-half,  half,          0.0f}, normal, tangent, color, {0.0f, 1.0f}}
         };
     }
 
-    std::vector<Vertex> benchmarkDoubleQuadVertices(float size, uint32_t frame)
+    std::vector<GtsStaticVertex> benchmarkDoubleQuadVertices(float size, uint32_t frame)
     {
-        std::vector<Vertex> vertices = benchmarkQuadVertices(size, frame);
-        std::vector<Vertex> second = benchmarkQuadVertices(size * 0.75f, frame + 3u);
-        for (Vertex& vertex : second)
+        std::vector<GtsStaticVertex> vertices = benchmarkQuadVertices(size, frame);
+        std::vector<GtsStaticVertex> second = benchmarkQuadVertices(size * 0.75f, frame + 3u);
+        for (GtsStaticVertex& vertex : second)
             vertex.pos.x += size * 0.8f;
         vertices.insert(vertices.end(), second.begin(), second.end());
         return vertices;
@@ -345,7 +345,7 @@ namespace
             TextureNames[index % (sizeof(TextureNames) / sizeof(TextureNames[0]))];
     }
 
-    std::vector<Vertex> dynamicMeshVerticesForFrame(const RenderingBenchmarkConfig& config,
+    std::vector<GtsStaticVertex> dynamicMeshVerticesForFrame(const RenderingBenchmarkConfig& config,
                                                     uint32_t frame)
     {
         if (dynamicMeshGrowthExpanded(config, frame))

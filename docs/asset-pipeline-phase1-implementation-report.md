@@ -30,7 +30,7 @@ the existing runtime mesh upload path creates `MeshResource` GPU buffers.
 ## Architecture Decisions
 
 - Import data lives under `rendering/core/assets` because the first slice uses
-  existing rendering CPU value types: `Vertex`, `VertexAttributeFlags`,
+  existing rendering CPU value types: `GtsStaticVertex`, `VertexAttributeFlags`,
   `MaterialShaderFamily`, `MaterialRenderState`, and `TextureColorSpace`.
 - Import types contain no Vulkan handles, descriptor sets, ECS entities,
   runtime manager handles, parser-library types, or raw owning pointers.

@@ -21,7 +21,7 @@
 #include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
 #include "TransformComponent.h"
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
 
 namespace gts::debugdraw
 {
@@ -247,7 +247,7 @@ namespace gts::debugdraw
             gts::rendering::queueRenderSnapshotDirty(world, entity);
         }
 
-        static void appendLineBox(std::vector<Vertex>& vertices,
+        static void appendLineBox(std::vector<GtsStaticVertex>& vertices,
                                   std::vector<uint32_t>& indices,
                                   BoundsAccumulator& bounds,
                                   const DebugDrawLine& line)

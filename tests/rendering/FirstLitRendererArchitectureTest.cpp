@@ -27,7 +27,8 @@
 #include "TransformHierarchyHelpers.h"
 #include "TransformMatrixHelpers.h"
 #include "TransformSceneFeature.h"
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
+#include "assets/processing/geometry/GtsGeometryMetadata.h"
 
 namespace
 {
@@ -83,7 +84,7 @@ namespace
         }
 
         mesh_id_type uploadProceduralMesh(mesh_id_type existingId,
-                                          const std::vector<Vertex>&,
+                                          const std::vector<GtsStaticVertex>&,
                                           const std::vector<uint32_t>&,
                                           VertexAttributeFlags = UnlitVertexAttributes) override
         {

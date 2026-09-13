@@ -46,7 +46,7 @@ Inputs are neither mutated nor retained by the result.
 
 ## Vertex and influence profile
 
-`GtsSkinnedVertex` is distinct from unchanged static `Vertex`: `vec3 pos/normal`,
+`GtsSkinnedVertex` is distinct from unchanged static `GtsStaticVertex`: `vec3 pos/normal`,
 `vec4 tangent/color`, `vec2 texCoord`, `uvec4 joints`, and `vec4 weights`.
 This is a CPU layout; GPU offsets, alignment, bindings and shader ABI are not
 established by this type yet.
@@ -118,8 +118,10 @@ animated culling; animated/conservative bounds remain deferred.
 
 `gravitas_skinned_geometry` links CPU `gravitas_primitive_geometry` and
 `gravitas_skin_assets`; the shared target links `gravitas_assets` and exposes the
-existing CPU-only `rendering/core/geometry` header directory for `Vertex`, metadata
-and algorithms. Neither profile links the renderer/backend. Canonical model's
+existing CPU-only `rendering/core/geometry` header directory for the algorithms.
+`GtsStaticVertex` belongs to `geometry/static/`; common metadata belongs to
+`geometry/GtsGeometryMetadata.h`. The skinned prepared header includes common
+metadata and math, without depending on the static vertex header. Neither profile links the renderer/backend. Canonical model's
 existing dependency on animation *assets* remains transitive; there is no dependency
 on animation *evaluation*, ECS, importers, Vulkan or a runtime resource manager.
 

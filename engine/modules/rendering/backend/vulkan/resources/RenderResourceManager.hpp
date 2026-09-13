@@ -85,7 +85,7 @@ class RenderResourceManager : public IResourceProvider
         }
 
         mesh_id_type uploadProceduralMesh(mesh_id_type                 existingId,
-                                          const std::vector<Vertex>&   vertices,
+                                          const std::vector<GtsStaticVertex>&   vertices,
                                           const std::vector<uint32_t>& indices,
                                           VertexAttributeFlags sourceAttributes =
                                               UnlitVertexAttributes) override

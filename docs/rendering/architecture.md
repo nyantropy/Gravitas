@@ -181,10 +181,15 @@ ordering as stable secondary keys.
 
 ## Geometry Surface Contract
 
-Renderable scene geometry uses one backend-independent vertex contract:
+The current static renderer consumes the explicit `GtsStaticVertex` profile from
+`modules/assets/processing/geometry/static/GtsStaticVertex.h`. It is not a universal
+canonical vertex type. `GtsVertexAttribute` owns canonical semantic streams;
+`GtsSkinnedVertex` is the separate prepared skinned profile, currently CPU-only.
+
+The static profile remains:
 
 ```text
-Vertex {
+GtsStaticVertex {
     vec3 pos
     vec3 normal
     vec4 tangent   // xyz = tangent direction, w = bitangent handedness

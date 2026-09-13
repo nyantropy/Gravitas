@@ -20,7 +20,7 @@
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
 #include "TransformMatrixHelpers.h"
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
 #include "WorldTransformComponent.h"
 
 namespace gts::tools
@@ -155,7 +155,7 @@ namespace gts::tools
             outBounds.max = max + pad;
         }
 
-        static void addEdgeBoxes(std::vector<Vertex>& vertices,
+        static void addEdgeBoxes(std::vector<GtsStaticVertex>& vertices,
                                  std::vector<uint32_t>& indices,
                                  const glm::vec3& min,
                                  const glm::vec3& max,
@@ -183,7 +183,7 @@ namespace gts::tools
                            {x + thickness, y + thickness, max.z});
         }
 
-        static void addBox(std::vector<Vertex>& vertices,
+        static void addBox(std::vector<GtsStaticVertex>& vertices,
                            std::vector<uint32_t>& indices,
                            const glm::vec3& min,
                            const glm::vec3& max)

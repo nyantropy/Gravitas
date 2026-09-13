@@ -1,6 +1,9 @@
 #include "GtsStaticMeshPreparation.h"
 #include "assets/model/GtsModelAsset.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <type_traits>
 #include <cmath>
 #include <cstdio>
 #include <limits>
@@ -15,6 +18,40 @@ namespace
     {
         if (!condition)
             throw std::runtime_error(message);
+    }
+
+    void staticVertexContract()
+    {
+        static_assert(std::is_same_v<decltype(GtsPreparedStaticMesh::vertices)::value_type, GtsStaticVertex>);
+        static_assert(std::is_standard_layout_v<GtsStaticVertex>);
+        static_assert(sizeof(GtsStaticVertex) == 64 && alignof(GtsStaticVertex) == 4);
+        static_assert(offsetof(GtsStaticVertex, pos) == 0 && offsetof(GtsStaticVertex, normal) == 12 &&
+                      offsetof(GtsStaticVertex, tangent) == 24 && offsetof(GtsStaticVertex, color) == 40 &&
+                      offsetof(GtsStaticVertex, texCoord) == 56);
+        const GtsStaticVertex defaults;
+        require(defaults.pos == glm::vec3(0) && defaults.normal == glm::vec3(0,0,1) &&
+                    defaults.tangent == glm::vec4(1,0,0,1) && defaults.color == glm::vec4(1) &&
+                    defaults.texCoord == glm::vec2(0), "Static profile defaults retain the legacy ABI contract");
+        const GtsStaticVertex rgb{glm::vec3(1,2,3), glm::vec3(0.25f,0.5f,0.75f), glm::vec2(0.5f,1)};
+        const GtsStaticVertex rgba{glm::vec3(1,2,3), glm::vec4(0.25f,0.5f,0.75f,1), glm::vec2(0.5f,1)};
+        const GtsStaticVertex full{rgb.pos, defaults.normal, defaults.tangent, rgb.color, rgb.texCoord};
+        require(rgb == rgba && rgba == full, "Constructors and equality preserve identical static vertices");
+        std::vector<GtsStaticVertex> duplicates{rgb, rgba, full};
+        duplicates.erase(std::unique(duplicates.begin(), duplicates.end()), duplicates.end());
+        require(duplicates.size() == 1, "Equality-based deduplication remains unchanged");
+        for (int field=0;field<5;++field)
+        {
+            auto changed=full;
+            switch(field)
+            {
+            case 0: changed.pos.x+=1; break;
+            case 1: changed.normal.x+=1; break;
+            case 2: changed.tangent.w=-1; break;
+            case 3: changed.color.w=0.5f; break;
+            case 4: changed.texCoord.x+=1; break;
+            }
+            require(!(changed == full), "Each static surface field participates in equality");
+        }
     }
 
     GtsModelPrimitive triangle(float x = 0)
@@ -308,6 +345,7 @@ int main()
 {
     try
     {
+        staticVertexContract();
         copiedAuthoredStreams();
         generationAndDefaults();
         independentPrimitives();

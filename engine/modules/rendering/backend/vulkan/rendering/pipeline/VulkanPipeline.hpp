@@ -5,8 +5,6 @@
 #include <iostream>
 #include <memory>
 
-#include "Vertex.h"
-
 #include "VulkanShader.hpp"
 #include "VulkanShaderConfig.h"
 

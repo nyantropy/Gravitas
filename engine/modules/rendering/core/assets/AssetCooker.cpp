@@ -108,7 +108,7 @@ namespace
 
     bool hasNonWhiteVertexColor(const MeshAssetData& mesh)
     {
-        for (const Vertex& vertex : mesh.vertices)
+        for (const GtsStaticVertex& vertex : mesh.vertices)
         {
             if (vertex.color != glm::vec4(1.0f, 1.0f, 1.0f, 1.0f))
                 return true;

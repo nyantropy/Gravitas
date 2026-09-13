@@ -10,7 +10,8 @@
 #include "MaterialTypes.h"
 #include "Types.h"
 #include "TextureColorSpace.h"
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
+#include "assets/processing/geometry/GtsGeometryMetadata.h"
 
 struct BitmapFont;
 
@@ -71,7 +72,7 @@ class IResourceProvider
         // responsible for storing the returned ID and passing it on subsequent
         // calls to update the same mesh.
         virtual mesh_id_type uploadProceduralMesh(mesh_id_type                  existingId,
-                                                  const std::vector<Vertex>&    vertices,
+                                                  const std::vector<GtsStaticVertex>&    vertices,
                                                   const std::vector<uint32_t>&  indices,
                                                   VertexAttributeFlags sourceAttributes =
                                                       UnlitVertexAttributes) = 0;

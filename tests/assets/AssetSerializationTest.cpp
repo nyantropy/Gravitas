@@ -212,6 +212,7 @@ namespace
         assert(loaded.id == source.id);
         assert(loaded.debugName == source.debugName);
         assert(loaded.vertices.size() == source.vertices.size());
+        assert(loaded.vertices == source.vertices);
         assert(loaded.indices == source.indices);
         assert(loaded.submeshes.size() == 1);
         assert(loaded.submeshes.front().material.logicalPath == "tri_default.gmat");
@@ -295,6 +296,14 @@ namespace
         assert(gts::rendering::MeshAssetSerializer::serialize(mesh, first));
         assert(gts::rendering::MeshAssetSerializer::serialize(mesh, second));
         assert(first == second);
+        // Captured from the pre-rename cooked-v1 triangle fixture, including all vertex fields.
+        uint64_t hash = 14695981039346656037ull;
+        for (uint8_t byte : first)
+        {
+            hash ^= byte;
+            hash *= 1099511628211ull;
+        }
+        assert(first.size() == 407 && hash == 8901373168064640443ull);
 
         const gts::rendering::MaterialAssetData material = makeMaterial();
         assert(gts::rendering::MaterialAssetSerializer::serialize(material, first));

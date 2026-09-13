@@ -14,7 +14,7 @@ struct VulkanPipelineConfig
     VkRenderPass vkRenderPass = VK_NULL_HANDLE;
 
     // ── vertex input ─────────────────────────────────────────────────────
-    // Defaults to the standard Vertex layout used by the main pipeline.
+    // Defaults to the standard GtsStaticVertex layout used by the main pipeline.
     // Override for custom vertex types (e.g. TextGlyphVertex).
     // Scene pipeline adds a second per-instance binding for objectSSBOSlot.
     std::vector<VkVertexInputBindingDescription>   vertexBindings   = { VulkanVertexDescription::getBindingDescription() };

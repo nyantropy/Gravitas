@@ -10,7 +10,7 @@ GtsModelMesh (immutable, primitive-local semantic streams)
 prepareGtsStaticMesh(const GtsModelMesh&)
     -> GtsStaticMeshPreparationResult
     -> GtsPreparedStaticMesh
-        vertices: current static Vertex layout
+        vertices: current static GtsStaticVertex layout
         indices: shared, rebased uint32 indices
         primitives: ordered ranges, material indices, per-primitive metadata
         metadata: whole-mesh summary
@@ -18,7 +18,7 @@ prepareGtsStaticMesh(const GtsModelMesh&)
 
 ## Contract and ownership
 
-`GtsPreparedStaticMesh` owns its name, vertices, indices, primitive records, and
+`GtsPreparedStaticMesh` owns its name, `GtsStaticVertex` vertices, indices, primitive records, and
 `MeshGeometryMetadata`. `GtsPreparedStaticPrimitive` stores `firstIndex`,
 `indexCount`, an optional canonical `materialIndex`, and local geometry metadata.
 Primitive records retain canonical order, including A/B/A material runs. There
@@ -110,8 +110,10 @@ CPU bounds function. This keeps storage/runtime headers out of preparation.
 
 The preparation target links `gravitas_primitive_geometry`, which links
 `gravitas_assets` (and transitively core) and exposes the existing narrow
-`rendering/core/geometry` header directory for `Vertex` and metadata. The reused
-processor header itself includes only standard headers and `Vertex.h`. No linking
+`rendering/core/geometry` header directory for the existing CPU processor only.
+`GtsStaticVertex.h` lives inside `geometry/static/`; shared flags and
+`MeshGeometryMetadata` live in `geometry/GtsGeometryMetadata.h`. The processor
+includes these CPU profile headers without a renderer/backend link. No linking
 to `gravitas_rendering`, GLFW, Vulkan, TinyOBJ, or the importer is required.
 Primitive stream conversion is shared with the separate
 [skinned profile](skinned-geometry.md); geometry math remains unchanged. The module
@@ -137,3 +139,34 @@ With the backend-free configuration documented in [model-domain.md](model-domain
 cmake --build /tmp/gravitas-model-domain-cpu --target GtsStaticMeshPreparationTest --parallel 2
 ctest --test-dir /tmp/gravitas-model-domain-cpu -R '^gts_static_mesh_preparation$' --output-on-failure
 ```
+
+## Explicit prepared vertex profiles
+
+```text
+GtsVertexAttribute semantic streams (canonical)
+================ FORMAT WALL =================
+static preparation  -> GtsStaticVertex
+skinned preparation -> GtsSkinnedVertex
+```
+
+`GtsStaticVertex` is the renamed concrete static layout, formerly the renderer's
+ambiguous `Vertex` type. The old header and alias are gone. Its fields, order,
+constructors, defaults and component-wise GLM equality are unchanged; no hash
+specialization existed to migrate. The current GLM configuration yields size 64,
+alignment 4, and offsets `pos=0`, `normal=12`, `tangent=24`, `color=40`, `texCoord=56`.
+CPU tests freeze this ABI and existing Vulkan tests verify matching stride,
+locations, offsets and formats. Cooked-v1 serialization still writes the same
+individual floats; its pre-rename 407-byte triangle fixture is protected by a
+golden fingerprint and full vertex round-trip checks.
+
+`MeshResource`, `DynamicMeshComponent`, dynamic mesh resource APIs and
+`VulkanVertexDescription` still describe this static profile. Procedural meshes,
+world text, debug geometry, previews and the temporary legacy glTF DTO route now
+spell their existing output `GtsStaticVertex`; none are migrated through canonical
+model assets. These broadly named runtime APIs will need deliberate profile choices
+when skinned GPU support arrives. Their behavior remains unchanged here.
+
+The shared primitive converter continues using a `GtsStaticVertex` working buffer
+for existing CPU normal/tangent algorithms before copying surface fields into the
+separate `GtsSkinnedVertex` layout. No inheritance, universal vertex abstraction,
+algorithm duplication, or new profile target/dependency is introduced by the rename.

@@ -4,7 +4,7 @@
 #include <vector>
 #include <stdexcept>
 
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
 
 #include "MemoryUtil.hpp"
 
@@ -12,7 +12,7 @@ class BufferUtil
 {
     public:
         static void createVertexBuffer(VkDevice& device, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& graphicsQueue,
-        std::vector<Vertex>& vertices, VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory)
+        std::vector<GtsStaticVertex>& vertices, VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory)
         {
             VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 

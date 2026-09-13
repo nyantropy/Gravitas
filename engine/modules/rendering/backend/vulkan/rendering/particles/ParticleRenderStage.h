@@ -21,7 +21,7 @@
 #include "RenderViewport.h"
 #include "MeshResource.h"
 #include "TextureResource.h"
-#include "Vertex.h"
+#include "GlmConfig.h"
 #include "VulkanDynamicBuffer.h"
 #include "VulkanPipeline.hpp"
 #include "VulkanPipelineConfig.h"

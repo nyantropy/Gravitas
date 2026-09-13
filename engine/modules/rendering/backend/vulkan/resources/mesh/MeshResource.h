@@ -5,11 +5,12 @@
 
 #include "AssetTypes.h"
 #include "MeshGeometryProcessor.h"
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
+#include "assets/processing/geometry/GtsGeometryMetadata.h"
 
 struct MeshResource 
 {
-    std::vector<Vertex> vertices;
+    std::vector<GtsStaticVertex> vertices;
     std::vector<uint32_t> indices;
     std::vector<gts::rendering::SubmeshAssetData> submeshes;
     MeshGeometryMetadata metadata;

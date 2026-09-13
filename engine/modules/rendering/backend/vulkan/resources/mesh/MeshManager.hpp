@@ -312,14 +312,14 @@ class MeshManager
             const glm::vec3 normal = {0.0f, 0.0f, 1.0f};
             const glm::vec4 tangent = {1.0f, 0.0f, 0.0f, 1.0f};
             const glm::vec4 color = {1.0f, 1.0f, 1.0f, 1.0f};
-            std::vector<Vertex> verts = {
+            std::vector<GtsStaticVertex> verts = {
                 { { -hw,  hh, 0.0f }, normal, tangent, color, { 0.0f, 0.0f } },
                 { {  hw,  hh, 0.0f }, normal, tangent, color, { 1.0f, 0.0f } },
                 { {  hw, -hh, 0.0f }, normal, tangent, color, { 1.0f, 1.0f } },
                 { { -hw, -hh, 0.0f }, normal, tangent, color, { 0.0f, 1.0f } },
             };
             std::vector<uint32_t> idxs  = { 0, 1, 2, 0, 2, 3 };
-            std::vector<Vertex>   vertsC = verts;
+            std::vector<GtsStaticVertex>   vertsC = verts;
             std::vector<uint32_t> idxsC  = idxs;
 
             auto mesh = std::make_unique<MeshResource>();
@@ -348,7 +348,7 @@ class MeshManager
         // Existing buffers are reused when the new logical data fits capacity;
         // capacity grows independently for vertices and indices.
         mesh_id_type uploadProceduralMesh(mesh_id_type                 existingId,
-                                          const std::vector<Vertex>&   vertices,
+                                          const std::vector<GtsStaticVertex>&   vertices,
                                           const std::vector<uint32_t>& indices,
                                           VertexAttributeFlags sourceAttributes =
                                               UnlitVertexAttributes)
@@ -388,7 +388,7 @@ class MeshManager
                 std::chrono::duration<float, std::milli>(
                     std::chrono::steady_clock::now() - copyStart).count();
             proceduralMetrics.cpuBytesCopied +=
-                static_cast<uint64_t>(vertices.size() * sizeof(Vertex))
+                static_cast<uint64_t>(vertices.size() * sizeof(GtsStaticVertex))
                 + static_cast<uint64_t>(indices.size() * sizeof(uint32_t));
 
             const auto prepareStart = std::chrono::steady_clock::now();
@@ -405,7 +405,7 @@ class MeshManager
             proceduralMetrics.indicesProcessed += mesh->indices.size();
 
             const VkDeviceSize vertexBytes =
-                static_cast<VkDeviceSize>(mesh->vertices.size() * sizeof(Vertex));
+                static_cast<VkDeviceSize>(mesh->vertices.size() * sizeof(GtsStaticVertex));
             const VkDeviceSize indexBytes =
                 static_cast<VkDeviceSize>(mesh->indices.size() * sizeof(uint32_t));
             const bool vertexFits = mesh->vertexBuffer != VK_NULL_HANDLE &&

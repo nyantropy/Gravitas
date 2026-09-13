@@ -381,7 +381,7 @@ struct MeshAssetData
 
     VertexAttributeFlags attributes;
 
-    std::vector<Vertex> vertices;
+    std::vector<GtsStaticVertex> vertices;
     std::vector<uint32_t> indices;
     std::vector<SubmeshAssetData> submeshes;
 
@@ -401,7 +401,7 @@ struct SubmeshAssetData
 };
 ```
 
-The first version may reuse the current `Vertex` structure to reduce migration cost.
+The first version may reuse the current `GtsStaticVertex` structure to reduce migration cost.
 
 Long-term, cooked vertex layout should be allowed to differ from the current CPU authoring/import layout.
 
@@ -576,7 +576,7 @@ It must be moved behind the importer/cooker boundary rather than removed.
 ```text
 OBJ
   -> tinyobj
-  -> Vertex / index arrays
+  -> GtsStaticVertex / index arrays
   -> MeshResource
   -> Vulkan buffers
 ```
@@ -721,7 +721,7 @@ Suggested runtime-facing upload type:
 ```cpp
 struct MeshUploadDescription
 {
-    std::span<const Vertex> vertices;
+    std::span<const GtsStaticVertex> vertices;
     std::span<const uint32_t> indices;
     VertexAttributeFlags attributes;
     Bounds bounds;
@@ -1096,7 +1096,7 @@ Build:
 
 Keep temporarily:
 
-- Existing `Vertex` layout.
+- Existing `GtsStaticVertex` layout.
 - Existing `TextureManager`.
 - Runtime PNG/JPG loading behind material texture references.
 - Existing renderer.

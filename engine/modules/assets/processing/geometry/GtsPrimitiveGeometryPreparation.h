@@ -1,7 +1,8 @@
 #pragma once
 
 #include <vector>
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
+#include "assets/processing/geometry/GtsGeometryMetadata.h"
 
 struct GtsModelPrimitive;
 
@@ -9,7 +10,7 @@ namespace gtsGeometryPreparationDetail
 {
     struct PrimitiveGeometry
     {
-        std::vector<Vertex>   vertices;
+        std::vector<GtsStaticVertex>   vertices;
         std::vector<uint32_t> indices;
         MeshGeometryMetadata  metadata;
     };

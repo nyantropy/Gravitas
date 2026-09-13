@@ -2,8 +2,6 @@
 
 #include <cstdint>
 
-#include "GlmConfig.h"
-
 enum class VertexAttributeFlags : uint32_t
 {
     None = 0,
@@ -56,51 +54,4 @@ struct MeshGeometryMetadata
     uint32_t indexCount = 0;
     bool generatedNormals = false;
     bool generatedTangents = false;
-};
-
-struct Vertex
-{
-    glm::vec3 pos = {0.0f, 0.0f, 0.0f};
-    glm::vec3 normal = {0.0f, 0.0f, 1.0f};
-    glm::vec4 tangent = {1.0f, 0.0f, 0.0f, 1.0f};
-    glm::vec4 color = {1.0f, 1.0f, 1.0f, 1.0f};
-    glm::vec2 texCoord = {0.0f, 0.0f};
-
-    Vertex() = default;
-
-    Vertex(glm::vec3 position, glm::vec3 vertexColor, glm::vec2 uv)
-        : pos(position)
-        , color(vertexColor, 1.0f)
-        , texCoord(uv)
-    {
-    }
-
-    Vertex(glm::vec3 position, glm::vec4 vertexColor, glm::vec2 uv)
-        : pos(position)
-        , color(vertexColor)
-        , texCoord(uv)
-    {
-    }
-
-    Vertex(glm::vec3 position,
-           glm::vec3 vertexNormal,
-           glm::vec4 vertexTangent,
-           glm::vec4 vertexColor,
-           glm::vec2 uv)
-        : pos(position)
-        , normal(vertexNormal)
-        , tangent(vertexTangent)
-        , color(vertexColor)
-        , texCoord(uv)
-    {
-    }
-
-    bool operator==(const Vertex& other) const
-    {
-        return pos == other.pos
-            && normal == other.normal
-            && tangent == other.tangent
-            && color == other.color
-            && texCoord == other.texCoord;
-    }
 };

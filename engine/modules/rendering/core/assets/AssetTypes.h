@@ -11,7 +11,8 @@
 #include "GlmConfig.h"
 #include "MaterialTypes.h"
 #include "TextureColorSpace.h"
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
+#include "assets/processing/geometry/GtsGeometryMetadata.h"
 
 namespace gts::rendering
 {
@@ -236,7 +237,7 @@ namespace gts::rendering
     {
         std::string debugName;
         std::filesystem::path sourcePath;
-        std::vector<Vertex> vertices;
+        std::vector<GtsStaticVertex> vertices;
         std::vector<uint32_t> indices;
         std::vector<ImportedMeshPrimitive> primitives;
         VertexAttributeFlags sourceAttributes =
@@ -298,7 +299,7 @@ namespace gts::rendering
         AssetId id = InvalidAssetId;
         std::string debugName;
         VertexAttributeFlags attributes = VertexAttributeFlags::None;
-        std::vector<Vertex> vertices;
+        std::vector<GtsStaticVertex> vertices;
         std::vector<uint32_t> indices;
         std::vector<SubmeshAssetData> submeshes;
         std::vector<AssetReference> dependencies;

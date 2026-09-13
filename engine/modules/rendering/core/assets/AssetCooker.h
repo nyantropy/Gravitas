@@ -13,7 +13,7 @@ struct GtsModelAsset;
 
 namespace gts::rendering
 {
-    inline AssetBounds computeAssetBounds(const std::vector<Vertex>& vertices)
+    inline AssetBounds computeAssetBounds(const std::vector<GtsStaticVertex>& vertices)
     {
         AssetBounds bounds;
         if (vertices.empty())
@@ -23,7 +23,7 @@ namespace gts::rendering
         bounds.max = vertices.front().pos;
         bounds.valid = true;
 
-        for (const Vertex& vertex : vertices)
+        for (const GtsStaticVertex& vertex : vertices)
         {
             bounds.min = glm::min(bounds.min, vertex.pos);
             bounds.max = glm::max(bounds.max, vertex.pos);

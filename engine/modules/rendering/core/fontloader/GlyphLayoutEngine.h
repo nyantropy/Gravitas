@@ -8,7 +8,7 @@
 
 #include "WorldTextComponent.h"
 #include "BitmapFont.h"
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
 #include "UiCommand.h"
 #include "UiTypes.h"
 
@@ -359,7 +359,7 @@ namespace GlyphLayoutEngine
 
     inline void build(const WorldTextComponent& text,
                       const BitmapFont& font,
-                      std::vector<Vertex>& verts,
+                      std::vector<GtsStaticVertex>& verts,
                       std::vector<uint32_t>& indices)
     {
         const float       scale = text.scale;

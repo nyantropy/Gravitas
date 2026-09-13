@@ -68,7 +68,7 @@ namespace gts::rendering
         if (mesh.vertices.empty() || mesh.indices.empty())
             return false;
 
-        for (const Vertex& vertex : mesh.vertices)
+        for (const GtsStaticVertex& vertex : mesh.vertices)
         {
             if (!std::isfinite(vertex.pos.x) ||
                 !std::isfinite(vertex.pos.y) ||
@@ -96,7 +96,7 @@ namespace gts::rendering
 
         glm::vec3 min = mesh.vertices.front().pos;
         glm::vec3 max = mesh.vertices.front().pos;
-        for (const Vertex& vertex : mesh.vertices)
+        for (const GtsStaticVertex& vertex : mesh.vertices)
         {
             min = glm::min(min, vertex.pos);
             max = glm::max(max, vertex.pos);
@@ -291,7 +291,7 @@ namespace gts::rendering
         result.visited = true;
         result.vertexCount = static_cast<uint32_t>(mesh.vertices.size());
         result.indexCount = static_cast<uint32_t>(mesh.indices.size());
-        result.vertexBytes = static_cast<uint32_t>(mesh.vertices.size() * sizeof(Vertex));
+        result.vertexBytes = static_cast<uint32_t>(mesh.vertices.size() * sizeof(GtsStaticVertex));
         result.indexBytes = static_cast<uint32_t>(mesh.indices.size() * sizeof(uint32_t));
 
         const auto versionStart = std::chrono::steady_clock::now();

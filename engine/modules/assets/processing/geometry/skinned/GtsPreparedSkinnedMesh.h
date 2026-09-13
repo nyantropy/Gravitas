@@ -6,7 +6,8 @@
 #include <string>
 #include <vector>
 
-#include "Vertex.h"
+#include "GlmConfig.h"
+#include "assets/processing/geometry/GtsGeometryMetadata.h"
 
 // CPU profile only; no GPU packing/alignment contract is established here
 struct GtsSkinnedVertex

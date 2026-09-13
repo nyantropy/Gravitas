@@ -94,7 +94,7 @@ namespace
     }
     void basicInfluences()
     {
-        static_assert(!std::is_same_v<Vertex, GtsSkinnedVertex>);
+        static_assert(!std::is_same_v<GtsStaticVertex, GtsSkinnedVertex>);
         static_assert(!std::is_invocable_v<decltype(&prepareGtsSkinnedMesh), const GtsModelMesh&>);
         static_assert(!std::is_invocable_v<decltype(&prepareGtsSkinnedMesh), const GtsModelMesh&, std::nullptr_t>);
         const auto one = prepareGtsSkinnedMesh({"one", {weightedTriangle()}}, makeBinding(1));

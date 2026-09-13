@@ -9,7 +9,8 @@
 #include "MeshGpuComponent.h"
 #include "TransformComponent.h"
 #include "GlyphLayoutEngine.h"
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
+#include "assets/processing/geometry/GtsGeometryMetadata.h"
 #include "ECSWorld.hpp"
 #include "GeometryBindingLifecycle.h"
 #include "TransformDirtyHelpers.h"
@@ -66,7 +67,7 @@ public:
 
             if (needsMeshUpload)
             {
-                std::vector<Vertex> verts;
+                std::vector<GtsStaticVertex> verts;
                 std::vector<uint32_t> indices;
                 GlyphLayoutEngine::build(wtc, *font, verts, indices);
 
@@ -144,14 +145,14 @@ private:
 
     static void updateBounds(ECSWorld& world,
                              Entity entity,
-                             const std::vector<Vertex>& verts)
+                             const std::vector<GtsStaticVertex>& verts)
     {
         if (!world.hasComponent<BoundsComponent>(entity) || verts.empty())
             return;
 
         glm::vec3 min = verts[0].pos;
         glm::vec3 max = verts[0].pos;
-        for (const Vertex& vertex : verts)
+        for (const GtsStaticVertex& vertex : verts)
         {
             min = glm::min(min, vertex.pos);
             max = glm::max(max, vertex.pos);

@@ -50,7 +50,8 @@
 #include "TransformHierarchyHelpers.h"
 #include "TransformSceneFeature.h"
 #include "TransformSystem.hpp"
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
+#include "assets/processing/geometry/GtsGeometryMetadata.h"
 #include "WorldTextComponent.h"
 
 namespace gts::rendering::benchmarks
@@ -109,7 +110,7 @@ namespace gts::rendering::benchmarks
             }
 
             mesh_id_type uploadProceduralMesh(mesh_id_type existingId,
-                                              const std::vector<Vertex>&,
+                                              const std::vector<GtsStaticVertex>&,
                                               const std::vector<uint32_t>&,
                                               VertexAttributeFlags = UnlitVertexAttributes) override
             {
@@ -430,38 +431,38 @@ namespace gts::rendering::benchmarks
             return env;
         }
 
-        std::vector<Vertex> benchmarkTriangleVertices(uint32_t frame)
+        std::vector<GtsStaticVertex> benchmarkTriangleVertices(uint32_t frame)
         {
             const float offset = static_cast<float>(frame % 17u) * 0.001f;
             return {
-                Vertex{{-0.5f, -0.5f + offset, 0.0f}, {0.0f, 0.0f, 1.0f},
+                GtsStaticVertex{{-0.5f, -0.5f + offset, 0.0f}, {0.0f, 0.0f, 1.0f},
                        {1.0f, 0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}},
-                Vertex{{ 0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f},
+                GtsStaticVertex{{ 0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f},
                        {1.0f, 0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}},
-                Vertex{{ 0.0f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f},
+                GtsStaticVertex{{ 0.0f,  0.5f, 0.0f}, {0.0f, 0.0f, 1.0f},
                        {1.0f, 0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, {0.5f, 1.0f}}
             };
         }
 
-        std::vector<Vertex> benchmarkQuadVertices(uint32_t frame)
+        std::vector<GtsStaticVertex> benchmarkQuadVertices(uint32_t frame)
         {
             const float offset = static_cast<float>(frame % 17u) * 0.001f;
             const glm::vec3 normal = {0.0f, 0.0f, 1.0f};
             const glm::vec4 tangent = {1.0f, 0.0f, 0.0f, 1.0f};
             const glm::vec4 color = {1.0f, 1.0f, 1.0f, 1.0f};
             return {
-                Vertex{{-0.5f, -0.5f + offset, 0.0f}, normal, tangent, color, {0.0f, 0.0f}},
-                Vertex{{ 0.5f, -0.5f,          0.0f}, normal, tangent, color, {1.0f, 0.0f}},
-                Vertex{{ 0.5f,  0.5f,          0.0f}, normal, tangent, color, {1.0f, 1.0f}},
-                Vertex{{-0.5f,  0.5f,          0.0f}, normal, tangent, color, {0.0f, 1.0f}}
+                GtsStaticVertex{{-0.5f, -0.5f + offset, 0.0f}, normal, tangent, color, {0.0f, 0.0f}},
+                GtsStaticVertex{{ 0.5f, -0.5f,          0.0f}, normal, tangent, color, {1.0f, 0.0f}},
+                GtsStaticVertex{{ 0.5f,  0.5f,          0.0f}, normal, tangent, color, {1.0f, 1.0f}},
+                GtsStaticVertex{{-0.5f,  0.5f,          0.0f}, normal, tangent, color, {0.0f, 1.0f}}
             };
         }
 
-        std::vector<Vertex> benchmarkDoubleQuadVertices(uint32_t frame)
+        std::vector<GtsStaticVertex> benchmarkDoubleQuadVertices(uint32_t frame)
         {
-            std::vector<Vertex> vertices = benchmarkQuadVertices(frame);
-            std::vector<Vertex> second = benchmarkQuadVertices(frame + 3u);
-            for (Vertex& vertex : second)
+            std::vector<GtsStaticVertex> vertices = benchmarkQuadVertices(frame);
+            std::vector<GtsStaticVertex> second = benchmarkQuadVertices(frame + 3u);
+            for (GtsStaticVertex& vertex : second)
                 vertex.pos.x += 0.8f;
             vertices.insert(vertices.end(), second.begin(), second.end());
             return vertices;
@@ -492,7 +493,7 @@ namespace gts::rendering::benchmarks
                 : StandardVertexAttributes;
         }
 
-        std::vector<Vertex> dynamicMeshVerticesForFrame(const RenderingBenchmarkConfig& config,
+        std::vector<GtsStaticVertex> dynamicMeshVerticesForFrame(const RenderingBenchmarkConfig& config,
                                                         uint32_t frame)
         {
             if (dynamicMeshGrowthExpanded(config, frame))

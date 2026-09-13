@@ -4,7 +4,8 @@
 #include <cmath>
 #include <vector>
 
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
+#include "assets/processing/geometry/GtsGeometryMetadata.h"
 
 namespace gts::rendering
 {
@@ -39,14 +40,14 @@ namespace gts::rendering
         return safeNormalize(glm::cross(axis, normal), {1.0f, 0.0f, 0.0f});
     }
 
-    inline void applyVertexDefaults(std::vector<Vertex>& vertices, VertexAttributeFlags sourceAttributes)
+    inline void applyVertexDefaults(std::vector<GtsStaticVertex>& vertices, VertexAttributeFlags sourceAttributes)
     {
         const bool hasNormal = hasVertexAttribute(sourceAttributes, VertexAttributeFlags::Normal);
         const bool hasTangent = hasVertexAttribute(sourceAttributes, VertexAttributeFlags::Tangent);
         const bool hasColor = hasVertexAttribute(sourceAttributes, VertexAttributeFlags::Color);
         const bool hasUv = hasVertexAttribute(sourceAttributes, VertexAttributeFlags::UV0);
 
-        for (Vertex& vertex : vertices)
+        for (GtsStaticVertex& vertex : vertices)
         {
             if (!hasNormal || !finiteVec3(vertex.normal))
                 vertex.normal = {0.0f, 0.0f, 1.0f};
@@ -59,7 +60,7 @@ namespace gts::rendering
         }
     }
 
-    inline bool generateMissingNormals(std::vector<Vertex>& vertices,
+    inline bool generateMissingNormals(std::vector<GtsStaticVertex>& vertices,
                                        const std::vector<uint32_t>& indices,
                                        VertexAttributeFlags sourceAttributes)
     {
@@ -96,7 +97,7 @@ namespace gts::rendering
         return true;
     }
 
-    inline bool generateMissingTangents(std::vector<Vertex>& vertices,
+    inline bool generateMissingTangents(std::vector<GtsStaticVertex>& vertices,
                                         const std::vector<uint32_t>& indices,
                                         VertexAttributeFlags sourceAttributes)
     {
@@ -164,7 +165,7 @@ namespace gts::rendering
         return true;
     }
 
-    inline MeshGeometryMetadata prepareMeshGeometry(std::vector<Vertex>& vertices,
+    inline MeshGeometryMetadata prepareMeshGeometry(std::vector<GtsStaticVertex>& vertices,
                                                     const std::vector<uint32_t>& indices,
                                                     VertexAttributeFlags sourceAttributes)
     {

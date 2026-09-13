@@ -35,7 +35,7 @@
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
 #include "TransformSceneFeature.h"
-#include "Vertex.h"
+#include "assets/processing/geometry/static/GtsStaticVertex.h"
 
 namespace gts::tools
 {
@@ -263,7 +263,7 @@ namespace gts::tools
             world.addComponent(fillLightEntity, fillLight);
         }
 
-        static void addLineRect(std::vector<Vertex>& vertices,
+        static void addLineRect(std::vector<GtsStaticVertex>& vertices,
                                 std::vector<uint32_t>& indices,
                                 glm::vec3 a,
                                 glm::vec3 b,
@@ -286,7 +286,7 @@ namespace gts::tools
             indices.insert(indices.end(), {base, base + 2, base + 1, base + 1, base + 2, base + 3});
         }
 
-        static void addFloorQuad(std::vector<Vertex>& vertices,
+        static void addFloorQuad(std::vector<GtsStaticVertex>& vertices,
                                  std::vector<uint32_t>& indices,
                                  float extent,
                                  float y,

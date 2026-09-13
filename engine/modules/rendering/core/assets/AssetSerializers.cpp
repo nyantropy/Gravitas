@@ -435,7 +435,7 @@ namespace
         return true;
     }
 
-    void writeVertex(ByteWriter& writer, const Vertex& vertex)
+    void writeVertex(ByteWriter& writer, const GtsStaticVertex& vertex)
     {
         writeVec3(writer, vertex.pos);
         writeVec3(writer, vertex.normal);
@@ -444,7 +444,7 @@ namespace
         writeVec2(writer, vertex.texCoord);
     }
 
-    bool readVertex(ByteReader& reader, Vertex& vertex)
+    bool readVertex(ByteReader& reader, GtsStaticVertex& vertex)
     {
         return readVec3(reader, vertex.pos) &&
             readVec3(reader, vertex.normal) &&
@@ -708,7 +708,7 @@ bool MeshAssetSerializer::serialize(const MeshAssetData& asset,
     writer.writeU32(static_cast<uint32_t>(asset.indices.size()));
     writer.writeU32(static_cast<uint32_t>(asset.submeshes.size()));
 
-    for (const Vertex& vertex : asset.vertices)
+    for (const GtsStaticVertex& vertex : asset.vertices)
         writeVertex(writer, vertex);
     for (uint32_t index : asset.indices)
         writer.writeU32(index);
@@ -775,7 +775,7 @@ bool MeshAssetSerializer::deserialize(const std::vector<uint8_t>& bytes,
     next.bounds.valid = (flags & (1u << 2u)) != 0u;
 
     next.vertices.resize(vertexCount);
-    for (Vertex& vertex : next.vertices)
+    for (GtsStaticVertex& vertex : next.vertices)
     {
         if (!readVertex(reader, vertex))
         {

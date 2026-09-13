@@ -9,7 +9,7 @@
 namespace
 {
     template <class T>
-    void copyStream(const GtsVertexAttribute& attribute, std::vector<Vertex>& vertices, T Vertex::* member)
+    void copyStream(const GtsVertexAttribute& attribute, std::vector<GtsStaticVertex>& vertices, T GtsStaticVertex::* member)
     {
         const auto& values = std::get<std::vector<T>>(attribute.values);
         for (size_t i = 0; i < vertices.size(); ++i)
@@ -53,24 +53,24 @@ gtsGeometryPreparationDetail::preparePrimitiveGeometry(const GtsModelPrimitive& 
         switch (attribute.semantic)
         {
         case GtsVertexSemantic::Position:
-            copyStream(attribute, vertices, &Vertex::pos);
+            copyStream(attribute, vertices, &GtsStaticVertex::pos);
             sourceAttributes |= VertexAttributeFlags::Position;
             break;
         case GtsVertexSemantic::Normal:
-            copyStream(attribute, vertices, &Vertex::normal);
+            copyStream(attribute, vertices, &GtsStaticVertex::normal);
             sourceAttributes |= VertexAttributeFlags::Normal;
             authoredNormals = &std::get<std::vector<glm::vec3>>(attribute.values);
             break;
         case GtsVertexSemantic::Tangent:
-            copyStream(attribute, vertices, &Vertex::tangent);
+            copyStream(attribute, vertices, &GtsStaticVertex::tangent);
             sourceAttributes |= VertexAttributeFlags::Tangent;
             break;
         case GtsVertexSemantic::Color:
-            copyStream(attribute, vertices, &Vertex::color);
+            copyStream(attribute, vertices, &GtsStaticVertex::color);
             sourceAttributes |= VertexAttributeFlags::Color;
             break;
         case GtsVertexSemantic::TexCoord:
-            copyStream(attribute, vertices, &Vertex::texCoord);
+            copyStream(attribute, vertices, &GtsStaticVertex::texCoord);
             sourceAttributes |= VertexAttributeFlags::UV0;
             break;
         case GtsVertexSemantic::Joints:

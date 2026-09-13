@@ -375,7 +375,9 @@ Its CPU source utilities and stricter GLB framing are shared with the legacy
 importer. Cooked v1 serializers and GPU upload are unchanged.
 See [OBJ consumer migration](docs/assets/obj-consumers.md) for adaptation limits.
 `modules/assets/processing/geometry/static/` consumes canonical meshes for the current
-static rendering profile. It prepares CPU `Vertex` buffers and primitive ranges
+static rendering profile. Its `GtsStaticVertex.h` defines the concrete static layout;
+`GtsVertexAttribute` remains canonical semantic data above the format wall.
+It prepares CPU `GtsStaticVertex` buffers and primitive ranges
 without modifying canonical inputs. This standalone target reuses CPU geometry
 algorithms and has no importer, cooker, runtime, or backend dependency.
 The separate `geometry/skinned/` profile prepares `GtsSkinnedVertex` geometry with
@@ -383,6 +385,9 @@ four effective influences, keeping skin-local slots. It validates mesh/binding
 context, selects the strongest four across all sets with deterministic ties, and
 renormalizes prepared weights with explicit reduction metadata/warnings. Both
 profiles share primitive attribute conversion and existing CPU geometry algorithms.
+Shared flags/metadata live in `geometry/GtsGeometryMetadata.h`; the static vertex
+has no renderer ownership or dependency. Static/skinned layouts are explicit,
+independent structs, while current GPU resource APIs remain static-only.
 Neither profile computes poses, skin matrices, world transforms or animated bounds.
 Model materials describe CPU appearance and reference model-local image inputs
 with explicit UV sets and scalar channels. Shader policy, cooked texture identity,
