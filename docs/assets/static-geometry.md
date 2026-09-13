@@ -151,7 +151,7 @@ skinned preparation -> GtsSkinnedVertex
 
 `GtsStaticVertex` is the renamed concrete static layout, formerly the renderer's
 ambiguous `Vertex` type. The old header and alias are gone. Its fields, order,
-constructors, defaults and component-wise GLM equality are unchanged; no hash
+defaults and component-wise GLM equality are unchanged; no hash
 specialization existed to migrate. The current GLM configuration yields size 64,
 alignment 4, and offsets `pos=0`, `normal=12`, `tangent=24`, `color=40`, `texCoord=56`.
 CPU tests freeze this ABI and existing Vulkan tests verify matching stride,
@@ -170,3 +170,8 @@ The shared primitive converter continues using a `GtsStaticVertex` working buffe
 for existing CPU normal/tangent algorithms before copying surface fields into the
 separate `GtsSkinnedVertex` layout. No inheritance, universal vertex abstraction,
 algorithm duplication, or new profile target/dependency is introduced by the rename.
+
+Both prepared vertex profiles are plain aggregates with member defaults and
+component-wise equality. Static position/color/UV shortcuts use designated
+initializers; RGB colors explicitly supply alpha 1. There are no convenience
+constructors, and omitted normals/tangents keep their profile defaults.

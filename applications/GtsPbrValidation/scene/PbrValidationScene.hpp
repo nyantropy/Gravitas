@@ -192,10 +192,10 @@ private:
 
         DynamicMeshComponent mesh;
         mesh.vertices = {
-            GtsStaticVertex{{-0.55f, -0.55f, 0.0f}, glm::vec4{1.0f}, {0.0f, 0.0f}},
-            GtsStaticVertex{{ 0.55f, -0.55f, 0.0f}, glm::vec4{1.0f}, {1.0f, 0.0f}},
-            GtsStaticVertex{{ 0.55f,  0.55f, 0.0f}, glm::vec4{1.0f}, {1.0f, 1.0f}},
-            GtsStaticVertex{{-0.55f,  0.55f, 0.0f}, glm::vec4{1.0f}, {0.0f, 1.0f}}
+            GtsStaticVertex{.pos = {-0.55f, -0.55f, 0.0f}, .color = glm::vec4{1.0f}, .texCoord = {0.0f, 0.0f}},
+            GtsStaticVertex{.pos = { 0.55f, -0.55f, 0.0f}, .color = glm::vec4{1.0f}, .texCoord = {1.0f, 0.0f}},
+            GtsStaticVertex{.pos = { 0.55f,  0.55f, 0.0f}, .color = glm::vec4{1.0f}, .texCoord = {1.0f, 1.0f}},
+            GtsStaticVertex{.pos = {-0.55f,  0.55f, 0.0f}, .color = glm::vec4{1.0f}, .texCoord = {0.0f, 1.0f}}
         };
         mesh.indices = {0, 1, 2, 0, 2, 3};
         mesh.geometryVersion = 1;

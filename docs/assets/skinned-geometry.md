@@ -46,6 +46,8 @@ Inputs are neither mutated nor retained by the result.
 
 ## Vertex and influence profile
 
+`skinned/GtsSkinnedVertex.h` owns `GtsSkinnedVertex`, included by
+`GtsPreparedSkinnedMesh.h`, matching the static profile header structure.
 `GtsSkinnedVertex` is distinct from unchanged static `GtsStaticVertex`: `vec3 pos/normal`,
 `vec4 tangent/color`, `vec2 texCoord`, `uvec4 joints`, and `vec4 weights`.
 This is a CPU layout; GPU offsets, alignment, bindings and shader ABI are not
@@ -151,3 +153,7 @@ With the CPU configuration in [model-domain.md](model-domain.md):
 cmake --build /tmp/gravitas-model-domain-cpu --parallel 4
 ctest --test-dir /tmp/gravitas-model-domain-cpu -L cpu --output-on-failure
 ```
+
+Like `GtsStaticVertex`, `GtsSkinnedVertex` is a plain aggregate with member
+defaults and component-wise equality. Its equality also compares skin-local
+joints and weights; neither profile defines convenience constructors.

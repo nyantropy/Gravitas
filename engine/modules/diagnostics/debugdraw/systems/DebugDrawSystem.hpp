@@ -280,7 +280,7 @@ namespace gts::debugdraw
             const glm::vec3 color = colorValue(line.color);
             for (const glm::vec3& corner : corners)
             {
-                vertices.push_back({corner, color, {0.0f, 0.0f}});
+                vertices.push_back({.pos = corner, .color = glm::vec4(color, 1.0f), .texCoord = {0.0f, 0.0f}});
                 bounds.add(corner);
             }
 

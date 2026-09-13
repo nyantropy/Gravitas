@@ -85,9 +85,9 @@ namespace
     bool normalAndTangentGeneration()
     {
         std::vector<GtsStaticVertex> vertices = {
-            GtsStaticVertex{{0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}},
-            GtsStaticVertex{{1.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}},
-            GtsStaticVertex{{0.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+            GtsStaticVertex{.pos = {0.0f, 0.0f, 0.0f}, .color = {1.0f, 1.0f, 1.0f, 1.0f}, .texCoord = {0.0f, 0.0f}},
+            GtsStaticVertex{.pos = {1.0f, 0.0f, 0.0f}, .color = {1.0f, 1.0f, 1.0f, 1.0f}, .texCoord = {1.0f, 0.0f}},
+            GtsStaticVertex{.pos = {0.0f, 1.0f, 0.0f}, .color = {1.0f, 1.0f, 1.0f, 1.0f}, .texCoord = {0.0f, 1.0f}}
         };
         const std::vector<uint32_t> indices = {0, 1, 2};
 
@@ -111,9 +111,9 @@ namespace
     bool degenerateTangentsUseFiniteFallback()
     {
         std::vector<GtsStaticVertex> vertices = {
-            GtsStaticVertex{{0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}},
-            GtsStaticVertex{{1.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}},
-            GtsStaticVertex{{0.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}}
+            GtsStaticVertex{.pos = {0.0f, 0.0f, 0.0f}, .color = {1.0f, 1.0f, 1.0f, 1.0f}, .texCoord = {0.0f, 0.0f}},
+            GtsStaticVertex{.pos = {1.0f, 0.0f, 0.0f}, .color = {1.0f, 1.0f, 1.0f, 1.0f}, .texCoord = {0.0f, 0.0f}},
+            GtsStaticVertex{.pos = {0.0f, 1.0f, 0.0f}, .color = {1.0f, 1.0f, 1.0f, 1.0f}, .texCoord = {0.0f, 0.0f}}
         };
         const std::vector<uint32_t> indices = {0, 1, 2};
 

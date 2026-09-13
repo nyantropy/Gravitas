@@ -95,6 +95,24 @@ namespace
     void basicInfluences()
     {
         static_assert(!std::is_same_v<GtsStaticVertex, GtsSkinnedVertex>);
+        static_assert(std::is_aggregate_v<GtsSkinnedVertex>);
+        const GtsSkinnedVertex vertex{.pos = {1, 2, 3}, .joints = {2, 1, 0, 0}, .weights = {0.75f, 0.25f, 0, 0}};
+        require(vertex == GtsSkinnedVertex(vertex), "Equal skinned aggregates compare equal");
+        for (int field = 0; field < 7; ++field)
+        {
+            auto changed = vertex;
+            switch (field)
+            {
+            case 0: changed.pos.x += 1; break;
+            case 1: changed.normal.x += 1; break;
+            case 2: changed.tangent.w = -1; break;
+            case 3: changed.color.w = 0.5f; break;
+            case 4: changed.texCoord.x += 1; break;
+            case 5: changed.joints.x += 1; break;
+            case 6: changed.weights.x += 0.1f; break;
+            }
+            require(!(changed == vertex), "Every surface and influence field participates in skinned equality");
+        }
         static_assert(!std::is_invocable_v<decltype(&prepareGtsSkinnedMesh), const GtsModelMesh&>);
         static_assert(!std::is_invocable_v<decltype(&prepareGtsSkinnedMesh), const GtsModelMesh&, std::nullptr_t>);
         const auto one = prepareGtsSkinnedMesh({"one", {weightedTriangle()}}, makeBinding(1));

@@ -279,10 +279,10 @@ namespace gts::tools
             normal *= thickness * 0.5f;
 
             const uint32_t base = static_cast<uint32_t>(vertices.size());
-            vertices.push_back({a - normal, color, {0.0f, 0.0f}});
-            vertices.push_back({a + normal, color, {1.0f, 0.0f}});
-            vertices.push_back({b - normal, color, {0.0f, 1.0f}});
-            vertices.push_back({b + normal, color, {1.0f, 1.0f}});
+            vertices.push_back({.pos = a - normal, .color = glm::vec4(color, 1.0f), .texCoord = {0.0f, 0.0f}});
+            vertices.push_back({.pos = a + normal, .color = glm::vec4(color, 1.0f), .texCoord = {1.0f, 0.0f}});
+            vertices.push_back({.pos = b - normal, .color = glm::vec4(color, 1.0f), .texCoord = {0.0f, 1.0f}});
+            vertices.push_back({.pos = b + normal, .color = glm::vec4(color, 1.0f), .texCoord = {1.0f, 1.0f}});
             indices.insert(indices.end(), {base, base + 2, base + 1, base + 1, base + 2, base + 3});
         }
 
@@ -293,10 +293,10 @@ namespace gts::tools
                                  glm::vec3 color)
         {
             const uint32_t base = static_cast<uint32_t>(vertices.size());
-            vertices.push_back({{-extent, y, -extent}, color, {0.0f, 0.0f}});
-            vertices.push_back({{ extent, y, -extent}, color, {1.0f, 0.0f}});
-            vertices.push_back({{-extent, y,  extent}, color, {0.0f, 1.0f}});
-            vertices.push_back({{ extent, y,  extent}, color, {1.0f, 1.0f}});
+            vertices.push_back({.pos = {-extent, y, -extent}, .color = glm::vec4(color, 1.0f), .texCoord = {0.0f, 0.0f}});
+            vertices.push_back({.pos = { extent, y, -extent}, .color = glm::vec4(color, 1.0f), .texCoord = {1.0f, 0.0f}});
+            vertices.push_back({.pos = {-extent, y,  extent}, .color = glm::vec4(color, 1.0f), .texCoord = {0.0f, 1.0f}});
+            vertices.push_back({.pos = { extent, y,  extent}, .color = glm::vec4(color, 1.0f), .texCoord = {1.0f, 1.0f}});
             indices.insert(indices.end(), {base, base + 2, base + 1, base + 1, base + 2, base + 3});
         }
 

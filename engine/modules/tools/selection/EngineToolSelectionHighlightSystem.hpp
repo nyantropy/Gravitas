@@ -190,14 +190,14 @@ namespace gts::tools
         {
             const uint32_t start = static_cast<uint32_t>(vertices.size());
             const glm::vec3 color{1.0f, 0.78f, 0.08f};
-            vertices.push_back({{min.x, min.y, min.z}, color, {0.0f, 0.0f}});
-            vertices.push_back({{max.x, min.y, min.z}, color, {1.0f, 0.0f}});
-            vertices.push_back({{max.x, max.y, min.z}, color, {1.0f, 1.0f}});
-            vertices.push_back({{min.x, max.y, min.z}, color, {0.0f, 1.0f}});
-            vertices.push_back({{min.x, min.y, max.z}, color, {0.0f, 0.0f}});
-            vertices.push_back({{max.x, min.y, max.z}, color, {1.0f, 0.0f}});
-            vertices.push_back({{max.x, max.y, max.z}, color, {1.0f, 1.0f}});
-            vertices.push_back({{min.x, max.y, max.z}, color, {0.0f, 1.0f}});
+            vertices.push_back({.pos = {min.x, min.y, min.z}, .color = glm::vec4(color, 1.0f), .texCoord = {0.0f, 0.0f}});
+            vertices.push_back({.pos = {max.x, min.y, min.z}, .color = glm::vec4(color, 1.0f), .texCoord = {1.0f, 0.0f}});
+            vertices.push_back({.pos = {max.x, max.y, min.z}, .color = glm::vec4(color, 1.0f), .texCoord = {1.0f, 1.0f}});
+            vertices.push_back({.pos = {min.x, max.y, min.z}, .color = glm::vec4(color, 1.0f), .texCoord = {0.0f, 1.0f}});
+            vertices.push_back({.pos = {min.x, min.y, max.z}, .color = glm::vec4(color, 1.0f), .texCoord = {0.0f, 0.0f}});
+            vertices.push_back({.pos = {max.x, min.y, max.z}, .color = glm::vec4(color, 1.0f), .texCoord = {1.0f, 0.0f}});
+            vertices.push_back({.pos = {max.x, max.y, max.z}, .color = glm::vec4(color, 1.0f), .texCoord = {1.0f, 1.0f}});
+            vertices.push_back({.pos = {min.x, max.y, max.z}, .color = glm::vec4(color, 1.0f), .texCoord = {0.0f, 1.0f}});
 
             const std::array<uint32_t, 36> boxIndices{
                 0, 1, 2, 0, 2, 3,
