@@ -67,6 +67,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
 - [docs/assets/model-runtime.md](docs/assets/model-runtime.md): engine-owned shared
   CPU model resources, capability-aware source/cooked requests, prepared/canonical
   definition views, stable references and scoped clip lookup.
+- [docs/assets/model-realization.md](docs/assets/model-realization.md): shared CPU static/skinned
+  geometry realization, occurrence associations and prepared cooked reuse.
 - [docs/assets/import-bundle.md](docs/assets/import-bundle.md): associated canonical
   import products, definition ownership, enumeration and result validation.
 - [docs/assets/skeleton-domain.md](docs/assets/skeleton-domain.md): reusable CPU

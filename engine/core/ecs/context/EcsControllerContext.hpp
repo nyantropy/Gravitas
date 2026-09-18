@@ -10,6 +10,7 @@
 
 class ECSWorld;
 class GtsModelRegistry;
+class GtsModelRealizationCache;
 class IGtsPhysicsModule;
 class IResourceProvider;
 class UiSystem;
@@ -39,4 +40,5 @@ struct EcsControllerContext
     float                           sceneViewportPixelHeight = 1.0f;
     float                           sceneViewportAspectRatio = 1.0f;
     GtsModelRegistry*                models = nullptr;
+    GtsModelRealizationCache*        modelRealizations = nullptr;
 };

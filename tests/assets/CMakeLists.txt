@@ -92,3 +92,8 @@ set_tests_properties(runtime_asset_policy
     PROPERTIES
         LABELS "gravitas;assets;cpu;runtime"
 )
+
+add_executable(GtsModelRealizationTest realization/GtsModelRealizationTest.cpp)
+target_link_libraries(GtsModelRealizationTest PRIVATE gravitas_model_realization gravitas_gltf_importer)
+add_test(NAME gts_model_realization COMMAND GtsModelRealizationTest)
+set_tests_properties(gts_model_realization PROPERTIES LABELS "gravitas;assets;realization;cpu")

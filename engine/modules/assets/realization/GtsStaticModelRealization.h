@@ -10,6 +10,7 @@ struct GtsModelAsset;
 
 namespace gts::rendering
 {
+    // Legacy mesh loading/cooking adapter only. Complete model resources use realizeGtsModel.
     // single-resource v1 realization accepts only one identity root per mesh
     // empty material references leave source materials unresolved (development loading)
     // this basically converts meshes into a cpu structure for cooked storage

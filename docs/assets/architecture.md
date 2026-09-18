@@ -19,6 +19,7 @@ assets/
   cooking/              source/canonical/prepared data → cooked persistence
     legacy/             existing cooker-only glTF/image DTO import architecture
   realization/          existing flat static CPU model-to-mesh adapter
+    model/              complete-model CPU profiles and occurrence associations
 ```
 
 Canonical model, skeleton, skin and animation domains remain separate data/validation
@@ -34,6 +35,7 @@ creates backend/GPU resources. Loading never invokes Vulkan or `MaterialRuntime`
 | `gravitas_cooked_assets` | `serialization/AssetSerializers.cpp`; CPU core only. |
 | `gravitas_image_decode` | Single stb-image implementation shared by cooking and rendering. |
 | `gravitas_model_runtime` | `loading/model`; canonical importers and cooked codecs, no renderer. |
+| `gravitas_model_realization` | Complete-model CPU geometry and identity cache; loading contracts and static/skinned preparation. |
 | `gravitas_mesh_loading` | `loading/mesh`; existing OBJ/static load path and flat CPU adapter. |
 | `gravitas_static_model_realization` | Existing flat identity-root adapter; static processing and cooked contracts. |
 | `gravitas_asset_cooking` | Cookers plus explicit legacy DTO importers; importers, CPU processing, codecs and image decoding. |
@@ -122,8 +124,10 @@ and target ownership are asset-side despite that historical namespace.
   callers use `gts::assets` directly. Strict/development/shipping behavior is unchanged.
 - Lower-level mesh/procedural APIs, Yune's temporary bridge, playback and rendering
   behavior are unchanged.
-- No model realization, canonical glTF cooker cutover, cooked redesign or material
-  system rewrite is introduced.
+- The ownership cleanup did not change cooker semantics or material behavior.
+  Complete-model CPU geometry now has its own realization boundary below.
 
 Historical implementation reports retain their old paths as historical inventories;
 this document and the feature documentation describe current ownership.
+
+Complete-model realization is documented in [model realization](model-realization.md).

@@ -194,17 +194,16 @@ animated merchant GLB. Strict policy fails explicitly; the old static merchant
 artifact cannot satisfy this request. No Yune-only source-permission exception
 remains. Required game clip names remain `Yune · quiet idle` and `Yune · slow walk`.
 
-`YuneCharacterAsset` still retains a model handle, temporary prepared/material
-bridge and scoped clip selections; playback remains per occurrence. That bridge
-explicitly requires the canonical geometry view until model realization is added.
-This task does not migrate its preparation, materials or renderer submission.
+`YuneCharacterAsset` retains the model handle, shared CPU model realization,
+temporary material/rendering bridge and scoped clip selections; playback remains
+per occurrence. Generic geometry work now belongs to
+[model realization](model-realization.md), which prepares canonical geometry once
+per mesh/profile/binding and references cooked prepared buffers directly. It preserves
+hierarchy, materials and reference directories without introducing runtime material
+or GPU state. Yune's material bridge still requires canonical materials.
 
-Task 3 must consume the representation views: prepare canonical geometry once,
-reuse prepared cooked vertices directly, preserve primitive/material references
-and hierarchy, and use retained reference directories when resolving subordinate
-assets. It must not run prepared cooked vertices backward through fake canonical
-streams. Full cooked glTF substitution needs a future fidelity/capability contract;
-adding renderer realization alone cannot make current static v1 a safe substitute.
+Full cooked glTF substitution still needs a future fidelity/capability contract;
+geometry realization alone cannot make current static v1 a safe substitute.
 
 ## Verification
 
