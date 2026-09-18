@@ -151,6 +151,11 @@ class RenderResourceManager : public IResourceProvider
             return textureManager->loadTexture(path, true);
         }
 
+        texture_id_type requestPixelTexture(const std::string& path, TextureColorSpace colorSpace) override
+        {
+            return textureManager->loadTexture(path, true, false, colorSpace);
+        }
+
         TextureDimensions getTextureDimensions(texture_id_type id) const override
         {
             if (!textureManager)

@@ -6,6 +6,8 @@
 
 #include "EngineConfig.h"
 #include "GravitasEngine.hpp"
+#include "GraphicsConstants.h"
+#include "BitmapFont.h"
 
 class HeadlessRuntimeSmokeScene : public GtsScene
 {
@@ -22,6 +24,12 @@ public:
         }
         if (ctx.input->getTriggersForAction("engine.tools_toggle").empty() == toolsEnabled)
             throw std::runtime_error("Tool bindings do not match enabled modules");
+
+        const auto fontId = ctx.resources->requestFont(
+            GraphicsConstants::ENGINE_RESOURCES + "/fonts/gravitasfont.font.json");
+        const auto* font = ctx.resources->getFont(fontId);
+        if (font == nullptr || font->atlasTexture == 0 || font->glyphs.empty())
+            throw std::runtime_error("Engine font atlas failed to load through the texture manager");
     }
 
     void onUpdateSimulation(const EcsSimulationContext&) override

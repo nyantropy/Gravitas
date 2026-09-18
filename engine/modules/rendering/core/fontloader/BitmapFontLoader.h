@@ -105,8 +105,8 @@ namespace BitmapFontLoader
         bool pixelSampling = true)
     {
         const texture_id_type atlasTexture = pixelSampling
-            ? resources->requestPixelTexture(atlasPath)
-            : resources->requestTexture(atlasPath);
+            ? resources->requestPixelTexture(atlasPath, TextureColorSpace::Linear)
+            : resources->requestTexture(atlasPath, TextureColorSpace::Linear);
         return buildGridFont(atlasTexture, atlasW, atlasH, cellW, cellH, cols, charOrder, lineHeight);
     }
 }

@@ -9,6 +9,10 @@
 #include "assets/serialization/AssetSerializers.h"
 #include "assets/serialization/AssetTypes.h"
 #include "BitmapFont.h"
+#include "BitmapFontLoader.h"
+#include "FontAssetIO.h"
+#include "GraphicsConstants.h"
+#include "assets/loading/cooked/TextureAssetLoader.h"
 #include "BoundsComponent.h"
 #include "ECSWorld.hpp"
 #include "EcsControllerContext.hpp"
@@ -56,6 +60,7 @@ namespace
 
         uint32_t meshRequests = 0;
         uint32_t textureRequests = 0;
+        uint32_t pixelTextureRequests = 0;
         uint32_t objectSlotRequests = 0;
 
         std::unordered_map<std::string, mesh_id_type> meshes;
@@ -135,7 +140,14 @@ namespace
 
         texture_id_type requestPixelTexture(const std::string& path) override
         {
+            ++pixelTextureRequests;
             return requestTexture(path);
+        }
+
+        texture_id_type requestPixelTexture(const std::string& path, TextureColorSpace colorSpace) override
+        {
+            ++pixelTextureRequests;
+            return requestTexture(path, colorSpace);
         }
 
         TextureDimensions getTextureDimensions(texture_id_type) const override
@@ -1111,11 +1123,46 @@ namespace
             && require(world.hasComponent<RenderGpuComponent>(entity),
                        "fallback material keeps render object valid");
     }
+
+    bool fontAtlasRequestsMatchCookedColorSpace()
+    {
+        const auto base = std::filesystem::path(GraphicsConstants::ENGINE_RESOURCES) / "fonts";
+        FontAsset asset;
+        gts::rendering::TextureAssetData texture;
+        std::string error;
+        if (!require(gts::fonts::loadFontAsset((base / "gravitasfont.font.json").string(), asset),
+                     "engine font metadata loads") ||
+            !require(gts::rendering::TextureAssetLoader::load(base / "gravitasfont.gtex", texture, &error),
+                     "engine cooked font atlas loads") ||
+            !require(texture.colorSpace == TextureColorSpace::Linear,
+                     "cooked font atlas retains linear coverage semantics"))
+            return false;
+
+        bool ok = true;
+        for (bool pixelSampling : {false, true})
+        {
+            for (const auto& path : {base / asset.atlasPath, base / "gravitasfont.gtex"})
+            {
+                FakeResourceProvider resources;
+                const auto font = BitmapFontLoader::load(
+                    &resources, path.string(), asset.atlasWidth, asset.atlasHeight,
+                    asset.cellWidth, asset.cellHeight, asset.columns, asset.charOrder,
+                    asset.lineHeight, pixelSampling);
+                ok &= require(font.atlasTexture != 0 && !font.glyphs.empty(), "font retains glyphs and atlas");
+                ok &= require(resources.textureColorSpaces.at(path.string()) == texture.colorSpace,
+                              "source and cooked font requests match the cooked atlas color space");
+                ok &= require(resources.pixelTextureRequests == (pixelSampling ? 1u : 0u),
+                              "font color space does not change requested filtering");
+            }
+        }
+        return ok;
+    }
 }
 
 int main()
 {
     bool ok = true;
+    ok &= fontAtlasRequestsMatchCookedColorSpace();
     ok &= handlesVersionsAndClone();
     ok &= materialUserIndexTracksAddRemoveReplaceAndReset();
     ok &= materialReferenceCallbacksMaintainUserIndex();

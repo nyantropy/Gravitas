@@ -106,6 +106,10 @@ class IResourceProvider
         // Like requestTexture but forces NEAREST-neighbor sampling and no anisotropy.
         // Use for pixel-art or bitmap-font atlases that must render crisp.
         virtual texture_id_type requestPixelTexture(const std::string& path) = 0;
+        virtual texture_id_type requestPixelTexture(const std::string& path, TextureColorSpace)
+        {
+            return requestPixelTexture(path);
+        }
         virtual TextureDimensions getTextureDimensions(texture_id_type id) const = 0;
 
         // request a bitmap font asset; the font manager owns metadata and uses

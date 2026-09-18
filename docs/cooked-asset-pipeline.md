@@ -214,6 +214,12 @@ Color space is role-driven, not inferred only from filenames:
 - BaseColor, Emissive, UI, ParticleColor: sRGB.
 - MetallicRoughness, Normal, AmbientOcclusion, FontAtlas, Data: Linear.
 
+Runtime font loaders explicitly request linear atlas textures, including nearest
+sampling through `requestPixelTexture(path, TextureColorSpace::Linear)`. Filtering
+and color space are independent; ordinary pixel-art textures still default to sRGB.
+The texture manager rejects cooked/requested color-space mismatches rather than
+reinterpreting cooked pixels.
+
 If the same source texture is used through different roles, the cooker emits
 `TEXTURE_COLOR_SPACE_CONFLICT` and writes separate cooked variants for those
 roles.

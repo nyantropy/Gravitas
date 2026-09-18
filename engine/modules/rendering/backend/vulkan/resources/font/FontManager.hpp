@@ -45,7 +45,8 @@ public:
             return 0;
 
         const std::string atlasPath = resolveAtlasPath(key, asset.atlasPath);
-        const texture_id_type atlasTexture = textureManager->loadTexture(atlasPath, asset.pixelSampling);
+        const texture_id_type atlasTexture =
+            textureManager->loadTexture(atlasPath, asset.pixelSampling, false, TextureColorSpace::Linear);
         if (atlasTexture == 0)
             return 0;
 
