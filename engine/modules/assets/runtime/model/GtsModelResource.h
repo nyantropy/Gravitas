@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -9,8 +10,11 @@
 #include <vector>
 
 #include "assets/model/GtsModelDiagnostic.h"
+#include "GtsModelRequest.h"
 
 struct GtsModelAsset;
+struct GtsModelNode;
+struct GtsPreparedModelDefinition;
 struct GtsSkeletonAsset;
 struct GtsAnimationClipAsset;
 struct GtsModelImportBundle;
@@ -55,11 +59,17 @@ class GtsModelResource
     GtsModelResource(const GtsModelResource&)            = delete;
     GtsModelResource& operator=(const GtsModelResource&) = delete;
 
-    const std::filesystem::path& sourcePath() const
+    const std::filesystem::path& identityPath() const
     {
-        return source;
+        return identity;
     }
-    const GtsModelAsset&                                     model() const;
+    GtsModelCapabilities          capabilities() const;
+    std::span<const GtsModelNode> nodes() const;
+    std::span<const uint32_t>     rootNodes() const;
+    std::size_t                   meshCount() const;
+    // Representation views for downstream CPU preparation/realization.
+    const GtsModelAsset*                                     canonicalModel() const;
+    const GtsPreparedModelDefinition*                        preparedModel() const;
     std::span<const std::shared_ptr<const GtsSkeletonAsset>> skeletons() const;
     std::span<const GtsAnimationClipAsset>                   clips() const;
     GtsModelClipLookupResult findClip(std::string_view name, std::optional<uint32_t> skeletonUseIndex = {}) const;
@@ -68,7 +78,9 @@ class GtsModelResource
 
     private:
     friend class GtsModelRegistry;
-    GtsModelResource(std::filesystem::path source, GtsModelImportBundle bundle);
-    std::filesystem::path                       source;
-    std::unique_ptr<const GtsModelImportBundle> definitions;
+    GtsModelResource(std::filesystem::path identity, GtsModelImportBundle bundle);
+    GtsModelResource(std::filesystem::path identity, GtsPreparedModelDefinition model);
+    std::filesystem::path                             identity;
+    std::unique_ptr<const GtsModelImportBundle>       definitions;
+    std::unique_ptr<const GtsPreparedModelDefinition> prepared;
 };

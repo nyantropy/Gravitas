@@ -4,8 +4,10 @@
 #include <filesystem>
 #include <map>
 #include <vector>
+#include <tuple>
 
 #include "GtsModelHandle.h"
+#include "GtsModelRequest.h"
 #include "assets/model/GtsModelDiagnostic.h"
 
 class GtsModelRequestResult
@@ -40,6 +42,7 @@ class GtsModelRegistry
     GtsModelRegistry& operator=(const GtsModelRegistry&) = delete;
 
     GtsModelRequestResult   requestModel(const std::filesystem::path& path);
+    GtsModelRequestResult   requestModel(const GtsModelRequest& request);
     const GtsModelResource* lookup(const GtsModelHandle& handle) const;
     std::size_t             size() const
     {
@@ -52,5 +55,8 @@ class GtsModelRegistry
         GtsModelHandle                  resource;
         std::vector<GtsModelDiagnostic> diagnostics;
     };
-    std::map<std::filesystem::path, Entry> entries;
+    // A logical request can retain more than one representation. Policy is
+    // re-evaluated before choosing any entry; source snapshots cannot bypass it.
+    using EntryKey = std::tuple<std::filesystem::path, std::filesystem::path, bool>;
+    std::map<EntryKey, Entry> entries;
 };

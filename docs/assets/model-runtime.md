@@ -1,186 +1,217 @@
-# Shared CPU model resources
+# Shared CPU model loading
 
-`assets/runtime/model` defines the synchronous, backend-independent
-`gravitas_model_runtime` target:
+`assets/runtime/model` owns the synchronous, backend-independent
+`gravitas_model_runtime` target. `GtsModelRegistry::requestModel` is the authoritative
+entry point for migrated high-level runtime model requests:
 
 ```text
-requestModel(path)
-    → GtsModelRegistry
-    → GtsModelResource
+model request (identity + required capabilities)
+    → engine source/cooked policy
+    → compatible representation selection and cache lookup
+    → cooked adapter OR canonical source importer
+    → validated shared GtsModelResource
     → GtsModelHandle
 ```
 
-A resource is one shared immutable CPU model definition. It is not a model
-instance, Vulkan mesh, material-runtime instance or animation player. Geometry
-preparation, material realization, pose/palette evaluation and renderer submission
-remain downstream and are not performed by this registry.
+A model resource is an immutable CPU definition, not a model instance, Vulkan
+mesh, material-runtime instance or animation player. Loading does not prepare
+geometry, realize materials, evaluate animation or create GPU resources.
+Legacy `requestMesh`, `MeshManager` and `RuntimeMeshLoading` remain operational.
 
-## Resource and reference API
+## Request and capability contract
 
-`GtsModelResource` privately owns a const `GtsModelImportBundle` as its initial
-implementation backing. Only the registry can construct a resource, after the
-canonical result and bundle validation succeed. No bundle accessor is exposed.
-
-The public queries are:
-
-- `model()`: const canonical model definition, including hierarchy, mesh/material/
-  image data, skeleton uses and skin-binding associations.
-- `skeletons()`: read-only enumeration of the associated immutable definitions.
-- `clips()`: read-only enumeration of skeletal clips.
-- `findClip(name, optionalSkeletonUseIndex)`: generic name lookup, optionally
-  checking exact compatibility with the model's selected skeleton use.
-- `clip(reference)`: resolves a resource-scoped clip reference, returning null for
-  a reference owned by another resource.
-- `sourcePath()`: normalized source identity for this initial loading policy.
-
-`GtsModelHandle` is `shared_ptr<const GtsModelResource>`. A null handle is invalid;
-copying a handle refers to the same immutable entry. There are no packed IDs,
-generations or persistent asset identities. Registry identity comes from the
-normalized request path, not geometry equality or skeleton compatibility.
-
-`GtsModelClipReference` is a non-owning `(owning resource, clip index)` reference.
-Keep the registry or a model handle alive while using it. Its explicit `index()`
-can adapt to existing playback APIs, but consumers should resolve it through the
-owning resource first. Cross-resource references fail even when indices coincide.
-Names match exactly, including case. Missing names fail; duplicate names fail as
-ambiguous even if one of them alone matches the requested use. Canonical duplicate
-clip names remain intact and can be inspected through enumeration. Compatibility
-checks delegate to `validateGtsAnimationClip`; no new matching algorithm exists.
-The engine does not assign gameplay meanings such as Idle or Walk.
-
-Static models naturally have no skeletons/clips/bindings. Skinned, animated and
-mixed model capabilities use the same resource type. A primary model is required
-by this resource; model-less bundle products remain valid importer concepts but
-are not loaded as model resources here. Skeleton definition identity and all
-model occurrence associations are preserved, without compatibility-based merging.
-
-## Registry lifetime, identity and diagnostics
-
-`requestModel(path)` returns `GtsModelRequestResult` with `succeeded()`, `handle()`
-and operation diagnostics. `lookup(handle)` returns the corresponding resource
-only if it belongs to that registry. `size()` reports published entries.
-
-Requests become absolute paths, then `weakly_canonical` resolves existing symlinks
-and dot segments. Relative/absolute aliases share an entry; symlink aliases use
-the target file's directory for relative source dependencies. There is no custom
-case folding or hard-link/content deduplication. Different normalized paths remain
-different entries, even for byte-identical files and compatible skeletons.
-
-Only successful loads are cached. Errors retain actionable importer/validation
-messages and publish no handle or partial resource. Failures are not memoized and
-can be retried after repair. Importer warnings survive both initial requests and
-cache hits. Diagnostic storage remains on registry request/cache entries, outside
-canonical definitions.
-
-The registry strongly retains successful resources until its destruction. There
-is no eviction, reference-count-triggered unload, reload or streaming. A retained
-handle may safely extend a resource's lifetime beyond registry destruction. A
-cached resource remains the original immutable snapshot if its source changes;
-this is not a hot-reload mechanism. Requests and lookups are main-thread-only;
-there are no asynchronous/pending states or locks.
-
-`GravitasEngine` owns one registry across scene transitions, registers it in
-`EngineServiceRegistry`, and supplies `EcsControllerContext::models` during scene
-load. The context pointer is used during the call; game code retains resulting
-model handles rather than caching frame-context pointers. The registry itself can
-be instantiated directly in CPU tests without constructing an engine or GPU.
-
-## Initial loader scope and Task 2
-
-The initial implementation dispatches only `.gltf` / `.glb` to the canonical
-importer. The game-facing method remains format-neutral `requestModel(path)`.
-OBJ, `.gmesh`, `.gmodel` and future animated cooked formats fail explicitly here.
-Existing `MeshManager`, `ModelAssetLoader`, `RuntimeMeshLoading`, `IResourceProvider`
-and `MaterialRuntime` retain their previous responsibilities and behavior.
-
-This centralizes the animated development-source exception; it does **not** unify
-`RuntimeAssetPolicy`. Source import still occurs regardless of the existing
-cooked-only mesh policy, exactly as the prior Yune path did. Task 2 must establish
-source/cooked resolution and its relationship to cache identity before claiming
-strict-mode support. In particular, a policy change must not accidentally reuse a
-cached development-source entry that the new policy would forbid. Logical model
-identity versus resolved artifact identity needs to be settled there; this task
-does not silently alias source paths and cooked siblings.
-
-## Transitional Yune bridge
-
-Yune supplies its existing source path to the engine registry. `YuneCharacterAsset`
-now retains a model handle, its still-temporary prepared geometry/material bridge,
-and model-scoped Idle/SlowWalk selections. It owns no canonical import bundle and
-calls no importer. Generic clip lookup and compatibility moved into the resource;
-Yune's semantic names and gameplay selection remain game-side.
-
-The function-local weak cache is removed. The dungeon scene retains its prepared
-Yune bridge for the scene lifetime and passes it to floor/merchant attachment;
-test scenes construct their bridge during scene load. Model definitions remain
-registry-owned across scene changes. Preparation/material realization are still
-performed by game code and may repeat for separate scene bridges until the later
-realization task. Mutable playback/pose/palettes remain per occurrence.
-
-## Tests and dependencies
-
-`GtsModelRegistryTest` uses small generated glTF sources and runs without rendering
-or Vulkan. It covers static/rigged/animated contents, normalized/symlink aliases,
-separate identities, retained warnings, failed-load isolation/retry, strong
-registry retention, handle lifetime, scoped clips, ambiguity, incompatible uses
-and preserved skeleton associations.
-
-The real-asset `YuneAnimationTest` now loads via a registry and verifies shared
-model identity with independent playback, existing deformation/slot behavior and
-immutable keys. Generated sources replace tests that previously mutated Yune's
-owned bundle: multiple bindings still share one pose; missing required names and
-foreign-resource clip selections fail explicitly.
-
-`gravitas_model_runtime` publicly depends on canonical `gravitas_assets` and
-privately on `gravitas_gltf_importer`. It has no rendering, geometry-preparation,
-material-runtime, animation-evaluation or Vulkan dependency. The engine umbrella
-exposes the model service. The production game no longer links the importer
-directly; the fixture-based tests keep a test-only importer dependency. Existing
-game skinned-preparation/palette/playback links remain until their later migration.
-
-## Ownership-refactor change inventory and verification
-
-Engine additions:
-
-- `engine/modules/assets/runtime/model/GtsModelHandle.h`
-- `engine/modules/assets/runtime/model/GtsModelResource.h/.cpp`
-- `engine/modules/assets/runtime/model/GtsModelRegistry.h/.cpp`
-- `engine/modules/assets/runtime/model/CMakeLists.txt`
-- `tests/assets/runtime/GtsModelRegistryTest.cpp`
-- This document.
-
-Engine updates: `GravitasEngine.hpp`, `EcsControllerContext.hpp`, module/assets
-CMake files, the asset test CMake file, and the architecture index.
-
-Game updates: Yune's `YuneCharacterAsset.h/.cpp`, `YuneAnimationState.cpp`,
-`YuneModelPresentation.h`, `YuneDungeonShop.h/.cpp`, spatial/doorway scene setup,
-`DungeonFloorController.h/.cpp` and `DungeonTestScene.h/.cpp`. These changes pass
-scene-owned preparation state to attachment while definitions stay in the registry.
-Production/test CMake, `YuneAnimationTest.cpp` and the game architecture/Yune docs
-were updated accordingly. The model source path, source assets, shader code and
-Vulkan backend were not changed.
-
-Verification commands:
-
-```sh
-cmake --build build --parallel 6
-cmake --build engine/build_release --parallel 6
-cmake --build /tmp/gravitas-model-domain-cpu --parallel 6
-ctest --test-dir build --output-on-failure
-ctest --test-dir /tmp/gravitas-model-domain-cpu -L cpu --output-on-failure
-ctest --test-dir engine/build_release \
-  -R '^(gts_model_registry|runtime_asset_policy|render_lifecycle_ownership|skinned_frame_extraction|asset_serialization|cooked_asset_pipeline|material_runtime_architecture)$' \
-  --output-on-failure
+```cpp
+auto ordinary = registry.requestModel(path);
+auto character = registry.requestModel(GtsModelRequest{
+    path,
+    {.geometry = true, .skeletons = true, .skinBindings = true, .animations = true}
+});
 ```
 
-Both engine and game builds pass. All 8 game tests, all 21 CPU asset/animation tests
-and all 7 focused engine regressions pass. The CPU configuration has
-`GTS_ENABLE_RENDERING=OFF` and `GTS_ENABLE_VULKAN_BACKEND=OFF`. Source-boundary
-searches find no `GtsGltfModelImporter`, `GtsModelImportResult` or
-`GtsModelImportBundle` usage in production `src/`.
+`GtsModelCapabilities` has five independent boolean requirements/observations:
+geometry (at least one mesh), hierarchy (at least one parent/child edge), skeleton
+definitions, skin bindings and animation clips. False request fields impose no
+requirement. `resource.capabilities()` derives observations from actual definition
+contents; source extensions do not establish capabilities. Every published entry
+must satisfy its request. Missing capabilities cause structured failure.
 
-This change adds no geometry/material realization migration, model-instance
-redesign, Vulkan migration, animation orchestration, blending or clothing behavior.
-The existing animated rendering path is exercised through unchanged CPU
-preparation/pose/palette checks; this ownership task does not claim a new GPU
-visual verification.
+Policy comes from the shared `assets/runtime/RuntimeAssetPolicy.h`, evaluated on
+every request. Existing rendering callers retain the old include/namespace as a
+forwarding surface to that one implementation. Mesh cooked-path helpers and
+source permission rules are shared; complete models never pass through
+`MeshResource` or the static single-mesh realization adapter.
+
+## Source/cooked policy
+
+Existing engine semantics are unchanged:
+
+- Development fallback is the default, including Release configurations.
+- `GTS_RUNTIME_ASSET_POLICY=strict`, `shipping`, `cooked-only` or `cooked_only`
+  forbids source fallback (case insensitive).
+- Compile definitions `GTS_SHIPPING_BUILD` or
+  `GTS_DISABLE_RUNTIME_SOURCE_ASSET_FALLBACK` forbid fallback regardless of the
+  environment. There is no per-model override that can weaken this restriction.
+
+Supported direct inputs: `.obj`, `.gltf`, `.glb`, `.gmesh`, `.gmodel`. Source
+formats use the canonical `GtsObjModelImporter` and `GtsGltfModelImporter` inside
+the model-runtime module. No legacy glTF DTO bridge is used.
+
+Selection is deterministic:
+
+1. Normalize the requested identity. Reject unknown input types.
+2. Evaluate current policy before considering cached source data.
+3. For source requests, inspect adjacent `.gmodel`, then `.gmesh`. An explicit
+   cooked request selects only that artifact and never falls back to a source.
+4. Reject candidates that cannot preserve the requested definition/capabilities.
+   Reuse a satisfying cached cooked entry or load/validate the selected candidate.
+5. If no compatible cooked candidate remains, source is allowed only under the
+   current development policy. Reuse a satisfying cached source snapshot or
+   import/validate it.
+6. Publish only a fully valid, capability-satisfying resource.
+
+**V1 fidelity limitation:** current cooked formats are static and have no manifest
+attesting full fidelity to a glTF source. They cannot automatically substitute for
+any `.gltf`/`.glb` model request, even one with default requirements: doing so could
+silently lose skins, animation, helper hierarchy or other authored data. Such
+requests retain the canonical source definition in development and fail in strict
+mode until compatible cooked support exists. A caller explicitly requesting a
+`.gmodel`/`.gmesh` requests that static definition. This is conservative resolution,
+not a claim that all GLBs contain animations.
+
+Static OBJ requests prefer an adjacent compatible `.gmodel`, then `.gmesh`, using
+the existing static cooked-profile contract. Skeleton/skin/animation requirements
+exclude both v1 formats. A hierarchy requirement excludes flat `.gmesh`; actual
+`.gmodel` contents are checked before acceptance. No source parser is run merely
+to guess whether a cooked artifact might be safe in strict mode.
+
+Missing candidates allow permitted source fallback. A selected, potentially
+compatible cooked artifact that fails decoding, dependency loading or validation
+fails the request; it does not fall back to source. Known-incompatible artifacts
+are skipped without decoding them. Filesystem errors are explicit diagnostics.
+
+## Definitive CPU definition, with two geometry representations
+
+The resource is no longer synonymous with the importer bundle. Its private backing
+is exactly one of:
+
+- const `GtsModelImportBundle`, preserving full canonical source semantics;
+- const `GtsPreparedModelDefinition`, preserving already-prepared static geometry.
+
+Common queries are `identityPath()`, `nodes()`, `rootNodes()`, `meshCount()`,
+`capabilities()`, `skeletons()` and `clips()`. The explicitly named read-only
+`canonicalModel()` and `preparedModel()` views return a pointer to the applicable
+geometry representation and null for the other. The old canonical-only `model()`
+accessor was replaced to make that assumption visible. The public request/handle
+remains the same for either representation; only later preparation/realization
+consumers need to interpret geometry storage. No raw import-bundle accessor exists.
+
+### `.gmesh`
+
+The existing v1 codec supplies `MeshAssetData`: concrete `GtsStaticVertex` values,
+indices, submesh ranges/material references, bounds, attribute/generation metadata
+and dependencies. The adapter retains those fields and creates one identity-root
+mesh occurrence. It does not invent source vertex streams, recompute normals,
+reprepare the mesh or claim skeleton/animation/hierarchy capabilities. An empty
+submesh table remains the original implicit whole-mesh range convention.
+
+Codec validation checks binary/count/index/range integrity. Model loading adds
+finite vertices, nonempty indexed triangle geometry, triangle range coherence and
+finite ordered bounds when present. Malformed data is rejected without repair.
+
+### `.gmodel`
+
+The existing package codec supplies node names, parents, local matrices, mesh and
+material references and dependencies. The adapter retains node order, builds
+children/root tables, loads listed subordinate `.gmesh` definitions and maps node
+references to that mesh table. Multiple nodes can share one mesh entry; it does not
+flatten hierarchy or bake transforms into vertices. Forward parent references are
+supported; invalid parents, cycles, non-finite/non-affine matrices and unlisted
+node mesh references fail explicitly. Singular affine transforms remain valid.
+
+Mesh references resolve relative to the actual package directory. ID-only mesh
+references fail with an actionable unsupported-resolution diagnostic; no asset
+resolver is invented. Material and other dependency references remain unresolved
+CPU association data, including each mesh's own dependencies. Package and mesh
+reference directories are retained so later realization can resolve paths correctly,
+including when a cooked artifact is reached through a symlink. Missing/corrupt
+subordinate meshes fail the whole request. Material/texture realization is deferred.
+
+Existing serializers/loaders/types retain their historical header locations and
+`gts::rendering` namespace. A small `gravitas_cooked_assets` CPU target now compiles
+the existing serializers once and is consumed by both model runtime and rendering.
+It links only core; it does not link the rendering library or Vulkan. No serialized
+layout, cooked version or byte interpretation changed.
+
+## Identity, cache, lifetime and diagnostics
+
+A requested path becomes absolute then `weakly_canonical`: dot segments and
+existing symlink aliases converge, with no custom case folding, hard-link or
+content deduplication. Distinct normalized requests remain distinct identities;
+requesting `crate.obj` and `crate.gmesh` does not invent a persistent alias between
+them. `identityPath()` reports the request identity, not whichever artifact won.
+
+Internally, entries distinguish request identity, normalized representation path
+and source/cooked provenance. One identity may retain multiple immutable
+representations. New requests reconsider preferred artifacts and requirements;
+source-to-cooked selection may therefore return a different handle with the same
+identity path after a compatible cooked artifact becomes available. Old handles
+remain valid. Provenance is not exposed as gameplay model identity.
+
+A strict request cannot reuse a cached source entry. A failed strict or
+capability-required request does not remove a valid development entry. Compatible
+cached cooked snapshots remain reusable, including after the backing file changes
+or is removed: this is stable resource retention, not hot reload. Warnings from
+loading are stored with entries and returned on cache hits; resolution warnings
+are computed for the current request. Failures expose diagnostics and no handle,
+are not cached, and can be retried after repair.
+
+`GtsModelHandle` is `shared_ptr<const GtsModelResource>`. The registry retains all
+successful entries until destruction; handles can extend that lifetime. There are
+no jobs, locks, eviction, streaming or pending handles. Requests are main-thread-only.
+`lookup(handle)` checks ownership by this registry, not structural equality.
+
+`GravitasEngine` owns the registry across scene transitions and supplies it through
+`EcsControllerContext::models`. Callers retain handles, not frame-context pointers.
+
+## Scoped clip discovery
+
+`findClip(name, optionalSkeletonUseIndex)` returns a non-owning resource-scoped
+`GtsModelClipReference`. Names match exactly; missing or duplicate names fail.
+Compatibility delegates to `validateGtsAnimationClip`. `clip(reference)` rejects
+foreign-resource references even if the numeric index or skeleton structure matches.
+Keep a handle or the registry alive while using a clip reference. Static cooked
+resources enumerate no clips/skeletons and fail clip lookup cleanly.
+
+Skeleton compatibility remains separate from identity; no compatible definitions
+or occurrences are merged. Engine loading assigns no Idle/Walk gameplay meaning.
+
+## Yune and later realization
+
+Yune keeps its content path and requests geometry + skeletons + skin bindings +
+animations through the ordinary engine policy. Development fallback loads the
+animated merchant GLB. Strict policy fails explicitly; the old static merchant
+artifact cannot satisfy this request. No Yune-only source-permission exception
+remains. Required game clip names remain `Yune · quiet idle` and `Yune · slow walk`.
+
+`YuneCharacterAsset` still retains a model handle, temporary prepared/material
+bridge and scoped clip selections; playback remains per occurrence. That bridge
+explicitly requires the canonical geometry view until model realization is added.
+This task does not migrate its preparation, materials or renderer submission.
+
+Task 3 must consume the representation views: prepare canonical geometry once,
+reuse prepared cooked vertices directly, preserve primitive/material references
+and hierarchy, and use retained reference directories when resolving subordinate
+assets. It must not run prepared cooked vertices backward through fake canonical
+streams. Full cooked glTF substitution needs a future fidelity/capability contract;
+adding renderer realization alone cannot make current static v1 a safe substitute.
+
+## Verification
+
+CPU tests cover all source formats, both cooked adapters, hierarchy/dependencies,
+capabilities, malformed data, missing/corrupt selection, warnings, identity and
+provenance-aware cache reuse. A separate strict-policy test also runs in a build
+with source fallback disabled at compile time. The legacy mesh-policy test directly
+exercises OBJ fallback, cooked preference, strict loading and corrupt/missing cases.
+Game integration tests exercise the existing cube OBJ and real animated Yune through
+the same request API, strict rejection after source cache warmup, clip discovery
+and independent playback. See the task report for commands and final results.

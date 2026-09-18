@@ -23,6 +23,7 @@ list(APPEND RENDERING_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/../assets/realization/GtsStaticModelRealization.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../assets/runtime/RuntimeMeshLoading.cpp"
 )
+list(REMOVE_ITEM RENDERING_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/core/assets/AssetSerializers.cpp")
 add_library(gravitas_rendering STATIC ${RENDERING_SOURCES})
 
 target_compile_features(gravitas_rendering PUBLIC cxx_std_20)
@@ -106,7 +107,7 @@ target_link_libraries(gravitas_rendering PUBLIC
     glfw
     gravitas_core
     PRIVATE gravitas_obj_importer gravitas_static_geometry gravitas_gltf_source
-    PUBLIC gravitas_assets
+    PUBLIC gravitas_assets gravitas_cooked_assets
 )
 
 if(TARGET gravitas_vulkan_backend)

@@ -1,4 +1,5 @@
 #include "GtsModelResource.h"
+#include "GtsPreparedModelDefinition.h"
 
 #include <string>
 #include <utility>
@@ -6,26 +7,53 @@
 #include "assets/importer/GtsModelImportBundle.h"
 #include "assets/animation/GtsAnimationClipValidation.h"
 
-GtsModelResource::GtsModelResource(std::filesystem::path source, GtsModelImportBundle bundle)
-    : source(std::move(source)), definitions(std::make_unique<const GtsModelImportBundle>(std::move(bundle)))
+GtsModelResource::GtsModelResource(std::filesystem::path identity, GtsModelImportBundle bundle)
+    : identity(std::move(identity)), definitions(std::make_unique<const GtsModelImportBundle>(std::move(bundle)))
 {
 }
 
 GtsModelResource::~GtsModelResource() = default;
 
-const GtsModelAsset& GtsModelResource::model() const
+GtsModelResource::GtsModelResource(std::filesystem::path identity, GtsPreparedModelDefinition model)
+    : identity(std::move(identity)), prepared(std::make_unique<const GtsPreparedModelDefinition>(std::move(model)))
 {
-    return *definitions->model;
+}
+
+const GtsModelAsset* GtsModelResource::canonicalModel() const
+{
+    return definitions ? &*definitions->model : nullptr;
+}
+
+const GtsPreparedModelDefinition* GtsModelResource::preparedModel() const
+{
+    return prepared.get();
+}
+
+std::span<const GtsModelNode> GtsModelResource::nodes() const
+{
+    return definitions ? std::span<const GtsModelNode>(definitions->model->nodes) : prepared->nodes;
+}
+
+std::span<const uint32_t> GtsModelResource::rootNodes() const
+{
+    return definitions ? std::span<const uint32_t>(definitions->model->rootNodes) : prepared->rootNodes;
+}
+
+std::size_t GtsModelResource::meshCount() const
+{
+    return definitions ? definitions->model->meshes.size() : prepared->meshes.size();
 }
 
 std::span<const std::shared_ptr<const GtsSkeletonAsset>> GtsModelResource::skeletons() const
 {
-    return definitions->skeletons;
+    return definitions ? std::span<const std::shared_ptr<const GtsSkeletonAsset>>(definitions->skeletons)
+                       : std::span<const std::shared_ptr<const GtsSkeletonAsset>>{};
 }
 
 std::span<const GtsAnimationClipAsset> GtsModelResource::clips() const
 {
-    return definitions->animationClips;
+    return definitions ? std::span<const GtsAnimationClipAsset>(definitions->animationClips)
+                       : std::span<const GtsAnimationClipAsset>{};
 }
 
 GtsModelClipLookupResult GtsModelResource::findClip(std::string_view        name,
@@ -37,9 +65,9 @@ GtsModelClipLookupResult GtsModelResource::findClip(std::string_view        name
                                         {{GtsModelDiagnosticSeverity::Error,
                                           code,
                                           message,
-                                          source.string() + ": clips[" + std::string(name) + "]"}}};
+                                          identity.string() + ": clips[" + std::string(name) + "]"}}};
     };
-    if (skeletonUseIndex && *skeletonUseIndex >= model().skeletonUses.size())
+    if (skeletonUseIndex && (!definitions || *skeletonUseIndex >= definitions->model->skeletonUses.size()))
     {
         return failure("model.clip.skeleton_use", "Invalid skeleton-use index " + std::to_string(*skeletonUseIndex));
     }
@@ -63,7 +91,7 @@ GtsModelClipLookupResult GtsModelResource::findClip(std::string_view        name
     if (skeletonUseIndex)
     {
         const auto validation =
-            validateGtsAnimationClip(clips()[*found], *model().skeletonUses[*skeletonUseIndex].skeleton);
+            validateGtsAnimationClip(clips()[*found], *definitions->model->skeletonUses[*skeletonUseIndex].skeleton);
         if (!validation.isValid())
         {
             auto result = failure("model.clip.incompatible",
@@ -82,4 +110,18 @@ GtsModelClipLookupResult GtsModelResource::findClip(std::string_view        name
 const GtsAnimationClipAsset* GtsModelResource::clip(GtsModelClipReference reference) const
 {
     return reference.model() == this && reference.index() < clips().size() ? &clips()[reference.index()] : nullptr;
+}
+
+GtsModelCapabilities GtsModelResource::capabilities() const
+{
+    bool hierarchy = false;
+    for (const auto& node : nodes())
+    {
+        hierarchy = hierarchy || !node.children.empty();
+    }
+    return {meshCount() != 0,
+            hierarchy,
+            !skeletons().empty(),
+            definitions && !definitions->model->skinBindings.empty(),
+            !clips().empty()};
 }

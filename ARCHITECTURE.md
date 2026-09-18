@@ -62,7 +62,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
 - [docs/assets/model-domain.md](docs/assets/model-domain.md): canonical CPU model
   assets, semantic vertex streams, validation, and the model-importer boundary.
 - [docs/assets/model-runtime.md](docs/assets/model-runtime.md): engine-owned shared
-  CPU model resources, synchronous requests, stable references and scoped clip lookup.
+  CPU model resources, capability-aware source/cooked requests, prepared/canonical
+  definition views, stable references and scoped clip lookup.
 - [docs/assets/import-bundle.md](docs/assets/import-bundle.md): associated canonical
   import products, definition ownership, enumeration and result validation.
 - [docs/assets/skeleton-domain.md](docs/assets/skeleton-domain.md): reusable CPU

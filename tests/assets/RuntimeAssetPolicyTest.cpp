@@ -1,11 +1,19 @@
-#include <cassert>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <stdexcept>
+#include "assets/runtime/RuntimeMeshLoading.h"
+#include "AssetSerializers.h"
 
 #include "RuntimeAssetPolicy.h"
 
 namespace
 {
+    void require(bool condition)
+    {
+        if (!condition) throw std::runtime_error("Runtime asset policy regression");
+    }
+
     void setPolicyEnv(const char* value)
     {
 #if defined(_WIN32)
@@ -29,50 +37,82 @@ int main()
 {
     using namespace gts::rendering;
 
-    assert(isCookedMeshAssetPath("robot.gmesh"));
-    assert(isCookedMeshAssetPath("ROBOT.GMESH"));
-    assert(!isCookedMeshAssetPath("robot.obj"));
-    assert(isCookedTextureAssetPath("brick.gtex"));
-    assert(isCookedTextureAssetPath("BRICK.GTEX"));
-    assert(!isCookedTextureAssetPath("brick.png"));
+    require(isCookedMeshAssetPath("robot.gmesh"));
+    require(isCookedMeshAssetPath("ROBOT.GMESH"));
+    require(!isCookedMeshAssetPath("robot.obj"));
+    require(isCookedTextureAssetPath("brick.gtex"));
+    require(isCookedTextureAssetPath("BRICK.GTEX"));
+    require(!isCookedTextureAssetPath("brick.png"));
 
-    assert(isRuntimeSourceMeshAssetPath("robot.obj"));
-    assert(isRuntimeSourceMeshAssetPath("robot.gltf"));
-    assert(isRuntimeSourceMeshAssetPath("robot.glb"));
-    assert(!isRuntimeSourceMeshAssetPath("robot.gmesh"));
-    assert(isRuntimeSourceTextureAssetPath("brick.png"));
-    assert(isRuntimeSourceTextureAssetPath("brick.jpg"));
-    assert(isRuntimeSourceTextureAssetPath("brick.jpeg"));
-    assert(!isRuntimeSourceTextureAssetPath("brick.gtex"));
-    assert(runtimeSourceMeshFallbackSupported("robot.obj"));
-    assert(!runtimeSourceMeshFallbackSupported("robot.gltf"));
-    assert(!runtimeSourceMeshFallbackSupported("robot.glb"));
-    assert(runtimeSourceTextureFallbackSupported("brick.png"));
+    require(isRuntimeSourceMeshAssetPath("robot.obj"));
+    require(isRuntimeSourceMeshAssetPath("robot.gltf"));
+    require(isRuntimeSourceMeshAssetPath("robot.glb"));
+    require(!isRuntimeSourceMeshAssetPath("robot.gmesh"));
+    require(isRuntimeSourceTextureAssetPath("brick.png"));
+    require(isRuntimeSourceTextureAssetPath("brick.jpg"));
+    require(isRuntimeSourceTextureAssetPath("brick.jpeg"));
+    require(!isRuntimeSourceTextureAssetPath("brick.gtex"));
+    require(runtimeSourceMeshFallbackSupported("robot.obj"));
+    require(!runtimeSourceMeshFallbackSupported("robot.gltf"));
+    require(!runtimeSourceMeshFallbackSupported("robot.glb"));
+    require(runtimeSourceTextureFallbackSupported("brick.png"));
 
-    assert(expectedCookedMeshAssetPath("assets/robot.obj") ==
+    require(expectedCookedMeshAssetPath("assets/robot.obj") ==
            std::filesystem::path("assets/robot.gmesh"));
-    assert(expectedCookedMeshAssetPath("assets/robot.gmesh") ==
+    require(expectedCookedMeshAssetPath("assets/robot.gmesh") ==
            std::filesystem::path("assets/robot.gmesh"));
-    assert(expectedCookedTextureAssetPath("assets/brick.png") ==
+    require(expectedCookedTextureAssetPath("assets/brick.png") ==
            std::filesystem::path("assets/brick.gtex"));
-    assert(expectedCookedTextureAssetPath("assets/brick.gtex") ==
+    require(expectedCookedTextureAssetPath("assets/brick.gtex") ==
            std::filesystem::path("assets/brick.gtex"));
 
     clearPolicyEnv();
-    assert(runtimeSourceAssetPolicy() == RuntimeSourceAssetPolicy::DevelopmentFallback);
-    assert(runtimeSourceAssetFallbackAllowed());
+    require(runtimeSourceAssetPolicy() == RuntimeSourceAssetPolicy::DevelopmentFallback);
+    require(runtimeSourceAssetFallbackAllowed());
 
     setPolicyEnv("strict");
-    assert(runtimeSourceAssetPolicy() == RuntimeSourceAssetPolicy::CookedOnly);
-    assert(!runtimeSourceAssetFallbackAllowed());
+    require(runtimeSourceAssetPolicy() == RuntimeSourceAssetPolicy::CookedOnly);
+    require(!runtimeSourceAssetFallbackAllowed());
 
     setPolicyEnv("cooked-only");
-    assert(runtimeSourceAssetPolicy() == RuntimeSourceAssetPolicy::CookedOnly);
+    require(runtimeSourceAssetPolicy() == RuntimeSourceAssetPolicy::CookedOnly);
 
     setPolicyEnv("development");
-    assert(runtimeSourceAssetPolicy() == RuntimeSourceAssetPolicy::DevelopmentFallback);
-    assert(runtimeSourceAssetFallbackAllowed());
+    require(runtimeSourceAssetPolicy() == RuntimeSourceAssetPolicy::DevelopmentFallback);
+    require(runtimeSourceAssetFallbackAllowed());
 
     clearPolicyEnv();
+    const auto root = std::filesystem::temp_directory_path() / "gravitas-mesh-policy-regression";
+    std::filesystem::create_directories(root);
+    const auto source = root / "triangle.obj";
+    const auto cooked = expectedCookedMeshAssetPath(source);
+    std::ofstream(source) << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+    require(resolveRuntimeMeshPath(source) == source);
+    std::vector<GtsModelDiagnostic> diagnostics;
+    const auto sourceMesh = loadRuntimeMeshAsset(source, diagnostics);
+    require(sourceMesh.vertices.size() == 3 && sourceMesh.indices.size() == 3);
+    std::string error;
+    require(MeshAssetSerializer::writeFile(sourceMesh, cooked, &error));
+    require(resolveRuntimeMeshPath(source) == cooked);
+    setPolicyEnv("strict");
+    const auto loaded = loadRuntimeMeshAsset(source, diagnostics);
+    require(loaded.vertices == sourceMesh.vertices && loaded.indices == sourceMesh.indices);
+    std::ofstream(cooked) << "corrupt";
+    for (const auto* policy : {"strict", "development"})
+    {
+        setPolicyEnv(policy);
+        bool failed = false;
+        try { loadRuntimeMeshAsset(source, diagnostics); }
+        catch (const std::runtime_error&) { failed = true; }
+        require(failed);
+    }
+    std::filesystem::remove(cooked);
+    setPolicyEnv("strict");
+    bool failed = false;
+    try { loadRuntimeMeshAsset(source, diagnostics); }
+    catch (const std::runtime_error&) { failed = true; }
+    require(failed);
+    clearPolicyEnv();
+    std::filesystem::remove_all(root);
     return 0;
 }

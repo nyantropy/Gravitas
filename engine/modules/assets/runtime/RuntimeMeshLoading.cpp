@@ -12,14 +12,14 @@ namespace gts::rendering
 {
 std::filesystem::path resolveRuntimeMeshPath(const std::filesystem::path& path)
 {
-    if (isCookedMeshAssetPath(path))
+    if (gts::assets::isCookedMeshAssetPath(path))
         return path;
-    const auto cookedPath = expectedCookedMeshAssetPath(path);
+    const auto cookedPath = gts::assets::expectedCookedMeshAssetPath(path);
     if (std::filesystem::exists(cookedPath))
         return cookedPath;
-    if (!runtimeSourceAssetFallbackAllowed())
+    if (!gts::assets::runtimeSourceAssetFallbackAllowed())
         throw std::runtime_error("Cooked mesh asset is required by the runtime asset policy: " + cookedPath.string());
-    if (!runtimeSourceMeshFallbackSupported(path))
+    if (!gts::assets::runtimeSourceMeshFallbackSupported(path))
         throw std::runtime_error("No runtime source loader exists for: " + path.string());
     return path;
 }
@@ -28,7 +28,7 @@ MeshAssetData loadRuntimeMeshAsset(const std::filesystem::path& requestedPath,
                                   std::vector<GtsModelDiagnostic>& diagnostics)
 {
     const auto path = resolveRuntimeMeshPath(requestedPath);
-    if (isCookedMeshAssetPath(path))
+    if (gts::assets::isCookedMeshAssetPath(path))
     {
         MeshAssetData mesh;
         std::string error;

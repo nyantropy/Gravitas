@@ -3,6 +3,7 @@
 #include "assets/runtime/model/GtsModelResource.h"
 #include "assets/skeleton/GtsSkeletonAsset.h"
 #include <type_traits>
+#include "ScopedRuntimeAssetPolicy.h"
 
 namespace
 {
@@ -40,17 +41,27 @@ namespace
 
 int main()
 {
-    const auto root = std::filesystem::temp_directory_path() / "gravitas-model-registry-test";
+    ScopedRuntimeAssetPolicy policy("development");
+    const auto               root = std::filesystem::temp_directory_path() / "gravitas-model-registry-test";
     std::filesystem::create_directories(root);
     GtsModelRegistry registry;
-    auto             plain              = GltfFixtureBuilder{};
+    const auto       obj = root / "triangle.obj";
+    std::ofstream(obj) << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+    GtsModelRegistry sources;
+    auto             objResult = sources.requestModel(obj);
+    require(objResult.succeeded() && objResult.handle()->capabilities().geometry,
+            "Canonical OBJ uses the same model request");
+    requireFailure(sources.requestModel(GtsModelRequest{obj, {.skeletons = true}}));
+
+    auto plain                          = GltfFixtureBuilder{};
     field(plain.root, "extensionsUsed") = parse(R"(["TEST_model_registry_optional"])");
     const auto path                     = write(plain, root, "static");
     auto       loaded                   = registry.requestModel(path);
     require(loaded.succeeded(), "Static model loads");
+    requireFailure(registry.requestModel(GtsModelRequest{path, {.animations = true}}));
     auto handle = loaded.handle();
     require(registry.lookup(handle) == handle.get() && registry.size() == 1, "Handle identifies registry entry");
-    require(handle->clips().empty() && handle->skeletons().empty() && handle->model().skinBindings.empty(),
+    require(handle->clips().empty() && handle->skeletons().empty() && handle->canonicalModel()->skinBindings.empty(),
             "Static capabilities need no placeholders");
     require(!loaded.diagnostics().empty() && loaded.diagnostics()[0].severity == GtsModelDiagnosticSeverity::Warning,
             "Importer warning preserved");
@@ -75,7 +86,7 @@ int main()
     require(other.requestModel(path).handle() != handle, "Registry entries have their own identity");
     require(other.lookup(handle) == nullptr, "Same-path entries in different registries do not accept foreign handles");
     const auto initialSize = registry.size();
-    requireFailure(registry.requestModel({}));
+    requireFailure(registry.requestModel(std::filesystem::path{}));
     requireFailure(registry.requestModel(root / "missing.glb"));
     requireFailure(registry.requestModel(root / "unsupported.gmesh"));
     auto malformed                                         = rig();
@@ -86,7 +97,7 @@ int main()
     write(rig(), root, "retry");
     auto animated = registry.requestModel(retryPath);
     require(animated.succeeded(), "Failed request can be repaired and retried");
-    const auto& model = animated.handle()->model();
+    const auto& model = *animated.handle()->canonicalModel();
     require(animated.handle()->skeletons().size() == 1 && !model.skinBindings.empty(),
             "Rig definitions and bindings retained");
     require(model.skeletonUses[0].skeleton == animated.handle()->skeletons()[0], "Bundle definition sharing preserved");
@@ -118,7 +129,7 @@ int main()
     field(twoRigs.root, "scenes") = parse(R"([{"nodes":[0,1,2,3]}])");
     auto multi                    = registry.requestModel(write(twoRigs, root, "two-rigs"));
     require(multi.succeeded() && multi.handle()->skeletons().size() == 2, "Distinct skeleton definitions retained");
-    const auto& uses = multi.handle()->model().skeletonUses;
+    const auto& uses = multi.handle()->canonicalModel()->skeletonUses;
     require(uses.size() == 2, "Distinct occurrences retained");
     require(multi.handle()->findClip("Motion", 0).succeeded(), "Exact compatible use accepted");
     require(multi.handle()->findClip("Motion", 1).diagnostics[0].code == "model.clip.incompatible",
@@ -134,10 +145,10 @@ int main()
         GtsModelRegistry temporary;
         survivor = temporary.requestModel(path).handle();
     }
-    require(survivor && !survivor->model().meshes.empty(),
+    require(survivor && !survivor->canonicalModel()->meshes.empty(),
             "Strong model reference can safely outlive registry shutdown");
     static_assert(std::is_const_v<GtsModelHandle::element_type>);
-    static_assert(std::is_same_v<decltype(handle->model()), const GtsModelAsset&>);
+    static_assert(std::is_same_v<decltype(handle->canonicalModel()), const GtsModelAsset*>);
     static_assert(!std::is_copy_constructible_v<GtsModelResource>);
     std::filesystem::remove_all(root);
 }

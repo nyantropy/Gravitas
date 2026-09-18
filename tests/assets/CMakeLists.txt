@@ -28,3 +28,13 @@ add_executable(GtsModelRegistryTest runtime/GtsModelRegistryTest.cpp)
 target_link_libraries(GtsModelRegistryTest PRIVATE gravitas_model_runtime gravitas_gltf_importer)
 add_test(NAME gts_model_registry COMMAND GtsModelRegistryTest)
 set_tests_properties(gts_model_registry PROPERTIES LABELS "gravitas;assets;runtime;cpu")
+
+add_executable(GtsModelLoadingTest runtime/GtsModelLoadingTest.cpp)
+target_link_libraries(GtsModelLoadingTest PRIVATE gravitas_model_runtime gravitas_gltf_importer)
+add_test(NAME gts_model_loading COMMAND GtsModelLoadingTest)
+set_tests_properties(gts_model_loading PROPERTIES LABELS "gravitas;assets;runtime;cpu")
+
+add_executable(GtsModelStrictPolicyTest runtime/GtsModelStrictPolicyTest.cpp)
+target_link_libraries(GtsModelStrictPolicyTest PRIVATE gravitas_model_runtime)
+add_test(NAME gts_model_strict_policy COMMAND GtsModelStrictPolicyTest)
+set_tests_properties(gts_model_strict_policy PROPERTIES LABELS "gravitas;assets;runtime;cpu")
