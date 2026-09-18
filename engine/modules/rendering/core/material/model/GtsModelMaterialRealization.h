@@ -17,6 +17,7 @@ class GtsRealizedModelMaterials
     MaterialInstanceHandle materialFor(const GtsRealizedModel& owner, uint32_t geometry, uint32_t primitive) const;
     MaterialFrameState     frameStateFor(const GtsRealizedModel& owner, uint32_t geometry, uint32_t primitive) const;
     bool                   valid() const;
+    bool belongsTo(const GtsRealizedModel& owner) const { return model.get() == &owner && valid(); }
 
     private:
     friend class GtsModelMaterialRealization;

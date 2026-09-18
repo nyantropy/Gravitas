@@ -125,3 +125,15 @@ GtsModelCapabilities GtsModelResource::capabilities() const
             definitions && !definitions->model->skinBindings.empty(),
             !clips().empty()};
 }
+
+std::span<const GtsModelSkeletonUse> GtsModelResource::skeletonUses() const
+{
+    return definitions ? std::span<const GtsModelSkeletonUse>(definitions->model->skeletonUses)
+                       : std::span<const GtsModelSkeletonUse>{};
+}
+
+std::span<const GtsModelSkinBinding> GtsModelResource::skinBindings() const
+{
+    return definitions ? std::span<const GtsModelSkinBinding>(definitions->model->skinBindings)
+                       : std::span<const GtsModelSkinBinding>{};
+}

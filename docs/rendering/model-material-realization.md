@@ -120,9 +120,10 @@ Alpha mask/blend and double-sided state survive material realization. Existing
 renderer limitations remain, including the current skinned bridge's opaque,
 depth-writing draw restriction. Material realization does not implement sorting
 or pipeline variants. Yune no longer requires canonical backing for appearance;
-its existing clip/pose bridge still uses the canonical skeleton-use contract.
+generic model instances consume resource-scoped skeleton-use queries.
 
-No model-instance, overrides, live presentation-refresh policy, cooker cutover,
+Model instances consume these material sets downstream; overrides, live
+presentation-refresh policy, cooker cutover,
 new cooked formats, animation behavior or Vulkan material/shader redesign belongs
 to this layer.
 
@@ -135,3 +136,7 @@ rejection, distinct equal-value slots, mixed geometry profiles, scoped lookup,
 world reset/lifetime and transactional failures. It is part of the headless asset
 test suite. Existing material runtime, serialization/cooking and Yune tests cover
 the shared helper extraction and production adapter.
+
+[Model instances](../model/runtime-instances.md) retain material sets without owning
+MaterialRuntime, detect expiry, and can explicitly rebind after reset. Rebinding
+does not refresh already-copied presentation snapshots.

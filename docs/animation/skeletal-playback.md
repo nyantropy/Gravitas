@@ -24,3 +24,7 @@ engine's supplied ordinary frame delta. `deltaTime` in that context is currently
 the fixed simulation step and must not be mistaken for the elapsed render frame.
 Playback runs only while its RenderPrep controller group is enabled. The low-level
 sampler remains policy-free; it still rejects times outside clip duration.
+
+The generic [model instance runtime](../model/runtime-instances.md) now owns this
+playback state per skeleton use, protects resource-scoped clip selection and stages
+pose plus binding palettes atomically. Game code supplies clip choices and delta.

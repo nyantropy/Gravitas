@@ -134,12 +134,13 @@ not accept a `GtsModelResource` and is not the complete-model authority. Its exi
 format/flatness restrictions and consumers are unchanged. Generic realization uses
 the same profile preparation directly without imposing those flattening restrictions.
 
-Yune now retains a model handle and shared realized geometry. Production Yune code
+Yune entities now own [generic model instances](../model/runtime-instances.md),
+which retain the model handle and shared realized geometry. Production Yune code
 no longer prepares meshes or discovers node/mesh/binding geometry associations.
 Its temporary rendering adapter iterates realized occurrences and copies each
 prepared skinned mesh into the existing by-value `GtsSkinnedModelData::parts`
-contract. This one-time presentation copy remains until renderer/model-instance
-ownership is addressed; there is no preparation or geometry recreation per frame.
+contract. This one-time presentation copy remains until generic renderer extraction
+is implemented; there is no preparation or geometry recreation per frame.
 
 Generic [model material realization](../rendering/model-material-realization.md)
 now resolves the logical associations into world-scoped runtime handles. Yune no

@@ -3,6 +3,7 @@ add_subdirectory(assets)
 add_subdirectory(rendering/core/material/model)
 add_subdirectory(animation/skeletal)
 add_subdirectory(animation/skinning)
+add_subdirectory(model/runtime)
 
 # rendering must precede ECS modules — it defines gravitas_rendering and any selected
 # backend before other modules reference graphics types.
@@ -59,6 +60,7 @@ target_link_libraries(gravitas_modules INTERFACE
     gravitas_core
     gravitas_model_runtime
     gravitas_model_realization
+    gravitas_model_instances
 )
 
 foreach(GTS_OPTIONAL_MODULE_TARGET

@@ -14,6 +14,8 @@
 
 struct GtsModelAsset;
 struct GtsModelNode;
+struct GtsModelSkeletonUse;
+struct GtsModelSkinBinding;
 struct GtsPreparedModelDefinition;
 struct GtsSkeletonAsset;
 struct GtsAnimationClipAsset;
@@ -67,6 +69,8 @@ class GtsModelResource
     std::span<const GtsModelNode> nodes() const;
     std::span<const uint32_t>     rootNodes() const;
     std::size_t                   meshCount() const;
+    std::span<const GtsModelSkeletonUse> skeletonUses() const;
+    std::span<const GtsModelSkinBinding> skinBindings() const;
     // Representation views for downstream CPU preparation/realization.
     const GtsModelAsset*                                     canonicalModel() const;
     const GtsPreparedModelDefinition*                        preparedModel() const;

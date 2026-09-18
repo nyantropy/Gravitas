@@ -39,6 +39,7 @@ engine/
   core/                  pure ECS, input, scene, command, event, UI runtime, JSON
   modules/
     assets/              canonical domains, importers, processing, loading, serialization and cooking
+    model/runtime/       world model instances and skeletal occurrence coordination
     transform/           local/world transforms and hierarchy
     animation/           transform animation ECS feature, CPU skeletal evaluation and playback occurrences
     tween/               reusable tween/easing helpers
@@ -58,6 +59,9 @@ engine/
 vendored documentation and should not be rewritten as first-party engine docs.
 
 ## Feature Documentation Map
+
+- [docs/model/runtime-instances.md](docs/model/runtime-instances.md): model instance ownership,
+  world creation, independent skeletal occurrences, lifetime-safe pose references and material reset.
 
 - [docs/assets/architecture.md](docs/assets/architecture.md): asset module ownership,
   CPU target boundaries, cooked loading/material realization split and legacy inventory.
