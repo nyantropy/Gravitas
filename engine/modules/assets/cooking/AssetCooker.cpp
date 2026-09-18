@@ -12,6 +12,7 @@
 #include "assets/serialization/AssetSerializers.h"
 #include "assets/cooking/legacy/GltfAssetImporter.h"
 #include "assets/cooking/legacy/ImageAssetImporter.h"
+#include "assets/processing/image/GtsScalarImagePacking.h"
 #include "assets/importer/obj/GtsObjModelImporter.h"
 #include "assets/model/GtsModelImportResult.h"
 #include "assets/model/GtsModelAsset.h"
@@ -1012,13 +1013,19 @@ AssetCookResult AssetCooker::cookModelAsset(const GtsModelAsset& model,
         packed.sourceChannelCount = 4;
         packed.debugName = sourceStem + "_" + name;
         packed.logicalPath = packed.debugName;
-        packed.rgba8Pixels.assign(static_cast<size_t>(packed.width) * packed.height * 4, 255);
-        for (size_t pixel = 0; pixel < packed.rgba8Pixels.size(); pixel += 4)
+        std::array<std::optional<GtsScalarImageChannel>, 4> channels;
+        if (a) channels[metallicRoughness ? 2 : 0] = GtsScalarImageChannel{
+            a->width, a->height, a->rgba8Pixels, static_cast<uint32_t>(first->channel)};
+        if (b) channels[1] = GtsScalarImageChannel{
+            b->width, b->height, b->rgba8Pixels, static_cast<uint32_t>(second->channel)};
+        GtsDecodedImage pixels;
+        std::string packingError;
+        if (!packGtsScalarImages(channels, pixels, &packingError))
         {
-            if (a) packed.rgba8Pixels[pixel + (metallicRoughness ? 2 : 0)] =
-                a->rgba8Pixels[pixel + static_cast<size_t>(first->channel)];
-            if (b) packed.rgba8Pixels[pixel + 1] = b->rgba8Pixels[pixel + static_cast<size_t>(second->channel)];
+            addCookDiagnostic(result, AssetDiagnosticSeverity::Error, "ASSET_COOK_SCALAR_IMAGE_SIZE", packingError, sourcePath);
+            return AssetReference{};
         }
+        packed.rgba8Pixels = std::move(pixels.rgba8Pixels);
         const auto role = metallicRoughness ? TextureCookRole::MetallicRoughness : TextureCookRole::AmbientOcclusion;
         const auto suffix = metallicRoughness ? "_metallic_roughness" : "_ao";
         return cache.cookTexture(std::move(packed), role, suffix, name, sourcePath,

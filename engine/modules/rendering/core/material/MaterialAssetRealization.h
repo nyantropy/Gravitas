@@ -47,10 +47,17 @@ namespace gts::rendering
             if (!MaterialAssetLoader::load(path, asset, error))
                 return {};
 
+            return createInstance(makeInstance(asset, {}, path.parent_path()), asset.shaderFamily, runtime);
+        }
+
+        static MaterialInstanceHandle createInstance(MaterialInstance instance, MaterialShaderFamily family,
+                                                       MaterialRuntime& runtime)
+        {
             MaterialDefinition definition;
-            definition.shaderFamily = asset.shaderFamily;
-            const MaterialDefinitionHandle definitionHandle = runtime.createDefinition(definition);
-            return runtime.createInstance(makeInstance(asset, definitionHandle, path.parent_path()));
+            definition.shaderFamily = family;
+            instance.definition = runtime.createDefinition(definition);
+            try { return runtime.createInstance(instance); }
+            catch (...) { runtime.destroyDefinition(instance.definition); throw; }
         }
 
     private:

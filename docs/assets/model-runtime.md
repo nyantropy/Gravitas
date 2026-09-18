@@ -195,12 +195,15 @@ artifact cannot satisfy this request. No Yune-only source-permission exception
 remains. Required game clip names remain `Yune · quiet idle` and `Yune · slow walk`.
 
 `YuneCharacterAsset` retains the model handle, shared CPU model realization,
-temporary material/rendering bridge and scoped clip selections; playback remains
+world-scoped material associations, temporary rendering presentation and scoped clip selections; playback remains
 per occurrence. Generic geometry work now belongs to
 [model realization](model-realization.md), which prepares canonical geometry once
 per mesh/profile/binding and references cooked prepared buffers directly. It preserves
 hierarchy, materials and reference directories without introducing runtime material
-or GPU state. Yune's material bridge still requires canonical materials.
+or GPU state. [Model material realization](../rendering/model-material-realization.md)
+resolves canonical or cooked material associations generically; Yune no longer
+interprets canonical appearance data. Its current animation bridge still consumes
+canonical skeleton-use associations.
 
 Full cooked glTF substitution still needs a future fidelity/capability contract;
 geometry realization alone cannot make current static v1 a safe substitute.

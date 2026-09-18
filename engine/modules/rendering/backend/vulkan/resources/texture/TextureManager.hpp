@@ -1,6 +1,9 @@
 #pragma once
 
 #include <filesystem>
+#include <map>
+#include <limits>
+#include "assets/importer/image/GtsImageDecode.h"
 #include <iostream>
 #include <memory>
 #include <array>
@@ -30,6 +33,7 @@ class TextureManager
         std::unordered_map<texture_id_type, std::unique_ptr<TextureResource>> idToTexture;
         std::unordered_map<std::string, std::vector<VkDescriptorSet>> materialTextureSets;
         std::unordered_set<std::string> sourceFallbackWarnings;
+        std::map<std::pair<std::shared_ptr<const GtsDecodedImage>, TextureColorSpace>, texture_id_type> memoryTextures;
         texture_id_type nextID = 1; // 0 = invalid
 
     public:
@@ -56,7 +60,11 @@ class TextureManager
 
             auto it = pathToID.find(key);
             if (it != pathToID.end())
+            {
+                if (cookedTexture && idToTexture.at(it->second)->colorSpace != colorSpace)
+                    throw std::runtime_error("Cooked texture color space does not match material role: " + loadPath.string());
                 return it->second;
+            }
 
             auto resource = std::make_unique<TextureResource>();
             if (cookedTexture)
@@ -66,6 +74,8 @@ class TextureManager
                 if (!gts::rendering::TextureAssetLoader::load(loadPath, textureAsset, &error))
                     throw std::runtime_error("failed to load cooked texture asset: " + loadPath.string() + ": " + error);
 
+                if (textureAsset.colorSpace != colorSpace)
+                    throw std::runtime_error("Cooked texture color space does not match material role: " + loadPath.string());
                 resource->texture = std::make_unique<VulkanTexture>(backendContext, textureAsset);
                 resource->width = resource->texture->getWidth();
                 resource->height = resource->texture->getHeight();
@@ -94,6 +104,38 @@ class TextureManager
             idToTexture[id] = std::move(resource);
             pathToID[key] = id;
 
+            return id;
+        }
+
+        texture_id_type loadMemoryTexture(std::shared_ptr<const GtsDecodedImage> image, TextureColorSpace colorSpace)
+        {
+            if (!image || !image->width || !image->height ||
+                uint64_t(image->width) * image->height * 4 != image->rgba8Pixels.size() ||
+                image->rgba8Pixels.size() > std::numeric_limits<uint32_t>::max())
+                throw std::runtime_error("Invalid memory texture image");
+            const auto key = std::make_pair(image, colorSpace);
+            if (auto it = memoryTextures.find(key); it != memoryTextures.end()) return it->second;
+            // Reuse the existing CPU texture upload description, without serialization or temporary files.
+            gts::rendering::TextureAssetData upload;
+            upload.width = image->width;
+            upload.height = image->height;
+            upload.mipCount = 1;
+            upload.colorSpace = colorSpace;
+            upload.format = colorSpace == TextureColorSpace::SRgb ? gts::rendering::TextureAssetFormat::RGBA8_SRgb
+                                                                  : gts::rendering::TextureAssetFormat::RGBA8_UNorm;
+            upload.mips.push_back({image->width, image->height, image->width * 4,
+                                   static_cast<uint32_t>(image->rgba8Pixels.size()), image->rgba8Pixels});
+            auto resource = std::make_unique<TextureResource>();
+            resource->texture = std::make_unique<VulkanTexture>(backendContext, upload);
+            resource->width = image->width;
+            resource->height = image->height;
+            resource->colorSpace = colorSpace;
+            resource->descriptorSets = descriptorSetManager.allocateForTexture(
+                resource->texture->getTextureImageView(), resource->texture->getTextureSampler());
+            const auto id = nextID++;
+            resource->id = id;
+            idToTexture[id] = std::move(resource);
+            memoryTextures.emplace(key, id);
             return id;
         }
 
@@ -133,6 +175,7 @@ class TextureManager
             if (!it->second->cacheKey.empty())
                 pathToID.erase(it->second->cacheKey);
 
+            std::erase_if(memoryTextures, [id](const auto& entry) { return entry.second == id; });
             idToTexture.erase(it);
         }
 

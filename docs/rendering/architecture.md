@@ -600,3 +600,11 @@ requestScreenshot
 `ScreenshotManager` writes files under the requested directory, or under
 `screenshots/` by default. Tooling preset automation is documented in
 [../tooling/presets.md](../tooling/presets.md).
+
+## Model material realization
+
+[Model material realization](model-material-realization.md) resolves logical
+`GtsRealizedModel` material associations into world-scoped `MaterialRuntime` handles.
+Canonical and cooked materials share the existing runtime instance contract;
+shared assets and CPU geometry retain no world handles. The service runs at setup,
+with runtime-lifetime validation and explicit model-scoped lookup.

@@ -124,6 +124,11 @@ class RenderResourceManager : public IResourceProvider
             return textureManager->loadTexture(path, false, false, colorSpace);
         }
 
+        texture_id_type requestMemoryTexture(std::shared_ptr<const GtsDecodedImage> image, TextureColorSpace colorSpace) override
+        {
+            return textureManager->loadMemoryTexture(std::move(image), colorSpace);
+        }
+
         texture_id_type requestMaterialFallbackTexture(MaterialTextureRole role) override
         {
             const std::string path = GraphicsConstants::ENGINE_RESOURCES

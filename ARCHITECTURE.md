@@ -69,6 +69,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
   definition views, stable references and scoped clip lookup.
 - [docs/assets/model-realization.md](docs/assets/model-realization.md): shared CPU static/skinned
   geometry realization, occurrence associations and prepared cooked reuse.
+- [docs/rendering/model-material-realization.md](docs/rendering/model-material-realization.md):
+  world-scoped model material handles, canonical images and cooked material references.
 - [docs/assets/import-bundle.md](docs/assets/import-bundle.md): associated canonical
   import products, definition ownership, enumeration and result validation.
 - [docs/assets/skeleton-domain.md](docs/assets/skeleton-domain.md): reusable CPU

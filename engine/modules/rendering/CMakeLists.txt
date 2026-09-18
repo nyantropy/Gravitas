@@ -18,6 +18,7 @@ file(GLOB_RECURSE RENDERING_SOURCES CONFIGURE_DEPENDS
 list(APPEND RENDERING_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/external/stb_image_write_impl.cpp"
 )
+list(FILTER RENDERING_SOURCES EXCLUDE REGEX "/core/material/model/")
 add_library(gravitas_rendering STATIC ${RENDERING_SOURCES})
 
 target_compile_features(gravitas_rendering PUBLIC cxx_std_20)
@@ -107,3 +108,5 @@ if(TARGET gravitas_vulkan_backend)
         gravitas_rendering
     )
 endif()
+
+target_link_libraries(gravitas_rendering PUBLIC gravitas_model_materials)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <memory>
 #include <functional>
 #include <unordered_map>
 #include <unordered_set>
@@ -19,6 +20,20 @@ namespace gts::rendering
         MaterialRuntime()
         {
             initializeBuiltIns();
+        }
+
+        MaterialRuntime(const MaterialRuntime&) = delete;
+        MaterialRuntime& operator=(const MaterialRuntime&) = delete;
+        std::weak_ptr<const int> lifetimeToken() const { return lifetime; }
+
+        // CPU presentation snapshot using the same semantic description as GPU synchronization.
+        MaterialFrameState frameState(MaterialInstanceHandle handle) const
+        {
+            if (!isInstanceAlive(handle)) return {};
+            const auto* gpu = getGpuState(handle);
+            auto state = describeInstance(handle, gpu ? gpu->textures : MaterialTextureIds{});
+            if (gpu) state.gpuHandle = gpu->gpuHandle;
+            return makeMaterialFrameState(state);
         }
 
         MaterialDefinitionHandle createDefinition(const MaterialDefinition& definition)
@@ -172,31 +187,8 @@ namespace gts::rendering
             if (textureIDs.baseColor == 0 && resources == nullptr)
                 return {&state, false, false, false};
 
-            const MaterialDefinition* definition = getDefinition(instance->definition);
-            const MaterialShaderFamily shaderFamily = definition != nullptr
-                ? definition->shaderFamily
-                : MaterialShaderFamily::Unlit;
-            const MaterialFeatureFlags featureFlags = materialFeatureFlagsForInstance(*instance);
-
-            MaterialGpuState next = state;
-            next.instance = handle;
-            next.uploadedVersion = instance->version;
-            next.shaderFamily = shaderFamily;
-            next.textures = textureIDs;
-            next.baseColorTextureID = textureIDs.baseColor;
-            next.parameters = makeMaterialGpuParameters(
-                instance->baseColor,
-                instance->metallic,
-                instance->roughness,
-                instance->normalScale,
-                instance->ambientOcclusionStrength,
-                instance->emissiveFactor,
-                instance->emissiveStrength);
-            next.renderState = instance->renderState;
-            next.vertexColorOnly = instance->vertexColorOnly;
-            next.featureFlags = featureFlags;
-            next.variantKey = makeMaterialVariantKey(shaderFamily, *instance, featureFlags);
-            next.textureCache = makeTextureCacheState(*instance);
+            MaterialGpuState next = describeInstance(handle, textureIDs);
+            next.gpuHandle = state.gpuHandle;
 
             const bool textureChanged =
                 inserted
@@ -271,6 +263,39 @@ namespace gts::rendering
         }
 
     private:
+        std::shared_ptr<const int> lifetime = std::make_shared<const int>(0);
+        MaterialGpuState describeInstance(MaterialInstanceHandle handle, const MaterialTextureIds& textureIDs) const
+        {
+            const auto* instance = getInstance(handle);
+            const MaterialDefinition* definition = getDefinition(instance->definition);
+            const MaterialShaderFamily shaderFamily = definition != nullptr
+                ? definition->shaderFamily
+                : MaterialShaderFamily::Unlit;
+            const MaterialFeatureFlags featureFlags = materialFeatureFlagsForInstance(*instance);
+
+            MaterialGpuState next;
+            next.instance = handle;
+            next.uploadedVersion = instance->version;
+            next.shaderFamily = shaderFamily;
+            next.textures = textureIDs;
+            next.baseColorTextureID = textureIDs.baseColor;
+            next.parameters = makeMaterialGpuParameters(
+                instance->baseColor,
+                instance->metallic,
+                instance->roughness,
+                instance->normalScale,
+                instance->ambientOcclusionStrength,
+                instance->emissiveFactor,
+                instance->emissiveStrength);
+            next.renderState = instance->renderState;
+            next.vertexColorOnly = instance->vertexColorOnly;
+            next.featureFlags = featureFlags;
+            next.variantKey = makeMaterialVariantKey(shaderFamily, *instance, featureFlags);
+            next.textureCache = makeTextureCacheState(*instance);
+
+            return next;
+        }
+
         struct DefinitionSlot
         {
             MaterialDefinition definition;

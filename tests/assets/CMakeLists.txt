@@ -97,3 +97,8 @@ add_executable(GtsModelRealizationTest realization/GtsModelRealizationTest.cpp)
 target_link_libraries(GtsModelRealizationTest PRIVATE gravitas_model_realization gravitas_gltf_importer)
 add_test(NAME gts_model_realization COMMAND GtsModelRealizationTest)
 set_tests_properties(gts_model_realization PROPERTIES LABELS "gravitas;assets;realization;cpu")
+
+add_executable(GtsModelMaterialRealizationTest ../rendering/material/GtsModelMaterialRealizationTest.cpp)
+target_link_libraries(GtsModelMaterialRealizationTest PRIVATE gravitas_model_materials gravitas_gltf_importer gravitas_image_decode)
+add_test(NAME gts_model_material_realization COMMAND GtsModelMaterialRealizationTest)
+set_tests_properties(gts_model_material_realization PROPERTIES LABELS "gravitas;materials;cpu")

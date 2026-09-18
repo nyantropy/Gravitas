@@ -24,3 +24,5 @@ add_subdirectory(loading/mesh)
 add_subdirectory(cooking)
 
 add_subdirectory(realization/model)
+
+add_subdirectory(processing/image)

@@ -1,4 +1,6 @@
 #pragma once
+#include <memory>
+#include "assets/importer/image/GtsImageDecode.h"
 
 #include <cstdint>
 #include <string>
@@ -89,6 +91,11 @@ class IResourceProvider
         virtual texture_id_type requestTexture(const std::string& path, TextureColorSpace)
         {
             return requestTexture(path);
+        }
+        // Immutable CPU RGBA8 input. Providers cache by image ownership and color-space interpretation.
+        virtual texture_id_type requestMemoryTexture(std::shared_ptr<const GtsDecodedImage>, TextureColorSpace)
+        {
+            return 0; // Explicitly unsupported by providers without memory texture realization.
         }
         virtual texture_id_type requestMaterialFallbackTexture(MaterialTextureRole role)
         {

@@ -141,11 +141,11 @@ prepared skinned mesh into the existing by-value `GtsSkinnedModelData::parts`
 contract. This one-time presentation copy remains until renderer/model-instance
 ownership is addressed; there is no preparation or geometry recreation per frame.
 
-Scalar material conversion, Idle/SlowWalk content selection, playback, palette
-snapshots and renderer presentation remain unchanged and outside generic realization.
-Yune's material bridge still requires canonical materials and its presentation still
-requires skinned parts; those content-specific restrictions do not constrain the
-engine realization contract.
+Generic [model material realization](../rendering/model-material-realization.md)
+now resolves the logical associations into world-scoped runtime handles. Yune no
+longer interprets materials. Idle/SlowWalk selection, playback and palette snapshots
+remain outside geometry/material realization. Its temporary presentation still
+requires skinned parts, without constraining the generic engine contracts.
 
 ## Verification
 

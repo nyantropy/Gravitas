@@ -1,5 +1,6 @@
 # Assets defines the CPU domain and shared parser before rendering uses them.
 add_subdirectory(assets)
+add_subdirectory(rendering/core/material/model)
 add_subdirectory(animation/skeletal)
 add_subdirectory(animation/skinning)
 
