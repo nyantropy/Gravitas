@@ -9,23 +9,7 @@
 #include "assets/realization/model/GtsRealizedModel.h"
 #include "assets/model/GtsModelDiagnostic.h"
 #include "MaterialRuntime.h"
-
-class GtsRealizedModelMaterials
-{
-    public:
-    // Associations are scoped by the exact realized model, never by a naked slot from another model.
-    MaterialInstanceHandle materialFor(const GtsRealizedModel& owner, uint32_t geometry, uint32_t primitive) const;
-    MaterialFrameState     frameStateFor(const GtsRealizedModel& owner, uint32_t geometry, uint32_t primitive) const;
-    bool                   valid() const;
-    bool belongsTo(const GtsRealizedModel& owner) const { return model.get() == &owner && valid(); }
-
-    private:
-    friend class GtsModelMaterialRealization;
-    std::shared_ptr<const GtsRealizedModel>          model;
-    gts::rendering::MaterialRuntime*                 runtime = nullptr;
-    std::weak_ptr<const int>                         lifetime;
-    std::vector<std::vector<MaterialInstanceHandle>> bindings;
-};
+#include "model/runtime/GtsRealizedModelMaterials.h"
 
 struct GtsModelMaterialResult
 {

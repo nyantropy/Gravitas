@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.h>
 #include <vector>
+#include <span>
 #include <stdexcept>
 
 #include "assets/processing/geometry/static/GtsStaticVertex.h"
@@ -12,7 +13,7 @@ class BufferUtil
 {
     public:
         static void createVertexBuffer(VkDevice& device, VkPhysicalDevice& physicalDevice, VkCommandPool& commandPool, VkQueue& graphicsQueue,
-        std::vector<GtsStaticVertex>& vertices, VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory)
+        std::span<const GtsStaticVertex> vertices, VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory)
         {
             VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
@@ -35,7 +36,7 @@ class BufferUtil
             vkFreeMemory(device, stagingBufferMemory, nullptr);
         }
 
-        static void createIndexBuffer(VkDevice& device, VkCommandPool& commandPool, VkQueue& graphicsQueue, VkPhysicalDevice& physicalDevice, std::vector<uint32_t> indices,
+        static void createIndexBuffer(VkDevice& device, VkCommandPool& commandPool, VkQueue& graphicsQueue, VkPhysicalDevice& physicalDevice, std::span<const uint32_t> indices,
         VkBuffer& indexBuffer, VkDeviceMemory& indexBufferMemory)
         {
             VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();

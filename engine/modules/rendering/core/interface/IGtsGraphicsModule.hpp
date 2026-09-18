@@ -13,7 +13,7 @@
 #include "EditorPreviewRenderData.h"
 #include "ParticleFrameData.h"
 #include "RenderCommand.h"
-#include "core/skinning/SkinnedFrameData.h"
+#include "core/model/GtsModelFrameData.h"
 #include "RenderViewport.h"
 #include "UiCommand.h"
 
@@ -32,7 +32,7 @@ public:
                              const RenderViewportRect& sceneViewport,
                              const UiCommandBuffer& uiBuffer,
                              const EditorPreviewRenderData& editorPreview,
-                             const GtsFrameStats& stats, const SkinnedFrameData& skinnedData = {}) = 0;
+                             const GtsFrameStats& stats, const GtsModelFrameData& modelData = {}) = 0;
     virtual texture_id_type ensureEditorPreviewTarget(uint32_t width, uint32_t height) = 0;
     virtual void releaseEditorPreviewTarget() = 0;
     virtual void toggleDebugOverlay() = 0;

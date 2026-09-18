@@ -83,5 +83,6 @@ target_include_directories(gravitas_vulkan_backend PUBLIC
 
 target_link_libraries(gravitas_vulkan_backend PUBLIC
     gravitas_vulkan_setup
+    gravitas_model_realization # immutable CPU geometry views for resource caches
     gravitas_core          # provides core options and GlmConfig
 )

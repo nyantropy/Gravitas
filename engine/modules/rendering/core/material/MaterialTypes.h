@@ -12,19 +12,9 @@
 #include "assets/serialization/TextureColorSpace.h"
 #include "assets/serialization/AssetMaterialTypes.h"
 #include "Types.h"
+#include "model/runtime/MaterialInstanceHandle.h"
 
 struct MaterialDefinitionHandle
-{
-    uint32_t id = 0;
-    uint32_t generation = 0;
-
-    bool valid() const
-    {
-        return id != 0;
-    }
-};
-
-struct MaterialInstanceHandle
 {
     uint32_t id = 0;
     uint32_t generation = 0;
@@ -52,16 +42,6 @@ inline bool operator==(MaterialDefinitionHandle lhs, MaterialDefinitionHandle rh
 }
 
 inline bool operator!=(MaterialDefinitionHandle lhs, MaterialDefinitionHandle rhs)
-{
-    return !(lhs == rhs);
-}
-
-inline bool operator==(MaterialInstanceHandle lhs, MaterialInstanceHandle rhs)
-{
-    return lhs.id == rhs.id && lhs.generation == rhs.generation;
-}
-
-inline bool operator!=(MaterialInstanceHandle lhs, MaterialInstanceHandle rhs)
 {
     return !(lhs == rhs);
 }
@@ -618,15 +598,6 @@ inline MaterialAlphaMode alphaModeForBlendMode(MaterialBlendMode blendMode,
 
 namespace std
 {
-    template<>
-    struct hash<MaterialInstanceHandle>
-    {
-        size_t operator()(MaterialInstanceHandle handle) const noexcept
-        {
-            return (static_cast<size_t>(handle.id) << 32u) ^ static_cast<size_t>(handle.generation);
-        }
-    };
-
     template<>
     struct hash<MaterialDefinitionHandle>
     {

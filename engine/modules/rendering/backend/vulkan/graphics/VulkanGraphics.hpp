@@ -177,7 +177,7 @@ public:
                      const RenderViewportRect& sceneViewport,
                      const UiCommandBuffer& uiBuffer,
                      const EditorPreviewRenderData& editorPreview,
-                     const GtsFrameStats& stats, const SkinnedFrameData& skinnedData = {}) override
+                     const GtsFrameStats& stats, const GtsModelFrameData& modelData = {}) override
     {
         if (swapchainRecreatePending && !recreateSwapchainResourcesIfPossible())
             return;
@@ -191,7 +191,7 @@ public:
                               sceneViewport,
                               uiBuffer,
                               editorPreview,
-                              stats, skinnedData);
+                              stats, modelData);
 
         if (renderer->consumeFrameOutputRecreateRequested())
         {

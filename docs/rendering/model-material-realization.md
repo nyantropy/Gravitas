@@ -30,8 +30,8 @@ contain no runtime handles.
 `materialFor(owner, geometryIndex, primitiveIndex)` returns the handle for a
 logical primitive association. The exact realized-model owner scopes these
 indices; foreign owners, invalid ranges and expired/destroyed handles return an
-invalid handle. `frameStateFor` provides an existing `MaterialFrameState` snapshot
-for temporary presentation adapters. Snapshots use the same semantic mapping as
+invalid handle. `MaterialRuntime::frameState` provides an existing `MaterialFrameState` snapshot
+at renderer extraction. Snapshots use the same semantic mapping as
 `MaterialRuntime::synchronizeGpuState`; they do not constitute a second material
 conversion.
 
@@ -41,7 +41,7 @@ sets on runtime reset/destruction, even if external references retain the sets.
 The service is recreated after reset. Its resource provider is non-owning and
 must remain valid throughout that scope. Use the renderer's existing world/resource
 reset ordering; independent texture eviction or provider replacement does not
-refresh snapshots held by a presentation. Access remains synchronous/main-thread.
+modify already-extracted immutable frame snapshots. Access remains synchronous/main-thread.
 
 Successful associations are retained for the service/world lifetime. Canonical
 handles are keyed by resource ownership and numeric material slot. Distinct slots
@@ -108,35 +108,18 @@ resources may remain in their existing caches after a failed request for reuse.
 Failures remain retryable. Diagnostics identify model identity and logical slot
 or external reference. Importer warnings remain upstream; they are not repeated.
 
-## Presentation and limits
+## Model instances and extraction
 
-`GtsModelSkinnedPresentation` is a temporary adapter into the unchanged by-value
-`GtsSkinnedModelData`: it copies prepared parts and snapshots unique referenced
-material handles. It does not interpret canonical factors or images. Static and
-mixed-profile models use the same material service; this particular skinned
-presentation adapter still requires all its occurrences to be skinned.
+`GtsRealizedModelMaterials` is the renderer-independent live association interface
+in `model/runtime`. The material frontend implements it with a weak runtime token,
+scoped model identity and handle table. The instance library no longer links the
+material frontend. Its world creation facade lives under `rendering/core/model`.
 
-Alpha mask/blend and double-sided state survive material realization. Existing
-renderer limitations remain, including the current skinned bridge's opaque,
-depth-writing draw restriction. Material realization does not implement sorting
-or pipeline variants. Yune no longer requires canonical backing for appearance;
-generic model instances consume resource-scoped skeleton-use queries.
+`GtsModelInstance` retains this association and exposes `materialFor`. Renderer
+extraction obtains the current runtime frame state through ordinary material
+synchronization. No setup-time material snapshots remain. Rebinding after a reset
+automatically affects subsequent extraction; old frames remain immutable.
 
-Model instances consume these material sets downstream; overrides, live
-presentation-refresh policy, cooker cutover,
-new cooked formats, animation behavior or Vulkan material/shader redesign belongs
-to this layer.
-
-## Verification
-
-`GtsModelMaterialRealizationTest` exercises actual runtime instances with a fake
-resource provider: factors/render state, external/embedded images, colorspaces,
-channel packing, texture reuse, cooked path resolution and errors, UV/dimension
-rejection, distinct equal-value slots, mixed geometry profiles, scoped lookup,
-world reset/lifetime and transactional failures. It is part of the headless asset
-test suite. Existing material runtime, serialization/cooking and Yune tests cover
-the shared helper extraction and production adapter.
-
-[Model instances](../model/runtime-instances.md) retain material sets without owning
-MaterialRuntime, detect expiry, and can explicitly rebind after reset. Rebinding
-does not refresh already-copied presentation snapshots.
+See [model extraction](model-extraction.md). The existing opaque depth-writing
+skinned submission limitation remains. There are no material overrides, renderer
+ABI changes, cooking changes or model-specific texture implementations.

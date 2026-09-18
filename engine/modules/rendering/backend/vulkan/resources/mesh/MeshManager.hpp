@@ -32,6 +32,7 @@ class MeshManager
         // Shared quad meshes: keyed by packed float bits (width << 32 | height).
         // These are never in proceduralMeshIDs, so destroyProceduralMesh won't free them.
         std::unordered_map<uint64_t, mesh_id_type> quadMeshCache;
+        std::unordered_map<const GtsRealizedGeometry*, mesh_id_type> realizedMeshes;
         mesh_id_type nextID = 1; // start from 1, 0 = invalid
         ProceduralMeshUploadMetrics proceduralMetrics;
         uint32_t proceduralUpdateBatchDepth = 0;
@@ -258,6 +259,37 @@ class MeshManager
             if (loadPath != path)
                 pathToID[loadPath] = id;
 
+            return id;
+        }
+
+        // Stable definition identity, retained by MeshResource until manager shutdown.
+        mesh_id_type realizeGeometry(std::shared_ptr<const GtsRealizedGeometry> geometry)
+        {
+            if (!geometry || geometry->profile() != GtsGeometryProfile::Static)
+                throw std::runtime_error("Static GPU resource requires static realized geometry");
+            if (auto found = realizedMeshes.find(geometry.get()); found != realizedMeshes.end())
+                return found->second;
+            auto mesh = std::make_unique<MeshResource>();
+            mesh->realizedGeometry = geometry;
+            mesh->metadata = geometry->metadata();
+            try
+            {
+                BufferUtil::createVertexBuffer(backendContext.device(), backendContext.physicalDevice(),
+                    backendContext.commandPool(), backendContext.graphicsQueue(), geometry->staticVertices(),
+                    mesh->vertexBuffer, mesh->vertexMemory);
+                BufferUtil::createIndexBuffer(backendContext.device(), backendContext.commandPool(),
+                    backendContext.graphicsQueue(), backendContext.physicalDevice(), geometry->indices(),
+                    mesh->indexBuffer, mesh->indexMemory);
+            }
+            catch (...)
+            {
+                destroyBuffer(mesh->vertexBuffer, mesh->vertexMemory);
+                destroyBuffer(mesh->indexBuffer, mesh->indexMemory);
+                throw;
+            }
+            const auto id = nextID++;
+            idToMesh[id] = std::move(mesh);
+            realizedMeshes[geometry.get()] = id;
             return id;
         }
 

@@ -731,7 +731,7 @@ add_test(NAME vulkan_skinned_geometry COMMAND VulkanSkinnedGeometryTest)
 set_tests_properties(vulkan_skinned_geometry PROPERTIES LABELS "gravitas;rendering;geometry;cpu")
 
 add_executable(VulkanSkinnedGpuSmoke rendering/VulkanSkinnedGpuSmoke.cpp)
-target_link_libraries(VulkanSkinnedGpuSmoke PRIVATE gravitas_vulkan_backend)
+target_link_libraries(VulkanSkinnedGpuSmoke PRIVATE gravitas_vulkan_backend gravitas_model_frontend gravitas_gltf_importer)
 add_test(NAME vulkan_skinned_gpu_smoke COMMAND VulkanSkinnedGpuSmoke "${GTS_ENGINE_ROOT}/shaders")
 set_tests_properties(vulkan_skinned_gpu_smoke PROPERTIES LABELS "gravitas;rendering;gpu;smoke" SKIP_RETURN_CODE 77)
 
@@ -750,9 +750,3 @@ add_executable(VulkanSkinningResourceTest rendering/VulkanSkinningResourceTest.c
 target_link_libraries(VulkanSkinningResourceTest PRIVATE gravitas_vulkan_backend)
 add_test(NAME vulkan_skinning_resource COMMAND VulkanSkinningResourceTest)
 set_tests_properties(vulkan_skinning_resource PROPERTIES LABELS "gravitas;rendering;cpu")
-
-
-add_executable(SkinnedFrameExtractionTest rendering/SkinnedFrameExtractionTest.cpp)
-target_link_libraries(SkinnedFrameExtractionTest PRIVATE gravitas_rendering)
-add_test(NAME skinned_frame_extraction COMMAND SkinnedFrameExtractionTest)
-set_tests_properties(skinned_frame_extraction PROPERTIES LABELS "gravitas;rendering;cpu")

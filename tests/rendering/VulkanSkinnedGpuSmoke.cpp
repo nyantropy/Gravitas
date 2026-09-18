@@ -1,3 +1,10 @@
+#include "../assets/importers/gltf/GltfFixtureBuilder.h"
+#include "../assets/runtime/ScopedRuntimeAssetPolicy.h"
+#include "rendering/core/model/GtsModelInstanceRuntime.h"
+#include "rendering/core/model/GtsModelRenderExtraction.h"
+#include "assets/loading/model/GtsModelRegistry.h"
+#include "rendering/backend/vulkan/rendering/skinning/VulkanSkinnedSceneRenderer.h"
+#include "rendering/backend/vulkan/rendering/framegraph/VulkanModelStaticDraws.h"
 #include <cstdio>
 #include <limits>
 #include <stdexcept>
@@ -112,6 +119,59 @@ try
                 "Skinned configuration is separate and retains scene material contract");
         VulkanPipeline pipeline(backend, sceneDescriptors, skinned);
         require(pipeline.getPipeline() != VK_NULL_HANDLE, "Production material pipeline creation");
+    }
+    // Exercise actual extracted mixed-model inputs through the production caches.
+    {
+        ScopedRuntimeAssetPolicy policy("development");
+        auto root = std::filesystem::temp_directory_path() / "gravitas-model-gpu-smoke";
+        std::filesystem::create_directories(root);
+        GltfFixtureBuilder fixture;
+        auto staticMesh = at(field(fixture.root, "meshes"), 0);
+        fixture.addVertexStream("JOINTS_0", std::vector<uint8_t>(12, 0), "VEC4", 5121);
+        fixture.addVertexStream("WEIGHTS_0", floats({1,0,0,0,1,0,0,0,1,0,0,0}), "VEC4", 5126);
+        std::get<Array>(field(fixture.root, "meshes").value).push_back(staticMesh);
+        field(fixture.root, "nodes") = parse(R"([{"mesh":0,"skin":0},{},{"mesh":1}])");
+        field(fixture.root, "skins") = parse(R"([{"joints":[1]}])");
+        field(fixture.root, "scenes") = parse(R"([{"nodes":[0,1,2]}])");
+        GtsModelRegistry registry;
+        GtsModelRealizationCache cache;
+        RenderResourceManager resources(backend);
+        ECSWorld world;
+        auto requested = registry.requestModel(fixture.write(root, GltfFixtureFormat::Glb));
+        require(requested.succeeded(), "Model smoke load");
+        auto& service = modelInstances(world, cache, &resources);
+        auto createdA = service.create(requested.handle()), createdB = service.create(requested.handle());
+        require(createdA.succeeded() && createdB.succeeded(), "Model smoke instances");
+        std::shared_ptr<GtsModelInstance> a = std::move(createdA.instance), b = std::move(createdB.instance);
+        auto af = extractModelRenderState(a, glm::mat4(1), gts::rendering::materialRuntime(world), &resources);
+        auto bf = extractModelRenderState(b, glm::mat4(1), gts::rendering::materialRuntime(world), &resources);
+        require(af.succeeded() && bf.succeeded(), "Model smoke extraction");
+        const auto id = resources.realizeStaticGeometry(af.frame.staticDraws[0].geometry);
+        const auto buffer = resources.getMesh(id)->vertexBuffer;
+        require(resources.realizeStaticGeometry(bf.frame.staticDraws[0].geometry) == id &&
+                resources.getMesh(id)->vertices.empty() && resources.getMesh(id)->indices.empty(),
+                "Static GPU reuse with no persistent CPU geometry mirror");
+        af.frame.cameraViewID = bf.frame.cameraViewID = resources.requestCameraBuffer();
+        VulkanSkinnedSceneRenderer skinned(backend, resources.getDescriptorSetManager(), resources, pass.getRenderPass());
+        auto combined = af.frame;
+        combined.skinnedDraws.push_back(bf.frame.skinnedDraws[0]);
+        skinned.prepare(combined, 0);
+        require(skinned.residentGeometryCount() == 1 && skinned.residentPaletteCount() == 2,
+                "Shared skinned GPU geometry with separate occurrence palettes");
+        VulkanModelStaticDraws staticDraws(resources);
+        std::vector<RenderCommand> commands;
+        MaterialFrameData materials;
+        staticDraws.append(af.frame, 0, commands, materials);
+        require(commands.size() == 1 && commands[0].meshID == id && commands[0].indexCount == 3,
+                "Extracted static model reaches ordinary static commands");
+        // No submission is in flight in this resource smoke test.
+        a.reset(); af = {}; combined = {};
+        skinned.prepare(bf.frame, 0);
+        require(skinned.residentGeometryCount() == 1 && skinned.residentPaletteCount() == 1 &&
+                resources.realizeStaticGeometry(bf.frame.staticDraws[0].geometry) == id && resources.getMesh(id)->vertexBuffer == buffer,
+                "Destroying one occurrence never recreates shared GPU geometry");
+        gts::rendering::resetMaterialRuntime(world);
+        std::filesystem::remove_all(root);
     }
     vkDeviceWaitIdle(backend.device());
     return 0;

@@ -2,8 +2,8 @@
 
 `modules/model/runtime` owns `gravitas_model_instances`. A `GtsModelInstance`
 represents one mutable occurrence of a loaded/realized model in a world. This is
-an engine runtime module downstream of CPU assets, material frontend realization,
-and skeletal animation. It contains no importer, serialization, cooking or backend
+an engine runtime module downstream of CPU assets and skeletal animation.
+Its material association interface is implemented downstream by the material frontend. It contains no importer, serialization, cooking or backend
 calls. Its tests compile with rendering and Vulkan disabled.
 
 ## Terms and authoritative ownership
@@ -11,7 +11,7 @@ calls. Its tests compile with rendering and Vulkan disabled.
 - **Resource**: what the model is — immutable `GtsModelResource`.
 - **Realization**: prepared shared geometry and model associations — `GtsRealizedModel`.
 - **Instance**: one mutable world occurrence — `GtsModelInstance`.
-- **Presentation**: derived renderer-facing view/snapshot, currently temporary.
+- **Extraction**: renderer-owned frame draws derived from the authoritative instance.
 - **GPU resource**: backend realization, never authoritative animation state.
 
 ```text
@@ -69,8 +69,7 @@ Changing its cache/provider requires world teardown/reconfiguration, not implici
 rebinding of existing instances.
 
 The current ECS requires copyable components: `addComponent` accepts a const
-reference and archetype relocation copies component values. Consequently Yune's
-entity component uses `shared_ptr<GtsModelInstance>` to retain a stable address
+reference and archetype relocation copies component values. Consequently the generic `ModelInstanceComponent` uses `shared_ptr<GtsModelInstance>` to retain a stable address
 through those storage copies. This is a concrete ECS storage constraint, not a
 shared animation model: every spawn consumes a fresh creation result. Copies of
 an owner component refer to that same occurrence and must not be used to spawn
@@ -144,46 +143,25 @@ playback clock is implemented here.
 `worldMaterialsValid()` distinguishes world material validity from definition
 validity. Material lookup returns an invalid handle after runtime reset/destruction.
 Animation may continue independently because its model definitions remain valid.
-`rebindMaterials(service)` obtains a matching new material set without reimporting
-or preparing geometry and without resetting playback/pose/palettes. It does not
-silently refresh old renderer presentation snapshots.
+`rebindMaterials(materialSet)` validates and retains a matching new material set without reimporting
+or preparing geometry and without resetting playback/pose/palettes. The next render extraction consumes the new set automatically.
 
-World placement remains exclusively in the entity's `TransformComponent` and the
-existing renderer placement fields. Authored hierarchy remains in `GtsModelResource`.
-Neither is copied into the instance or baked into geometry/palettes. Later static
-extraction will compose entity and model hierarchy transforms. Skinned palettes
+World placement remains exclusively in the entity's `TransformComponent`. Authored hierarchy remains in `GtsModelResource`.
+Neither is copied into the instance or baked into geometry/palettes. Static
+extraction composes entity and model hierarchy transforms. Skinned palettes
 retain `pose.modelTransforms[node] * inverseBind`, with no world or mesh-node
 post-transform added. Existing Yune anchor/facing conventions remain unchanged.
 
-## Yune and the temporary renderer adapter
+## Renderer boundary
 
-`YuneCharacterAsset` has been removed/renamed to `YuneModelConfiguration`. It now
-contains the content handle, Idle/SlowWalk scoped references and temporary
-world-scoped presentation setup. It no longer owns shared realized geometry,
-material sets or animation state. A weak material-set identity detects reuse of
-presentation snapshots in the wrong/expired world scope.
+The world creation facade is declared in
+`rendering/core/model/GtsModelInstanceRuntime.h`; it orchestrates frontend material
+services without making the instance library depend on them. The instance retains
+only the renderer-independent `GtsRealizedModelMaterials` association interface.
+Its implementation is runtime-scoped, and resetting MaterialRuntime expires it.
 
-Setup creates a short-lived generic instance to derive the existing shared
-by-value presentation, then each entity creates its own authoritative instance.
-This setup-only extra default-pose initialization remains temporary. Game code
-chooses `moving ? slowWalk : idle`, calls `play` and `updateAnimations`, and obtains
-an immutable palette snapshot through `GtsModelInstancePresentation`. All generic
-pose/palette evaluation lives in the model runtime. The snapshot adapter orders
-palettes by explicit binding index for the unchanged renderer contract.
-
-The existing rendering presentation, extraction, GPU ownership, material snapshots,
-static/skinned pipelines and update timing remain unchanged. Expired materials
-cause the snapshot adapter to fail explicitly rather than hide invalid handles.
-The next renderer-extraction task should eliminate setup geometry copies and
-snapshot authority, including defining refresh after material rebinding.
-
-## Verification
-
-`GtsModelInstanceTest` is a headless CPU/frontend test covering canonical and cooked
-static models, unanimated default-pose skinning, shared definition/geometry/material
-lifetime, independent worlds/occurrences, registry/cache destruction, ECS relocation
-and destruction, material reset/rebind, stable reference expiry, scoped clip
-validation, switching/idempotence/loop/speed/zero duration, multiple uses/bindings,
-and all-or-nothing failure on late time overflow and palette multiplication overflow.
-Yune's real-source integration test now exercises generic instances while retaining
-Idle/SlowWalk, geometry, material and world-placement regressions.
+Yune retains model/Idle/SlowWalk content configuration and gameplay clip selection.
+The generic renderer discovers its instance through `ModelInstanceComponent`.
+There is no setup-only instance, persistent geometry/material presentation, or
+per-frame game palette copy. See [model extraction](../rendering/model-extraction.md)
+for frame snapshots, hierarchy, cache identity, transform semantics and limitations.

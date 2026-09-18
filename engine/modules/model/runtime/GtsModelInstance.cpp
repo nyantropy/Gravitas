@@ -216,13 +216,10 @@ GtsModelInstanceStatus GtsModelInstance::updateAnimations(double deltaSeconds)
     return {};
 }
 
-GtsModelInstanceStatus GtsModelInstance::rebindMaterials(GtsModelMaterialRealization& service)
+GtsModelInstanceStatus GtsModelInstance::rebindMaterials(std::shared_ptr<const GtsRealizedModelMaterials> materials)
 {
-    auto result = service.realize(realized);
-    if (!result.succeeded())
-        return {std::move(result.diagnostics)};
-    if (!result.materials->belongsTo(*realized))
+    if (!materials || !materials->belongsTo(*realized))
         return failure("model.instance.material_scope", "Foreign material set");
-    materialSet = std::move(result.materials);
+    materialSet = std::move(materials);
     return {};
 }

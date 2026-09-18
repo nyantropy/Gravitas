@@ -62,6 +62,11 @@ class RenderResourceManager : public IResourceProvider
             return *descriptorSetManager;
         }
 
+        mesh_id_type realizeStaticGeometry(std::shared_ptr<const GtsRealizedGeometry> geometry)
+        {
+            return meshManager->realizeGeometry(std::move(geometry));
+        }
+
         // --- Mesh ---
         mesh_id_type requestMesh(const std::string& path) override
         {

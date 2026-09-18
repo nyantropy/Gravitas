@@ -108,7 +108,7 @@ Canonical static bounds use the existing stored-vertex bounds calculation. Skinn
 bounds use stored/bind-space positions only; they are not animated culling bounds.
 No node, object or world matrix is applied. In particular, preserving a skinned
 node's matrix as definition data is not permission to apply it again after skinning.
-The existing Yune presentation continues placing skin-deformed reference-space
+Generic model extraction places skin-deformed reference-space
 geometry using the character object/world transform alone.
 
 ## Cache and engine service
@@ -126,27 +126,13 @@ for lookup, never for geometry ordering or structural matching.
 shared models can outlive the cache. Loading policy still runs before a game requests
 realization, so this cache does not bypass strict/source restrictions.
 
-## Existing adapter and Yune
+## Downstream runtime use
 
-`GtsStaticModelRealization::realizeGtsFlatStaticModel` remains the specialized flat
-identity-root-to-v1-mesh adapter used by cooking and legacy mesh loading. It does
-not accept a `GtsModelResource` and is not the complete-model authority. Its existing
-format/flatness restrictions and consumers are unchanged. Generic realization uses
-the same profile preparation directly without imposing those flattening restrictions.
-
-Yune entities now own [generic model instances](../model/runtime-instances.md),
-which retain the model handle and shared realized geometry. Production Yune code
-no longer prepares meshes or discovers node/mesh/binding geometry associations.
-Its temporary rendering adapter iterates realized occurrences and copies each
-prepared skinned mesh into the existing by-value `GtsSkinnedModelData::parts`
-contract. This one-time presentation copy remains until generic renderer extraction
-is implemented; there is no preparation or geometry recreation per frame.
-
-Generic [model material realization](../rendering/model-material-realization.md)
-now resolves the logical associations into world-scoped runtime handles. Yune no
-longer interprets materials. Idle/SlowWalk selection, playback and palette snapshots
-remain outside geometry/material realization. Its temporary presentation still
-requires skinned parts, without constraining the generic engine contracts.
+The world frontend creates `GtsModelInstance` from this shared realization and
+world material associations. Generic renderer extraction references realized
+geometry without copying it into presentation objects. Static and skinned
+occurrences use the same model component. See
+[model extraction](../rendering/model-extraction.md).
 
 ## Verification
 
@@ -156,5 +142,5 @@ bindings, influence reduction, warnings/cache identity, cooked zero-copy byte/me
 preservation, `.gmodel` forward parents/sharing, ownership beyond registry lifetime,
 implicit cooked ranges and all-or-nothing profile failure. Existing importer,
 preparation, loading and serialization tests remain authoritative at their layers.
-`YuneAnimationTest` verifies reuse of the shared realization, presentation geometry
+`YuneAnimationTest` verifies reuse of the shared realization, extracted geometry identity
 and binding equivalence, 12 parts / 35 ranges, and unchanged independent playback.

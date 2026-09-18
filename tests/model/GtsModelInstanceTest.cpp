@@ -1,6 +1,6 @@
 #include "../assets/importers/gltf/GltfFixtureBuilder.h"
 #include "../assets/runtime/ScopedRuntimeAssetPolicy.h"
-#include "model/runtime/GtsModelInstanceRuntime.h"
+#include "rendering/core/model/GtsModelInstanceRuntime.h"
 #include "assets/loading/model/GtsModelRegistry.h"
 #include "assets/model/GtsModelAsset.h"
 #include "assets/animation/GtsAnimationClipAsset.h"
@@ -122,7 +122,7 @@ namespace
         require(!retained->worldMaterialsValid() && !retained->materialFor(0, 0).valid(), "material reset detected");
         require(!resource.expired() && !geometry.expired(), "reset cannot destroy definitions");
         ok(retained->updateAnimations(0.1));
-        ok(retained->rebindMaterials(modelMaterialRealization(world, nullptr)));
+        ok(retained->rebindMaterials(modelMaterialRealization(world, nullptr).realize(retained->geometry()).materials));
         require(retained->worldMaterialsValid(), "rebind without reimport/repreparation");
     }
     void occurrences(const std::filesystem::path& root)
@@ -196,8 +196,8 @@ namespace
         require(!a->worldMaterialsValid() && !a->materialFor(0, 0).valid() &&
                     a->palette(0)->matrices == preservedPalette,
                 "world reset leaves pose/palette definitions intact");
-        ok(a->rebindMaterials(modelMaterialRealization(world, nullptr)));
-        ok(b->rebindMaterials(modelMaterialRealization(world, nullptr)));
+        ok(a->rebindMaterials(modelMaterialRealization(world, nullptr).realize(a->geometry()).materials));
+        ok(b->rebindMaterials(modelMaterialRealization(world, nullptr).realize(b->geometry()).materials));
         require(a->materials() == b->materials() && a->palette(0)->matrices == preservedPalette,
                 "rebind replaces only world association");
         World otherWorld;

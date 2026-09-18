@@ -10,7 +10,25 @@ using gts::rendering::MaterialAssetLoader;
 using gts::rendering::MaterialAssetRealization;
 using gts::rendering::MaterialRuntime;
 
-bool GtsRealizedModelMaterials::valid() const
+class RuntimeModelMaterials final : public GtsRealizedModelMaterials
+{
+    public:
+    // Associations are scoped by the exact realized model, never by a naked slot from another model.
+    MaterialInstanceHandle materialFor(const GtsRealizedModel& owner, uint32_t geometry, uint32_t primitive) const override;
+    bool                   valid() const override;
+    bool belongsTo(const GtsRealizedModel& owner) const override { return model.get() == &owner && valid(); }
+
+    std::weak_ptr<const int> scopeToken() const override { return lifetime; }
+
+    private:
+    friend class GtsModelMaterialRealization;
+    std::shared_ptr<const GtsRealizedModel>          model;
+    gts::rendering::MaterialRuntime*                 runtime = nullptr;
+    std::weak_ptr<const int>                         lifetime;
+    std::vector<std::vector<MaterialInstanceHandle>> bindings;
+};
+
+bool RuntimeModelMaterials::valid() const
 {
     if (lifetime.expired())
         return false;
@@ -22,20 +40,13 @@ bool GtsRealizedModelMaterials::valid() const
 }
 
 MaterialInstanceHandle
-GtsRealizedModelMaterials::materialFor(const GtsRealizedModel& owner, uint32_t geometry, uint32_t primitive) const
+RuntimeModelMaterials::materialFor(const GtsRealizedModel& owner, uint32_t geometry, uint32_t primitive) const
 {
     if (&owner != model.get() || lifetime.expired() || geometry >= bindings.size() ||
         primitive >= bindings[geometry].size())
         return {};
     const auto handle = bindings[geometry][primitive];
     return runtime->isInstanceAlive(handle) ? handle : MaterialInstanceHandle{};
-}
-
-MaterialFrameState
-GtsRealizedModelMaterials::frameStateFor(const GtsRealizedModel& owner, uint32_t geometry, uint32_t primitive) const
-{
-    const auto handle = materialFor(owner, geometry, primitive);
-    return handle.valid() ? runtime->frameState(handle) : MaterialFrameState{};
 }
 
 GtsModelMaterialRealization::GtsModelMaterialRealization(MaterialRuntime& runtime, IResourceProvider* resources)
@@ -266,7 +277,7 @@ GtsModelMaterialResult GtsModelMaterialRealization::realize(std::shared_ptr<cons
                     throw std::runtime_error("Material texture/fallback realization failed");
             }
         }
-        auto result      = std::make_shared<GtsRealizedModelMaterials>();
+        auto result      = std::make_shared<RuntimeModelMaterials>();
         result->model    = model;
         result->runtime  = &runtime;
         result->lifetime = lifetime;

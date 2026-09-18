@@ -60,6 +60,11 @@ vendored documentation and should not be rewritten as first-party engine docs.
 
 ## Feature Documentation Map
 
+- [docs/rendering/model-extraction.md](docs/rendering/model-extraction.md): the authoritative
+  resource → realization → instance → generic static/skinned frame extraction path.
+  No persistent model presentation mirror; direct mesh consumers remain supported.
+
+
 - [docs/model/runtime-instances.md](docs/model/runtime-instances.md): model instance ownership,
   world creation, independent skeletal occurrences, lifetime-safe pose references and material reset.
 

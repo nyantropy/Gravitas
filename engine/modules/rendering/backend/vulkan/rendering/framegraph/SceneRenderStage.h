@@ -30,6 +30,7 @@
 #include "VulkanBackendContext.h"
 #include "VulkanSceneMaterialPushConstants.h"
 #include "../skinning/VulkanSkinnedSceneRenderer.h"
+#include "VulkanModelStaticDraws.h"
 
 class SceneRenderStage : public GtsRenderStage
 {
@@ -202,7 +203,7 @@ public:
         {
             graph.requestData<std::vector<RenderCommand>>(this);
             graph.requestData<MaterialFrameData>(this);
-            graph.requestData<SkinnedFrameData>(this);
+            graph.requestData<GtsModelFrameData>(this);
             graph.requestData<RenderViewportFrame>(this);
         }
 
@@ -220,15 +221,30 @@ public:
     void record(VkCommandBuffer cmd, GtsFrameGraph& graph,
                 uint32_t imageIndex, uint32_t currentFrame) override
     {
-        const std::vector<RenderCommand>& renderList = resolveRenderList(graph);
-        const MaterialFrameData& materialFrameData = resolveMaterialFrameData(graph);
+        const auto& originalCommands = resolveRenderList(graph);
+        const auto& originalMaterials = resolveMaterialFrameData(graph);
+        std::vector<RenderCommand> modelCommands;
+        MaterialFrameData modelMaterials;
+        if (dataSource == DataSource::RuntimeWorld)
+        {
+            const auto& modelFrame = graph.getData<GtsModelFrameData>();
+            if (!modelFrame.staticDraws.empty() || staticModelDraws)
+            {
+                if (!staticModelDraws) staticModelDraws = std::make_unique<VulkanModelStaticDraws>(*resources);
+                modelCommands = originalCommands;
+                modelMaterials = originalMaterials;
+                staticModelDraws->append(modelFrame, currentFrame, modelCommands, modelMaterials);
+            }
+        }
+        const auto& renderList = staticModelDraws && dataSource == DataSource::RuntimeWorld ? modelCommands : originalCommands;
+        const auto& materialFrameData = staticModelDraws && dataSource == DataSource::RuntimeWorld ? modelMaterials : originalMaterials;
         const RenderViewportRect viewport = resolveViewport(graph);
 
         resetFrameStats();
         if (dataSource == DataSource::RuntimeWorld)
         {
-            const auto& skins = graph.getData<SkinnedFrameData>();
-            if (!skins.draws.empty() && !skinnedRenderer)
+            const auto& skins = graph.getData<GtsModelFrameData>();
+            if (!skins.skinnedDraws.empty() && !skinnedRenderer)
                 skinnedRenderer = std::make_unique<VulkanSkinnedSceneRenderer>(backendContext,
                     descriptorSetManager, *resources, renderPass->getRenderPass());
             if (skinnedRenderer) skinnedRenderer->prepare(skins, currentFrame);
@@ -358,6 +374,7 @@ private:
 
     std::unique_ptr<VulkanRenderPass>   renderPass;
     std::unique_ptr<VulkanSkinnedSceneRenderer> skinnedRenderer;
+    std::unique_ptr<VulkanModelStaticDraws> staticModelDraws;
     std::unique_ptr<VulkanPipeline>     pipeline;
     std::unique_ptr<VulkanPipeline>     pipelineDoubleSided;
     std::unique_ptr<VulkanPipeline>     pipelineAlphaNoDepth;

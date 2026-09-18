@@ -57,7 +57,7 @@ class GtsRealizedGeometry
     {
         return ranges;
     }
-    // Existing skinned presentation adapter; also retains per-primitive generation/influence metadata.
+    // Typed prepared profile access for renderer resource realization.
     const GtsPreparedSkinnedMesh* skinnedMesh() const;
     const GtsPreparedStaticMesh*  staticMesh() const;
 

@@ -2,7 +2,7 @@
 
 #include "GtsSkeletonOccurrence.h"
 #include "assets/realization/model/GtsRealizedModel.h"
-#include "rendering/core/material/model/GtsModelMaterialRealization.h"
+#include "GtsRealizedModelMaterials.h"
 
 struct GtsModelInstanceStatus
 {
@@ -52,7 +52,7 @@ class GtsModelInstance
     [[nodiscard]] GtsModelInstanceStatus stop(uint32_t use);
     [[nodiscard]] GtsModelInstanceStatus setPlaybackPolicy(uint32_t use, float speed, bool looping);
     [[nodiscard]] GtsModelInstanceStatus updateAnimations(double deltaSeconds);
-    [[nodiscard]] GtsModelInstanceStatus rebindMaterials(GtsModelMaterialRealization& service);
+    [[nodiscard]] GtsModelInstanceStatus rebindMaterials(std::shared_ptr<const GtsRealizedModelMaterials> materials);
 
     private:
     friend class GtsModelInstanceRuntime;

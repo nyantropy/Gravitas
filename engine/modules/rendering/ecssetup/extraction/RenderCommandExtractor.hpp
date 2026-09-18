@@ -103,6 +103,7 @@ class RenderCommandExtractor
             cached.visible = visible;
             cached.opaque  = opaque;
             cached.cameraDepth = renderable.cameraDepth;
+            cached.command.cameraDepth = renderable.cameraDepth;
 
             if (needsUpdate)
             {

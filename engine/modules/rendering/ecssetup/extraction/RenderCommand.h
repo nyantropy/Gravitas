@@ -40,6 +40,7 @@ struct RenderCommand
     RenderQueue renderQueue = RenderQueue::Opaque;
     std::vector<SubmeshMaterialRuntimeBinding> submeshMaterials;
     uint64_t sortKey = 0;
+    float cameraDepth = 0;
 };
 
 struct ObjectUploadCommand

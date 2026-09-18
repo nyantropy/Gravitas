@@ -1,6 +1,7 @@
 #pragma once
 
-#include "GtsModelInstance.h"
+#include "model/runtime/GtsModelInstance.h"
+#include "rendering/core/material/model/GtsModelMaterialRealization.h"
 #include "assets/realization/model/GtsModelRealizationCache.h"
 
 struct GtsModelInstanceCreationResult

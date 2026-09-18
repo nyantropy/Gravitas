@@ -104,6 +104,14 @@ add_test(NAME gts_model_material_realization COMMAND GtsModelMaterialRealization
 set_tests_properties(gts_model_material_realization PROPERTIES LABELS "gravitas;materials;cpu")
 
 add_executable(GtsModelInstanceTest ../model/GtsModelInstanceTest.cpp)
-target_link_libraries(GtsModelInstanceTest PRIVATE gravitas_model_instances gravitas_gltf_importer)
+target_link_libraries(GtsModelInstanceTest PRIVATE gravitas_model_frontend gravitas_gltf_importer)
 add_test(NAME gts_model_instance COMMAND GtsModelInstanceTest)
 set_tests_properties(gts_model_instance PROPERTIES LABELS "gravitas;model;runtime;cpu")
+
+add_executable(GtsModelRenderExtractionTest ../rendering/GtsModelRenderExtractionTest.cpp)
+target_link_libraries(GtsModelRenderExtractionTest PRIVATE gravitas_model_frontend gravitas_gltf_importer)
+target_include_directories(GtsModelRenderExtractionTest PRIVATE
+    "${GTS_ENGINE_ROOT}/engine/modules/rendering/ecssetup/geometry/components"
+    "${GTS_ENGINE_ROOT}/engine/modules/transform/components")
+add_test(NAME gts_model_render_extraction COMMAND GtsModelRenderExtractionTest)
+set_tests_properties(gts_model_render_extraction PROPERTIES LABELS "gravitas;model;rendering;cpu")

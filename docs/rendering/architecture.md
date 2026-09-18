@@ -608,3 +608,12 @@ requestScreenshot
 Canonical and cooked materials share the existing runtime instance contract;
 shared assets and CPU geometry retain no world handles. The service runs at setup,
 with runtime-lifetime validation and explicit model-scoped lookup.
+
+## High-level model route
+
+File-backed/composed model occurrences use `ModelInstanceComponent` and generic
+[model render extraction](model-extraction.md). Shared definitions/prepared geometry
+are referenced, while dynamic transform/material/palette values become frame data.
+The instance module has no rendering dependency. Backend submission consumes only
+geometry, ranges, runtime material state, placement and optional palettes. Direct
+mesh components remain authoritative for lower-level/generated mesh consumers.

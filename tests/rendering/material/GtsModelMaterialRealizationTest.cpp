@@ -175,7 +175,7 @@ namespace
                 "resource slot reuse across equivalent realizations");
         require(!result.materials->materialFor(*equivalent, 0, 0).valid(), "foreign realization association rejected");
         require(!result.materials->materialFor(*model, 0, 90).valid(), "out of range rejected");
-        require(result.materials->frameStateFor(*model, 0, 0).parameters.baseColor == instance.baseColor,
+        require(runtime.frameState(result.materials->materialFor(*model, 0, 0)).parameters.baseColor == instance.baseColor,
                 "runtime CPU snapshot shares conversion");
         std::shared_ptr<const GtsRealizedModelMaterials> otherSet;
         {
