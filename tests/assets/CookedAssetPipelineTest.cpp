@@ -357,7 +357,7 @@ int main()
     assert(readBinaryFile(textureOutputA / "data_map.gtex") ==
            readBinaryFile(textureOutputB / "data_map.gtex"));
 
-    gts::rendering::ImportedTexture normalTexture;
+    gts::rendering::TextureCookInput normalTexture;
     normalTexture.debugName = "flat_normal";
     normalTexture.width = 2;
     normalTexture.height = 2;
@@ -374,7 +374,7 @@ int main()
     normalOptions.sampler =
         gts::rendering::defaultSamplerForTextureCookRole(normalOptions.role, true);
     const gts::rendering::TextureCookResult normalCook =
-        gts::rendering::TextureCooker::cookImportedTexture(normalTexture, 0, normalOptions, {});
+        gts::rendering::TextureCooker::cookTexture(normalTexture, 0, normalOptions, {});
     assert(!normalCook.hasErrors());
     assert(normalCook.texture.mipCount == 2);
     assert(normalCook.texture.format == gts::rendering::TextureAssetFormat::RGBA8_UNorm);

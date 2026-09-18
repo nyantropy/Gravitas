@@ -8,17 +8,42 @@
 
 namespace gts::rendering
 {
+    // CPU image input for standalone and model texture cooking; never a model import DTO.
+    enum class TextureCookSource
+    {
+        ExternalFile,
+        EmbeddedBytes
+    };
+
+    struct TextureCookInput
+    {
+        std::string           debugName;
+        std::filesystem::path sourcePath;
+        std::string           logicalPath;
+        std::vector<uint8_t>  embeddedBytes;
+        std::vector<uint8_t>  rgba8Pixels;
+        uint32_t              width              = 0;
+        uint32_t              height             = 0;
+        uint32_t              sourceChannelCount = 0;
+        TextureCookSource     source             = TextureCookSource::ExternalFile;
+
+        bool decoded() const
+        {
+            return width > 0 && height > 0 && !rgba8Pixels.empty();
+        }
+    };
+
     struct TextureCookerOptions
     {
-        TextureCookRole role = TextureCookRole::BaseColor;
-        bool generateMipmaps = true;
+        TextureCookRole    role            = TextureCookRole::BaseColor;
+        bool               generateMipmaps = true;
         TextureSamplerDesc sampler{};
-        std::string debugName;
+        std::string        debugName;
     };
 
     struct TextureCookResult
     {
-        TextureAssetData texture;
+        TextureAssetData             texture;
         std::vector<AssetDiagnostic> diagnostics;
 
         bool hasErrors() const
@@ -37,17 +62,17 @@ namespace gts::rendering
         }
     };
 
-    TextureColorSpace colorSpaceForTextureCookRole(TextureCookRole role);
-    const char* textureCookRoleName(TextureCookRole role);
-    bool parseTextureCookRole(const std::string& value, TextureCookRole& role);
+    TextureColorSpace  colorSpaceForTextureCookRole(TextureCookRole role);
+    const char*        textureCookRoleName(TextureCookRole role);
+    bool               parseTextureCookRole(const std::string& value, TextureCookRole& role);
     TextureSamplerDesc defaultSamplerForTextureCookRole(TextureCookRole role, bool generateMipmaps);
 
     class TextureCooker
     {
-    public:
-        static TextureCookResult cookImportedTexture(const ImportedTexture& imported,
-                                                     AssetId assetId,
-                                                     const TextureCookerOptions& options,
-                                                     const std::filesystem::path& diagnosticSource = {});
+        public:
+        static TextureCookResult cookTexture(const TextureCookInput&      imported,
+                                             AssetId                      assetId,
+                                             const TextureCookerOptions&  options,
+                                             const std::filesystem::path& diagnosticSource = {});
     };
-}
+} // namespace gts::rendering

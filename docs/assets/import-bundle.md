@@ -115,7 +115,7 @@ canonical assets.
 `IGtsModelImporter` keeps its name and return signature. OBJ remains model-only. Canonical glTF now emits associated skeleton definitions
 when selected nodes use skins; static glTF keeps an empty skeleton list.
 Skeletal TRS animations now produce clip values. Ordinary-node/morph animation,
-ambiguous or multi-rig targets remain explicit failures. The legacy glTF cooker path remains unchanged.
+ambiguous or multi-rig targets remain explicit failures. Cooking now consumes this bundle through the canonical core; cooked-v1 rejects associated skeletal/animation products.
 
 ## Tests and next boundary
 

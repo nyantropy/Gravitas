@@ -5,76 +5,32 @@ The former legacy OBJ importer and backend model loader are removed, including
 registry entries and tests dedicated to the old DTO interface.
 
 ```text
-OBJ / MTL -> GtsObjModelImporter -> validated GtsModelAsset
-================================ FORMAT WALL ================================
-canonical meshes -> prepareGtsStaticMesh -> GtsPreparedStaticMesh
-                  -> realizeGtsFlatStaticModel -> MeshAssetData
-                         |                        |
-               AssetCooker::cookModelAsset   loadRuntimeMeshAsset
-                         |                        |
-                  .gmesh / .gmat / .gtex      MeshManager::loadMeshCpu
-                         |                        |
-                  existing cooked loaders ------> MeshResource
-                                                   |
-                                           existing Vulkan upload
-
-glTF / GLB -> GltfAssetImporter -> AssetImportResult -> existing cooker
-                                                   -> existing v1 assets
+OBJ / MTL → GtsObjModelImporter ─┐
+                               ├→ canonical bundle → canonical cooking → cooked-v1
+glTF / GLB → GtsGltfModelImporter┘
 ```
 
-## Single-resource adaptation
+See [canonical cooking](canonical-cooking.md) for the authoritative model cooking
+contract. One identity node/one mesh emits `<source>.gmesh`; multiple meshes,
+hierarchy, transforms or sharing produce `.gmodel` with separate mesh definitions.
+This source-neutral rule replaces the former OBJ-only flattening cooker. Canonical
+material factors, independent scalar channels and image sources flow through the
+same core for both formats. Duplicate slots stay distinct. Non-UV0 material bindings
+and unsupported animation/deformation fail explicitly.
 
-`modules/assets/realization/GtsStaticModelRealization` is CPU-only and source-neutral.
-It validates a flat model with exactly one identity root per mesh. Hierarchy,
-nonidentity transforms, and instancing are rejected explicitly, not flattened away.
-Each mesh is prepared independently, then buffers are concatenated and indices and
-primitive ranges rebased. No cross-primitive welding or boundary merging occurs.
-Shape names become submesh debug names; canonical material associations determine
-cooked submesh references. Bounds encompass all prepared positions. Attribute flags
-are the intersection across nonempty meshes and generated flags are any-of, following
-preparation's per-primitive rules. V1 cannot store those per-primitive metadata flags.
-
-OBJ continues to emit one `<source>.gmesh` containing all shapes. This preserves
-adjacent cooked lookup and existing single-resource requests. No `.gmodel` is needed
-for this flat adaptation, matching previous OBJ output. glTF model output is unchanged.
-
-## Materials and images
-
-`AssetCooker::cookModelAsset` consumes canonical appearance directly and writes
-`MaterialAssetData`; it never reconstructs legacy model DTOs. Factors, alpha mode,
-cutoff, and double-sided state map to v1 fields. Blend disables depth writes as
-realization policy. The explicit `vertexColorOnly` option selects Unlit; otherwise
-StandardSurface is used. Missing material assignments receive a cooked default.
-The base-color override retains its existing default-material-only behavior.
-
-Image decoding and mip generation reuse `ImageAssetImporter`, `ImportedTexture`
-(the shared CPU image carrier), `TextureCookCache`, and `TextureCooker`. No model
-geometry or material passes through `AssetImportResult`/`ImportedMesh`/`ImportedMaterial`.
-External and embedded encoded inputs are supported. Ordinary images deduplicate
-by source identity and role; different roles produce separate color-space variants.
-Repeated scalar bindings deduplicate by image indices, selected channels, and role.
-
-Metallic and roughness images are sampled from their explicit scalar channels and
-packed into blue and green, respectively. An absent map contributes byte 255 so
-its scalar factor remains effective. AO is remapped into red. Packing precedes
-existing linear-data mip generation. Unequal metallic/roughness dimensions fail
-with `ASSET_COOK_SCALAR_IMAGE_SIZE`; resampling policy remains a later decision.
-Scalar decode failure is an error. Ordinary missing/undecodable images retain the
-existing warning plus runtime-fallback policy. All v1 material image bindings must
-select UV0; nonzero sets fail with `ASSET_COOK_UV_SET_UNSUPPORTED`.
-
-Cooked references remain local output filenames with existing deterministic IDs.
-Mesh -> material -> texture dependencies remain intact after source removal.
-The canonical import result has no source dependency manifest; the old OBJ's
-OBJ/MTL dependency table was not consumed by the cooker. This migration does not
-add a source-provenance API or change build discovery/invalidation policy.
+`realizeGtsFlatStaticModel` remains a lower-level mesh-loading adapter. It accepts
+only flat identity-root models, concatenates geometry for a direct mesh request,
+and rejects hierarchy/instancing. It is no longer part of complete-model cooking.
+The helper reuses authoritative static preparation; it does not interpret source files.
 
 ## Runtime policy
 
 `modules/assets/loading/mesh/RuntimeMeshLoading` centralizes CPU path resolution.
 Adjacent cooked `.gmesh` wins even when the requested source is absent or malformed.
 Strict/shipping policy rejects missing cooked assets; development permits OBJ only.
-There is no direct runtime glTF parser and no corrupt-cooked fallback to source.
+This lower-level mesh API does not load glTF and never falls back from corrupt
+cooked data to source. Complete OBJ/glTF models use the separate canonical-backed
+[model registry](model-runtime.md), including source materials and hierarchy.
 
 `MeshManager::loadMesh` preserves its path/alias cache and warning behavior, uses
 its public `loadMeshCpu` phase to populate the resource, then performs the existing
@@ -98,17 +54,17 @@ Cooked submesh material references still support the existing opt-in mesh-materi
 - A material requiring UVs on a primitive that lacks them fails canonical validation.
 - Both metallic and roughness maps now influence the packed result with correct channels.
 - V1 remains a fixed static layout with one UV set and conservative mesh-wide metadata.
-  General hierarchy realization, provenance, samplers, resampling, glTF migration,
-  and semantic-stream serialization are separate future work.
+  Sampler preservation, resampling, animated cooking and semantic-stream
+  serialization remain separate future work.
 
 ## Build and tests
 
 The CPU `gravitas_mesh_loading` and `gravitas_static_model_realization` targets
 own the existing loading/flat-adapter implementations. Rendering consumes them;
-`gravitas_asset_cooking` independently shares the adapter and import/preparation targets.
+`gravitas_asset_cooking` shares the canonical importer/preparation targets.
 TinyOBJ remains private to the canonical OBJ importer. Canonical domain/import/preparation targets remain usable without rendering.
 The reusable normal/tangent algorithms remain in rendering/core/geometry because
-legacy glTF and procedural callers still use them; relocation is deferred.
+static preparation and procedural callers still use them; relocation is deferred.
 
 `CanonicalObjPipelineTest` exercises public CPU runtime loading, strict policy,
 source removal/cooked preference, boundaries, authored/generated attributes,

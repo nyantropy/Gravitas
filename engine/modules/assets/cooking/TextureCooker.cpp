@@ -220,7 +220,7 @@ TextureSamplerDesc defaultSamplerForTextureCookRole(TextureCookRole role, bool g
     return sampler;
 }
 
-TextureCookResult TextureCooker::cookImportedTexture(const ImportedTexture& imported,
+TextureCookResult TextureCooker::cookTexture(const TextureCookInput& imported,
                                                      AssetId assetId,
                                                      const TextureCookerOptions& options,
                                                      const std::filesystem::path& diagnosticSource)

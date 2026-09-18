@@ -39,24 +39,6 @@ target_link_libraries(GtsModelStrictPolicyTest PRIVATE gravitas_model_runtime)
 add_test(NAME gts_model_strict_policy COMMAND GtsModelStrictPolicyTest)
 set_tests_properties(gts_model_strict_policy PROPERTIES LABELS "gravitas;assets;runtime;cpu")
 
-add_executable(GltfAssetImporterTest
-    GltfAssetImporterTest.cpp
-)
-
-target_compile_features(GltfAssetImporterTest PRIVATE cxx_std_20)
-
-target_link_libraries(GltfAssetImporterTest PRIVATE gravitas_asset_cooking)
-
-add_test(
-    NAME gltf_asset_importer
-    COMMAND GltfAssetImporterTest
-)
-
-set_tests_properties(gltf_asset_importer
-    PROPERTIES
-        LABELS "gravitas;assets;cpu;importer"
-)
-
 add_executable(AssetSerializationTest
     AssetSerializationTest.cpp
 )
@@ -115,3 +97,8 @@ target_include_directories(GtsModelRenderExtractionTest PRIVATE
     "${GTS_ENGINE_ROOT}/engine/modules/transform/components")
 add_test(NAME gts_model_render_extraction COMMAND GtsModelRenderExtractionTest)
 set_tests_properties(gts_model_render_extraction PROPERTIES LABELS "gravitas;model;rendering;cpu")
+
+add_executable(CanonicalModelCookingTest CanonicalModelCookingTest.cpp)
+target_link_libraries(CanonicalModelCookingTest PRIVATE gravitas_asset_cooking gravitas_model_frontend gravitas_gltf_importer)
+add_test(NAME canonical_model_cooking COMMAND CanonicalModelCookingTest)
+set_tests_properties(canonical_model_cooking PROPERTIES LABELS "gravitas;assets;cooking;cpu;integration")

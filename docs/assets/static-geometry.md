@@ -104,9 +104,10 @@ authoritative for future consumers needing individual capabilities.
 
 ## Bounds and dependencies
 
-The prepared type does not own bounds. The downstream flat-model adapter computes
-existing `AssetBounds` over all combined prepared positions using the cooker's
-CPU bounds function. This keeps storage/runtime headers out of preparation.
+The prepared type does not own bounds. Downstream realization and cooking compute
+mesh-local `AssetBounds` from prepared positions using the CPU queries in
+`assets/serialization/MeshAssetGeometry.h`. This keeps storage/runtime headers out
+of preparation and avoids a dependency on cooking.
 
 The preparation target links `gravitas_primitive_geometry`, which links
 `gravitas_assets` (and transitively core) and exposes the existing narrow
@@ -161,7 +162,7 @@ golden fingerprint and full vertex round-trip checks.
 
 `MeshResource`, `DynamicMeshComponent`, dynamic mesh resource APIs and
 `VulkanStaticVertexDescription` still describe this static profile. Procedural meshes,
-world text, debug geometry, previews and the temporary legacy glTF DTO route now
+world text, debug geometry, previews and canonical model cooking now
 spell their existing output `GtsStaticVertex`; none are migrated through canonical
 model assets. These broadly named runtime APIs will need deliberate profile choices
 when skinned GPU support arrives. Their behavior remains unchanged here.

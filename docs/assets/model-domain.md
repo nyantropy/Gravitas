@@ -17,8 +17,8 @@ source file -> IGtsModelImporter -> GtsModelImportResult -> GtsModelImportBundle
 
 [GtsObjModelImporter](obj-importer.md) produces this domain for both OBJ cooking
 and development runtime source loading. [GtsGltfModelImporter](gltf-importer.md)
-now also produces the canonical domain independently. glTF/GLB consumers remain
-on their legacy cooking path until the later cutover.
+produces the same domain for cooking and source loading. Both feed the
+[source-neutral cooking core](canonical-cooking.md).
 See [consumer adaptation](obj-consumers.md) for cooked-v1 and runtime limitations.
 The source-neutral [static geometry preparation stage](static-geometry.md) now
 consumes individual canonical meshes below the format wall. Its generated/default
@@ -204,8 +204,8 @@ remain **independent inputs**. Separate OBJ maps can retain both images, while
 a packed image can be shared by metallic/Blue and roughness/Green (and AO/Red).
 This is channel selection, not a source-format flag. Downstream processing can
 combine maps using these explicit semantics without inspecting the source
-format. Canonical OBJ cooking now packs these channels explicitly into the current
-v1 metallic/roughness output; glTF cooking still uses its legacy packed input.
+format. Canonical OBJ and glTF cooking both pack these explicit channels into the
+current v1 metallic/roughness and AO outputs.
 
 `GtsModelImage.h` provides only the input ownership needed to make embedded
 references meaningful. Each image has an optional name and exactly one source:
@@ -222,7 +222,7 @@ Materials reference the table rather than duplicating payloads. The same image
 may serve multiple materials and roles, so color space belongs to the role,
 not globally to the image. Decoded pixels, dimensions, mip chains, content hashes,
 cooked paths, dependency tracking, and texture runtime ownership are deferred.
-Sampler state and texture transforms are also deferred; neither legacy importer
+Sampler state and texture transforms are also deferred; the former importers did not
 currently preserves them. Future texture-domain work can extend image/binding
 contracts without moving image ownership into materials.
 
@@ -238,7 +238,7 @@ even outside Mask so dormant fields cannot carry malformed values. Validation
 does not clamp, decode, generate UVs, or check image channel availability.
 `GtsModelImportResult::success` applies these checks automatically.
 
-### Importer mappings (canonical strategies implemented; glTF consumers remain legacy)
+### Importer mappings (one canonical interpretation per format)
 
 | Existing OBJ import output | Canonical destination |
 | --- | --- |
@@ -271,14 +271,14 @@ and signed texture-index fields become one model-local binding representation.
 `renderState.depthWrite`, blend-state selection, and `vertexColorOnly` are
 downstream policy, as are `MaterialShaderFamily`, feature flags, variants, handles,
 versions, and resolved texture IDs. `.gmat` IDs, dependencies, and cooked references
-are storage concerns. None enter this domain. The legacy importer does not
-implement a source-authored unlit material semantic.
+are storage concerns. None enter this domain. Source-authored unlit material
+semantics remain unsupported.
 
 The former OBJ fallback treated height maps as normal maps. Canonical OBJ import
 now diagnoses and omits height maps, preserving only actual normal maps. OBJ ambient color, specular/shininess, optical density,
 illumination modes, displacement, separate opacity maps, map options, and glTF
 material extensions other than emissive strength are not currently preserved by
-the legacy importers and are not added here. Samplers, UV transforms, height-map
+the canonical importers. Samplers, UV transforms, height-map
 processing, and broader material workflows need focused follow-up work if required
 by content. A source texture on geometry without its selected UV stream likewise
 requires an explicit importer diagnostic/conversion decision, not silent repair.

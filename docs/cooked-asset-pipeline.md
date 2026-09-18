@@ -1,111 +1,33 @@
 # Cooked Asset Pipeline
 
-OBJ uses the [canonical model pipeline](assets/obj-consumers.md):
-`GtsObjModelImporter -> GtsModelAsset -> static preparation -> cooked-v1 adaptation`.
-glTF/GLB continues to use its legacy imported DTOs. Both converge at cooked storage,
-not at imported model data. File versions and runtime cooked loaders are unchanged.
-
-This document describes the current cooked asset implementation through
-Phase 5. OBJ, glTF/GLB, PNG, JPG, and embedded glTF images are source formats
-handled by tooling importers. Runtime rendering consumes cooked engine assets
-and does not parse glTF or decode PNG/JPG on the cooked path.
-
-## Runtime Flow
-
-OBJ and GLB use distinct import domains and converge on the existing cooked formats:
+Source interpretation is canonical for both OBJ and glTF/GLB. See
+[canonical cooking](assets/canonical-cooking.md) for decomposition, capability
+validation, publication and the legacy parity inventory.
 
 ```text
-OBJ
-  -> GtsObjModelImporter
-  -> GtsModelAsset
-  -> static preparation / v1 adaptation
-  -> AssetCooker
-  -> .gmesh
-  -> MeshAssetLoader
-  -> MeshManager
-  -> MeshResource
-  -> Renderer
+OBJ / MTL → GtsObjModelImporter ──┐
+                                ├→ GtsModelImportBundle → canonical cooking
+glTF/GLB → GtsGltfModelImporter ──┘                          ↓
+                                                .gmesh/.gmodel/.gmat/.gtex
+                                                           ↓
+                                                   GtsModelRegistry
+                                                           ↓
+                                                   GtsModelResource
+                                                           ↓
+                                                   GtsRealizedModel
+                                                           ↓
+                                                world material realization
+                                                           ↓
+                                                   GtsModelInstance
+                                                           ↓
+                                                generic render extraction
 ```
 
-```text
-GLB / glTF
-  -> GltfAssetImporter
-  -> AssetImportResult
-  -> AssetCooker
-  -> .gmesh
-  -> MeshAssetLoader
-  -> MeshManager
-  -> MeshResource
-  -> Renderer
-```
-
-```text
-OBJ + MTL
-  -> GtsObjModelImporter
-  -> GtsModelAsset
-  -> static preparation / v1 adaptation
-  -> AssetCooker
-  -> .gmat
-  -> MaterialAssetLoader
-  -> MaterialRuntime
-  -> MaterialInstance
-  -> Renderer
-```
-
-```text
-GLB / glTF materials
-  -> GltfAssetImporter
-  -> AssetImportResult
-  -> AssetCooker
-  -> .gmat
-  -> MaterialAssetLoader
-  -> MaterialRuntime
-  -> MaterialInstance
-  -> Renderer
-```
-
-```text
-PNG / JPG
-  -> ImageAssetImporter
-  -> ImportedTexture
-  -> TextureCooker
-  -> .gtex
-  -> TextureAssetLoader
-  -> TextureManager
-  -> VulkanTexture / TextureResource
-  -> Renderer
-```
-
-```text
-GLB embedded image
-  -> GltfAssetImporter
-  -> ImportedTexture embedded bytes
-  -> TextureCooker
-  -> .gtex
-  -> TextureAssetLoader
-  -> TextureManager
-  -> VulkanTexture / TextureResource
-  -> Renderer
-```
-
-```text
-GLB / glTF nodes and meshes
-  -> GltfAssetImporter
-  -> AssetImportResult
-  -> AssetCooker
-  -> .gmodel
-  -> ModelAssetLoader
-  -> ModelAssetData
-```
-
-`MeshManager::loadMesh` prefers an adjacent `.gmesh` when a source mesh path is
-requested and falls back to the existing OBJ path when no cooked mesh exists.
-`MaterialReferenceHelpers` treats descriptor paths ending in `.gmat` as cooked
-material assets and realizes them through `MaterialAssetRealization`, which uses
-the CPU-only `MaterialAssetLoader` to decode the file.
-`TextureManager::loadTexture` prefers an adjacent `.gtex` when a PNG/JPG source
-path is requested. A direct `.gtex` request loads only through
-`TextureAssetLoader`.
+Standalone PNG/JPG and canonical model images use `GtsImageDecode`, then
+`TextureCookInput → TextureCooker → .gtex`. No legacy model/image importer interface
+remains. Material CPU decoding remains separate from `MaterialAssetRealization`.
+Lower-level direct mesh and texture resource APIs remain available: `MeshManager`
+prefers adjacent `.gmesh`, while `TextureManager` prefers adjacent `.gtex`.
 
 ## Cooked Asset Contracts
 
@@ -191,47 +113,16 @@ pitches, invalid mip payload ranges, and overlapping mip payloads.
 
 ## glTF Import Support
 
-`GltfAssetImporter` supports static `.gltf` and `.glb` assets. It produces the
-legacy `AssetImportResult` contract; OBJ uses `GtsModelAsset`.
+`GtsGltfModelImporter` is the authoritative interpreter for both cooking and source
+loading. See [glTF contracts](assets/gltf-importer.md) for geometry, scene, hierarchy,
+material/image, skin and animation semantics. Cooking receives canonical tables,
+not parser state. External images retain resolved paths; embedded images retain
+encoded bytes. The shared decoder supplies RGBA8 pixels for texture cooking.
 
-Imported geometry:
-
-- multiple meshes
-- multiple triangle primitives
-- positions
-- normals
-- tangents
-- vertex colors
-- UV0
-- indices
-- material assignments
-- node names
-- node parent relationships
-- node local transforms from matrix or TRS
-
-Imported materials:
-
-- base color factor
-- base color texture
-- metallic factor
-- roughness factor
-- metallic/roughness texture
-- normal texture and normal scale
-- ambient occlusion texture and strength
-- emissive texture
-- emissive factor
-- `KHR_materials_emissive_strength`
-- alpha mode and cutoff
-- double sided state
-
-Texture import records external image URIs as dependencies and embedded images
-as engine-owned byte arrays. The cooker decodes both external and embedded
-images through the same `ImportedTexture -> TextureCooker -> .gtex` path.
-
-Unsupported glTF features emit diagnostics instead of silently becoming runtime
-concepts: skins, joints/weights, animations, morph targets, cameras, lights,
-additional UV sets, unsupported optional extensions, and unsupported required
-extensions. Unsupported required extensions are fatal.
+Canonical source loading supports skeletal animation, but cooked-v1 cannot persist
+skeletons, bindings, skeleton uses, animation clips or skinned profiles. Cooking
+rejects those products explicitly instead of emitting a degraded static package.
+Material bindings requiring UV sets other than UV0 also fail cooking.
 
 ## Import Convention
 
@@ -243,8 +134,7 @@ The engine import convention is:
 - unit scale 1.0
 - triangle winding preserved
 - positions, normals, and tangent XYZ are not axis-converted
-- UV0 is converted to the engine texture convention by flipping V when
-  `AssetImportOptions::flipTexCoordV` is true
+- UVs are converted to the engine texture convention by the canonical importer
 - tangent handedness W is negated when V is flipped
 
 glTF already uses the engine axis convention. OBJ files are assumed to be
@@ -289,14 +179,14 @@ robot.gmodel
 ```
 
 No source-format branches exist in the cooker output path; OBJ and glTF both
-flow through `AssetImportResult`.
+flow through `GtsModelImportBundle` and the same canonical cooking core.
 
 ## Texture Cooking
 
-`ImageAssetImporter` supports PNG, JPG, and JPEG source files. glTF embedded
-images are imported by `GltfAssetImporter` as `ImportedTexture::embeddedBytes`
-and decoded by the same image decoder in the cooker. Imported image data is
-normalized to RGBA8 CPU pixels before cooking.
+`GtsImageDecode` supports filesystem and memory inputs. Canonical embedded image
+bytes go directly to this shared decoder. `TextureCookInput` is cooking-local CPU
+image data, normalized to RGBA8 before mip generation. Texture packing uses the
+shared `GtsScalarImagePacking` helper, preserving canonical channel selection.
 
 Phase 5 emits uncompressed RGBA8 cooked textures:
 
@@ -395,6 +285,6 @@ These runtime paths still load source assets directly for compatibility:
 
 Cooking lives under `assets/cooking`, codecs/contracts under `assets/serialization`
 and CPU loaders under `assets/loading`. `assetc` links the CPU cooking target;
-rendering is not required to run it. Legacy glTF/image DTO importers remain explicitly
-under `cooking/legacy` until their separate semantic migrations. See
+rendering is not required to run it. The legacy glTF/image DTO importer directory
+has been removed. See
 [asset subsystem ownership](assets/architecture.md) for the complete dependency map.

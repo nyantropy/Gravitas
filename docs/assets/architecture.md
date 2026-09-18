@@ -1,133 +1,176 @@
-# Asset subsystem ownership
+# Asset and model pipeline architecture
 
-The filesystem follows asset responsibilities:
+Source formats are interpreted once into the canonical model domain. Cooking and
+runtime source loading consume that domain; cooked runtime loading consumes already
+prepared storage data without reconstructing canonical vertex streams.
 
 ```text
-assets/
-  importer/             source-format interpretation
-    obj/, gltf/         canonical model importers
-    StbImageImplementation.cpp  shared CPU image decoder implementation
-  processing/           canonical data → prepared CPU profiles
-    geometry/static/
-    geometry/skinned/
-  serialization/        cooked storage contracts, metadata and byte codecs
-  loading/              source/cooked policy, loading and resource retention
-    RuntimeAssetPolicy.h
-    model/              authoritative high-level model registry/resource
-    mesh/               existing lower-level static mesh loading
-    cooked/             CPU .gmesh/.gmodel/.gmat/.gtex decoding wrappers
-  cooking/              source/canonical/prepared data → cooked persistence
-    legacy/             existing cooker-only glTF/image DTO import architecture
-  realization/          existing flat static CPU model-to-mesh adapter
-    model/              complete-model CPU profiles and occurrence associations
+OBJ → GtsObjModelImporter ─────┐
+glTF/GLB → GtsGltfModelImporter┴→ GtsModelImportBundle / GtsModelAsset
+                                            │
+                             ┌──────────────┴─────────────┐
+                             ▼                            ▼
+                    canonical cooking              source loading
+                             │                            │
+                  static/image processing                 │
+                             ▼                            │
+                      cooked-v1 assets                    │
+                             │                            │
+                        cooked loading ───────────────────┘
+                                            ▼
+                                     GtsModelRegistry
+                                            ↓
+                                     GtsModelResource
+                                            ↓
+                                 GtsModelRealizationCache
+                                            ↓
+                                     GtsRealizedModel
+                                            ↓
+WORLD: MaterialRuntime → GtsModelMaterialRealization → GtsRealizedModelMaterials
+                                            ↓
+ENTITY:                              GtsModelInstance
+                                            +
+                                  authoritative ECS transform
+                                            ↓
+RENDERER:                       generic model render extraction
+                                            ↓
+                              static / skinned frame draws
+                                            ↓
+                           shared GPU geometry, frame palettes
 ```
 
-Canonical model, skeleton, skin and animation domains remain separate data/validation
-modules. Neither canonical importers nor geometry processing load runtime resources.
-Rendering consumes CPU asset products, owns material/runtime realization and then
-creates backend/GPU resources. Loading never invokes Vulkan or `MaterialRuntime`.
+## Module responsibilities
 
-## Build ownership
-
-| Target | Responsibility / principal dependencies |
+| Location | Responsibility |
 | --- | --- |
-| `gravitas_assets` | Canonical model/import-result contracts; no cooker or runtime loader. |
-| `gravitas_cooked_assets` | `serialization/AssetSerializers.cpp`; CPU core only. |
-| `gravitas_image_decode` | Single stb-image implementation shared by cooking and rendering. |
-| `gravitas_model_runtime` | `loading/model`; canonical importers and cooked codecs, no renderer. |
-| `gravitas_model_realization` | Complete-model CPU geometry and identity cache; loading contracts and static/skinned preparation. |
-| `gravitas_mesh_loading` | `loading/mesh`; existing OBJ/static load path and flat CPU adapter. |
-| `gravitas_static_model_realization` | Existing flat identity-root adapter; static processing and cooked contracts. |
-| `gravitas_asset_cooking` | Cookers plus explicit legacy DTO importers; importers, CPU processing, codecs and image decoding. |
+| `assets/model`, `skeleton`, `skin`, `animation` | Immutable canonical definitions and validation. No world, cooking or renderer state. |
+| `assets/importer/` | `IGtsModelImporter` strategies for OBJ and glTF/GLB; shared image decoding. Source conventions end here. |
+| `assets/processing/` | Transform individual geometry profiles; shared image/scalar-channel processing. |
+| `assets/loading/` | Runtime source/cooked policy, capability selection, loading and shared resource retention. |
+| `assets/serialization/` | Cooked storage contracts and byte encoding/decoding. |
+| `assets/cooking/` | Canonical model decomposition, output names, IDs/references, texture production and serialization. |
+| `assets/realization/model/` | Shared prepared geometry and model occurrence associations. |
+| `model/runtime/` | Mutable model instances, skeleton occurrences and renderer-neutral material association contracts. |
+| `rendering/core/material/` | World material realization, texture resources and existing `MaterialRuntime` integration. |
+| `rendering/core/model/` | World instance-creation facade and read-only model frame extraction. |
 
-These are separate targets; `gravitas_assets` does not aggregate all asset systems.
-`assetc` links cooking rather than rendering and can build with rendering/Vulkan
-disabled. Existing rendering consumers link mesh loading, cooked contracts and the
-shared image decoder. Rendering no longer compiles asset loader/cooker/codec sources.
+The former `rendering/core/assets/`, `assets/runtime/`, CMake-only `assets/storage/`
+and `assets/cooking/legacy/` locations are removed. No forwarding headers or legacy
+model-import compatibility adapters remain. `MaterialAssetLoader` decodes CPU data;
+`MaterialAssetRealization` creates world runtime state downstream of assets.
 
-The old CMake-only `assets/storage/` shim, `assets/runtime/` and
-`rendering/core/assets/` directories are removed. There are no forwarding headers
-at their previous locations. Includes use ownership-qualified `assets/...` paths.
+## Loading, preparation and realization
 
-## Small dependency splits
+**Loading** selects and decodes the model definition. `GtsModelRegistry` owns shared
+immutable resources, referenced by `GtsModelHandle`. A resource retains either a
+canonical import bundle or `GtsPreparedModelDefinition`. Requests validate required
+capabilities and obey development/strict source policy. Static cooked data cannot
+satisfy a request requiring skeletons, skinning or animation.
 
-`MaterialAssetLoader` now only decodes a `.gmat` into CPU `MaterialAssetData`.
-`rendering/core/material/MaterialAssetRealization.h` contains the existing
-`makeInstance`, `loadIntoRuntime` and texture-reference conversion methods. Field
-mapping and world-scoped `MaterialRuntime` allocation are unchanged. This is an
-extraction of existing behavior, not the future general model-material realization API.
+**Preparation** transforms one mesh into an explicit static or skinned CPU profile.
+`GtsStaticVertex` and `GtsSkinnedVertex` remain distinct layouts. Skinned preparation
+reduces influences through the existing deterministic policy and retains skin-local
+joint slots; it evaluates no pose or palette.
 
-`serialization/AssetMaterialTypes.h` holds the unchanged small enums and
-`MaterialRenderState` used by cooked data. `TextureColorSpace.h` is also asset-owned.
-Rendering's `MaterialTypes.h` consumes these values, while retaining runtime handles,
-instances, GPU/frame data and synchronization types. Serialization no longer includes
-that whole renderer contract.
+**Model realization** interprets the complete resource. It selects profiles per
+occurrence, deduplicates definitions by mesh/profile/binding requirements, and retains
+node, primitive, material and skin/skeleton-use associations. Mixed static/skinned
+models are valid. Canonical meshes use preparation; cooked meshes are referenced
+unchanged, including vertices, ranges, bounds and metadata. The cache keys immutable
+model-resource identity. The lower-level flat static adapter remains useful for
+direct mesh loading; it is not a competing complete-model API.
 
-`serialization/MeshAssetGeometry.h` holds the existing bounds/metadata queries,
-previously inline in `AssetCooker.h`. The static CPU adapter can use those queries
-without depending on cooking. No bounds or geometry algorithm changed.
+See [loading](model-runtime.md), [realization](model-realization.md),
+[static preparation](static-geometry.md) and [skinned preparation](skinned-geometry.md).
 
-The reusable `rendering/core/geometry/MeshGeometryProcessor.h` remains a CPU-only
-header used by existing processing/procedural/legacy consumers. Its existing location
-is separate organization debt; asset targets do not link rendering to use it.
+## Ownership and runtime state
 
-## Legacy import migration inventory
+| Owner | State | Lifetime rule |
+| --- | --- | --- |
+| Engine model registry | `GtsModelResource` | Outstanding model handles retain the immutable definition. |
+| Engine realization cache | `GtsRealizedModel` | Shared references retain derived geometry; instances do not copy it. |
+| World material service/runtime | `GtsRealizedModelMaterials`, actual material instances | Association sets share within a world and weakly track runtime lifetime; reset invalidates their handles. |
+| Entity/component | `GtsModelInstance` | Retains definition, geometry and material-set references; owns independent skeleton occurrence state. |
+| Skeleton occurrence | Playback, evaluated pose, binding palettes | One pose evaluation feeds its bindings; no mutable animation state lives on shared assets. |
+| ECS transform system | World placement | Neither the model instance nor shared geometry duplicates this authority. |
+| Renderer/backend | Frame snapshots and GPU resources | Geometry cache identity is shared realized geometry; dynamic palette resources are occurrence/frame scoped. |
 
-### `cooking/legacy/AssetImporter.h`
+Canonical material slots, external cooked material references and unassigned materials
+resolve through one world material API. Canonical images use shared path/memory
+decoding; scalar packing uses AO red, roughness green and metallic blue. Color and
+emissive textures use sRGB semantics; normal/scalar textures use linear semantics.
+Unsupported UV sets and incompatible scalar dimensions fail explicitly. Logical slots
+remain distinct; no runtime handles enter shared asset/geometry definitions.
 
-This is `IAssetImporter`, `AssetImporterRegistry` and their legacy request/capability
-contracts. Production usage is `AssetCooker::cookSourceAsset`, with glTF/image
-implementations. `GltfAssetImporterTest` also tests the registry. It returns legacy
-`AssetImportResult`, not `GtsModelImportResult`. It remains because the cooker still
-uses those contracts. Remove it only after its glTF and image consumers have an
-explicit replacement; do not merge it with `IGtsModelImporter`.
+A static instance allocates no skeletal state. A skinned instance starts with a valid
+default pose, even without clips. Playback is scoped to a skeleton use, validates
+resource-scoped clips, and does not restart an already-active clip. Multiple instances
+share definitions while keeping independent playback, poses and CPU palettes.
+Entity components hold stable instance references to satisfy ECS copyability.
 
-### `cooking/legacy/GltfAssetImporter.h/.cpp`
+See [material realization](../rendering/model-material-realization.md) and
+[instance ownership and APIs](../model/runtime-instances.md).
 
-Its sole production entry point is registration by `AssetCooker::cookSourceAsset`
-(indirectly used by `assetc`). Tests call it directly and through the cooker. It
-produces static `ImportedMesh` buffers, `ImportedMaterial`, `ImportedTexture`, node
-hierarchy and dependencies. It preserves legacy UV/tangent conversion and warning
-behavior for skipped skins/animations/morphs. It is not a peer of the authoritative
-canonical `importer/gltf/GtsGltfModelImporter`.
+## Extraction is the model/rendering boundary
 
-A cooker cutover is not a one-line replacement: the current canonical
-`AssetCooker::cookModelAsset` accepts flat identity-root models through the existing
-static adapter, whereas this glTF path emits multi-mesh/hierarchical `.gmodel`
-packages. A future task must support canonical hierarchy/instancing in static
-cooking and deliberately settle unsupported skeletal data, UV/tangent conventions,
-material conversion and diagnostics. No such migration is performed here.
+The generic ECS route discovers `ModelInstanceComponent` with the resolved world
+transform. Extraction reads current instance material bindings and palettes; it does
+not import, prepare geometry, realize materials or evaluate animation. Static draws
+compose `entityWorld × modelNodeToRoot`. Skinned draws apply entity placement after
+palette deformation; they do not reapply the authored skinned mesh-node transform.
 
-### `cooking/legacy/ImageAssetImporter.h/.cpp`
+Frames retain immutable geometry owners and capture dynamic transform/material state.
+A palette snapshot is shared across draws using that instance binding. Material
+rebinding, animation updates and entity movement appear in the next extraction without
+refreshing a persistent presentation. The temporary model presentation types and
+Yune-specific render submission path have been removed.
 
-This performs PNG/JPEG source decoding into the existing `ImportedTexture` carrier
-and implements the legacy registry interface. Production callers are
-`AssetCooker::cookSourceAsset` and its texture decode/packing paths (including
-canonical OBJ cooking). `TextureCooker` consumes decoded texture data; it does not
-choose image importers. Existing cooker tests cover PNG/JPEG, embedded inputs,
-roles and mip behavior. The legacy location reflects the DTO/interface dependency,
-not an assertion that image decoding itself should be discarded. A later image
-asset boundary may separate the useful decoder from that legacy interface.
+Model semantics end at extraction. Backend inputs are geometry, primitive ranges,
+runtime materials, object placement and palette bytes. Existing static/skinned vertex
+and material ABIs remain unchanged. See [render extraction](../rendering/model-extraction.md).
 
-`serialization/AssetTypes.h` still includes the legacy import DTO declarations in
-addition to cooked contracts. Their layouts and names were retained intact; splitting
-or deleting those DTOs belongs with the consumer migration. Legacy CPU types retain
-the `gts::rendering` namespace to avoid a broad unrelated naming migration. Physical
-and target ownership are asset-side despite that historical namespace.
+A **model** is a composed asset/world occurrence using this route. A **mesh** is a
+lower-level geometry resource: procedural, dynamic, text, debug and direct mesh APIs
+remain valid and do not need dummy model instances.
 
-## Preserved contracts
+## Cooking and dependency boundaries
 
-- Cooked versions, field order, IDs/references and golden fingerprints are unchanged.
-- High-level model source/cooked selection, capabilities, cache/provenance semantics
-  and canonical/prepared backing are unchanged; see [model loading](model-runtime.md).
-- Shared source policy has one implementation under `loading/RuntimeAssetPolicy.h`;
-  callers use `gts::assets` directly. Strict/development/shipping behavior is unchanged.
-- Lower-level mesh/procedural APIs, Yune's temporary bridge, playback and rendering
-  behavior are unchanged.
-- The ownership cleanup did not change cooker semantics or material behavior.
-  Complete-model CPU geometry now has its own realization boundary below.
+OBJ and glTF feed the same `AssetCooker::cookModelBundle` core. One identity-root
+single-mesh model emits `.gmesh`; other model structures emit `.gmodel` with shared
+subordinate meshes. Exact local matrices, helper nodes, material slots and primitive
+ranges survive. Shared image decoding and scalar packing serve cooking and runtime.
+The legacy glTF importer, importer registry, model DTO graph and redundant image
+wrapper are removed; `TextureCookInput` remains a cooking-local image input.
 
-Historical implementation reports retain their old paths as historical inventories;
-this document and the feature documentation describe current ownership.
+Cooked-v1 formats, IDs, references and vertex layouts are unchanged. Cooking rejects
+skeletons, skin bindings, animation clips and weighted geometry rather than silently
+emitting a static approximation. Animated source models such as Yune remain supported
+by canonical runtime loading. See [canonical cooking](canonical-cooking.md) for
+capability checks, decomposition, publication and parity differences, and
+[cooked storage/CLI](../cooked-asset-pipeline.md) for file contracts.
 
-Complete-model realization is documented in [model realization](model-realization.md).
+Canonical domains depend on neither cooking nor runtime. Importers and processing
+remain CPU-only. Cooking links canonical importers, processing and serialization,
+never model instances or rendering. Loading does not invoke cooking. Model runtime
+consumes CPU realization and animation; renderer frontend consumes model runtime.
+`assetc`, loading, realization and headless model tests build with rendering/Vulkan
+disabled. World creation orchestration stays in the frontend so the instance module
+itself remains renderer-independent.
+
+## Regression guardrails and remaining features
+
+`CanonicalModelCookingTest` generates fresh OBJ, glTF and embedded-image GLB packages
+and follows them through loading, realization, instances and headless extraction.
+It covers hierarchy, sharing, deterministic bytes and material semantics. The
+[retained parity fixture](../../tests/assets/fixtures/canonical-cooking/README.md)
+protects a complete byte-identical legacy package without retaining the legacy parser.
+Model loading/realization, material, instance and extraction suites cover their
+individual boundaries. Game `YuneAnimationTest` exercises the real animated source
+and a static OBJ through the same runtime route. Device-dependent Vulkan tests may
+skip without a compatible GPU; headless success is not visual verification.
+
+Future work includes animated cooked storage, blending, character assembly/clothing,
+root motion, material overrides and conservative animated bounds. Current renderer
+limits include opaque depth-writing skinned submission and model bounds-culling work.
+These features should extend the existing model path; they must not introduce another
+source interpretation or persistent renderer presentation mirror.

@@ -17,6 +17,7 @@
 #include <stb_image_write.h>
 
 #include "assets/cooking/AssetCooker.h"
+#include "assets/loading/model/GtsModelRegistry.h"
 #include "assets/loading/cooked/MaterialAssetLoader.h"
 #include "MeshManager.hpp"
 #include "assets/loading/cooked/TextureAssetLoader.h"
@@ -121,12 +122,12 @@ int main()
     for (const auto& d : cooked.diagnostics)
         if (d.severity == AssetDiagnosticSeverity::Error) std::fprintf(stderr, "%s: %s\n", d.code.c_str(), d.message.c_str());
     assert(cooked.succeeded());
-    assert(cooked.meshes.size() == 1 && cooked.materials.size() == 2);
-    assert(cooked.meshes[0].submeshes.size() == 4);
+    assert(cooked.meshes.size() == 2 && cooked.models.size() == 1 && cooked.materials.size() == 2);
+    assert(cooked.meshes[0].submeshes.size() == 3);
     assert(cooked.meshes[0].bounds.valid && cooked.meshes[0].bounds.max == glm::vec3(1, 1, 0));
     assert(cooked.meshes[0].submeshes[0].material.id == cooked.meshes[0].submeshes[2].material.id);
     assert(cooked.meshes[0].submeshes[0].material.id != cooked.meshes[0].submeshes[1].material.id);
-    assert(cooked.meshes[0].submeshes[3].debugName == "trim");
+    assert(cooked.meshes[1].submeshes[0].debugName == "trim_primitive_0");
     const auto& red = cooked.materials[0];
     assert(red.baseColor == glm::vec4(0.8f, 0.4f, 0.2f, 0.6f));
     assert(red.metallic == 0.7f && red.roughness == 0.3f && red.emissiveFactor == glm::vec3(1, 2, 3));
@@ -153,11 +154,14 @@ int main()
     write(source, "f 99 98 97\n");
     policy("strict");
     MeshResource loaded;
-    MeshManager::loadMeshCpu(source.string(), loaded);
+    GtsModelRegistry registry;
+    assert(registry.requestModel(source).succeeded());
+    MeshManager::loadMeshCpu((root / cooked.models[0].meshes[0].logicalPath).string(), loaded);
     assert(loaded.submeshes[0].material.id == red.id);
     std::filesystem::remove(source);
     std::filesystem::remove_all(root / "mtl");
-    MeshManager::loadMeshCpu(source.string(), loaded);
+    assert(registry.requestModel(source).succeeded());
+    MeshManager::loadMeshCpu((root / cooked.models[0].meshes[0].logicalPath).string(), loaded);
     for (const auto& material : cooked.materials)
         for (const auto& dependency : material.dependencies)
         {
@@ -182,7 +186,9 @@ int main()
     assert(imported.succeeded());
     auto model = *imported.asset();
     model.nodes[0].localTransform[3][0] = 1;
-    assert(diagnostic(AssetCooker::cookModelAsset(model, root / "transformed.obj", options), "STATIC_MODEL_NOT_FLAT"));
+    const auto transformed = AssetCooker::cookModelAsset(model, root / "transformed.obj", options);
+    assert(transformed.succeeded() && transformed.models.size() == 1);
+    assert(transformed.models[0].nodes[0].localTransform == model.nodes[0].localTransform);
     model = *imported.asset();
     model.materials.emplace_back();
     image(root / "scalar.png", 31, 63, 127);

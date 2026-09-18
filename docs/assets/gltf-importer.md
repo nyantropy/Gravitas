@@ -13,10 +13,8 @@ Vulkan object, or runtime/cooked resource is involved.
     -> GtsGltfModelImporter (source interpretation)
     -> canonical bundle validation -> GtsModelImportResult -> model + skeletons + clips
 ============================ FORMAT WALL =============================
-    future consumer cutover (not implemented by this change)
-
-existing production glTF route remains:
-GltfAssetImporter -> AssetImportResult -> existing cooker -> cooked v1
+    ├─ canonical cooking → static cooked-v1
+    └─ source model loading → resource → realization → instance → extraction
 ```
 
 ## Decoder ownership and reuse
@@ -28,18 +26,11 @@ Source reader/utility headers are internal implementation details in this folder
 
 File byte reads, little-endian word reads, base64/data-URI decoding, component
 sizes/counts, and integer normalization were extracted from the legacy importer.
-Both importers now share GLB framing, including strengthened total-length, chunk
-range/alignment, JSON-first/unique, and BIN-second/unique checks. Unknown chunks
-are skipped; the canonical reader reports them. Valid legacy input behavior is
-preserved; malformed GLBs previously accepted by that parser can now fail.
-
-Legacy accessor-table loading, buffer orchestration, float-based index reads,
-material/mesh conversion, and node orchestration remain temporarily separate.
-Those functions are intertwined with legacy DTOs and dependency diagnostics;
-changing their contracts would broaden this step into the pending consumer cutover.
-The canonical reader supplies the strict replacement, including direct unsigned
-index reads. The remaining legacy orchestration should be removed at cutover,
-not maintained as an alternative implementation.
+The canonical source reader is now the only production glTF model parser, including
+strict GLB framing, direct unsigned index reads, buffer/accessor validation, scene
+selection, materials, skins and animation. The former cooker-specific orchestration
+and DTOs were removed by the [canonical cooking cutover](canonical-cooking.md).
+Unknown GLB chunks retain canonical warnings; malformed inputs fail validation.
 
 ## Supported geometry
 

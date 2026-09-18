@@ -38,7 +38,7 @@ This file is the engine architecture entrypoint. Feature details live under
 engine/
   core/                  pure ECS, input, scene, command, event, UI runtime, JSON
   modules/
-    assets/              canonical domains, importers, processing, loading, serialization and cooking
+    assets/              canonical domains, importers, processing, loading, realization, serialization and cooking
     model/runtime/       world model instances and skeletal occurrence coordination
     transform/           local/world transforms and hierarchy
     animation/           transform animation ECS feature, CPU skeletal evaluation and playback occurrences
@@ -64,12 +64,13 @@ vendored documentation and should not be rewritten as first-party engine docs.
   resource → realization → instance → generic static/skinned frame extraction path.
   No persistent model presentation mirror; direct mesh consumers remain supported.
 
-
 - [docs/model/runtime-instances.md](docs/model/runtime-instances.md): model instance ownership,
   world creation, independent skeletal occurrences, lifetime-safe pose references and material reset.
 
-- [docs/assets/architecture.md](docs/assets/architecture.md): asset module ownership,
-  CPU target boundaries, cooked loading/material realization split and legacy inventory.
+- [docs/assets/architecture.md](docs/assets/architecture.md): the complete canonical cooking/runtime model pipeline,
+  module ownership, lifetime and dependency boundaries.
+- [docs/assets/canonical-cooking.md](docs/assets/canonical-cooking.md): one canonical
+  OBJ/glTF interpretation feeding static cooked-v1 and runtime, with capability rejection.
 
 - [docs/assets/model-domain.md](docs/assets/model-domain.md): canonical CPU model
   assets, semantic vertex streams, validation, and the model-importer boundary.
@@ -303,122 +304,57 @@ so a screenshot requested alongside quit still captures the final frame.
 
 ## Resource Model
 
-`modules/assets/` groups the canonical domain, importer contracts/strategies, and
-source-neutral processing. `gravitas_assets` owns the CPU domain and depends on
-core and the CPU skin/skeleton/animation domains; parser and static-profile processing dependencies stay in separate targets
-within the same module. Core has no dependency on the assets module.
+Source model interpretation has one canonical entry per format: OBJ uses
+`GtsObjModelImporter`, and glTF/GLB uses `GtsGltfModelImporter`. Both return
+`GtsModelImportBundle`. That domain is the fork between source-neutral cooking
+and runtime source loading; there is no legacy cooker-specific model importer.
 
-`modules/assets/skeleton/` owns the separate CPU-only `gravitas_skeleton_assets`
-target. `GtsSkeletonAsset` stores stable local node IDs, display names,
-parent-before-child forests, and quaternion-TRS or exact affine default local
-transforms. Helpers may be evaluation nodes. Validation rejects malformed data
-without repair; exact compatibility compares ordered IDs, parents, and stored
-transforms, ignoring display names. `GtsSkeletonCompatibility` captures those
-fields in a self-contained value. Asset and descriptor validation share one
-implementation, and all compatibility APIs use one exact descriptor comparison.
-Compatibility is neither asset identity nor a runtime pose association.
-This is immutable asset data, not a runtime
-pose or mesh skin binding. Model-local skeleton uses now reference definitions;
-canonical glTF skin import now produces definitions/bindings and model occurrences;
-no skinned cooking/runtime integration exists.
+```text
+canonical import → canonical model ──→ cooking → static cooked-v1
+                         │                             │
+                         └─────────── loading ─────────┘
+                                        ↓
+                                GtsModelResource
+                                        ↓
+                                GtsRealizedModel
+                                        +
+                           world realized materials
+                                        ↓
+                                GtsModelInstance
+                                        +
+                             authoritative ECS transform
+                                        ↓
+                           generic model render extraction
+                                        ↓
+                              static / skinned renderer
+```
 
-`modules/assets/skin/` owns `GtsSkinBinding` in the CPU-only `gravitas_skin_assets`
-target, depending on skeleton assets. Each local slot pairs a skeleton-node
-index with an authored inverse bind. A self-contained `GtsSkeletonCompatibility`
-value retains the expected exact structural contract without owning a skeleton. Structural and skeleton-context
-validation are separate; duplicate mappings and singular affine inverse binds
-are allowed. The skin target has no model dependency or runtime pose.
+The registry owns immutable definitions; handles retain their lifetime. The
+realization cache owns shared prepared geometry and occurrence associations.
+Canonical meshes use static/skinned preparation per occurrence; cooked meshes
+retain their prepared bytes without regeneration. World material services resolve
+logical associations to `MaterialRuntime` handles and invalidate them on reset.
+Instances own only mutable occurrence state: independent skeletal playback, poses
+and binding palettes. Model hierarchy remains shared; world placement stays in ECS.
 
-`modules/assets/animation/` owns the independent CPU-only `gravitas_animation_assets`
-target, depending only on skeleton assets and core math. `GtsAnimationClipAsset`
-stores an exact compatibility expectation, duration, and per-property TRS tracks
-with Step/Linear/CubicSpline keys. Rotation values are quaternions; cubic rotation
-tangents are XYZW component derivatives. Structural/contextual validation rejects
-malformed timing, values, duplicate targets, and matrix-node TRS animation without
-repair. The clip owns no skeleton definition or runtime state. Canonical glTF now
-imports skeletal TRS clips and enumerates them as bundle values.
+Rendering discovers generic model-instance components. It references immutable
+geometry, resolves live materials and captures frame-owned dynamic state. Static
+placement composes entity and model hierarchy transforms. Skinned placement applies
+entity transform after palette deformation, without reapplying the mesh-node
+transform. GPU caches own shared geometry and frame-safe palette resources. No
+persistent model-presentation mirror or game-owned rendering bridge remains.
 
-`modules/animation/skeletal/` owns the separate CPU `gravitas_skeletal_animation`
-target, consuming animation/skeleton assets without model, skin, ECS or rendering
-dependencies. `evaluateGtsDefaultPose` and `evaluateGtsAnimationPose` produce
-`GtsSkeletonPose` local TRS/matrix values, skeleton-reference-space matrices and
-a self-contained exact skeleton compatibility contract for downstream validation.
-Explicit clip-domain times use STEP, LINEAR vectors/shortest-path SLERP, or
-time-scaled Hermite (XYZW then normalization for cubic rotation). Missing tracks
-retain defaults; exact matrix nodes stay fixed. Parent-first composition uses
-`parent * local` with `T * R * S`. Validation/arithmetic failures expose no pose.
-This pose target implements no skin matrices, world placement or playback controller.
+Assets and model runtime remain renderer-independent. Cooking owns persistence
+and uses CPU processing/serialization; it never calls world/runtime realization.
+Cooked-v1 remains static-only and rejects skeletal/animated inputs rather than
+losing capabilities. Lower-level direct/generated mesh APIs remain supported.
 
-`modules/animation/skinning/` owns the separate CPU `gravitas_skin_palette` target,
-linking skeletal pose evaluation and skin assets. `evaluateGtsSkinPalette` validates
-pose and binding against a supplied skeleton, then emits one matrix per skin-local
-slot: `pose.modelTransforms[mappedNode] * inverseBind`. One pose can feed multiple
-mesh-specific bindings without reevaluation. Finite checks reject overflow without
-partial results; singular affine products are valid. There are no model/mesh,
-world-placement, ECS, renderer, Vulkan or playback dependencies in this layer.
-
-`GtsModelSkeletonUse` shares an immutable skeleton definition; each table entry
-is a distinct occurrence. `GtsModelSkinBinding` pairs a binding value with a
-skeleton-use index. Nodes optionally select mesh + binding. Model validation
-checks these references, delegates exact compatibility to the skin domain, and
-checks optional evaluation-node/model-node correspondence, paired influence
-sets, local-slot bounds and nonnegative unit-sum weights
-across all sets (absolute tolerance `1e-4`). Unbound streams retain generic
-geometry validation. See [model associations](docs/assets/model-domain.md#skeleton-uses-and-skin-associations).
-
-`modules/assets/model/` owns the source-format-independent, renderer-independent
-`GtsModelAsset` domain. `modules/assets/importer/` owns the `IGtsModelImporter`
-contract and concrete strategies. File-backed model importers return validated
-bundles through `GtsModelImportResult`. `GtsModelImportBundle` contains an optional
-primary model, shared immutable skeleton definitions, and animation clip values. Model occurrences share
-those same objects; duplicate definition entries and unlisted uses are rejected.
-Bundle validation composes model/skeleton validation and checks ownership, not
-structural identity. Clip validation separately requires at least one listed exact
-compatible skeleton; multiple matches are valid and select no occurrence. Static importers retain model-only success calls. A successful
-model-less bundle is possible, so `asset() == nullptr` alone no longer means failure.
-Runtime realization remains a separate responsibility. `modules/assets/importer/obj/` provides the first
-strategy, `GtsObjModelImporter`. It is the only OBJ interpreter. Offline cooking
-and permitted development runtime loading both consume its canonical model through
-static preparation. `modules/assets/realization/` adapts flat identity-root models
-to the existing single-mesh storage/resource contract. `modules/assets/loading/mesh/`
-owns CPU mesh loading and cooked/source selection, with the existing strict policy.
-The renderer links the importer and preparation targets through these consumers;
-TinyOBJ remains private to the importer. glTF/GLB still uses `GltfAssetImporter`
-and legacy import DTOs in the cooker. `modules/assets/importer/gltf/` now also
-provides the independent canonical `GtsGltfModelImporter`, with no consumer cutover.
-It now imports actual skins before scene pruning, retaining required transform
-ancestors, source TRS/matrix forms and skin-local slot order. Clear shared-rig
-evidence groups skins into definitions/occurrences; inverse binds stay binding-specific.
-Skeletal TRS animation channels resolve by intersecting original source-node rig
-memberships, then target the resolved compatibility contract. Shared-helper
-ambiguity, multi-rig, ordinary-node and morph animation remain explicit failures;
-STEP/LINEAR/CUBICSPLINE preserve typed keys and derivatives. See
-[glTF skin policies](docs/assets/gltf-importer.md#skins-definitions-and-occurrences).
-Its CPU source utilities and stricter GLB framing are shared with the legacy
-importer. Cooked v1 serializers and GPU upload are unchanged.
-See [OBJ consumer migration](docs/assets/obj-consumers.md) for adaptation limits.
-`modules/assets/processing/geometry/static/` consumes canonical meshes for the current
-static rendering profile. Its `GtsStaticVertex.h` defines the concrete static layout;
-`GtsVertexAttribute` remains canonical semantic data above the format wall.
-It prepares CPU `GtsStaticVertex` buffers and primitive ranges
-without modifying canonical inputs. This standalone target reuses CPU geometry
-algorithms and has no importer, cooker, runtime, or backend dependency.
-The separate `geometry/skinned/` profile prepares `GtsSkinnedVertex` geometry with
-four effective influences, keeping skin-local slots. It validates mesh/binding
-context, selects the strongest four across all sets with deterministic ties, and
-renormalizes prepared weights with explicit reduction metadata/warnings. Both
-profiles share primitive attribute conversion and existing CPU geometry algorithms.
-Shared flags/metadata live in `geometry/GtsGeometryMetadata.h`; the static vertex
-has no renderer ownership or dependency. Static/skinned layouts are explicit,
-independent structs. The Vulkan backend has explicit static/skinned vertex
-descriptions and a separate skinned mesh/palette upload and shader path. Existing
-world extraction, MeshResource and DynamicMeshComponent remain static-only.
-Skinned backend resources accept externally supplied palettes; they do not sample
-clips, apply inverse binds or orchestrate animation.
-Neither profile computes poses, skin matrices, world transforms or animated bounds.
-Model materials describe CPU appearance and reference model-local image inputs
-with explicit UV sets and scalar channels. Shader policy, cooked texture identity,
-and runtime material state remain outside the canonical domain.
+See the [asset/model architecture](docs/assets/architecture.md) for module and
+ownership boundaries, [canonical cooking](docs/assets/canonical-cooking.md),
+[model instances](docs/model/runtime-instances.md), and
+[render extraction](docs/rendering/model-extraction.md) for their contracts.
+Canonical skeleton, skin and animation data and CPU evaluation remain independent
+layers documented in the feature map above.
 
 JSON syntax belongs to `core/json/GtsJsonParser`, backed by `GtsJsonValue`.
 Feature loaders own file access, schema validation, defaults, and typed-data
