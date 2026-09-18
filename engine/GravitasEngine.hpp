@@ -21,7 +21,7 @@
 #include "GtsCommand.h"
 #include "GtsCommandBuffer.h"
 #include "EngineServiceRegistry.h"
-#include "assets/runtime/model/GtsModelRegistry.h"
+#include "assets/loading/model/GtsModelRegistry.h"
 #include "IEngineModule.h"
 #include "GraphicsBackendInstaller.h"
 #include "GraphicsBackendRegistry.h"

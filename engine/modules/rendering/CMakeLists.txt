@@ -8,7 +8,7 @@ endif()
 # ── gravitas_rendering ─────────────────────────────────────────────────────────
 # ECS rendering layer + windowing (GLFW window management).
 # core/ and ecssetup/ are entirely owned by this target — GLOB_RECURSE is safe.
-# Currently only GLFWOutputWindow.cpp exists; all other files are header-only.
+# CPU asset import/loading/cooking implementations are owned by assets targets.
 file(GLOB_RECURSE RENDERING_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
@@ -16,14 +16,8 @@ file(GLOB_RECURSE RENDERING_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/runtime/*.cpp"
 )
 list(APPEND RENDERING_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/external/stb_image_impl.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/external/stb_image_write_impl.cpp"
 )
-list(APPEND RENDERING_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/../assets/realization/GtsStaticModelRealization.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../assets/runtime/RuntimeMeshLoading.cpp"
-)
-list(REMOVE_ITEM RENDERING_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/core/assets/AssetSerializers.cpp")
 add_library(gravitas_rendering STATIC ${RENDERING_SOURCES})
 
 target_compile_features(gravitas_rendering PUBLIC cxx_std_20)
@@ -48,7 +42,6 @@ target_include_directories(gravitas_rendering PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/core/init"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/lighting"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/material"
-    "${CMAKE_CURRENT_SOURCE_DIR}/core/assets"
 
     # Abstract interfaces (IGtsGraphicsModule, IResourceProvider)
     "${CMAKE_CURRENT_SOURCE_DIR}/core/interface"
@@ -106,8 +99,7 @@ target_include_directories(gravitas_rendering PUBLIC
 target_link_libraries(gravitas_rendering PUBLIC
     glfw
     gravitas_core
-    PRIVATE gravitas_obj_importer gravitas_static_geometry gravitas_gltf_source
-    PUBLIC gravitas_assets gravitas_cooked_assets
+    PUBLIC gravitas_assets gravitas_cooked_assets gravitas_mesh_loading gravitas_image_decode
 )
 
 if(TARGET gravitas_vulkan_backend)

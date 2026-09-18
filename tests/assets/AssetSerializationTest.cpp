@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "AssetSerializers.h"
+#include "assets/serialization/AssetSerializers.h"
 
 namespace
 {

@@ -1,6 +1,6 @@
 # Shared CPU model loading
 
-`assets/runtime/model` owns the synchronous, backend-independent
+`assets/loading/model` owns the synchronous, backend-independent
 `gravitas_model_runtime` target. `GtsModelRegistry::requestModel` is the authoritative
 entry point for migrated high-level runtime model requests:
 
@@ -35,9 +35,9 @@ requirement. `resource.capabilities()` derives observations from actual definiti
 contents; source extensions do not establish capabilities. Every published entry
 must satisfy its request. Missing capabilities cause structured failure.
 
-Policy comes from the shared `assets/runtime/RuntimeAssetPolicy.h`, evaluated on
-every request. Existing rendering callers retain the old include/namespace as a
-forwarding surface to that one implementation. Mesh cooked-path helpers and
+Policy comes from the shared `assets/loading/RuntimeAssetPolicy.h`, evaluated on
+every request. Rendering callers include the CPU-owned header and use `gts::assets` directly;
+there is no rendering forwarding header. Mesh cooked-path helpers and
 source permission rules are shared; complete models never pass through
 `MeshResource` or the static single-mesh realization adapter.
 
@@ -136,11 +136,12 @@ reference directories are retained so later realization can resolve paths correc
 including when a cooked artifact is reached through a symlink. Missing/corrupt
 subordinate meshes fail the whole request. Material/texture realization is deferred.
 
-Existing serializers/loaders/types retain their historical header locations and
-`gts::rendering` namespace. A small `gravitas_cooked_assets` CPU target now compiles
-the existing serializers once and is consumed by both model runtime and rendering.
-It links only core; it does not link the rendering library or Vulkan. No serialized
-layout, cooked version or byte interpretation changed.
+Serializers and storage contracts live under `assets/serialization`, and CPU
+cooked loaders under `assets/loading/cooked`. `gravitas_cooked_assets` owns the
+codecs and links CPU core only. Legacy type namespaces remain unchanged, but no
+renderer runtime header or Vulkan library is needed. Material runtime realization
+is separate under `rendering/core/material/MaterialAssetRealization.h`. No serialized
+layout, cooked version or byte interpretation changed. See [asset ownership](architecture.md).
 
 ## Identity, cache, lifetime and diagnostics
 

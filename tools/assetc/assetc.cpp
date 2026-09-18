@@ -3,8 +3,8 @@
 #include <string>
 #include <vector>
 
-#include "AssetCooker.h"
-#include "TextureCooker.h"
+#include "assets/cooking/AssetCooker.h"
+#include "assets/cooking/TextureCooker.h"
 
 namespace
 {

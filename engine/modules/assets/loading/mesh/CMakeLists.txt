@@ -1,0 +1,6 @@
+add_library(gravitas_mesh_loading STATIC RuntimeMeshLoading.cpp)
+target_link_libraries(gravitas_mesh_loading
+    PUBLIC gravitas_cooked_assets gravitas_assets
+    PRIVATE gravitas_obj_importer gravitas_static_model_realization
+)
+target_compile_features(gravitas_mesh_loading PUBLIC cxx_std_20)

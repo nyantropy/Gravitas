@@ -6,8 +6,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "AssetSerializers.h"
-#include "AssetTypes.h"
+#include "assets/serialization/AssetSerializers.h"
+#include "assets/serialization/AssetTypes.h"
 #include "BitmapFont.h"
 #include "BoundsComponent.h"
 #include "ECSWorld.hpp"

@@ -71,7 +71,7 @@ add a source-provenance API or change build discovery/invalidation policy.
 
 ## Runtime policy
 
-`modules/assets/runtime/RuntimeMeshLoading` centralizes CPU path resolution.
+`modules/assets/loading/mesh/RuntimeMeshLoading` centralizes CPU path resolution.
 Adjacent cooked `.gmesh` wins even when the requested source is absent or malformed.
 Strict/shipping policy rejects missing cooked assets; development permits OBJ only.
 There is no direct runtime glTF parser and no corrupt-cooked fallback to source.
@@ -103,9 +103,10 @@ Cooked submesh material references still support the existing opt-in mesh-materi
 
 ## Build and tests
 
-The rendering target compiles the small CPU realization/runtime adapters and links
-`gravitas_obj_importer` and `gravitas_static_geometry`. It no longer directly links
-TinyOBJ. Canonical domain/import/preparation targets remain usable without rendering.
+The CPU `gravitas_mesh_loading` and `gravitas_static_model_realization` targets
+own the existing loading/flat-adapter implementations. Rendering consumes them;
+`gravitas_asset_cooking` independently shares the adapter and import/preparation targets.
+TinyOBJ remains private to the canonical OBJ importer. Canonical domain/import/preparation targets remain usable without rendering.
 The reusable normal/tangent algorithms remain in rendering/core/geometry because
 legacy glTF and procedural callers still use them; relocation is deferred.
 

@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <limits>
 
-#include "AssetCooker.h"
+#include "assets/serialization/MeshAssetGeometry.h"
 #include "assets/model/GtsModelAsset.h"
 #include "assets/model/GtsModelValidation.h"
 #include "assets/processing/geometry/static/GtsStaticMeshPreparation.h"

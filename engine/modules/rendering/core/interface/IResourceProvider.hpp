@@ -6,10 +6,10 @@
 
 #include "GlmConfig.h"
 
-#include "AssetTypes.h"
+#include "assets/serialization/AssetTypes.h"
 #include "MaterialTypes.h"
 #include "Types.h"
-#include "TextureColorSpace.h"
+#include "assets/serialization/TextureColorSpace.h"
 #include "assets/processing/geometry/static/GtsStaticVertex.h"
 #include "assets/processing/geometry/GtsGeometryMetadata.h"
 

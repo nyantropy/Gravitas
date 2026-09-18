@@ -13,7 +13,7 @@ option(GTS_ENABLE_MODULE_SMOKE_TESTS "Register CTest smoke tests for engine modu
 option(GTS_ENABLE_RUNTIME_SMOKE_TESTS "Register CTest runtime smoke tests for engine startup paths" ON)
 
 add_subdirectory(engine)
-if(GTS_BUILD_ASSETC AND TARGET gravitas_rendering AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/tools/assetc/CMakeLists.txt")
+if(GTS_BUILD_ASSETC AND TARGET gravitas_asset_cooking AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/tools/assetc/CMakeLists.txt")
     add_subdirectory(tools/assetc)
 endif()
 if(GTS_BUILD_TEST_SCENES AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/applications/CMakeLists.txt")

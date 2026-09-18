@@ -3,7 +3,7 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
-#include "AssetTypes.h"
+#include "assets/serialization/AssetTypes.h"
 #include "MeshGeometryProcessor.h"
 #include "assets/processing/geometry/static/GtsStaticVertex.h"
 #include "assets/processing/geometry/GtsGeometryMetadata.h"

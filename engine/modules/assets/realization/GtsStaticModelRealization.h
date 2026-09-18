@@ -3,7 +3,7 @@
 #include <optional>
 #include <vector>
 
-#include "AssetTypes.h"
+#include "assets/serialization/AssetTypes.h"
 #include "assets/model/GtsModelDiagnostic.h"
 
 struct GtsModelAsset;

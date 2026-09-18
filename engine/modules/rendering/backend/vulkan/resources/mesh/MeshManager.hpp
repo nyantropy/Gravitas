@@ -12,11 +12,11 @@
 #include <cstring>
 #include <utility>
 
-#include "MeshAssetLoader.h"
+#include "assets/loading/cooked/MeshAssetLoader.h"
 #include "MeshResource.h"
-#include "assets/runtime/RuntimeMeshLoading.h"
+#include "assets/loading/mesh/RuntimeMeshLoading.h"
 #include "IResourceProvider.hpp"
-#include "RuntimeAssetPolicy.h"
+#include "assets/loading/RuntimeAssetPolicy.h"
 #include "VulkanBackendContext.h"
 #include "BufferUtil.hpp"
 #include "Types.h"
@@ -40,9 +40,9 @@ class MeshManager
         std::string preferredMeshLoadPath(const std::string& path)
         {
             const auto resolved = gts::rendering::resolveRuntimeMeshPath(path);
-            if (gts::rendering::isCookedMeshAssetPath(resolved))
+            if (gts::assets::isCookedMeshAssetPath(resolved))
                 return resolved.string();
-            const auto cookedPath = gts::rendering::expectedCookedMeshAssetPath(path);
+            const auto cookedPath = gts::assets::expectedCookedMeshAssetPath(path);
 
             if (sourceFallbackWarnings.insert(path).second)
             {

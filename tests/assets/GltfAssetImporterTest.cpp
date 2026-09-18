@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-#include "GltfAssetImporter.h"
+#include "assets/cooking/legacy/GltfAssetImporter.h"
 
 namespace
 {

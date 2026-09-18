@@ -1,4 +1,4 @@
-#include "assets/runtime/model/GtsModelRegistry.h"
+#include "assets/loading/model/GtsModelRegistry.h"
 #include "ScopedRuntimeAssetPolicy.h"
 
 #include <fstream>

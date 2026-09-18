@@ -9,7 +9,8 @@
 #include <vector>
 
 #include "GlmConfig.h"
-#include "TextureColorSpace.h"
+#include "assets/serialization/TextureColorSpace.h"
+#include "assets/serialization/AssetMaterialTypes.h"
 #include "Types.h"
 
 struct MaterialDefinitionHandle
@@ -75,39 +76,11 @@ inline bool operator!=(MaterialGpuHandle lhs, MaterialGpuHandle rhs)
     return !(lhs == rhs);
 }
 
-enum class MaterialBlendMode
-{
-    Alpha,
-    Additive
-};
-
-enum class MaterialShaderFamily
-{
-    Unlit,
-    StandardSurface
-};
-
-enum class MaterialAlphaMode
-{
-    Opaque,
-    Mask,
-    Blend
-};
-
 enum class RenderQueue
 {
     Opaque,
     AlphaMasked,
     Transparent
-};
-
-enum class MaterialTextureRole
-{
-    BaseColor,
-    MetallicRoughness,
-    Normal,
-    AmbientOcclusion,
-    Emissive
 };
 
 enum class MaterialFeatureFlags : uint32_t
@@ -149,17 +122,6 @@ enum class MaterialTextureSource
     None,
     AssetPath,
     ResolvedTexture
-};
-
-struct MaterialRenderState
-{
-    MaterialAlphaMode alphaMode = MaterialAlphaMode::Opaque;
-    float alphaCutoff = 0.5f;
-    bool doubleSided = false;
-    bool depthWrite = true;
-
-    // Blend selection used by backend pipeline variants.
-    MaterialBlendMode blendMode = MaterialBlendMode::Alpha;
 };
 
 struct MaterialDefinition

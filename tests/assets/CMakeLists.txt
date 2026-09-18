@@ -38,3 +38,57 @@ add_executable(GtsModelStrictPolicyTest runtime/GtsModelStrictPolicyTest.cpp)
 target_link_libraries(GtsModelStrictPolicyTest PRIVATE gravitas_model_runtime)
 add_test(NAME gts_model_strict_policy COMMAND GtsModelStrictPolicyTest)
 set_tests_properties(gts_model_strict_policy PROPERTIES LABELS "gravitas;assets;runtime;cpu")
+
+add_executable(GltfAssetImporterTest
+    GltfAssetImporterTest.cpp
+)
+
+target_compile_features(GltfAssetImporterTest PRIVATE cxx_std_20)
+
+target_link_libraries(GltfAssetImporterTest PRIVATE gravitas_asset_cooking)
+
+add_test(
+    NAME gltf_asset_importer
+    COMMAND GltfAssetImporterTest
+)
+
+set_tests_properties(gltf_asset_importer
+    PROPERTIES
+        LABELS "gravitas;assets;cpu;importer"
+)
+
+add_executable(AssetSerializationTest
+    AssetSerializationTest.cpp
+)
+
+target_compile_features(AssetSerializationTest PRIVATE cxx_std_20)
+
+target_link_libraries(AssetSerializationTest PRIVATE gravitas_cooked_assets)
+
+add_test(
+    NAME asset_serialization
+    COMMAND AssetSerializationTest
+)
+
+set_tests_properties(asset_serialization
+    PROPERTIES
+        LABELS "gravitas;assets;cpu;serialization"
+)
+
+add_executable(RuntimeAssetPolicyTest
+    RuntimeAssetPolicyTest.cpp
+)
+
+target_compile_features(RuntimeAssetPolicyTest PRIVATE cxx_std_20)
+
+target_link_libraries(RuntimeAssetPolicyTest PRIVATE gravitas_mesh_loading)
+
+add_test(
+    NAME runtime_asset_policy
+    COMMAND RuntimeAssetPolicyTest
+)
+
+set_tests_properties(runtime_asset_policy
+    PROPERTIES
+        LABELS "gravitas;assets;cpu;runtime"
+)

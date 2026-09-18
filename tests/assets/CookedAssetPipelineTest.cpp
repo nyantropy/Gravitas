@@ -14,13 +14,14 @@
 #include <utility>
 #include <vector>
 
-#include "AssetCooker.h"
-#include "MaterialAssetLoader.h"
-#include "MeshAssetLoader.h"
+#include "assets/cooking/AssetCooker.h"
+#include "assets/loading/cooked/MaterialAssetLoader.h"
+#include "rendering/core/material/MaterialAssetRealization.h"
+#include "assets/loading/cooked/MeshAssetLoader.h"
 #include "MeshManager.hpp"
-#include "ModelAssetLoader.h"
-#include "TextureAssetLoader.h"
-#include "TextureCooker.h"
+#include "assets/loading/cooked/ModelAssetLoader.h"
+#include "assets/loading/cooked/TextureAssetLoader.h"
+#include "assets/cooking/TextureCooker.h"
 
 #include <stb_image_write.h>
 
@@ -456,7 +457,7 @@ int main()
 
     gts::rendering::MaterialRuntime runtime;
     const MaterialInstanceHandle handle =
-        gts::rendering::MaterialAssetLoader::loadIntoRuntime(materialPath, runtime, &error);
+        gts::rendering::MaterialAssetRealization::loadIntoRuntime(materialPath, runtime, &error);
     assert(handle.id != 0);
     const MaterialInstance* instance = runtime.getInstance(handle);
     assert(instance != nullptr);

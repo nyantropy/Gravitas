@@ -16,10 +16,10 @@
 
 #include <stb_image_write.h>
 
-#include "AssetCooker.h"
-#include "MaterialAssetLoader.h"
+#include "assets/cooking/AssetCooker.h"
+#include "assets/loading/cooked/MaterialAssetLoader.h"
 #include "MeshManager.hpp"
-#include "TextureAssetLoader.h"
+#include "assets/loading/cooked/TextureAssetLoader.h"
 #include "assets/importer/obj/GtsObjModelImporter.h"
 #include "assets/model/GtsModelAsset.h"
 #include "assets/model/GtsModelImportResult.h"

@@ -38,7 +38,7 @@ This file is the engine architecture entrypoint. Feature details live under
 engine/
   core/                  pure ECS, input, scene, command, event, UI runtime, JSON
   modules/
-    assets/              canonical model/skeleton domains, importers, static/skinned geometry processing
+    assets/              canonical domains, importers, processing, loading, serialization and cooking
     transform/           local/world transforms and hierarchy
     animation/           transform animation ECS feature, CPU skeletal evaluation and playback occurrences
     tween/               reusable tween/easing helpers
@@ -58,6 +58,9 @@ engine/
 vendored documentation and should not be rewritten as first-party engine docs.
 
 ## Feature Documentation Map
+
+- [docs/assets/architecture.md](docs/assets/architecture.md): asset module ownership,
+  CPU target boundaries, cooked loading/material realization split and legacy inventory.
 
 - [docs/assets/model-domain.md](docs/assets/model-domain.md): canonical CPU model
   assets, semantic vertex streams, validation, and the model-importer boundary.
@@ -364,7 +367,7 @@ Runtime realization remains a separate responsibility. `modules/assets/importer/
 strategy, `GtsObjModelImporter`. It is the only OBJ interpreter. Offline cooking
 and permitted development runtime loading both consume its canonical model through
 static preparation. `modules/assets/realization/` adapts flat identity-root models
-to the existing single-mesh storage/resource contract. `modules/assets/runtime/`
+to the existing single-mesh storage/resource contract. `modules/assets/loading/mesh/`
 owns CPU mesh loading and cooked/source selection, with the existing strict policy.
 The renderer links the importer and preparation targets through these consumers;
 TinyOBJ remains private to the importer. glTF/GLB still uses `GltfAssetImporter`

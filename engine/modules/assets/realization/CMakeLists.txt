@@ -1,0 +1,4 @@
+# Existing flat static CPU adapter, shared by cooking and legacy mesh loading.
+add_library(gravitas_static_model_realization STATIC GtsStaticModelRealization.cpp)
+target_link_libraries(gravitas_static_model_realization PUBLIC gravitas_cooked_assets gravitas_static_geometry)
+target_compile_features(gravitas_static_model_realization PUBLIC cxx_std_20)

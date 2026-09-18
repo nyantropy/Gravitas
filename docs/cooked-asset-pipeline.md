@@ -101,7 +101,8 @@ GLB / glTF nodes and meshes
 `MeshManager::loadMesh` prefers an adjacent `.gmesh` when a source mesh path is
 requested and falls back to the existing OBJ path when no cooked mesh exists.
 `MaterialReferenceHelpers` treats descriptor paths ending in `.gmat` as cooked
-material assets and loads them through `MaterialAssetLoader`.
+material assets and realizes them through `MaterialAssetRealization`, which uses
+the CPU-only `MaterialAssetLoader` to decode the file.
 `TextureManager::loadTexture` prefers an adjacent `.gtex` when a PNG/JPG source
 path is requested. A direct `.gtex` request loads only through
 `TextureAssetLoader`.
@@ -109,7 +110,7 @@ path is requested. A direct `.gtex` request loads only through
 ## Cooked Asset Contracts
 
 Cooked data is stored in engine-owned CPU structures in
-`engine/modules/rendering/core/assets/AssetTypes.h`.
+`engine/modules/assets/serialization/AssetTypes.h`.
 
 - `AssetReference` stores a placeholder stable `AssetId` plus `logicalPath`.
 - `MeshAssetData` stores vertices, indices, submeshes, dependencies, bounds,
@@ -133,7 +134,7 @@ runtime manager handles, parser-library types, or GPU cache state.
 
 ## File Layout
 
-Serializers live in `engine/modules/rendering/core/assets/AssetSerializers.*`.
+Serializers live in `engine/modules/assets/serialization/AssetSerializers.*`.
 `.gmesh`, `.gmat`, `.gmodel`, and `.gtex` are explicit little-endian binary
 formats. C++ object memory is not dumped directly.
 
@@ -341,7 +342,7 @@ path lookup without changing the cooked structures.
 
 Generated material references use cooked output filenames as logical paths.
 Generated texture references use `.gtex` output filenames as logical paths.
-`MaterialAssetLoader` resolves relative texture references against the `.gmat`
+`MaterialAssetRealization` resolves relative texture references against the `.gmat`
 file location before creating runtime material instances.
 
 ## Runtime Submesh Ranges
@@ -389,3 +390,11 @@ These runtime paths still load source assets directly for compatibility:
   format, not ordinary `.gtex`.
 - Screenshot PNG writing is output-only and is not part of the asset import
   pipeline.
+
+## Module ownership
+
+Cooking lives under `assets/cooking`, codecs/contracts under `assets/serialization`
+and CPU loaders under `assets/loading`. `assetc` links the CPU cooking target;
+rendering is not required to run it. Legacy glTF/image DTO importers remain explicitly
+under `cooking/legacy` until their separate semantic migrations. See
+[asset subsystem ownership](assets/architecture.md) for the complete dependency map.

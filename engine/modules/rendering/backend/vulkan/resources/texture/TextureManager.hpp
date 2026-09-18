@@ -13,9 +13,9 @@
 
 #include "DescriptorSetManager.hpp"
 #include "MaterialTypes.h"
-#include "RuntimeAssetPolicy.h"
+#include "assets/loading/RuntimeAssetPolicy.h"
 #include "TextureResource.h"
-#include "TextureAssetLoader.h"
+#include "assets/loading/cooked/TextureAssetLoader.h"
 #include "VulkanTexture.hpp"
 #include "Types.h"
 #include "VulkanBackendContext.h"
@@ -49,7 +49,7 @@ class TextureManager
                                     TextureColorSpace colorSpace = TextureColorSpace::SRgb)
         {
             const std::filesystem::path loadPath = preferredTextureLoadPath(path);
-            const bool cookedTexture = gts::rendering::isCookedTextureAssetPath(loadPath);
+            const bool cookedTexture = gts::assets::isCookedTextureAssetPath(loadPath);
             const std::string key = cookedTexture
                 ? cookedTextureKey(loadPath)
                 : sourceTextureKey(loadPath, nearestFilter, clampToEdge, colorSpace);
@@ -226,18 +226,18 @@ class TextureManager
 
         std::filesystem::path preferredTextureLoadPath(const std::filesystem::path& requestedPath)
         {
-            if (requestedPath.empty() || gts::rendering::isCookedTextureAssetPath(requestedPath))
+            if (requestedPath.empty() || gts::assets::isCookedTextureAssetPath(requestedPath))
                 return requestedPath;
 
-            if (!gts::rendering::isRuntimeSourceTextureAssetPath(requestedPath))
+            if (!gts::assets::isRuntimeSourceTextureAssetPath(requestedPath))
                 return requestedPath;
 
             const std::filesystem::path expectedCooked =
-                gts::rendering::expectedCookedTextureAssetPath(requestedPath);
+                gts::assets::expectedCookedTextureAssetPath(requestedPath);
             if (std::filesystem::exists(expectedCooked))
                 return expectedCooked;
 
-            if (!gts::rendering::runtimeSourceAssetFallbackAllowed())
+            if (!gts::assets::runtimeSourceAssetFallbackAllowed())
             {
                 throw std::runtime_error(
                     "Cooked texture missing; runtime source image fallback is disabled. Source asset: "
@@ -247,7 +247,7 @@ class TextureManager
                     + " Active policy: cooked-only");
             }
 
-            if (!gts::rendering::runtimeSourceTextureFallbackSupported(requestedPath))
+            if (!gts::assets::runtimeSourceTextureFallbackSupported(requestedPath))
             {
                 throw std::runtime_error(
                     "Cooked texture missing and source image fallback is unsupported: "

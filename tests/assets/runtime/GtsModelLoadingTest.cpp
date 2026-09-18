@@ -1,8 +1,8 @@
 #include "../importers/gltf/GltfFixtureBuilder.h"
-#include "assets/runtime/model/GtsModelRegistry.h"
-#include "assets/runtime/model/GtsModelResource.h"
-#include "assets/runtime/model/GtsPreparedModelDefinition.h"
-#include "AssetSerializers.h"
+#include "assets/loading/model/GtsModelRegistry.h"
+#include "assets/loading/model/GtsModelResource.h"
+#include "assets/loading/model/GtsPreparedModelDefinition.h"
+#include "assets/serialization/AssetSerializers.h"
 #include "ScopedRuntimeAssetPolicy.h"
 
 using namespace gts::rendering;

@@ -1,6 +1,6 @@
 #include "../importers/gltf/GltfFixtureBuilder.h"
-#include "assets/runtime/model/GtsModelRegistry.h"
-#include "assets/runtime/model/GtsModelResource.h"
+#include "assets/loading/model/GtsModelRegistry.h"
+#include "assets/loading/model/GtsModelResource.h"
 #include "assets/skeleton/GtsSkeletonAsset.h"
 #include <type_traits>
 #include "ScopedRuntimeAssetPolicy.h"

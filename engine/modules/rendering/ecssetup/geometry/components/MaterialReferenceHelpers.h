@@ -10,7 +10,8 @@
 
 #include "ECSWorld.hpp"
 #include "GlmConfig.h"
-#include "MaterialAssetLoader.h"
+#include "assets/loading/cooked/MaterialAssetLoader.h"
+#include "rendering/core/material/MaterialAssetRealization.h"
 #include "MaterialReferenceComponent.h"
 #include "MaterialRuntime.h"
 
@@ -85,7 +86,7 @@ namespace gts::rendering
     {
         std::string error;
         const MaterialInstanceHandle handle =
-            MaterialAssetLoader::loadIntoRuntime(path, runtime, &error);
+            MaterialAssetRealization::loadIntoRuntime(path, runtime, &error);
         if (!handle.valid())
             throw std::runtime_error("Failed to load cooked material asset '" + path + "': " + error);
         return handle;

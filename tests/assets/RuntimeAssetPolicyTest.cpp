@@ -2,10 +2,10 @@
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
-#include "assets/runtime/RuntimeMeshLoading.h"
-#include "AssetSerializers.h"
+#include "assets/loading/mesh/RuntimeMeshLoading.h"
+#include "assets/serialization/AssetSerializers.h"
 
-#include "RuntimeAssetPolicy.h"
+#include "assets/loading/RuntimeAssetPolicy.h"
 
 namespace
 {
@@ -36,6 +36,7 @@ namespace
 int main()
 {
     using namespace gts::rendering;
+    using namespace gts::assets;
 
     require(isCookedMeshAssetPath("robot.gmesh"));
     require(isCookedMeshAssetPath("ROBOT.GMESH"));
