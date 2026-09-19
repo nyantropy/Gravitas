@@ -9,7 +9,7 @@
 #include "SubscriptionToken.hpp"
 #include "GraphicsBackendRegistry.h"
 #include "IGtsGraphicsModule.hpp"
-#include "InputManager.hpp"
+#include "InputWriter.hpp"
 #include "InputBindingRegistry.h"
 
 // Owns all OS-facing engine subsystems: graphics, windowing, and input.
@@ -21,6 +21,7 @@ class GtsPlatform
                     const gts::rendering::GraphicsBackendRegistry& graphicsBackendRegistry)
             : graphics(graphicsBackendRegistry.create(config))
             , inputManager(std::make_unique<InputManager>())
+            , inputWriter(*inputManager)
             , bindingRegistry(std::make_unique<InputBindingRegistry>())
         {
             connectInputEvents();
@@ -29,7 +30,7 @@ class GtsPlatform
         // Snapshot previous frame, poll OS events, then derive action states.
         void beginFrame()
         {
-            inputManager->beginFrame();
+            inputWriter.beginFrame();
             graphics->pollWindowEvents();
             graphics->getEventBus().dispatch();
             bindingRegistry->update(InputSnapshot{inputManager.get()});
@@ -109,6 +110,7 @@ class GtsPlatform
     private:
         std::unique_ptr<IGtsGraphicsModule>        graphics;
         std::unique_ptr<InputManager>              inputManager;
+        InputWriter                               inputWriter;
         std::unique_ptr<InputBindingRegistry>      bindingRegistry;
         SubscriptionToken                          keyEventToken;
         SubscriptionToken                          mouseButtonEventToken;
@@ -119,19 +121,19 @@ class GtsPlatform
         {
             keyEventToken = graphics->getEventBus().subscribe<GtsKeyEvent>([this](const GtsKeyEvent& e)
             {
-                inputManager->onKeyEvent(e.key, e.pressed, e.mods);
+                inputWriter.onKeyEvent(e.key, e.pressed, e.mods);
             });
             mouseButtonEventToken = graphics->getEventBus().subscribe<GtsMouseButtonEvent>([this](const GtsMouseButtonEvent& e)
             {
-                inputManager->onMouseButtonEvent(e.button, e.pressed, e.mods);
+                inputWriter.onMouseButtonEvent(e.button, e.pressed, e.mods);
             });
             cursorPositionEventToken = graphics->getEventBus().subscribe<GtsCursorPositionEvent>([this](const GtsCursorPositionEvent& e)
             {
-                inputManager->onCursorPositionEvent(e.x, e.y);
+                inputWriter.onCursorPositionEvent(e.x, e.y);
             });
             scrollEventToken = graphics->getEventBus().subscribe<GtsScrollEvent>([this](const GtsScrollEvent& e)
             {
-                inputManager->onScrollEvent(e.x, e.y);
+                inputWriter.onScrollEvent(e.x, e.y);
             });
         }
 };

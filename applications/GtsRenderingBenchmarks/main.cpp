@@ -1,3 +1,4 @@
+#include "ScreenshotCommand.h"
 #include "SceneExecutionPolicy.h"
 #include "BuiltinExecutionGroups.h"
 #include <algorithm>
@@ -1549,7 +1550,7 @@ namespace
             if (collector->measuredFrames != config.screenshotMeasuredFrame)
                 return;
 
-            ctx.engineCommands->requestScreenshot(config.screenshotOutputDirectory);
+            gts::rendering::requestScreenshot(*ctx.engineCommands, config.screenshotOutputDirectory);
             screenshotRequested = true;
         }
     };

@@ -23,12 +23,6 @@ struct GtsCommandBuffer
         commands.emplace_back(GtsChangeSceneCommand{ std::move(name), std::move(data) });
     }
 
-    // take a screenshot
-    void requestScreenshot(std::string directory = {})
-    {
-        commands.emplace_back(GtsScreenshotCommand{std::move(directory)});
-    }
-
     template<typename Payload>
     void requestExtensionCommand(std::string name, Payload&& payload)
     {

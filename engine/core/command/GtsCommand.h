@@ -12,11 +12,6 @@ struct GtsTogglePauseCommand
 {
 };
 
-struct GtsScreenshotCommand
-{
-    std::string directory;
-};
-
 struct GtsQuitCommand
 {
 };
@@ -35,7 +30,6 @@ struct GtsChangeSceneCommand
 
 // all of these should map as gtscommand, but with different payloads
 using GtsCommand = std::variant<GtsTogglePauseCommand,
-                                GtsScreenshotCommand,
                                 GtsQuitCommand,
                                 GtsExtensionCommand,
                                 GtsChangeSceneCommand>;

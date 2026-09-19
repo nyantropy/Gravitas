@@ -284,6 +284,11 @@ installation rules, stack semantics and characterization coverage.
 
 ## Input Model
 
+Core raw mutation is restricted to `InputWriter`, a borrowed five-operation adapter
+for key/button/cursor/scroll events and frame advancement. Runtime owns the writer;
+`InputManager` does not name or friend the runtime platform. Existing input ordering,
+subscription lifetimes, simulation-edge consumption and pause rules are unchanged.
+
 `GtsPlatform` owns raw input and the binding registry, bridges platform events,
 and updates action states each frame. It does not choose default controls.
 `GravitasEngine` installs its own controls during startup. Installing an engine
@@ -377,17 +382,21 @@ Domain logic events during ECS updates use `ECSWorld`.
 
 ## Commands And Screenshots
 
-Engine commands travel through `GtsCommandBuffer`. Scene/controller code may
-request scene changes, graphics settings application, pause/resume, and
+Engine commands travel through `GtsCommandBuffer`. Core owns only lifecycle requests
+and generic named extension transport. `ScreenshotCommand.h` and
+`gts::rendering::requestScreenshot(commands, directory)` belong to the lightweight
+`gravitas_rendering_command_contracts` target. Rendering's existing extension handler
+forwards that typed request to graphics; core has no capture-specific variant or API.
+Scene/controller code may request scene changes, graphics settings application, pause/resume, and
 screenshots.
 
 Screenshot requests use one renderer-owned path:
 
 ```text
-engine.screenshot action or GtsCommandBuffer::requestScreenshot
+engine.screenshot action or gts::rendering::requestScreenshot(commands, directory)
   -> IGtsGraphicsModule::requestScreenshot
   -> ForwardRenderer::requestScreenshot
-  -> ScreenshotManager::saveImage
+  -> ScreenshotManager::scheduleCapture
   -> async PNG write job
 ```
 

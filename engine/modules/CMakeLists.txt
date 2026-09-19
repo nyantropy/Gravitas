@@ -1,5 +1,6 @@
 # Lightweight feature contracts and retained UI are available without feature backends.
 add_subdirectory(rendering/contracts)
+add_subdirectory(rendering/contracts/commands)
 add_subdirectory(rendering/contracts/execution)
 add_subdirectory(rendering/contracts/controller)
 add_subdirectory(physics/contracts)

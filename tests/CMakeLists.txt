@@ -681,3 +681,7 @@ add_executable(VulkanSkinningResourceTest rendering/VulkanSkinningResourceTest.c
 target_link_libraries(VulkanSkinningResourceTest PRIVATE gravitas_vulkan_backend)
 add_test(NAME vulkan_skinning_resource COMMAND VulkanSkinningResourceTest)
 set_tests_properties(vulkan_skinning_resource PROPERTIES LABELS "gravitas;rendering;cpu")
+
+add_test(NAME gravitas_runtime_screenshot_automation COMMAND GravitasHeadlessScreenshotSmoke --automation)
+set_tests_properties(gravitas_runtime_screenshot_automation PROPERTIES
+    LABELS "gravitas;runtime;smoke;screenshot" SKIP_RETURN_CODE 77)

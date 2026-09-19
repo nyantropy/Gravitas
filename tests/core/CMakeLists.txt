@@ -27,3 +27,12 @@ add_test(NAME scene_resource COMMAND SceneResourceTest)
 add_executable(ExecutionSelectionTest ExecutionSelectionTest.cpp)
 target_link_libraries(ExecutionSelectionTest PRIVATE gravitas_core)
 add_test(NAME execution_selection COMMAND ExecutionSelectionTest)
+
+add_executable(CommandTransportTest CommandTransportTest.cpp)
+target_link_libraries(CommandTransportTest PRIVATE gravitas_core)
+add_test(NAME command_transport COMMAND CommandTransportTest)
+
+add_executable(InputWriterTest InputWriterTest.cpp)
+target_link_libraries(InputWriterTest PRIVATE gravitas_core)
+add_test(NAME input_writer COMMAND InputWriterTest)
+set_tests_properties(command_transport input_writer PROPERTIES LABELS "gravitas;core;cpu")

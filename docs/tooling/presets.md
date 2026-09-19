@@ -163,12 +163,12 @@ ToolLaunchPreset screenshots
   -> GravitasEngine::processToolScreenshotAutomation
   -> IGtsGraphicsModule::requestScreenshot
   -> ForwardRenderer::requestScreenshot
-  -> ScreenshotManager::saveImage
+  -> ScreenshotManager::scheduleCapture
   -> async PNG write job
 ```
 
 Manual screenshot requests use the same renderer path through the
-`engine.screenshot` action or `GtsCommandBuffer::requestScreenshot(...)`.
+`engine.screenshot` action or `gts::rendering::requestScreenshot(commands, directory)` from `ScreenshotCommand.h`.
 
 `ScreenshotManager` allocates output paths, captures the swapchain image into a
 staging buffer, and writes PNG files asynchronously. Image transition, copy, and

@@ -11,13 +11,11 @@
 
 #include "SubscriptionToken.hpp"
 
-// Event bus for platform-layer events: window resize, raw key input from GLFW,
-// frame-ended notifications from the renderer, etc.
+// Event bus for platform-layer events such as window resize and raw key input.
 //
-// These events originate from OS/GPU callbacks (glfwPollEvents, Vulkan present)
-// that fire outside the game loop. Events are queued on emit() and delivered
-// to all subscribers on the next dispatch() call, which happens once per frame
-// in GtsPlatform::beginFrame() — always on the main thread.
+// Events may originate outside the game loop. They are queued on emit() and
+// delivered to all subscribers on the next dispatch() call. The owning adapter
+// dispatches once per frame on the main thread.
 //
 // Use this bus for infrastructure events that cross the platform boundary.
 // For ECS gameplay events between game systems, use ECSWorld::publish/subscribe.
@@ -39,7 +37,7 @@ class GtsPlatformEventBus
 
 public:
     // Queue an event for delivery on the next dispatch() call.
-    // Safe to call from GLFW/Vulkan callbacks.
+    // Call from event callbacks on the owning thread.
     template<typename Event>
     void emit(Event&& event)
     {
@@ -53,7 +51,7 @@ public:
     }
 
     // Deliver all queued events to subscribers, then clear the queue.
-    // Call once per frame from the main thread (GtsPlatform::beginFrame).
+    // Call once per frame from the main thread.
     void dispatch()
     {
         auto pending = std::move(queue);

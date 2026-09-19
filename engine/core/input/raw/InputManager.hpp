@@ -91,8 +91,8 @@ class InputManager : public IInputSource
             frameScrollY += y;
         }
 
-        // only the platform layer can signal the start of a new frame
-        friend class GtsPlatform;
+        // only the raw input writer can signal the start of a new frame
+        friend class InputWriter;
         void beginFrame()
         {
             previousState = currentState;

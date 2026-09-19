@@ -123,21 +123,32 @@ No `SceneExecutionProfile`, feature group labels, rendering modes or time-policy
 vocabulary remain in core's execution contracts. See
 [execution policy](../execution/architecture.md) for the higher-level ownership.
 
-## Deliberately Deferred Semantic Boundaries
+## Commands And Raw Input Mutation
 
-This is physical/build ownership, not a redesign of engine composition. The
-following existing feature awareness remains intentional for this stage:
+Core command transport defines only pause, quit, scene transition and named extension
+commands. `GtsCommandBuffer` retains their ordered value-owned queue; extension data
+uses the existing copyable `std::any` payload. Capability-specific requests and their
+producer helpers belong to their modules. Screenshot requests live in rendering's
+`contracts/commands/ScreenshotCommand.h`, not in the core variant or buffer API.
 
-- Screenshot commands and their existing request/variant semantics. Moving them
-  requires a command API migration, not an include-directory workaround.
-- `InputManager` grants concrete `GtsPlatform` friendship for private raw-event
-  injection and frame advancement. Removing this semantic runtime reference
-  requires a neutral input-writer/access contract. There is no runtime include/link.
-- Rendering-side `UiSystem` and resource integration.
-- Service discovery and optional runtime composition.
+`InputManager` exposes input reading and its existing explicit reset operation.
+Raw event injection and frame advancement remain private. The core-owned
+`InputWriter` is a borrowed adapter constructed with `InputManager&`; it exposes only
+`beginFrame`, `onKeyEvent`, `onMouseButtonEvent`, `onCursorPositionEvent` and
+`onScrollEvent`. It has no binding, reset or simulation-tick controls. The manager
+must outlive every writer. Ordinary consumers continue using snapshots/bindings.
 
-These can only be reconsidered by discussing their API/dependency semantics.
-Core does not include or link feature contracts to preserve these signatures.
+Runtime owns its manager, writer, binding registry and event subscriptions. It calls
+the writer's `beginFrame`, polls events, dispatches them through the writer, then
+updates bindings. Subscription tokens are destroyed before the writer/manager.
+The writer does not subscribe or own resources. Frame edges and scroll clear at the
+same point; held state, positions and modifiers persist. Simulation edges remain
+owned by the binding registry and are consumed by `finishSimulationTick` at the
+unchanged runtime point. Pause semantics and input event translation are unchanged.
+No concrete runtime class is named or friended by core input.
+
+Rendering-side UI integration, service discovery and optional composition remain
+outside this ownership cleanup; no new core/module dependency is introduced.
 
 ## Verification Boundaries
 

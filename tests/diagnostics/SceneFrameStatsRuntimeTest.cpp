@@ -1,4 +1,5 @@
 #include "SceneExecutionPolicy.h"
+#include "ScreenshotCommand.h"
 #include "GtsScene.hpp"
 #include "IGtsGraphicsModule.hpp"
 #include "ISceneFrameStats.h"
@@ -25,6 +26,7 @@ namespace
     {
         public:
         std::vector<std::string> events;
+        std::vector<std::string> screenshots;
         GtsFrameStats            submitted;
         GtsFrameStats            finalStats;
         bool                     staleResult = false;
@@ -69,7 +71,7 @@ namespace
         }
         void toggleDebugOverlay() override {}
         void cycleDebugOverlayPage() override {}
-        void requestScreenshot(const std::string&) override {}
+        void requestScreenshot(const std::string& directory) override { screenshots.push_back(directory); }
         void waitIdle() override {}
         void pollWindowEvents() override {}
         void shutdown() override {}
@@ -199,6 +201,16 @@ int main()
 {
     Graphics                         graphics;
     gts::rendering::RenderingRuntime runtime(false, graphics, gts::execution::selectFrameBuildMode);
+    GtsCommandBuffer commands;
+    gts::rendering::requestScreenshot(commands);
+    gts::rendering::requestScreenshot(commands, "captures/unchanged");
+    for (const auto& command : commands.commands)
+        require(runtime.applyExtensionCommand(std::get<GtsExtensionCommand>(command)), "Screenshot recognized by rendering");
+    require(graphics.screenshots == std::vector<std::string>{"", "captures/unchanged"}, "Screenshot dispatch preserves order/options");
+    require(runtime.applyExtensionCommand({gts::rendering::REQUEST_SCREENSHOT_COMMAND, 42}), "Known malformed extension is consumed");
+    require(!runtime.applyExtensionCommand({"unknown", gts::rendering::ScreenshotCommand{"ignored"}}), "Unknown name is unhandled");
+    require(graphics.screenshots.size() == 2, "Malformed/unknown commands do not capture");
+
     runtime.setUiEnabled(false);
     TimeContext time;
     auto        render = [&](GtsScene& scene, ProfileAccumulator& accumulator)

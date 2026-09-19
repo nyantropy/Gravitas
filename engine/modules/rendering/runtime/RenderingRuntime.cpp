@@ -17,6 +17,7 @@
 #include "EngineServiceRegistry.h"
 #include "FrustumCullingStrategy.h"
 #include "GtsCommand.h"
+#include "ScreenshotCommand.h"
 #include "GtsFrameStats.h"
 #include "GtsScene.hpp"
 #include "ISceneFrameStats.h"
@@ -130,6 +131,13 @@ namespace gts::rendering
 
     bool RenderingRuntime::applyExtensionCommand(const GtsExtensionCommand& command)
     {
+        if (command.name == REQUEST_SCREENSHOT_COMMAND)
+        {
+            if (const auto* payload = std::any_cast<ScreenshotCommand>(&command.payload))
+                graphics.requestScreenshot(payload->directory);
+            return true;
+        }
+
         if (command.name == SET_FRUSTUM_CULLING_ENABLED_COMMAND)
         {
             if (const auto* payload = std::any_cast<SetFrustumCullingEnabledCommand>(&command.payload))

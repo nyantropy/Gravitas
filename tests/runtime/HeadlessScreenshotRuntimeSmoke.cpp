@@ -1,3 +1,4 @@
+#include "ScreenshotCommand.h"
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -8,6 +9,7 @@
 
 #include "EngineConfig.h"
 #include "GravitasEngine.hpp"
+#include "RenderEngineCommands.h"
 
 class HeadlessScreenshotSmokeScene : public GtsScene
 {
@@ -33,8 +35,12 @@ public:
         requested = true;
         if (ctx.engineCommands != nullptr)
         {
-            ctx.engineCommands->requestScreenshot(outputDirectory.string());
+            gts::rendering::requestScreenshot(*ctx.engineCommands, (outputDirectory / "superseded").string());
             ctx.engineCommands->requestQuit();
+            gts::rendering::requestSetFrustumFreeze(*ctx.engineCommands, false);
+            ctx.engineCommands->requestExtensionCommand("test.unknown", 42);
+            ctx.engineCommands->requestTogglePause();
+            gts::rendering::requestScreenshot(*ctx.engineCommands, outputDirectory.string());
         }
     }
 
@@ -43,12 +49,13 @@ private:
     bool requested = false;
 };
 
-int main()
+int main(int argc, char** argv)
 {
     namespace fs = std::filesystem;
+    const bool automated = argc > 1 && std::string(argv[1]) == "--automation";
 
     const fs::path outputDirectory =
-        fs::temp_directory_path() / "gts_headless_screenshot_runtime_smoke";
+        fs::temp_directory_path() / (automated ? "gts_headless_screenshot_automation_smoke" : "gts_headless_screenshot_runtime_smoke");
     fs::remove_all(outputDirectory);
     fs::create_directories(outputDirectory);
 
@@ -68,6 +75,16 @@ int main()
         config.tools.debugOverlayEnabledByDefault = false;
 
         GravitasEngine engine(config);
+        if (automated)
+        {
+            gts::tools::ToolLaunchPreset preset;
+            preset.screenshots.enabled = true;
+            preset.screenshots.count = 1;
+            preset.screenshots.afterSeconds = 0;
+            preset.screenshots.exitAfterCapture = true;
+            preset.screenshots.directory = (outputDirectory / "automated").string();
+            engine.applyToolLaunchPreset(preset);
+        }
         engine.registerScene("headless_screenshot_smoke",
                              [outputDirectory]()
                              {
@@ -88,10 +105,17 @@ int main()
         throw;
     }
 
-    for (const fs::directory_entry& entry : fs::directory_iterator(outputDirectory))
+    const fs::path captureDirectory = automated ? outputDirectory / "automated" : outputDirectory;
+    if (automated && fs::exists(outputDirectory / "screenshot_0000.png"))
+        throw std::runtime_error("Automation must run after queued screenshot requests");
+    for (const fs::directory_entry& entry : fs::directory_iterator(captureDirectory))
     {
         if (entry.path().extension() == ".png" && entry.file_size() > 0)
+        {
+            if (entry.path().filename() != "screenshot_0000.png" || fs::exists(outputDirectory / "superseded"))
+                throw std::runtime_error("Screenshot requests must preserve last-request order and naming");
             return EXIT_SUCCESS;
+        }
     }
 
     std::cerr << "Headless screenshot smoke failed: no PNG was written to "

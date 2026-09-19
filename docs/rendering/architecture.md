@@ -600,6 +600,22 @@ Startup, runtime application, and requested/effective state are documented in
 
 ## Screenshots
 
+Scene and benchmark producers include `ScreenshotCommand.h` from
+`gravitas_rendering_command_contracts` and call
+`gts::rendering::requestScreenshot(commands, directory)`. The rendering-owned
+`ScreenshotCommand { std::string directory; }` travels in the existing
+`GtsExtensionCommand` under `gts.rendering.request_screenshot`. The contract target
+depends only on `gravitas_core`; no backend or rendering implementation is inherited.
+
+The engine drains recognized rendering extensions in queue order before rendering.
+`RenderingRuntime::applyExtensionCommand` forwards the directory unchanged to graphics.
+Recognized commands with a wrong payload are consumed without effect, matching other
+rendering extensions; unknown names remain unhandled. Lifecycle commands stay queued
+until after rendering. Multiple same-frame captures keep the original last-request
+behavior. F12 and automation retain their direct calls and timing; automation follows
+the command drain and can replace its pending capture. Limits, default/relative paths,
+file naming, readback and PNG work are unchanged.
+
 Manual and automated screenshots use the same renderer path:
 
 ```text

@@ -54,18 +54,18 @@ Checks enforce the current CMake/source graph; they do not infer semantic owners
 from arbitrary C++ identifiers or prove all possible generated build expressions.
 Review remains necessary for feature vocabulary and API design.
 
-## Explicit Migration Blockers
+## Feature-Neutral Core Boundaries
 
-These are existing exceptions to conceptual ownership, not permission for new
-upward build dependencies:
+Screenshot semantics belong to `gravitas_rendering_command_contracts`, which depends
+only on core command transport. Rendering handles its typed extension payload at the
+existing pre-render drain point; core neither names nor routes capture behavior.
+The original stdlib-only rendering resource contract target stays independent of core.
 
-- **Screenshot command:** core's closed `GtsCommand` variant and
-  `GtsCommandBuffer::requestScreenshot` expose a rendering-specific request.
-  Extraction requires migrating command producers/consumers to an owned extension
-  contract or changing the command API. A file move alone cannot remove it.
-- **Input platform friendship:** `InputManager` names `GtsPlatform` as a friend for
-  private event injection and frame advancement. A feature-neutral writer boundary
-  requires an input API decision. Core includes/links no runtime header or target.
+Raw input mutation goes through core's five-operation `InputWriter`. The runtime
+platform owns that borrowed writer alongside the input manager and calls it from its
+existing event subscriptions. Core input grants no concrete runtime friendship.
+Neither boundary requires a service registry, a second command transport or a new
+layer exception. The CMake boundary checker remains unchanged.
 
 Execution ownership is fully separated: runtime supplies opaque defaults/groups,
 prepared VN selections, the rendering mode selector and benchmark label function.

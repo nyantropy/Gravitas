@@ -96,7 +96,7 @@ editor UI structures.
 ## Screenshots
 
 Manual screenshot requests use the `engine.screenshot` action or
-`GtsCommandBuffer::requestScreenshot(...)`.
+`gts::rendering::requestScreenshot(commands, directory)` from `ScreenshotCommand.h`.
 
 Automated tooling screenshots should use presets documented in
 [../tooling/presets.md](../tooling/presets.md). The renderer prints saved PNG

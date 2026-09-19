@@ -245,11 +245,6 @@ class GravitasEngine
                 else
                     ++it;
             }
-            else if (auto* screenshot = std::get_if<GtsScreenshotCommand>(&*it))
-            {
-                platform.getGraphics()->requestScreenshot(screenshot->directory);
-                it = engineCommands.commands.erase(it);
-            }
             else
             {
                 ++it;
