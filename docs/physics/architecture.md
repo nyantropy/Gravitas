@@ -12,6 +12,7 @@ scene-local physics world, not a full rigid-body solver.
   descriptor.
 - `modules/physics/contracts/IGtsPhysicsModule.h`: public physics access interface.
 - `modules/physics/contracts/CollisionEvent.h`: collision pair event data.
+- `modules/physics/contracts/ScenePhysics.h`: optional/required borrowed scene access.
 - `modules/physics/core/PhysicsWorld.h/.cpp`: scene-local collision storage,
   profile counters, and `IGtsPhysicsModule` implementation.
 - `modules/physics/systems/PhysicsSystem.h/.cpp`: fixed-step collision update.
@@ -27,8 +28,11 @@ only on `gravitas_core`. Collision/accessor consumers link it without inheriting
 physics implementation or transform. `gravitas_physics` consumes this contract
 target; core does not. `PhysicsControllerContext.h` exposes optional borrowed
 access via `gts::physics::controllerContext(ctx).physics`. Core's controller context
-does not know about physics. Scene physics accessors remain unchanged pending a
-separate semantic-boundary decision.
+does not know about physics. Scene access is also physics-owned through
+`gts::physics::findScenePhysics(scene)` and `requireScenePhysics(scene)` in
+`ScenePhysics.h`. Both have const scene overloads returning const access.
+Find returns null when uninstalled; require throws `std::logic_error`. Neither
+installs physics or extends its lifetime.
 `gravitas_physics` links `gravitas_transform` for transform contracts and
 resolution; transform include directories are owned by that target. The
 [transform architecture](../transform/architecture.md) describes its boundary.
@@ -43,11 +47,19 @@ The installer:
    scheduling a transform controller. Physics resolves explicitly before queries;
    renderer installation places the presentation resolver after transform writers.
 3. Creates a scene resource `PhysicsWorld`.
-4. Exposes it through `scene.setPhysicsModule(...)` and the call's physics-owned
-   controller context. Later calls are populated from the existing scene accessor.
+4. Creates a scene-owned `detail::ScenePhysicsBinding` borrowing that implementation
+   and populates the call's physics-owned controller context. Later engine calls
+   use `findScenePhysics` to obtain the same borrowed implementation pointer.
 5. Registers `PhysicsSystem` as an `EcsSystemGroup::Physics` simulation system.
 
-The physics world is scene-local and is destroyed with the scene.
+The physics world is scene-local and is destroyed with the scene or on scene reset.
+The binding owns no implementation and its destructor never dereferences the
+borrowed object. Both are released by the existing generic scene-resource lifecycle;
+there is no physics reset registry or physics state in `GtsScene`. Raw world clear
+does not reset scene resources. Repeated installation remains idempotent until
+scene reset clears installation bookkeeping. Context pointers must not outlive the
+call/scene resource they borrow. Diagnostics continues reading the physics-owned
+controller payload, without requiring scene access or changed scheduling.
 
 ## Data Model
 

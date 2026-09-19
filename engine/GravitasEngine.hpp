@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PhysicsControllerContext.h"
+#include "ScenePhysics.h"
 #include "RenderingControllerContext.h"
 #include "UiControllerContext.h"
 #include "model/public/GtsModelControllerContext.h"
@@ -138,7 +139,7 @@ class GravitasEngine
         ctx.time              = &timeContext;
         ctx.engineCommands    = &engineCommands;
         gts::ui::controllerContext(ctx).ui                = renderingRuntime->ui();
-        gts::physics::controllerContext(ctx).physics           = activeScene == nullptr ? nullptr : activeScene->getPhysicsModule();
+        gts::physics::controllerContext(ctx).physics           = activeScene == nullptr ? nullptr : gts::physics::findScenePhysics(*activeScene);
         ctx.registeredScenes  = &sceneManager->getRegisteredScenes();
         ctx.activeSceneName   = &sceneManager->getActiveSceneName();
         rendering.windowAspectRatio = windowAspectRatio;

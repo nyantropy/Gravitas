@@ -7,7 +7,8 @@
 #include <type_traits>
 
 #if __has_include("UiSurface.h") || __has_include("IGtsPhysicsModule.h") || __has_include("ResourceTypes.h") || \
-    __has_include("GtsFrameStats.h") || __has_include("ProfileAccumulator.h")
+    __has_include("GtsFrameStats.h") || __has_include("ProfileAccumulator.h") || \
+    __has_include("ScenePhysics.h") || __has_include("ISceneFrameStats.h")
 #error "Core must not publish feature contracts or implementation"
 #endif
 

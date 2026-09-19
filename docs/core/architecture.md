@@ -68,13 +68,34 @@ The scene catalog and active scene name remain foundational lifecycle informatio
 They do not identify a feature capability. Engine commands, input and time retain
 their existing nullable contracts for standalone callers/tests.
 
+## Scene Resources And Optional Features
+
+`GtsScene` owns its ECS world, lifecycle callbacks, generic installation IDs,
+reset hooks and scene resources. It has no physics accessors or telemetry hooks.
+
+`createSceneResource<T>(args...)` creates one owned resource per exact, unqualified,
+non-array object type. Duplicate creation throws `std::logic_error` before
+constructing a replacement. Base types are not matched. `findSceneResource<T>()`
+returns a borrowed pointer or null; `requireSceneResource<T>()` returns a borrowed
+reference or throws `std::logic_error`. Neither lookup creates a resource. Const
+scene overloads return `const T*` / `const T&`. Access expires at reset/destruction.
+
+Normal unload remains `onUnload` → reset hooks in registration order → world clear
+→ resource destruction in creation order → installation-ID and reset-hook clearing.
+Direct destruction releases resources before the world member's destruction; it
+does not invoke unload or reset hooks. Calling `ECSWorld::clear()` alone does not
+release scene resources or clear scene installation bookkeeping.
+
+Physics owns borrowed scene access in `ScenePhysics.h`, using a scene-owned
+binding to the separately scene-owned implementation. Profiling participation is
+the optional diagnostics-owned `ISceneFrameStats` interface, detected by rendering.
+Neither feature is declared, included or linked by core.
+
 ## Deliberately Deferred Semantic Boundaries
 
 This is physical/build ownership, not a redesign of engine composition. The
 following existing feature awareness remains intentional for this stage:
 
-- `GtsScene` physics accessors and frame-statistics hooks. `GtsFrameStats` is
-  forward-declared; implementations accessing fields include its diagnostics header.
 - `SceneExecutionProfile` presets and `EcsSystemGroup` vocabulary.
 - Screenshot commands and their existing request semantics.
 - Rendering-side `UiSystem` and resource integration.
@@ -91,3 +112,6 @@ target and reject visibility of unrelated implementation headers. The standalone
 UI test exercises retained surfaces/documents, resource values, layout and reset
 without `UiSystem`. `profile_accumulator` links only `gravitas_profiling`.
 The core-only module smoke case configures, builds and runs all its available tests.
+`scene_resource` exercises exact-type and const lookup, explicit failures,
+installation/reset cycles, resource isolation and the distinct unload/direct
+destruction/world-clear paths, including scene factory transitions.

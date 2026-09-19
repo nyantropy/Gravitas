@@ -19,3 +19,7 @@ add_test(NAME core_boundary COMMAND CoreBoundaryTest)
 add_executable(ControllerContextTest ControllerContextTest.cpp)
 target_link_libraries(ControllerContextTest PRIVATE gravitas_core)
 add_test(NAME controller_context COMMAND ControllerContextTest)
+
+add_executable(SceneResourceTest SceneResourceTest.cpp)
+target_link_libraries(SceneResourceTest PRIVATE gravitas_core)
+add_test(NAME scene_resource COMMAND SceneResourceTest)

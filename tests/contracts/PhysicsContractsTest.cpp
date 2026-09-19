@@ -1,6 +1,7 @@
 #include "CollisionEvent.h"
 #include "IGtsPhysicsModule.h"
 #include "PhysicsControllerContext.h"
+#include "ScenePhysics.h"
 #include "ECSWorld.hpp"
 #include <utility>
 
@@ -34,8 +35,28 @@ public:
     }
 };
 
+class ContractScene final : public GtsScene
+{
+public:
+    void onLoad(EcsControllerContext&, const GtsSceneTransitionData*) override {}
+    void onUpdateSimulation(const EcsSimulationContext&) override {}
+};
+
 int main()
 {
+    ContractScene scene;
+    if (gts::physics::findScenePhysics(scene) != nullptr)
+        return 1;
+    auto& owned = scene.createSceneResource<ContractPhysics>();
+    scene.createSceneResource<gts::physics::detail::ScenePhysicsBinding>(owned);
+    if (&gts::physics::requireScenePhysics(scene) != &owned ||
+        &gts::physics::requireScenePhysics(std::as_const(scene)) != &owned)
+        return 1;
+    EcsControllerContext sceneCall{scene.getWorld()};
+    scene.unload(sceneCall);
+    if (gts::physics::findScenePhysics(scene) != nullptr)
+        return 1;
+
     ECSWorld world;
     EcsControllerContext context{world};
     world.addControllerSystem<PhysicsController>(EcsSystemGroup::Always);

@@ -19,6 +19,7 @@
 #include "GtsCommand.h"
 #include "GtsFrameStats.h"
 #include "GtsScene.hpp"
+#include "ISceneFrameStats.h"
 #include "IGtsGraphicsModule.hpp"
 #include "IResourceProvider.hpp"
 #include "InputBindingRegistry.h"
@@ -345,7 +346,9 @@ namespace gts::rendering
         stats.controllerCpuMs       = controllerCpuMs;
         stats.frameCpuMs            = frameCpuMs;
         stats.frameIndex            = time.frame;
-        activeScene.populateFrameStats(stats);
+        auto* sceneFrameStats = dynamic_cast<ISceneFrameStats*>(&activeScene);
+        if (sceneFrameStats != nullptr)
+            sceneFrameStats->populateFrameStats(stats);
 
         const SceneExecutionProfile& executionProfile = world.getCurrentExecutionProfile();
         const FrameBuildMode frameBuildMode = executionProfile.frameBuildMode;
@@ -496,7 +499,8 @@ namespace gts::rendering
         finalStats.renderSubmitCpuMs =
             std::chrono::duration<float, std::milli>(submitEnd - submitStart).count();
 
-        activeScene.onFrameStats(finalStats);
+        if (sceneFrameStats != nullptr)
+            sceneFrameStats->onFrameStats(finalStats);
         profiler.add(finalStats, dt);
         if (profiler.shouldPrint())
         {

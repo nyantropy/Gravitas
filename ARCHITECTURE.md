@@ -316,6 +316,18 @@ object slots, and procedural mesh resources are scene-runtime state. Long-lived
 application state that should survive a scene change belongs outside the scene
 instance and is passed into scene factories by the application.
 
+`GtsScene` provides exact-type scene-owned resources through `createSceneResource`,
+`findSceneResource` and `requireSceneResource`. Lookup is borrowed and const-correct;
+each type is unique, find returns null when missing, and require/duplicate creation
+throw explicitly. Scene reset destroys resources after world clear. Direct scene
+destruction still does not call unload, and raw world clear is not a scene reset.
+See [core architecture](docs/core/architecture.md) for the full lifetime contract.
+
+Physics access belongs to `gts::physics::findScenePhysics` / `requireScenePhysics`
+in `gravitas_physics_contracts`. Optional scene statistics participation belongs to
+diagnostics' `ISceneFrameStats`, invoked by rendering before extraction and after
+submission. Neither physics nor profiling is part of the foundational scene API.
+
 ## Event Buses
 
 The engine has two event buses:

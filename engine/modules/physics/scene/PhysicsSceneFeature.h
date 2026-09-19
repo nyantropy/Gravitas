@@ -5,6 +5,7 @@
 #include "GtsScene.hpp"
 #include "PhysicsSystem.h"
 #include "PhysicsWorld.h"
+#include "ScenePhysics.h"
 #include "TransformSceneFeature.h"
 
 namespace gts::physics
@@ -17,7 +18,7 @@ namespace gts::physics
         gts::transform::installTransformRuntime(scene);
 
         PhysicsWorld& physicsWorld = scene.createSceneResource<PhysicsWorld>(&scene.getWorld());
-        scene.setPhysicsModule(&physicsWorld);
+        scene.createSceneResource<detail::ScenePhysicsBinding>(physicsWorld);
         gts::physics::controllerContext(ctx).physics = &physicsWorld;
 
         scene.getWorld().addSimulationSystem<PhysicsSystem>(EcsSystemGroup::Physics, &physicsWorld);

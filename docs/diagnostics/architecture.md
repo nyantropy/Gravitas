@@ -18,9 +18,25 @@ There is no monolithic diagnostics runtime or library.
 existing telemetry fields, layouts and accumulation behavior. The schema includes
 renderer and game counters and belongs to diagnostics rather than foundational
 core. The modules parent registers profiling before rendering so its consumers
-can link the leaf target directly. The scene's existing telemetry hooks retain a
-forward declaration; core neither includes nor links the telemetry schema.
-Redesigning those hooks is a separate architectural decision.
+can link the leaf target directly. Optional scene participation belongs to
+`profiling/ISceneFrameStats.h`, with default no-op `populateFrameStats` (const)
+and `onFrameStats` operations. A participating scene inherits this interface
+alongside `GtsScene`; ordinary scenes have no telemetry dependency. Core neither
+declares nor links the schema or participation interface.
+
+`RenderingRuntime` detects the interface and keeps the established order:
+initial statistics → optional contribution → extraction/rendering statistics →
+submission/final statistics → optional observation → accumulator. Backend results
+with a mismatched frame index still fall back to the current submission statistics.
+`GtsScene3` and the game's `DungeonTestScene` contribute their existing counters;
+`RuntimeBenchmarkScene` observes final statistics once per rendered frame, retaining
+warmup, GPU-timing availability, measurement and quit timing.
+
+`scene_frame_stats_runtime` exercises the real rendering runtime with a CPU fake
+graphics backend: participating/nonparticipating scenes, observation-only benchmark
+behavior, contribution/extraction/submission order, final GPU/backend fields,
+stale-result fallback and observation before accumulation. It also runs in reduced
+rendering configurations without Vulkan or physics.
 
 ## Submission And Realization
 

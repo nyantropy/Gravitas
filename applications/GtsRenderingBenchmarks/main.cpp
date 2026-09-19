@@ -28,6 +28,7 @@
 #include "GravitasEngine.hpp"
 #include "GtsFrameStats.h"
 #include "GtsScene.hpp"
+#include "ISceneFrameStats.h"
 #include "MaterialReferenceComponent.h"
 #include "MaterialRuntime.h"
 #include "ParticleEmitterComponent.h"
@@ -1445,7 +1446,7 @@ namespace
         return result;
     }
 
-    class RuntimeBenchmarkScene final : public GtsScene
+    class RuntimeBenchmarkScene final : public GtsScene, public ISceneFrameStats
     {
     public:
         RuntimeBenchmarkScene(RenderingBenchmarkConfig config,

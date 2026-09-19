@@ -39,6 +39,7 @@ if(GRAVITAS_SMOKE_CASE STREQUAL "core_only")
         -DGTS_ENABLE_TOOLS=OFF
     )
 elseif(GRAVITAS_SMOKE_CASE STREQUAL "rendering_without_backend")
+    set(runtime_test_regex "^(scene_resource|scene_frame_stats_runtime|physics_controller_installation|physics_contracts)$")
     list(APPEND configure_args
         -DGTS_ENABLE_RENDERING=ON
         -DGTS_ENABLE_VULKAN_BACKEND=OFF
@@ -47,6 +48,7 @@ elseif(GRAVITAS_SMOKE_CASE STREQUAL "rendering_without_backend")
         -DGTS_ENABLE_TOOLS=OFF
     )
 elseif(GRAVITAS_SMOKE_CASE STREQUAL "physics_without_rendering")
+    set(runtime_test_regex "^(scene_resource|physics_controller_installation|physics_transform_integration|physics_contracts)$")
     list(APPEND configure_args
         -DGTS_ENABLE_RENDERING=OFF
         -DGTS_ENABLE_VULKAN_BACKEND=OFF
@@ -70,7 +72,7 @@ elseif(GRAVITAS_SMOKE_CASE STREQUAL "debugdraw_without_physics")
         -DGTS_ENABLE_DEBUGDRAW=ON
         -DGTS_ENABLE_TOOLS=OFF
     )
-    set(runtime_test_regex "^debugdraw_runtime$")
+    set(runtime_test_regex "^(debugdraw_runtime|scene_frame_stats_runtime)$")
 elseif(GRAVITAS_SMOKE_CASE STREQUAL "debugdraw_with_physics")
     list(APPEND configure_args
         -DGTS_ENABLE_RENDERING=ON
@@ -79,7 +81,7 @@ elseif(GRAVITAS_SMOKE_CASE STREQUAL "debugdraw_with_physics")
         -DGTS_ENABLE_DEBUGDRAW=ON
         -DGTS_ENABLE_TOOLS=OFF
     )
-    set(runtime_test_regex "^(debugdraw_runtime|physics_debugdraw_runtime)$")
+    set(runtime_test_regex "^(debugdraw_runtime|physics_debugdraw_runtime|scene_frame_stats_runtime|physics_controller_installation)$")
 elseif(GRAVITAS_SMOKE_CASE STREQUAL "debugdraw_without_rendering_is_rejected")
     list(APPEND configure_args
         -DGTS_ENABLE_RENDERING=OFF

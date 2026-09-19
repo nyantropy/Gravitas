@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "GtsScene.hpp"
+#include "ISceneFrameStats.h"
 
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
@@ -23,7 +24,7 @@
 #include "StaticMeshComponent.h"
 #include "TransformComponent.h"
 
-class GtsScene3 : public GtsScene
+class GtsScene3 : public GtsScene, public ISceneFrameStats
 {
 public:
     GtsScene3() = default;
