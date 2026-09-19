@@ -3,6 +3,7 @@
 #include "GtsSkeletonOccurrence.h"
 #include "assets/realization/model/GtsRealizedModel.h"
 #include "GtsRealizedModelMaterials.h"
+#include "GtsModelMaterialSlot.h"
 
 struct GtsModelInstanceStatus
 {
@@ -34,11 +35,7 @@ class GtsModelInstance
     {
         return materialSet;
     }
-    bool worldMaterialsValid() const
-    {
-        return materialSet && materialSet->valid() &&
-               (!materialOverride || materialSet->isMaterialAlive(*materialOverride));
-    }
+    bool                                   worldMaterialsValid() const;
     std::span<const GtsSkeletonOccurrence> skeletonOccurrences() const
     {
         return occurrences;
@@ -49,9 +46,18 @@ class GtsModelInstance
     const GtsSkinPalette*  paletteForOccurrence(uint32_t occurrenceIndex) const;
     MaterialInstanceHandle materialFor(uint32_t occurrenceIndex, uint32_t primitiveIndex) const;
 
-    [[nodiscard]] GtsModelInstanceStatus
-    setMaterialOverride(MaterialInstanceHandle material, std::weak_ptr<const int> runtimeScope);
-    void clearMaterialOverride() { materialOverride.reset(); }
+    std::optional<GtsModelMaterialSlot>  materialSlot(const GtsRealizedMaterial& material) const;
+    [[nodiscard]] GtsModelInstanceStatus setMaterialOverride(MaterialInstanceHandle   material,
+                                                             std::weak_ptr<const int> runtimeScope);
+    [[nodiscard]] GtsModelInstanceStatus setMaterialOverride(GtsModelMaterialSlot     slot,
+                                                             MaterialInstanceHandle   material,
+                                                             std::weak_ptr<const int> runtimeScope);
+    void                                 clearMaterialOverride()
+    {
+        materialOverride.reset();
+    }
+    void clearMaterialOverride(GtsModelMaterialSlot slot);
+    void clearMaterialOverrides();
 
     [[nodiscard]] GtsModelInstanceStatus play(uint32_t use, GtsModelClipReference clip);
     [[nodiscard]] GtsModelInstanceStatus stop(uint32_t use);
@@ -64,6 +70,18 @@ class GtsModelInstance
     GtsModelInstance(GtsModelHandle                                   model,
                      std::shared_ptr<const GtsRealizedModel>          geometry,
                      std::shared_ptr<const GtsRealizedModelMaterials> materials);
+    struct MaterialOverride
+    {
+        MaterialInstanceHandle   material;
+        std::weak_ptr<const int> runtimeLifetime;
+    };
+    struct SlotOverride
+    {
+        GtsModelMaterialSlot slot;
+        MaterialOverride     replacement;
+    };
+    bool                   ownsMaterialSlot(const GtsModelMaterialSlot& slot) const;
+    bool                   validOverride(const MaterialOverride& replacement) const;
     GtsModelInstanceStatus initialize();
     GtsModelInstanceStatus evaluatePalettes(GtsSkeletonOccurrence& occurrence) const;
     GtsModelInstanceStatus
@@ -72,7 +90,8 @@ class GtsModelInstance
     GtsModelHandle                                   resource;
     std::shared_ptr<const GtsRealizedModel>          realized;
     std::shared_ptr<const GtsRealizedModelMaterials> materialSet;
-    std::optional<MaterialInstanceHandle>            materialOverride;
+    std::optional<MaterialOverride>                  materialOverride;
+    std::vector<SlotOverride>                        slotOverrides;
     std::vector<GtsSkeletonOccurrence>               occurrences; // Sized once; updates preserve occurrence addresses.
     std::shared_ptr<const int>                       lifetime = std::make_shared<const int>(0);
 };

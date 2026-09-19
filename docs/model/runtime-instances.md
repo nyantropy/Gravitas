@@ -146,27 +146,54 @@ Animation may continue independently because its model definitions remain valid.
 `rebindMaterials(materialSet)` validates and retains a matching new material set without reimporting
 or preparing geometry and without resetting playback/pose/palettes. The next render extraction consumes the new set automatically.
 
-Instances support one model-wide material override:
+Instance overrides select existing runtime material handles. Shared base model
+materials remain immutable; instance state adds a model-wide fallback and more
+specific logical-slot overrides. Actual lookup precedence is:
 
-```cpp
-instance.setMaterialOverride(handle, materialRuntime.lifetimeToken());
-instance.clearMaterialOverride();
+```text
+per-slot override → model-wide override → shared base material
 ```
 
-Setting an override validates that the supplied scope matches the base material
-set's live world/runtime and that the handle is alive there. The instance stores
-only the handle; `MaterialRuntime` retains ownership. All valid primitive logical
-associations use the override until cleared, then return to their unchanged base
-materials. No primitive enumeration or shared-definition mutation is needed.
-Destroyed handles fail material validity/extraction rather than silently rendering
-with another material. Runtime reset expires the set; rebinding to a different
-runtime scope clears the old override, preventing numeric handle reuse from
-reviving it. Rebinding within the same scope preserves the override.
+```cpp
+// The association must be a reference from this instance's shared realized geometry.
+std::optional<GtsModelMaterialSlot> slot = instance.materialSlot(association);
+instance.setMaterialOverride(handle, materialRuntime.lifetimeToken()); // Whole-model fallback.
+instance.setMaterialOverride(*slot, replacement, materialRuntime.lifetimeToken());
+instance.clearMaterialOverride(*slot); // Only this logical slot.
+instance.clearMaterialOverride();      // Only the whole-model fallback.
+instance.clearMaterialOverrides();     // Both whole-model and all slot overrides.
+```
 
-This is a whole-model convenience, not a material-variant or per-slot override
-system. Future finer-grained overrides should address logical model materials,
-not renderer draw indices. Extraction already calls `materialFor`, so changes take
-effect on the next frame without rebuilding geometry or presentation.
+Both setters return `GtsModelInstanceStatus` and must be checked. Slot acquisition
+returns no value for unassigned/default, foreign, or copied/fabricated associations.
+`GtsModelMaterialSlot` is an opaque, non-owning handle scoped to one shared realized
+model, usable across instances sharing that realization. It cannot be fabricated
+from an integer. Canonical slot identity is its unchanged model material index;
+cooked identity is the `AssetReference` (ID and logical path) plus retained reference
+directory. Repeated uses of the same logical association receive the same override,
+regardless of geometry profile, primitive, node, or skin binding. A small private
+vector stores slot overrides deterministically; draw indices are not override keys.
+
+Unassigned/default associations have no slot override. They use the model-wide
+override when present, otherwise the normal shared default material. This lets
+pillar/barrel retain their one-call whole-model unlit/tinted selection without
+knowing material layout. Clears are idempotent and immediately restore fallback.
+
+Overrides are per-instance, runtime-only, MaterialRuntime-scoped and renderer-neutral.
+Each entry stores a handle and weak runtime lifetime token, never material properties
+or ownership of the runtime. Setting validates the slot, live handle and matching
+world/runtime scope before changing state. Lookup also validates stored overrides;
+a destroyed handle or expired token fails material validity/extraction explicitly,
+even if another override would currently hide it. Two instances can select different
+materials while sharing identical base geometry/material realization objects.
+
+Runtime reset expires the material set and overrides. Rebinding to a different
+runtime scope clears all overrides so reused numeric handles cannot revive them;
+rebinding within the same scope preserves them. `materialFor(occurrence, primitive)`
+is the single resolution authority. Extraction calls it for both static and skinned
+draws, so override changes take effect next frame without rebuilding geometry,
+material realization or presentation. No material mutation, variants or serialization
+are part of this contract.
 
 World placement remains exclusively in the entity's `TransformComponent`. Authored hierarchy remains in `GtsModelResource`.
 Neither is copied into the instance or baked into geometry/palettes. Static

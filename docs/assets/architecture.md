@@ -107,8 +107,10 @@ default pose, even without clips. Playback is scoped to a skeleton use, validate
 resource-scoped clips, and does not restart an already-active clip. Multiple instances
 share definitions while keeping independent playback, poses and CPU palettes.
 Entity components hold stable instance references to satisfy ECS copyability.
-A model-wide material override may select another live handle from the same world
-per instance; clearing it restores the unchanged shared base materials.
+Instance material lookup resolves per-logical-slot overrides, then a model-wide
+fallback override, then unchanged shared base materials. Overrides select live
+handles from the same world, retain weak runtime lifetime tokens and never mutate
+asset or shared realization data. Clearing restores the next fallback immediately.
 
 See [material realization](../rendering/model-material-realization.md) and
 [instance ownership and APIs](../model/runtime-instances.md).

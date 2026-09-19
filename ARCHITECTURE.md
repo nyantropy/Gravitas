@@ -335,7 +335,10 @@ Canonical meshes use static/skinned preparation per occurrence; cooked meshes
 retain their prepared bytes without regeneration. World material services resolve
 logical associations to `MaterialRuntime` handles and invalidate them on reset.
 Instances own only mutable occurrence state: independent skeletal playback, poses
-and binding palettes. Model hierarchy remains shared; world placement stays in ECS.
+and binding palettes, plus optional material-handle overrides. Material lookup resolves
+per-logical-slot override → model-wide fallback → shared base material. Overrides
+retain weak lifetime tokens in the same world scope and never mutate shared materials.
+Model hierarchy remains shared; world placement stays in ECS.
 
 Rendering discovers generic model-instance components. It references immutable
 geometry, resolves live materials and captures frame-owned dynamic state. Static

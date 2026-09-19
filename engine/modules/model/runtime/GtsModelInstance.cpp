@@ -1,5 +1,6 @@
 #include "GtsModelInstance.h"
 
+#include <algorithm>
 #include <cmath>
 #include <exception>
 #include "assets/model/GtsModelSkin.h"
@@ -119,23 +120,130 @@ const GtsSkinPalette* GtsModelInstance::paletteForOccurrence(uint32_t occurrence
     return occurrence.skinBindingIndex ? palette(*occurrence.skinBindingIndex) : nullptr;
 }
 
+namespace
+{
+    bool sameLogicalMaterial(const GtsRealizedMaterial& a, const GtsRealizedMaterial& b)
+    {
+        if (a.index() != b.index())
+            return false;
+        if (const auto* slot = std::get_if<uint32_t>(&a))
+            return *slot == std::get<uint32_t>(b);
+        if (const auto* external = std::get_if<GtsExternalMaterialReference>(&a))
+        {
+            const auto& other = std::get<GtsExternalMaterialReference>(b);
+            return external->reference.id == other.reference.id &&
+                   external->reference.logicalPath == other.reference.logicalPath &&
+                   external->referenceDirectory == other.referenceDirectory;
+        }
+        return false; // Unassigned/default is not a logical slot.
+    }
+} // namespace
+
+bool GtsModelInstance::validOverride(const MaterialOverride& replacement) const
+{
+    const auto scope = replacement.runtimeLifetime.lock();
+    return materialSet && scope && scope == materialSet->scopeToken().lock() &&
+           materialSet->isMaterialAlive(replacement.material);
+}
+
+bool GtsModelInstance::worldMaterialsValid() const
+{
+    return materialSet && materialSet->valid() && (!materialOverride || validOverride(*materialOverride)) &&
+           std::all_of(slotOverrides.begin(),
+                       slotOverrides.end(),
+                       [this](const SlotOverride& entry)
+                       {
+                           return validOverride(entry.replacement);
+                       });
+}
+
+std::optional<GtsModelMaterialSlot> GtsModelInstance::materialSlot(const GtsRealizedMaterial& material) const
+{
+    if (std::holds_alternative<std::monostate>(material))
+        return {};
+    // Bare integers or copied associations cannot establish model ownership.
+    for (const auto& geometry : realized->geometry)
+        for (const auto& primitive : geometry.primitives())
+            if (&primitive.material == &material)
+            {
+                GtsModelMaterialSlot slot;
+                slot.owner       = realized;
+                slot.association = &material;
+                return slot;
+            }
+    return {};
+}
+
+bool GtsModelInstance::ownsMaterialSlot(const GtsModelMaterialSlot& slot) const
+{
+    return slot.association && slot.owner.lock() == realized;
+}
+
 MaterialInstanceHandle GtsModelInstance::materialFor(uint32_t occurrenceIndex, uint32_t primitiveIndex) const
 {
     if (!worldMaterialsValid() || occurrenceIndex >= realized->occurrences.size())
         return {};
-    const auto base =
-        materialSet->materialFor(*realized, realized->occurrences[occurrenceIndex].geometryIndex, primitiveIndex);
-    return base.valid() && materialOverride ? *materialOverride : base;
+    const auto geometryIndex = realized->occurrences[occurrenceIndex].geometryIndex;
+    if (geometryIndex >= realized->geometry.size())
+        return {};
+    const auto primitives = realized->geometry[geometryIndex].primitives();
+    if (primitiveIndex >= primitives.size())
+        return {};
+    const auto& association = primitives[primitiveIndex].material;
+    for (const auto& entry : slotOverrides)
+        if (sameLogicalMaterial(*entry.slot.association, association))
+            return entry.replacement.material;
+    if (materialOverride)
+        return materialOverride->material;
+    return materialSet->materialFor(*realized, geometryIndex, primitiveIndex);
 }
 
-GtsModelInstanceStatus
-GtsModelInstance::setMaterialOverride(MaterialInstanceHandle material, std::weak_ptr<const int> runtimeScope)
+GtsModelInstanceStatus GtsModelInstance::setMaterialOverride(MaterialInstanceHandle   material,
+                                                             std::weak_ptr<const int> runtimeScope)
 {
-    if (!materialSet || !materialSet->valid() || runtimeScope.expired() ||
-        runtimeScope.lock() != materialSet->scopeToken().lock() || !materialSet->isMaterialAlive(material))
-        return failure("model.instance.material_override", "Override requires a live material in this instance's world");
-    materialOverride = material;
+    MaterialOverride replacement{material, std::move(runtimeScope)};
+    if (!materialSet || !materialSet->valid() || !validOverride(replacement))
+        return failure("model.instance.material_override",
+                       "Override requires a live material in this instance's world");
+    materialOverride = std::move(replacement);
     return {};
+}
+
+GtsModelInstanceStatus GtsModelInstance::setMaterialOverride(GtsModelMaterialSlot     slot,
+                                                             MaterialInstanceHandle   material,
+                                                             std::weak_ptr<const int> runtimeScope)
+{
+    if (!ownsMaterialSlot(slot))
+        return failure("model.instance.material_slot", "Override requires a logical material slot from this model");
+    MaterialOverride replacement{material, std::move(runtimeScope)};
+    if (!materialSet || !materialSet->valid() || !validOverride(replacement))
+        return failure("model.instance.material_override",
+                       "Override requires a live material in this instance's world");
+    for (auto& entry : slotOverrides)
+        if (sameLogicalMaterial(*entry.slot.association, *slot.association))
+        {
+            entry.replacement = std::move(replacement);
+            return {};
+        }
+    slotOverrides.push_back({std::move(slot), std::move(replacement)});
+    return {};
+}
+
+void GtsModelInstance::clearMaterialOverride(GtsModelMaterialSlot slot)
+{
+    if (!ownsMaterialSlot(slot))
+        return;
+    std::erase_if(slotOverrides,
+                  [&](const SlotOverride& entry)
+                  {
+                      return sameLogicalMaterial(*entry.slot.association, *slot.association);
+                  });
+}
+
+void GtsModelInstance::clearMaterialOverrides()
+{
+    materialOverride.reset();
+    slotOverrides.clear();
 }
 
 GtsModelInstanceStatus GtsModelInstance::play(uint32_t use, GtsModelClipReference reference)
@@ -233,7 +341,7 @@ GtsModelInstanceStatus GtsModelInstance::rebindMaterials(std::shared_ptr<const G
     if (!materials || !materials->belongsTo(*realized))
         return failure("model.instance.material_scope", "Foreign material set");
     if (materialSet->scopeToken().lock() != materials->scopeToken().lock())
-        clearMaterialOverride();
+        clearMaterialOverrides();
     materialSet = std::move(materials);
     return {};
 }

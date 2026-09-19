@@ -88,7 +88,8 @@ entities for teardown. No new scene graph or instance world transform is introdu
 Extraction resolves `instance.materialFor(occurrence, primitive)` from the current
 material set and checks its weak runtime scope against the supplied runtime. It
 uses ordinary `MaterialRuntime::synchronizeGpuState` and frame-state conversion.
-Instance-wide material overrides resolve through the same lookup; setting/clearing
+Per-slot and model-wide material overrides resolve through the same instance lookup
+(per-slot → model-wide → base); extraction has no separate override policy. Setting/clearing
 one requires no presentation refresh. Canonical versus cooked origin is invisible here. The headless null-provider path
 uses the same runtime's CPU frame description for tests.
 

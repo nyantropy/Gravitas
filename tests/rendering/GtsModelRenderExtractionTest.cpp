@@ -44,27 +44,27 @@ namespace
     }
     void materialOverrides(const std::filesystem::path& root)
     {
-        GtsModelRegistry registry;
+        GtsModelRegistry         registry;
         GtsModelRealizationCache cache;
-        World world;
-        auto& service = modelInstances(world, cache, nullptr);
-        auto model = load(registry, GltfFixtureBuilder{}, root / "overrides");
-        auto a = create(service, model), b = create(service, model);
-        auto& materials = materialRuntime(world);
-        const auto base = a->materialFor(0, 0);
-        const auto shared = a->materials();
+        World                    world;
+        auto&                    service = modelInstances(world, cache, nullptr);
+        auto                     model   = load(registry, GltfFixtureBuilder{}, root / "overrides");
+        auto                     a = create(service, model), b = create(service, model);
+        auto&                    materials = materialRuntime(world);
+        const auto               base      = a->materialFor(0, 0);
+        const auto               shared    = a->materials();
         require(base == b->materialFor(0, 0), "instances initially use shared base materials");
         MaterialInstance red;
         red.baseColor = {1, 0, 0, 1};
         MaterialInstance blue;
-        blue.baseColor = {0, 0, 1, 1};
-        const auto redHandle = materials.createInstance(red);
+        blue.baseColor        = {0, 0, 1, 1};
+        const auto redHandle  = materials.createInstance(red);
         const auto blueHandle = materials.createInstance(blue);
         ok(a->setMaterialOverride(redHandle, materials.lifetimeToken()));
         require(b->materialFor(0, 0) == base && shared->materialFor(*a->geometry(), 0, 0) == base,
                 "override does not mutate another instance or shared materials");
         ok(b->setMaterialOverride(blueHandle, materials.lifetimeToken()));
-        auto redFrame = extract(a, world);
+        auto redFrame  = extract(a, world);
         auto blueFrame = extract(b, world);
         require(redFrame.staticDraws[0].material.instance == redHandle &&
                     blueFrame.staticDraws[0].material.instance == blueHandle &&
@@ -74,7 +74,7 @@ namespace
                 "extraction reads independent instance overrides with shared definitions");
         require(!a->materialFor(999, 0).valid() && !a->materialFor(0, 999).valid(),
                 "override cannot hide an invalid occurrence or primitive");
-        World foreign;
+        World      foreign;
         const auto foreignHandle = materialRuntime(foreign).createInstance(red);
         require(!a->setMaterialOverride(foreignHandle, materialRuntime(foreign).lifetimeToken()).succeeded() &&
                     !a->setMaterialOverride({}, materials.lifetimeToken()).succeeded() &&
@@ -96,6 +96,144 @@ namespace
         require(a->materialFor(0, 0) == a->materials()->materialFor(*a->geometry(), 0, 0),
                 "rebinding to a new scope clears old overrides even if handle numbers are reused");
         extract(a, world);
+    }
+
+    // Both canonical slots and cooked references exercise the same public override contract.
+    void verifySlotOverrides(GtsModelHandle model, GtsModelHandle foreignModel)
+    {
+        GtsModelRealizationCache cache;
+        World                    world;
+        auto&                    service = modelInstances(world, cache, nullptr);
+        auto                     a = create(service, model), b = create(service, model);
+        auto                     foreign    = create(service, foreignModel);
+        const auto               primitives = a->geometry()->geometry[0].primitives();
+        auto                     slot0      = a->materialSlot(primitives[0].material);
+        auto                     slot1      = a->materialSlot(primitives[1].material);
+        auto                     repeated   = a->materialSlot(primitives[2].material);
+        require(
+            slot0 && slot1 && repeated &&
+                a->materialSlot(primitives[3].material).has_value() == (model->canonicalModel() != nullptr),
+            "assigned slots are addressable; cooked unassigned is not a slot (glTF imports an explicit default slot)");
+        const auto copied = primitives[0].material;
+        require(!a->materialSlot(copied) && !a->materialSlot(GtsRealizedMaterial{uint32_t(999)}) &&
+                    !a->materialSlot(foreign->geometry()->geometry[0].primitives()[0].material),
+                "copied, fabricated and foreign associations cannot establish model slot ownership");
+        auto&      runtime = materialRuntime(world);
+        const auto A = a->materialFor(0, 0), B = a->materialFor(0, 1), fallback = a->materialFor(0, 3);
+        require(A != B && B == a->materialFor(0, 2) &&
+                    (model->canonicalModel() || fallback == runtime.defaultMaterial()),
+                "distinct base slots, repeated slot and default material");
+        const auto C     = runtime.createInstance(MaterialInstance{});
+        const auto D     = runtime.createInstance(MaterialInstance{});
+        auto       check = [&](MaterialInstanceHandle x, MaterialInstanceHandle y, MaterialInstanceHandle z)
+        {
+            require(a->materialFor(0, 0) == x && a->materialFor(0, 1) == y && a->materialFor(0, 2) == y &&
+                        a->materialFor(0, 3) == z,
+                    "per-slot then model-wide then base precedence");
+            const auto frame = extract(a, world);
+            require(frame.staticDraws.size() == 4 && frame.staticDraws[0].material.instance == x &&
+                        frame.staticDraws[1].material.instance == y && frame.staticDraws[2].material.instance == y &&
+                        frame.staticDraws[3].material.instance == z,
+                    "extraction immediately observes logical override changes without rebuilding");
+        };
+        check(A, B, fallback);
+        ok(a->setMaterialOverride(*slot1, C, runtime.lifetimeToken()));
+        check(A, C, fallback);
+        ok(a->setMaterialOverride(D, runtime.lifetimeToken()));
+        check(D, C, D);
+        a->clearMaterialOverride(*repeated);
+        check(D, D, D);
+        a->clearMaterialOverride();
+        check(A, B, fallback);
+        ok(a->setMaterialOverride(*slot0, D, runtime.lifetimeToken()));
+        ok(a->setMaterialOverride(*slot1, C, runtime.lifetimeToken()));
+        ok(a->setMaterialOverride(C, runtime.lifetimeToken()));
+        check(D, C, C);
+        a->clearMaterialOverride();
+        check(D, C, fallback);
+        ok(a->setMaterialOverride(*repeated, D, runtime.lifetimeToken()));
+        check(D, D, fallback);
+        a->clearMaterialOverride(*slot1);
+        check(D, B, fallback);
+        a->clearMaterialOverride(*slot1); // Idempotent.
+        a->clearMaterialOverride(GtsModelMaterialSlot{});
+        ok(b->setMaterialOverride(*slot0, C, runtime.lifetimeToken()));
+        require(b->materialFor(0, 0) == C && b->materialFor(0, 1) == B && a->materials() == b->materials() &&
+                    a->geometry() == b->geometry() && a->materials()->materialFor(*a->geometry(), 0, 0) == A &&
+                    a->materials()->materialFor(*a->geometry(), 0, 1) == B,
+                "instances have independent overrides with immutable shared base materials");
+        auto       foreignSlot = foreign->materialSlot(foreign->geometry()->geometry[0].primitives()[0].material);
+        World      foreignWorld;
+        const auto foreignHandle = materialRuntime(foreignWorld).createInstance(MaterialInstance{});
+        require(foreignSlot && !a->setMaterialOverride(*foreignSlot, C, runtime.lifetimeToken()).succeeded() &&
+                    !a->setMaterialOverride(GtsModelMaterialSlot{}, C, runtime.lifetimeToken()).succeeded() &&
+                    !a->setMaterialOverride(*slot0, {}, runtime.lifetimeToken()).succeeded() &&
+                    !a->setMaterialOverride(*slot0, C, {}).succeeded() &&
+                    !a->setMaterialOverride(*slot0, foreignHandle, materialRuntime(foreignWorld).lifetimeToken())
+                         .succeeded(),
+                "assignment rejects invalid slots, handles, expired tokens and foreign runtime scopes");
+        a->clearMaterialOverride(*foreignSlot);
+        check(D, B, fallback); // Rejected operations leave existing state unchanged.
+        ok(a->setMaterialOverride(C, runtime.lifetimeToken()));
+        a->clearMaterialOverrides();
+        a->clearMaterialOverrides();
+        check(A, B, fallback);
+        ok(a->setMaterialOverride(*slot1, C, runtime.lifetimeToken()));
+        runtime.destroyInstance(C);
+        require(!a->worldMaterialsValid() && !a->materialFor(0, 1).valid() &&
+                    !extractModelRenderState(a, glm::mat4(1), runtime).succeeded(),
+                "destroyed slot replacement is detected before extraction");
+        a->clearMaterialOverride(*slot1);
+        check(A, B, fallback);
+        ok(a->setMaterialOverride(*slot1, D, runtime.lifetimeToken()));
+        const auto oldLifetime = runtime.lifetimeToken();
+        resetMaterialRuntime(world);
+        require(oldLifetime.expired() && !a->worldMaterialsValid() && !a->materialFor(0, 1).valid(),
+                "runtime reset expires slot override ownership without touching model geometry");
+        ok(a->rebindMaterials(modelMaterialRealization(world, nullptr).realize(a->geometry()).materials));
+        require(!a->setMaterialOverride(*slot1, D, oldLifetime).succeeded() &&
+                    a->materialFor(0, 1) == a->materials()->materialFor(*a->geometry(), 0, 1),
+                "new world scope clears overrides; expired tokens cannot revive reused handle values");
+        extract(a, world);
+    }
+
+    void logicalMaterialOverrides(const std::filesystem::path& root)
+    {
+        GtsModelRegistry   registry;
+        GltfFixtureBuilder fixture;
+        field(fixture.root, "materials") = parse(R"([{"name":"A"},{"name":"B"}])");
+        auto  primitive                  = fixture.primitive();
+        auto& primitives = std::get<Array>(field(at(field(fixture.root, "meshes"), 0), "primitives").value);
+        primitives.clear();
+        for (uint32_t slot : {0u, 1u, 1u})
+        {
+            auto assigned               = primitive;
+            field(assigned, "material") = slot;
+            primitives.push_back(assigned);
+        }
+        primitives.push_back(primitive);
+        verifySlotOverrides(load(registry, fixture, root / "slots"), load(registry, fixture, root / "foreign-slots"));
+
+        MeshAssetData mesh;
+        mesh.vertices.resize(3);
+        mesh.vertices[1].pos.x = 1;
+        mesh.vertices[2].pos.y = 1;
+        mesh.indices           = {0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2};
+        mesh.submeshes         = {{0, 3, AssetReference::fromLogicalPath("a.gmat"), {}},
+                                  {3, 3, AssetReference::fromLogicalPath("b.gmat"), {}},
+                                  {6, 3, AssetReference::fromLogicalPath("b.gmat"), {}},
+                                  {9, 3, {}, {}}};
+        std::string       error;
+        MaterialAssetData material;
+        material.shaderFamily = MaterialShaderFamily::StandardSurface;
+        require(MaterialAssetSerializer::writeFile(material, root / "a.gmat", &error), error);
+        require(MaterialAssetSerializer::writeFile(material, root / "b.gmat", &error), error);
+        require(MeshAssetSerializer::writeFile(mesh, root / "slots.gmesh", &error), error);
+        require(MeshAssetSerializer::writeFile(mesh, root / "foreign-slots.gmesh", &error), error);
+        auto cooked  = registry.requestModel(root / "slots.gmesh");
+        auto foreign = registry.requestModel(root / "foreign-slots.gmesh");
+        require(cooked.succeeded() && foreign.succeeded(), "load cooked override fixtures");
+        verifySlotOverrides(cooked.handle(), foreign.handle());
     }
 
     void staticHierarchy(const std::filesystem::path& root)
@@ -194,7 +332,10 @@ namespace
         GltfFixtureBuilder       f;
         f.addVertexStream("JOINTS_0", std::vector<uint8_t>(12, 0), "VEC4", 5121);
         f.addVertexStream("WEIGHTS_0", floats({1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}), "VEC4", 5126);
-        auto primitive = at(field(at(field(f.root, "meshes"), 0), "primitives"), 0);
+        field(f.root, "materials")       = parse(R"([{"name":"A"},{"name":"B"}])");
+        field(f.primitive(), "material") = 0u;
+        auto primitive                   = at(field(at(field(f.root, "meshes"), 0), "primitives"), 0);
+        field(primitive, "material")     = 1u;
         std::get<Array>(field(at(field(f.root, "meshes"), 0), "primitives").value).push_back(primitive);
         auto staticMesh = at(field(f.root, "meshes"), 0);
         for (auto& p : std::get<Array>(field(staticMesh, "primitives").value))
@@ -230,6 +371,19 @@ namespace
         require(d[0].geometry->primitives()[d[0].primitiveIndex].firstIndex == 0 &&
                     d[1].geometry->primitives()[d[1].primitiveIndex].firstIndex == 3,
                 "primitive ranges preserved");
+        auto       slot        = a->materialSlot(d[1].geometry->primitives()[1].material);
+        auto&      runtime     = materialRuntime(world);
+        const auto replacement = runtime.createInstance(MaterialInstance{});
+        require(slot.has_value(), "skinned material logical slot");
+        ok(a->setMaterialOverride(*slot, replacement, runtime.lifetimeToken()));
+        const auto overridden = extract(a, world);
+        require(overridden.staticDraws[1].material.instance == replacement &&
+                    overridden.staticDraws[0].material.instance == frame.staticDraws[0].material.instance,
+                "slot selection is independent of static/skinned profile");
+        for (const auto& draw : overridden.skinnedDraws)
+            require(draw.material.instance == (draw.primitiveIndex == 1 ? replacement : d[0].material.instance),
+                    "one logical slot override reaches all skinned bindings and nodes");
+        a->clearMaterialOverrides();
         const auto matrices = a->palette(0)->matrices;
         auto       moved    = extract(a, world, glm::translate(glm::mat4(1), glm::vec3(10, 20, 30)));
         require(a->palette(0)->matrices == matrices &&
@@ -259,6 +413,7 @@ int main()
     auto                     root = std::filesystem::temp_directory_path() / "gravitas-model-extraction-test";
     std::filesystem::create_directories(root);
     materialOverrides(root);
+    logicalMaterialOverrides(root);
     staticHierarchy(root);
     mixedAndPalettes(root);
     std::filesystem::remove_all(root);

@@ -121,5 +121,7 @@ synchronization. No setup-time material snapshots remain. Rebinding after a rese
 automatically affects subsequent extraction; old frames remain immutable.
 
 See [model extraction](model-extraction.md). The existing opaque depth-writing
-skinned submission limitation remains. There are no material overrides, renderer
-ABI changes, cooking changes or model-specific texture implementations.
+skinned submission limitation remains. Per-slot and model-wide overrides belong to
+[model instances](../model/runtime-instances.md), which select existing handles
+without modifying this shared base material realization. No renderer ABI changes,
+cooking changes or model-specific texture implementations are involved.
