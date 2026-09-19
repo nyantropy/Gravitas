@@ -49,11 +49,11 @@ or mutable-instance registries.
 
 ## Creation and ECS ownership
 
-Configure the world facade once with the existing engine geometry cache and
-resource provider:
+Configure the world facade through the public `model/public/GtsModels.h` boundary;
+the existing engine context supplies the geometry cache and resource provider:
 
 ```cpp
-auto& instances = modelInstances(world, geometryCache, resources);
+auto& instances = modelInstances(world, context);
 auto result = instances.create(modelHandle);
 // Subsequent entity creation can use modelInstances(world).create(modelHandle).
 ```
@@ -62,7 +62,7 @@ The facade calls the existing geometry cache and current world material service,
 validates matching resource/realization/material identity, initializes default
 poses and palettes, and returns a `unique_ptr<GtsModelInstance>` only on complete
 success. Lower-layer warnings/errors survive in the creation result. The game
-selects the model through `GtsModelRegistry`; it does not orchestrate geometry or
+selects the model through `requestGtsModel(context, request)`; it does not orchestrate geometry or
 material realization. The cache/provider must outlive the configured world facade.
 It is also directly constructible for a smaller explicitly scoped setup context.
 Changing its cache/provider requires world teardown/reconfiguration, not implicit
@@ -204,7 +204,7 @@ post-transform added. Existing Yune anchor/facing conventions remain unchanged.
 ## Renderer boundary
 
 The world creation facade is declared in
-`rendering/core/model/GtsModelInstanceRuntime.h`; it orchestrates frontend material
+`model/world/GtsModelInstanceRuntime.h`; it orchestrates frontend material
 services without making the instance library depend on them. The instance retains
 only the renderer-independent `GtsRealizedModelMaterials` association interface.
 Its implementation is runtime-scoped, and resetting MaterialRuntime expires it.
@@ -212,5 +212,5 @@ Its implementation is runtime-scoped, and resetting MaterialRuntime expires it.
 Yune retains model/Idle/SlowWalk content configuration and gameplay clip selection.
 The generic renderer discovers its instance through `ModelInstanceComponent`.
 There is no setup-only instance, persistent geometry/material presentation, or
-per-frame game palette copy. See [model extraction](../rendering/model-extraction.md)
+per-frame game palette copy. See [model extraction](../model/model-extraction.md)
 for frame snapshots, hierarchy, cache identity, transform semantics and limitations.

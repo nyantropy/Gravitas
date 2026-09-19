@@ -1,7 +1,7 @@
 #pragma once
 
 #include "GtsSkeletonOccurrence.h"
-#include "assets/realization/model/GtsRealizedModel.h"
+#include "model/realization/GtsRealizedModel.h"
 #include "GtsRealizedModelMaterials.h"
 #include "GtsModelMaterialSlot.h"
 

@@ -1,0 +1,7 @@
+add_subdirectory(skeleton)
+add_subdirectory(animation)
+add_subdirectory(skin)
+add_library(gravitas_model_domain STATIC model/GtsModelValidation.cpp model/GtsModelSkinValidation.cpp)
+target_link_libraries(gravitas_model_domain PUBLIC gravitas_core gravitas_skin_assets gravitas_animation_assets)
+target_include_directories(gravitas_model_domain PUBLIC "${GTS_ENGINE_ROOT}/engine/modules")
+target_compile_features(gravitas_model_domain PUBLIC cxx_std_20)

@@ -1,5 +1,0 @@
-add_library(gravitas_model_realization STATIC
-    GtsRealizedModel.cpp GtsModelRealization.cpp GtsModelRealizationCache.cpp)
-target_link_libraries(gravitas_model_realization PUBLIC
-    gravitas_model_runtime gravitas_static_geometry gravitas_skinned_geometry)
-target_compile_features(gravitas_model_realization PUBLIC cxx_std_20)

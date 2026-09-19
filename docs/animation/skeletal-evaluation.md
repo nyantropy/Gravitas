@@ -155,7 +155,7 @@ quaternion components. A mesh-node translation of 1000 remains outside the pose.
 The four existing project GLBs inspected for optional real-asset coverage contain
 no animations or skins; no binary asset was added.
 
-Using the CPU-only configuration in [model-domain.md](../assets/model-domain.md):
+Using the CPU-only configuration in [model-domain.md](../model/model-domain.md):
 
 ```sh
 cmake --build /tmp/gravitas-model-domain-cpu --parallel 4

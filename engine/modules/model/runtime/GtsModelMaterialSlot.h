@@ -1,6 +1,6 @@
 #pragma once
 
-#include "assets/realization/model/GtsRealizedModel.h"
+#include "model/realization/GtsRealizedModel.h"
 
 // Non-owning logical association scoped to one shared realization. Obtain through materialSlot().
 class GtsModelMaterialSlot

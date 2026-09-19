@@ -1,10 +1,9 @@
-# Assets defines the CPU domain and shared parser before rendering uses them.
+# Layered CPU/model and reusable animation/material services precede rendering.
 add_subdirectory(assets)
-add_subdirectory(rendering/core/material/model)
+add_subdirectory(model)
+add_subdirectory(rendering/core/material)
 add_subdirectory(animation/skeletal)
 add_subdirectory(animation/skinning)
-add_subdirectory(model/runtime)
-add_subdirectory(rendering/core/model)
 
 # rendering must precede ECS modules — it defines gravitas_rendering and any selected
 # backend before other modules reference graphics types.
@@ -59,7 +58,7 @@ target_include_directories(gravitas_modules INTERFACE
 
 target_link_libraries(gravitas_modules INTERFACE
     gravitas_core
-    gravitas_model_runtime
+    gravitas_model_loading
     gravitas_model_realization
     gravitas_model_instances
     gravitas_model_frontend

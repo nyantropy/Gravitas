@@ -1,6 +1,6 @@
-#include "assets/model/GtsModelAsset.h"
-#include "assets/model/GtsModelImportResult.h"
-#include "assets/model/GtsModelValidation.h"
+#include "model/domain/model/GtsModelAsset.h"
+#include "model/import/GtsModelImportResult.h"
+#include "model/domain/model/GtsModelValidation.h"
 
 #include <cstdio>
 #include <cstdint>

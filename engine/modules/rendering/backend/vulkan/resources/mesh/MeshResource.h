@@ -1,13 +1,13 @@
 #pragma once
 
 #include <vector>
-#include "assets/realization/model/GtsRealizedModel.h"
+#include "model/realization/GtsRealizedGeometry.h"
 #include <vulkan/vulkan.h>
 
 #include "assets/serialization/AssetTypes.h"
-#include "MeshGeometryProcessor.h"
-#include "assets/processing/geometry/static/GtsStaticVertex.h"
-#include "assets/processing/geometry/GtsGeometryMetadata.h"
+#include "assets/geometry/MeshGeometryProcessor.h"
+#include "assets/geometry/GtsStaticVertex.h"
+#include "assets/geometry/GtsGeometryMetadata.h"
 
 struct MeshResource 
 {

@@ -1,7 +1,7 @@
 #include "../importers/gltf/GltfFixtureBuilder.h"
-#include "assets/loading/model/GtsModelRegistry.h"
-#include "assets/loading/model/GtsModelResource.h"
-#include "assets/skeleton/GtsSkeletonAsset.h"
+#include "model/loading/GtsModelRegistry.h"
+#include "model/loading/GtsModelResource.h"
+#include "model/domain/skeleton/GtsSkeletonAsset.h"
 #include <type_traits>
 #include "ScopedRuntimeAssetPolicy.h"
 

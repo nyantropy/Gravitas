@@ -1,5 +1,3 @@
-add_subdirectory(obj)
-add_subdirectory(gltf)
 
 # Shared CPU decoder implementation; rendering and cooking use the same stb symbols.
 add_library(gravitas_image_decode STATIC StbImageImplementation.cpp image/GtsImageDecode.cpp)

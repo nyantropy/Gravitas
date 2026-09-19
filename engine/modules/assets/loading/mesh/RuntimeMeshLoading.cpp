@@ -4,9 +4,9 @@
 #include <utility>
 
 #include "assets/loading/cooked/MeshAssetLoader.h"
-#include "assets/importer/obj/GtsObjModelImporter.h"
-#include "assets/model/GtsModelImportResult.h"
-#include "assets/realization/GtsStaticModelRealization.h"
+#include "model/import/obj/GtsObjModelImporter.h"
+#include "model/import/GtsModelImportResult.h"
+#include "assets/loading/mesh/GtsStaticModelRealization.h"
 
 namespace gts::rendering
 {

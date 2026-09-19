@@ -20,7 +20,7 @@
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
 #include "TransformMatrixHelpers.h"
-#include "assets/processing/geometry/static/GtsStaticVertex.h"
+#include "assets/geometry/GtsStaticVertex.h"
 #include "WorldTransformComponent.h"
 
 namespace gts::tools

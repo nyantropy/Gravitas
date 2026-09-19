@@ -1,6 +1,6 @@
 #include "GtsObjModelImporter.h"
-#include "assets/model/GtsModelImportResult.h"
-#include "assets/model/GtsModelValidation.h"
+#include "model/import/GtsModelImportResult.h"
+#include "model/domain/model/GtsModelValidation.h"
 
 #include <chrono>
 #include <cmath>

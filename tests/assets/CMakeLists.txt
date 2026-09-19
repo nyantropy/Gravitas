@@ -1,21 +1,21 @@
 add_executable(GtsModelAssetTest GtsModelAssetTest.cpp)
-target_link_libraries(GtsModelAssetTest PRIVATE gravitas_assets)
+target_link_libraries(GtsModelAssetTest PRIVATE gravitas_model_import)
 add_test(NAME gts_model_asset COMMAND GtsModelAssetTest)
 set_tests_properties(gts_model_asset PROPERTIES LABELS "gravitas;assets;cpu")
 
 add_executable(GtsModelSkinTest GtsModelSkinTest.cpp)
-target_link_libraries(GtsModelSkinTest PRIVATE gravitas_assets)
+target_link_libraries(GtsModelSkinTest PRIVATE gravitas_model_import)
 add_test(NAME gts_model_skin COMMAND GtsModelSkinTest)
 set_tests_properties(gts_model_skin PROPERTIES LABELS "gravitas;assets;cpu")
 
 add_executable(GtsModelMaterialTest GtsModelMaterialTest.cpp)
-target_link_libraries(GtsModelMaterialTest PRIVATE gravitas_assets)
+target_link_libraries(GtsModelMaterialTest PRIVATE gravitas_model_import)
 add_test(NAME gts_model_material COMMAND GtsModelMaterialTest)
 set_tests_properties(gts_model_material PROPERTIES LABELS "gravitas;assets;cpu")
 
 add_subdirectory(importers/obj)
 add_executable(GtsModelImportBundleTest importers/GtsModelImportBundleTest.cpp)
-target_link_libraries(GtsModelImportBundleTest PRIVATE gravitas_assets)
+target_link_libraries(GtsModelImportBundleTest PRIVATE gravitas_model_import)
 add_test(NAME gts_model_import_bundle COMMAND GtsModelImportBundleTest)
 set_tests_properties(gts_model_import_bundle PROPERTIES LABELS "gravitas;assets;cpu;importer")
 add_subdirectory(processing/geometry)
@@ -25,17 +25,17 @@ add_subdirectory(skin)
 add_subdirectory(animation)
 
 add_executable(GtsModelRegistryTest runtime/GtsModelRegistryTest.cpp)
-target_link_libraries(GtsModelRegistryTest PRIVATE gravitas_model_runtime gravitas_gltf_importer)
+target_link_libraries(GtsModelRegistryTest PRIVATE gravitas_model_loading gravitas_gltf_importer)
 add_test(NAME gts_model_registry COMMAND GtsModelRegistryTest)
 set_tests_properties(gts_model_registry PROPERTIES LABELS "gravitas;assets;runtime;cpu")
 
 add_executable(GtsModelLoadingTest runtime/GtsModelLoadingTest.cpp)
-target_link_libraries(GtsModelLoadingTest PRIVATE gravitas_model_runtime gravitas_gltf_importer)
+target_link_libraries(GtsModelLoadingTest PRIVATE gravitas_model_loading gravitas_gltf_importer)
 add_test(NAME gts_model_loading COMMAND GtsModelLoadingTest)
 set_tests_properties(gts_model_loading PROPERTIES LABELS "gravitas;assets;runtime;cpu")
 
 add_executable(GtsModelStrictPolicyTest runtime/GtsModelStrictPolicyTest.cpp)
-target_link_libraries(GtsModelStrictPolicyTest PRIVATE gravitas_model_runtime)
+target_link_libraries(GtsModelStrictPolicyTest PRIVATE gravitas_model_loading)
 add_test(NAME gts_model_strict_policy COMMAND GtsModelStrictPolicyTest)
 set_tests_properties(gts_model_strict_policy PROPERTIES LABELS "gravitas;assets;runtime;cpu")
 
@@ -45,7 +45,7 @@ add_executable(AssetSerializationTest
 
 target_compile_features(AssetSerializationTest PRIVATE cxx_std_20)
 
-target_link_libraries(AssetSerializationTest PRIVATE gravitas_cooked_assets)
+target_link_libraries(AssetSerializationTest PRIVATE gravitas_model_serialization)
 
 add_test(
     NAME asset_serialization
@@ -92,13 +92,10 @@ set_tests_properties(gts_model_instance PROPERTIES LABELS "gravitas;model;runtim
 
 add_executable(GtsModelRenderExtractionTest ../rendering/GtsModelRenderExtractionTest.cpp)
 target_link_libraries(GtsModelRenderExtractionTest PRIVATE gravitas_model_frontend gravitas_gltf_importer)
-target_include_directories(GtsModelRenderExtractionTest PRIVATE
-    "${GTS_ENGINE_ROOT}/engine/modules/rendering/ecssetup/geometry/components"
-    "${GTS_ENGINE_ROOT}/engine/modules/transform/components")
 add_test(NAME gts_model_render_extraction COMMAND GtsModelRenderExtractionTest)
 set_tests_properties(gts_model_render_extraction PROPERTIES LABELS "gravitas;model;rendering;cpu")
 
 add_executable(CanonicalModelCookingTest CanonicalModelCookingTest.cpp)
-target_link_libraries(CanonicalModelCookingTest PRIVATE gravitas_asset_cooking gravitas_model_frontend gravitas_gltf_importer)
+target_link_libraries(CanonicalModelCookingTest PRIVATE gravitas_model_cooking gravitas_model_frontend gravitas_gltf_importer)
 add_test(NAME canonical_model_cooking COMMAND CanonicalModelCookingTest)
 set_tests_properties(canonical_model_cooking PROPERTIES LABELS "gravitas;assets;cooking;cpu;integration")

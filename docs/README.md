@@ -9,11 +9,11 @@ Start with:
 
 - [assets/architecture.md](assets/architecture.md) for the canonical asset/model
   pipeline, CPU ownership, cooking and runtime boundaries.
-- [assets/canonical-cooking.md](assets/canonical-cooking.md) and
+- [model/canonical-cooking.md](model/canonical-cooking.md) and
   [cooked-asset-pipeline.md](cooked-asset-pipeline.md) for static cooking and storage.
 - [model/runtime-instances.md](model/runtime-instances.md) for model occurrence state.
-- [rendering/model-material-realization.md](rendering/model-material-realization.md)
-  and [rendering/model-extraction.md](rendering/model-extraction.md) for world materials
+- [model/model-material-realization.md](model/model-material-realization.md)
+  and [model/model-extraction.md](model/model-extraction.md) for world materials
   and generic static/skinned rendering.
 - [settings/architecture.md](settings/architecture.md) for startup configuration,
   runtime preferences, resolution policies, and effective state.

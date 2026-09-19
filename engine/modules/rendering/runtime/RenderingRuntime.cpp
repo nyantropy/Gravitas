@@ -1,4 +1,4 @@
-#include "ModelFrameExtraction.h"
+#include "model/extraction/ModelFrameExtraction.h"
 #include "RenderingRuntime.h"
 #include "../ecssetup/camera/input/CameraDefaultBindings.hpp"
 #include "../../../core/ui/input/UiDefaultBindings.hpp"

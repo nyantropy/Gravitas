@@ -1,0 +1,3 @@
+add_library(gravitas_model_serialization STATIC ModelAssetSerializer.cpp)
+target_link_libraries(gravitas_model_serialization PUBLIC gravitas_cooked_assets)
+target_compile_features(gravitas_model_serialization PUBLIC cxx_std_20)

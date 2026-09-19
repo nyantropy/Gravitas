@@ -13,7 +13,7 @@
 #include "EditorPreviewRenderData.h"
 #include "ParticleFrameData.h"
 #include "RenderCommand.h"
-#include "core/model/GtsModelFrameData.h"
+#include "model/extraction/GtsModelFrameData.h"
 #include "RenderViewport.h"
 #include "UiCommand.h"
 

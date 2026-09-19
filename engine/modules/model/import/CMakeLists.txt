@@ -1,0 +1,5 @@
+add_library(gravitas_model_import STATIC GtsModelImportResult.cpp GtsModelImportBundleValidation.cpp)
+target_link_libraries(gravitas_model_import PUBLIC gravitas_model_domain)
+target_compile_features(gravitas_model_import PUBLIC cxx_std_20)
+add_subdirectory(obj)
+add_subdirectory(gltf)

@@ -4,8 +4,8 @@
 
 #include "animation/skeletal/GtsSkeletonPose.h"
 #include "animation/skeletal/GtsSkeletonPoseValidation.h"
-#include "assets/skin/GtsSkinBinding.h"
-#include "assets/skin/GtsSkinBindingValidation.h"
+#include "model/domain/skin/GtsSkinBinding.h"
+#include "model/domain/skin/GtsSkinBindingValidation.h"
 
 GtsSkinPaletteEvaluationResult
 evaluateGtsSkinPalette(const GtsSkeletonPose& pose, const GtsSkinBinding& binding, const GtsSkeletonAsset& skeleton)

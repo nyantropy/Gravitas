@@ -182,7 +182,7 @@ ordering as stable secondary keys.
 ## Geometry Surface Contract
 
 The current static renderer consumes the explicit `GtsStaticVertex` profile from
-`modules/assets/processing/geometry/static/GtsStaticVertex.h`. It is not a universal
+`modules/assets/geometry/GtsStaticVertex.h`. It is not a universal
 canonical vertex type. `GtsVertexAttribute` owns canonical semantic streams;
 `GtsSkinnedVertex` is the separate prepared skinned profile. Its backend-owned
 vertex ABI, palette upload and separate shader path are documented in

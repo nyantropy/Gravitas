@@ -198,7 +198,7 @@ add_executable(CookedAssetPipelineTest
 
 target_compile_features(CookedAssetPipelineTest PRIVATE cxx_std_20)
 
-target_link_libraries(CookedAssetPipelineTest PRIVATE gravitas_vulkan_backend gravitas_asset_cooking)
+target_link_libraries(CookedAssetPipelineTest PRIVATE gravitas_vulkan_backend gravitas_model_cooking)
 
 add_test(
     NAME cooked_asset_pipeline
@@ -721,7 +721,7 @@ set_tests_properties(ui_localization_runtime
 
 add_executable(CanonicalObjPipelineTest assets/CanonicalObjPipelineTest.cpp)
 target_compile_features(CanonicalObjPipelineTest PRIVATE cxx_std_20)
-target_link_libraries(CanonicalObjPipelineTest PRIVATE gravitas_vulkan_backend gravitas_obj_importer gravitas_asset_cooking)
+target_link_libraries(CanonicalObjPipelineTest PRIVATE gravitas_vulkan_backend gravitas_obj_importer gravitas_model_cooking)
 add_test(NAME canonical_obj_pipeline COMMAND CanonicalObjPipelineTest)
 set_tests_properties(canonical_obj_pipeline PROPERTIES LABELS "gravitas;assets;integration")
 

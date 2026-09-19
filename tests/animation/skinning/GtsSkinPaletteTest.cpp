@@ -1,8 +1,8 @@
 #include "animation/skinning/GtsSkinPaletteEvaluation.h"
 #include "animation/skeletal/GtsSkeletonPoseEvaluation.h"
 #include "animation/skeletal/GtsSkeletonPoseValidation.h"
-#include "assets/skin/GtsSkinBinding.h"
-#include "assets/skeleton/GtsSkeletonAsset.h"
+#include "model/domain/skin/GtsSkinBinding.h"
+#include "model/domain/skeleton/GtsSkeletonAsset.h"
 
 #include <cmath>
 #include <cstdio>

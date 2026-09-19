@@ -1,6 +1,6 @@
 #pragma once
 #include <memory>
-#include "MaterialInstanceHandle.h"
+#include "assets/material/MaterialInstanceHandle.h"
 class GtsRealizedModel;
 
 // World material association boundary. Implemented by the material frontend; no

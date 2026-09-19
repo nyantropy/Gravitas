@@ -1,7 +1,7 @@
 #pragma once
 #include <array>
 #include <map>
-#include "core/model/GtsModelFrameData.h"
+#include "model/extraction/GtsModelFrameData.h"
 #include "RenderCommand.h"
 #include "RenderResourceManager.hpp"
 

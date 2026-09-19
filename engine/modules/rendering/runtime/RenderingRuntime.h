@@ -1,5 +1,5 @@
 #pragma once
-#include "core/model/GtsModelFrameData.h"
+#include "model/extraction/GtsModelFrameData.h"
 
 #include <cstdint>
 #include <functional>

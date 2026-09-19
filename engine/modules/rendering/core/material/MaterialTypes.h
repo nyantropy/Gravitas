@@ -12,7 +12,7 @@
 #include "assets/serialization/TextureColorSpace.h"
 #include "assets/serialization/AssetMaterialTypes.h"
 #include "Types.h"
-#include "model/runtime/MaterialInstanceHandle.h"
+#include "assets/material/MaterialInstanceHandle.h"
 
 struct MaterialDefinitionHandle
 {

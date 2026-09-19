@@ -1,7 +1,7 @@
 # Cooked Asset Pipeline
 
 Source interpretation is canonical for both OBJ and glTF/GLB. See
-[canonical cooking](assets/canonical-cooking.md) for decomposition, capability
+[canonical cooking](model/canonical-cooking.md) for decomposition, capability
 validation, publication and the legacy parity inventory.
 
 ```text
@@ -32,7 +32,8 @@ prefers adjacent `.gmesh`, while `TextureManager` prefers adjacent `.gtex`.
 ## Cooked Asset Contracts
 
 Cooked data is stored in engine-owned CPU structures in
-`engine/modules/assets/serialization/AssetTypes.h`.
+`engine/modules/assets/serialization/AssetTypes.h` for shared mesh/material/texture data
+and `engine/modules/model/serialization/ModelAssetTypes.h` for model hierarchy.
 
 - `AssetReference` stores a placeholder stable `AssetId` plus `logicalPath`.
 - `MeshAssetData` stores vertices, indices, submeshes, dependencies, bounds,
@@ -56,7 +57,8 @@ runtime manager handles, parser-library types, or GPU cache state.
 
 ## File Layout
 
-Serializers live in `engine/modules/assets/serialization/AssetSerializers.*`.
+Shared serializers live in `engine/modules/assets/serialization/AssetSerializers.*`;
+model hierarchy encoding lives in `engine/modules/model/serialization/ModelAssetSerializer.*`.
 `.gmesh`, `.gmat`, `.gmodel`, and `.gtex` are explicit little-endian binary
 formats. C++ object memory is not dumped directly.
 
@@ -114,7 +116,7 @@ pitches, invalid mip payload ranges, and overlapping mip payloads.
 ## glTF Import Support
 
 `GtsGltfModelImporter` is the authoritative interpreter for both cooking and source
-loading. See [glTF contracts](assets/gltf-importer.md) for geometry, scene, hierarchy,
+loading. See [glTF contracts](model/gltf-importer.md) for geometry, scene, hierarchy,
 material/image, skin and animation semantics. Cooking receives canonical tables,
 not parser state. External images retain resolved paths; embedded images retain
 encoded bytes. The shared decoder supplies RGBA8 pixels for texture cooking.
@@ -289,8 +291,10 @@ These runtime paths still load source assets directly for compatibility:
 
 ## Module ownership
 
-Cooking lives under `assets/cooking`, codecs/contracts under `assets/serialization`
-and CPU loaders under `assets/loading`. `assetc` links the CPU cooking target;
+Model cooking, hierarchy codecs and model loading live under `model/cooking`,
+`model/serialization` and `model/loading`. Shared texture cooking, mesh/material/texture
+codecs and loaders remain under `assets/`. `assetc` dispatches to the separate CPU
+model and standalone image cooking targets;
 rendering is not required to run it. The legacy glTF/image DTO importer directory
 has been removed. See
-[asset subsystem ownership](assets/architecture.md) for the complete dependency map.
+[model subsystem ownership](model/architecture.md) and [shared asset infrastructure](assets/architecture.md).

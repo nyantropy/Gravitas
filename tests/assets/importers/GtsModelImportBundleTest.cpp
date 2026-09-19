@@ -1,7 +1,7 @@
-#include "assets/importer/GtsModelImportBundleValidation.h"
-#include "assets/model/GtsModelImportResult.h"
-#include "assets/model/GtsModelValidation.h"
-#include "assets/skeleton/GtsSkeletonAsset.h"
+#include "model/import/GtsModelImportBundleValidation.h"
+#include "model/import/GtsModelImportResult.h"
+#include "model/domain/model/GtsModelValidation.h"
+#include "model/domain/skeleton/GtsSkeletonAsset.h"
 
 #include <cstdio>
 #include <cstddef>

@@ -1,4 +1,0 @@
-# Renderer frontend orchestration and CPU extraction, also testable without a GPU.
-add_library(gravitas_model_frontend STATIC GtsModelInstanceRuntime.cpp GtsModelRenderExtraction.cpp)
-target_link_libraries(gravitas_model_frontend PUBLIC gravitas_model_instances gravitas_model_materials)
-target_compile_features(gravitas_model_frontend PUBLIC cxx_std_20)

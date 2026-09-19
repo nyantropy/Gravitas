@@ -1,6 +1,6 @@
-#include "assets/skeleton/GtsSkeletonAsset.h"
-#include "assets/skeleton/GtsSkeletonCompatibility.h"
-#include "assets/skeleton/GtsSkeletonValidation.h"
+#include "model/domain/skeleton/GtsSkeletonAsset.h"
+#include "model/domain/skeleton/GtsSkeletonCompatibility.h"
+#include "model/domain/skeleton/GtsSkeletonValidation.h"
 
 #include <cstddef>
 #include <cstdio>

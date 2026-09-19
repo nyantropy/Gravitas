@@ -27,8 +27,8 @@
 #include "TransformHierarchyHelpers.h"
 #include "TransformMatrixHelpers.h"
 #include "TransformSceneFeature.h"
-#include "assets/processing/geometry/static/GtsStaticVertex.h"
-#include "assets/processing/geometry/GtsGeometryMetadata.h"
+#include "assets/geometry/GtsStaticVertex.h"
+#include "assets/geometry/GtsGeometryMetadata.h"
 
 namespace
 {

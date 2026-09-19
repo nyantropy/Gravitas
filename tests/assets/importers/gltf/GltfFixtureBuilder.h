@@ -14,7 +14,7 @@
 
 #include "GtsGltfModelImporter.h"
 #include "GtsJsonParser.h"
-#include "assets/model/GtsModelImportResult.h"
+#include "model/import/GtsModelImportResult.h"
 
 namespace
 {

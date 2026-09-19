@@ -1,3 +1,0 @@
-add_library(gravitas_image_processing STATIC GtsScalarImagePacking.cpp)
-target_link_libraries(gravitas_image_processing PUBLIC gravitas_image_decode)
-target_compile_features(gravitas_image_processing PUBLIC cxx_std_20)

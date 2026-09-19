@@ -1,14 +1,16 @@
-#include "assets/model/GtsModelImportResult.h"
+#include "model/loading/GtsModelResource.h"
+#include "model/realization/GtsModelRealizationCache.h"
+#include "model/import/GtsModelImportResult.h"
 #include <limits>
-#include "assets/cooking/AssetCooker.h"
-#include "assets/importer/gltf/GtsGltfModelImporter.h"
-#include "assets/importer/obj/GtsObjModelImporter.h"
-#include "assets/loading/model/GtsModelRegistry.h"
-#include "assets/loading/model/GtsPreparedModelDefinition.h"
-#include "assets/processing/geometry/static/GtsStaticMeshPreparation.h"
+#include "model/cooking/GtsModelCooker.h"
+#include "model/import/gltf/GtsGltfModelImporter.h"
+#include "model/import/obj/GtsObjModelImporter.h"
+#include "model/loading/GtsModelRegistry.h"
+#include "model/loading/GtsPreparedModelDefinition.h"
+#include "model/processing/geometry/static/GtsStaticMeshPreparation.h"
 #include "assets/serialization/AssetSerializers.h"
-#include "rendering/core/model/GtsModelInstanceRuntime.h"
-#include "rendering/core/model/GtsModelRenderExtraction.h"
+#include "model/world/GtsModelInstanceRuntime.h"
+#include "model/extraction/GtsModelRenderExtraction.h"
 #include "../rendering/material/TestMaterialResources.h"
 #include "runtime/ScopedRuntimeAssetPolicy.h"
 #include <cstring>
@@ -56,12 +58,12 @@ namespace
         auto                     loadedSource = registry.requestModel(source);
         check(loadedSource.succeeded(), "canonical source loading: " + source.string());
         const auto&        canonical = *loadedSource.handle()->canonicalModel();
-        AssetCookerOptions options;
+        GtsModelCookerOptions options;
         options.outputDirectory = output;
-        const auto result       = AssetCooker::cookSourceAsset(source, options);
+        const auto result       = GtsModelCooker::cookSourceAsset(source, options);
         cookedOK(result);
         options.outputDirectory = output / "repeat";
-        const auto repeat       = AssetCooker::cookSourceAsset(source, options);
+        const auto repeat       = GtsModelCooker::cookSourceAsset(source, options);
         cookedOK(repeat);
         check(result.outputs.size() == repeat.outputs.size(), "deterministic file count");
         std::filesystem::path entry;
@@ -189,9 +191,9 @@ namespace
         model.meshes[0].primitives.push_back(model.meshes[0].primitives[0]);
         model.meshes[0].primitives[1].materialIndex = 1;
         model.materials[1].alphaMode                = GtsModelAlphaMode::Blend;
-        AssetCookerOptions options;
+        GtsModelCookerOptions options;
         options.outputDirectory = root / "slots";
-        const auto result       = AssetCooker::cookModelAsset(model, "slots.glb", options);
+        const auto result       = GtsModelCooker::cookModelAsset(model, "slots.glb", options);
         cookedOK(result);
         check(result.materials.size() == 2 && result.materials[0].id != result.materials[1].id,
               "equal named slots remain distinct");
@@ -209,7 +211,7 @@ namespace
         model.materials[0].metallicImage.reset();
         model.materials[0].roughnessImage->channel = GtsModelTextureChannel::Alpha;
         options.outputDirectory                    = root / "roughness";
-        auto roughness                             = AssetCooker::cookModelAsset(model, "slots.glb", options);
+        auto roughness                             = GtsModelCooker::cookModelAsset(model, "slots.glb", options);
         cookedOK(roughness);
         TextureAssetData packed;
         std::string      error;
@@ -228,7 +230,7 @@ namespace
             f << "previous material";
         }
         const auto before = bytes(oldMaterial);
-        const auto failed = AssetCooker::cookModelAsset(model, "slots.glb", options);
+        const auto failed = GtsModelCooker::cookModelAsset(model, "slots.glb", options);
         check(failed.hasErrors() && failed.outputs.empty() && bytes(oldMaterial) == before &&
                   !std::filesystem::exists(options.outputDirectory / "slots.gmodel"),
               "publication rollback preserves preexisting package components");
@@ -237,36 +239,36 @@ namespace
         // Missing encoded input fails before any output publication.
         model.images[0].source  = fixtures / "absent.png";
         options.outputDirectory = root / "missing-image";
-        rejected(AssetCooker::cookModelAsset(model, "missing", options), options.outputDirectory);
+        rejected(GtsModelCooker::cookModelAsset(model, "missing", options), options.outputDirectory);
     }
     void failures(const std::filesystem::path& fixtures, const std::filesystem::path& root)
     {
-        AssetCookerOptions options;
+        GtsModelCookerOptions options;
         options.outputDirectory = root / "rejected";
         auto imported           = GtsGltfModelImporter{}.importAsset({fixtures / "simple.gltf"});
         check(imported.succeeded(), "import capability fixture");
         auto bundle = *imported.bundle();
         bundle.animationClips.emplace_back();
-        rejected(AssetCooker::cookModelBundle(bundle, "clips", options), options.outputDirectory);
+        rejected(GtsModelCooker::cookModelBundle(bundle, "clips", options), options.outputDirectory);
         bundle = {};
-        rejected(AssetCooker::cookModelBundle(bundle, "modelless", options), options.outputDirectory);
+        rejected(GtsModelCooker::cookModelBundle(bundle, "modelless", options), options.outputDirectory);
         auto model = *imported.asset();
         model.skeletonUses.emplace_back();
-        rejected(AssetCooker::cookModelAsset(model, "skeleton", options), options.outputDirectory);
+        rejected(GtsModelCooker::cookModelAsset(model, "skeleton", options), options.outputDirectory);
         model = *imported.asset();
         model.skinBindings.emplace_back();
-        rejected(AssetCooker::cookModelAsset(model, "binding", options), options.outputDirectory);
+        rejected(GtsModelCooker::cookModelAsset(model, "binding", options), options.outputDirectory);
         model = *imported.asset();
         model.meshes[0].primitives[0].attributes.push_back(
             {GtsVertexSemantic::Weights, 0, std::vector<glm::vec4>(3, glm::vec4(1, 0, 0, 0))});
-        rejected(AssetCooker::cookModelAsset(model, "weights", options), options.outputDirectory);
+        rejected(GtsModelCooker::cookModelAsset(model, "weights", options), options.outputDirectory);
         model                             = *imported.asset();
         model.materials[0].baseColorImage = GtsModelImageBinding{0, 1};
         model.images.push_back({"bad", fixtures / "image.png"});
-        rejected(AssetCooker::cookModelAsset(model, "uv1", options), options.outputDirectory);
+        rejected(GtsModelCooker::cookModelAsset(model, "uv1", options), options.outputDirectory);
         model                               = *imported.asset();
         model.nodes[0].localTransform[0][0] = std::numeric_limits<float>::infinity();
-        rejected(AssetCooker::cookModelAsset(model, "invalid", options), options.outputDirectory);
+        rejected(GtsModelCooker::cookModelAsset(model, "invalid", options), options.outputDirectory);
     }
 } // namespace
 int main(int argc, char** argv)
@@ -289,9 +291,9 @@ int main(int argc, char** argv)
             check(imported.succeeded() && !imported.bundle()->skeletons.empty() &&
                       !imported.bundle()->animationClips.empty() && !imported.asset()->skinBindings.empty(),
                   "Yune canonical animation intact");
-            AssetCookerOptions options;
+            GtsModelCookerOptions options;
             options.outputDirectory = root / "animated";
-            rejected(AssetCooker::cookSourceAsset(argv[2], options), options.outputDirectory);
+            rejected(GtsModelCooker::cookSourceAsset(argv[2], options), options.outputDirectory);
             ScopedRuntimeAssetPolicy policy("strict");
             GtsModelRegistry         registry;
             check(!registry

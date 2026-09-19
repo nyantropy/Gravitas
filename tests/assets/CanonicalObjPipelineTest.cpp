@@ -16,14 +16,14 @@
 
 #include <stb_image_write.h>
 
-#include "assets/cooking/AssetCooker.h"
-#include "assets/loading/model/GtsModelRegistry.h"
+#include "model/cooking/GtsModelCooker.h"
+#include "model/loading/GtsModelRegistry.h"
 #include "assets/loading/cooked/MaterialAssetLoader.h"
 #include "MeshManager.hpp"
 #include "assets/loading/cooked/TextureAssetLoader.h"
-#include "assets/importer/obj/GtsObjModelImporter.h"
-#include "assets/model/GtsModelAsset.h"
-#include "assets/model/GtsModelImportResult.h"
+#include "model/import/obj/GtsObjModelImporter.h"
+#include "model/domain/model/GtsModelAsset.h"
+#include "model/import/GtsModelImportResult.h"
 
 namespace
 {
@@ -116,9 +116,9 @@ int main()
         assert(runtime.indices[i * 3] == i * 3);
     }
 
-    AssetCookerOptions options;
+    GtsModelCookerOptions options;
     options.outputDirectory = root;
-    const auto cooked = AssetCooker::cookSourceAsset(source, options);
+    const auto cooked = GtsModelCooker::cookSourceAsset(source, options);
     for (const auto& d : cooked.diagnostics)
         if (d.severity == AssetDiagnosticSeverity::Error) std::fprintf(stderr, "%s: %s\n", d.code.c_str(), d.message.c_str());
     assert(cooked.succeeded());
@@ -145,7 +145,7 @@ int main()
     assert(ao.mips[0].bytes[0] == 230);
 
     options.outputDirectory = root / "repeat";
-    const auto repeated = AssetCooker::cookSourceAsset(source, options);
+    const auto repeated = GtsModelCooker::cookSourceAsset(source, options);
     assert(repeated.succeeded());
     for (const auto& output : cooked.outputs)
         assert(bytes(output.path) == bytes(options.outputDirectory / output.path.filename()));
@@ -178,7 +178,7 @@ int main()
     assert(loaded.metadata.generatedNormals && !loaded.metadata.generatedTangents);
     assert(loaded.vertices[0].color == glm::vec4(1) && loaded.vertices[0].texCoord == glm::vec2(0));
     options.vertexColorOnly = true;
-    const auto minimal = AssetCooker::cookSourceAsset(root / "minimal.obj", options);
+    const auto minimal = GtsModelCooker::cookSourceAsset(root / "minimal.obj", options);
     assert(minimal.succeeded() && minimal.materials[0].shaderFamily == MaterialShaderFamily::Unlit);
 
     // Exercise v1 adaptation limits and independent channels without source-specific repairs.
@@ -186,7 +186,7 @@ int main()
     assert(imported.succeeded());
     auto model = *imported.asset();
     model.nodes[0].localTransform[3][0] = 1;
-    const auto transformed = AssetCooker::cookModelAsset(model, root / "transformed.obj", options);
+    const auto transformed = GtsModelCooker::cookModelAsset(model, root / "transformed.obj", options);
     assert(transformed.succeeded() && transformed.models.size() == 1);
     assert(transformed.models[0].nodes[0].localTransform == model.nodes[0].localTransform);
     model = *imported.asset();
@@ -205,25 +205,25 @@ int main()
     material.alphaCutoff = 0.4f;
     material.doubleSided = true;
     options.vertexColorOnly = false;
-    const auto shared = AssetCooker::cookModelAsset(model, root / "shared", options);
+    const auto shared = GtsModelCooker::cookModelAsset(model, root / "shared", options);
     assert(shared.succeeded());
     assert(shared.materials[0].renderState.doubleSided && shared.materials[0].renderState.alphaCutoff == 0.4f);
     assert(shared.textures[0].mips[0].bytes[1] == 63 && shared.textures[0].mips[0].bytes[2] == 127);
     material.roughnessImage.reset();
-    const auto metalOnly = AssetCooker::cookModelAsset(model, root / "metal_only", options);
+    const auto metalOnly = GtsModelCooker::cookModelAsset(model, root / "metal_only", options);
     assert(metalOnly.succeeded() && metalOnly.textures[0].mips[0].bytes[1] == 255);
     material.roughnessImage = GtsModelScalarImageBinding{{1, 0}, GtsModelTextureChannel::Red};
-    assert(diagnostic(AssetCooker::cookModelAsset(model, root / "unequal", options), "ASSET_COOK_SCALAR_IMAGE_SIZE"));
+    assert(diagnostic(GtsModelCooker::cookModelAsset(model, root / "unequal", options), "ASSET_COOK_SCALAR_IMAGE_SIZE"));
     material.roughnessImage.reset();
     primitive.attributes.push_back({GtsVertexSemantic::TexCoord, 1, std::vector<glm::vec2>(3)});
     material.metallicImage->image.texCoordSet = 1;
-    assert(diagnostic(AssetCooker::cookModelAsset(model, root / "uv1", options), "ASSET_COOK_UV_SET_UNSUPPORTED"));
+    assert(diagnostic(GtsModelCooker::cookModelAsset(model, root / "uv1", options), "ASSET_COOK_UV_SET_UNSUPPORTED"));
     material.metallicImage->image.texCoordSet = 0;
     model.images[0].source = GtsModelEmbeddedImage{bytes(root / "scalar.png"), "image/png"};
-    const auto embedded = AssetCooker::cookModelAsset(model, root / "embedded", options);
+    const auto embedded = GtsModelCooker::cookModelAsset(model, root / "embedded", options);
     assert(embedded.succeeded() && embedded.textures[0].mips[0].bytes[2] == 127);
     primitive.indices = {0, 1, 99};
-    assert(AssetCooker::cookModelAsset(model, root / "invalid", options).hasErrors());
+    assert(GtsModelCooker::cookModelAsset(model, root / "invalid", options).hasErrors());
     write(root / "minimal.gmesh", "invalid cooked header");
     assert(rejected(root / "minimal.obj"));
     assert(rejected(root / "unsupported.glb"));

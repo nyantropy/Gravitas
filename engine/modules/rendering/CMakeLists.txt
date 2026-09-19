@@ -18,8 +18,6 @@ file(GLOB_RECURSE RENDERING_SOURCES CONFIGURE_DEPENDS
 list(APPEND RENDERING_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/external/stb_image_write_impl.cpp"
 )
-list(FILTER RENDERING_SOURCES EXCLUDE REGEX "/core/material/model/")
-list(FILTER RENDERING_SOURCES EXCLUDE REGEX "/core/model/")
 add_library(gravitas_rendering STATIC ${RENDERING_SOURCES})
 
 target_compile_features(gravitas_rendering PUBLIC cxx_std_20)
@@ -40,7 +38,6 @@ target_include_directories(gravitas_rendering PUBLIC
 
     # Graphics config / init headers
     "${CMAKE_CURRENT_SOURCE_DIR}/core/commands"
-    "${CMAKE_CURRENT_SOURCE_DIR}/core/geometry"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/init"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/lighting"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/material"
@@ -101,7 +98,7 @@ target_include_directories(gravitas_rendering PUBLIC
 target_link_libraries(gravitas_rendering PUBLIC
     glfw
     gravitas_core
-    PUBLIC gravitas_assets gravitas_cooked_assets gravitas_mesh_loading gravitas_image_decode
+    PUBLIC gravitas_model_domain gravitas_cooked_assets gravitas_mesh_loading gravitas_image_decode
 )
 
 if(TARGET gravitas_vulkan_backend)

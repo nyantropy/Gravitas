@@ -4,7 +4,7 @@
 #include <cmath>
 #include <limits>
 
-#include "assets/animation/GtsAnimationTrack.h"
+#include "model/domain/animation/GtsAnimationTrack.h"
 
 namespace gts::animation::detail
 {

@@ -8,9 +8,6 @@
 #include "assets/serialization/AssetTypes.h"
 #include "assets/serialization/MeshAssetGeometry.h"
 
-struct GtsModelAsset;
-struct GtsModelImportBundle;
-
 namespace gts::rendering
 {
     enum class CookedAssetOutputType
@@ -32,8 +29,6 @@ namespace gts::rendering
     struct AssetCookerOptions
     {
         std::filesystem::path outputDirectory;
-        std::filesystem::path baseColorTextureOverride;
-        bool                  vertexColorOnly = false;
         std::string           explicitImporter;
         TextureCookRole       textureRole            = TextureCookRole::BaseColor;
         bool                  generateTextureMipmaps = true;
@@ -43,7 +38,6 @@ namespace gts::rendering
     {
         std::vector<MeshAssetData>     meshes;
         std::vector<MaterialAssetData> materials;
-        std::vector<ModelAssetData>    models;
         std::vector<TextureAssetData>  textures;
         std::vector<CookedAssetOutput> outputs;
         std::vector<AssetDiagnostic>   diagnostics;
@@ -67,14 +61,6 @@ namespace gts::rendering
     class AssetCooker
     {
         public:
-        static AssetCookResult cookModelBundle(const GtsModelImportBundle&  bundle,
-                                               const std::filesystem::path& sourcePath,
-                                               const AssetCookerOptions&    options);
-
-        static AssetCookResult cookModelAsset(const GtsModelAsset&         model,
-                                              const std::filesystem::path& sourcePath,
-                                              const AssetCookerOptions&    options);
-
         static AssetCookResult cookSourceAsset(const std::filesystem::path& sourcePath,
                                                const AssetCookerOptions&    options);
     };

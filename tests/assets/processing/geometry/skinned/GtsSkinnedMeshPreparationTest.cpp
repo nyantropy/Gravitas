@@ -1,7 +1,7 @@
 #include "GtsSkinnedMeshPreparation.h"
 #include "GtsStaticMeshPreparation.h"
-#include "assets/model/GtsModelAsset.h"
-#include "assets/skeleton/GtsSkeletonAsset.h"
+#include "model/domain/model/GtsModelAsset.h"
+#include "model/domain/skeleton/GtsSkeletonAsset.h"
 
 #include <algorithm>
 #include <cmath>

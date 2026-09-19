@@ -3,7 +3,7 @@
 #include <array>
 #include <map>
 #include <memory>
-#include "core/model/GtsModelFrameData.h"
+#include "model/extraction/GtsModelFrameData.h"
 #include "VulkanSkinnedMeshResource.h"
 #include "VulkanSkinPaletteBuffer.h"
 #include "VulkanSkinningBuffer.h"

@@ -5,7 +5,7 @@
 #include <span>
 #include <stdexcept>
 
-#include "assets/processing/geometry/static/GtsStaticVertex.h"
+#include "assets/geometry/GtsStaticVertex.h"
 
 #include "MemoryUtil.hpp"
 

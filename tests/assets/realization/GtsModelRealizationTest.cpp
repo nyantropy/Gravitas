@@ -1,9 +1,10 @@
+#include "model/serialization/ModelAssetSerializer.h"
 #include "../importers/gltf/GltfFixtureBuilder.h"
 #include "../runtime/ScopedRuntimeAssetPolicy.h"
-#include "assets/loading/model/GtsModelRegistry.h"
-#include "assets/loading/model/GtsModelResource.h"
-#include "assets/loading/model/GtsPreparedModelDefinition.h"
-#include "assets/realization/model/GtsModelRealizationCache.h"
+#include "model/loading/GtsModelRegistry.h"
+#include "model/loading/GtsModelResource.h"
+#include "model/loading/GtsPreparedModelDefinition.h"
+#include "model/realization/GtsModelRealizationCache.h"
 #include "assets/serialization/AssetSerializers.h"
 #include <cstring>
 

@@ -3,7 +3,7 @@
 #include <memory>
 #include <span>
 #include <vector>
-#include "assets/loading/model/GtsModelResource.h"
+#include "model/public/GtsModelClipReference.h"
 #include "animation/skeletal/runtime/GtsAnimationPlayback.h"
 #include "animation/skinning/GtsSkinPalette.h"
 

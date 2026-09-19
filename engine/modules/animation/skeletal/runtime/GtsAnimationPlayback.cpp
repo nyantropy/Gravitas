@@ -4,7 +4,7 @@
 #include <cmath>
 #include <stdexcept>
 #include "animation/skeletal/GtsSkeletonPoseEvaluation.h"
-#include "assets/animation/GtsAnimationClipAsset.h"
+#include "model/domain/animation/GtsAnimationClipAsset.h"
 
 void GtsAnimationPlayback::selectClip(uint32_t index)
 {

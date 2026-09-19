@@ -1,3 +1,4 @@
+#include "model/serialization/ModelAssetSerializer.h"
 #ifdef NDEBUG
 #undef NDEBUG
 #endif

@@ -1,10 +1,11 @@
+#include "model/loading/GtsModelResource.h"
 #include "GtsModelInstance.h"
 
 #include <algorithm>
 #include <cmath>
 #include <exception>
-#include "assets/model/GtsModelSkin.h"
-#include "assets/animation/GtsAnimationClipValidation.h"
+#include "model/domain/model/GtsModelSkin.h"
+#include "model/domain/animation/GtsAnimationClipValidation.h"
 #include "animation/skeletal/GtsSkeletonPoseEvaluation.h"
 #include "animation/skinning/GtsSkinPaletteEvaluation.h"
 

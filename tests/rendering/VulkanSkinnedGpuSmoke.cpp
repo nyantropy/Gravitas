@@ -1,8 +1,9 @@
+#include "model/realization/GtsModelRealizationCache.h"
 #include "../assets/importers/gltf/GltfFixtureBuilder.h"
 #include "../assets/runtime/ScopedRuntimeAssetPolicy.h"
-#include "rendering/core/model/GtsModelInstanceRuntime.h"
-#include "rendering/core/model/GtsModelRenderExtraction.h"
-#include "assets/loading/model/GtsModelRegistry.h"
+#include "model/world/GtsModelInstanceRuntime.h"
+#include "model/extraction/GtsModelRenderExtraction.h"
+#include "model/loading/GtsModelRegistry.h"
 #include "rendering/backend/vulkan/rendering/skinning/VulkanSkinnedSceneRenderer.h"
 #include "rendering/backend/vulkan/rendering/framegraph/VulkanModelStaticDraws.h"
 #include <cstdio>

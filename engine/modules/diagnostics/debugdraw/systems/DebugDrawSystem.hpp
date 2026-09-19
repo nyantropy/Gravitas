@@ -21,7 +21,7 @@
 #include "RenderDirtyComponent.h"
 #include "RenderGpuComponent.h"
 #include "TransformComponent.h"
-#include "assets/processing/geometry/static/GtsStaticVertex.h"
+#include "assets/geometry/GtsStaticVertex.h"
 
 namespace gts::debugdraw
 {

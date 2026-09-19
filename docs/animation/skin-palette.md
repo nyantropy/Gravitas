@@ -141,7 +141,7 @@ mesh-node translation of 1000 never enters the palette. Every prepared vertex
 joint component directly indexes the resulting palette. No GPU initialization,
 external binary asset, or animation playback instance is needed.
 
-With the CPU configuration in [model-domain.md](../assets/model-domain.md):
+With the CPU configuration in [model-domain.md](../model/model-domain.md):
 
 ```sh
 cmake --build /tmp/gravitas-model-domain-cpu --parallel 4

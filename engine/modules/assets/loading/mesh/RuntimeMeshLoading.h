@@ -6,7 +6,7 @@
 
 #include "assets/serialization/AssetTypes.h"
 #include "assets/loading/RuntimeAssetPolicy.h"
-#include "assets/model/GtsModelDiagnostic.h"
+#include "model/domain/model/GtsModelDiagnostic.h"
 
 namespace gts::rendering
 {

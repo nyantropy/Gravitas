@@ -38,8 +38,8 @@ This file is the engine architecture entrypoint. Feature details live under
 engine/
   core/                  pure ECS, input, scene, command, event, UI runtime, JSON
   modules/
-    assets/              canonical domains, importers, processing, loading, realization, serialization and cooking
-    model/runtime/       world model instances and skeletal occurrence coordination
+    assets/              shared image, geometry, direct mesh, material and cooked-container infrastructure
+    model/               model import/domain/processing/cooking/loading/realization/world/runtime/extraction
     transform/           local/world transforms and hierarchy
     animation/           transform animation ECS feature, CPU skeletal evaluation and playback occurrences
     tween/               reusable tween/easing helpers
@@ -60,32 +60,33 @@ vendored documentation and should not be rewritten as first-party engine docs.
 
 ## Feature Documentation Map
 
-- [docs/rendering/model-extraction.md](docs/rendering/model-extraction.md): the authoritative
+- [docs/model/model-extraction.md](docs/model/model-extraction.md): the authoritative
   resource → realization → instance → generic static/skinned frame extraction path.
   No persistent model presentation mirror; direct mesh consumers remain supported.
 
 - [docs/model/runtime-instances.md](docs/model/runtime-instances.md): model instance ownership,
   world creation, independent skeletal occurrences, lifetime-safe pose references and material reset.
 
-- [docs/assets/architecture.md](docs/assets/architecture.md): the complete canonical cooking/runtime model pipeline,
+- [docs/model/architecture.md](docs/model/architecture.md): the complete canonical cooking/runtime model pipeline,
   module ownership, lifetime and dependency boundaries.
-- [docs/assets/canonical-cooking.md](docs/assets/canonical-cooking.md): one canonical
+- [docs/assets/architecture.md](docs/assets/architecture.md): reusable non-model asset infrastructure.
+- [docs/model/canonical-cooking.md](docs/model/canonical-cooking.md): one canonical
   OBJ/glTF interpretation feeding static cooked-v1 and runtime, with capability rejection.
 
-- [docs/assets/model-domain.md](docs/assets/model-domain.md): canonical CPU model
+- [docs/model/model-domain.md](docs/model/model-domain.md): canonical CPU model
   assets, semantic vertex streams, validation, and the model-importer boundary.
-- [docs/assets/model-runtime.md](docs/assets/model-runtime.md): engine-owned shared
+- [docs/model/model-runtime.md](docs/model/model-runtime.md): engine-owned shared
   CPU model resources, capability-aware source/cooked requests, prepared/canonical
   definition views, stable references and scoped clip lookup.
-- [docs/assets/model-realization.md](docs/assets/model-realization.md): shared CPU static/skinned
+- [docs/model/model-realization.md](docs/model/model-realization.md): shared CPU static/skinned
   geometry realization, occurrence associations and prepared cooked reuse.
-- [docs/rendering/model-material-realization.md](docs/rendering/model-material-realization.md):
+- [docs/model/model-material-realization.md](docs/model/model-material-realization.md):
   world-scoped model material handles, canonical images and cooked material references.
-- [docs/assets/import-bundle.md](docs/assets/import-bundle.md): associated canonical
+- [docs/model/import-bundle.md](docs/model/import-bundle.md): associated canonical
   import products, definition ownership, enumeration and result validation.
-- [docs/assets/skeleton-domain.md](docs/assets/skeleton-domain.md): reusable CPU
+- [docs/model/skeleton-domain.md](docs/model/skeleton-domain.md): reusable CPU
   evaluation hierarchies, default transforms, validation, and exact compatibility.
-- [docs/assets/animation-clip-domain.md](docs/assets/animation-clip-domain.md): CPU
+- [docs/model/animation-clip-domain.md](docs/model/animation-clip-domain.md): CPU
   skeletal clip data, typed TRS keys, cubic derivatives, and compatibility validation.
 - [docs/animation/skeletal-evaluation.md](docs/animation/skeletal-evaluation.md):
   CPU track sampling, local poses, and parent-first reference-space evaluation.
@@ -95,15 +96,15 @@ vendored documentation and should not be rewritten as first-party engine docs.
   validation and skin-local deformation matrix palettes.
 - [docs/animation/transform-animation.md](docs/animation/transform-animation.md):
   procedural entity transforms, scene installation, and fixed-step playback.
-- [docs/assets/skin-binding-domain.md](docs/assets/skin-binding-domain.md): CPU
+- [docs/model/skin-binding-domain.md](docs/model/skin-binding-domain.md): CPU
   skin-local remaps, inverse binds, and exact target-skeleton validation.
-- [docs/assets/obj-importer.md](docs/assets/obj-importer.md): standalone canonical
+- [docs/model/obj-importer.md](docs/model/obj-importer.md): standalone canonical
   OBJ strategy, source interpretation, diagnostics, and canonical consumer integration.
-- [docs/assets/gltf-importer.md](docs/assets/gltf-importer.md): canonical glTF/GLB
+- [docs/model/gltf-importer.md](docs/model/gltf-importer.md): canonical glTF/GLB
   strategy, shared source decoding, scene policy, and explicit unsupported features.
-- [docs/assets/static-geometry.md](docs/assets/static-geometry.md): source-neutral
+- [docs/model/static-geometry.md](docs/model/static-geometry.md): source-neutral
   static geometry preparation, primitive ranges, defaults, generation, and metadata.
-- [docs/assets/skinned-geometry.md](docs/assets/skinned-geometry.md): CPU four-influence
+- [docs/model/skinned-geometry.md](docs/model/skinned-geometry.md): CPU four-influence
   skinned profile, binding-context validation and deterministic influence reduction.
 - [docs/json/architecture.md](docs/json/architecture.md): shared JSON syntax,
   value trees, schema ownership, error handling, and migration contracts.
@@ -353,9 +354,9 @@ Cooked-v1 remains static-only and rejects skeletal/animated inputs rather than
 losing capabilities. Lower-level direct/generated mesh APIs remain supported.
 
 See the [asset/model architecture](docs/assets/architecture.md) for module and
-ownership boundaries, [canonical cooking](docs/assets/canonical-cooking.md),
+ownership boundaries, [canonical cooking](docs/model/canonical-cooking.md),
 [model instances](docs/model/runtime-instances.md), and
-[render extraction](docs/rendering/model-extraction.md) for their contracts.
+[render extraction](docs/model/model-extraction.md) for their contracts.
 Canonical skeleton, skin and animation data and CPU evaluation remain independent
 layers documented in the feature map above.
 

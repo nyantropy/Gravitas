@@ -1,3 +1,4 @@
+#include "model/serialization/ModelAssetSerializer.h"
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
@@ -14,12 +15,12 @@
 #include <utility>
 #include <vector>
 
-#include "assets/cooking/AssetCooker.h"
+#include "model/cooking/GtsModelCooker.h"
 #include "assets/loading/cooked/MaterialAssetLoader.h"
 #include "rendering/core/material/MaterialAssetRealization.h"
 #include "assets/loading/cooked/MeshAssetLoader.h"
 #include "MeshManager.hpp"
-#include "assets/loading/cooked/ModelAssetLoader.h"
+#include "model/loading/ModelAssetLoader.h"
 #include "assets/loading/cooked/TextureAssetLoader.h"
 #include "assets/cooking/TextureCooker.h"
 
@@ -410,10 +411,10 @@ int main()
         "usemtl blue\n"
         "f 2/2/1 4/4/1 3/3/1\n");
 
-    gts::rendering::AssetCookerOptions options;
+    gts::rendering::GtsModelCookerOptions options;
     options.outputDirectory = outputDirectory;
-    const gts::rendering::AssetCookResult cookResult =
-        gts::rendering::AssetCooker::cookSourceAsset(objPath, options);
+    const gts::rendering::GtsModelCookResult cookResult =
+        gts::rendering::GtsModelCooker::cookSourceAsset(objPath, options);
 
     assert(!hasCookError(cookResult));
     const std::filesystem::path meshPath =
@@ -475,8 +476,8 @@ int main()
     writeStaticGlbFixture(glbPath);
 
     options.outputDirectory = gltfOutputA;
-    const gts::rendering::AssetCookResult gltfCookA =
-        gts::rendering::AssetCooker::cookSourceAsset(glbPath, options);
+    const gts::rendering::GtsModelCookResult gltfCookA =
+        gts::rendering::GtsModelCooker::cookSourceAsset(glbPath, options);
     assert(!hasCookError(gltfCookA));
     assert(outputsOfType(gltfCookA, gts::rendering::CookedAssetOutputType::Mesh).size() == 2);
     assert(outputsOfType(gltfCookA, gts::rendering::CookedAssetOutputType::Material).size() == 2);
@@ -526,8 +527,8 @@ int main()
 
     writeStaticGlbFixture(glbPath);
     options.outputDirectory = gltfOutputB;
-    const gts::rendering::AssetCookResult gltfCookB =
-        gts::rendering::AssetCooker::cookSourceAsset(glbPath, options);
+    const gts::rendering::GtsModelCookResult gltfCookB =
+        gts::rendering::GtsModelCooker::cookSourceAsset(glbPath, options);
     assert(!hasCookError(gltfCookB));
 
     for (const char* filename : {

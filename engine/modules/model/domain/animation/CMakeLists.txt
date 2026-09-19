@@ -1,0 +1,4 @@
+add_library(gravitas_animation_assets STATIC GtsAnimationClipValidation.cpp)
+target_link_libraries(gravitas_animation_assets PUBLIC gravitas_skeleton_assets)
+target_include_directories(gravitas_animation_assets PUBLIC "${GTS_ENGINE_ROOT}/engine/modules")
+target_compile_features(gravitas_animation_assets PUBLIC cxx_std_20)
