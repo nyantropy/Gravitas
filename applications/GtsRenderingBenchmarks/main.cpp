@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #include "BuiltinExecutionGroups.h"
 #include <algorithm>
 #include <cctype>
@@ -1460,7 +1461,7 @@ namespace
         void onLoad(EcsControllerContext& ctx, const GtsSceneTransitionData*) override
         {
             resetSceneWorld();
-            gts::rendering::installRendererFeature(*this, ctx);
+            gts::rendering::installRendererFeature(*this, ctx, gts::execution::rendererExecutionInputs());
             generated = populateRuntimeBenchmarkWorld(ecsWorld, config);
         }
 
@@ -1666,7 +1667,7 @@ int main(int argc, char** argv)
     }
     else
     {
-        result = runRenderingBenchmark(config);
+        result = runRenderingBenchmark(config, {gts::execution::rendererExecutionInputs(), ecsSystemGroupName});
     }
 
     const std::vector<std::string> validationFailures = validateBenchmarkResult(result);

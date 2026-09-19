@@ -59,17 +59,6 @@ Review remains necessary for feature vocabulary and API design.
 These are existing exceptions to conceptual ownership, not permission for new
 upward build dependencies:
 
-- **Execution policy:** `modules/execution/` still owns the fixed catalog and
-  gameplay/pause recipes. Standalone transform, animation, debug-draw and renderer
-  installers establish gameplay defaults; physics consumes transform installation;
-  VN constructs coordinated overlay/fullscreen profiles; tools/previews choose
-  categories and rendering benchmarks label them. Moving the files directly to
-  runtime would create modules → runtime dependencies. The follow-up must first
-  give these boundaries explicit policy inputs and supply identical defaults from
-  runtime and standalone entry points. Rendering should consume a rendering-owned
-  presentation contract, not the runtime policy. Preserve one selection stack and
-  all existing bits, IDs, modes and ordering. Do not duplicate numeric policy into
-  modules or move capability implementations wholesale merely to hide the edge.
 - **Screenshot command:** core's closed `GtsCommand` variant and
   `GtsCommandBuffer::requestScreenshot` expose a rendering-specific request.
   Extraction requires migrating command producers/consumers to an owned extension
@@ -78,10 +67,12 @@ upward build dependencies:
   private event injection and frame advancement. A feature-neutral writer boundary
   requires an input API decision. Core includes/links no runtime header or target.
 
-The execution-policy relocation is therefore **not complete** under the structural,
-API-preserving migration. It must not be claimed complete merely because the three
-primary directories exist. Other core references to feature systems are explanatory
-comments, not types, storage, includes or scheduling vocabulary.
+Execution ownership is fully separated: runtime supplies opaque defaults/groups,
+prepared VN selections, the rendering mode selector and benchmark label function.
+Modules neither construct Gravitas defaults nor import runtime policy. Core execution
+and the existing boundary checker are unchanged. See [execution policy](../execution/architecture.md).
+Other core references to feature systems are explanatory comments, not types,
+storage, includes or scheduling vocabulary.
 
 `GtsFrameEndedEvent` was a clean extraction: the rendering-owned event carries the
 same `dt` and `imageIndex`, is still emitted at the same Vulkan point, and uses the

@@ -1,3 +1,4 @@
+#include "VNExecutionProfiles.h"
 #include "SceneExecutionPolicy.h"
 #include "RenderingControllerContext.h"
 #include "UiControllerContext.h"
@@ -329,7 +330,7 @@ namespace
 
         gts::vn::VNSystemConfig config;
         config.ui.profile.layout.interaction = {0.125f, 0.150f, 0.750f, 0.450f};
-        gts::vn::VNSystem system(config);
+        gts::vn::VNSystem system(gts::vn::executionInputs(), config);
 
         EcsControllerContext ctx{world};
         gts::ui::controllerContext(ctx).ui = &ui;
@@ -426,7 +427,7 @@ namespace
                                    UiLayoutAlignment::Start,
                                    UiThickness{0.0f, 0.150f, 0.0f, 0.0f});
 
-        gts::vn::VNSystem system(config);
+        gts::vn::VNSystem system(gts::vn::executionInputs(), config);
 
         EcsControllerContext ctx{world};
         gts::ui::controllerContext(ctx).ui = &ui;
@@ -464,7 +465,7 @@ namespace
         session.feedbackText = "Pleasure doing business.";
         world.createSingleton<gts::vn::InteractionFrontendSessionComponent>(session);
 
-        gts::vn::VNSystem system;
+        gts::vn::VNSystem    system(gts::vn::executionInputs());
         EcsControllerContext ctx{world};
         gts::ui::controllerContext(ctx).ui = &ui;
         gts::rendering::controllerContext(ctx).windowPixelWidth = 1280.0f;
@@ -499,7 +500,7 @@ void testExecutionTransitions()
     session.active = true;
     session.mode = gts::vn::InteractionFrontendMode::MerchantTrade;
     auto& presentation = world.createSingleton<gts::vn::VNExternalPresentationComponent>();
-    gts::vn::VNSystem system;
+    gts::vn::VNSystem system(gts::vn::executionInputs());
     system.update(ctx);
     require(world.getCurrentExecutionSelection().id == "dialogue_overlay" &&
             world.getCurrentExecutionSelection().enabledSystems == 0xf99 &&

@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #include "RenderingControllerContext.h"
 #include <cstdio>
 #include <string>
@@ -172,8 +173,10 @@ namespace
 
     void install(ECSWorld& world, FakeResourceProvider& resources)
     {
-        gts::transform::installTransformFeature(world);
-        gts::rendering::installRendererGeometrySceneFeature(world, &resources);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
+        gts::rendering::installRendererGeometrySceneFeature(
+            world, &resources, gts::execution::rendererExecutionInputs());
     }
 
     void update(ECSWorld& world, FakeResourceProvider& resources)

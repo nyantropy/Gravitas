@@ -1,4 +1,3 @@
-#include "BuiltinExecutionGroups.h"
 #include "EngineToolRuntime.hpp"
 #include "RenderingControllerContext.h"
 
@@ -33,7 +32,8 @@ namespace gts::tools
     class EngineToolRuntime::Impl
     {
         public:
-        Impl()
+        explicit Impl(ToolExecutionInputs inExecution)
+            : execution(std::move(inExecution)), shellSystem(execution.preview)
         {
             resetSceneSystems();
         }
@@ -85,6 +85,7 @@ namespace gts::tools
         }
 
         private:
+        ToolExecutionInputs                execution;
         EngineToolShellSystem              shellSystem;
         EngineToolCameraSystem             cameraSystem;
         EngineGizmoSystem                  gizmoSystem;
@@ -103,7 +104,7 @@ namespace gts::tools
         ToolStartupOptions                         startupOptions;
         bool                                       startupOptionsPending = false;
 
-        template <typename System> static void runSystem(System& system, const EcsControllerContext& ctx)
+        template <typename System> void runSystem(System& system, const EcsControllerContext& ctx)
         {
             const auto start = std::chrono::steady_clock::now();
             system.update(ctx);
@@ -115,12 +116,12 @@ namespace gts::tools
             const auto  flushEnd = std::chrono::steady_clock::now();
             const float flushMs  = std::chrono::duration<float, std::milli>(flushEnd - flushStart).count();
 
-            ctx.world.recordExternalControllerTimingSample(system.getName(), gts::execution::groups::Tools, ms, flushMs);
+            ctx.world.recordExternalControllerTimingSample(system.getName(), execution.timingGroup, ms, flushMs);
         }
 
         void resetSceneSystems()
         {
-            shellSystem              = EngineToolShellSystem{};
+            shellSystem              = EngineToolShellSystem{execution.preview};
             cameraSystem             = EngineToolCameraSystem{};
             gizmoSystem              = EngineGizmoSystem{};
             toolDebugDrawSystem      = EngineToolDebugDrawSystem{};
@@ -285,7 +286,10 @@ namespace gts::tools
         }
     };
 
-    EngineToolRuntime::EngineToolRuntime() : impl(std::make_unique<Impl>()) {}
+    EngineToolRuntime::EngineToolRuntime(ToolExecutionInputs execution)
+        : impl(std::make_unique<Impl>(std::move(execution)))
+    {
+    }
     EngineToolRuntime::~EngineToolRuntime() = default;
 
     const char* EngineToolRuntime::name() const

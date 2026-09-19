@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #include <cstdlib>
 #include <iostream>
 
@@ -36,7 +37,7 @@ namespace
 int main()
 {
     ECSWorld world;
-    gts::transform::installTransformRuntime(world);
+    gts::transform::installTransformRuntime(world, SceneExecutionProfile::gameplay());
     require(world.getControllerSystemCount() == 0, "physics runtime unexpectedly scheduled a controller");
     gts::transform::registerWorldTransformPublishedCallback(world, published);
     PhysicsWorld         physics(&world);

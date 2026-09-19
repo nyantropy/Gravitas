@@ -522,3 +522,9 @@ processing, while high upload buckets point at backend buffer writes.
 - Timestamp overhead is optional and disabled outside GPU benchmark mode by
   default. This workspace could validate the disabled CPU smoke path and the
   no-Vulkan skip path, but not timestamp overhead on real GPU hardware.
+
+The CPU entry point also requires `BenchmarkExecutionInputs`, containing renderer
+installation values and a stateless group-label function. The benchmark executable
+supplies Gravitas policy from runtime; the benchmark module can accept arbitrary
+identities and labels without a runtime dependency. These inputs are separate from
+workload configuration and do not change JSON fields, timing keys or instance suffixes.

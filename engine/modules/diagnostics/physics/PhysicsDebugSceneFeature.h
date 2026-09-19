@@ -1,6 +1,5 @@
 #pragma once
 
-#include "BuiltinExecutionGroups.h"
 
 #include "DebugDrawSceneFeature.h"
 #include "EcsControllerContext.hpp"
@@ -9,12 +8,15 @@
 
 namespace gts::debugdraw
 {
-    inline void installPhysicsDebugFeature(GtsScene& scene, const EcsControllerContext& ctx)
+    inline void installPhysicsDebugFeature(GtsScene&                    scene,
+                                           const EcsControllerContext&  ctx,
+                                           const EcsExecutionSelection& defaultSelection,
+                                           EcsSystemGroup               drawingGroup)
     {
         if (!scene.markSceneFeatureInstalled("physics_debug"))
             return;
 
-        installDebugDrawFeature(scene, ctx);
-        scene.getWorld().addControllerSystem<PhysicsDebugRenderer>(gts::execution::groups::Tools);
+        installDebugDrawFeature(scene, ctx, defaultSelection, drawingGroup);
+        scene.getWorld().addControllerSystem<PhysicsDebugRenderer>(drawingGroup);
     }
 }

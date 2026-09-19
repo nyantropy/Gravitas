@@ -295,20 +295,21 @@ class GravitasEngine
         gameLoop.init(engineConfig);
         maxFrameRate   = engineConfig.graphics.settings.framePacing.maxFrameRate;
         sceneManager   = std::make_unique<SceneManager>();
-        renderingRuntime =
-            std::make_unique<gts::rendering::RenderingRuntime>(
-                engineConfig.graphics.settings.rendering.frustumCullingEnabled,
-                *platform.getGraphics(),
-                [this](const GraphicsSettings& settings)
-                {
-                    applyGraphicsSettingsCommand(settings);
-                });
+        renderingRuntime = std::make_unique<gts::rendering::RenderingRuntime>(
+            engineConfig.graphics.settings.rendering.frustumCullingEnabled,
+            *platform.getGraphics(),
+            gts::execution::selectFrameBuildMode,
+            [this](const GraphicsSettings& settings)
+            {
+                applyGraphicsSettingsCommand(settings);
+            });
         serviceRegistry.registerService(modelRegistry);
         serviceRegistry.registerService(modelRealizations);
         installEngineModule(*renderingRuntime);
         if (engineConfig.tools.enabled)
         {
-            toolRuntime = std::make_unique<gts::tools::EngineToolRuntime>();
+            toolRuntime = std::make_unique<gts::tools::EngineToolRuntime>(gts::tools::ToolExecutionInputs{
+                gts::execution::groups::Tools, gts::execution::rendererExecutionInputs()});
             installEngineModule(*toolRuntime);
         }
     }

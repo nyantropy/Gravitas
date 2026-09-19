@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #pragma once
 
 #include "BuiltinExecutionGroups.h"
@@ -177,7 +178,7 @@ public:
         // FreeFlyCamera must run before the shared camera pipeline so its
         // transform/description updates feed the same-frame matrix upload.
         ecsWorld.addControllerSystem<FreeFlyCamera>(gts::execution::groups::Camera);
-        gts::rendering::installRendererFeature(*this, ctx);
+        gts::rendering::installRendererFeature(*this, ctx, gts::execution::rendererExecutionInputs());
     }
 
     void onUpdateSimulation(const EcsSimulationContext& ctx) override

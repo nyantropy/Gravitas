@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #pragma once
 
 #include <string>
@@ -128,8 +129,9 @@ class DefaultScene : public GtsScene
 
         void addSystems(const EcsControllerContext& ctx)
         {
-            gts::rendering::installRendererFeature(*this, ctx);
-            gts::animation::installAnimationFeature(*this);
+            gts::rendering::installRendererFeature(*this, ctx, gts::execution::rendererExecutionInputs());
+            gts::animation::installAnimationFeature(
+                *this, SceneExecutionProfile::gameplay(), gts::execution::groups::Animation);
         }
 
         void onLoad(EcsControllerContext& ctx,

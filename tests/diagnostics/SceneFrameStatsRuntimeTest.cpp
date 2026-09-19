@@ -160,6 +160,21 @@ namespace
         ProfileAccumulator& accumulator;
     };
 
+    class PolicyContributor final : public Scene, public ISceneFrameStats
+    {
+        public:
+        PolicyContributor() : world(getWorld()) {}
+        void populateFrameStats(GtsFrameStats&) const override
+        {
+            auto profile           = SceneExecutionProfile::gameplay();
+            profile.frameBuildMode = FrameBuildMode::None;
+            world.pushExecutionSelection(profile);
+        }
+
+        private:
+        ECSWorld& world;
+    };
+
     // Benchmark scenes only observe; contribution remains an optional no-op.
     class Observer final : public Scene, public ISceneFrameStats
     {
@@ -183,7 +198,7 @@ namespace
 int main()
 {
     Graphics                         graphics;
-    gts::rendering::RenderingRuntime runtime(false, graphics);
+    gts::rendering::RenderingRuntime runtime(false, graphics, gts::execution::selectFrameBuildMode);
     runtime.setUiEnabled(false);
     TimeContext time;
     auto        render = [&](GtsScene& scene, ProfileAccumulator& accumulator)
@@ -228,6 +243,12 @@ int main()
     render(observer, benchmarkAccumulator);
     require(observer.observations == 2 && benchmarkAccumulator.frameCount == 2,
             "Observation-only scenes must receive exactly one callback per frame");
+
+    PolicyContributor  policyContributor;
+    ProfileAccumulator policyAccumulator;
+    runtime.setUiEnabled(true);
+    render(policyContributor, policyAccumulator);
+    require(!runtime.ui()->isEnabled(), "Frame mode must be read after the scene contribution hook");
 
     for (auto mode : {FrameBuildMode::FullWorld, FrameBuildMode::UiOnly, FrameBuildMode::CachedWorldFrame, FrameBuildMode::None})
     {

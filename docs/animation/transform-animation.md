@@ -17,7 +17,7 @@ Install once during scene loading:
 #include "AnimationSceneFeature.h"
 #include "TransformAnimationComponent.h"
 
-gts::animation::installAnimationFeature(*this);
+gts::animation::installAnimationFeature(*this, defaultSelection, simulationGroup);
 
 TransformAnimationComponent animation;
 animation.enableMode(TransformAnimationMode::Rotate);
@@ -29,7 +29,9 @@ ecsWorld.addComponent(entity, animation); // entity also has TransformComponent
 The `GtsScene&` installer guards against duplicate installation and can be used
 again after scene unload resets the world. The `ECSWorld&` overload is for
 low-level worlds and must be called once per world lifetime. The installer
-registers a fixed-step simulation system in `gts::execution::groups::Animation`.
+registers a fixed-step simulation system in the supplied group. Gravitas callers
+supply the runtime-owned Animation identity and gameplay default; the animation
+module does not depend on that catalog.
 Scenes must run their simulation systems; adding a component alone does not
 install behavior. The GtsScene1 demo uses this shared feature.
 

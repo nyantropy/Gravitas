@@ -14,5 +14,3 @@ target_link_libraries(gravitas_debugdraw PUBLIC
     gravitas_transform
     gravitas_rendering
 )
-
-target_link_libraries(gravitas_debugdraw PUBLIC gravitas_execution_policy)

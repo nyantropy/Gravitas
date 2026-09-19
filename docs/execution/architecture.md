@@ -1,29 +1,37 @@
-# ECS Execution Policy Ownership
+# ECS Execution Ownership
 
-The scheduler remains two ordered lists: fixed-step simulation systems and
-per-frame controllers. Groups are filters, never phases. Filtering is evaluated
-before each system against the current selection; queued structural commands
+The permanent source layers are core mechanisms, module capabilities and runtime
+composition. All Gravitas-specific execution identities, labels, defaults and
+coordinated recipes belong to `runtime/execution/`. Modules receive explicit typed
+values and never include or link runtime. There is no execution-policy module.
+
+## Core Mechanism
+
+Core owns `EcsSystemGroup`, mask operations, timing records and
+`EcsExecutionSelection`. The scheduler retains two ordered lists: fixed-step
+simulation systems and per-frame controllers. Groups filter participation; they
+never sort systems or establish phases. Filtering is evaluated before each system,
+so selection changes affect later systems in the same pass. Structural commands
 flush after each executed system. Masked systems produce no timing sample and
 consume no timing instance index.
 
-## Ownership Blocker
+The single selection stack carries an ID, mask and one optional typed value payload.
+Push, pop, guarded pop and clear preserve selection and presentation metadata
+atomically. Core does not inspect that payload. No extra stack, component, registry,
+service lookup or scheduler abstraction is introduced.
 
-Engine-wide execution vocabulary and presentation coordination belong in
-`runtime/execution/` under the permanent [source-layer rule](../modules/ownership.md).
-They currently remain in `modules/execution/`: transform/animation/rendering and
-other standalone installers configure gameplay defaults, VN creates coordinated
-profiles, tools register categories, and rendering benchmarks interpret labels.
-Moving the existing policy target would make those modules depend on runtime.
-Preserving their current APIs requires deferring that relocation until explicit
-policy inputs can be supplied at composition/standalone entry points. No upward
-include or target link is introduced as a workaround.
+Bare core worlds have an unnamed, unfiltered default. The existing
+`configureDefaultExecutionSelection` operation establishes a default once, replaces
+only the bottom entry and preserves active overlays. Clear restores that configured
+value and metadata. Core never chooses an engine preset.
 
-## Fixed Catalog
+## Authoritative Runtime Catalog
 
-`modules/execution/BuiltinExecutionGroups.h` owns the coordinated catalog and
-`ecsSystemGroupName`. No dynamic group registration is involved.
+`runtime/execution/BuiltinExecutionGroups.h` defines the sole named catalog and
+`ecsSystemGroupName`. The constants remain `gts::execution::groups::<Name>` values
+of the opaque core type.
 
-| Category | Bit | Value |
+| Name | Bit | Value |
 | --- | --- | --- |
 | Always | 0 | 0x001 |
 | Gameplay | 1 | 0x002 |
@@ -38,93 +46,126 @@ include or target link is introduced as a workaround.
 | VN | 10 | 0x400 |
 | Tools | 11 | 0x800 |
 
-Identities are `gts::execution::groups::<Category>` values of core's opaque
-`EcsSystemGroup` type. All labels remain exact, including `Ui` and `VN`; unknown
-identities still label as `Unknown`. Membership remains any-bit overlap, zero
-matches nothing, and `Always` has no special bypass semantics. Numeric group
-values do not establish ordering.
+Labels retain exact spelling, including Ui and VN. Unknown or composite identities
+still label as Unknown. Membership remains any-bit overlap; zero matches nothing.
+Always has no bypass semantics. Numeric values never determine execution order.
 
-## One Coherent Stack
+`SceneExecutionProfile` and `SceneExecutionPolicy` are runtime-owned. Conversion
+to `EcsExecutionSelection` copies ID/mask and the complete typed policy payload.
+TimePolicy stays descriptive metadata and does not operate any clocks.
 
-Core's `EcsExecutionSelection` owns an ID, mask and optional typed value payload.
-Runtime `SceneExecutionProfile` converts to this value with a
-`SceneExecutionPolicy{frameBuildMode, timePolicy}` payload. `ECSWorld` has exactly
-one active selection stack; push/pop/guarded-pop replace or restore mask and
-presentation together. The separate default value is reset configuration, not a
-second active stack. No component/entity or global registry is introduced.
-
-Callers use `world.pushExecutionSelection(profile)` and
-`world.popExecutionSelection(expectedId)`. The bottom entry cannot be popped.
-Guard mismatch changes nothing. Selection queries return const borrowed access;
-copying a selection copies its payload. Editing the source profile afterward
-cannot mutate a stored entry. Lower entries are not intersected with the top.
-
-Rendering uses `gts::execution::sceneExecutionPolicy(world)`. A neutral selection
-without presentation metadata has default FullWorld/AllRunning interpretation.
-The type-erased storage in core is accessed by exact type only; core never imports
-or interprets presentation fields.
-
-## Defaults And Presets
-
-Core-only worlds have an unnamed, unfiltered default and no engine vocabulary.
-`gts::execution::ensureExecutionPolicy(world)` supplies the old engine gameplay
-selection once. Engine context construction does this before scene load/update.
-Standalone transform runtime/resolver, animation, debug-draw and rendering
-geometry/camera/particle installers also do it; direct VN updates cover standalone VN worlds. Preview and
-benchmark worlds use these same installers. `configureDefaultExecutionSelection`
-never replaces an explicitly configured default or an active overlay. World clear
-restores the configured default without adding entities or systems.
-
-A module-aware caller constructing a raw world without any installer can call
-`ensureExecutionPolicy` explicitly. In particular, the engine default remains
-`0xFFF`, not an all-64-bits mask: unknown bits are disabled under gameplay.
-
-| Recipe | Owner | ID | Mask | Frame mode | Time metadata |
+| Recipe | Runtime header | ID | Mask | Frame mode | Time metadata |
 | --- | --- | --- | --- | --- | --- |
-| gameplay() | execution | gameplay | 0xFFF | FullWorld | AllRunning |
-| dialogueOverlay() | VN contracts | dialogue_overlay | 0xF99 | FullWorld | GameplayPausedUiRunning |
-| fullscreenDialogue() | VN contracts | fullscreen_dialogue | 0xF81 | UiOnly | GameplayPausedDialogueRunning |
-| pauseMenu() | execution | pause_menu | 0x981 | CachedWorldFrame | GameplayPausedUiRunning |
+| gameplay() | SceneExecutionProfile.h | gameplay | 0xFFF | FullWorld | AllRunning |
+| dialogueOverlay() | VNExecutionProfiles.h | dialogue_overlay | 0xF99 | FullWorld | GameplayPausedUiRunning |
+| fullscreenDialogue() | VNExecutionProfiles.h | fullscreen_dialogue | 0xF81 | UiOnly | GameplayPausedDialogueRunning |
+| pauseMenu() | SceneExecutionProfile.h | pause_menu | 0x981 | CachedWorldFrame | GameplayPausedUiRunning |
 
-Value-initialized `SceneExecutionProfile{}` still has ID gameplay but mask zero.
-Audio participation, pauseMenu, TimePolicy::EverythingPaused and FrameBuildMode::None
-are retained. TimePolicy is descriptive only; no clock or pause behavior is inferred.
+Value-initialized SceneExecutionProfile still has ID gameplay and mask zero.
+Audio, pauseMenu, EverythingPaused and FrameBuildMode::None are preserved without
+activating new behavior.
 
-## Runtime Semantics
+## Module Installation Inputs
 
-Engine pause still stops fixed simulation ticks and preserves the accumulator
-remainder. Controllers/rendering continue; unscaled time and input PausePolicy
-retain their established behavior. A scene selection does not pause the engine
-clock. Physics still resolves transforms explicitly before its collision query,
-and the presentation TransformSystem remains at its original registration point.
+Simple installers require the default `EcsExecutionSelection` and their opaque
+group values as explicit arguments. No argument silently substitutes engine or
+neutral policy. The supplied default is applied at the previous installation point
+only if no default has been configured. A pre-existing default wins, and active
+overlays remain intact.
 
-VN changes selections during its controller update: later systems can observe the
-new mask immediately; earlier systems and simulation ticks are not rerun. Rendering
-sees the current policy that frame. VN uses guarded pop so another owner's overlay
-cannot be removed accidentally. Native VN input blocking remains distinct.
+- Transform runtime takes a default selection; resolver/complete installation also
+  takes a resolver group. Runtime setup still schedules no controller.
+- Transform animation takes a default and simulation group.
+- Physics takes a default and simulation group, forwards the default to transform
+  runtime, then registers its existing simulation system. Explicit transform
+  resolution before collision queries is unchanged.
+- Debug drawing takes a default and drawing group. The physics diagnostics bridge
+  forwards both through the generic debug-draw installer.
+- `RendererExecutionInputs` contains the default plus preparation, texture-animation,
+  camera and particle identities. Renderer installation forwards preparation to
+  the transform resolver and retains all existing controller order and scene guards.
 
-FullWorld builds/extracts world/model data and can submit particles. UiOnly skips
-world construction while retained UI continues. CachedWorldFrame reuses world
-commands/material/model data. None skips world/UI construction but does not skip
-backend submission or independent preview handling. UI input dispatch remains
-before simulation, while retained UI bindings/animation/extraction are rendering
-work rather than ECS Ui-group execution.
+`gts::execution::rendererExecutionInputs()` constructs the standard renderer value
+at the runtime boundary. Standalone callers can supply their own values; module-only
+tests use bits outside the Gravitas catalog. Engine context construction continues
+calling `ensureExecutionPolicy(world)` before scene load/update. Standalone installers
+receive the same gameplay value explicitly, retaining gameplay mask 0xFFF rather
+than accidentally enabling all unknown bits.
 
-World-registered Tools systems remain maskable. The seven external engine tool
-controllers still run directly in their original order and use Tools only as a
-timing label; they bypass world filtering.
+## Rendering Presentation Contract
 
-## Build Boundary And Verification
+`modules/rendering/contracts/FrameBuildMode.h` owns the unchanged four enum values.
+`RenderingRuntime` requires a non-null stateless `FrameBuildModeSelector`:
 
-`gravitas_execution_policy` is always available and links only `gravitas_core`.
-`gravitas_vn_execution_contracts` links only that policy contract. Rendering,
-transform, physics, diagnostics, tools and their installers depend on the leaf
-policy contract; rendering never depends on VN. No optional backend dependency
-or aggregate-module include workaround is introduced.
+```cpp
+using FrameBuildModeSelector = FrameBuildMode (*)(const EcsExecutionSelection&);
+```
 
-Characterization covers ordered/interleaved systems, both execution lists,
-mid-pass changes, command flushing, zero/composite/unknown masks, every fixed
-identity and preset, stack reset and guarded pop, engine pause, VN transitions,
-frame-build modes, external tool order, preview defaults and benchmark labels.
-Existing physics-before-query and transform resolver placement tests remain in
-place. Core-only tests use neutral identities and reject feature policy headers.
+Runtime supplies `gts::execution::selectFrameBuildMode`. It projects the complete
+runtime-owned payload to the rendering enum and returns FullWorld for selections
+without that payload. Rendering invokes the function at the original read point,
+after scene statistics contribution and before extraction. It never names or
+interprets SceneExecutionPolicy or TimePolicy. A standalone renderer may explicitly
+supply an always-FullWorld selector.
+
+FullWorld extracts world/model data and can submit particles. UiOnly skips world
+construction while retained UI continues. CachedWorldFrame reuses world data. None
+skips world/UI construction but not backend submission or independent preview work.
+Retained UI input, binding and animation work remains distinct from the ECS Ui bit.
+
+## VN, Tools And Benchmarks
+
+`VNExecutionInputs` contains prepared default, overlay and fullscreen selections.
+VNSystem owns a copy, establishes the supplied default at the start of update, and
+copies the selected template onto the core stack. Existing same-ID idempotence and
+expected-ID guarded pop remain unchanged. Runtime's `gts::vn::executionInputs()`
+constructs the standard recipes. VN determines when to transition, not which engine
+capabilities belong in coordinated masks. Changes still affect later controllers
+and rendering that frame, and simulation on the next tick.
+
+`ToolExecutionInputs` contains external timing identity and preview installation
+inputs. The tool runtime retains it across scene-system recreation; shell and preview
+coordinator construction forward it into both preview worlds. Preview worlds own
+copies across destroy/reinstall. They establish defaults only at successful ensure,
+retaining resource-null behavior and their four-controller camera setup.
+The seven external tool controllers still run directly in the original order,
+flush commands and record supplied timing identities regardless of world filtering.
+
+`BenchmarkExecutionInputs` contains renderer installation values and a non-null
+stateless group-label function. The CPU harness consumes it without modifying
+workload configuration or serialization. Runtime/application composition supplies
+`ecsSystemGroupName`. Controller names, instance suffixes and timing keys are unchanged.
+
+Engine pause still stops fixed simulation ticks while controllers/rendering continue.
+A selection never pauses the engine clock. No transform, physics or main-loop ordering
+changes accompany policy injection.
+
+## Targets And Enforcement
+
+Arrows mean depends on:
+
+```text
+gravitas_runtime -> gravitas_runtime_execution
+                    |-> gravitas_core
+                    |-> gravitas_rendering_execution_contracts
+                    |     |-> gravitas_core
+                    |     +-> gravitas_rendering_contracts
+                    +-> gravitas_vn_execution_contracts -> gravitas_core
+
+modules -> core and explicit module contracts
+modules -X-> runtime
+core -X-> modules/runtime
+```
+
+Rendering execution contracts contain only value inputs; rendering resource/frame-mode
+contracts remain available without a backend. Runtime policy is available in reduced
+configurations without rendering, VN, tools or physics implementations. Applications
+and policy integration tests link the runtime target explicitly. Module-only tests
+link capability targets and reject visibility of runtime headers.
+
+The existing three-layer CMake checker is unchanged. It rejects upward links,
+transitive wrappers/aliases, include-directory leaks and forbidden source includes.
+Characterization covers the catalog, all presets, ordering/filtering/flush behavior,
+stack/default semantics, pause, VN transitions, all frame modes and their read point,
+transform/physics resolution, previews, tool resets and benchmark labels. Injected
+non-Gravitas identities/defaults additionally prove modules consume supplied values.

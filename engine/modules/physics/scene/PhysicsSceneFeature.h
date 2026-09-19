@@ -1,6 +1,5 @@
 #pragma once
 
-#include "BuiltinExecutionGroups.h"
 
 #include "PhysicsControllerContext.h"
 #include "EcsControllerContext.hpp"
@@ -12,17 +11,20 @@
 
 namespace gts::physics
 {
-    inline void installPhysicsFeature(GtsScene& scene, EcsControllerContext& ctx)
+    inline void installPhysicsFeature(GtsScene&                    scene,
+                                      EcsControllerContext&        ctx,
+                                      const EcsExecutionSelection& defaultSelection,
+                                      EcsSystemGroup               simulationGroup)
     {
         if (!scene.markSceneFeatureInstalled("physics"))
             return;
 
-        gts::transform::installTransformRuntime(scene);
+        gts::transform::installTransformRuntime(scene, defaultSelection);
 
         PhysicsWorld& physicsWorld = scene.createSceneResource<PhysicsWorld>(&scene.getWorld());
         scene.createSceneResource<detail::ScenePhysicsBinding>(physicsWorld);
         gts::physics::controllerContext(ctx).physics = &physicsWorld;
 
-        scene.getWorld().addSimulationSystem<PhysicsSystem>(gts::execution::groups::Physics, &physicsWorld);
+        scene.getWorld().addSimulationSystem<PhysicsSystem>(simulationGroup, &physicsWorld);
     }
 }

@@ -39,6 +39,11 @@ namespace gts::tools
     class EngineToolShellSystem : public ECSControllerSystem
     {
     public:
+    explicit EngineToolShellSystem(const gts::rendering::RendererExecutionInputs& execution)
+        : previewCoordinator(execution)
+    {
+    }
+
         void update(const EcsControllerContext& ctx) override
         {
             if (gts::ui::controllerContext(ctx).ui == nullptr)

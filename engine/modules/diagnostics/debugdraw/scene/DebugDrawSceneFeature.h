@@ -1,7 +1,5 @@
 #pragma once
 
-#include "BuiltinExecutionGroups.h"
-#include "SceneExecutionPolicy.h"
 
 #include "DebugDrawSystem.hpp"
 #include "EcsControllerContext.hpp"
@@ -9,12 +7,16 @@
 
 namespace gts::debugdraw
 {
-    inline void installDebugDrawFeature(GtsScene& scene, const EcsControllerContext&)
+    inline void installDebugDrawFeature(GtsScene& scene,
+                                        const EcsControllerContext&,
+                                        const EcsExecutionSelection& defaultSelection,
+                                        EcsSystemGroup               drawingGroup)
     {
         if (!scene.markSceneFeatureInstalled("debugdraw"))
             return;
 
-        gts::execution::ensureExecutionPolicy(scene.getWorld());
-        scene.getWorld().addControllerSystem<DebugDrawSystem>(gts::execution::groups::Tools);
+        if (!scene.getWorld().hasConfiguredDefaultExecutionSelection())
+            scene.getWorld().configureDefaultExecutionSelection(defaultSelection);
+        scene.getWorld().addControllerSystem<DebugDrawSystem>(drawingGroup);
     }
 }

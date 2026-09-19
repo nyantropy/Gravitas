@@ -1,6 +1,6 @@
 #pragma once
 
-#include "VNExecutionProfiles.h"
+#include "VNExecutionInputs.h"
 
 #include "UiControllerContext.h"
 #include <algorithm>
@@ -15,7 +15,6 @@
 #include "ECSWorld.hpp"
 #include "DialogueContextHelpers.h"
 #include "DialogueRuntimeComponent.h"
-#include "SceneExecutionPolicy.h"
 #include "InputBindingRegistry.h"
 #include "RenderPassVisibilityComponent.h"
 #include "UiSystem.h"
@@ -37,8 +36,8 @@ namespace gts::vn
     class VNSystem : public ECSControllerSystem
     {
     public:
-        explicit VNSystem(VNSystemConfig inConfig = {})
-            : config(std::move(inConfig)), runtime(config.runtime)
+        explicit VNSystem(VNExecutionInputs inExecution, VNSystemConfig inConfig = {})
+            : execution(std::move(inExecution)), config(std::move(inConfig)), runtime(config.runtime)
         {
             runtime.setMotionProfile(config.ui.profile.motionProfile);
         }
@@ -65,7 +64,8 @@ namespace gts::vn
 
         void update(const EcsControllerContext& ctx) override
         {
-            gts::execution::ensureExecutionPolicy(ctx.world);
+            if (!ctx.world.hasConfiguredDefaultExecutionSelection())
+                ctx.world.configureDefaultExecutionSelection(execution.defaultSelection);
             buildUiIfNeeded(ctx.world, gts::ui::controllerContext(ctx).ui);
             writeFrontendState(ctx.world, gts::ui::controllerContext(ctx).ui);
 
@@ -107,6 +107,7 @@ namespace gts::vn
         }
 
     private:
+        VNExecutionInputs execution;
         VNSystemConfig config;
         VNRuntime runtime;
         UiCompositionId dialogueCompositionId = UI_INVALID_COMPOSITION;
@@ -436,9 +437,7 @@ namespace gts::vn
 
         void applyDialogueExecutionProfile(ECSWorld& world, bool fullscreenPresentation)
         {
-            SceneExecutionProfile profile = fullscreenPresentation
-                ? gts::vn::fullscreenDialogue()
-                : gts::vn::dialogueOverlay();
+            EcsExecutionSelection profile = fullscreenPresentation ? execution.fullscreen : execution.overlay;
             const std::string profileId = profile.id;
 
             if (executionProfilePushed && activeExecutionProfileId == profileId)

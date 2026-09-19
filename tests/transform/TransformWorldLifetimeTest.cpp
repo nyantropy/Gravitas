@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -58,7 +59,7 @@ namespace
     void installAndReset()
     {
         ECSWorld world;
-        installTransformFeature(world);
+        installTransformFeature(world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
         require(world.getControllerSystemCount() == 1, "combined installation must schedule one resolver");
         require(world.getEntityCount() == 0, "lifetime installation created an ECS entity");
         auto state = inspectTransformWorldState(&world);
@@ -93,8 +94,8 @@ namespace
     {
         auto     first = std::make_unique<ECSWorld>();
         ECSWorld second;
-        installTransformFeature(*first);
-        installTransformFeature(second);
+        installTransformFeature(*first, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
+        installTransformFeature(second, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
         registerWorldTransformPublishedCallback(*first, firstCallback);
         registerWorldTransformPublishedCallback(second, secondCallback);
         addTransform(*first);
@@ -117,7 +118,7 @@ namespace
         ECSWorld world;
         for (int cycle = 0; cycle != 5; ++cycle)
         {
-            installTransformFeature(world);
+            installTransformFeature(world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
             registerWorldTransformPublishedCallback(world, firstCallback);
             Entity parent = addTransform(world);
             Entity child  = addTransform(world);
@@ -152,7 +153,7 @@ namespace
         requireReleased(world);
 
         world = std::construct_at(reinterpret_cast<ECSWorld*>(storage));
-        installTransformResolver(*world);
+        installTransformResolver(*world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
         require(world->getControllerSystemCount() == 1, "resolver-only installation changed scheduling");
         auto result = TransformWorldResolver{}.resolve(*world);
         require(result.queuedTransforms == 0, "reused address retained dirty entities");
@@ -165,7 +166,7 @@ namespace
         ECSWorld world;
         for (size_t cycle = 0; cycle != 5; ++cycle)
         {
-            installTransformRuntime(world);
+            installTransformRuntime(world, SceneExecutionProfile::gameplay());
             registerWorldTransformPublishedCallback(world, firstCallback);
             addTransform(world);
             resetTransformSceneFeature(world);
@@ -196,8 +197,8 @@ namespace
             EcsControllerContext frame{world};
             for (int cycle = 0; cycle != 3; ++cycle)
             {
-                installTransformFeature(scene);
-                installTransformFeature(scene);
+                installTransformFeature(scene, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
+                installTransformFeature(scene, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
                 require(world.getControllerSystemCount() == 1,
                         "scene installer must retain exactly one resolver");
                 registerWorldTransformPublishedCallback(world, firstCallback);
@@ -207,7 +208,7 @@ namespace
                 scene.unload(frame);
                 requireReleased(&world);
             }
-            installTransformFeature(scene);
+            installTransformFeature(scene, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
             registerWorldTransformPublishedCallback(world, firstCallback);
             addTransform(world);
             // Destruction without unload must release transform state too.
@@ -226,6 +227,6 @@ int main()
     sceneLifetime();
     const auto state = inspectTransformWorldState();
     require(state.invalidationWorlds == 0 && state.publicationWorlds == 0, "test worlds leaked registry entries");
-    installTransformRuntime(shutdownWorld);
+    installTransformRuntime(shutdownWorld, SceneExecutionProfile::gameplay());
     registerWorldTransformPublishedCallback(shutdownWorld, firstCallback);
 }

@@ -53,6 +53,7 @@ set_tests_properties(profile_accumulator
 
 if(TARGET gravitas_rendering)
     add_executable(SceneFrameStatsRuntimeTest SceneFrameStatsRuntimeTest.cpp)
+    target_link_libraries(SceneFrameStatsRuntimeTest PRIVATE gravitas_runtime_execution)
     target_link_libraries(SceneFrameStatsRuntimeTest PRIVATE gravitas_rendering)
     add_test(NAME scene_frame_stats_runtime COMMAND SceneFrameStatsRuntimeTest)
     set_tests_properties(scene_frame_stats_runtime PROPERTIES LABELS "gravitas;diagnostics;profiling;rendering;cpu")
@@ -60,6 +61,7 @@ endif()
 
 if(TARGET gravitas_tools)
     add_executable(ToolExecutionPolicyTest ToolExecutionPolicyTest.cpp)
+    target_link_libraries(ToolExecutionPolicyTest PRIVATE gravitas_runtime_execution)
     target_link_libraries(ToolExecutionPolicyTest PRIVATE gravitas_tools)
     add_test(NAME tool_execution_policy COMMAND ToolExecutionPolicyTest)
 endif()

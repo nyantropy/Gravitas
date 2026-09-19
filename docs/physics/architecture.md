@@ -39,7 +39,7 @@ resolution; transform include directories are owned by that target. The
 
 ## Scene Installation
 
-Scenes install physics through `gts::physics::installPhysicsFeature(scene, ctx)`.
+Scenes install physics through `gts::physics::installPhysicsFeature(scene, ctx, defaultSelection, simulationGroup)`.
 The installer:
 
 1. Marks the scene feature as installed.
@@ -50,7 +50,11 @@ The installer:
 4. Creates a scene-owned `detail::ScenePhysicsBinding` borrowing that implementation
    and populates the call's physics-owned controller context. Later engine calls
    use `findScenePhysics` to obtain the same borrowed implementation pointer.
-5. Registers `PhysicsSystem` as an `gts::execution::groups::Physics` simulation system.
+5. Registers `PhysicsSystem` in the supplied simulation group. Gravitas supplies
+   its runtime-owned Physics identity; the module does not know that catalog.
+
+The supplied default is forwarded to transform installation, preserving its
+first-configured-default-wins behavior and original installation position.
 
 The physics world is scene-local and is destroyed with the scene or on scene reset.
 The binding owns no implementation and its destructor never dereferences the

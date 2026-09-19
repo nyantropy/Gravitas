@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #include "PhysicsSceneFeature.h"
 #include "PhysicsControllerContext.h"
 #include "ScenePhysics.h"
@@ -11,7 +12,8 @@ class Scene : public GtsScene
     public:
     void onLoad(EcsControllerContext& ctx, const GtsSceneTransitionData*) override
     {
-        gts::physics::installPhysicsFeature(*this, ctx);
+        gts::physics::installPhysicsFeature(
+            *this, ctx, SceneExecutionProfile::gameplay(), gts::execution::groups::Physics);
     }
     void onUpdateSimulation(const EcsSimulationContext&) override {}
 };
@@ -67,7 +69,8 @@ int main()
                 "Const lookup must return same object");
         require(physics == &gts::physics::requireScenePhysics(std::as_const(scene)), "Const required access");
         require(physics != otherPhysics, "Worlds must remain isolated");
-        gts::physics::installPhysicsFeature(scene, load);
+        gts::physics::installPhysicsFeature(
+            scene, load, SceneExecutionProfile::gameplay(), gts::execution::groups::Physics);
         require(gts::physics::controllerContext(std::as_const(load)).physics == physics &&
                     scene.getWorld().getSimulationSystemCount() == 1,
                 "Repeated installation must remain idempotent");

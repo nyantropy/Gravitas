@@ -8,11 +8,11 @@
 #include <any>
 #include <chrono>
 #include <utility>
+#include <stdexcept>
 #include <vector>
 
 #include "ECSWorld.hpp"
 #include "EcsControllerContext.hpp"
-#include "SceneExecutionPolicy.h"
 #include "EditorPreviewRenderData.h"
 #include "EngineServiceRegistry.h"
 #include "FrustumCullingStrategy.h"
@@ -39,15 +39,18 @@
 
 namespace gts::rendering
 {
-    RenderingRuntime::RenderingRuntime(bool frustumCullingEnabled,
-                                       IGtsGraphicsModule& graphics,
+    RenderingRuntime::RenderingRuntime(bool                     frustumCullingEnabled,
+                                       IGtsGraphicsModule&      graphics,
+                                       FrameBuildModeSelector   frameBuildModeSelector,
                                        GraphicsSettingsCallback graphicsSettingsCallback)
-        : graphics(graphics)
-        , graphicsSettingsCallback(std::move(graphicsSettingsCallback))
-        , renderPipeline(std::make_unique<RenderPipeline>(
-              std::make_unique<FrustumCullingStrategy>(frustumCullingEnabled)))
-        , uiSystem(std::make_unique<UiSystem>(graphics.getResourceProvider()))
+        : graphics(graphics), frameBuildModeSelector(frameBuildModeSelector),
+          graphicsSettingsCallback(std::move(graphicsSettingsCallback)),
+          renderPipeline(
+              std::make_unique<RenderPipeline>(std::make_unique<FrustumCullingStrategy>(frustumCullingEnabled))),
+          uiSystem(std::make_unique<UiSystem>(graphics.getResourceProvider()))
     {
+        if (frameBuildModeSelector == nullptr)
+            throw std::invalid_argument("RenderingRuntime requires a frame-build selector");
     }
 
     RenderingRuntime::~RenderingRuntime() = default;
@@ -350,8 +353,7 @@ namespace gts::rendering
         if (sceneFrameStats != nullptr)
             sceneFrameStats->populateFrameStats(stats);
 
-        const SceneExecutionPolicy& executionProfile = gts::execution::sceneExecutionPolicy(world);
-        const FrameBuildMode frameBuildMode = executionProfile.frameBuildMode;
+        const FrameBuildMode frameBuildMode = frameBuildModeSelector(world.getCurrentExecutionSelection());
 
         static const std::vector<RenderCommand> emptyRenderList;
         static const MaterialFrameData emptyMaterialFrameData;

@@ -275,3 +275,12 @@ Do:
 - keep `EditorMode::Runtime`
 - use `editor_eval_*` presets before and after visual changes
 - keep generated screenshots clearly labeled
+
+## Execution Inputs
+
+`EngineToolRuntime` requires `ToolExecutionInputs`: an opaque external timing group
+and `RendererExecutionInputs` for previews. The runtime owns a copy and forwards
+preview values through shell recreation and the preview coordinator. Both preview
+worlds retain their own copies across clear/destroy/reinstall, and install them only
+when resources are available. External controllers still bypass filtering. No tools
+source includes Gravitas execution policy; see [execution ownership](../execution/architecture.md).

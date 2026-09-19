@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SceneExecutionProfile.h"
+#include "VNExecutionInputs.h"
 
 namespace gts::vn
 {
@@ -21,6 +22,11 @@ namespace gts::vn
                     gts::execution::groups::VN | gts::execution::groups::Audio | gts::execution::groups::Tools,
                 FrameBuildMode::UiOnly,
                 TimePolicy::GameplayPausedDialogueRunning};
+    }
+
+    inline VNExecutionInputs executionInputs()
+    {
+        return {SceneExecutionProfile::gameplay(), dialogueOverlay(), fullscreenDialogue()};
     }
 
 } // namespace gts::vn

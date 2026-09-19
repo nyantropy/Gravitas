@@ -23,5 +23,3 @@ target_link_libraries(gravitas_diagnostics_physics PUBLIC
     gravitas_physics
     gravitas_debugdraw
 )
-
-target_link_libraries(gravitas_diagnostics_physics PUBLIC gravitas_execution_policy)

@@ -1,5 +1,3 @@
-#include "SceneExecutionPolicy.h"
-#include "BuiltinExecutionGroups.h"
 #include "TransformSceneFeature.h"
 
 #include "ECSWorld.hpp"
@@ -18,9 +16,10 @@ namespace gts::transform
         releaseTransformWorldState(world);
     }
 
-    void installTransformRuntime(ECSWorld& world)
+    void installTransformRuntime(ECSWorld& world, const EcsExecutionSelection& defaultSelection)
     {
-        gts::execution::ensureExecutionPolicy(world);
+        if (!world.hasConfiguredDefaultExecutionSelection())
+            world.configureDefaultExecutionSelection(defaultSelection);
         installTransformWorldState(world);
         world.registerAddCallback<TransformComponent>(
             [](ECSWorld& world, Entity entity, TransformComponent&)
@@ -47,38 +46,47 @@ namespace gts::transform
             });
     }
 
-    void installTransformResolver(ECSWorld& world)
+    void installTransformResolver(ECSWorld&                    world,
+                                  const EcsExecutionSelection& defaultSelection,
+                                  EcsSystemGroup               resolverGroup)
     {
-        gts::execution::ensureExecutionPolicy(world);
+        if (!world.hasConfiguredDefaultExecutionSelection())
+            world.configureDefaultExecutionSelection(defaultSelection);
         installTransformWorldState(world);
-        world.addControllerSystem<TransformSystem>(gts::execution::groups::RenderPrep);
+        world.addControllerSystem<TransformSystem>(resolverGroup);
     }
 
-    void installTransformFeature(ECSWorld& world)
+    void installTransformFeature(ECSWorld&                    world,
+                                 const EcsExecutionSelection& defaultSelection,
+                                 EcsSystemGroup               resolverGroup)
     {
-        installTransformRuntime(world);
-        installTransformResolver(world);
+        installTransformRuntime(world, defaultSelection);
+        installTransformResolver(world, defaultSelection, resolverGroup);
     }
 
-    void installTransformRuntime(GtsScene& scene)
+    void installTransformRuntime(GtsScene& scene, const EcsExecutionSelection& defaultSelection)
     {
         if (!scene.markSceneFeatureInstalled("transform-runtime"))
             return;
 
-        installTransformRuntime(scene.getWorld());
+        installTransformRuntime(scene.getWorld(), defaultSelection);
     }
 
-    void installTransformResolver(GtsScene& scene)
+    void installTransformResolver(GtsScene&                    scene,
+                                  const EcsExecutionSelection& defaultSelection,
+                                  EcsSystemGroup               resolverGroup)
     {
         if (!scene.markSceneFeatureInstalled("transform-resolver"))
             return;
 
-        installTransformResolver(scene.getWorld());
+        installTransformResolver(scene.getWorld(), defaultSelection, resolverGroup);
     }
 
-    void installTransformFeature(GtsScene& scene)
+    void installTransformFeature(GtsScene&                    scene,
+                                 const EcsExecutionSelection& defaultSelection,
+                                 EcsSystemGroup               resolverGroup)
     {
-        installTransformRuntime(scene);
-        installTransformResolver(scene);
+        installTransformRuntime(scene, defaultSelection);
+        installTransformResolver(scene, defaultSelection, resolverGroup);
     }
 } // namespace gts::transform

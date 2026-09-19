@@ -1,7 +1,6 @@
 #pragma once
 
-#include "BuiltinExecutionGroups.h"
-#include "SceneExecutionPolicy.h"
+#include "RendererExecutionInputs.h"
 
 #include "ActiveCameraViewSystem.hpp"
 #include "CameraBindingLifecycle.h"
@@ -21,9 +20,12 @@ namespace gts::rendering
         resetCameraBindingLifecycleState(world);
     }
 
-    inline void installRendererCameraSceneFeature(ECSWorld& world, IResourceProvider* resources)
+    inline void installRendererCameraSceneFeature(ECSWorld&                      world,
+                                                  IResourceProvider*             resources,
+                                                  const RendererExecutionInputs& execution)
     {
-        gts::execution::ensureExecutionPolicy(world);
+        if (!world.hasConfiguredDefaultExecutionSelection())
+            world.configureDefaultExecutionSelection(execution.defaultSelection);
         world.registerRemoveCallback<CameraGpuComponent>(
             [resources](ECSWorld&, Entity, CameraGpuComponent& cameraGpu)
             {
@@ -44,11 +46,11 @@ namespace gts::rendering
                 queueCameraCleanup(world, entity);
             });
 
-        world.addControllerSystem<CameraLifecycleSystem>(gts::execution::groups::Camera);
-        world.addControllerSystem<DefaultCameraControlSystem>(gts::execution::groups::Camera);
-        world.addControllerSystem<CameraGpuSystem>(gts::execution::groups::Camera);
-        world.addControllerSystem<CameraBindingSystem>(gts::execution::groups::Camera);
-        world.addControllerSystem<ActiveCameraViewSystem>(gts::execution::groups::Camera);
+        world.addControllerSystem<CameraLifecycleSystem>(execution.camera);
+        world.addControllerSystem<DefaultCameraControlSystem>(execution.camera);
+        world.addControllerSystem<CameraGpuSystem>(execution.camera);
+        world.addControllerSystem<CameraBindingSystem>(execution.camera);
+        world.addControllerSystem<ActiveCameraViewSystem>(execution.camera);
 
         world.forEachSnapshot<CameraDescriptionComponent>(
             [&world](Entity entity, CameraDescriptionComponent&)

@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #include "BuiltinExecutionGroups.h"
 #include <cmath>
 #include <cstdio>
@@ -111,7 +112,8 @@ namespace
     bool rootEntitiesResolveWorldTransforms()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         const Entity root = makeEntity(world, {2.0f, 3.0f, 4.0f});
         resolveTransforms(world);
@@ -124,7 +126,8 @@ namespace
     bool deepHierarchyResolvesParentBeforeChild()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         const Entity root = makeEntity(world, {1.0f, 0.0f, 0.0f});
         const Entity child = makeEntity(world, {0.0f, 2.0f, 0.0f});
@@ -141,7 +144,8 @@ namespace
     bool parentMovementPropagatesToChildren()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         const Entity parent = makeEntity(world, {1.0f, 0.0f, 0.0f});
         const Entity child = makeEntity(world, {0.0f, 2.0f, 0.0f});
@@ -164,7 +168,8 @@ namespace
     bool childMovementUpdatesOnlyChildBranch()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         const Entity parent = makeEntity(world, {1.0f, 0.0f, 0.0f});
         const Entity child = makeEntity(world, {0.0f, 2.0f, 0.0f});
@@ -183,7 +188,8 @@ namespace
     bool reparentPreserveLocalIsExplicit()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         const Entity parentA = makeEntity(world, {10.0f, 0.0f, 0.0f});
         const Entity parentB = makeEntity(world, {20.0f, 0.0f, 0.0f});
@@ -201,7 +207,8 @@ namespace
     bool reparentPreserveWorldIsExplicit()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         const Entity parentA = makeEntity(world, {10.0f, 0.0f, 0.0f});
         const Entity parentB = makeEntity(world, {20.0f, 0.0f, 0.0f});
@@ -227,7 +234,8 @@ namespace
     bool parentDestructionPromotesChildrenToRoots()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         const Entity parent = makeEntity(world, {5.0f, 0.0f, 0.0f});
         const Entity child = makeEntity(world, {0.0f, 2.0f, 0.0f});
@@ -248,7 +256,8 @@ namespace
     bool ancestorCyclesAreRejected()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         const Entity root = makeEntity(world, {0.0f, 0.0f, 0.0f});
         const Entity child = makeEntity(world, {1.0f, 0.0f, 0.0f});
@@ -265,7 +274,8 @@ namespace
     bool negativeScalePropagates()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         const Entity parent = makeEntity(world, {0.0f, 0.0f, 0.0f}, {-2.0f, 1.0f, 1.0f});
         const Entity child = makeEntity(world, {1.0f, 0.0f, 0.0f});
@@ -279,7 +289,8 @@ namespace
     bool nonUniformScalePropagates()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         const Entity parent = makeEntity(world, {0.0f, 0.0f, 0.0f}, {2.0f, 3.0f, 4.0f});
         const Entity child = makeEntity(world, {1.0f, 1.0f, 1.0f});
@@ -293,7 +304,7 @@ namespace
     bool resolverCanBeRegisteredAfterTransformWriters()
     {
         ECSWorld world;
-        gts::transform::installTransformRuntime(world);
+        gts::transform::installTransformRuntime(world, SceneExecutionProfile::gameplay());
 
         const Entity entity = makeEntity(world, {0.0f, 0.0f, 0.0f});
         glm::vec3 captured{0.0f};
@@ -303,7 +314,8 @@ namespace
             gts::execution::groups::Camera,
             entity,
             glm::vec3{7.0f, 2.0f, -3.0f});
-        gts::transform::installTransformResolver(world);
+        gts::transform::installTransformResolver(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
         world.addControllerSystem<CaptureWorldTransformController>(
             gts::execution::groups::RenderPrep,
             entity,

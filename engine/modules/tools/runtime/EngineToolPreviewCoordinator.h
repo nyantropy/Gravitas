@@ -27,6 +27,12 @@ namespace gts::tools
     class EngineToolPreviewCoordinator
     {
     public:
+    explicit EngineToolPreviewCoordinator(const gts::rendering::RendererExecutionInputs& execution)
+        : particlePreviewWorld(std::make_unique<ParticlePreviewWorld>(execution)),
+          assetPreviewWorld(std::make_unique<AssetPreviewWorld>(execution))
+    {
+    }
+
         void destroy()
         {
             if (particlePreviewWorld)
@@ -98,33 +104,32 @@ namespace gts::tools
         }
 
     private:
-        std::unique_ptr<ParticlePreviewWorld> particlePreviewWorld = std::make_unique<ParticlePreviewWorld>();
-        std::unique_ptr<AssetPreviewWorld> assetPreviewWorld = std::make_unique<AssetPreviewWorld>();
-        texture_id_type particlePreviewTexture = 0;
-        texture_id_type assetPreviewTexture = 0;
+    std::unique_ptr<ParticlePreviewWorld> particlePreviewWorld;
+    std::unique_ptr<AssetPreviewWorld>    assetPreviewWorld;
+    texture_id_type                       particlePreviewTexture = 0;
+    texture_id_type                       assetPreviewTexture    = 0;
 
-        static std::pair<uint32_t, uint32_t> previewImageSize(const EcsControllerContext& ctx,
-                                                              UiHandle imageHandle)
-        {
-            uint32_t width = 320;
-            uint32_t height = 240;
-            if (gts::ui::controllerContext(ctx).ui == nullptr)
-                return {width, height};
-
-            const UiNode* node = gts::ui::controllerContext(ctx).ui->findNode(imageHandle);
-            if (node == nullptr)
-                return {width, height};
-
-            width = std::max(1u,
-                             static_cast<uint32_t>(
-                                 std::round(node->computedLayout.bounds.width *
-                                            std::max(1.0f, gts::rendering::controllerContext(ctx).windowPixelWidth))));
-            height = std::max(1u,
-                              static_cast<uint32_t>(
-                                  std::round(node->computedLayout.bounds.height *
-                                             std::max(1.0f, gts::rendering::controllerContext(ctx).windowPixelHeight))));
+    static std::pair<uint32_t, uint32_t> previewImageSize(const EcsControllerContext& ctx, UiHandle imageHandle)
+    {
+        uint32_t width  = 320;
+        uint32_t height = 240;
+        if (gts::ui::controllerContext(ctx).ui == nullptr)
             return {width, height};
-        }
+
+        const UiNode* node = gts::ui::controllerContext(ctx).ui->findNode(imageHandle);
+        if (node == nullptr)
+            return {width, height};
+
+        width = std::max(
+            1u,
+            static_cast<uint32_t>(std::round(node->computedLayout.bounds.width *
+                                             std::max(1.0f, gts::rendering::controllerContext(ctx).windowPixelWidth))));
+        height = std::max(1u,
+                          static_cast<uint32_t>(
+                              std::round(node->computedLayout.bounds.height *
+                                         std::max(1.0f, gts::rendering::controllerContext(ctx).windowPixelHeight))));
+        return {width, height};
+    }
 
         static void clearPreviewRender(ECSWorld& world)
         {

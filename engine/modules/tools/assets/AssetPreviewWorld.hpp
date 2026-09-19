@@ -1,6 +1,6 @@
 #pragma once
 
-#include "BuiltinExecutionGroups.h"
+#include "RendererExecutionInputs.h"
 
 #include "RenderingControllerContext.h"
 #include <algorithm>
@@ -45,10 +45,10 @@ namespace gts::tools
     class AssetPreviewWorld
     {
     public:
-        AssetPreviewWorld()
-            : renderPipeline(std::make_unique<FrustumCullingStrategy>(true))
-        {
-        }
+    explicit AssetPreviewWorld(gts::rendering::RendererExecutionInputs inExecution)
+        : execution(std::move(inExecution)), renderPipeline(std::make_unique<FrustumCullingStrategy>(true))
+    {
+    }
 
         ~AssetPreviewWorld()
         {
@@ -61,8 +61,8 @@ namespace gts::tools
                 return;
 
             resourceProvider = resources;
-            gts::transform::installTransformFeature(world);
-            gts::rendering::installRendererGeometrySceneFeature(world, resources);
+            gts::transform::installTransformFeature(world, execution.defaultSelection, execution.preparation);
+            gts::rendering::installRendererGeometrySceneFeature(world, resources, execution);
             installPreviewCameraFeature(resources);
             installed = true;
 
@@ -162,6 +162,7 @@ namespace gts::tools
             float radius = 0.75f;
         };
 
+        gts::rendering::RendererExecutionInputs execution;
         ECSWorld world;
         RenderPipeline renderPipeline;
         IResourceProvider* resourceProvider = nullptr;
@@ -213,10 +214,10 @@ namespace gts::tools
                     gts::rendering::queueCameraCleanup(world, entity);
                 });
 
-            world.addControllerSystem<CameraLifecycleSystem>(gts::execution::groups::Camera);
-            world.addControllerSystem<CameraGpuSystem>(gts::execution::groups::Camera);
-            world.addControllerSystem<CameraBindingSystem>(gts::execution::groups::Camera);
-            world.addControllerSystem<ActiveCameraViewSystem>(gts::execution::groups::Camera);
+            world.addControllerSystem<CameraLifecycleSystem>(execution.camera);
+            world.addControllerSystem<CameraGpuSystem>(execution.camera);
+            world.addControllerSystem<CameraBindingSystem>(execution.camera);
+            world.addControllerSystem<ActiveCameraViewSystem>(execution.camera);
         }
 
         void createCamera()

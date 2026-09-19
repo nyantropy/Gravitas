@@ -1,4 +1,5 @@
 #pragma once
+#include "FrameBuildMode.h"
 #include "model/extraction/GtsModelFrameData.h"
 
 #include <cstdint>
@@ -18,16 +19,20 @@ struct EcsControllerContext;
 struct GtsExtensionCommand;
 struct GraphicsSettings;
 struct TimeContext;
+struct EcsExecutionSelection;
 
 namespace gts::rendering
 {
+    using FrameBuildModeSelector = FrameBuildMode (*)(const EcsExecutionSelection&);
+
     class RenderingRuntime : public IEngineModule
     {
     public:
         using GraphicsSettingsCallback = std::function<void(const GraphicsSettings&)>;
 
-        RenderingRuntime(bool frustumCullingEnabled,
-                         IGtsGraphicsModule& graphics,
+        RenderingRuntime(bool                     frustumCullingEnabled,
+                         IGtsGraphicsModule&      graphics,
+                         FrameBuildModeSelector   frameBuildModeSelector,
                          GraphicsSettingsCallback graphicsSettingsCallback = {});
         ~RenderingRuntime() override;
 
@@ -71,6 +76,7 @@ namespace gts::rendering
 
     private:
         IGtsGraphicsModule& graphics;
+        FrameBuildModeSelector          frameBuildModeSelector;
         GraphicsSettingsCallback graphicsSettingsCallback;
         std::unique_ptr<RenderPipeline> renderPipeline;
         std::unique_ptr<UiSystem> uiSystem;

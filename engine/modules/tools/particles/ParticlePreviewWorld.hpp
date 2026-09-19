@@ -1,6 +1,6 @@
 #pragma once
 
-#include "BuiltinExecutionGroups.h"
+#include "RendererExecutionInputs.h"
 
 #include "RenderingControllerContext.h"
 #include <algorithm>
@@ -44,10 +44,10 @@ namespace gts::tools
     class ParticlePreviewWorld
     {
     public:
-        ParticlePreviewWorld()
-            : renderPipeline(std::make_unique<FrustumCullingStrategy>(true))
-        {
-        }
+    explicit ParticlePreviewWorld(gts::rendering::RendererExecutionInputs inExecution)
+        : execution(std::move(inExecution)), renderPipeline(std::make_unique<FrustumCullingStrategy>(true))
+    {
+    }
 
         ~ParticlePreviewWorld()
         {
@@ -60,10 +60,10 @@ namespace gts::tools
                 return;
 
             resourceProvider = resources;
-            gts::transform::installTransformFeature(world);
-            gts::rendering::installRendererGeometrySceneFeature(world, resources);
+            gts::transform::installTransformFeature(world, execution.defaultSelection, execution.preparation);
+            gts::rendering::installRendererGeometrySceneFeature(world, resources, execution);
             installPreviewCameraFeature(resources);
-            gts::rendering::installRendererParticleSceneFeature(world);
+            gts::rendering::installRendererParticleSceneFeature(world, execution);
             installed = true;
 
             createCamera();
@@ -205,27 +205,28 @@ namespace gts::tools
         }
 
     private:
-        ECSWorld world;
-        RenderPipeline renderPipeline;
-        IResourceProvider* resourceProvider = nullptr;
-        Entity cameraEntity = INVALID_ENTITY;
-        Entity gridEntity = INVALID_ENTITY;
-        std::unordered_map<std::string, Entity> emitterEntities;
-        std::string currentPath;
-        EngineToolOrbitCameraState cameraState;
-        bool installed = false;
-        uint64_t frame = 0;
+    gts::rendering::RendererExecutionInputs execution;
+    ECSWorld                                world;
+    RenderPipeline                          renderPipeline;
+    IResourceProvider*                      resourceProvider = nullptr;
+    Entity                                  cameraEntity     = INVALID_ENTITY;
+    Entity                                  gridEntity       = INVALID_ENTITY;
+    std::unordered_map<std::string, Entity> emitterEntities;
+    std::string                             currentPath;
+    EngineToolOrbitCameraState              cameraState;
+    bool                                    installed = false;
+    uint64_t                                frame     = 0;
 
-        void abandon()
-        {
-            emitterEntities.clear();
-            cameraEntity = INVALID_ENTITY;
-            gridEntity = INVALID_ENTITY;
-            currentPath.clear();
-            cameraState = {};
-            installed = false;
-            resourceProvider = nullptr;
-        }
+    void abandon()
+    {
+        emitterEntities.clear();
+        cameraEntity = INVALID_ENTITY;
+        gridEntity   = INVALID_ENTITY;
+        currentPath.clear();
+        cameraState      = {};
+        installed        = false;
+        resourceProvider = nullptr;
+    }
 
         void installPreviewCameraFeature(IResourceProvider* resources)
         {
@@ -249,10 +250,10 @@ namespace gts::tools
                     gts::rendering::queueCameraCleanup(world, entity);
                 });
 
-            world.addControllerSystem<CameraLifecycleSystem>(gts::execution::groups::Camera);
-            world.addControllerSystem<CameraGpuSystem>(gts::execution::groups::Camera);
-            world.addControllerSystem<CameraBindingSystem>(gts::execution::groups::Camera);
-            world.addControllerSystem<ActiveCameraViewSystem>(gts::execution::groups::Camera);
+            world.addControllerSystem<CameraLifecycleSystem>(execution.camera);
+            world.addControllerSystem<CameraGpuSystem>(execution.camera);
+            world.addControllerSystem<CameraBindingSystem>(execution.camera);
+            world.addControllerSystem<ActiveCameraViewSystem>(execution.camera);
         }
 
         void createCamera()

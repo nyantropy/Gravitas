@@ -630,3 +630,13 @@ are referenced, while dynamic transform/material/palette values become frame dat
 The instance module has no rendering dependency. Backend submission consumes only
 geometry, ranges, runtime material state, placement and optional palettes. Direct
 mesh components remain authoritative for lower-level/generated mesh consumers.
+
+## Execution Policy Inputs
+
+Renderer scene installation takes `RendererExecutionInputs` from composition. It
+contains the default selection and preparation, texture-animation, camera and
+particle identities; installers retain their original registration order.
+`FrameBuildMode` is a lightweight rendering contract. `RenderingRuntime` requires
+a stateless selector and calls it after scene statistics contribution at the same
+point as before. The renderer never includes or interprets runtime policy types.
+See [execution ownership](../execution/architecture.md).

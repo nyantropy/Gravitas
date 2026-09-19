@@ -50,13 +50,13 @@ engine/
       visualnovel/       VN stage/runtime, interaction and retained UI frontend
     diagnostics/         always-available profiling, optional debug draw and diagnostic bridges
     ui/                  retained documents, surfaces, layout and interaction
-    execution/           existing policy dependency; migration blocker described below
     physics/             sphere-collider collision detection
       contracts/         physics accessor and collision values; no implementation dependency
     tools/               in-engine inspection/editing toolchain
     rendering/           renderer contracts, ECS setup, runtime, Vulkan backend
       contracts/         resource handle aliases; no renderer dependency
   runtime/               composition root: facade, startup configuration, platform and loop
+    execution/           authoritative Gravitas participation catalog and coordinated policies
     input/               engine control bindings
   resources/             engine-owned fonts, models, textures
   shaders/               GLSL sources and checked-in SPIR-V
@@ -169,10 +169,10 @@ vendored documentation and should not be rewritten as first-party engine docs.
 - CMake checks actual target links, transitive aliases/interface wrappers and
   include/source paths at the end of configuration. Source checks reject includes
   of higher-layer headers. See [source ownership](docs/modules/ownership.md)
-  for the placement test, enforcement and remaining API blockers.
+  for the placement test, enforcement and remaining command/input API boundaries.
 - Core contains foundational mechanisms and generic utilities, not feature accessors
   or feature implementations. See [core ownership](docs/core/architecture.md) for
-  target boundaries and the intentionally deferred semantic dependencies.
+  target boundaries and the remaining intentional command/input semantic dependencies.
 - `gravitas_ui` owns retained UI and links only core and `gravitas_rendering_contracts`.
   Rendering consumes UI; the mixed `UiSystem`, font/resource realization and GPU
   extraction remain rendering-owned, avoiding a UI-to-rendering implementation cycle.
@@ -191,7 +191,7 @@ vendored documentation and should not be rewritten as first-party engine docs.
   consumes `WorldTransformComponent`; it must not compute parent-child world
   matrices or mutate scene transforms.
 - `gravitas_transform` owns transform include directories and compiled implementation,
-  and links core plus the existing execution-policy contract described below.
+  and links only `gravitas_core`. Its installers receive opaque execution values.
   Consumers link the target rather than exporting
   transform directories themselves. Shared tween primitives live in `core/tween/`.
 - Base physics must not depend on rendering. Physics visualization belongs in
@@ -249,31 +249,31 @@ groups filter participation and never sort or establish phases. The current top
 selection is checked before each system, so changes affect later systems in the
 same pass. Structural commands still flush after each executed system.
 
-The intended owner of coordinated execution policy is `runtime/execution/`.
-The existing `modules/execution/` still owns the fixed catalog in `BuiltinExecutionGroups.h`:
+`runtime/execution/` owns the fixed catalog in `BuiltinExecutionGroups.h`:
 `gts::execution::groups::{Always, Gameplay, Physics, Camera, RenderPrep, Particles,
 Animation, Audio, Ui, Dialogue, VN, Tools}`. Bits 0–11 and diagnostic labels retain
 their original identities. `Always` is maskable like every other group.
 
-This is an explicit ownership exception, not a permitted modules → runtime edge.
-Standalone feature installers, VN and benchmark code currently consume the policy
-API. Relocating it without changing those APIs would introduce upward dependencies.
-The structural migration therefore leaves it in place pending the policy-input
-refactor described in [source ownership](docs/modules/ownership.md).
+`gravitas_runtime_execution` owns the catalog, `SceneExecutionProfile`,
+`SceneExecutionPolicy`, gameplay/pause recipes and `VNExecutionProfiles.h`.
+It links core and lightweight rendering/VN contracts, never their implementations.
+Modules never include or link this runtime target. Their installers accept a supplied
+`EcsExecutionSelection` default and opaque participation identities; multi-value
+renderer/tool boundaries use module-owned input records. Defaults are applied at
+existing installation points, first explicit configuration wins, and clear restores
+that same value. Bare core worlds remain unnamed and unfiltered.
 
-`SceneExecutionProfile` is an authoring value outside core. Converting it to a
-selection copies its ID/mask and typed `SceneExecutionPolicy` metadata into one
-value-owned stack entry. ECS reads only the ID/mask; rendering reads presentation
-metadata through `gts::execution::sceneExecutionPolicy(world)`. There is no second
-mask/presentation stack or entity used for bookkeeping. Gameplay/pause-menu
-recipes belong to execution policy; dialogue-overlay/fullscreen recipes belong
-to `narrative/visualnovel/contracts/VNExecutionProfiles.h`.
+Runtime profiles convert to one selection carrying ID/mask and typed policy payload.
+`FrameBuildMode` belongs to rendering contracts. `RenderingRuntime` receives a
+stateless selector and invokes it at the existing point after scene statistics
+contribution. Runtime interprets its own payload; rendering never names that type.
+There is no additional stack or presentation state. `TimePolicy` remains runtime
+metadata. VN owns supplied default/overlay/fullscreen selections and retains its
+existing guarded push/pop transitions; it does not construct engine-wide recipes.
 
-`ensureExecutionPolicy(world)` supplies the runtime gameplay default (`0xFFF`,
-`FullWorld`, `AllRunning`) once. Engine context construction and standalone
-transform/animation/rendering/debug-draw/VN installation paths supply it without replacing active
-selections. World clear restores the configured default. A bare core world has
-an unnamed, unfiltered neutral selection; it does not select engine policy.
+Preview worlds own copied installation inputs across destroy/reinstall and tool-shell
+recreation. External tool timing identity and benchmark label functions are supplied
+explicitly; benchmark workload configuration and output formats are unchanged.
 
 Engine pause remains separate: it stops fixed simulation ticks, not controllers
 or rendering. `TimePolicy` remains descriptive metadata and introduces no clocks.

@@ -1,14 +1,7 @@
 #pragma once
 
 #include "BuiltinExecutionGroups.h"
-
-enum class FrameBuildMode
-{
-    FullWorld,
-    UiOnly,
-    CachedWorldFrame,
-    None
-};
+#include "FrameBuildMode.h"
 
 enum class TimePolicy
 {

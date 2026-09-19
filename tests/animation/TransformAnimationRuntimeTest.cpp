@@ -42,7 +42,8 @@ namespace
     bool modesUseInitialLocalTransform()
     {
         ECSWorld world;
-        gts::animation::installAnimationFeature(world);
+        gts::animation::installAnimationFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::Animation);
         TransformComponent initial;
         initial.position = {2.0f, 3.0f, 4.0f};
         initial.rotation = {0.1f, 0.2f, 0.3f};
@@ -82,7 +83,8 @@ namespace
     bool disabledAndStationaryEntitiesDoNotInvalidate()
     {
         ECSWorld world;
-        gts::animation::installAnimationFeature(world);
+        gts::animation::installAnimationFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::Animation);
         TransformAnimationComponent animation;
         animation.enableMode(TransformAnimationMode::Translate);
         animation.enableMode(TransformAnimationMode::Rotate);
@@ -119,8 +121,10 @@ namespace
     bool sceneInstallationAndPauseResume()
     {
         AnimationTestScene scene;
-        gts::animation::installAnimationFeature(scene);
-        gts::animation::installAnimationFeature(scene);
+        gts::animation::installAnimationFeature(
+            scene, SceneExecutionProfile::gameplay(), gts::execution::groups::Animation);
+        gts::animation::installAnimationFeature(
+            scene, SceneExecutionProfile::gameplay(), gts::execution::groups::Animation);
         auto&                       world = scene.getWorld();
         if (!require(world.getCurrentExecutionSelection().id == "gameplay" &&
                      world.getCurrentExecutionSelection().enabledSystems == 0xfff,
@@ -150,7 +154,8 @@ namespace
 
         EcsControllerContext ctx{world};
         scene.unload(ctx);
-        gts::animation::installAnimationFeature(scene);
+        gts::animation::installAnimationFeature(
+            scene, SceneExecutionProfile::gameplay(), gts::execution::groups::Animation);
         entity = makeAnimated(world, {}, animation);
         tick(world, 1.0f);
         ok &= require(world.getComponent<TransformAnimationComponent>(entity).time == 1.0f,
@@ -161,8 +166,10 @@ namespace
     bool animatedLocalTransformResolvesThroughParent()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
-        gts::animation::installAnimationFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
+        gts::animation::installAnimationFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::Animation);
         const Entity       parent = world.createEntity();
         TransformComponent parentTransform;
         parentTransform.position   = {10.0f, 0.0f, 0.0f};

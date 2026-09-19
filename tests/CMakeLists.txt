@@ -82,6 +82,7 @@ set_tests_properties(particle_module_authoring
 add_executable(RenderLifecycleOwnershipTest
     rendering/RenderLifecycleOwnershipTest.cpp
 )
+target_link_libraries(RenderLifecycleOwnershipTest PRIVATE gravitas_runtime_execution)
 
 target_compile_features(RenderLifecycleOwnershipTest PRIVATE cxx_std_20)
 
@@ -100,6 +101,7 @@ set_tests_properties(render_lifecycle_ownership
 add_executable(MaterialRuntimeArchitectureTest
     rendering/MaterialRuntimeArchitectureTest.cpp
 )
+target_link_libraries(MaterialRuntimeArchitectureTest PRIVATE gravitas_runtime_execution)
 
 target_compile_features(MaterialRuntimeArchitectureTest PRIVATE cxx_std_20)
 
@@ -160,6 +162,7 @@ set_tests_properties(cooked_asset_pipeline
 add_executable(FirstLitRendererArchitectureTest
     rendering/FirstLitRendererArchitectureTest.cpp
 )
+target_link_libraries(FirstLitRendererArchitectureTest PRIVATE gravitas_runtime_execution)
 
 target_compile_features(FirstLitRendererArchitectureTest PRIVATE cxx_std_20)
 
@@ -201,6 +204,7 @@ set_tests_properties(object_material_color_ownership
 add_executable(RenderingBenchmarkSupportTest
     benchmarks/RenderingBenchmarkSupportTest.cpp
 )
+target_link_libraries(RenderingBenchmarkSupportTest PRIVATE gravitas_runtime_execution)
 
 target_compile_features(RenderingBenchmarkSupportTest PRIVATE cxx_std_20)
 

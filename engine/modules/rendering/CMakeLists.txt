@@ -107,4 +107,5 @@ endif()
 
 target_link_libraries(gravitas_rendering PUBLIC gravitas_model_frontend)
 
-target_link_libraries(gravitas_rendering PUBLIC gravitas_execution_policy)
+
+target_link_libraries(gravitas_rendering PUBLIC gravitas_rendering_execution_contracts)

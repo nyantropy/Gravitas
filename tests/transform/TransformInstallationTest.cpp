@@ -102,7 +102,7 @@ namespace
         // Installing after authoring must seed the existing transforms too.
         const Entity parent = addTransform(world, 1.0f);
         const Entity child  = addTransform(world, 2.0f);
-        installTransformFeature(world);
+        installTransformFeature(world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
         require(world.getControllerSystemCount() == 1, "complete installer controller count");
         require(attachToParent(world, child, parent), "could not attach child");
         registerWorldTransformPublishedCallback(world, published);
@@ -124,14 +124,14 @@ namespace
     void resolverAfterWriter()
     {
         ECSWorld world;
-        installTransformRuntime(world);
+        installTransformRuntime(world, SceneExecutionProfile::gameplay());
         require(world.getControllerSystemCount() == 0, "runtime installer must not schedule resolution");
         const Entity parent = addTransform(world, 1.0f);
         const Entity child  = addTransform(world, 2.0f);
         require(attachToParent(world, child, parent), "could not attach child");
         registerWorldTransformPublishedCallback(world, published);
         world.addControllerSystem<Writer>(gts::execution::groups::Camera, parent);
-        installTransformResolver(world);
+        installTransformResolver(world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
         world.addControllerSystem<Reader>(gts::execution::groups::RenderPrep, child);
         events.clear();
         world.updateControllers(EcsControllerContext{world});
@@ -148,7 +148,7 @@ namespace
     void explicitResolution()
     {
         ECSWorld world;
-        installTransformRuntime(world);
+        installTransformRuntime(world, SceneExecutionProfile::gameplay());
         require(world.getControllerSystemCount() == 0, "on-demand runtime scheduled a controller");
         const Entity entity = addTransform(world, 4.0f);
         registerWorldTransformPublishedCallback(world, published);
@@ -163,7 +163,7 @@ namespace
     void resolverOnlyAndMasking()
     {
         ECSWorld world;
-        installTransformResolver(world);
+        installTransformResolver(world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
         require(world.getControllerSystemCount() == 1, "resolver-only registration count");
         const Entity entity = addTransform(world, 5.0f);
         markDirty(world, entity);
@@ -179,7 +179,7 @@ namespace
     void lateWritersKeepTheirExistingTiming()
     {
         ECSWorld world;
-        installTransformFeature(world);
+        installTransformFeature(world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
         const Entity entity = addTransform(world, 1.0f);
         world.addControllerSystem<Writer>(gts::execution::groups::Camera, entity);
         world.updateControllers(EcsControllerContext{world});
@@ -202,14 +202,14 @@ namespace
         EcsControllerContext context{world};
         for (int cycle = 0; cycle != 2; ++cycle)
         {
-            installTransformRuntime(scene);
+            installTransformRuntime(scene, SceneExecutionProfile::gameplay());
             const Entity parent = addTransform(world, 1.0f);
             const Entity child  = addTransform(world, 2.0f);
             require(attachToParent(world, child, parent), "scene parenting failed");
             world.addControllerSystem<Writer>(gts::execution::groups::Camera, parent);
-            installTransformFeature(scene);
-            installTransformFeature(scene);
-            installTransformResolver(scene);
+            installTransformFeature(scene, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
+            installTransformFeature(scene, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
+            installTransformResolver(scene, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
             world.addControllerSystem<Reader>(gts::execution::groups::RenderPrep, child);
             require(world.getControllerSystemCount() == 3, "scene installer idempotence");
             world.updateControllers(context);

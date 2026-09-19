@@ -1,4 +1,5 @@
 #pragma once
+#include "ToolExecutionInputs.h"
 
 #include <cstdint>
 #include <memory>
@@ -15,7 +16,7 @@ namespace gts::tools
     class EngineToolRuntime : public IEngineModule
     {
         public:
-        EngineToolRuntime();
+        explicit EngineToolRuntime(ToolExecutionInputs execution);
         ~EngineToolRuntime() override;
 
         const char* name() const override;

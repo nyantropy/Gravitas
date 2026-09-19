@@ -2,10 +2,9 @@
 
 `engine/modules/transform/` owns local transforms, hierarchy, dirty propagation,
 world-matrix resolution and publication. `gravitas_transform` is a static
-library consuming `gravitas_core` and the lightweight `gravitas_execution_policy`
-contract. The latter owns the shared `RenderPrep` participation identity and runtime
-default; it has no rendering implementation dependency. Rendering, physics,
-tools, debug drawing and transform animation consume that target. Its include
+library consuming only `gravitas_core`. Installers receive a supplied default
+selection and, when scheduling resolution, an opaque resolver group. Rendering,
+physics, tools, debug drawing and transform animation consume that target. Its include
 directories are exported only by the owning target; `gravitas_modules` retains
 aggregate access for engine/game consumers.
 
@@ -97,12 +96,19 @@ not unrelated rendering resources.
 
 ## Installation And Scheduling
 
+All install overloads require `const EcsExecutionSelection& defaultSelection`;
+resolver/complete-feature overloads also require `EcsSystemGroup resolverGroup`.
+The supplied default is installed at the existing setup point only when no default
+has been configured. It never replaces a caller's default or active overlay.
+The transform module contains no catalog, gameplay recipe or runtime dependency.
+
 - `installTransformRuntime`: installs world lifetime ownership, component
   add/remove callbacks, and initial dirty tracking for existing transforms.
   It registers **no controller**. Physics and callers resolving on demand can
   use this independently.
 - `installTransformResolver`: establishes lifetime ownership and appends one
-  `TransformSystem` in `RenderPrep` at the current registration position. Used
+  `TransformSystem` in the supplied group at the current registration position
+  (Gravitas supplies `RenderPrep`). Used
   alone, it requires callers to queue dirty transforms explicitly because it
   does not install component callbacks.
 - `installTransformFeature`: performs runtime installation and schedules one

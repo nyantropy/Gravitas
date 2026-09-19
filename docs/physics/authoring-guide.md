@@ -8,7 +8,7 @@ Architecture details live in [architecture.md](architecture.md).
 Install the physics feature from scene setup:
 
 ```cpp
-gts::physics::installPhysicsFeature(*this, ctx);
+gts::physics::installPhysicsFeature(*this, ctx, defaultSelection, simulationGroup);
 ```
 
 This creates the scene-local `PhysicsWorld`, exposes
@@ -57,3 +57,8 @@ dependencies.
 - Do not assume collision response exists; consumers must handle their own
   gameplay effects.
 - Do not use frame-local controller time for authoritative collision logic.
+
+`defaultSelection` and `simulationGroup` are explicit composition inputs. Gravitas
+application code supplies `SceneExecutionProfile::gameplay()` and
+`gts::execution::groups::Physics` from `gravitas_runtime_execution`; physics itself
+consumes only core execution values.

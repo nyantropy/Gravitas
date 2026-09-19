@@ -6,6 +6,10 @@
 #include <stdexcept>
 #include <string_view>
 
+#if __has_include("RenderingRuntime.h") || __has_include("VNSystem.hpp") || __has_include("VulkanGraphics.hpp")
+#error "Runtime execution policy must depend on lightweight contracts, not capability implementations"
+#endif
+
 void require(bool value, const char* message)
 {
     if (!value)

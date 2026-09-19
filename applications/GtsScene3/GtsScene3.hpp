@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #pragma once
 
 #include "BuiltinExecutionGroups.h"
@@ -62,7 +63,7 @@ inline void GtsScene3::onLoad(EcsControllerContext& ctx, const GtsSceneTransitio
     resetSceneWorld();
     buildTextureSet();
     ecsWorld.addSimulationSystem<CubeAnimationSystem>(gts::execution::groups::Animation);
-    gts::rendering::installRendererFeature(*this, ctx);
+    gts::rendering::installRendererFeature(*this, ctx, gts::execution::rendererExecutionInputs());
     buildMaterialSet();
 
     const auto loadStart = std::chrono::steady_clock::now();

@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #pragma once
 
 #include "RenderingControllerContext.h"
@@ -25,7 +26,7 @@ public:
     void onLoad(EcsControllerContext& ctx,
                 const GtsSceneTransitionData* = nullptr) override
     {
-        gts::rendering::installRendererFeature(*this, ctx);
+        gts::rendering::installRendererFeature(*this, ctx, gts::execution::rendererExecutionInputs());
         spawnPbrGrid();
         spawnComparisonObjects();
         spawnTextureMapSamples();

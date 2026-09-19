@@ -10,9 +10,10 @@
 
 namespace gts::rendering
 {
-    inline void installRendererFeature(GtsScene& scene, const EcsControllerContext& ctx)
+    inline void
+    installRendererFeature(GtsScene& scene, const EcsControllerContext& ctx, const RendererExecutionInputs& execution)
     {
-        gts::transform::installTransformFeature(scene);
+        gts::transform::installTransformFeature(scene, execution.defaultSelection, execution.preparation);
 
         if (!scene.markSceneFeatureInstalled("renderer"))
             return;
@@ -25,8 +26,8 @@ namespace gts::rendering
                 resetRendererCameraSceneFeature(world);
             });
 
-        installRendererGeometrySceneFeature(world, gts::rendering::controllerContext(ctx).resources);
-        installRendererCameraSceneFeature(world, gts::rendering::controllerContext(ctx).resources);
-        installRendererParticleSceneFeature(world);
+        installRendererGeometrySceneFeature(world, gts::rendering::controllerContext(ctx).resources, execution);
+        installRendererCameraSceneFeature(world, gts::rendering::controllerContext(ctx).resources, execution);
+        installRendererParticleSceneFeature(world, execution);
     }
 }

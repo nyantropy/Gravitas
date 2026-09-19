@@ -97,15 +97,17 @@ is testable with the Vulkan backend disabled.
 
 ## Execution Policy Integration
 
-`visualnovel/contracts/VNExecutionProfiles.h` owns `gts::vn::dialogueOverlay()` and
-`gts::vn::fullscreenDialogue()`. The always-available header-only
-`gravitas_vn_execution_contracts` target consumes `gravitas_execution_policy` only;
-it does not bring in VN, rendering, UI or physics implementation. The existing
-`gravitas_visualnovel` target consumes these recipes alongside its existing dependencies.
+`visualnovel/contracts/VNExecutionInputs.h` owns the default, overlay and fullscreen
+`EcsExecutionSelection` values supplied to `VNSystem`. The required constructor
+input is copied; its opaque payload is neither constructed nor interpreted by VN.
+`gravitas_vn_execution_contracts` links core only. `gravitas_visualnovel` consumes
+that input contract alongside its existing dialogue/rendering dependencies.
 
-VN retains the IDs `dialogue_overlay` / `fullscreen_dialogue`, masks `0xF99` / `0xF81`,
-and FullWorld / UiOnly presentation modes. It pushes a single complete selection
-and restores it through expected-ID pop. Profile changes occur at the same points
-in external-dialogue/interaction updates. Native script playback/input blocking,
-headless dialogue, typewriter behavior and engine pause are unchanged. Rendering
-reads only the common execution-policy contract and never depends on VN recipes.
+`runtime/execution/VNExecutionProfiles.h` constructs the Gravitas recipes and the
+`gts::vn::executionInputs()` value. The IDs `dialogue_overlay` / `fullscreen_dialogue`,
+masks `0xF99` / `0xF81`, and FullWorld / UiOnly modes are unchanged. VN copies a
+prepared selection onto the single core stack and restores it through expected-ID
+pop. Profile changes occur at the same points in external-dialogue/interaction
+updates. Native script playback/input blocking, headless dialogue, typewriter
+behavior and engine pause are unchanged. Rendering receives a mode projection
+function and never depends on VN recipes or runtime policy types.

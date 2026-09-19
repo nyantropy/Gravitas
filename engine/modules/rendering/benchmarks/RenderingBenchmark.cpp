@@ -1,4 +1,3 @@
-#include "BuiltinExecutionGroups.h"
 #include "RenderingBenchmark.h"
 #include "RenderingControllerContext.h"
 #include "GtsJsonParser.h"
@@ -225,6 +224,8 @@ namespace gts::rendering::benchmarks
 
         struct BenchmarkSceneState
         {
+            explicit BenchmarkSceneState(const BenchmarkExecutionInputs& inExecution) : execution(inExecution) {}
+            const BenchmarkExecutionInputs&     execution;
             ECSWorld world;
             BenchmarkResourceProvider resources;
             RenderPipeline pipeline{std::make_unique<FrustumCullingStrategy>(true)};
@@ -513,10 +514,11 @@ namespace gts::rendering::benchmarks
 
         void installBenchmarkFeatures(BenchmarkSceneState& state, const RenderingBenchmarkConfig& config)
         {
-            gts::transform::installTransformFeature(state.world);
-            installRendererGeometrySceneFeature(state.world, &state.resources);
-            installRendererCameraSceneFeature(state.world, &state.resources);
-            installRendererParticleSceneFeature(state.world);
+            gts::transform::installTransformFeature(
+                state.world, state.execution.renderer.defaultSelection, state.execution.renderer.preparation);
+            installRendererGeometrySceneFeature(state.world, &state.resources, state.execution.renderer);
+            installRendererCameraSceneFeature(state.world, &state.resources, state.execution.renderer);
+            installRendererParticleSceneFeature(state.world, state.execution.renderer);
             state.pipeline.setVisibilityEnabled(config.enableFrustumCulling);
         }
 
@@ -1038,18 +1040,18 @@ namespace gts::rendering::benchmarks
             return key;
         }
 
-        void recordControllerTimingSamples(
-            const std::vector<EcsSystemTimingSample>& samples,
-            std::map<std::string, std::vector<double>>& controllerTimings,
-            std::map<std::string, std::vector<double>>& controllerFlushTimings,
-            std::map<std::string, std::string>& controllerGroups)
+        void recordControllerTimingSamples(const std::vector<EcsSystemTimingSample>&   samples,
+                                           std::map<std::string, std::vector<double>>& controllerTimings,
+                                           std::map<std::string, std::vector<double>>& controllerFlushTimings,
+                                           std::map<std::string, std::string>&         controllerGroups,
+                                           const BenchmarkExecutionInputs&             execution)
         {
             for (const EcsSystemTimingSample& sample : samples)
             {
                 const std::string key = controllerTimingKey(sample);
                 controllerTimings[key].push_back(sample.updateMs);
                 controllerFlushTimings[key].push_back(sample.commandFlushMs);
-                controllerGroups.emplace(key, ecsSystemGroupName(sample.group));
+                controllerGroups.emplace(key, execution.groupName(sample.group));
             }
         }
 
@@ -1247,7 +1249,8 @@ namespace gts::rendering::benchmarks
             recordControllerTimingSamples(state.world.getLastControllerTimingSamples(),
                                           controllerTimings,
                                           controllerFlushTimings,
-                                          controllerGroups);
+                                          controllerGroups,
+                                          state.execution);
 
             const auto& commands = state.pipeline.build(state.world);
             const auto frameEnd = std::chrono::steady_clock::now();
@@ -2208,8 +2211,11 @@ namespace gts::rendering::benchmarks
         return summary;
     }
 
-    BenchmarkRunResult runRenderingBenchmark(const RenderingBenchmarkConfig& inputConfig)
+    BenchmarkRunResult runRenderingBenchmark(const RenderingBenchmarkConfig& inputConfig,
+                                             const BenchmarkExecutionInputs& execution)
     {
+        if (execution.groupName == nullptr)
+            throw std::invalid_argument("Rendering benchmark requires a group-label function");
         RenderingBenchmarkConfig config = inputConfig;
         sanitizeConfig(config);
 
@@ -2228,7 +2234,7 @@ namespace gts::rendering::benchmarks
         result.gpuTimingStatus =
             "CPU smoke mode does not create GPU timestamp queries";
 
-        BenchmarkSceneState state;
+        BenchmarkSceneState state(execution);
         generateScene(state, result.config);
         gts::transform::TransformSystem::setDetailedMetricsEnabled(true);
         RenderGpuSystem::setDetailedMetricsEnabled(true);

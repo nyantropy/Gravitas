@@ -116,7 +116,8 @@ allows allocation-free repeated checks. Installing a default replaces only the
 bottom entry and does not disturb overlays. `clear()` restores that configured
 value, including its typed payload. Core-only callers/tests use neutral identities
 and can supply their own defaults. Engine and standalone feature worlds install
-the original gameplay default through the execution-policy module.
+the original gameplay default through caller-supplied selections constructed in
+`runtime/execution/`. Core and capability targets never depend on runtime policy.
 
 No `SceneExecutionProfile`, feature group labels, rendering modes or time-policy
 vocabulary remain in core's execution contracts. See

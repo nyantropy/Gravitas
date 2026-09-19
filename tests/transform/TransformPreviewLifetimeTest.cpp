@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #include <cstdlib>
 #include <iostream>
 
@@ -25,11 +26,11 @@ int main()
     Resources resources;
     requireWorldCount(0);
     {
-        gts::tools::AssetPreviewWorld assets;
+        gts::tools::AssetPreviewWorld assets(gts::execution::rendererExecutionInputs());
         assets.ensure(&resources);
         requireWorldCount(1);
         {
-            gts::tools::ParticlePreviewWorld particles;
+            gts::tools::ParticlePreviewWorld particles(gts::execution::rendererExecutionInputs());
             for (int cycle = 0; cycle != 3; ++cycle)
             {
                 particles.ensure(&resources);
@@ -57,6 +58,31 @@ int main()
             requireWorldCount(0);
             assets.ensure(&resources);
             requireWorldCount(1);
+        }
+    }
+    {
+        const auto                              group = static_cast<EcsSystemGroup>(1ull << 49);
+        gts::rendering::RendererExecutionInputs inputs{{"preview-custom", toMask(group)}, group, group, group, group};
+        gts::tools::ParticlePreviewWorld        preview(inputs);
+        inputs.defaultSelection.id = "changed-after-construction";
+        preview.ensure(nullptr);
+        if (preview.ecsWorld().hasConfiguredDefaultExecutionSelection())
+            return 1;
+        for (int cycle = 0; cycle != 3; ++cycle)
+        {
+            preview.ensure(&resources);
+            if (preview.ecsWorld().getCurrentExecutionSelection().id != "preview-custom")
+                return 1;
+            EcsControllerContext context{preview.ecsWorld()};
+            gts::rendering::controllerContext(context).resources = &resources;
+            preview.ecsWorld().updateControllers(context);
+            const auto& timings = preview.ecsWorld().getLastControllerTimingSamples();
+            if (timings.size() != 16)
+                return 1;
+            for (const auto& timing : timings)
+                if (timing.group != group || timing.instanceIndex != 0)
+                    return 1;
+            preview.destroy();
         }
     }
     requireWorldCount(0);

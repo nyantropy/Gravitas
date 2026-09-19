@@ -1,7 +1,6 @@
 #pragma once
 
-#include "BuiltinExecutionGroups.h"
-#include "SceneExecutionPolicy.h"
+#include "RendererExecutionInputs.h"
 
 #include "DynamicMeshBindingSystem.hpp"
 #include "DynamicMeshComponent.h"
@@ -47,9 +46,12 @@ namespace gts::rendering
         resetMaterialRuntime(world);
     }
 
-    inline void installRendererGeometrySceneFeature(ECSWorld& world, IResourceProvider* resources)
+    inline void installRendererGeometrySceneFeature(ECSWorld&                      world,
+                                                    IResourceProvider*             resources,
+                                                    const RendererExecutionInputs& execution)
     {
-        gts::execution::ensureExecutionPolicy(world);
+        if (!world.hasConfiguredDefaultExecutionSelection())
+            world.configureDefaultExecutionSelection(execution.defaultSelection);
         gts::transform::registerWorldTransformPublishedCallback(
             world, scheduleRenderTransformSyncFromWorldTransform);
 
@@ -196,15 +198,15 @@ namespace gts::rendering
                 scheduleRenderTransformSyncFromWorldTransform(world, entity);
             });
 
-        world.addControllerSystem<StaticMeshBindingSystem>(gts::execution::groups::RenderPrep);
-        world.addControllerSystem<QuadMeshBindingSystem>(gts::execution::groups::RenderPrep);
-        world.addControllerSystem<DynamicMeshBindingSystem>(gts::execution::groups::RenderPrep);
-        world.addControllerSystem<WorldTextBindingSystem>(gts::execution::groups::RenderPrep);
-        world.addControllerSystem<MaterialBindingSystem>(gts::execution::groups::RenderPrep);
-        world.addControllerSystem<RenderObjectLifecycleSystem>(gts::execution::groups::RenderPrep);
-        world.addControllerSystem<RenderableCleanupSystem>(gts::execution::groups::RenderPrep);
-        world.addControllerSystem<RenderGpuSystem>(gts::execution::groups::RenderPrep);
-        world.addControllerSystem<TextureAnimationSystem>(gts::execution::groups::Animation);
+        world.addControllerSystem<StaticMeshBindingSystem>(execution.preparation);
+        world.addControllerSystem<QuadMeshBindingSystem>(execution.preparation);
+        world.addControllerSystem<DynamicMeshBindingSystem>(execution.preparation);
+        world.addControllerSystem<WorldTextBindingSystem>(execution.preparation);
+        world.addControllerSystem<MaterialBindingSystem>(execution.preparation);
+        world.addControllerSystem<RenderObjectLifecycleSystem>(execution.preparation);
+        world.addControllerSystem<RenderableCleanupSystem>(execution.preparation);
+        world.addControllerSystem<RenderGpuSystem>(execution.preparation);
+        world.addControllerSystem<TextureAnimationSystem>(execution.textureAnimation);
 
         world.forEachSnapshot<MaterialReferenceComponent>(
             [&world](Entity entity, MaterialReferenceComponent& reference)

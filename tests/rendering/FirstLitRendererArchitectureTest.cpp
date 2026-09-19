@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -199,7 +200,8 @@ namespace
     bool directionalLightSelectionIsPriorityBounded()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         Entity inactive = createTransformEntity(world);
         DirectionalLightComponent inactiveLight;
@@ -241,7 +243,8 @@ namespace
     bool noActiveLightFallsBackToAmbientOnly()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         Entity lightEntity = createTransformEntity(world);
         DirectionalLightComponent light;
@@ -260,7 +263,8 @@ namespace
     bool parentedLightUsesResolvedWorldTransform()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         constexpr float HalfPi = 1.57079632679f;
         Entity parent = createTransformEntity(
@@ -285,7 +289,8 @@ namespace
     bool lightMutationUpdatesExtractedFrameData()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         Entity lightEntity = createTransformEntity(world);
         DirectionalLightComponent light;
@@ -311,7 +316,8 @@ namespace
     bool pointAndSpotLightsUseResolvedWorldTransforms()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         Entity point = createTransformEntity(world, {2.0f, 3.0f, 4.0f});
         PointLightComponent pointLight;
@@ -346,7 +352,8 @@ namespace
     bool localLightSelectionIsPriorityDistanceAndCapacityBounded()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         for (uint32_t i = 0; i < gts::rendering::MaxPointLights + 2; ++i)
         {
@@ -387,7 +394,8 @@ namespace
     bool invalidLightValuesAreSanitized()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         Entity point = createTransformEntity(world);
         PointLightComponent pointLight;
@@ -423,7 +431,8 @@ namespace
     bool environmentSelectionIsPriorityAndIdDeterministic()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         Entity disabled = createTransformEntity(world);
         EnvironmentLightComponent disabledEnvironment;
@@ -476,7 +485,8 @@ namespace
     bool environmentValuesAreSanitizedAndTransformIndependent()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         Entity parent = createTransformEntity(
             world,
@@ -977,7 +987,8 @@ namespace
     bool extractionPublishesCameraPositionAndLightFrameData()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         Entity camera = createTransformEntity(world, {2.0f, 3.0f, 4.0f});
         CameraGpuComponent cameraGpu;
@@ -1019,7 +1030,8 @@ namespace
     bool extractionPublishesEnvironmentFrameData()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         Entity camera = createTransformEntity(world, {0.0f, 2.0f, 6.0f});
         CameraGpuComponent cameraGpu;
@@ -1061,7 +1073,8 @@ namespace
     bool lightingChangesRemainFrameLevelState()
     {
         ECSWorld world;
-        gts::transform::installTransformFeature(world);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
 
         auto& materials = gts::rendering::materialRuntime(world);
         MaterialDefinition definition;

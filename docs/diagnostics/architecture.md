@@ -109,3 +109,8 @@ execute the corresponding CPU tests. Configure-time test assertions check target
 presence and module aggregation against the selected options. Negative tests
 retain the actual rendering prerequisite and tools' own physics prerequisite.
 The full tools and runtime smoke suites cover the default integration paths.
+
+Debug-draw and physics-debug scene installers require a supplied default execution
+selection and drawing group. Physics visualization forwards the values through the
+generic debug-draw installer. Gravitas composition supplies its Tools identity;
+diagnostics does not include the runtime catalog or manufacture gameplay defaults.

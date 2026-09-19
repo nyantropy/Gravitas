@@ -1,7 +1,6 @@
 #pragma once
 
-#include "BuiltinExecutionGroups.h"
-#include "SceneExecutionPolicy.h"
+#include "RendererExecutionInputs.h"
 
 #include "ECSWorld.hpp"
 #include "ParticleEffectHotReloadSystem.hpp"
@@ -9,10 +8,11 @@
 
 namespace gts::rendering
 {
-    inline void installRendererParticleSceneFeature(ECSWorld& world)
+    inline void installRendererParticleSceneFeature(ECSWorld& world, const RendererExecutionInputs& execution)
     {
-        gts::execution::ensureExecutionPolicy(world);
-        world.addControllerSystem<ParticleEffectHotReloadSystem>(gts::execution::groups::Particles);
-        world.addControllerSystem<ParticleEmitterSystem>(gts::execution::groups::Particles);
+        if (!world.hasConfiguredDefaultExecutionSelection())
+            world.configureDefaultExecutionSelection(execution.defaultSelection);
+        world.addControllerSystem<ParticleEffectHotReloadSystem>(execution.particles);
+        world.addControllerSystem<ParticleEmitterSystem>(execution.particles);
     }
 }

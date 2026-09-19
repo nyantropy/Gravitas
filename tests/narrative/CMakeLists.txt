@@ -5,6 +5,7 @@ set_tests_properties(dialogue_runtime PROPERTIES LABELS "gravitas;narrative;dial
 
 if(TARGET gravitas_visualnovel)
     add_executable(VNFrontendRuntimeTest ../ui/VNFrontendRuntimeTest.cpp)
+    target_link_libraries(VNFrontendRuntimeTest PRIVATE gravitas_runtime_execution)
     target_link_libraries(VNFrontendRuntimeTest PRIVATE gravitas_visualnovel)
     add_test(NAME vn_frontend_runtime COMMAND VNFrontendRuntimeTest)
     set_tests_properties(vn_frontend_runtime PROPERTIES LABELS "gravitas;narrative;ui;runtime;vn")

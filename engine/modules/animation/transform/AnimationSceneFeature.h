@@ -1,7 +1,5 @@
 #pragma once
 
-#include "BuiltinExecutionGroups.h"
-#include "SceneExecutionPolicy.h"
 
 #include "ECSWorld.hpp"
 #include "GtsScene.hpp"
@@ -9,19 +7,24 @@
 
 namespace gts::animation
 {
-    inline void installAnimationFeature(ECSWorld& world)
+    inline void installAnimationFeature(ECSWorld&                    world,
+                                        const EcsExecutionSelection& defaultSelection,
+                                        EcsSystemGroup               simulationGroup)
     {
-        gts::execution::ensureExecutionPolicy(world);
-        world.addSimulationSystem<TransformAnimationSystem>(gts::execution::groups::Animation);
+        if (!world.hasConfiguredDefaultExecutionSelection())
+            world.configureDefaultExecutionSelection(defaultSelection);
+        world.addSimulationSystem<TransformAnimationSystem>(simulationGroup);
     }
 
-    inline void installAnimationFeature(GtsScene& scene)
+    inline void installAnimationFeature(GtsScene&                    scene,
+                                        const EcsExecutionSelection& defaultSelection,
+                                        EcsSystemGroup               simulationGroup)
     {
         if (!scene.markSceneFeatureInstalled("animation"))
         {
             return;
         }
 
-        installAnimationFeature(scene.getWorld());
+        installAnimationFeature(scene.getWorld(), defaultSelection, simulationGroup);
     }
 } // namespace gts::animation

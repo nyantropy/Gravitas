@@ -1,4 +1,5 @@
 #pragma once
+#include "RendererExecutionInputs.h"
 
 #include <cstdint>
 #include <map>
@@ -9,6 +10,12 @@
 
 namespace gts::rendering::benchmarks
 {
+    struct BenchmarkExecutionInputs
+    {
+        RendererExecutionInputs renderer;
+        const char* (*groupName)(EcsSystemGroup);
+    };
+
     enum class BenchmarkRunMode
     {
         CpuSmoke,
@@ -157,7 +164,8 @@ namespace gts::rendering::benchmarks
     BenchmarkEnvironment collectBenchmarkEnvironment(const RenderingBenchmarkConfig& config);
     StatisticSummary summarizeSamples(std::vector<double> samples);
 
-    BenchmarkRunResult runRenderingBenchmark(const RenderingBenchmarkConfig& config);
+    BenchmarkRunResult       runRenderingBenchmark(const RenderingBenchmarkConfig& config,
+                                                   const BenchmarkExecutionInputs& execution);
     std::vector<std::string> validateBenchmarkResult(const BenchmarkRunResult& result);
     std::vector<std::string> checkBenchmarkInvariants(const BenchmarkRunResult& result);
 

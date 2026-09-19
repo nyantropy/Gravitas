@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #include "RenderingControllerContext.h"
 #include <cstdio>
 #include <cmath>
@@ -213,8 +214,10 @@ namespace
         // Each case constructs a fresh world. Low-level renderer registries need
         // explicit cleanup so reused stack addresses cannot inherit another case.
         gts::rendering::resetRendererGeometrySceneFeature(world);
-        gts::transform::installTransformFeature(world);
-        gts::rendering::installRendererGeometrySceneFeature(world, &resources);
+        gts::transform::installTransformFeature(
+            world, SceneExecutionProfile::gameplay(), gts::execution::groups::RenderPrep);
+        gts::rendering::installRendererGeometrySceneFeature(
+            world, &resources, gts::execution::rendererExecutionInputs());
     }
 
     void update(ECSWorld& world, FakeResourceProvider& resources, const TimeContext* time = nullptr)

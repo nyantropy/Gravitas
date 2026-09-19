@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -99,7 +100,22 @@ int main()
     config.topologyMutationCountPerFrame = 0;
     config.requestScreenshot = false;
     config.screenshotMeasuredFrame = 0;
-    BenchmarkRunResult result = runRenderingBenchmark(config);
+    BenchmarkRunResult result =
+        runRenderingBenchmark(config, {gts::execution::rendererExecutionInputs(), ecsSystemGroupName});
+    const auto               injectedGroup = static_cast<EcsSystemGroup>(1ull << 50);
+    BenchmarkExecutionInputs injected{
+        {{"benchmark-custom", toMask(injectedGroup)}, injectedGroup, injectedGroup, injectedGroup, injectedGroup},
+        [](EcsSystemGroup) -> const char*
+        {
+            return "Injected";
+        }};
+    const auto injectedResult = runRenderingBenchmark(config, injected);
+    ok &= require(injectedResult.controllerTimingGroups.size() == result.controllerTimingGroups.size(),
+                  "Injected benchmark execution must preserve controller timing coverage");
+    for (const auto& [key, label] : result.controllerTimingGroups)
+        ok &= require(injectedResult.controllerTimingGroups.contains(key) &&
+                          injectedResult.controllerTimingGroups.at(key) == "Injected",
+                      "Benchmark labels must use the supplied function without changing timing keys");
 
     const std::vector<std::string> validationFailures = validateBenchmarkResult(result);
     for (const std::string& failure : validationFailures)
@@ -190,7 +206,8 @@ int main()
 
     RenderingBenchmarkConfig mutating = config;
     mutating.materialMutationCountPerFrame = 1;
-    BenchmarkRunResult mutatingResult = runRenderingBenchmark(mutating);
+    BenchmarkRunResult mutatingResult =
+        runRenderingBenchmark(mutating, {gts::execution::rendererExecutionInputs(), ecsSystemGroupName});
     ok &= require(mutatingResult.counters.at("material_synchronized") == mutating.measuredFrames,
                   "one shared material mutation synchronizes once per measured frame");
 
@@ -200,7 +217,8 @@ int main()
     moving.renderableCount = 8;
     moving.visibleRenderableCount = 8;
     moving.movingObjectCount = 3;
-    BenchmarkRunResult movingResult = runRenderingBenchmark(moving);
+    BenchmarkRunResult movingResult =
+        runRenderingBenchmark(moving, {gts::execution::rendererExecutionInputs(), ecsSystemGroupName});
     ok &= require(movingResult.invariantFailures.empty(),
                   "moving independent invariants pass");
     ok &= require(movingResult.counters.at("logical_object_updates") ==
@@ -223,7 +241,8 @@ int main()
     gtsSmall.renderableCount = 16;
     gtsSmall.visibleRenderableCount = 16;
     gtsSmall.movingObjectCount = 16;
-    BenchmarkRunResult gtsSmallResult = runRenderingBenchmark(gtsSmall);
+    BenchmarkRunResult gtsSmallResult =
+        runRenderingBenchmark(gtsSmall, {gts::execution::rendererExecutionInputs(), ecsSystemGroupName});
     ok &= require(gtsSmallResult.invariantFailures.empty(),
                   "GtsScene3 small smoke invariants pass");
     ok &= require(gtsSmallResult.counters.at("logical_object_updates") ==
@@ -238,7 +257,8 @@ int main()
     hierarchy.renderableCount = 12;
     hierarchy.visibleRenderableCount = 12;
     hierarchy.movingObjectCount = 3;
-    BenchmarkRunResult hierarchyResult = runRenderingBenchmark(hierarchy);
+    BenchmarkRunResult hierarchyResult =
+        runRenderingBenchmark(hierarchy, {gts::execution::rendererExecutionInputs(), ecsSystemGroupName});
     ok &= require(hierarchyResult.invariantFailures.empty(),
                   "moving hierarchy invariants pass");
     ok &= require(hierarchyResult.counters.at("logical_object_updates") >
@@ -255,7 +275,8 @@ int main()
     dynamicStatic.visibleRenderableCount = 8;
     dynamicStatic.dynamicMeshCount = 8;
     dynamicStatic.dynamicMeshMutationCountPerFrame = 0;
-    BenchmarkRunResult dynamicStaticResult = runRenderingBenchmark(dynamicStatic);
+    BenchmarkRunResult dynamicStaticResult =
+        runRenderingBenchmark(dynamicStatic, {gts::execution::rendererExecutionInputs(), ecsSystemGroupName});
     ok &= require(dynamicStaticResult.invariantFailures.empty(),
                   "dynamic mesh static-control invariants pass");
     ok &= require(dynamicStaticResult.counters.at("dynamic_mesh_changed") == 0,
@@ -275,7 +296,8 @@ int main()
     dynamicSparse.visibleRenderableCount = 8;
     dynamicSparse.dynamicMeshCount = 8;
     dynamicSparse.dynamicMeshMutationCountPerFrame = 3;
-    BenchmarkRunResult dynamicSparseResult = runRenderingBenchmark(dynamicSparse);
+    BenchmarkRunResult dynamicSparseResult =
+        runRenderingBenchmark(dynamicSparse, {gts::execution::rendererExecutionInputs(), ecsSystemGroupName});
     ok &= require(dynamicSparseResult.invariantFailures.empty(),
                   "dynamic mesh sparse-mutation invariants pass");
     ok &= require(dynamicSparseResult.counters.at("dynamic_mesh_changed") ==
@@ -297,7 +319,8 @@ int main()
     dynamicCapacity.visibleRenderableCount = 8;
     dynamicCapacity.dynamicMeshCount = 8;
     dynamicCapacity.dynamicMeshMutationCountPerFrame = 4;
-    BenchmarkRunResult dynamicCapacityResult = runRenderingBenchmark(dynamicCapacity);
+    BenchmarkRunResult dynamicCapacityResult =
+        runRenderingBenchmark(dynamicCapacity, {gts::execution::rendererExecutionInputs(), ecsSystemGroupName});
     ok &= require(dynamicCapacityResult.invariantFailures.empty(),
                   "dynamic mesh capacity-stable invariants pass");
     ok &= require(dynamicCapacityResult.counters.at("dynamic_mesh_gpu_reallocations") == 0,
