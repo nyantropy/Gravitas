@@ -24,6 +24,12 @@ propagate through this header into engine clients. The tooling target declares
 its physics implementation dependency directly instead of relying on application
 include paths. Public lifecycle behavior is unchanged.
 
+Tools also links `gravitas_transform` explicitly. Debug-display settings and
+their existing creation helper live beside the producers in
+`modules/tools/debugdraw/DebugDrawSettingsComponent.h`. Generic primitive
+submission, renderable markers and mesh realization remain in diagnostics; see
+[debug visualization architecture](../diagnostics/architecture.md).
+
 The active editor surface is:
 
 - a retained `EngineToolShellComposition`

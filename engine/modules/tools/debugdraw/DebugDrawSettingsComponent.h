@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ECSWorld.hpp"
+
 namespace gts::debugdraw
 {
     struct DebugDrawSettingsComponent
@@ -15,4 +17,11 @@ namespace gts::debugdraw
         float axisLength = 1.35f;
         float pickRayLength = 30.0f;
     };
+
+    inline DebugDrawSettingsComponent& ensureSettings(ECSWorld& world)
+    {
+        if (!world.hasAny<DebugDrawSettingsComponent>())
+            return world.createSingleton<DebugDrawSettingsComponent>();
+        return world.getSingleton<DebugDrawSettingsComponent>();
+    }
 }

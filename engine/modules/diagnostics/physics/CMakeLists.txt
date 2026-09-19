@@ -19,6 +19,7 @@ target_include_directories(gravitas_diagnostics_physics PUBLIC
 
 target_link_libraries(gravitas_diagnostics_physics PUBLIC
     gravitas_core
+    gravitas_transform
     gravitas_physics
     gravitas_debugdraw
 )

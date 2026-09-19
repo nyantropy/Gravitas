@@ -66,7 +66,7 @@ target_include_directories(gravitas_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/ui"
 
     # Shared easing/interpolation primitives used by UI animation and VN runtime
-    "${CMAKE_CURRENT_SOURCE_DIR}/../modules/tween"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tween"
 
     # Bundled GLM (GlmConfig.h uses #include <glm.hpp>)
     "${GTS_ENGINE_ROOT}/external/glm/glm"

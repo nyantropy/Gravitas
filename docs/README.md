@@ -7,6 +7,11 @@ Third-party dependency documentation stays with the dependency under
 
 Start with:
 
+- [transform/architecture.md](transform/architecture.md) for transforms, hierarchy
+  and world-transform publication.
+- [core/tween.md](core/tween.md) for shared UI/VN easing and value transitions.
+- [diagnostics/architecture.md](diagnostics/architecture.md) for debug drawing
+  and its physics/tooling consumers.
 - [assets/architecture.md](assets/architecture.md) for the canonical asset/model
   pipeline, CPU ownership, cooking and runtime boundaries.
 - [model/canonical-cooking.md](model/canonical-cooking.md) and

@@ -1,0 +1,6 @@
+if(TARGET gravitas_physics)
+    add_executable(PhysicsTransformIntegrationTest PhysicsTransformIntegrationTest.cpp)
+    target_link_libraries(PhysicsTransformIntegrationTest PRIVATE gravitas_physics)
+    add_test(NAME physics_transform_integration COMMAND PhysicsTransformIntegrationTest)
+    set_tests_properties(physics_transform_integration PROPERTIES LABELS "gravitas;physics;transform;cpu")
+endif()

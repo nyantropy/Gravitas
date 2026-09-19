@@ -208,6 +208,10 @@ Editor UX can evolve without adding a second UI architecture.
 
 ## VN And Interaction Frontend
 
+UI animation and VN stage transitions share the value primitives in
+`core/tween/Tween.h`, exported by `gravitas_core`. Timing and playback remain
+owned by their respective consumers; see [shared tween primitives](../core/tween.md).
+
 The visual-novel compartment under `modules/narrative/visualnovel/` owns the
 engine's VN presentation/runtime. It consumes headless dialogue and retained UI;
 generic UI does not depend on narrative. See

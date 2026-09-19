@@ -1,0 +1,6 @@
+if(TARGET gravitas_diagnostics_physics)
+    add_executable(DebugDrawRuntimeTest DebugDrawRuntimeTest.cpp)
+    target_link_libraries(DebugDrawRuntimeTest PRIVATE gravitas_debugdraw gravitas_diagnostics_physics)
+    add_test(NAME debugdraw_runtime COMMAND DebugDrawRuntimeTest)
+    set_tests_properties(debugdraw_runtime PROPERTIES LABELS "gravitas;diagnostics;physics;cpu")
+endif()

@@ -3,7 +3,9 @@
 `modules/animation/transform/` owns `TransformAnimationComponent`,
 `TransformAnimationMode`, `TransformAnimationSystem`, and the scene installer
 `AnimationSceneFeature.h`. These are lightweight
-ECS headers exposed by `gravitas_modules`; they have no renderer dependency.
+ECS headers owned by `gravitas_transform_animation`, which depends on
+`gravitas_transform` and remains exposed by `gravitas_modules`. Neither target
+has a renderer dependency.
 The CPU skeletal evaluator remains in its independent `gravitas_skeletal_animation`
 target under `modules/animation/skeletal/`.
 

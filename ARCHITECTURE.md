@@ -37,12 +37,12 @@ This file is the engine architecture entrypoint. Feature details live under
 ```text
 engine/
   core/                  pure ECS, input, scene, command, event, UI runtime, JSON
+    tween/               shared easing/interpolation and caller-owned value transitions
   modules/
     assets/              shared image, geometry, direct mesh, material and cooked-container infrastructure
     model/               model import/domain/processing/cooking/loading/realization/world/runtime/extraction
     transform/           local/world transforms and hierarchy
     animation/           transform animation ECS feature, CPU skeletal evaluation and playback occurrences
-    tween/               reusable tween/easing helpers
     narrative/           narrative feature ownership
       dialogue/          headless graphs/progression and ECS requests/events
       visualnovel/       VN stage/runtime, interaction and retained UI frontend
@@ -59,6 +59,12 @@ engine/
 vendored documentation and should not be rewritten as first-party engine docs.
 
 ## Feature Documentation Map
+
+- [docs/transform/architecture.md](docs/transform/architecture.md): authored and
+  resolved transforms, hierarchy, publication, target ownership and deferred lifecycle questions.
+- [docs/core/tween.md](docs/core/tween.md): shared value transitions consumed by UI and VN.
+- [docs/diagnostics/architecture.md](docs/diagnostics/architecture.md): generic debug drawing,
+  physics visualization and tool-owned display policy.
 
 - [docs/narrative/architecture.md](docs/narrative/architecture.md): headless dialogue,
   VN presentation, separate runtime ownership and optional target dependencies.
@@ -149,6 +155,9 @@ vendored documentation and should not be rewritten as first-party engine docs.
 - Transform and hierarchy semantics belong to `modules/transform/`. Rendering
   consumes `WorldTransformComponent`; it must not compute parent-child world
   matrices or mutate scene transforms.
+- `gravitas_transform` owns transform include directories and compiled implementation,
+  and links only `gravitas_core`. Consumers link the target rather than exporting
+  transform directories themselves. Shared tween primitives live in `core/tween/`.
 - Base physics must not depend on rendering. Physics visualization belongs in
   diagnostics bridge modules such as `diagnostics/physics/`.
 - Tools and debug bridges may depend on multiple modules because integration is

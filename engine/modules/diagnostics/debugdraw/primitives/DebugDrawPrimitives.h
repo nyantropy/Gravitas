@@ -7,7 +7,6 @@
 #include "ActiveCameraViewStateComponent.h"
 #include "BoundsComponent.h"
 #include "DebugDrawQueueComponent.h"
-#include "DebugDrawSettingsComponent.h"
 #include "ECSWorld.hpp"
 #include "GlmConfig.h"
 #include "TransformMatrixHelpers.h"
@@ -19,13 +18,6 @@ namespace gts::debugdraw
         if (!world.hasAny<DebugDrawQueueComponent>())
             return world.createSingleton<DebugDrawQueueComponent>();
         return world.getSingleton<DebugDrawQueueComponent>();
-    }
-
-    inline DebugDrawSettingsComponent& ensureSettings(ECSWorld& world)
-    {
-        if (!world.hasAny<DebugDrawSettingsComponent>())
-            return world.createSingleton<DebugDrawSettingsComponent>();
-        return world.getSingleton<DebugDrawSettingsComponent>();
     }
 
     inline void clear(ECSWorld& world)

@@ -28,6 +28,7 @@ target_include_directories(gravitas_tools PUBLIC
 
 target_link_libraries(gravitas_tools PUBLIC
     gravitas_core
+    gravitas_transform
     gravitas_rendering
     gravitas_debugdraw
     PRIVATE gravitas_physics

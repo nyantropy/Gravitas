@@ -7,26 +7,17 @@ namespace gts::transform
 {
     class TransformSystem : public ECSControllerSystem
     {
-    public:
+        public:
         using Metrics = TransformResolveMetrics;
 
-        static Metrics getLastMetrics()
-        {
-            return lastMetrics;
-        }
+        static Metrics getLastMetrics();
 
-        static void setDetailedMetricsEnabled(bool enabled)
-        {
-            TransformWorldResolver::setDetailedMetricsEnabled(enabled);
-        }
+        static void setDetailedMetricsEnabled(bool enabled);
 
-        void update(const EcsControllerContext& ctx) override
-        {
-            lastMetrics = resolver.resolve(ctx.world);
-        }
+        void update(const EcsControllerContext& ctx) override;
 
-    private:
-        static inline Metrics lastMetrics{};
+        private:
+        static inline Metrics  lastMetrics{};
         TransformWorldResolver resolver;
     };
-}
+} // namespace gts::transform

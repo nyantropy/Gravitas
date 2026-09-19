@@ -4,6 +4,8 @@ add_subdirectory(model)
 add_subdirectory(rendering/core/material)
 add_subdirectory(animation/skeletal)
 add_subdirectory(animation/skinning)
+add_subdirectory(transform)
+add_subdirectory(animation/transform)
 
 # rendering must precede ECS modules — it defines gravitas_rendering and any selected
 # backend before other modules reference graphics types.
@@ -15,10 +17,7 @@ if(GTS_ENABLE_PHYSICS)
     add_subdirectory(physics)
 endif()
 if(GTS_ENABLE_DEBUGDRAW)
-    add_subdirectory(diagnostics/debugdraw)
-    if(GTS_ENABLE_PHYSICS)
-        add_subdirectory(diagnostics/physics)
-    endif()
+    add_subdirectory(diagnostics)
 endif()
 if(GTS_ENABLE_TOOLS)
     add_subdirectory(tools)
@@ -30,24 +29,10 @@ add_library(gravitas_modules INTERFACE)
 
 target_compile_features(gravitas_modules INTERFACE cxx_std_20)
 
-target_include_directories(gravitas_modules INTERFACE
-    # Animation
-    "${CMAKE_CURRENT_SOURCE_DIR}/animation/transform"
-
-    # Tweening
-    "${CMAKE_CURRENT_SOURCE_DIR}/tween"
-
-    # Transform
-    "${CMAKE_CURRENT_SOURCE_DIR}/transform/components"
-    "${CMAKE_CURRENT_SOURCE_DIR}/transform/hierarchy"
-    "${CMAKE_CURRENT_SOURCE_DIR}/transform/runtime"
-    "${CMAKE_CURRENT_SOURCE_DIR}/transform/scene"
-    "${CMAKE_CURRENT_SOURCE_DIR}/transform/systems"
-
-)
-
 target_link_libraries(gravitas_modules INTERFACE
     gravitas_core
+    gravitas_transform
+    gravitas_transform_animation
     gravitas_dialogue
     gravitas_model_loading
     gravitas_model_realization
