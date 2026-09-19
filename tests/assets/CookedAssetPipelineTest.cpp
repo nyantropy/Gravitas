@@ -1,4 +1,4 @@
-#include "model/serialization/ModelAssetSerializer.h"
+#include "ModelAssetSerializer.h"
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
@@ -15,14 +15,14 @@
 #include <utility>
 #include <vector>
 
-#include "model/cooking/GtsModelCooker.h"
-#include "assets/loading/cooked/MaterialAssetLoader.h"
-#include "rendering/core/material/MaterialAssetRealization.h"
-#include "assets/loading/cooked/MeshAssetLoader.h"
+#include "GtsModelCooker.h"
+#include "MaterialAssetLoader.h"
+#include "MaterialAssetRealization.h"
+#include "MeshAssetLoader.h"
 #include "MeshManager.hpp"
-#include "model/loading/ModelAssetLoader.h"
-#include "assets/loading/cooked/TextureAssetLoader.h"
-#include "assets/cooking/TextureCooker.h"
+#include "ModelAssetLoader.h"
+#include "TextureAssetLoader.h"
+#include "TextureCooker.h"
 
 #include <stb_image_write.h>
 

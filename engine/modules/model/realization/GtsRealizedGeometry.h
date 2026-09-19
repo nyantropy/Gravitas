@@ -8,9 +8,9 @@
 #include <variant>
 #include <vector>
 
-#include "model/processing/geometry/static/GtsPreparedStaticMesh.h"
-#include "model/processing/geometry/skinned/GtsPreparedSkinnedMesh.h"
-#include "assets/serialization/AssetTypes.h"
+#include "GtsPreparedStaticMesh.h"
+#include "GtsPreparedSkinnedMesh.h"
+#include "AssetTypes.h"
 
 enum class GtsGeometryProfile
 {

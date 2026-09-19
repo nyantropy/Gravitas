@@ -5,7 +5,7 @@
 #include <string>
 
 #include "OutputWindow.hpp"
-#include "../../../../core/init/PresentationSettings.h"
+#include "PresentationSettings.h"
 
 // all configuration settings for the Vulkan Context object
 struct VulkanContextConfig 

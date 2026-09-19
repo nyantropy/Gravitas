@@ -1,11 +1,11 @@
-#include "model/serialization/ModelAssetSerializer.h"
+#include "ModelAssetSerializer.h"
 #include "../importers/gltf/GltfFixtureBuilder.h"
 #include "../runtime/ScopedRuntimeAssetPolicy.h"
-#include "model/loading/GtsModelRegistry.h"
-#include "model/loading/GtsModelResource.h"
-#include "model/loading/GtsPreparedModelDefinition.h"
-#include "model/realization/GtsModelRealizationCache.h"
-#include "assets/serialization/AssetSerializers.h"
+#include "GtsModelRegistry.h"
+#include "GtsModelResource.h"
+#include "GtsPreparedModelDefinition.h"
+#include "GtsModelRealizationCache.h"
+#include "AssetSerializers.h"
 #include <cstring>
 
 using namespace gts::rendering;

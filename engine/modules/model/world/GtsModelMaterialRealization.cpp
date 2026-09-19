@@ -2,9 +2,9 @@
 
 #include <stdexcept>
 #include "MaterialAssetRealization.h"
-#include "model/loading/GtsModelResource.h"
-#include "model/domain/model/GtsModelAsset.h"
-#include "model/processing/image/GtsScalarImagePacking.h"
+#include "GtsModelResource.h"
+#include "GtsModelAsset.h"
+#include "GtsScalarImagePacking.h"
 
 using gts::rendering::MaterialAssetLoader;
 using gts::rendering::MaterialAssetRealization;

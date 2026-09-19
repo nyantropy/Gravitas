@@ -3,9 +3,9 @@
 #include <memory>
 #include <span>
 #include <vector>
-#include "model/public/GtsModelClipReference.h"
-#include "animation/skeletal/runtime/GtsAnimationPlayback.h"
-#include "animation/skinning/GtsSkinPalette.h"
+#include "GtsModelClipReference.h"
+#include "GtsAnimationPlayback.h"
+#include "GtsSkinPalette.h"
 
 struct GtsModelBindingPalette
 {

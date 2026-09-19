@@ -5,7 +5,7 @@
 
 #include "input/EngineControlBindings.hpp"
 #include "input/UiDefaultBindings.hpp"
-#include "ecssetup/camera/input/CameraDefaultBindings.hpp"
+#include "CameraDefaultBindings.hpp"
 #include "ToolDefaultBindings.hpp"
 
 int main()

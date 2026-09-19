@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "model/domain/animation/GtsAnimationClipAsset.h"
+#include "GtsAnimationClipAsset.h"
 
 namespace gts::gltf
 {

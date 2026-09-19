@@ -8,7 +8,7 @@
 
 #include "WorldTextComponent.h"
 #include "BitmapFont.h"
-#include "assets/geometry/GtsStaticVertex.h"
+#include "GtsStaticVertex.h"
 #include "UiCommand.h"
 #include "UiTypes.h"
 

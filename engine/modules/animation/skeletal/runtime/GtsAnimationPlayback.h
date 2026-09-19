@@ -2,7 +2,7 @@
 
 #include <cstdint>
 #include <optional>
-#include "animation/skeletal/GtsSkeletonPose.h"
+#include "GtsSkeletonPose.h"
 
 struct GtsAnimationClipAsset;
 struct GtsSkeletonAsset;

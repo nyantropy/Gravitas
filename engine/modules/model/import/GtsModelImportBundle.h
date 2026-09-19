@@ -4,8 +4,8 @@
 #include <optional>
 #include <vector>
 
-#include "model/domain/model/GtsModelAsset.h"
-#include "model/domain/animation/GtsAnimationClipAsset.h"
+#include "GtsModelAsset.h"
+#include "GtsAnimationClipAsset.h"
 
 struct GtsSkeletonAsset;
 

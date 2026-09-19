@@ -1,5 +1,5 @@
 #include "GtsModelHierarchy.h"
-#include "model/domain/model/GtsModelAsset.h"
+#include "GtsModelAsset.h"
 #include <stdexcept>
 #include <cmath>
 

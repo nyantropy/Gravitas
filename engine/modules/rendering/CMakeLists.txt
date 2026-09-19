@@ -29,8 +29,6 @@ else()
 endif()
 
 target_include_directories(gravitas_rendering PUBLIC
-    # Rendering module root
-    "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks"
 
     # Font loader utilities (BitmapFont, BitmapFontLoader, GlyphLayoutEngine)
@@ -38,7 +36,6 @@ target_include_directories(gravitas_rendering PUBLIC
 
     # Graphics config / init headers
     "${CMAKE_CURRENT_SOURCE_DIR}/core/commands"
-    "${CMAKE_CURRENT_SOURCE_DIR}/core/init"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/lighting"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/material"
 
@@ -56,7 +53,6 @@ target_include_directories(gravitas_rendering PUBLIC
 
     # Windowing
     "${CMAKE_CURRENT_SOURCE_DIR}/core/windowing/glfwWindow"
-    "${CMAKE_CURRENT_SOURCE_DIR}/core/windowing/output"
     "${CMAKE_CURRENT_SOURCE_DIR}/core/windowing/windowmanager"
 
     # Scene-level renderer feature installer
@@ -68,6 +64,7 @@ target_include_directories(gravitas_rendering PUBLIC
     # ECS rendering components and systems
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/camera/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/camera/debug"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/camera/input"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/camera/systems"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/extraction"
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/extraction/frustumcull"
@@ -84,24 +81,23 @@ target_include_directories(gravitas_rendering PUBLIC
     # Engine UI system + renderer-side UI extraction
     "${CMAKE_CURRENT_SOURCE_DIR}/core/ui"
 
-    # Bundled external headers used by CPU-only asset importers.
-    "${GTS_ENGINE_ROOT}/external/stb"
 )
 
 target_link_libraries(gravitas_rendering PUBLIC
     glfw
     gravitas_core
+    gravitas_rendering_window_contracts
     gravitas_ui
     gravitas_rendering_contracts
     gravitas_rendering_command_contracts
     gravitas_rendering_controller_contracts
     gravitas_profiling
     gravitas_transform
-    PUBLIC gravitas_model_domain gravitas_cooked_assets gravitas_mesh_loading gravitas_image_decode
+    PUBLIC gravitas_model_domain gravitas_cooked_assets gravitas_image_decode
 )
 
 if(TARGET gravitas_vulkan_backend)
-    target_link_libraries(gravitas_vulkan_backend PUBLIC
+    target_link_libraries(gravitas_vulkan_backend PRIVATE
         gravitas_rendering
     )
 endif()
@@ -110,3 +106,5 @@ target_link_libraries(gravitas_rendering PUBLIC gravitas_model_frontend)
 
 
 target_link_libraries(gravitas_rendering PUBLIC gravitas_rendering_execution_contracts)
+
+target_include_directories(gravitas_rendering PRIVATE "${GTS_ENGINE_ROOT}/external/stb")

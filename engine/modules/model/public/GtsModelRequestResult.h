@@ -1,6 +1,6 @@
 #pragma once
-#include "model/public/GtsModelHandle.h"
-#include "model/domain/model/GtsModelDiagnostic.h"
+#include "GtsModelHandle.h"
+#include "GtsModelDiagnostic.h"
 #include <vector>
 class GtsModelRequestResult
 {

@@ -1,5 +1,5 @@
 #pragma once
-#include "model/world/GtsModelMaterialRealization.h"
+#include "GtsModelMaterialRealization.h"
 #include <map>
 #include <stdexcept>
 

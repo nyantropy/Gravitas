@@ -12,9 +12,9 @@
 
 #include "GtsModelAsset.h"
 #include "GtsModelValidation.h"
-#include "model/domain/skin/GtsSkinBindingValidation.h"
-#include "model/domain/skeleton/GtsSkeletonValidation.h"
-#include "model/domain/skeleton/GtsSkeletonAsset.h"
+#include "GtsSkinBindingValidation.h"
+#include "GtsSkeletonValidation.h"
+#include "GtsSkeletonAsset.h"
 
 namespace
 {

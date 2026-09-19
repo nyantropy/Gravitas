@@ -1,6 +1,6 @@
 #pragma once
-#include "model/realization/GtsRealizedGeometry.h"
-#include "model/public/GtsModelHandle.h"
+#include "GtsRealizedGeometry.h"
+#include "GtsModelHandle.h"
 
 struct GtsRealizedModelOccurrence
 {

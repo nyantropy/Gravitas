@@ -1,8 +1,8 @@
-#include "model/public/GtsModelControllerContext.h"
-#include "model/public/GtsModels.h"
+#include "GtsModelControllerContext.h"
+#include "GtsModels.h"
 #include "ECSWorld.hpp"
-#include "model/loading/GtsModelRegistry.h"
-#include "model/realization/GtsModelRealizationCache.h"
+#include "GtsModelRegistry.h"
+#include "GtsModelRealizationCache.h"
 #include "../assets/runtime/ScopedRuntimeAssetPolicy.h"
 #include <utility>
 

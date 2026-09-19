@@ -1,5 +1,5 @@
-#include "model/serialization/ModelAssetSerializer.h"
-#include "model/cooking/GtsModelCooker.h"
+#include "ModelAssetSerializer.h"
+#include "GtsModelCooker.h"
 
 #include <algorithm>
 #include <atomic>
@@ -13,18 +13,18 @@
 #include <system_error>
 #include <utility>
 
-#include "assets/serialization/AssetSerializers.h"
-#include "model/processing/image/GtsScalarImagePacking.h"
-#include "model/import/obj/GtsObjModelImporter.h"
-#include "model/import/gltf/GtsGltfModelImporter.h"
-#include "assets/importer/image/GtsImageDecode.h"
-#include "model/processing/geometry/static/GtsStaticMeshPreparation.h"
-#include "model/import/GtsModelImportResult.h"
-#include "model/domain/model/GtsModelAsset.h"
-#include "model/domain/model/GtsModelValidation.h"
-#include "assets/cooking/TextureCooker.h"
+#include "AssetSerializers.h"
+#include "GtsScalarImagePacking.h"
+#include "GtsObjModelImporter.h"
+#include "GtsGltfModelImporter.h"
+#include "GtsImageDecode.h"
+#include "GtsStaticMeshPreparation.h"
+#include "GtsModelImportResult.h"
+#include "GtsModelAsset.h"
+#include "GtsModelValidation.h"
+#include "TextureCooker.h"
 
-#include "assets/cooking/AssetCookingSupport.h"
+#include "AssetCookingSupport.h"
 namespace gts::rendering
 {
     using namespace cooking_detail;

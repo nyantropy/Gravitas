@@ -2,3 +2,5 @@
 add_library(gravitas_mesh_loading STATIC RuntimeMeshLoading.cpp GtsStaticModelRealization.cpp)
 target_link_libraries(gravitas_mesh_loading PUBLIC gravitas_cooked_assets gravitas_static_geometry PRIVATE gravitas_obj_importer)
 target_compile_features(gravitas_mesh_loading PUBLIC cxx_std_20)
+
+target_include_directories(gravitas_mesh_loading PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")

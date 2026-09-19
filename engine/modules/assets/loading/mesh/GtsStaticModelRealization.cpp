@@ -3,10 +3,10 @@
 #include <algorithm>
 #include <limits>
 
-#include "assets/serialization/MeshAssetGeometry.h"
-#include "model/domain/model/GtsModelAsset.h"
-#include "model/domain/model/GtsModelValidation.h"
-#include "model/processing/geometry/static/GtsStaticMeshPreparation.h"
+#include "MeshAssetGeometry.h"
+#include "GtsModelAsset.h"
+#include "GtsModelValidation.h"
+#include "GtsStaticMeshPreparation.h"
 
 namespace gts::rendering
 {

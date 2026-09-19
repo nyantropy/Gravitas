@@ -3,8 +3,8 @@
 #include <cstdint>
 #include <vector>
 
-#include "assets/geometry/GtsStaticVertex.h"
-#include "assets/geometry/GtsGeometryMetadata.h"
+#include "GtsStaticVertex.h"
+#include "GtsGeometryMetadata.h"
 
 // gameplay facing description of runtime-generated geometry
 // the renderer uploads the components own vertices/indices

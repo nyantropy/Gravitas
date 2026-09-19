@@ -9,10 +9,10 @@
 #include <vector>
 
 #include "GlmConfig.h"
-#include "assets/serialization/TextureColorSpace.h"
-#include "assets/serialization/AssetMaterialTypes.h"
+#include "TextureColorSpace.h"
+#include "AssetMaterialTypes.h"
 #include "ResourceTypes.h"
-#include "assets/material/MaterialInstanceHandle.h"
+#include "MaterialInstanceHandle.h"
 
 struct MaterialDefinitionHandle
 {

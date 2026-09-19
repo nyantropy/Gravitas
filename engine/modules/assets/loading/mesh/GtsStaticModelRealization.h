@@ -3,8 +3,8 @@
 #include <optional>
 #include <vector>
 
-#include "assets/serialization/AssetTypes.h"
-#include "model/domain/model/GtsModelDiagnostic.h"
+#include "AssetTypes.h"
+#include "GtsModelDiagnostic.h"
 
 struct GtsModelAsset;
 

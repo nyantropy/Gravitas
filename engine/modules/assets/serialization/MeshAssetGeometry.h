@@ -1,6 +1,6 @@
 #pragma once
 
-#include "assets/serialization/AssetTypes.h"
+#include "AssetTypes.h"
 
 namespace gts::rendering
 {

@@ -1,9 +1,9 @@
 #pragma once
-#include "model/public/GtsModelRequest.h"
-#include "model/public/GtsModelRequestResult.h"
-#include "model/public/GtsModelClipReference.h"
-#include "model/world/GtsModelInstanceRuntime.h"
-#include "model/runtime/ModelInstanceComponent.h"
+#include "GtsModelRequest.h"
+#include "GtsModelRequestResult.h"
+#include "GtsModelClipReference.h"
+#include "GtsModelInstanceRuntime.h"
+#include "ModelInstanceComponent.h"
 #include <string_view>
 struct EcsControllerContext;
 

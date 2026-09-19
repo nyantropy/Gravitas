@@ -3,7 +3,7 @@
 #include <memory>
 #include <vector>
 #include <vulkan/vulkan.h>
-#include "model/processing/geometry/skinned/GtsPreparedSkinnedMesh.h"
+#include "GtsPreparedSkinnedMesh.h"
 
 class VulkanSkinningBuffer;
 class VulkanSkinPaletteBuffer;

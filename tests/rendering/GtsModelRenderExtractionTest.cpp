@@ -1,14 +1,14 @@
-#include "model/loading/GtsModelResource.h"
-#include "model/world/GtsModelMaterialRealization.h"
-#include "model/realization/GtsModelRealizationCache.h"
+#include "GtsModelResource.h"
+#include "GtsModelMaterialRealization.h"
+#include "GtsModelRealizationCache.h"
 #include "../assets/importers/gltf/GltfFixtureBuilder.h"
 #include "../assets/runtime/ScopedRuntimeAssetPolicy.h"
-#include "model/world/GtsModelInstanceRuntime.h"
-#include "model/extraction/GtsModelRenderExtraction.h"
-#include "model/extraction/ModelFrameExtraction.h"
-#include "model/loading/GtsModelRegistry.h"
-#include "model/domain/model/GtsModelAsset.h"
-#include "assets/serialization/AssetSerializers.h"
+#include "GtsModelInstanceRuntime.h"
+#include "GtsModelRenderExtraction.h"
+#include "ModelFrameExtraction.h"
+#include "GtsModelRegistry.h"
+#include "GtsModelAsset.h"
+#include "AssetSerializers.h"
 #include <limits>
 
 using namespace gts::rendering;

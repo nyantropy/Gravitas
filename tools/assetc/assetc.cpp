@@ -4,8 +4,8 @@
 #include <string>
 #include <vector>
 
-#include "model/cooking/GtsModelCooker.h"
-#include "assets/cooking/TextureCooker.h"
+#include "GtsModelCooker.h"
+#include "TextureCooker.h"
 
 namespace
 {

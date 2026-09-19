@@ -1,6 +1,6 @@
-#include "model/domain/skin/GtsSkinBinding.h"
-#include "model/domain/skin/GtsSkinBindingValidation.h"
-#include "model/domain/skeleton/GtsSkeletonAsset.h"
+#include "GtsSkinBinding.h"
+#include "GtsSkinBindingValidation.h"
+#include "GtsSkeletonAsset.h"
 
 #include <cmath>
 #include <cstddef>

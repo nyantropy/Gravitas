@@ -8,8 +8,8 @@
 #include <variant>
 
 #include "GtsPrimitiveGeometryPreparation.h"
-#include "model/domain/model/GtsModelAsset.h"
-#include "model/domain/model/GtsModelValidation.h"
+#include "GtsModelAsset.h"
+#include "GtsModelValidation.h"
 
 namespace
 {

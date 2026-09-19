@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <map>
 #include <limits>
-#include "assets/importer/image/GtsImageDecode.h"
+#include "GtsImageDecode.h"
 #include <iostream>
 #include <memory>
 #include <array>
@@ -16,9 +16,9 @@
 
 #include "DescriptorSetManager.hpp"
 #include "MaterialTypes.h"
-#include "assets/loading/RuntimeAssetPolicy.h"
+#include "RuntimeAssetPolicy.h"
 #include "TextureResource.h"
-#include "assets/loading/cooked/TextureAssetLoader.h"
+#include "TextureAssetLoader.h"
 #include "VulkanTexture.hpp"
 #include "ResourceTypes.h"
 #include "VulkanBackendContext.h"

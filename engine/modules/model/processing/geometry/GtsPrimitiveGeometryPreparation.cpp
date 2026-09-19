@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <numeric>
 #include <variant>
-#include "assets/geometry/MeshGeometryProcessor.h"
-#include "model/domain/model/GtsModelAsset.h"
+#include "MeshGeometryProcessor.h"
+#include "GtsModelAsset.h"
 
 namespace
 {

@@ -1,6 +1,6 @@
 #pragma once
 #include "GtsModelFrameData.h"
-#include "model/runtime/GtsModelInstance.h"
+#include "GtsModelInstance.h"
 #include "MaterialRuntime.h"
 
 struct GtsModelExtractionResult

@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "GtsJsonValue.h"
-#include "model/domain/model/GtsModelDiagnostic.h"
+#include "GtsModelDiagnostic.h"
 
 namespace gts::gltf
 {

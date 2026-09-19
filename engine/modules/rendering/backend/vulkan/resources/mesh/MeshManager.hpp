@@ -12,11 +12,11 @@
 #include <cstring>
 #include <utility>
 
-#include "assets/loading/cooked/MeshAssetLoader.h"
+#include "MeshAssetLoader.h"
 #include "MeshResource.h"
-#include "assets/loading/mesh/RuntimeMeshLoading.h"
+#include "RuntimeMeshLoading.h"
 #include "IResourceProvider.hpp"
-#include "assets/loading/RuntimeAssetPolicy.h"
+#include "RuntimeAssetPolicy.h"
 #include "VulkanBackendContext.h"
 #include "BufferUtil.hpp"
 #include "ResourceTypes.h"

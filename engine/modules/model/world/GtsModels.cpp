@@ -1,9 +1,9 @@
-#include "model/public/GtsModels.h"
+#include "GtsModels.h"
 #include "RenderingControllerContext.h"
-#include "model/public/GtsModelControllerContext.h"
-#include "model/loading/GtsModelRegistry.h"
-#include "model/loading/GtsModelResource.h"
-#include "model/domain/model/GtsModelSkin.h"
+#include "GtsModelControllerContext.h"
+#include "GtsModelRegistry.h"
+#include "GtsModelResource.h"
+#include "GtsModelSkin.h"
 #include "EcsControllerContext.hpp"
 #include <stdexcept>
 

@@ -4,8 +4,8 @@
 #include <memory>
 #include <vector>
 
-#include "model/domain/model/GtsModelDiagnostic.h"
-#include "model/domain/skeleton/GtsSkeletonTypes.h"
+#include "GtsModelDiagnostic.h"
+#include "GtsSkeletonTypes.h"
 
 struct GtsModelAsset;
 struct GtsSkeletonAsset;

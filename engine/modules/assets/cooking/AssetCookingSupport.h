@@ -1,5 +1,5 @@
 #pragma once
-#include "assets/cooking/AssetCooker.h"
+#include "AssetCooker.h"
 
 #include <algorithm>
 #include <atomic>
@@ -13,9 +13,9 @@
 #include <system_error>
 #include <utility>
 
-#include "assets/serialization/AssetSerializers.h"
-#include "assets/importer/image/GtsImageDecode.h"
-#include "assets/cooking/TextureCooker.h"
+#include "AssetSerializers.h"
+#include "GtsImageDecode.h"
+#include "TextureCooker.h"
 
 namespace gts::rendering::cooking_detail
 {

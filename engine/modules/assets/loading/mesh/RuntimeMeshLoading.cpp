@@ -1,12 +1,12 @@
-#include "assets/loading/mesh/RuntimeMeshLoading.h"
+#include "RuntimeMeshLoading.h"
 
 #include <stdexcept>
 #include <utility>
 
-#include "assets/loading/cooked/MeshAssetLoader.h"
-#include "model/import/obj/GtsObjModelImporter.h"
-#include "model/import/GtsModelImportResult.h"
-#include "assets/loading/mesh/GtsStaticModelRealization.h"
+#include "MeshAssetLoader.h"
+#include "GtsObjModelImporter.h"
+#include "GtsModelImportResult.h"
+#include "GtsStaticModelRealization.h"
 
 namespace gts::rendering
 {

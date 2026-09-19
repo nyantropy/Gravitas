@@ -5,8 +5,8 @@
 #include <string>
 #include <vector>
 
-#include "assets/serialization/AssetTypes.h"
-#include "assets/serialization/MeshAssetGeometry.h"
+#include "AssetTypes.h"
+#include "MeshAssetGeometry.h"
 
 namespace gts::rendering
 {

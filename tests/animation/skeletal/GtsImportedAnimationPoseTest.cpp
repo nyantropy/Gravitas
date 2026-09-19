@@ -1,7 +1,7 @@
 #include "../../assets/importers/gltf/GltfFixtureBuilder.h"
 
-#include "animation/skeletal/GtsSkeletonPoseEvaluation.h"
-#include "model/domain/skeleton/GtsSkeletonAsset.h"
+#include "GtsSkeletonPoseEvaluation.h"
+#include "GtsSkeletonAsset.h"
 
 namespace
 {

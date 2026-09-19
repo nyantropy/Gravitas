@@ -8,9 +8,9 @@
 #include "BitmapFont.h"
 #include "DynamicMeshComponent.h"
 #include "GlyphLayoutEngine.h"
-#include "assets/geometry/MeshGeometryProcessor.h"
-#include "assets/geometry/GtsStaticVertex.h"
-#include "assets/geometry/GtsGeometryMetadata.h"
+#include "MeshGeometryProcessor.h"
+#include "GtsStaticVertex.h"
+#include "GtsGeometryMetadata.h"
 #include "VulkanStaticVertexDescription.h"
 #include "WorldTextComponent.h"
 

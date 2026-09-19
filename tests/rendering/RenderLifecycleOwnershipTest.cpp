@@ -24,8 +24,8 @@
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
 #include "TransformSceneFeature.h"
-#include "assets/geometry/GtsStaticVertex.h"
-#include "assets/geometry/GtsGeometryMetadata.h"
+#include "GtsStaticVertex.h"
+#include "GtsGeometryMetadata.h"
 #include "WorldTextComponent.h"
 #include "WorldTransformComponent.h"
 

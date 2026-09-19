@@ -3,10 +3,10 @@
 #include <map>
 #include <tuple>
 
-#include "model/loading/GtsModelResource.h"
-#include "model/loading/GtsPreparedModelDefinition.h"
-#include "model/processing/geometry/static/GtsStaticMeshPreparation.h"
-#include "model/processing/geometry/skinned/GtsSkinnedMeshPreparation.h"
+#include "GtsModelResource.h"
+#include "GtsPreparedModelDefinition.h"
+#include "GtsStaticMeshPreparation.h"
+#include "GtsSkinnedMeshPreparation.h"
 
 GtsModelRealizationResult realizeGtsModel(GtsModelHandle model)
 {

@@ -1,11 +1,11 @@
 #include "TestMaterialResources.h"
 #include "../../assets/importers/gltf/GltfFixtureBuilder.h"
 #include "../../assets/runtime/ScopedRuntimeAssetPolicy.h"
-#include "model/loading/GtsModelRegistry.h"
-#include "model/loading/GtsModelResource.h"
-#include "model/realization/GtsModelRealization.h"
-#include "assets/serialization/AssetSerializers.h"
-#include "model/world/GtsModelMaterialRealization.h"
+#include "GtsModelRegistry.h"
+#include "GtsModelResource.h"
+#include "GtsModelRealization.h"
+#include "AssetSerializers.h"
+#include "GtsModelMaterialRealization.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_STATIC
 #include <stb_image_write.h>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "assets/serialization/AssetSerializers.h"
+#include "AssetSerializers.h"
 
 #include <algorithm>
 #include <cstring>

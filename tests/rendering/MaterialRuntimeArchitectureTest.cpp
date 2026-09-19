@@ -8,13 +8,13 @@
 #include <unordered_map>
 #include <vector>
 
-#include "assets/serialization/AssetSerializers.h"
-#include "assets/serialization/AssetTypes.h"
+#include "AssetSerializers.h"
+#include "AssetTypes.h"
 #include "BitmapFont.h"
 #include "BitmapFontLoader.h"
 #include "FontAssetIO.h"
 #include "GraphicsConstants.h"
-#include "assets/loading/cooked/TextureAssetLoader.h"
+#include "TextureAssetLoader.h"
 #include "BoundsComponent.h"
 #include "ECSWorld.hpp"
 #include "EcsControllerContext.hpp"
@@ -33,8 +33,8 @@
 #include "TimeContext.h"
 #include "TransformComponent.h"
 #include "TransformSceneFeature.h"
-#include "assets/geometry/GtsStaticVertex.h"
-#include "assets/geometry/GtsGeometryMetadata.h"
+#include "GtsStaticVertex.h"
+#include "GtsGeometryMetadata.h"
 #include "WorldTextComponent.h"
 
 namespace

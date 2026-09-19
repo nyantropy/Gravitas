@@ -8,11 +8,11 @@
 #include <variant>
 
 #include "GtsPrimitiveGeometryPreparation.h"
-#include "model/domain/model/GtsModelAsset.h"
-#include "model/domain/model/GtsModelSkinValidation.h"
-#include "model/domain/model/GtsModelValidation.h"
-#include "model/domain/skin/GtsSkinBinding.h"
-#include "model/domain/skin/GtsSkinBindingValidation.h"
+#include "GtsModelAsset.h"
+#include "GtsModelSkinValidation.h"
+#include "GtsModelValidation.h"
+#include "GtsSkinBinding.h"
+#include "GtsSkinBindingValidation.h"
 
 namespace
 {

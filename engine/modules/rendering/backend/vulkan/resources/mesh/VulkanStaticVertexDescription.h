@@ -6,7 +6,7 @@
 
 #include <vulkan/vulkan.h>
 
-#include "assets/geometry/GtsStaticVertex.h"
+#include "GtsStaticVertex.h"
 
 struct VulkanStaticVertexDescription
 {

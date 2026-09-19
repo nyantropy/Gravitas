@@ -1,5 +1,5 @@
 #pragma once
-#include "model/public/GtsModelClipReference.h"
+#include "GtsModelClipReference.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -10,8 +10,8 @@
 #include <string_view>
 #include <vector>
 
-#include "model/domain/model/GtsModelDiagnostic.h"
-#include "model/public/GtsModelRequest.h"
+#include "GtsModelDiagnostic.h"
+#include "GtsModelRequest.h"
 
 struct GtsModelAsset;
 struct GtsModelNode;

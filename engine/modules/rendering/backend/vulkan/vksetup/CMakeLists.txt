@@ -38,7 +38,6 @@ elseif(UNIX AND NOT APPLE)
 endif()
 
 target_include_directories(gravitas_vulkan_setup PUBLIC
-    "${GTS_ENGINE_ROOT}/engine/core"
     # vksetup sub-directories
     "${CMAKE_CURRENT_SOURCE_DIR}/context"
     "${CMAKE_CURRENT_SOURCE_DIR}/instance"
@@ -47,14 +46,10 @@ target_include_directories(gravitas_vulkan_setup PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/logicaldevice"
     "${CMAKE_CURRENT_SOURCE_DIR}/swapchain"
 
-    # VulkanSwapChainConfig.h and VulkanContextConfig.h include OutputWindow.hpp
-    "${GTS_ENGINE_ROOT}/engine/modules/rendering/core/windowing/output"
-    # OutputWindow.hpp includes GtsEvent.hpp and GtsKeyEvent.h
-    "${GTS_ENGINE_ROOT}/engine/core/event"
-    "${GTS_ENGINE_ROOT}/engine/core/input/raw"
 )
 
 target_link_libraries(gravitas_vulkan_setup PUBLIC
     Vulkan::Vulkan
+    gravitas_rendering_window_contracts
     glfw
 )

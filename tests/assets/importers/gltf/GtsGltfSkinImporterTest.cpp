@@ -4,10 +4,10 @@
 #include <set>
 #include <variant>
 
-#include "model/import/GtsModelImportBundleValidation.h"
-#include "model/domain/model/GtsModelValidation.h"
-#include "model/domain/skeleton/GtsSkeletonAsset.h"
-#include "model/domain/skin/GtsSkinBindingValidation.h"
+#include "GtsModelImportBundleValidation.h"
+#include "GtsModelValidation.h"
+#include "GtsSkeletonAsset.h"
+#include "GtsSkinBindingValidation.h"
 
 namespace
 {

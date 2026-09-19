@@ -1,11 +1,11 @@
-#include "model/realization/GtsModelRealizationCache.h"
+#include "GtsModelRealizationCache.h"
 #include "../assets/importers/gltf/GltfFixtureBuilder.h"
 #include "../assets/runtime/ScopedRuntimeAssetPolicy.h"
-#include "model/world/GtsModelInstanceRuntime.h"
-#include "model/extraction/GtsModelRenderExtraction.h"
-#include "model/loading/GtsModelRegistry.h"
-#include "rendering/backend/vulkan/rendering/skinning/VulkanSkinnedSceneRenderer.h"
-#include "rendering/backend/vulkan/rendering/framegraph/VulkanModelStaticDraws.h"
+#include "GtsModelInstanceRuntime.h"
+#include "GtsModelRenderExtraction.h"
+#include "GtsModelRegistry.h"
+#include "VulkanSkinnedSceneRenderer.h"
+#include "VulkanModelStaticDraws.h"
 #include <cstdio>
 #include <limits>
 #include <stdexcept>
@@ -20,7 +20,7 @@
 #include "VulkanSkinnedPipelineConfig.h"
 #include "VulkanSkinPaletteBuffer.h"
 #include "VulkanSkinnedMeshResource.h"
-#include "animation/skinning/GtsSkinPalette.h"
+#include "GtsSkinPalette.h"
 
 namespace
 {

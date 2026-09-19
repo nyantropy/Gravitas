@@ -1,4 +1,4 @@
-#include "assets/cooking/AssetCookingSupport.h"
+#include "AssetCookingSupport.h"
 namespace gts::rendering
 {
     using namespace cooking_detail;

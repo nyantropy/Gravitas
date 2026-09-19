@@ -1,6 +1,6 @@
 add_library(gravitas_model_controller_contracts INTERFACE)
 target_link_libraries(gravitas_model_controller_contracts INTERFACE gravitas_core)
-target_include_directories(gravitas_model_controller_contracts INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/..")
+target_include_directories(gravitas_model_controller_contracts INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/public")
 
 add_subdirectory(domain)
 add_subdirectory(import)

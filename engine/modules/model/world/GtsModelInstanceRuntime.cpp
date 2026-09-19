@@ -1,5 +1,5 @@
-#include "model/world/GtsModelMaterialRealization.h"
-#include "model/realization/GtsModelRealizationCache.h"
+#include "GtsModelMaterialRealization.h"
+#include "GtsModelRealizationCache.h"
 #include "GtsModelInstanceRuntime.h"
 #include <stdexcept>
 

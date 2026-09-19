@@ -12,7 +12,7 @@
 #include "MaterialReferenceHelpers.h"
 #include "RenderDirtyComponent.h"
 #include "TransformComponent.h"
-#include "assets/geometry/GtsStaticVertex.h"
+#include "GtsStaticVertex.h"
 
 namespace gts::debugdraw
 {

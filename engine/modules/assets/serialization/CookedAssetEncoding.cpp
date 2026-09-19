@@ -1,4 +1,4 @@
-#include "assets/serialization/CookedAssetEncoding.h"
+#include "CookedAssetEncoding.h"
 
 namespace gts::rendering::detail
 {

@@ -1,11 +1,11 @@
 #pragma once
 
-#include "model/serialization/ModelAssetSerializer.h"
+#include "ModelAssetSerializer.h"
 
 #include <filesystem>
 #include <string>
 
-#include "assets/serialization/AssetSerializers.h"
+#include "AssetSerializers.h"
 
 namespace gts::rendering
 {

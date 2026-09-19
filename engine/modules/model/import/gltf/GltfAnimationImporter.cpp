@@ -10,8 +10,8 @@
 
 #include "GltfSkinImporter.h"
 #include "GltfSourceReader.h"
-#include "model/domain/animation/GtsAnimationClipValidation.h"
-#include "model/domain/skeleton/GtsSkeletonAsset.h"
+#include "GtsAnimationClipValidation.h"
+#include "GtsSkeletonAsset.h"
 
 namespace gts::gltf
 {

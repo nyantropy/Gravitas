@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "model/domain/skeleton/GtsSkeletonCompatibility.h"
+#include "GtsSkeletonCompatibility.h"
 
 // evaluated occurrence data, indexed exactly like the supplied skeleton's nodes
 struct GtsSkeletonPose

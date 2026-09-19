@@ -1,4 +1,4 @@
-#include "assets/cooking/TextureCooker.h"
+#include "TextureCooker.h"
 
 #include <algorithm>
 #include <cmath>

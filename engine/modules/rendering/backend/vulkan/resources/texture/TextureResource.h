@@ -6,7 +6,7 @@
 #include <vulkan/vulkan.h>
 
 #include "ResourceTypes.h"
-#include "assets/serialization/TextureColorSpace.h"
+#include "TextureColorSpace.h"
 #include "VulkanTexture.hpp"
 
 struct TextureResource

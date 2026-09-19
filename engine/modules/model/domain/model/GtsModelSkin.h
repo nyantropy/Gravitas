@@ -5,7 +5,7 @@
 #include <memory>
 #include <vector>
 
-#include "model/domain/skin/GtsSkinBinding.h"
+#include "GtsSkinBinding.h"
 
 struct GtsSkeletonAsset;
 

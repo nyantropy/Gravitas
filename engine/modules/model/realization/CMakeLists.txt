@@ -3,3 +3,5 @@ add_library(gravitas_model_realization STATIC
 target_link_libraries(gravitas_model_realization PUBLIC
     gravitas_model_loading gravitas_static_geometry gravitas_skinned_geometry)
 target_compile_features(gravitas_model_realization PUBLIC cxx_std_20)
+
+target_include_directories(gravitas_model_realization PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")

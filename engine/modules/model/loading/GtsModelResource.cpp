@@ -1,11 +1,11 @@
-#include "model/loading/GtsModelResource.h"
-#include "model/loading/GtsPreparedModelDefinition.h"
+#include "GtsModelResource.h"
+#include "GtsPreparedModelDefinition.h"
 
 #include <string>
 #include <utility>
 
-#include "model/import/GtsModelImportBundle.h"
-#include "model/domain/animation/GtsAnimationClipValidation.h"
+#include "GtsModelImportBundle.h"
+#include "GtsAnimationClipValidation.h"
 
 GtsModelResource::GtsModelResource(std::filesystem::path identity, GtsModelImportBundle bundle)
     : identity(std::move(identity)), definitions(std::make_unique<const GtsModelImportBundle>(std::move(bundle)))

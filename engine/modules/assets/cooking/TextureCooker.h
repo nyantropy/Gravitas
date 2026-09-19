@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include "assets/serialization/AssetTypes.h"
+#include "AssetTypes.h"
 
 namespace gts::rendering
 {

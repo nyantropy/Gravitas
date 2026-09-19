@@ -5,8 +5,8 @@
 #include <string>
 #include <vector>
 
-#include "assets/geometry/GtsStaticVertex.h"
-#include "assets/geometry/GtsGeometryMetadata.h"
+#include "GtsStaticVertex.h"
+#include "GtsGeometryMetadata.h"
 
 struct GtsPreparedStaticPrimitive
 {

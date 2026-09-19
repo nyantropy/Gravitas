@@ -18,7 +18,7 @@
 #include "GltfSkinImporter.h"
 #include "GltfAnimationImporter.h"
 #include "GltfSourceUtilities.h"
-#include "model/import/GtsModelImportResult.h"
+#include "GtsModelImportResult.h"
 
 namespace
 {

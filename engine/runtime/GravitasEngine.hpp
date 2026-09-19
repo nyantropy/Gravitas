@@ -5,7 +5,7 @@
 #include "ScenePhysics.h"
 #include "RenderingControllerContext.h"
 #include "UiControllerContext.h"
-#include "model/public/GtsModelControllerContext.h"
+#include "GtsModelControllerContext.h"
 #include <algorithm>
 #include <memory>
 #include <iostream>
@@ -27,8 +27,8 @@
 #include "GtsCommand.h"
 #include "GtsCommandBuffer.h"
 #include "EngineServiceRegistry.h"
-#include "model/loading/GtsModelRegistry.h"
-#include "model/realization/GtsModelRealizationCache.h"
+#include "GtsModelRegistry.h"
+#include "GtsModelRealizationCache.h"
 #include "IEngineModule.h"
 #include "GraphicsBackendInstaller.h"
 #include "GraphicsBackendRegistry.h"

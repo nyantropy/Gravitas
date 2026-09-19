@@ -9,8 +9,8 @@
 #include "ImageUtil.hpp"
 #include "MemoryUtil.hpp"
 #include "BufferUtil.hpp"
-#include "assets/serialization/TextureColorSpace.h"
-#include "assets/serialization/AssetTypes.h"
+#include "TextureColorSpace.h"
+#include "AssetTypes.h"
 
 class VulkanTexture
 {

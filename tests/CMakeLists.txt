@@ -685,3 +685,15 @@ set_tests_properties(vulkan_skinning_resource PROPERTIES LABELS "gravitas;render
 add_test(NAME gravitas_runtime_screenshot_automation COMMAND GravitasHeadlessScreenshotSmoke --automation)
 set_tests_properties(gravitas_runtime_screenshot_automation PROPERTIES
     LABELS "gravitas;runtime;smoke;screenshot" SKIP_RETURN_CODE 77)
+
+# These tests intentionally exercise backend internals; applications do not inherit them.
+foreach(backend_test VulkanSkinnedGeometryTest VulkanSkinnedGpuSmoke VulkanSkinningResourceTest
+        GeometryPbrPreparationTest CookedAssetPipelineTest FirstLitRendererArchitectureTest
+        ObjectMaterialColorOwnershipTest CanonicalObjPipelineTest GraphicsSettingsRuntimeTest)
+    target_include_directories(${backend_test} PRIVATE
+        "$<TARGET_PROPERTY:gravitas_vulkan_backend,INCLUDE_DIRECTORIES>")
+    target_link_libraries(${backend_test} PRIVATE gravitas_vulkan_setup gravitas_rendering)
+endforeach()
+
+target_link_libraries(CookedAssetPipelineTest PRIVATE gravitas_mesh_loading)
+target_link_libraries(CanonicalObjPipelineTest PRIVATE gravitas_mesh_loading)

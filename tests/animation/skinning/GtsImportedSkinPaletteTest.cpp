@@ -1,6 +1,6 @@
 #include "../../assets/importers/gltf/GltfFixtureBuilder.h"
-#include "animation/skeletal/GtsSkeletonPoseEvaluation.h"
-#include "animation/skinning/GtsSkinPaletteEvaluation.h"
+#include "GtsSkeletonPoseEvaluation.h"
+#include "GtsSkinPaletteEvaluation.h"
 #include "GtsSkinnedMeshPreparation.h"
 
 namespace

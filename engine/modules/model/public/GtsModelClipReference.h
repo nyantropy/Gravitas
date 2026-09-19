@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <optional>
 #include <vector>
-#include "model/domain/model/GtsModelDiagnostic.h"
+#include "GtsModelDiagnostic.h"
 class GtsModelResource;
 // non-owning, scoped to a resource retained by the registry or a model handle
 class GtsModelClipReference

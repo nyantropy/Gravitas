@@ -4,8 +4,8 @@
 #include <cstdint>
 #include <vector>
 
-#include "assets/serialization/AssetTypes.h"
-#include "model/domain/model/GtsModelAsset.h"
+#include "AssetTypes.h"
+#include "GtsModelAsset.h"
 
 // CPU definition supplied by cooked static content. Vertices remain prepared;
 // material/dependency references remain unresolved until realization.

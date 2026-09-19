@@ -1,8 +1,8 @@
 #pragma once
 #include "ECSWorld.hpp"
-#include "model/runtime/ModelInstanceComponent.h"
-#include "transform/components/WorldTransformComponent.h"
-#include "model/extraction/GtsModelRenderExtraction.h"
+#include "ModelInstanceComponent.h"
+#include "WorldTransformComponent.h"
+#include "GtsModelRenderExtraction.h"
 #include <stdexcept>
 
 inline GtsModelFrameData extractModelFrame(ECSWorld&          world,

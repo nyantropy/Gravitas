@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <string>
 
-#include "assets/loading/cooked/MaterialAssetLoader.h"
+#include "MaterialAssetLoader.h"
 #include "MaterialRuntime.h"
 
 namespace gts::rendering

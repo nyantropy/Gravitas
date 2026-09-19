@@ -5,7 +5,7 @@
 #include <vector>
 #include "RendererConfig.h"
 #include "RenderCommand.h"
-#include "model/extraction/GtsModelFrameData.h"
+#include "GtsModelFrameData.h"
 #include "RenderViewport.h"
 #include "EditorPreviewRenderData.h"
 #include "ParticleFrameData.h"

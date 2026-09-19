@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "GtsAnimationTrack.h"
-#include "model/domain/skeleton/GtsSkeletonCompatibility.h"
+#include "GtsSkeletonCompatibility.h"
 
 // canonical asset data; consumers leave it unchanged and own playback state separately
 struct GtsAnimationClipAsset

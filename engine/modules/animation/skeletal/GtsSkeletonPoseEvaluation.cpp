@@ -4,10 +4,10 @@
 #include <gtc/matrix_transform.hpp>
 
 #include "GtsAnimationSampling.h"
-#include "model/domain/animation/GtsAnimationClipAsset.h"
-#include "model/domain/animation/GtsAnimationClipValidation.h"
-#include "model/domain/skeleton/GtsSkeletonAsset.h"
-#include "model/domain/skeleton/GtsSkeletonValidation.h"
+#include "GtsAnimationClipAsset.h"
+#include "GtsAnimationClipValidation.h"
+#include "GtsSkeletonAsset.h"
+#include "GtsSkeletonValidation.h"
 
 namespace
 {

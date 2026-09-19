@@ -8,7 +8,7 @@
 #include "VulkanSkinPaletteBuffer.h"
 #include "VulkanSkinnedMeshResource.h"
 #include "VulkanSkinnedPipelineConfig.h"
-#include "animation/skinning/GtsSkinPalette.h"
+#include "GtsSkinPalette.h"
 
 // Test-only Vulkan entry-point seam: inspect uploaded bytes and recorded bindings without a device.
 namespace

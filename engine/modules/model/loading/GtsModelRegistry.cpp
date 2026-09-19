@@ -1,16 +1,16 @@
-#include "model/loading/GtsModelRegistry.h"
+#include "GtsModelRegistry.h"
 
 #include <algorithm>
 #include <cctype>
 #include <string>
 #include <utility>
 
-#include "model/loading/GtsModelResource.h"
-#include "model/loading/GtsModelSourceLoading.h"
-#include "model/loading/GtsModelCookedLoading.h"
-#include "model/import/GtsModelImportBundleValidation.h"
-#include "model/import/GtsModelImportResult.h"
-#include "assets/loading/RuntimeAssetPolicy.h"
+#include "GtsModelResource.h"
+#include "GtsModelSourceLoading.h"
+#include "GtsModelCookedLoading.h"
+#include "GtsModelImportBundleValidation.h"
+#include "GtsModelImportResult.h"
+#include "RuntimeAssetPolicy.h"
 
 namespace
 {

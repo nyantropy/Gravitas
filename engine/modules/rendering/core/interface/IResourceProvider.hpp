@@ -1,6 +1,6 @@
 #pragma once
 #include <memory>
-#include "assets/importer/image/GtsImageDecode.h"
+#include "GtsImageDecode.h"
 
 #include <cstdint>
 #include <string>
@@ -8,12 +8,12 @@
 
 #include "GlmConfig.h"
 
-#include "assets/serialization/AssetTypes.h"
+#include "AssetTypes.h"
 #include "MaterialTypes.h"
 #include "ResourceTypes.h"
-#include "assets/serialization/TextureColorSpace.h"
-#include "assets/geometry/GtsStaticVertex.h"
-#include "assets/geometry/GtsGeometryMetadata.h"
+#include "TextureColorSpace.h"
+#include "GtsStaticVertex.h"
+#include "GtsGeometryMetadata.h"
 
 struct BitmapFont;
 

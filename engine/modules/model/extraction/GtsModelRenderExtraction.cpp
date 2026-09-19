@@ -1,5 +1,5 @@
 #include "GtsModelRenderExtraction.h"
-#include "model/runtime/GtsModelHierarchy.h"
+#include "GtsModelHierarchy.h"
 #include <map>
 #include <cmath>
 #include <tuple>

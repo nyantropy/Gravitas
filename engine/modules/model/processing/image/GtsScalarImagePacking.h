@@ -1,7 +1,7 @@
 #pragma once
 #include <array>
 #include <optional>
-#include "assets/importer/image/GtsImageDecode.h"
+#include "GtsImageDecode.h"
 
 struct GtsScalarImageChannel
 {

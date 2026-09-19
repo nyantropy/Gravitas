@@ -1,3 +1,5 @@
 add_library(gravitas_model_image_processing STATIC GtsScalarImagePacking.cpp)
 target_link_libraries(gravitas_model_image_processing PUBLIC gravitas_image_decode)
 target_compile_features(gravitas_model_image_processing PUBLIC cxx_std_20)
+
+target_include_directories(gravitas_model_image_processing PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")

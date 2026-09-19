@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "ObjSourceReader.h"
-#include "model/import/GtsModelImportResult.h"
+#include "GtsModelImportResult.h"
 
 namespace
 {

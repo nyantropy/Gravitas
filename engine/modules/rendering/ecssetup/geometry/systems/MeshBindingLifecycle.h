@@ -7,7 +7,7 @@
 #include <iostream>
 #include <limits>
 
-#include "assets/serialization/AssetTypes.h"
+#include "AssetTypes.h"
 #include "BoundsComponent.h"
 #include "DynamicMeshComponent.h"
 #include "ECSWorld.hpp"

@@ -1,9 +1,9 @@
-#include "model/loading/GtsModelSourceLoading.h"
+#include "GtsModelSourceLoading.h"
 
-#include "model/import/gltf/GtsGltfModelImporter.h"
-#include "model/import/obj/GtsObjModelImporter.h"
-#include "model/import/GtsModelImportResult.h"
-#include "assets/loading/RuntimeAssetPolicy.h"
+#include "GtsGltfModelImporter.h"
+#include "GtsObjModelImporter.h"
+#include "GtsModelImportResult.h"
+#include "RuntimeAssetPolicy.h"
 
 GtsModelImportResult loadGtsModelSource(const std::filesystem::path& path)
 {

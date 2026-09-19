@@ -7,3 +7,5 @@ target_compile_features(gravitas_primitive_geometry PUBLIC cxx_std_20)
 
 add_subdirectory(static)
 add_subdirectory(skinned)
+
+target_link_libraries(gravitas_primitive_geometry PUBLIC gravitas_asset_contracts)

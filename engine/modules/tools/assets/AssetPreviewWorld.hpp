@@ -38,7 +38,7 @@
 #include "TransformComponent.h"
 #include "TransformDirtyHelpers.h"
 #include "TransformSceneFeature.h"
-#include "assets/geometry/GtsStaticVertex.h"
+#include "GtsStaticVertex.h"
 
 namespace gts::tools
 {

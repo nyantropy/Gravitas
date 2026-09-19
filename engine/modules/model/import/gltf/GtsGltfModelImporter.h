@@ -1,6 +1,6 @@
 #pragma once
 
-#include "model/import/IGtsModelImporter.h"
+#include "IGtsModelImporter.h"
 
 class GtsGltfModelImporter final : public IGtsModelImporter
 {

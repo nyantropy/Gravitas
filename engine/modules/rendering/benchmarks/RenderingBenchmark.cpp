@@ -51,8 +51,8 @@
 #include "TransformHierarchyHelpers.h"
 #include "TransformSceneFeature.h"
 #include "TransformSystem.hpp"
-#include "assets/geometry/GtsStaticVertex.h"
-#include "assets/geometry/GtsGeometryMetadata.h"
+#include "GtsStaticVertex.h"
+#include "GtsGeometryMetadata.h"
 #include "WorldTextComponent.h"
 
 namespace gts::rendering::benchmarks

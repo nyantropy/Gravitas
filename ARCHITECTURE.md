@@ -204,6 +204,13 @@ vendored documentation and should not be rewritten as first-party engine docs.
 - Public module headers should stay small and stable. Heavy implementation
   dependencies belong in `.cpp` files or backend-private headers.
 
+Public header visibility follows leaf target ownership. Model/asset/animation targets
+export their own API directories instead of `modules/`; model ECS extraction explicitly
+links transform. Rendering window/presentation contracts are shared with Vulkan setup,
+while Vulkan backend implementation includes and links are private. A separate public
+include-root check and standalone consumer probes supplement the unchanged three-layer
+checker. See [source ownership](docs/modules/ownership.md#public-include-surfaces).
+
 ## ECS Model
 
 `ECSWorld` owns entities, archetype-based component storage, singleton

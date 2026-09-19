@@ -49,7 +49,7 @@
 #include "TransformHierarchyHelpers.h"
 #include "TransformSystem.hpp"
 #include "ToolLaunchPreset.h"
-#include "assets/geometry/GtsStaticVertex.h"
+#include "GtsStaticVertex.h"
 #include "WorldTextComponent.h"
 
 namespace

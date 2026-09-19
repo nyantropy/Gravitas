@@ -1,13 +1,13 @@
-#include "model/serialization/ModelAssetSerializer.h"
-#include "model/loading/GtsModelCookedLoading.h"
+#include "ModelAssetSerializer.h"
+#include "GtsModelCookedLoading.h"
 
 #include <algorithm>
 #include <cmath>
 #include <string>
 
-#include "assets/loading/cooked/MeshAssetLoader.h"
-#include "model/loading/ModelAssetLoader.h"
-#include "assets/loading/RuntimeAssetPolicy.h"
+#include "MeshAssetLoader.h"
+#include "ModelAssetLoader.h"
+#include "RuntimeAssetPolicy.h"
 
 namespace
 {

@@ -1,6 +1,6 @@
 #include "GtsRealizedGeometry.h"
 
-#include "assets/serialization/MeshAssetGeometry.h"
+#include "MeshAssetGeometry.h"
 
 namespace
 {

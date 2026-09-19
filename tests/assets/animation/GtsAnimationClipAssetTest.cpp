@@ -1,6 +1,6 @@
-#include "model/domain/animation/GtsAnimationClipAsset.h"
-#include "model/domain/animation/GtsAnimationClipValidation.h"
-#include "model/domain/skeleton/GtsSkeletonAsset.h"
+#include "GtsAnimationClipAsset.h"
+#include "GtsAnimationClipValidation.h"
+#include "GtsSkeletonAsset.h"
 
 #include <cmath>
 #include <cstdio>

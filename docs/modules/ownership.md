@@ -77,3 +77,51 @@ storage, includes or scheduling vocabulary.
 `GtsFrameEndedEvent` was a clean extraction: the rendering-owned event carries the
 same `dt` and `imageIndex`, is still emitted at the same Vulkan point, and uses the
 unchanged generic core event bus.
+
+## Public Include Surfaces
+
+Targets export their owned leaf directories. The engine source root and the complete
+`modules/` directory are never public include roots. Model, asset and animation
+consumers include headers through the owning target's exported directory, for example
+`GtsModelControllerContext.h`, `ModelFrameExtraction.h` and `GtsStaticVertex.h`.
+The previous `model/...` and `assets/...` spellings depended on exporting every module;
+no forwarding headers or generated header mirrors preserve that incidental access.
+
+`gravitas_model_controller_contracts` exports `model/public/` and core only. Model
+phases export their own directories and obtain other phases through declared links.
+`gravitas_model_frontend` publicly depends on `gravitas_transform` because its ECS
+extraction header consumes `WorldTransformComponent`. Model material realization
+consumes the material-association contract owned by `gravitas_model_instances`.
+
+`gravitas_asset_contracts` owns the existing geometry/material header directories.
+Cooked assets export serialization, cooked loading and the shared loading-policy
+folder; image decoding exports only its image API, with stb private. Material frontend
+explicitly consumes image decoding for the image values in `IResourceProvider`.
+
+`gravitas_rendering_window_contracts` owns the existing output-window and startup/
+presentation-settings headers and depends on core. Both generic rendering and Vulkan
+setup consume it. Vulkan setup exports only its own setup directories, with required
+core/windowing declarations arriving through this contract dependency.
+
+The generic rendering root is not public because it would expose `backend/` as well.
+Its existing descriptor, integration and header-only system directories remain public
+where application/module consumers require them. Vulkan backend implementation include
+directories and dependencies are PRIVATE. Runtime/application consumers receive the
+backend's link implementation without its header search paths. Runtime mesh loading is
+a private backend dependency, not a generic-rendering export. The dungeon HUD uses its
+own font-scale value and does not consume backend debug-overlay declarations. Backend-internal tests
+explicitly request the backend's private include requirements and setup/rendering targets.
+
+The source layout is unchanged. Directory-level exports still expose neighboring headers
+inside an owned leaf: model public request/controller headers, loading policy alongside
+its nested loader folders, material/provider declarations, and rendering's mixed UI and
+window-manager integration. Removing that remaining intra-feature granularity would
+require separate public-header/facade work; it is not an excuse to export sibling modules.
+
+`GravitasPublicIncludes.cmake` supplements, without changing, the three-layer checker.
+It rejects public source/module roots, ancestor exports and the backend-containing
+rendering root after normalizing conventional build-interface paths. It does not attempt
+to evaluate arbitrary generator expressions or provide a filesystem security boundary.
+Standalone compile probes link one subject target, include its intended API, and reject
+unrelated runtime/module/backend header visibility with `__has_include`. Fixtures cover
+allowed leaves and rejected broad/normalized/wrapped roots.

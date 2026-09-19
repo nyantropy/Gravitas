@@ -9,10 +9,10 @@
 #include <vector>
 
 #include "GlmConfig.h"
-#include "assets/serialization/AssetMaterialTypes.h"
-#include "assets/serialization/TextureColorSpace.h"
-#include "assets/geometry/GtsStaticVertex.h"
-#include "assets/geometry/GtsGeometryMetadata.h"
+#include "AssetMaterialTypes.h"
+#include "TextureColorSpace.h"
+#include "GtsStaticVertex.h"
+#include "GtsGeometryMetadata.h"
 
 namespace gts::rendering
 {

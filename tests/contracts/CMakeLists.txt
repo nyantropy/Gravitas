@@ -83,3 +83,5 @@ if(TARGET gravitas_rendering AND TARGET gravitas_tools)
     set_tests_properties(renderer_world_lifetime renderer_world_static_shutdown
         PROPERTIES LABELS "gravitas;rendering;lifecycle;tools;cpu")
 endif()
+
+include(IncludeSurfaces.cmake)

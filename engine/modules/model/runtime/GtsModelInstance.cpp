@@ -1,13 +1,13 @@
-#include "model/loading/GtsModelResource.h"
+#include "GtsModelResource.h"
 #include "GtsModelInstance.h"
 
 #include <algorithm>
 #include <cmath>
 #include <exception>
-#include "model/domain/model/GtsModelSkin.h"
-#include "model/domain/animation/GtsAnimationClipValidation.h"
-#include "animation/skeletal/GtsSkeletonPoseEvaluation.h"
-#include "animation/skinning/GtsSkinPaletteEvaluation.h"
+#include "GtsModelSkin.h"
+#include "GtsAnimationClipValidation.h"
+#include "GtsSkeletonPoseEvaluation.h"
+#include "GtsSkinPaletteEvaluation.h"
 
 GtsModelInstance::GtsModelInstance(GtsModelHandle                                   model,
                                    std::shared_ptr<const GtsRealizedModel>          geometry,

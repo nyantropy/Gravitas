@@ -1,3 +1,5 @@
 add_library(gravitas_asset_cooking STATIC AssetCooker.cpp AssetCookingSupport.cpp TextureCooker.cpp)
 target_link_libraries(gravitas_asset_cooking PUBLIC gravitas_cooked_assets PRIVATE gravitas_image_decode)
 target_compile_features(gravitas_asset_cooking PUBLIC cxx_std_20)
+
+target_include_directories(gravitas_asset_cooking PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")

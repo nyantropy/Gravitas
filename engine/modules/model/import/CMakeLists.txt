@@ -3,3 +3,5 @@ target_link_libraries(gravitas_model_import PUBLIC gravitas_model_domain)
 target_compile_features(gravitas_model_import PUBLIC cxx_std_20)
 add_subdirectory(obj)
 add_subdirectory(gltf)
+
+target_include_directories(gravitas_model_import PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")

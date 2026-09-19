@@ -7,7 +7,7 @@
 
 #include <tiny_obj_loader.h>
 
-#include "model/domain/model/GtsModelDiagnostic.h"
+#include "GtsModelDiagnostic.h"
 
 namespace gts::obj
 {

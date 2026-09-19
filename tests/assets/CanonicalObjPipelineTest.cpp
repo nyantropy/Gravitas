@@ -16,14 +16,14 @@
 
 #include <stb_image_write.h>
 
-#include "model/cooking/GtsModelCooker.h"
-#include "model/loading/GtsModelRegistry.h"
-#include "assets/loading/cooked/MaterialAssetLoader.h"
+#include "GtsModelCooker.h"
+#include "GtsModelRegistry.h"
+#include "MaterialAssetLoader.h"
 #include "MeshManager.hpp"
-#include "assets/loading/cooked/TextureAssetLoader.h"
-#include "model/import/obj/GtsObjModelImporter.h"
-#include "model/domain/model/GtsModelAsset.h"
-#include "model/import/GtsModelImportResult.h"
+#include "TextureAssetLoader.h"
+#include "GtsObjModelImporter.h"
+#include "GtsModelAsset.h"
+#include "GtsModelImportResult.h"
 
 namespace
 {

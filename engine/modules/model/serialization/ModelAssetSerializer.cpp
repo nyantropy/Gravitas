@@ -1,5 +1,5 @@
-#include "model/serialization/ModelAssetSerializer.h"
-#include "assets/serialization/CookedAssetEncoding.h"
+#include "ModelAssetSerializer.h"
+#include "CookedAssetEncoding.h"
 
 namespace gts::rendering
 {

@@ -1,6 +1,6 @@
 #pragma once
 #include "FrameBuildMode.h"
-#include "model/extraction/GtsModelFrameData.h"
+#include "GtsModelFrameData.h"
 
 #include <cstdint>
 #include <functional>

@@ -6,9 +6,9 @@
 #include <utility>
 
 #include "GtsModelImportBundle.h"
-#include "model/domain/animation/GtsAnimationClipValidation.h"
-#include "model/domain/model/GtsModelValidation.h"
-#include "model/domain/skeleton/GtsSkeletonValidation.h"
+#include "GtsAnimationClipValidation.h"
+#include "GtsModelValidation.h"
+#include "GtsSkeletonValidation.h"
 
 namespace
 {

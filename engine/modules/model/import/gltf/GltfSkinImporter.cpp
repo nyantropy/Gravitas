@@ -11,8 +11,8 @@
 #include <utility>
 
 #include "GltfSourceReader.h"
-#include "model/domain/model/GtsModelAsset.h"
-#include "model/domain/skeleton/GtsSkeletonAsset.h"
+#include "GtsModelAsset.h"
+#include "GtsSkeletonAsset.h"
 
 namespace gts::gltf
 {

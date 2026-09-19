@@ -2,10 +2,10 @@
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
-#include "assets/loading/mesh/RuntimeMeshLoading.h"
-#include "assets/serialization/AssetSerializers.h"
+#include "RuntimeMeshLoading.h"
+#include "AssetSerializers.h"
 
-#include "assets/loading/RuntimeAssetPolicy.h"
+#include "RuntimeAssetPolicy.h"
 
 namespace
 {

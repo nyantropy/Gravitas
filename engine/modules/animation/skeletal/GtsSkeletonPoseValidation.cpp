@@ -4,8 +4,8 @@
 #include <variant>
 
 #include "GtsSkeletonPose.h"
-#include "model/domain/skeleton/GtsSkeletonAsset.h"
-#include "model/domain/skeleton/GtsSkeletonValidation.h"
+#include "GtsSkeletonAsset.h"
+#include "GtsSkeletonValidation.h"
 
 namespace
 {

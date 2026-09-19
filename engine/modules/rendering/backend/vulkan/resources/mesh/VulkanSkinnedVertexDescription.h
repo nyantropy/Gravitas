@@ -6,7 +6,7 @@
 
 #include <vulkan/vulkan.h>
 
-#include "model/processing/geometry/skinned/GtsSkinnedVertex.h"
+#include "GtsSkinnedVertex.h"
 
 struct VulkanSkinnedVertexDescription
 {

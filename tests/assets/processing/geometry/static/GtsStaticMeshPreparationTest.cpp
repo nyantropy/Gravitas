@@ -1,5 +1,5 @@
 #include "GtsStaticMeshPreparation.h"
-#include "model/domain/model/GtsModelAsset.h"
+#include "GtsModelAsset.h"
 
 #include <algorithm>
 #include <cstddef>

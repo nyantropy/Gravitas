@@ -3,7 +3,7 @@
 #include <utility>
 
 #include "GtsRealizedModel.h"
-#include "model/domain/model/GtsModelDiagnostic.h"
+#include "GtsModelDiagnostic.h"
 
 class GtsModelRealizationResult
 {

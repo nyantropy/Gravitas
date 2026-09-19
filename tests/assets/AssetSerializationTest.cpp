@@ -1,4 +1,4 @@
-#include "model/serialization/ModelAssetSerializer.h"
+#include "ModelAssetSerializer.h"
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "assets/serialization/AssetSerializers.h"
+#include "AssetSerializers.h"
 
 namespace
 {

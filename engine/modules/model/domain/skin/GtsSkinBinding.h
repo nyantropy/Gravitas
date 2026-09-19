@@ -7,7 +7,7 @@
 
 #include "GlmConfig.h"
 
-#include "model/domain/skeleton/GtsSkeletonCompatibility.h"
+#include "GtsSkeletonCompatibility.h"
 
 struct GtsSkinJointBinding
 {

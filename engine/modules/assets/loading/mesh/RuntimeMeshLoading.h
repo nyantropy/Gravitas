@@ -4,9 +4,9 @@
 #include <string>
 #include <vector>
 
-#include "assets/serialization/AssetTypes.h"
-#include "assets/loading/RuntimeAssetPolicy.h"
-#include "model/domain/model/GtsModelDiagnostic.h"
+#include "AssetTypes.h"
+#include "RuntimeAssetPolicy.h"
+#include "GtsModelDiagnostic.h"
 
 namespace gts::rendering
 {

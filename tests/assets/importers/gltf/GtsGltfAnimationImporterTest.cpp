@@ -7,8 +7,8 @@
 #include "GltfAnimationImporter.h"
 #include "GltfSkinImporter.h"
 #include "GltfSourceReader.h"
-#include "model/import/GtsModelImportBundleValidation.h"
-#include "model/domain/skeleton/GtsSkeletonAsset.h"
+#include "GtsModelImportBundleValidation.h"
+#include "GtsSkeletonAsset.h"
 
 namespace
 {

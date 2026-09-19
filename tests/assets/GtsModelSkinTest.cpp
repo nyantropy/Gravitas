@@ -1,6 +1,6 @@
-#include "model/domain/model/GtsModelAsset.h"
-#include "model/domain/model/GtsModelValidation.h"
-#include "model/domain/skeleton/GtsSkeletonAsset.h"
+#include "GtsModelAsset.h"
+#include "GtsModelValidation.h"
+#include "GtsSkeletonAsset.h"
 
 #include <cstdio>
 #include <cstddef>

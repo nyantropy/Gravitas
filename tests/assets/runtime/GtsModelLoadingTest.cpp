@@ -1,9 +1,9 @@
-#include "model/serialization/ModelAssetSerializer.h"
+#include "ModelAssetSerializer.h"
 #include "../importers/gltf/GltfFixtureBuilder.h"
-#include "model/loading/GtsModelRegistry.h"
-#include "model/loading/GtsModelResource.h"
-#include "model/loading/GtsPreparedModelDefinition.h"
-#include "assets/serialization/AssetSerializers.h"
+#include "GtsModelRegistry.h"
+#include "GtsModelResource.h"
+#include "GtsPreparedModelDefinition.h"
+#include "AssetSerializers.h"
 #include "ScopedRuntimeAssetPolicy.h"
 
 using namespace gts::rendering;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "model/runtime/GtsModelInstance.h"
+#include "GtsModelInstance.h"
 
 class ECSWorld;
 class IResourceProvider;

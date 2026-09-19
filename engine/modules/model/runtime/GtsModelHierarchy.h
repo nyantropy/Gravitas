@@ -1,6 +1,6 @@
 #pragma once
 #include <vector>
-#include "model/loading/GtsModelResource.h"
+#include "GtsModelResource.h"
 #include "GlmConfig.h"
 
 // Immutable authored hierarchy, without baking geometry or changing skeleton space.

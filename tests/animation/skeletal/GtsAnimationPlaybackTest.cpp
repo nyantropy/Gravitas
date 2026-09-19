@@ -1,6 +1,6 @@
-#include "animation/skeletal/runtime/GtsAnimationPlayback.h"
-#include "model/domain/animation/GtsAnimationClipAsset.h"
-#include "model/domain/skeleton/GtsSkeletonAsset.h"
+#include "GtsAnimationPlayback.h"
+#include "GtsAnimationClipAsset.h"
+#include "GtsSkeletonAsset.h"
 #include <cmath>
 #include <limits>
 #include <stdexcept>

@@ -1,6 +1,6 @@
 #pragma once
-#include "assets/cooking/AssetCooker.h"
-#include "model/serialization/ModelAssetTypes.h"
+#include "AssetCooker.h"
+#include "ModelAssetTypes.h"
 struct GtsModelAsset;
 struct GtsModelImportBundle;
 namespace gts::rendering

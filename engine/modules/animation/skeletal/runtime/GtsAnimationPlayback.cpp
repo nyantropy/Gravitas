@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
-#include "animation/skeletal/GtsSkeletonPoseEvaluation.h"
-#include "model/domain/animation/GtsAnimationClipAsset.h"
+#include "GtsSkeletonPoseEvaluation.h"
+#include "GtsAnimationClipAsset.h"
 
 void GtsAnimationPlayback::selectClip(uint32_t index)
 {

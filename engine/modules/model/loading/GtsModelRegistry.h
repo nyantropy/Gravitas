@@ -1,5 +1,5 @@
 #pragma once
-#include "model/public/GtsModelRequestResult.h"
+#include "GtsModelRequestResult.h"
 
 #include <cstddef>
 #include <filesystem>
@@ -7,9 +7,9 @@
 #include <vector>
 #include <tuple>
 
-#include "model/public/GtsModelHandle.h"
-#include "model/public/GtsModelRequest.h"
-#include "model/domain/model/GtsModelDiagnostic.h"
+#include "GtsModelHandle.h"
+#include "GtsModelRequest.h"
+#include "GtsModelDiagnostic.h"
 
 // synchronous, main-thread-only - successful entries remain until registry shutdown
 class GtsModelRegistry

@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "GtsSkinnedVertex.h"
-#include "assets/geometry/GtsGeometryMetadata.h"
+#include "GtsGeometryMetadata.h"
 
 struct GtsSkinnedInfluenceMetadata
 {

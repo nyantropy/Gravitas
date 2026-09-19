@@ -96,6 +96,9 @@ add_test(NAME gts_model_render_extraction COMMAND GtsModelRenderExtractionTest)
 set_tests_properties(gts_model_render_extraction PROPERTIES LABELS "gravitas;model;rendering;cpu")
 
 add_executable(CanonicalModelCookingTest CanonicalModelCookingTest.cpp)
-target_link_libraries(CanonicalModelCookingTest PRIVATE gravitas_model_cooking gravitas_model_frontend gravitas_gltf_importer)
+target_link_libraries(CanonicalModelCookingTest PRIVATE gravitas_obj_importer gravitas_model_cooking gravitas_model_frontend gravitas_gltf_importer)
 add_test(NAME canonical_model_cooking COMMAND CanonicalModelCookingTest)
 set_tests_properties(canonical_model_cooking PROPERTIES LABELS "gravitas;assets;cooking;cpu;integration")
+
+# Fixture image writing is test implementation, not an image decoder public API.
+target_include_directories(GtsModelMaterialRealizationTest PRIVATE "${GTS_ENGINE_ROOT}/external/stb")

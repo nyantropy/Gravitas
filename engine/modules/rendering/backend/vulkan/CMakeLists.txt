@@ -24,7 +24,7 @@ else()
     target_compile_options(gravitas_vulkan_backend PRIVATE -Wall -Wextra -Wno-unused-parameter)
 endif()
 
-target_include_directories(gravitas_vulkan_backend PUBLIC
+target_include_directories(gravitas_vulkan_backend PRIVATE
     # Backend context shared by Vulkan implementation objects
     "${CMAKE_CURRENT_SOURCE_DIR}/context"
 
@@ -33,6 +33,7 @@ target_include_directories(gravitas_vulkan_backend PUBLIC
 
     # Rendering pass headers
     "${CMAKE_CURRENT_SOURCE_DIR}/rendering"
+    "${CMAKE_CURRENT_SOURCE_DIR}/rendering/skinning"
     "${CMAKE_CURRENT_SOURCE_DIR}/rendering/attachment"
     "${CMAKE_CURRENT_SOURCE_DIR}/rendering/framebuffer"
     "${CMAKE_CURRENT_SOURCE_DIR}/rendering/framegraph"
@@ -68,21 +69,11 @@ target_include_directories(gravitas_vulkan_backend PUBLIC
     # Bundled external headers (stb_image)
     "${GTS_ENGINE_ROOT}/external/stb"
 
-    # Bundled GLM (needed by vertex types, model loader, texture loader)
-    "${GTS_ENGINE_ROOT}/external/glm/glm"
-
-    # Generic render viewport contract
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../core/viewport"
-
-    # Editor/tool preview render packets
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../core/preview"
-
-    # Rendering config/constants
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../core/init"
 )
 
-target_link_libraries(gravitas_vulkan_backend PUBLIC
+target_link_libraries(gravitas_vulkan_backend PRIVATE
     gravitas_vulkan_setup
+    gravitas_mesh_loading
     gravitas_model_realization # immutable CPU geometry views for resource caches
     gravitas_core          # provides foundational contracts and GlmConfig
 )

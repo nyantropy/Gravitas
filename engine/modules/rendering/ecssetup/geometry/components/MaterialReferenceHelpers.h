@@ -10,8 +10,8 @@
 
 #include "ECSWorld.hpp"
 #include "GlmConfig.h"
-#include "assets/loading/cooked/MaterialAssetLoader.h"
-#include "rendering/core/material/MaterialAssetRealization.h"
+#include "MaterialAssetLoader.h"
+#include "MaterialAssetRealization.h"
 #include "MaterialReferenceComponent.h"
 #include "MaterialRuntime.h"
 

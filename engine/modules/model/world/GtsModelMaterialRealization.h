@@ -6,10 +6,10 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "model/realization/GtsRealizedModel.h"
-#include "model/domain/model/GtsModelDiagnostic.h"
+#include "GtsRealizedModel.h"
+#include "GtsModelDiagnostic.h"
 #include "MaterialRuntime.h"
-#include "model/runtime/GtsRealizedModelMaterials.h"
+#include "GtsRealizedModelMaterials.h"
 
 struct GtsModelMaterialResult
 {

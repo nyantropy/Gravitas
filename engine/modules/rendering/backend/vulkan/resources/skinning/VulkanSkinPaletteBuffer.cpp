@@ -4,7 +4,7 @@
 #include <limits>
 #include <stdexcept>
 #include "VulkanSkinningBuffer.h"
-#include "animation/skinning/GtsSkinPalette.h"
+#include "GtsSkinPalette.h"
 
 static_assert(sizeof(glm::mat4) == VulkanSkinPaletteBuffer::MatrixStride);
 static_assert(sizeof(glm::mat4::col_type) == 16 && sizeof(float) == 4);

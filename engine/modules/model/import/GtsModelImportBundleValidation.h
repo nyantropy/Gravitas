@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "model/domain/model/GtsModelDiagnostic.h"
+#include "GtsModelDiagnostic.h"
 
 struct GtsModelImportBundle;
 

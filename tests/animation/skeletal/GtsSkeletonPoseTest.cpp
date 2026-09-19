@@ -1,6 +1,6 @@
-#include "animation/skeletal/GtsSkeletonPoseEvaluation.h"
-#include "model/domain/animation/GtsAnimationClipAsset.h"
-#include "model/domain/skeleton/GtsSkeletonAsset.h"
+#include "GtsSkeletonPoseEvaluation.h"
+#include "GtsAnimationClipAsset.h"
+#include "GtsSkeletonAsset.h"
 
 #include <cmath>
 #include <cstdio>

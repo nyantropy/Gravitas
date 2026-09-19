@@ -3,8 +3,8 @@
 #include <optional>
 #include <vector>
 
-#include "model/import/GtsModelImportBundle.h"
-#include "model/domain/model/GtsModelDiagnostic.h"
+#include "GtsModelImportBundle.h"
+#include "GtsModelDiagnostic.h"
 
 // carries the imported model and diagnostics, letting us assess success or failure, fairly simple
 class GtsModelImportResult

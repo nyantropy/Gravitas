@@ -89,3 +89,6 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
         )
     endif()
 endif()
+
+include("${GTS_ENGINE_ROOT}/cmake/GravitasPublicIncludes.cmake")
+cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}" CALL gravitas_check_public_includes)

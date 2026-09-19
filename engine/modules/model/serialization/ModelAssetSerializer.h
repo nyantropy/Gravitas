@@ -1,7 +1,7 @@
 #pragma once
 
-#include "assets/serialization/AssetSerializers.h"
-#include "model/serialization/ModelAssetTypes.h"
+#include "AssetSerializers.h"
+#include "ModelAssetTypes.h"
 
 namespace gts::rendering
 {

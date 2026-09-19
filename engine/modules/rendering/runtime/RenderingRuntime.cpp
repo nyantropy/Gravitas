@@ -1,6 +1,6 @@
 #include "RenderingRuntime.h"
 #include "RenderingControllerContext.h"
-#include "model/extraction/ModelFrameExtraction.h"
+#include "ModelFrameExtraction.h"
 #include "../ecssetup/camera/input/CameraDefaultBindings.hpp"
 #include "input/UiDefaultBindings.hpp"
 

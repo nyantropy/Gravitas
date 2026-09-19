@@ -1,10 +1,10 @@
-#include "model/import/GtsModelImportResult.h"
+#include "GtsModelImportResult.h"
 
 #include <algorithm>
 #include <iterator>
 #include <utility>
 
-#include "model/import/GtsModelImportBundleValidation.h"
+#include "GtsModelImportBundleValidation.h"
 
 namespace
 {

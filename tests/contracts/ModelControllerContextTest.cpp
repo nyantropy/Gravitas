@@ -1,4 +1,4 @@
-#include "model/public/GtsModelControllerContext.h"
+#include "GtsModelControllerContext.h"
 #include "ECSWorld.hpp"
 
 #if __has_include("RenderingControllerContext.h") || __has_include("UiControllerContext.h") ||                         \

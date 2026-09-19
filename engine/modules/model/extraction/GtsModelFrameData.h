@@ -2,8 +2,8 @@
 
 #include <memory>
 #include <vector>
-#include "model/realization/GtsRealizedGeometry.h"
-#include "animation/skinning/GtsSkinPalette.h"
+#include "GtsRealizedGeometry.h"
+#include "GtsSkinPalette.h"
 #include "MaterialTypes.h"
 
 // Immutable frame values. Geometry is an aliasing reference into the shared
