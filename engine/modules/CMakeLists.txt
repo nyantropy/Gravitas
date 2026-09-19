@@ -1,3 +1,9 @@
+# Lightweight feature contracts and retained UI are available without feature backends.
+add_subdirectory(rendering/contracts)
+add_subdirectory(physics/contracts)
+add_subdirectory(diagnostics/profiling)
+add_subdirectory(ui)
+
 # Layered CPU/model and reusable animation/material services precede rendering.
 add_subdirectory(assets)
 add_subdirectory(model)
@@ -29,6 +35,10 @@ target_compile_features(gravitas_modules INTERFACE cxx_std_20)
 
 target_link_libraries(gravitas_modules INTERFACE
     gravitas_core
+    gravitas_rendering_contracts
+    gravitas_physics_contracts
+    gravitas_profiling
+    gravitas_ui
     gravitas_transform
     gravitas_transform_animation
     gravitas_dialogue

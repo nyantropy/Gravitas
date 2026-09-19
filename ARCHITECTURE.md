@@ -3,7 +3,7 @@
 Gravitas is a C++20 modular application engine built around a two-tier ECS
 architecture. The engine separates fixed-step simulation from frame-facing
 controller work and assembles optional feature modules such as rendering,
-physics, tooling, narrative (dialogue and visual novel presentation), diagnostics, tweening,
+physics, retained UI, tooling, narrative (dialogue and visual novel presentation), diagnostics,
 and future audio through explicit engine and scene hooks.
 
 This file is the engine architecture entrypoint. Feature details live under
@@ -36,7 +36,9 @@ This file is the engine architecture entrypoint. Feature details live under
 
 ```text
 engine/
-  core/                  pure ECS, input, scene, command, event, UI runtime, JSON
+  core/                  foundational ECS, input, scene, command, event, JSON and utilities
+    math/                centralized GLM configuration
+    paths/               engine and project resource paths
     tween/               shared easing/interpolation and caller-owned value transitions
   modules/
     assets/              shared image, geometry, direct mesh, material and cooked-container infrastructure
@@ -46,10 +48,13 @@ engine/
     narrative/           narrative feature ownership
       dialogue/          headless graphs/progression and ECS requests/events
       visualnovel/       VN stage/runtime, interaction and retained UI frontend
-    diagnostics/         debug draw and diagnostic bridges
+    diagnostics/         always-available profiling, optional debug draw and diagnostic bridges
+    ui/                  retained documents, surfaces, layout and interaction
     physics/             sphere-collider collision detection
+      contracts/         physics accessor and collision values; no implementation dependency
     tools/               in-engine inspection/editing toolchain
     rendering/           renderer contracts, ECS setup, runtime, Vulkan backend
+      contracts/         resource handle aliases; no renderer dependency
   resources/             engine-owned fonts, models, textures
   shaders/               GLSL sources and checked-in SPIR-V
   docs/                  feature-owned engine documentation
@@ -147,6 +152,18 @@ vendored documentation and should not be rewritten as first-party engine docs.
 ## Dependency Rules
 
 - `engine/core/` must not include headers from `engine/modules/`.
+- Core contains foundational mechanisms and generic utilities, not feature accessors
+  or feature implementations. See [core ownership](docs/core/architecture.md) for
+  target boundaries and the intentionally deferred semantic dependencies.
+- `gravitas_ui` owns retained UI and links only core and `gravitas_rendering_contracts`.
+  Rendering consumes UI; the mixed `UiSystem`, font/resource realization and GPU
+  extraction remain rendering-owned, avoiding a UI-to-rendering implementation cycle.
+- `gravitas_physics_contracts` exposes `IGtsPhysicsModule` and `CollisionEvent`
+  through core alone. Concrete physics also consumes transform; contract-only
+  consumers inherit neither physics nor transform implementation.
+- Rendering handles belong to `gravitas_rendering_contracts`, entity identity to
+  core ECS, and telemetry schema/accumulation to `gravitas_profiling`. These feature
+  contracts remain available with rendering, physics and debug drawing disabled.
 - Base feature modules should depend on `gravitas_core` and only the modules
   they explicitly integrate with.
 - Rendering module code may define renderer-facing ECS descriptors and
@@ -229,7 +246,7 @@ and default camera bindings; `EngineToolRuntime` installs tool bindings only whe
 tooling is enabled. There is no central enumeration of individual bindings:
 
 - `input/EngineControlBindings.hpp`: engine lifecycle and diagnostic controls.
-- `core/ui/input/UiDefaultBindings.hpp`: retained UI controls.
+- `modules/ui/input/UiDefaultBindings.hpp`: retained UI controls.
 - `modules/rendering/ecssetup/camera/input/CameraDefaultBindings.hpp`: default camera controls.
 - `modules/tools/input/ToolDefaultBindings.hpp`: tooling and editor camera controls.
 

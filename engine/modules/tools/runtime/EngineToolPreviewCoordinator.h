@@ -15,7 +15,7 @@
 #include "ParticleEditorSession.h"
 #include "ParticlePreviewWorld.hpp"
 #include "ToolWorkspace.h"
-#include "Types.h"
+#include "ResourceTypes.h"
 #include "UiHandle.h"
 #include "UiNode.h"
 #include "UiSystem.h"

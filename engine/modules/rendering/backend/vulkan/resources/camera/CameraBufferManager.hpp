@@ -12,7 +12,7 @@
 #include "CameraUBO.h"
 #include "GraphicsConstants.h"
 #include "LightingFrameData.h"
-#include "Types.h"
+#include "ResourceTypes.h"
 
 // Manages camera (view) UBOs exclusively.
 //

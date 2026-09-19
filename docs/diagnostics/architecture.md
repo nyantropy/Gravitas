@@ -1,14 +1,26 @@
-# Debug Visualization Architecture
+# Diagnostics Architecture
 
-`engine/modules/diagnostics/` owns generic debug visualization and explicit
-feature bridges. Its parent CMake file registers separate targets:
+`engine/modules/diagnostics/` owns profiling, generic debug visualization and
+explicit feature bridges. It has separate targets:
 
+- `gravitas_profiling`: always-available header-only telemetry schema and
+  schema-specific accumulation, without rendering, physics or debug-draw dependencies.
 - `gravitas_debugdraw`: static implementation of generic drawing; consumes
   `gravitas_core`, `gravitas_transform` and `gravitas_rendering`.
 - `gravitas_diagnostics_physics`: collider visualization; consumes core,
   transform, physics and debug drawing. Base physics remains renderer-independent.
 
 There is no monolithic diagnostics runtime or library.
+
+## Profiling Ownership
+
+`profiling/GtsFrameStats.h` and `profiling/ProfileAccumulator.h` retain the
+existing telemetry fields, layouts and accumulation behavior. The schema includes
+renderer and game counters and belongs to diagnostics rather than foundational
+core. The modules parent registers profiling before rendering so its consumers
+can link the leaf target directly. The scene's existing telemetry hooks retain a
+forward declaration; core neither includes nor links the telemetry schema.
+Redesigning those hooks is a separate architectural decision.
 
 ## Submission And Realization
 
@@ -60,9 +72,9 @@ the physics bridge only when both debug drawing and physics are enabled.
 
 | Debug drawing | Physics | Diagnostics targets |
 | --- | --- | --- |
-| Off | Off or on | None |
-| On | Off | `gravitas_debugdraw` |
-| On | On | `gravitas_debugdraw`, `gravitas_diagnostics_physics` |
+| Off | Off or on | `gravitas_profiling` |
+| On | Off | `gravitas_profiling`, `gravitas_debugdraw` |
+| On | On | `gravitas_profiling`, `gravitas_debugdraw`, `gravitas_diagnostics_physics` |
 
 Tools retains its separate physics dependency for entity-selection metadata.
 A configuration with physics disabled must also disable tools; this does not

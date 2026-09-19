@@ -22,5 +22,6 @@ target_include_directories(gravitas_physics PUBLIC
 
 target_link_libraries(gravitas_physics PUBLIC
     gravitas_core
+    gravitas_physics_contracts
     gravitas_transform
 )

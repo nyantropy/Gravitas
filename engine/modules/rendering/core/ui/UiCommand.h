@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "GlmConfig.h"
-#include "Types.h"
+#include "ResourceTypes.h"
 
 // Vertex format for UI primitives (colored quads, textured quads).
 struct UiVertex

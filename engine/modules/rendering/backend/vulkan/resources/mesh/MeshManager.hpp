@@ -19,7 +19,7 @@
 #include "assets/loading/RuntimeAssetPolicy.h"
 #include "VulkanBackendContext.h"
 #include "BufferUtil.hpp"
-#include "Types.h"
+#include "ResourceTypes.h"
 
 class MeshManager 
 {

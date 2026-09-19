@@ -15,7 +15,7 @@
 #include "BufferUtil.hpp"
 #include "ObjectUBO.h"
 #include "GraphicsConstants.h"
-#include "Types.h"
+#include "ResourceTypes.h"
 
 // Manages a single large SSBO holding all per-object data.
 // Objects are addressed by a slot index allocated via a free-list.

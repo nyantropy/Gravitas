@@ -9,6 +9,7 @@ Start with:
 
 - [transform/architecture.md](transform/architecture.md) for transforms, hierarchy
   and world-transform publication.
+- [core/architecture.md](core/architecture.md) for foundational ownership, feature contracts and deferred semantic boundaries.
 - [core/tween.md](core/tween.md) for shared UI/VN easing and value transitions.
 - [diagnostics/architecture.md](diagnostics/architecture.md) for debug drawing
   and its physics/tooling consumers.

@@ -20,7 +20,7 @@
 #include "TextureResource.h"
 #include "assets/loading/cooked/TextureAssetLoader.h"
 #include "VulkanTexture.hpp"
-#include "Types.h"
+#include "ResourceTypes.h"
 #include "VulkanBackendContext.h"
 
 // manages texture loading, caching, and ID-based access, just like the mesh manager

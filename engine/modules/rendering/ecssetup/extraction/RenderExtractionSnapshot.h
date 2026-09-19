@@ -8,7 +8,7 @@
 #include "GlmConfig.h"
 #include "LightingFrameData.h"
 #include "RenderCommand.h"
-#include "Types.h"
+#include "ResourceTypes.h"
 
 struct AABB
 {

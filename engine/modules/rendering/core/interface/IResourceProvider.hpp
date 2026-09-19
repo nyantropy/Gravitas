@@ -10,7 +10,7 @@
 
 #include "assets/serialization/AssetTypes.h"
 #include "MaterialTypes.h"
-#include "Types.h"
+#include "ResourceTypes.h"
 #include "assets/serialization/TextureColorSpace.h"
 #include "assets/geometry/GtsStaticVertex.h"
 #include "assets/geometry/GtsGeometryMetadata.h"

@@ -5,7 +5,7 @@
 
 #include "ToolCommand.h"
 #include "ToolPropertyTypes.h"
-#include "Types.h"
+#include "ResourceTypes.h"
 #include "UiWidget.h"
 
 namespace gts::tools

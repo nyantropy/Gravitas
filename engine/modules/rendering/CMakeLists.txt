@@ -91,6 +91,9 @@ target_include_directories(gravitas_rendering PUBLIC
 target_link_libraries(gravitas_rendering PUBLIC
     glfw
     gravitas_core
+    gravitas_ui
+    gravitas_rendering_contracts
+    gravitas_profiling
     gravitas_transform
     PUBLIC gravitas_model_domain gravitas_cooked_assets gravitas_mesh_loading gravitas_image_decode
 )

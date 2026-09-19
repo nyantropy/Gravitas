@@ -1,0 +1,9 @@
+add_executable(PhysicsContractsTest PhysicsContractsTest.cpp)
+target_link_libraries(PhysicsContractsTest PRIVATE gravitas_physics_contracts)
+add_test(NAME physics_contracts COMMAND PhysicsContractsTest)
+
+add_executable(RenderingContractsTest RenderingContractsTest.cpp)
+target_link_libraries(RenderingContractsTest PRIVATE gravitas_rendering_contracts)
+add_test(NAME rendering_contracts COMMAND RenderingContractsTest)
+
+set_tests_properties(physics_contracts rendering_contracts PROPERTIES LABELS "gravitas;contracts;cpu")

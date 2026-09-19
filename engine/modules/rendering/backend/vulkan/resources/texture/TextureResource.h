@@ -5,7 +5,7 @@
 #include <string>
 #include <vulkan/vulkan.h>
 
-#include "Types.h"
+#include "ResourceTypes.h"
 #include "assets/serialization/TextureColorSpace.h"
 #include "VulkanTexture.hpp"
 

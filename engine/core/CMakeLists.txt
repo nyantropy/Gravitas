@@ -1,5 +1,5 @@
 # ── gravitas_core ──────────────────────────────────────────────────────────────
-# Pure C++ core: ECS framework, input, scene management, options, time, UI, and threading.
+# Foundational ECS, input, scenes, commands/events, JSON, math, paths, time and utilities.
 # No Vulkan, no GLFW.
 file(GLOB_RECURSE CORE_SOURCES
     CONFIGURE_DEPENDS
@@ -29,9 +29,6 @@ target_include_directories(gravitas_core PUBLIC
     # Command buffer
     "${CMAKE_CURRENT_SOURCE_DIR}/command"
 
-    # Optional engine service contracts
-    "${CMAKE_CURRENT_SOURCE_DIR}/services"
-
     # Engine module lifecycle contracts
     "${CMAKE_CURRENT_SOURCE_DIR}/module"
 
@@ -49,8 +46,9 @@ target_include_directories(gravitas_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/input/source"
     "${CMAKE_CURRENT_SOURCE_DIR}/input/snapshot"
 
-    # Options / constants / types
-    "${CMAKE_CURRENT_SOURCE_DIR}/options"
+    # Engine/project paths and centralized math configuration
+    "${CMAKE_CURRENT_SOURCE_DIR}/paths"
+    "${CMAKE_CURRENT_SOURCE_DIR}/math"
 
     # Scene management
     "${CMAKE_CURRENT_SOURCE_DIR}/scene/manager"
@@ -61,9 +59,6 @@ target_include_directories(gravitas_core PUBLIC
 
     # Threading
     "${CMAKE_CURRENT_SOURCE_DIR}/threading"
-
-    # UI core model
-    "${CMAKE_CURRENT_SOURCE_DIR}/ui"
 
     # Shared easing/interpolation primitives used by UI animation and VN runtime
     "${CMAKE_CURRENT_SOURCE_DIR}/tween"

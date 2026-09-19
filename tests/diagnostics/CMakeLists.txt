@@ -32,3 +32,21 @@ if(TARGET gravitas_diagnostics_physics)
     add_test(NAME physics_debugdraw_runtime COMMAND PhysicsDebugDrawRuntimeTest)
     set_tests_properties(physics_debugdraw_runtime PROPERTIES LABELS "gravitas;diagnostics;physics;cpu")
 endif()
+
+add_executable(ProfileAccumulatorTest
+    ProfileAccumulatorTest.cpp
+)
+
+target_compile_features(ProfileAccumulatorTest PRIVATE cxx_std_20)
+
+target_link_libraries(ProfileAccumulatorTest PRIVATE gravitas_profiling)
+
+add_test(
+    NAME profile_accumulator
+    COMMAND ProfileAccumulatorTest
+)
+
+set_tests_properties(profile_accumulator
+    PROPERTIES
+        LABELS "gravitas;diagnostics;profiling"
+)

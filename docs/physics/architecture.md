@@ -10,7 +10,8 @@ scene-local physics world, not a full rigid-body solver.
   descriptor.
 - `modules/physics/components/SphereColliderComponent.h`: sphere collider
   descriptor.
-- `modules/physics/core/CollisionEvent.h`: collision pair event data.
+- `modules/physics/contracts/IGtsPhysicsModule.h`: public physics access interface.
+- `modules/physics/contracts/CollisionEvent.h`: collision pair event data.
 - `modules/physics/core/PhysicsWorld.h/.cpp`: scene-local collision storage,
   profile counters, and `IGtsPhysicsModule` implementation.
 - `modules/physics/systems/PhysicsSystem.h/.cpp`: fixed-step collision update.
@@ -21,6 +22,11 @@ emit debug-draw primitives instead of making physics depend on rendering.
 The `gravitas_diagnostics_physics` bridge is built only when both
 `GTS_ENABLE_PHYSICS` and `GTS_ENABLE_DEBUGDRAW` are enabled. Generic debug drawing
 can be built independently of physics.
+`gravitas_physics_contracts` is an always-available header-only target depending
+only on `gravitas_core`. Collision/accessor consumers link it without inheriting
+physics implementation or transform. `gravitas_physics` consumes this contract
+target; core does not. Existing scene/context physics forward declarations and
+accessor signatures are retained pending a separate semantic-boundary decision.
 `gravitas_physics` links `gravitas_transform` for transform contracts and
 resolution; transform include directories are owned by that target. The
 [transform architecture](../transform/architecture.md) describes its boundary.

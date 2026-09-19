@@ -2,7 +2,7 @@
 
 #include "GlmConfig.h"
 
-#include "Types.h"
+#include "ResourceTypes.h"
 
 // Renderer-maintained backend component.  Written by the camera pipeline and
 // read exclusively by CameraBindingSystem and RenderCommandExtractor.

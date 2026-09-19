@@ -4,7 +4,7 @@
 
 #include "GlmConfig.h"
 
-#include "Types.h"
+#include "ResourceTypes.h"
 
 // UV rectangle + layout metrics for a single glyph in a bitmap atlas.
 // All size/bearing/advance values are in pixels (atlas space); scale is

@@ -11,7 +11,7 @@
 #include "GlmConfig.h"
 #include "assets/serialization/TextureColorSpace.h"
 #include "assets/serialization/AssetMaterialTypes.h"
-#include "Types.h"
+#include "ResourceTypes.h"
 #include "assets/material/MaterialInstanceHandle.h"
 
 struct MaterialDefinitionHandle

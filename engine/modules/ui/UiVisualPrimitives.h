@@ -4,7 +4,7 @@
 #include <variant>
 #include <vector>
 
-#include "Types.h"
+#include "ResourceTypes.h"
 #include "UiHandle.h"
 #include "UiTypes.h"
 

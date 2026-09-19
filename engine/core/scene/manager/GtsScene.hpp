@@ -11,7 +11,7 @@
 #include "EcsSimulationContext.hpp"
 #include "EcsControllerContext.hpp"
 #include "GtsSceneTransitionData.h"
-#include "GtsFrameStats.h"
+struct GtsFrameStats;
 
 class IGtsPhysicsModule;
 

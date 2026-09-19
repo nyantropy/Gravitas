@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <limits>
 #include "GlmConfig.h"
-#include "Types.h"
+#include "ResourceTypes.h"
 
 // Sentinel: SSBO slot not yet allocated by a binding system
 constexpr ssbo_id_type RENDERABLE_SLOT_UNALLOCATED = std::numeric_limits<ssbo_id_type>::max();

@@ -6,7 +6,7 @@
 #include "ParticleFrameData.h"
 #include "RenderCommand.h"
 #include "RenderViewport.h"
-#include "Types.h"
+#include "ResourceTypes.h"
 
 struct EditorPreviewRenderData
 {

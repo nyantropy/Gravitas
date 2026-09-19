@@ -2,27 +2,13 @@ add_executable(AssetManifestAccessTest tooling/AssetManifestAccessTest.cpp)
 target_link_libraries(AssetManifestAccessTest PRIVATE gravitas_tools)
 add_test(NAME asset_manifest_access COMMAND AssetManifestAccessTest)
 
-add_executable(GtsJsonValueTest core/GtsJsonValueTest.cpp)
-target_link_libraries(GtsJsonValueTest PRIVATE gravitas_core)
-add_test(NAME gts_json_value COMMAND GtsJsonValueTest)
-
 add_executable(JsonMigrationTest core/JsonMigrationTest.cpp)
 target_link_libraries(JsonMigrationTest PRIVATE gravitas_rendering)
 add_test(NAME json_migration COMMAND JsonMigrationTest)
 
-add_executable(GtsJsonParserTest core/GtsJsonParserTest.cpp)
-target_link_libraries(GtsJsonParserTest PRIVATE gravitas_core)
-add_test(NAME gts_json_parser COMMAND GtsJsonParserTest
-    "${GTS_ENGINE_ROOT}/resources" "${GTS_ENGINE_ROOT}/docs"
-    "${GTS_ENGINE_ROOT}/benchmarks/fixtures")
-
 add_executable(ToolLaunchPresetTest tooling/ToolLaunchPresetTest.cpp)
 target_link_libraries(ToolLaunchPresetTest PRIVATE gravitas_tools)
 add_test(NAME tool_launch_preset COMMAND ToolLaunchPresetTest)
-
-add_executable(InputBindingRoutingTest input/InputBindingRoutingTest.cpp)
-target_link_libraries(InputBindingRoutingTest PRIVATE gravitas_core)
-add_test(NAME input_binding_routing COMMAND InputBindingRoutingTest)
 
 add_executable(EngineDefaultInputBindingsTest input/EngineDefaultInputBindingsTest.cpp)
 target_link_libraries(EngineDefaultInputBindingsTest PRIVATE gravitas_engine)
@@ -73,24 +59,6 @@ set_tests_properties(gravitas_runtime_headless_screenshot
     PROPERTIES
         LABELS "gravitas;runtime;smoke;screenshot"
         SKIP_RETURN_CODE 77
-)
-
-add_executable(ProfileAccumulatorTest
-    core/ProfileAccumulatorTest.cpp
-)
-
-target_compile_features(ProfileAccumulatorTest PRIVATE cxx_std_20)
-
-target_link_libraries(ProfileAccumulatorTest PRIVATE gravitas_engine)
-
-add_test(
-    NAME profile_accumulator
-    COMMAND ProfileAccumulatorTest
-)
-
-set_tests_properties(profile_accumulator
-    PROPERTIES
-        LABELS "gravitas;core;profiling"
 )
 
 add_executable(ParticleModuleAuthoringTest

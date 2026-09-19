@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "input/EngineControlBindings.hpp"
-#include "core/ui/input/UiDefaultBindings.hpp"
+#include "input/UiDefaultBindings.hpp"
 #include "modules/rendering/ecssetup/camera/input/CameraDefaultBindings.hpp"
 #include "modules/tools/input/ToolDefaultBindings.hpp"
 

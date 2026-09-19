@@ -1,8 +1,8 @@
 #pragma once
+
 #include <cstdint>
 
-// global type aliases
-using entity_id_type   = uint32_t;
+// Rendering resource handles; independent of resource realization and GPU backends.
 using mesh_id_type     = uint32_t;
 using texture_id_type  = uint32_t;
 using font_id_type     = uint32_t;

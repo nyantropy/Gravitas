@@ -1,7 +1,7 @@
 #include "model/extraction/ModelFrameExtraction.h"
 #include "RenderingRuntime.h"
 #include "../ecssetup/camera/input/CameraDefaultBindings.hpp"
-#include "../../../core/ui/input/UiDefaultBindings.hpp"
+#include "input/UiDefaultBindings.hpp"
 
 #include <algorithm>
 #include <any>

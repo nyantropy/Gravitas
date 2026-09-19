@@ -4,7 +4,7 @@
 
 #include "GlmConfig.h"
 #include "MaterialTypes.h"
-#include "Types.h"
+#include "ResourceTypes.h"
 
 // engine-owned runtime companion for WorldTextComponent
 // keeps resolved font handles and last authored values

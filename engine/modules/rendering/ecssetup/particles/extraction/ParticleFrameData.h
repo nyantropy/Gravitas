@@ -5,7 +5,7 @@
 
 #include "GlmConfig.h"
 #include "ParticleTypes.h"
-#include "Types.h"
+#include "ResourceTypes.h"
 
 struct ParticleInstance
 {

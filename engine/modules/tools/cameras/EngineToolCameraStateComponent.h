@@ -3,7 +3,7 @@
 #include <limits>
 
 #include "Entity.h"
-#include "Types.h"
+#include "ResourceTypes.h"
 
 namespace gts::tools
 {

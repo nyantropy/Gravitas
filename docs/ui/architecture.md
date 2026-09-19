@@ -9,6 +9,19 @@ For practical authoring rules, use
 
 ## Runtime Hierarchy
 
+`modules/ui/` owns the retained implementation and public contracts through
+`gravitas_ui`: documents, nodes, surfaces, layers, mounts, layout, themes,
+interaction/focus/modal/navigation/drag-drop state, animations, bindings and
+accessibility. Its only dependencies are `gravitas_core` and the header-only
+`gravitas_rendering_contracts` resource identities. Retained UI builds without
+rendering, Vulkan, GLFW or physics.
+
+Rendering depends on this target. The existing mixed `UiSystem`, widget and
+composition integration, schema loaders, font/resource realization, render-command
+extraction and GPU integration remain under `modules/rendering/core/ui/` and
+the rendering backend. They continue to consume the same retained contracts;
+this migration does not invert that dependency or split the mixed integration API.
+
 UI asset, widget, package, and localization loaders use the shared
 [`GtsJsonParser`](../json/architecture.md). UI owns schema conversion and
 validation, not JSON syntax. `UiSerialization.h` exposes JSON values only for
@@ -84,7 +97,7 @@ application state.
 
 ## Input, Focus, Navigation, And Modals
 
-`RenderingRuntime` installs `core/ui/input/UiDefaultBindings.hpp` through its
+`RenderingRuntime` installs `modules/ui/input/UiDefaultBindings.hpp` through its
 engine module input-registration hook. These engine-lifetime defaults are not
 reinstalled when surfaces or scenes change.
 

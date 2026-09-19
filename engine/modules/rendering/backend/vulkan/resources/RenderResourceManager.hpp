@@ -11,7 +11,7 @@
 #include "CameraBufferManager.hpp"
 #include "LightingFrameData.h"
 #include "ObjectSSBOManager.hpp"
-#include "Types.h"
+#include "ResourceTypes.h"
 #include "VulkanBackendContext.h"
 
 class RenderResourceManager : public IResourceProvider

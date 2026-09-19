@@ -10,7 +10,7 @@
 #include "FontAsset.h"
 #include "FontAssetIO.h"
 #include "TextureManager.hpp"
-#include "Types.h"
+#include "ResourceTypes.h"
 
 struct FontResource
 {

@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <limits>
 
-#include "Types.h"
+#include "EntityTypes.h"
 
 struct Entity 
 {

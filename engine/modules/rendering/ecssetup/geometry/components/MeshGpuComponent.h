@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "MaterialTypes.h"
-#include "Types.h"
+#include "ResourceTypes.h"
 
 // Engine-internal mesh GPU state. Managed exclusively by mesh binding systems.
 // Do not read or write from game code.

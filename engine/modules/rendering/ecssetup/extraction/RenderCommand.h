@@ -6,7 +6,7 @@
 
 #include "LightingFrameData.h"
 #include "MaterialTypes.h"
-#include "Types.h"
+#include "ResourceTypes.h"
 
 // Consumed by the renderer to produce one frame.
 // All fields are value copies — no raw pointers into ECS component memory.
