@@ -43,10 +43,12 @@ add_subdirectory(modules)
 
 add_subdirectory(runtime)
 
-# Application entry point; runtime owns composition and selected capabilities.
-add_library(gravitas_engine INTERFACE)
-target_link_libraries(gravitas_engine INTERFACE gravitas_runtime)
-add_library(GravitasEngine ALIAS gravitas_engine)
+# Only complete supported compositions advertise the application facade.
+if(TARGET gravitas_runtime)
+    add_library(gravitas_engine INTERFACE)
+    target_link_libraries(gravitas_engine INTERFACE gravitas_runtime)
+    add_library(GravitasEngine ALIAS gravitas_engine)
+endif()
 
 include("${GTS_ENGINE_ROOT}/cmake/GravitasSourceLayers.cmake")
 set_property(GLOBAL PROPERTY GRAVITAS_SOURCE_LAYER_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")

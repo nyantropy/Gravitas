@@ -82,6 +82,14 @@ elseif(GRAVITAS_SMOKE_CASE STREQUAL "debugdraw_with_physics")
         -DGTS_ENABLE_TOOLS=OFF
     )
     set(runtime_test_regex "^(command_transport|input_writer|screenshot_command|platform_input|module_execution_inputs|module_boundary|execution_selection|execution_policy|engine_pause_execution|vn_frontend_runtime|debugdraw_runtime|physics_debugdraw_runtime|scene_frame_stats_runtime|physics_controller_installation)$")
+elseif(GRAVITAS_SMOKE_CASE STREQUAL "tools_without_backend")
+    list(APPEND configure_args
+        -DGTS_ENABLE_RENDERING=ON -DGTS_ENABLE_VULKAN_BACKEND=OFF
+        -DGTS_ENABLE_PHYSICS=ON -DGTS_ENABLE_DEBUGDRAW=ON -DGTS_ENABLE_TOOLS=ON)
+elseif(GRAVITAS_SMOKE_CASE STREQUAL "vulkan_without_tools_only")
+    list(APPEND configure_args
+        -DGTS_ENABLE_RENDERING=ON -DGTS_ENABLE_VULKAN_BACKEND=ON
+        -DGTS_ENABLE_PHYSICS=ON -DGTS_ENABLE_DEBUGDRAW=ON -DGTS_ENABLE_TOOLS=OFF)
 elseif(GRAVITAS_SMOKE_CASE STREQUAL "debugdraw_without_rendering_is_rejected")
     list(APPEND configure_args
         -DGTS_ENABLE_RENDERING=OFF
@@ -154,6 +162,12 @@ endif()
 
 message(STATUS "Smoke build passed for ${GRAVITAS_SMOKE_CASE}")
 
+# Every valid case proves facade unavailability and leaf header visibility as well.
+if(runtime_test_regex)
+    set(runtime_test_regex "${runtime_test_regex}|^(runtime_facade_availability|include_surface_.*)$")
+else()
+    set(runtime_test_regex "^(runtime_facade_availability|include_surface_.*)$")
+endif()
 if(runtime_test_regex)
     execute_process(
         COMMAND "${CMAKE_CTEST_COMMAND}" --test-dir "${case_binary_dir}"

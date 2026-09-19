@@ -30,7 +30,7 @@
 #include "GtsModelRegistry.h"
 #include "GtsModelRealizationCache.h"
 #include "IEngineModule.h"
-#include "GraphicsBackendInstaller.h"
+#include "rendering/GraphicsBackendInstaller.h"
 #include "GraphicsBackendRegistry.h"
 #include "ProfileAccumulator.h"
 #include "RenderingRuntime.h"

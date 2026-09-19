@@ -1,4 +1,5 @@
 #include "VulkanGraphicsBackendProvider.h"
+#include "VulkanBackendInstaller.h"
 
 #include "VulkanGraphics.hpp"
 
@@ -14,7 +15,7 @@ namespace gts::rendering
         return std::make_unique<VulkanGraphics>(config);
     }
 
-    void installDefaultGraphicsBackends(GraphicsBackendRegistry& registry)
+    void installVulkanGraphicsBackend(GraphicsBackendRegistry& registry)
     {
         // static lifetime keeps the registrys borrowed provider pointer valid
         static const VulkanGraphicsBackendProvider provider;

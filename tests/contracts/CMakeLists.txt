@@ -24,7 +24,7 @@ add_executable(ExecutionPolicyTest ExecutionPolicyTest.cpp)
 target_link_libraries(ExecutionPolicyTest PRIVATE gravitas_runtime_execution gravitas_vn_execution_contracts)
 add_test(NAME execution_policy COMMAND ExecutionPolicyTest)
 
-if(TARGET gravitas_rendering)
+if(TARGET gravitas_runtime)
     add_executable(EnginePauseTest EnginePauseTest.cpp)
     target_link_libraries(EnginePauseTest PRIVATE gravitas_runtime_execution)
     target_link_libraries(EnginePauseTest PRIVATE gravitas_runtime)
@@ -58,7 +58,7 @@ if(TARGET gravitas_physics)
 endif()
 add_test(NAME module_execution_inputs COMMAND ModuleExecutionInputsTest)
 
-if(TARGET gravitas_rendering)
+if(TARGET gravitas_runtime)
     add_executable(PlatformInputTest ../runtime/PlatformInputTest.cpp)
     target_link_libraries(PlatformInputTest PRIVATE gravitas_runtime)
     add_test(NAME platform_input COMMAND PlatformInputTest)
@@ -85,3 +85,5 @@ if(TARGET gravitas_rendering AND TARGET gravitas_tools)
 endif()
 
 include(IncludeSurfaces.cmake)
+
+include(RuntimeAvailability.cmake)

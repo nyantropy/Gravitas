@@ -34,9 +34,13 @@ or the VN interpreter; the word “runtime” does not make it engine compositio
 ## CMake Ownership
 
 `gravitas_core` stays independently buildable. Leaf targets own their sources and
-include directories. `gravitas_runtime` is the header-only composition target;
-`gravitas_engine` is the application entry target above it. The runtime target uses
-the selected-module aggregate for composition, not for satisfying a leaf dependency.
+include directories. `gravitas_runtime` is the complete composition target with a
+compiled default-backend installer; `gravitas_engine` is the application entry target
+above it. Both, and the `GravitasEngine` alias, exist only with rendering, Vulkan,
+physics, debug drawing and tools enabled. Runtime uses the module aggregate for
+composition, not for satisfying a leaf dependency. Reduced configurations intentionally
+omit the facade while preserving capability targets and `gravitas_runtime_execution`.
+See [runtime configuration](runtime-configuration.md).
 `gravitas_tool_contracts` exposes startup settings even with tools disabled.
 
 The engine-root include directory is not exported. Runtime exports its own directory,

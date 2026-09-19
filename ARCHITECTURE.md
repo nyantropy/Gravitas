@@ -163,9 +163,15 @@ vendored documentation and should not be rewritten as first-party engine docs.
   It may depend on modules and core. It is never part of `gravitas_core`.
 - These are permanent placement rules, not a requirement to move capability-local
   directories named `runtime` (for example `modules/rendering/runtime/`).
-- `gravitas_runtime` owns the header-only composition root. `gravitas_engine` is
-  the application entry target and links it. Runtime uses selected module targets;
-  neither core nor modules inherit the engine-root include directory.
+- `gravitas_runtime` owns the complete composition root and compiled default-backend
+  installation. `gravitas_engine` / `GravitasEngine` expose that supported facade.
+  These targets exist only with rendering, Vulkan, physics, debug drawing and tools
+  enabled. Reduced builds develop/test capabilities; they do not advertise a usable
+  complete facade. Neither core nor modules inherit the engine-root include directory.
+- Vulkan is the default/primary runtime backend. Runtime selects it through the
+  backend's narrow installer; provider construction and Vulkan implementation remain
+  module-owned. `gravitas_runtime_execution` remains independently available for policy
+  integration tests. See [runtime configuration](docs/modules/runtime-configuration.md).
 - CMake checks actual target links, transitive aliases/interface wrappers and
   include/source paths at the end of configuration. Source checks reject includes
   of higher-layer headers. See [source ownership](docs/modules/ownership.md)

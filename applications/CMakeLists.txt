@@ -1,3 +1,8 @@
+if(NOT TARGET GravitasEngine)
+    message(STATUS "Skipping bundled engine applications: complete GravitasEngine runtime unavailable")
+    return()
+endif()
+
 add_subdirectory(GtsScene1)
 add_subdirectory(GtsScene2)
 add_subdirectory(GtsScene3)

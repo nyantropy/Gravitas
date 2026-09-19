@@ -40,7 +40,29 @@ cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
 
-### Engine Only
+### Capability development versus the complete runtime
+
+The default build is the complete Vulkan-first Gravitas engine. `GravitasEngine`,
+`gravitas_engine` and `gravitas_runtime` exist only when rendering, Vulkan, physics,
+debug drawing and tools are enabled. Tool visibility can still be disabled at runtime;
+that does not remove its compile-time dependency.
+
+Reduced builds are useful for isolated capability development and CPU tests. They
+build the requested leaf targets and their actual dependencies, but intentionally omit
+the complete facade, bundled engine applications and full-runtime tests. For example:
+
+```bash
+cmake -S . -B build-physics -DGTS_ENABLE_RENDERING=OFF \
+  -DGTS_ENABLE_VULKAN_BACKEND=OFF -DGTS_ENABLE_DEBUGDRAW=OFF \
+  -DGTS_ENABLE_TOOLS=OFF -DGTS_ENABLE_PHYSICS=ON
+cmake --build build-physics --target gravitas_physics PhysicsTransformIntegrationTest
+ctest --test-dir build-physics -R physics_transform_integration --output-on-failure
+```
+
+See [runtime configuration](docs/modules/runtime-configuration.md) for the option/target
+contract, other reduced combinations, and facade availability checks.
+
+### Engine source subtree
 ```bash
 cd engine
 cmake -B build

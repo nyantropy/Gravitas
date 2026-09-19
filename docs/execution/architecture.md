@@ -160,7 +160,8 @@ core -X-> modules/runtime
 Rendering execution contracts contain only value inputs; rendering resource/frame-mode
 contracts remain available without a backend. Runtime policy is available in reduced
 configurations without rendering, VN, tools or physics implementations. Applications
-and policy integration tests link the runtime target explicitly. Module-only tests
+and policy integration tests link `gravitas_runtime_execution` explicitly; this does
+not imply availability of the complete `gravitas_runtime` / `GravitasEngine` facade. Module-only tests
 link capability targets and reject visibility of runtime headers.
 
 The existing three-layer CMake checker is unchanged. It rejects upward links,

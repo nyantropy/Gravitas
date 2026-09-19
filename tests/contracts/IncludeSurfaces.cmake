@@ -76,7 +76,7 @@ add_include_surface_test(runtime gravitas_runtime FEATURE IMPLEMENTATION RUNTIME
 
 add_include_surface_test(tool_contracts gravitas_tool_contracts FEATURE HEADERS ToolSettings.h)
 add_include_surface_test(profiling gravitas_profiling FEATURE HEADERS ISceneFrameStats.h)
-if(TARGET gravitas_tools AND TARGET gravitas_vulkan_backend)
+if(TARGET gravitas_runtime)
     add_include_surface_test(facade gravitas_runtime FEATURE IMPLEMENTATION RUNTIME HEADERS GravitasEngine.hpp)
 endif()
 foreach(case allowed module_root wrapped_module_root source_root ancestor rendering_root)
