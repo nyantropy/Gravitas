@@ -146,6 +146,28 @@ Animation may continue independently because its model definitions remain valid.
 `rebindMaterials(materialSet)` validates and retains a matching new material set without reimporting
 or preparing geometry and without resetting playback/pose/palettes. The next render extraction consumes the new set automatically.
 
+Instances support one model-wide material override:
+
+```cpp
+instance.setMaterialOverride(handle, materialRuntime.lifetimeToken());
+instance.clearMaterialOverride();
+```
+
+Setting an override validates that the supplied scope matches the base material
+set's live world/runtime and that the handle is alive there. The instance stores
+only the handle; `MaterialRuntime` retains ownership. All valid primitive logical
+associations use the override until cleared, then return to their unchanged base
+materials. No primitive enumeration or shared-definition mutation is needed.
+Destroyed handles fail material validity/extraction rather than silently rendering
+with another material. Runtime reset expires the set; rebinding to a different
+runtime scope clears the old override, preventing numeric handle reuse from
+reviving it. Rebinding within the same scope preserves the override.
+
+This is a whole-model convenience, not a material-variant or per-slot override
+system. Future finer-grained overrides should address logical model materials,
+not renderer draw indices. Extraction already calls `materialFor`, so changes take
+effect on the next frame without rebuilding geometry or presentation.
+
 World placement remains exclusively in the entity's `TransformComponent`. Authored hierarchy remains in `GtsModelResource`.
 Neither is copied into the instance or baked into geometry/palettes. Static
 extraction composes entity and model hierarchy transforms. Skinned palettes

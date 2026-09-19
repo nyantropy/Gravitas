@@ -42,6 +42,62 @@ namespace
     {
         require(status.succeeded(), "animation/rebind status");
     }
+    void materialOverrides(const std::filesystem::path& root)
+    {
+        GtsModelRegistry registry;
+        GtsModelRealizationCache cache;
+        World world;
+        auto& service = modelInstances(world, cache, nullptr);
+        auto model = load(registry, GltfFixtureBuilder{}, root / "overrides");
+        auto a = create(service, model), b = create(service, model);
+        auto& materials = materialRuntime(world);
+        const auto base = a->materialFor(0, 0);
+        const auto shared = a->materials();
+        require(base == b->materialFor(0, 0), "instances initially use shared base materials");
+        MaterialInstance red;
+        red.baseColor = {1, 0, 0, 1};
+        MaterialInstance blue;
+        blue.baseColor = {0, 0, 1, 1};
+        const auto redHandle = materials.createInstance(red);
+        const auto blueHandle = materials.createInstance(blue);
+        ok(a->setMaterialOverride(redHandle, materials.lifetimeToken()));
+        require(b->materialFor(0, 0) == base && shared->materialFor(*a->geometry(), 0, 0) == base,
+                "override does not mutate another instance or shared materials");
+        ok(b->setMaterialOverride(blueHandle, materials.lifetimeToken()));
+        auto redFrame = extract(a, world);
+        auto blueFrame = extract(b, world);
+        require(redFrame.staticDraws[0].material.instance == redHandle &&
+                    blueFrame.staticDraws[0].material.instance == blueHandle &&
+                    redFrame.staticDraws[0].material.parameters.baseColor == red.baseColor &&
+                    blueFrame.staticDraws[0].material.parameters.baseColor == blue.baseColor &&
+                    a->geometry() == b->geometry() && a->materials() == b->materials(),
+                "extraction reads independent instance overrides with shared definitions");
+        require(!a->materialFor(999, 0).valid() && !a->materialFor(0, 999).valid(),
+                "override cannot hide an invalid occurrence or primitive");
+        World foreign;
+        const auto foreignHandle = materialRuntime(foreign).createInstance(red);
+        require(!a->setMaterialOverride(foreignHandle, materialRuntime(foreign).lifetimeToken()).succeeded() &&
+                    !a->setMaterialOverride({}, materials.lifetimeToken()).succeeded() &&
+                    !a->setMaterialOverride(redHandle, {}).succeeded() && a->materialFor(0, 0) == redHandle,
+                "foreign, empty and expired override requests fail without changing the instance");
+        a->clearMaterialOverride();
+        require(extract(a, world).staticDraws[0].material.instance == base &&
+                    redFrame.staticDraws[0].material.instance == redHandle,
+                "clearing restores base materials; previous frames remain captured");
+        materials.destroyInstance(blueHandle);
+        require(!b->worldMaterialsValid() && !extractModelRenderState(b, glm::mat4(1), materials).succeeded(),
+                "destroyed override handle fails live validation");
+        b->clearMaterialOverride();
+        require(b->worldMaterialsValid() && b->materialFor(0, 0) == base, "clear recovers a destroyed override");
+        ok(a->setMaterialOverride(redHandle, materials.lifetimeToken()));
+        resetMaterialRuntime(world);
+        require(!a->worldMaterialsValid(), "runtime reset invalidates overrides as well as base materials");
+        ok(a->rebindMaterials(modelMaterialRealization(world, nullptr).realize(a->geometry()).materials));
+        require(a->materialFor(0, 0) == a->materials()->materialFor(*a->geometry(), 0, 0),
+                "rebinding to a new scope clears old overrides even if handle numbers are reused");
+        extract(a, world);
+    }
+
     void staticHierarchy(const std::filesystem::path& root)
     {
         GtsModelRegistry         registry;
@@ -202,6 +258,7 @@ int main()
     ScopedRuntimeAssetPolicy policy("development");
     auto                     root = std::filesystem::temp_directory_path() / "gravitas-model-extraction-test";
     std::filesystem::create_directories(root);
+    materialOverrides(root);
     staticHierarchy(root);
     mixedAndPalettes(root);
     std::filesystem::remove_all(root);

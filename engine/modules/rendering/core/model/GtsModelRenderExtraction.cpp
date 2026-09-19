@@ -18,7 +18,7 @@ GtsModelExtractionResult extractModelRenderState(std::shared_ptr<const GtsModelI
             throw std::runtime_error("Invalid model instance");
         context = instance->model()->identityPath().string();
         if (!instance->worldMaterialsValid())
-            throw std::runtime_error("Expired world materials; rebind the instance before extraction");
+            throw std::runtime_error("Invalid or expired instance materials; clear a destroyed override or rebind after runtime reset");
         if (instance->materials()->scopeToken().lock() != materials.lifetimeToken().lock())
             throw std::runtime_error("Material runtime belongs to another world");
         const auto& model      = instance->geometry();

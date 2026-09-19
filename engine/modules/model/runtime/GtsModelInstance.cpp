@@ -123,7 +123,19 @@ MaterialInstanceHandle GtsModelInstance::materialFor(uint32_t occurrenceIndex, u
 {
     if (!worldMaterialsValid() || occurrenceIndex >= realized->occurrences.size())
         return {};
-    return materialSet->materialFor(*realized, realized->occurrences[occurrenceIndex].geometryIndex, primitiveIndex);
+    const auto base =
+        materialSet->materialFor(*realized, realized->occurrences[occurrenceIndex].geometryIndex, primitiveIndex);
+    return base.valid() && materialOverride ? *materialOverride : base;
+}
+
+GtsModelInstanceStatus
+GtsModelInstance::setMaterialOverride(MaterialInstanceHandle material, std::weak_ptr<const int> runtimeScope)
+{
+    if (!materialSet || !materialSet->valid() || runtimeScope.expired() ||
+        runtimeScope.lock() != materialSet->scopeToken().lock() || !materialSet->isMaterialAlive(material))
+        return failure("model.instance.material_override", "Override requires a live material in this instance's world");
+    materialOverride = material;
+    return {};
 }
 
 GtsModelInstanceStatus GtsModelInstance::play(uint32_t use, GtsModelClipReference reference)
@@ -220,6 +232,8 @@ GtsModelInstanceStatus GtsModelInstance::rebindMaterials(std::shared_ptr<const G
 {
     if (!materials || !materials->belongsTo(*realized))
         return failure("model.instance.material_scope", "Foreign material set");
+    if (materialSet->scopeToken().lock() != materials->scopeToken().lock())
+        clearMaterialOverride();
     materialSet = std::move(materials);
     return {};
 }

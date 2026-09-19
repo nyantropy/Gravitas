@@ -107,6 +107,8 @@ default pose, even without clips. Playback is scoped to a skeleton use, validate
 resource-scoped clips, and does not restart an already-active clip. Multiple instances
 share definitions while keeping independent playback, poses and CPU palettes.
 Entity components hold stable instance references to satisfy ECS copyability.
+A model-wide material override may select another live handle from the same world
+per instance; clearing it restores the unchanged shared base materials.
 
 See [material realization](../rendering/model-material-realization.md) and
 [instance ownership and APIs](../model/runtime-instances.md).
@@ -170,7 +172,7 @@ and a static OBJ through the same runtime route. Device-dependent Vulkan tests m
 skip without a compatible GPU; headless success is not visual verification.
 
 Future work includes animated cooked storage, blending, character assembly/clothing,
-root motion, material overrides and conservative animated bounds. Current renderer
+root motion, per-slot material variants and conservative animated bounds. Current renderer
 limits include opaque depth-writing skinned submission and model bounds-culling work.
 These features should extend the existing model path; they must not introduce another
 source interpretation or persistent renderer presentation mirror.

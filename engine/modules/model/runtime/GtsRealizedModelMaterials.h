@@ -12,6 +12,7 @@ class GtsRealizedModelMaterials
     virtual MaterialInstanceHandle
                  materialFor(const GtsRealizedModel&, uint32_t geometry, uint32_t primitive) const = 0;
     virtual bool valid() const                                                                     = 0;
+    virtual bool isMaterialAlive(MaterialInstanceHandle material) const                            = 0;
     virtual bool belongsTo(const GtsRealizedModel&) const                                          = 0;
     virtual std::weak_ptr<const int> scopeToken() const                                            = 0;
 };

@@ -16,6 +16,10 @@ class RuntimeModelMaterials final : public GtsRealizedModelMaterials
     // Associations are scoped by the exact realized model, never by a naked slot from another model.
     MaterialInstanceHandle materialFor(const GtsRealizedModel& owner, uint32_t geometry, uint32_t primitive) const override;
     bool                   valid() const override;
+    bool isMaterialAlive(MaterialInstanceHandle material) const override
+    {
+        return !lifetime.expired() && runtime->isInstanceAlive(material);
+    }
     bool belongsTo(const GtsRealizedModel& owner) const override { return model.get() == &owner && valid(); }
 
     std::weak_ptr<const int> scopeToken() const override { return lifetime; }

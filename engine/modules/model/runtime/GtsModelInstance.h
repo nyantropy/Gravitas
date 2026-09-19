@@ -36,7 +36,8 @@ class GtsModelInstance
     }
     bool worldMaterialsValid() const
     {
-        return materialSet && materialSet->valid();
+        return materialSet && materialSet->valid() &&
+               (!materialOverride || materialSet->isMaterialAlive(*materialOverride));
     }
     std::span<const GtsSkeletonOccurrence> skeletonOccurrences() const
     {
@@ -47,6 +48,10 @@ class GtsModelInstance
     const GtsSkinPalette*  palette(uint32_t skinBindingIndex) const;
     const GtsSkinPalette*  paletteForOccurrence(uint32_t occurrenceIndex) const;
     MaterialInstanceHandle materialFor(uint32_t occurrenceIndex, uint32_t primitiveIndex) const;
+
+    [[nodiscard]] GtsModelInstanceStatus
+    setMaterialOverride(MaterialInstanceHandle material, std::weak_ptr<const int> runtimeScope);
+    void clearMaterialOverride() { materialOverride.reset(); }
 
     [[nodiscard]] GtsModelInstanceStatus play(uint32_t use, GtsModelClipReference clip);
     [[nodiscard]] GtsModelInstanceStatus stop(uint32_t use);
@@ -67,6 +72,7 @@ class GtsModelInstance
     GtsModelHandle                                   resource;
     std::shared_ptr<const GtsRealizedModel>          realized;
     std::shared_ptr<const GtsRealizedModelMaterials> materialSet;
+    std::optional<MaterialInstanceHandle>            materialOverride;
     std::vector<GtsSkeletonOccurrence>               occurrences; // Sized once; updates preserve occurrence addresses.
     std::shared_ptr<const int>                       lifetime = std::make_shared<const int>(0);
 };
