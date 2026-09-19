@@ -171,6 +171,12 @@ vendored documentation and should not be rewritten as first-party engine docs.
 components, command buffers, event subscriptions, simulation systems,
 controller systems, and the active execution-profile stack.
 
+Subsystems with external world-keyed state may register an identity-only,
+non-throwing teardown callback. These run after world clearing or, on destruction,
+after world-owned members are destroyed. Transform uses one such registration
+to release dirty queues and publication callbacks together; ordinary callers
+do not manage transform registries. See the [transform lifetime contract](docs/transform/architecture.md).
+
 Hot-path queries use `forEach<C...>(fn)`. Mutation-safe traversal uses
 `forEachSnapshot<C...>(fn)`. Structural changes from systems should go through
 `world.commands()` and be flushed at controlled points.

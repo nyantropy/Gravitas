@@ -7,16 +7,18 @@
 #include "TransformDirtyHelpers.h"
 #include "TransformInvalidationLifecycle.h"
 #include "TransformSystem.hpp"
+#include "../runtime/detail/TransformInvalidationState.h"
 
 namespace gts::transform
 {
     void resetTransformSceneFeature(ECSWorld& world)
     {
-        resetTransformInvalidationState(world);
+        releaseTransformWorldState(world);
     }
 
     void installTransformRuntime(ECSWorld& world)
     {
+        installTransformWorldState(world);
         world.registerAddCallback<TransformComponent>(
             [](ECSWorld& world, Entity entity, TransformComponent&)
             {
@@ -45,6 +47,7 @@ namespace gts::transform
 
     void installTransformResolver(ECSWorld& world)
     {
+        installTransformWorldState(world);
         world.addControllerSystem<TransformSystem>(EcsSystemGroup::RenderPrep);
     }
 
@@ -58,12 +61,6 @@ namespace gts::transform
     {
         if (!scene.markSceneFeatureInstalled("transform-runtime"))
             return;
-
-        scene.registerSceneResetHook(
-            [](ECSWorld& world)
-            {
-                resetTransformSceneFeature(world);
-            });
 
         installTransformRuntime(scene.getWorld());
     }

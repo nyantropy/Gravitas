@@ -20,3 +20,15 @@ set_tests_properties(transform_hierarchy_runtime
     PROPERTIES
         LABELS "gravitas;transform;runtime"
 )
+
+add_executable(TransformWorldLifetimeTest TransformWorldLifetimeTest.cpp)
+target_link_libraries(TransformWorldLifetimeTest PRIVATE gravitas_transform)
+add_test(NAME transform_world_lifetime COMMAND TransformWorldLifetimeTest)
+set_tests_properties(transform_world_lifetime PROPERTIES LABELS "gravitas;transform;lifecycle;cpu")
+
+if(TARGET gravitas_tools)
+    add_executable(TransformPreviewLifetimeTest TransformPreviewLifetimeTest.cpp)
+    target_link_libraries(TransformPreviewLifetimeTest PRIVATE gravitas_tools gravitas_transform)
+    add_test(NAME transform_preview_lifetime COMMAND TransformPreviewLifetimeTest)
+    set_tests_properties(transform_preview_lifetime PROPERTIES LABELS "gravitas;transform;tools;lifecycle;cpu")
+endif()

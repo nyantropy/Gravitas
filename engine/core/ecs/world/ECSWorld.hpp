@@ -37,6 +37,10 @@ class ECSQuery;
 class ECSWorld
 {
     public:
+        // Teardown callbacks release external state by world identity only. They
+        // must not access ECS storage, register more callbacks, or throw.
+        using TeardownCallback = void (*)(ECSWorld&) noexcept;
+
         class EntityCommandBuffer
         {
         public:
@@ -117,9 +121,33 @@ class ECSWorld
             std::function<const void*(const Archetype&, uint32_t)> getConstPtr;
         };
 
+        struct TeardownCallbacks
+        {
+            ECSWorld& world;
+            std::vector<TeardownCallback> callbacks;
+
+            ~TeardownCallbacks()
+            {
+                run();
+            }
+
+            void run() noexcept
+            {
+                auto pending = std::move(callbacks);
+                callbacks.clear();
+                for (TeardownCallback callback : pending)
+                    callback(world);
+            }
+        };
+
+        // Declared first so external state is released after all other members
+        // on destruction, including components and their removal machinery.
+        TeardownCallbacks teardownCallbacks{*this, {}};
+
         // ── Event bus ─────────────────────────────────────────────────────────
-        // m_alive and eventHandlers are declared first so they are destroyed
-        // last (C++ destroys members in reverse declaration order).
+        // m_alive and eventHandlers precede ECS storage so they are destroyed
+        // after it (C++ destroys members in reverse declaration order). The
+        // identity-only teardown callbacks run after these members as well.
         //
         // m_alive is a shared sentinel: the unsubscribe lambda in each
         // SubscriptionToken holds a weak_ptr to it. If the ECSWorld is fully
@@ -570,6 +598,13 @@ class ECSWorld
         {
         }
 
+        void registerTeardownCallback(TeardownCallback callback)
+        {
+            auto& callbacks = teardownCallbacks.callbacks;
+            if (callback != nullptr && std::find(callbacks.begin(), callbacks.end(), callback) == callbacks.end())
+                callbacks.push_back(callback);
+        }
+
         Entity createEntity()
         {
             Entity entity{ nextEntityId++ };
@@ -992,6 +1027,7 @@ class ECSWorld
             // across the world's lifetime so that IDs from tokens held before clear()
             // never collide with IDs assigned after clear().
             eventHandlers.clear();
+            teardownCallbacks.run();
         }
 
         // ------------------------------------------------------------

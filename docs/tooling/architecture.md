@@ -30,6 +30,12 @@ their existing creation helper live beside the producers in
 submission, renderable markers and mesh realization remain in diagnostics; see
 [debug visualization architecture](../diagnostics/architecture.md).
 
+Asset and particle preview worlds acquire transform lifetime cleanup through
+their existing transform installation. Their `destroy()`/`world.clear()` paths
+and destructor-only abandonment both release transform invalidation and
+publication registrations automatically; owners do not call separate transform
+registry reset functions.
+
 The active editor surface is:
 
 - a retained `EngineToolShellComposition`
