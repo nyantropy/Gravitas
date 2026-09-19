@@ -511,7 +511,7 @@ namespace gts::rendering::benchmarks
 
         void installBenchmarkFeatures(BenchmarkSceneState& state, const RenderingBenchmarkConfig& config)
         {
-            gts::transform::installTransformRuntime(state.world);
+            gts::transform::installTransformFeature(state.world);
             installRendererGeometrySceneFeature(state.world, &state.resources);
             installRendererCameraSceneFeature(state.world, &state.resources);
             installRendererParticleSceneFeature(state.world);

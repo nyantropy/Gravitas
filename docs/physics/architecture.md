@@ -28,7 +28,9 @@ Scenes install physics through `gts::physics::installPhysicsFeature(scene, ctx)`
 The installer:
 
 1. Marks the scene feature as installed.
-2. Installs transform runtime support.
+2. Installs transform lifetime ownership and dirty-tracking callbacks, without
+   scheduling a transform controller. Physics resolves explicitly before queries;
+   renderer installation places the presentation resolver after transform writers.
 3. Creates a scene resource `PhysicsWorld`.
 4. Exposes it through `scene.setPhysicsModule(...)` and `ctx.physics`.
 5. Registers `PhysicsSystem` as an `EcsSystemGroup::Physics` simulation system.

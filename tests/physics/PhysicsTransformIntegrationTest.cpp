@@ -8,11 +8,21 @@
 #include "SphereColliderComponent.h"
 #include "TransformDirtyHelpers.h"
 #include "TransformHierarchyHelpers.h"
+#include "TransformInvalidationLifecycle.h"
 #include "TransformSceneFeature.h"
 #include "WorldTransformComponent.h"
 
 namespace
 {
+    size_t publications = 0;
+
+    void published(ECSWorld& world, Entity entity)
+    {
+        if (!world.hasComponent<WorldTransformComponent>(entity))
+            std::exit(1);
+        ++publications;
+    }
+
     void require(bool condition, const char* message)
     {
         if (!condition)
@@ -27,6 +37,8 @@ int main()
 {
     ECSWorld world;
     gts::transform::installTransformRuntime(world);
+    require(world.getControllerSystemCount() == 0, "physics runtime unexpectedly scheduled a controller");
+    gts::transform::registerWorldTransformPublishedCallback(world, published);
     PhysicsWorld         physics(&world);
     PhysicsSystem        system(&physics);
     EcsSimulationContext context{world, 1.0f / 60.0f};
@@ -46,6 +58,8 @@ int main()
     world.addComponent(other, SphereColliderComponent{});
 
     system.update(context);
+    require(world.getLastControllerTimingSamples().empty(), "physics query relied on a controller tick");
+    require(publications == 3, "physics did not publish all transforms before querying");
     require(physics.getCollisions().size() == 1, "physics did not resolve hierarchical transforms");
     require(world.getComponent<WorldTransformComponent>(child).matrix[3].x == 10.0f,
             "physics published the wrong world transform");
@@ -53,6 +67,7 @@ int main()
     world.getComponent<TransformComponent>(parent).position.x = 20.0f;
     gts::transform::markDirty(world, parent);
     system.update(context);
+    require(publications == 5, "physics did not publish the dirty parent and child");
     require(physics.getCollisions().empty(), "physics used stale child placement");
     require(world.getComponent<WorldTransformComponent>(child).matrix[3].x == 20.0f,
             "dirty parent did not update child placement");

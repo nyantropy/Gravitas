@@ -35,7 +35,6 @@ namespace gts::transform
                 detachHierarchyForRemoval(world, entity, hierarchy);
             });
 
-        world.addControllerSystem<TransformSystem>(EcsSystemGroup::RenderPrep);
         world.forEachSnapshot<TransformComponent>(
             [&world](Entity entity, TransformComponent&)
             {

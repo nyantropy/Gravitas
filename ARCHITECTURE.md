@@ -415,6 +415,11 @@ lifetime and failure behavior is documented in
 [docs/rendering/architecture.md](docs/rendering/architecture.md).
 
 Render transform synchronization follows the same version-plus-queue model.
+Transform runtime installation owns callbacks and dirty tracking; resolver
+installation alone schedules one `RenderPrep` controller at the caller's chosen
+position after writers and before consumers. The complete feature installs both.
+Physics independently resolves before its collision query. See the
+[transform installation contract](docs/transform/architecture.md#installation-and-scheduling).
 `TransformSystem` owns `WorldTransformComponent` publication, the renderer-owned
 bridge schedules affected renderables, and `RenderGpuSystem` validates
 `WorldTransformComponent::version` against

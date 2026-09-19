@@ -59,7 +59,7 @@ namespace
     {
         ECSWorld world;
         installTransformFeature(world);
-        require(world.getControllerSystemCount() == 2, "combined installation changed resolver scheduling");
+        require(world.getControllerSystemCount() == 1, "combined installation must schedule one resolver");
         require(world.getEntityCount() == 0, "lifetime installation created an ECS entity");
         auto state = inspectTransformWorldState(&world);
         require(state.hasInvalidation && state.hasPublication, "installation did not establish both registries");
@@ -78,7 +78,7 @@ namespace
                 "publication order/delivery changed");
         resetTransformSceneFeature(world);
         requireReleased(&world);
-        require(world.getControllerSystemCount() == 2, "runtime state reset changed registered systems");
+        require(world.getControllerSystemCount() == 1, "runtime state reset changed registered systems");
 
         // A later dirty operation may reestablish state, but not old callbacks.
         deliveries.clear();
@@ -171,8 +171,8 @@ namespace
             resetTransformSceneFeature(world);
             resetTransformSceneFeature(world);
             requireReleased(&world);
-            require(world.getControllerSystemCount() == cycle + 1,
-                    "explicit state reset removed or deduplicated controllers");
+            require(world.getControllerSystemCount() == 0,
+                    "runtime-only installation or state reset scheduled controllers");
         }
         queueTransformDirty(world, Entity{0});
         world.clear();
@@ -198,8 +198,8 @@ namespace
             {
                 installTransformFeature(scene);
                 installTransformFeature(scene);
-                require(world.getControllerSystemCount() == 2,
-                        "scene idempotence or duplicate-registration behavior changed");
+                require(world.getControllerSystemCount() == 1,
+                        "scene installer must retain exactly one resolver");
                 registerWorldTransformPublishedCallback(world, firstCallback);
                 const Entity parent = addTransform(world);
                 const Entity child  = addTransform(world);

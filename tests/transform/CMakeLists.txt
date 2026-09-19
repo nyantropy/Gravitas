@@ -26,6 +26,11 @@ target_link_libraries(TransformWorldLifetimeTest PRIVATE gravitas_transform)
 add_test(NAME transform_world_lifetime COMMAND TransformWorldLifetimeTest)
 set_tests_properties(transform_world_lifetime PROPERTIES LABELS "gravitas;transform;lifecycle;cpu")
 
+add_executable(TransformInstallationTest TransformInstallationTest.cpp)
+target_link_libraries(TransformInstallationTest PRIVATE gravitas_transform)
+add_test(NAME transform_installation COMMAND TransformInstallationTest)
+set_tests_properties(transform_installation PROPERTIES LABELS "gravitas;transform;runtime;cpu")
+
 if(TARGET gravitas_tools)
     add_executable(TransformPreviewLifetimeTest TransformPreviewLifetimeTest.cpp)
     target_link_libraries(TransformPreviewLifetimeTest PRIVATE gravitas_tools gravitas_transform)

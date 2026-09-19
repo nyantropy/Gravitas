@@ -48,8 +48,9 @@ No new manager or service framework is introduced.
 
 Authored/resolved components remain world-owned. Resolution scratch storage
 remains resolver-owned. Metrics retain their existing static storage. The
-runtime does not change matrix calculations, versions, dirty propagation,
-publication order/deduplication, system groups or registration order.
+runtime retains matrix calculations, version advancement, dirty propagation,
+publication callback order/deduplication and system groups. Resolution is
+scheduled only by the resolver installer, as described below.
 
 ## World Lifetime Contract
 
@@ -92,12 +93,48 @@ carry no world identity. Rendering's geometry/material/invalidation registries
 are separately owned; this contract releases the transform publication hook,
 not unrelated rendering resources.
 
-## Deferred Scheduling Question
+## Installation And Scheduling
 
-Both `installTransformRuntime` and `installTransformResolver` still add a
-`TransformSystem`. The combined installer still calls both, preserving the
-existing duplicate registration and scheduling. Whether to consolidate those
-registrations must be addressed separately, including physics timing and metrics.
+- `installTransformRuntime`: installs world lifetime ownership, component
+  add/remove callbacks, and initial dirty tracking for existing transforms.
+  It registers **no controller**. Physics and callers resolving on demand can
+  use this independently.
+- `installTransformResolver`: establishes lifetime ownership and appends one
+  `TransformSystem` in `RenderPrep` at the current registration position. Used
+  alone, it requires callers to queue dirty transforms explicitly because it
+  does not install component callbacks.
+- `installTransformFeature`: performs runtime installation and schedules one
+  resolver. The world overloads are low-level installation operations, called
+  once at the intended position. The scene overloads retain separate runtime
+  and resolver installation guards and can be combined without duplication.
+
+ECSWorld executes controllers in registration order; groups filter execution,
+not sorting. Install runtime early, register transform writers, then install
+the resolver before consumers that require published world transforms. No
+installer moves previously registered systems or deduplicates ECS systems.
+Writers registered after resolution retain their existing timing: their dirty
+work is consumed by the next explicit or scheduled resolution.
+
+The renderer scene installer requests the complete feature before installing
+rendering consumers. A preceding physics installer requests runtime only, so
+camera writers placed between physics and renderer installation still precede
+the resolver. Preview worlds use the complete feature. Rendering benchmarks
+also request the complete feature, preserving their single pre-render pass.
+
+One controller pass is sufficient for the existing presentation pipeline.
+Physics retains its explicit `TransformWorldResolver::resolve` call after its
+update and before collider collection/query on each simulation tick. A frame
+can therefore have physics resolutions plus a controller resolution after
+presentation writers; those are separate, intentional demand points.
+
+Previously runtime installation also registered a controller, accidentally
+retained when the split installer was introduced. The combined installer ran
+two adjacent passes; the second was empty and replaced the first pass's metrics
+with zeros. Split installation could additionally publish intermediate values
+before a writer. Only the post-writer controller remains. Per-publication
+callback behavior and version rules are unchanged; the removed pass no longer
+emits intermediate publications or contributes controller timing samples.
+Metrics now describe the single scheduled pass, including real work when dirty.
 
 ## Verification
 
@@ -110,6 +147,13 @@ tests cover the existing publication bridge.
 `transform_world_lifetime` covers installation, complete reset/clear/destruction,
 callback order and deduplication, simultaneous worlds, repeated scene cycles,
 hierarchy-removal invalidation during teardown, lazy state creation and placement
-construction at a reused address. It explicitly preserves duplicate controller
-registration. `transform_preview_lifetime` covers both preview implementations,
+construction at a reused address. It verifies one complete-feature controller
+and no runtime-only controllers. `transform_preview_lifetime` covers both preview implementations,
 including repeated `destroy`/`ensure` cycles and destructor-only abandonment.
+
+`transform_installation` measures controller execution through ECS timing samples
+and checks registration counts, dirty and clean frames, publication delivery,
+writer/resolver/consumer ordering, late-writer timing, explicit and resolver-only
+use, execution masks, and scene installation across unload/reinstall cycles.
+Physics integration additionally verifies publication and collision results
+without executing any controller.
