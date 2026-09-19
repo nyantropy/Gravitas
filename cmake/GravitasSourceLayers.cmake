@@ -1,13 +1,44 @@
 # Source ownership is the authority; target names alone cannot establish a layer.
+# Resolve lexical aliases and existing symlinks without evaluating generator expressions.
+function(gravitas_canonical_path path base result)
+    get_filename_component(absolute "${path}" ABSOLUTE BASE_DIR "${base}")
+    if(EXISTS "${absolute}")
+        file(REAL_PATH "${absolute}" canonical)
+    else()
+        # Short/system includes and generated paths need not exist relative to
+        # the source file. Resolve their existing parent without REAL_PATH warnings.
+        get_filename_component(parent "${absolute}" DIRECTORY)
+        get_filename_component(name "${absolute}" NAME)
+        gravitas_canonical_path("${parent}" "${base}" canonical_parent)
+        set(canonical "${canonical_parent}/${name}")
+    endif()
+    file(TO_CMAKE_PATH "${canonical}" canonical)
+    set(${result} "${canonical}" PARENT_SCOPE)
+endfunction()
+
 function(gravitas_source_layer path root result)
-    file(TO_CMAKE_PATH "${path}" normalized)
+    gravitas_canonical_path("${path}" "${CMAKE_CURRENT_SOURCE_DIR}" normalized)
+    gravitas_canonical_path("${root}" "${CMAKE_CURRENT_SOURCE_DIR}" normalized_root)
     foreach(layer core modules runtime)
-        if(normalized STREQUAL "${root}/${layer}" OR normalized MATCHES "^${root}/${layer}/")
+        string(FIND "${normalized}/" "${normalized_root}/${layer}/" prefix)
+        if(prefix EQUAL 0)
             set(${result} "${layer}" PARENT_SCOPE)
             return()
         endif()
     endforeach()
     set(${result} "" PARENT_SCOPE)
+endfunction()
+
+function(gravitas_boundary_sources directory result)
+    set(patterns "")
+    foreach(extension h hpp hh hxx H inl ipp tpp inc c cc cpp cxx C)
+        list(APPEND patterns "${directory}/*.${extension}")
+    endforeach()
+    # Additions/removals trigger regeneration; content edits trigger it via the
+    # directory property. A normal build therefore reruns both deferred checkers.
+    file(GLOB_RECURSE files CONFIGURE_DEPENDS LIST_DIRECTORIES false ${patterns})
+    set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${files})
+    set(${result} "${files}" PARENT_SCOPE)
 endfunction()
 
 function(gravitas_collect_targets directory result)
@@ -22,6 +53,7 @@ endfunction()
 
 function(gravitas_check_source_layers)
     get_property(root GLOBAL PROPERTY GRAVITAS_SOURCE_LAYER_ROOT)
+    gravitas_canonical_path("${root}" "${CMAKE_CURRENT_SOURCE_DIR}" root)
     gravitas_collect_targets("${CMAKE_SOURCE_DIR}" targets)
     foreach(owner IN LISTS targets)
         get_target_property(directory "${owner}" SOURCE_DIR)
@@ -57,15 +89,33 @@ function(gravitas_check_source_layers)
             foreach(property INCLUDE_DIRECTORIES INTERFACE_INCLUDE_DIRECTORIES SOURCES INTERFACE_SOURCES)
                 get_target_property(entries "${dependency}" "${property}")
                 foreach(entry IN LISTS entries)
-                    if(NOT entry MATCHES "\\$<" AND
-                       (property STREQUAL "SOURCES" OR property STREQUAL "INTERFACE_SOURCES"))
-                        get_filename_component(entry "${entry}" ABSOLUTE BASE_DIR "${dependency_dir}")
+                    # Object files carry their producing target's ownership even
+                    # when injected through SOURCES rather than target_link_libraries.
+                    string(REGEX MATCHALL "\\$<TARGET_OBJECTS:[A-Za-z_][A-Za-z_0-9:.+-]*>" objects "${entry}")
+                    foreach(object IN LISTS objects)
+                        string(REGEX REPLACE "^\\$<TARGET_OBJECTS:([^>]+)>$" "\\1" object "${object}")
+                        if(TARGET "${object}")
+                            list(APPEND pending "${object}")
+                        endif()
+                    endforeach()
+                    string(REGEX REPLACE "^\\$<BUILD_INTERFACE:(.*)>$" "\\1" checked "${entry}")
+                    if(NOT checked MATCHES "\\$<" AND NOT checked MATCHES "-NOTFOUND$")
+                        gravitas_canonical_path("${checked}" "${dependency_dir}" checked)
+                        gravitas_source_layer("${checked}" "${root}" checked_layer)
+                        if(checked_layer STREQUAL "runtime" OR
+                           (layer STREQUAL "core" AND checked_layer STREQUAL "modules") OR
+                           checked STREQUAL root)
+                            message(FATAL_ERROR "Gravitas source boundary: ${owner} (${layer}) obtains forbidden ${property} from ${dependency}: ${entry}")
+                        endif()
                     endif()
-                    # These checks apply to both plain and generator-expression paths.
-                    if(entry MATCHES "${root}/runtime(/|>|$)" OR
-                       (layer STREQUAL "core" AND entry MATCHES "${root}/modules(/|>|$)") OR
-                       entry STREQUAL "${root}" OR entry MATCHES "${root}>$")
-                        message(FATAL_ERROR "Gravitas source boundary: ${owner} (${layer}) obtains forbidden ${property} from ${dependency}: ${entry}")
+                    # Retain detection of literal forbidden roots embedded in other
+                    # generator expressions; arbitrary expressions are not evaluated.
+                    if(checked MATCHES "\\$<")
+                        if(entry MATCHES "${root}/runtime(/|>|$)" OR
+                           (layer STREQUAL "core" AND entry MATCHES "${root}/modules(/|>|$)") OR
+                           entry STREQUAL "${root}" OR entry MATCHES "${root}>$")
+                            message(FATAL_ERROR "Gravitas source boundary: ${owner} (${layer}) obtains forbidden ${property} from ${dependency}: ${entry}")
+                        endif()
                     endif()
                 endforeach()
             endforeach()
@@ -83,8 +133,8 @@ function(gravitas_check_source_layers)
 
     # Catch explicit relative/absolute includes and short runtime header names,
     # even when a target has not yet compiled the offending header.
-    file(GLOB_RECURSE runtime_headers "${root}/runtime/*.h" "${root}/runtime/*.hpp")
-    file(GLOB_RECURSE module_headers "${root}/modules/*.h" "${root}/modules/*.hpp")
+    gravitas_boundary_sources("${root}/runtime" runtime_headers)
+    gravitas_boundary_sources("${root}/modules" module_headers)
     foreach(layer core modules)
         set(forbidden_headers ${runtime_headers})
         if(layer STREQUAL "core")
@@ -95,13 +145,13 @@ function(gravitas_check_source_layers)
             get_filename_component(name "${header}" NAME)
             list(APPEND forbidden_names "${name}")
         endforeach()
-        file(GLOB_RECURSE sources "${root}/${layer}/*.h" "${root}/${layer}/*.hpp" "${root}/${layer}/*.cpp")
+        gravitas_boundary_sources("${root}/${layer}" sources)
         foreach(source IN LISTS sources)
             file(STRINGS "${source}" includes REGEX "^[ \t]*#[ \t]*include[ \t]*[<\"]")
             foreach(include IN LISTS includes)
                 string(REGEX REPLACE ".*[<\"]([^>\"]+)[>\"].*" "\\1" header "${include}")
                 get_filename_component(source_dir "${source}" DIRECTORY)
-                get_filename_component(resolved "${header}" ABSOLUTE BASE_DIR "${source_dir}")
+                gravitas_canonical_path("${header}" "${source_dir}" resolved)
                 gravitas_source_layer("${resolved}" "${root}" included_layer)
                 if(included_layer STREQUAL "runtime" OR
                    (layer STREQUAL "core" AND included_layer STREQUAL "modules"))

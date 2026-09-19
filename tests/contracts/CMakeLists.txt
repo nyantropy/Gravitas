@@ -33,7 +33,11 @@ endif()
 
 foreach(boundary_case allowed core_modules core_runtime modules_runtime transitive_alias
         include_directory root_include_directory core_source_include module_source_include
-        core_relative_include module_runtime_source)
+        core_relative_include module_runtime_source
+        objects_source objects_transitive objects_core_module objects_external_owner objects_allowed
+        normalized_include normalized_source sibling_allowed symlink_include symlink_source symlink_literal
+        extension_cc extension_cxx extension_C extension_c extension_inl extension_ipp extension_tpp
+        extension_inc extension_hh extension_hxx extension_H incremental_edit incremental_add)
     add_test(NAME source_layers_${boundary_case}
         COMMAND "${CMAKE_COMMAND}"
             "-DCHECK_FILE=${GTS_ENGINE_ROOT}/cmake/GravitasSourceLayers.cmake"

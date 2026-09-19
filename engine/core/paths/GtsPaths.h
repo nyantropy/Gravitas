@@ -21,11 +21,6 @@ public:
         return fallbackProjectRootStorage();
     }
 
-    static const std::filesystem::path& getProjectRoot()
-    {
-        return GetProjectRoot();
-    }
-
 private:
     static std::filesystem::path& projectRootStorage()
     {

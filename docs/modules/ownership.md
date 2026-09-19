@@ -124,8 +124,38 @@ require separate public-header/facade work; it is not an excuse to export siblin
 
 `GravitasPublicIncludes.cmake` supplements, without changing, the three-layer checker.
 It rejects public source/module roots, ancestor exports and the backend-containing
-rendering root after normalizing conventional build-interface paths. It does not attempt
-to evaluate arbitrary generator expressions or provide a filesystem security boundary.
+rendering root after normalizing conventional build-interface paths. Both checkers canonicalize literal paths and conventional build-interface paths,
+including existing symlinks. They do not attempt to evaluate arbitrary generator
+expressions or provide a filesystem security boundary.
 Standalone compile probes link one subject target, include its intended API, and reject
 unrelated runtime/module/backend header visibility with `__has_include`. Fixtures cover
 allowed leaves and rejected broad/normalized/wrapped roots.
+
+
+## Boundary maintenance
+
+The source-layer checker follows literal `$<TARGET_OBJECTS:target>` references in
+source/interface-source properties, including references wrapped in build-interface
+expressions. Object producers enter the same ownership/dependency traversal as linked
+targets. This catches upward object injection and objects compiled from another layer's
+sources; legitimate downward/sibling capability usage remains allowed.
+
+Literal source/include paths, target-owner paths and the architectural root are
+canonicalized before checking, including `..` and existing symlink aliases. The public
+include checker uses the same normalization. Ordinary `BUILD_INTERFACE` paths are
+unwrapped; literal-root detection remains for other expressions. Neither checker
+interprets arbitrary computed target names or macro-generated includes.
+
+Source scanning covers `.h`, `.hpp`, `.hh`, `.hxx`, `.H`, `.inl`, `.ipp`, `.tpp`, `.inc`,
+`.c`, `.cc`, `.cpp`, `.cxx` and `.C`. Current production sources use `.h`/`.hpp`/`.cpp`;
+fixtures protect the supported C/C++ and include-fragment alternatives. Scanned files
+are CMake configure dependencies, while `GLOB_RECURSE CONFIGURE_DEPENDS` observes
+additions/removals. Normal builds therefore rerun configuration and the deferred
+checks after relevant production source/header changes. Explicitly suppressing CMake
+regeneration or using unsupported generators is outside this build-time guarantee.
+
+Fixtures cover object producers (including wrappers and producers outside the layer
+tree), lexical/symlink path aliases, alternate extensions, valid sibling contracts,
+and configure-then-edit/add followed by a normal build. Symlink fixtures report a skip
+if the platform cannot create a symbolic link. This remains practical boundary
+maintenance, not a general C++ dependency analyzer.

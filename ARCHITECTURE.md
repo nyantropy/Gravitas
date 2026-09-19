@@ -172,8 +172,10 @@ vendored documentation and should not be rewritten as first-party engine docs.
   backend's narrow installer; provider construction and Vulkan implementation remain
   module-owned. `gravitas_runtime_execution` remains independently available for policy
   integration tests. See [runtime configuration](docs/modules/runtime-configuration.md).
-- CMake checks actual target links, transitive aliases/interface wrappers and
-  include/source paths at the end of configuration. Source checks reject includes
+- CMake checks actual target links, object-library references, transitive aliases/
+  interface wrappers and canonical include/source paths at the end of configuration.
+  Production source/header edits and additions trigger reconfiguration on normal builds.
+  Source checks reject includes
   of higher-layer headers. See [source ownership](docs/modules/ownership.md)
   for the placement test, enforcement and remaining command/input API boundaries.
 - Core contains foundational mechanisms and generic utilities, not feature accessors

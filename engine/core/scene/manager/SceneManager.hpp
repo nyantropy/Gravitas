@@ -12,7 +12,7 @@
 #include "GtsScene.hpp"
 #include "RegisteredSceneInfo.h"
 
-// manage active scenes in the renderer, hold the current active scene, a simple management class
+// Own the active scene and coordinate scene transitions and lifecycle.
 class SceneManager
 {
     public:

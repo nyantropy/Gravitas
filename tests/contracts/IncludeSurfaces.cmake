@@ -79,7 +79,8 @@ add_include_surface_test(profiling gravitas_profiling FEATURE HEADERS ISceneFram
 if(TARGET gravitas_runtime)
     add_include_surface_test(facade gravitas_runtime FEATURE IMPLEMENTATION RUNTIME HEADERS GravitasEngine.hpp)
 endif()
-foreach(case allowed module_root wrapped_module_root source_root ancestor rendering_root)
+foreach(case allowed module_root wrapped_module_root source_root ancestor rendering_root
+        sibling_allowed symlink_module_root root_alias)
     add_test(NAME public_includes_${case}
         COMMAND "${CMAKE_COMMAND}" "-DENGINE_SOURCE=${GTS_ENGINE_ROOT}"
             "-DTEST_BINARY_ROOT=${CMAKE_CURRENT_BINARY_DIR}" "-DCASE=${case}"

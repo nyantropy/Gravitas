@@ -18,7 +18,6 @@
 #include "CameraDescriptionComponent.h"
 #include "CubeAnimationComponent.h"
 #include "CubeAnimationSystem.hpp"
-#include "EngineConfig.h"
 #include "Entity.h"
 #include "GraphicsConstants.h"
 #include "MaterialReferenceComponent.h"
@@ -132,7 +131,7 @@ inline void GtsScene3::spawnStressCubes()
 
     static_assert(GridColumns * GridRows * GridLayers == CubeCount,
                   "CubeCount must match the 3D stress grid dimensions");
-    static_assert(CubeCount < EngineConfig::MAX_RENDERABLE_OBJECTS,
+    static_assert(CubeCount < GraphicsConstants::MAX_RENDERABLE_OBJECTS,
                   "CubeCount exceeds the renderer object budget");
 
     constexpr float pi = 3.14159265358979323846f;

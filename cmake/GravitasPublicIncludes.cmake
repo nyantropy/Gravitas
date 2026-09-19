@@ -1,6 +1,7 @@
 # Supplement the three-layer check with a narrow public include-root rule.
 function(gravitas_check_public_includes)
     get_property(root GLOBAL PROPERTY GRAVITAS_SOURCE_LAYER_ROOT)
+    gravitas_canonical_path("${root}" "${CMAKE_CURRENT_SOURCE_DIR}" root)
     gravitas_collect_targets("${CMAKE_SOURCE_DIR}" targets)
     foreach(target IN LISTS targets)
         get_target_property(owner "${target}" SOURCE_DIR)
@@ -15,9 +16,8 @@ function(gravitas_check_public_includes)
             if(path MATCHES "\\$<" OR path MATCHES "-NOTFOUND$")
                 continue()
             endif()
-            get_filename_component(path "${path}" ABSOLUTE BASE_DIR "${owner}")
-            file(REAL_PATH "${path}" path)
-            file(REAL_PATH "${owner}" owner_path)
+            gravitas_canonical_path("${path}" "${owner}" path)
+            gravitas_canonical_path("${owner}" "${CMAKE_CURRENT_SOURCE_DIR}" owner_path)
             file(RELATIVE_PATH owner_from_include "${path}" "${owner_path}")
             if(path STREQUAL "${root}" OR path STREQUAL "${root}/modules" OR
                path STREQUAL "${root}/modules/rendering" OR
