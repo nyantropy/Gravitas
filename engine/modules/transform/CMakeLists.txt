@@ -13,3 +13,5 @@ target_include_directories(gravitas_transform PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/systems"
 )
 target_link_libraries(gravitas_transform PUBLIC gravitas_core)
+
+target_link_libraries(gravitas_transform PUBLIC gravitas_execution_policy)

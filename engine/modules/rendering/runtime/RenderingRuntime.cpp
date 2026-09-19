@@ -12,7 +12,7 @@
 
 #include "ECSWorld.hpp"
 #include "EcsControllerContext.hpp"
-#include "EcsExecutionProfile.h"
+#include "SceneExecutionPolicy.h"
 #include "EditorPreviewRenderData.h"
 #include "EngineServiceRegistry.h"
 #include "FrustumCullingStrategy.h"
@@ -350,7 +350,7 @@ namespace gts::rendering
         if (sceneFrameStats != nullptr)
             sceneFrameStats->populateFrameStats(stats);
 
-        const SceneExecutionProfile& executionProfile = world.getCurrentExecutionProfile();
+        const SceneExecutionPolicy& executionProfile = gts::execution::sceneExecutionPolicy(world);
         const FrameBuildMode frameBuildMode = executionProfile.frameBuildMode;
 
         static const std::vector<RenderCommand> emptyRenderList;

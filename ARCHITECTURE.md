@@ -50,6 +50,7 @@ engine/
       visualnovel/       VN stage/runtime, interaction and retained UI frontend
     diagnostics/         always-available profiling, optional debug draw and diagnostic bridges
     ui/                  retained documents, surfaces, layout and interaction
+    execution/           fixed runtime participation and scene-presentation policy
     physics/             sphere-collider collision detection
       contracts/         physics accessor and collision values; no implementation dependency
     tools/               in-engine inspection/editing toolchain
@@ -222,30 +223,39 @@ world and preview-world metrics. Copying a context copies payload values; borrow
 service pointers remain valid only for the current call. Do not cache them across
 frames. This does not change system signatures, ordering, scene hooks or service discovery.
 
-## Execution Profiles
+## Execution Selection And Runtime Policy
 
-Every registered system has a broad `EcsSystemGroup`:
+Core ECS owns `EcsExecutionSelection`, opaque `EcsSystemGroup` identities and
+`uint64_t` masks. Simulation and controller systems execute in registration order;
+groups filter participation and never sort or establish phases. The current top
+selection is checked before each system, so changes affect later systems in the
+same pass. Structural commands still flush after each executed system.
 
-- `Always`
-- `Gameplay`
-- `Physics`
-- `Camera`
-- `RenderPrep`
-- `Particles`
-- `Animation`
-- `Audio`
-- `Ui`
-- `Dialogue`
-- `VN`
-- `Tools`
+`modules/execution/` owns the fixed catalog in `BuiltinExecutionGroups.h`:
+`gts::execution::groups::{Always, Gameplay, Physics, Camera, RenderPrep, Particles,
+Animation, Audio, Ui, Dialogue, VN, Tools}`. Bits 0–11 and diagnostic labels retain
+their original identities. `Always` is maskable like every other group.
 
-`SceneExecutionProfile` combines enabled groups, render frame build mode, and
-time policy. Built-in profiles include gameplay, dialogue overlay, fullscreen
-dialogue, and pause menu.
+`SceneExecutionProfile` is an authoring value outside core. Converting it to a
+selection copies its ID/mask and typed `SceneExecutionPolicy` metadata into one
+value-owned stack entry. ECS reads only the ID/mask; rendering reads presentation
+metadata through `gts::execution::sceneExecutionPolicy(world)`. There is no second
+mask/presentation stack or entity used for bookkeeping. Gameplay/pause-menu
+recipes belong to execution policy; dialogue-overlay/fullscreen recipes belong
+to `narrative/visualnovel/contracts/VNExecutionProfiles.h`.
 
-`TimePolicy` is part of the profile contract, but separate gameplay, physics,
-UI, dialogue, and real-time clocks are not fully implemented yet. Today, time
-effectively stops for masked system groups.
+`ensureExecutionPolicy(world)` supplies the runtime gameplay default (`0xFFF`,
+`FullWorld`, `AllRunning`) once. Engine context construction and standalone
+transform/animation/rendering/debug-draw/VN installation paths supply it without replacing active
+selections. World clear restores the configured default. A bare core world has
+an unnamed, unfiltered neutral selection; it does not select engine policy.
+
+Engine pause remains separate: it stops fixed simulation ticks, not controllers
+or rendering. `TimePolicy` remains descriptive metadata and introduces no clocks.
+Retained UI input/animation and external tool controllers retain their existing
+execution outside ECS group filtering. See
+[execution policy architecture](docs/execution/architecture.md) for exact presets,
+installation rules, stack semantics and characterization coverage.
 
 ## Input Model
 
@@ -496,7 +506,7 @@ settings architecture for ownership and extension rules.
 ## Extensibility Pointers
 
 - Add simulation systems by deriving `ECSSimulationSystem` and registering them
-  with the broadest accurate `EcsSystemGroup`.
+  with the appropriate fixed participation category from `BuiltinExecutionGroups.h`.
 - Add controller systems by deriving `ECSControllerSystem` and registering them
   with the broadest accurate group.
 - Add renderables through descriptors; do not write GPU companions.

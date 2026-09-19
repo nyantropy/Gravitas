@@ -1,0 +1,5 @@
+# Fixed runtime participation/presentation contracts; no optional implementations.
+add_library(gravitas_execution_policy INTERFACE)
+target_compile_features(gravitas_execution_policy INTERFACE cxx_std_20)
+target_include_directories(gravitas_execution_policy INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(gravitas_execution_policy INTERFACE gravitas_core)

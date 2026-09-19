@@ -23,3 +23,7 @@ add_test(NAME controller_context COMMAND ControllerContextTest)
 add_executable(SceneResourceTest SceneResourceTest.cpp)
 target_link_libraries(SceneResourceTest PRIVATE gravitas_core)
 add_test(NAME scene_resource COMMAND SceneResourceTest)
+
+add_executable(ExecutionSelectionTest ExecutionSelectionTest.cpp)
+target_link_libraries(ExecutionSelectionTest PRIVATE gravitas_core)
+add_test(NAME execution_selection COMMAND ExecutionSelectionTest)

@@ -29,7 +29,7 @@ ecsWorld.addComponent(entity, animation); // entity also has TransformComponent
 The `GtsScene&` installer guards against duplicate installation and can be used
 again after scene unload resets the world. The `ECSWorld&` overload is for
 low-level worlds and must be called once per world lifetime. The installer
-registers a fixed-step simulation system in `EcsSystemGroup::Animation`.
+registers a fixed-step simulation system in `gts::execution::groups::Animation`.
 Scenes must run their simulation systems; adding a component alone does not
 install behavior. The GtsScene1 demo uses this shared feature.
 

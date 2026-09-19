@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #include "RenderingControllerContext.h"
 #include "UiControllerContext.h"
 #include <cmath>
@@ -488,8 +489,47 @@ namespace
     }
 } // namespace
 
+void testExecutionTransitions()
+{
+    ECSWorld world;
+    UiSystem ui(nullptr);
+    EcsControllerContext ctx{world};
+    gts::ui::controllerContext(ctx).ui = &ui;
+    auto& session = world.createSingleton<gts::vn::InteractionFrontendSessionComponent>();
+    session.active = true;
+    session.mode = gts::vn::InteractionFrontendMode::MerchantTrade;
+    auto& presentation = world.createSingleton<gts::vn::VNExternalPresentationComponent>();
+    gts::vn::VNSystem system;
+    system.update(ctx);
+    require(world.getCurrentExecutionSelection().id == "dialogue_overlay" &&
+            world.getCurrentExecutionSelection().enabledSystems == 0xf99 &&
+            gts::execution::sceneExecutionPolicy(world).frameBuildMode == FrameBuildMode::FullWorld, "Overlay policy");
+    system.update(ctx);
+    require(world.getExecutionSelectionDepth() == 2, "VN must not duplicate its active selection");
+    presentation.active = true;
+    presentation.suppressSceneRendering = true;
+    presentation.markDirty();
+    system.update(ctx);
+    require(world.getCurrentExecutionSelection().id == "fullscreen_dialogue" &&
+            world.getCurrentExecutionSelection().enabledSystems == 0xf81 &&
+            gts::execution::sceneExecutionPolicy(world).frameBuildMode == FrameBuildMode::UiOnly &&
+            world.getExecutionSelectionDepth() == 2, "Fullscreen must replace VN's own top selection");
+    auto blocker = SceneExecutionProfile::pauseMenu();
+    blocker.id = "other-owner";
+    world.pushExecutionSelection(blocker);
+    session.active = false;
+    system.update(ctx);
+    require(world.getCurrentExecutionSelection().id == "other-owner" && world.getExecutionSelectionDepth() == 3,
+            "VN must not pop another owner's selection");
+    world.popExecutionSelection("other-owner");
+    system.update(ctx);
+    require(world.getCurrentExecutionSelection().id == "gameplay" && world.getExecutionSelectionDepth() == 1,
+            "VN must restore policy after blocker is removed");
+}
+
 int main()
 {
+    testExecutionTransitions();
     testSemanticLayoutMatchesCompatibilityRects();
     testChoiceStackThemeAndNavigation();
     testModalSlotOwnership();

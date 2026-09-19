@@ -1,3 +1,5 @@
+#include "SceneExecutionPolicy.h"
+#include "BuiltinExecutionGroups.h"
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -55,7 +57,7 @@ namespace
         {
             if (sample.name.find("TransformSystem") != std::string_view::npos)
             {
-                require(sample.group == EcsSystemGroup::RenderPrep, "resolver group changed");
+                require(sample.group == gts::execution::groups::RenderPrep, "resolver group changed");
                 require(sample.instanceIndex == count, "unexpected resolver execution index");
                 ++count;
             }
@@ -128,9 +130,9 @@ namespace
         const Entity child  = addTransform(world, 2.0f);
         require(attachToParent(world, child, parent), "could not attach child");
         registerWorldTransformPublishedCallback(world, published);
-        world.addControllerSystem<Writer>(EcsSystemGroup::Camera, parent);
+        world.addControllerSystem<Writer>(gts::execution::groups::Camera, parent);
         installTransformResolver(world);
-        world.addControllerSystem<Reader>(EcsSystemGroup::RenderPrep, child);
+        world.addControllerSystem<Reader>(gts::execution::groups::RenderPrep, child);
         events.clear();
         world.updateControllers(EcsControllerContext{world});
         require(transformExecutions(world) == 1, "split installer execution count");
@@ -165,11 +167,11 @@ namespace
         require(world.getControllerSystemCount() == 1, "resolver-only registration count");
         const Entity entity = addTransform(world, 5.0f);
         markDirty(world, entity);
-        world.pushExecutionProfile(SceneExecutionProfile::pauseMenu());
+        world.pushExecutionSelection(SceneExecutionProfile::pauseMenu());
         world.updateControllers(EcsControllerContext{world});
         require(transformExecutions(world) == 0, "RenderPrep mask ignored");
         require(!world.hasComponent<WorldTransformComponent>(entity), "masked resolver published");
-        world.popExecutionProfile();
+        world.popExecutionSelection();
         world.updateControllers(EcsControllerContext{world});
         require(transformExecutions(world) == 1 && position(world, entity) == 5.0f, "resolver-only execution failed");
     }
@@ -179,7 +181,7 @@ namespace
         ECSWorld world;
         installTransformFeature(world);
         const Entity entity = addTransform(world, 1.0f);
-        world.addControllerSystem<Writer>(EcsSystemGroup::Camera, entity);
+        world.addControllerSystem<Writer>(gts::execution::groups::Camera, entity);
         world.updateControllers(EcsControllerContext{world});
         require(position(world, entity) == 1.0f, "installer moved resolution after a later writer");
         world.updateControllers(EcsControllerContext{world});
@@ -204,11 +206,11 @@ namespace
             const Entity parent = addTransform(world, 1.0f);
             const Entity child  = addTransform(world, 2.0f);
             require(attachToParent(world, child, parent), "scene parenting failed");
-            world.addControllerSystem<Writer>(EcsSystemGroup::Camera, parent);
+            world.addControllerSystem<Writer>(gts::execution::groups::Camera, parent);
             installTransformFeature(scene);
             installTransformFeature(scene);
             installTransformResolver(scene);
-            world.addControllerSystem<Reader>(EcsSystemGroup::RenderPrep, child);
+            world.addControllerSystem<Reader>(gts::execution::groups::RenderPrep, child);
             require(world.getControllerSystemCount() == 3, "scene installer idempotence");
             world.updateControllers(context);
             require(transformExecutions(world) == 1, "scene resolver execution count");

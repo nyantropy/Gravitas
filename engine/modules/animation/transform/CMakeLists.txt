@@ -2,3 +2,5 @@ add_library(gravitas_transform_animation INTERFACE)
 target_compile_features(gravitas_transform_animation INTERFACE cxx_std_20)
 target_include_directories(gravitas_transform_animation INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(gravitas_transform_animation INTERFACE gravitas_transform)
+
+target_link_libraries(gravitas_transform_animation INTERFACE gravitas_execution_policy)

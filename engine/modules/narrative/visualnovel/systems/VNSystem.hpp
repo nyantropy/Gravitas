@@ -1,5 +1,7 @@
 #pragma once
 
+#include "VNExecutionProfiles.h"
+
 #include "UiControllerContext.h"
 #include <algorithm>
 #include <cstdint>
@@ -13,7 +15,7 @@
 #include "ECSWorld.hpp"
 #include "DialogueContextHelpers.h"
 #include "DialogueRuntimeComponent.h"
-#include "EcsExecutionProfile.h"
+#include "SceneExecutionPolicy.h"
 #include "InputBindingRegistry.h"
 #include "RenderPassVisibilityComponent.h"
 #include "UiSystem.h"
@@ -63,6 +65,7 @@ namespace gts::vn
 
         void update(const EcsControllerContext& ctx) override
         {
+            gts::execution::ensureExecutionPolicy(ctx.world);
             buildUiIfNeeded(ctx.world, gts::ui::controllerContext(ctx).ui);
             writeFrontendState(ctx.world, gts::ui::controllerContext(ctx).ui);
 
@@ -434,8 +437,8 @@ namespace gts::vn
         void applyDialogueExecutionProfile(ECSWorld& world, bool fullscreenPresentation)
         {
             SceneExecutionProfile profile = fullscreenPresentation
-                ? SceneExecutionProfile::fullscreenDialogue()
-                : SceneExecutionProfile::dialogueOverlay();
+                ? gts::vn::fullscreenDialogue()
+                : gts::vn::dialogueOverlay();
             const std::string profileId = profile.id;
 
             if (executionProfilePushed && activeExecutionProfileId == profileId)
@@ -445,7 +448,7 @@ namespace gts::vn
             if (executionProfilePushed)
                 return;
 
-            world.pushExecutionProfile(std::move(profile));
+            world.pushExecutionSelection(std::move(profile));
             activeExecutionProfileId = profileId;
             executionProfilePushed = true;
         }
@@ -455,7 +458,7 @@ namespace gts::vn
             if (!executionProfilePushed)
                 return;
 
-            if (!world.popExecutionProfile(activeExecutionProfileId))
+            if (!world.popExecutionSelection(activeExecutionProfileId))
                 return;
 
             activeExecutionProfileId.clear();

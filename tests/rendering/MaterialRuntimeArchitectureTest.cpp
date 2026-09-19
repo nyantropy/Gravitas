@@ -210,6 +210,9 @@ namespace
 
     void install(ECSWorld& world, FakeResourceProvider& resources)
     {
+        // Each case constructs a fresh world. Low-level renderer registries need
+        // explicit cleanup so reused stack addresses cannot inherit another case.
+        gts::rendering::resetRendererGeometrySceneFeature(world);
         gts::transform::installTransformFeature(world);
         gts::rendering::installRendererGeometrySceneFeature(world, &resources);
     }

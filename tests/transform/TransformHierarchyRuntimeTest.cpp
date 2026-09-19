@@ -1,3 +1,4 @@
+#include "BuiltinExecutionGroups.h"
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -299,12 +300,12 @@ namespace
         bool capturedValue = false;
 
         world.addControllerSystem<MoveTransformController>(
-            EcsSystemGroup::Camera,
+            gts::execution::groups::Camera,
             entity,
             glm::vec3{7.0f, 2.0f, -3.0f});
         gts::transform::installTransformResolver(world);
         world.addControllerSystem<CaptureWorldTransformController>(
-            EcsSystemGroup::RenderPrep,
+            gts::execution::groups::RenderPrep,
             entity,
             captured,
             capturedValue);

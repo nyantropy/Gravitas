@@ -1,3 +1,5 @@
+#include "SceneExecutionPolicy.h"
+#include "BuiltinExecutionGroups.h"
 #include "TransformSceneFeature.h"
 
 #include "ECSWorld.hpp"
@@ -18,6 +20,7 @@ namespace gts::transform
 
     void installTransformRuntime(ECSWorld& world)
     {
+        gts::execution::ensureExecutionPolicy(world);
         installTransformWorldState(world);
         world.registerAddCallback<TransformComponent>(
             [](ECSWorld& world, Entity entity, TransformComponent&)
@@ -46,8 +49,9 @@ namespace gts::transform
 
     void installTransformResolver(ECSWorld& world)
     {
+        gts::execution::ensureExecutionPolicy(world);
         installTransformWorldState(world);
-        world.addControllerSystem<TransformSystem>(EcsSystemGroup::RenderPrep);
+        world.addControllerSystem<TransformSystem>(gts::execution::groups::RenderPrep);
     }
 
     void installTransformFeature(ECSWorld& world)

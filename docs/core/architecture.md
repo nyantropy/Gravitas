@@ -91,12 +91,37 @@ binding to the separately scene-owned implementation. Profiling participation is
 the optional diagnostics-owned `ISceneFrameStats` interface, detected by rendering.
 Neither feature is declared, included or linked by core.
 
+## Generic Execution Selection
+
+`ecs/execution/EcsExecutionSelection.h` defines an opaque 64-bit group identity,
+mask operations, neutral timing records and a value-owned `{id, enabledSystems}`
+selection with optional typed policy data. Core does not inspect that data or
+name feature categories. `std::any` retains one copyable typed value on the same
+entry; it is not a service registry, lookup table or secondary policy stack.
+
+`ECSWorld` retains ordered registration, per-system mask checks, command flushing,
+timing, and one selection stack. Public operations are `getCurrentExecutionSelection`,
+`pushExecutionSelection`, `popExecutionSelection` (optionally guarded by ID),
+`getExecutionSelectionDepth` and `shouldExecuteGroup`. Bottom entries cannot be
+popped; the top mask replaces rather than intersects lower selections.
+
+A bare core world defaults to an unnamed unfiltered selection. Policy owners call
+`configureDefaultExecutionSelection` once; `hasConfiguredDefaultExecutionSelection`
+allows allocation-free repeated checks. Installing a default replaces only the
+bottom entry and does not disturb overlays. `clear()` restores that configured
+value, including its typed payload. Core-only callers/tests use neutral identities
+and can supply their own defaults. Engine and standalone feature worlds install
+the original gameplay default through the execution-policy module.
+
+No `SceneExecutionProfile`, feature group labels, rendering modes or time-policy
+vocabulary remain in core's execution contracts. See
+[execution policy](../execution/architecture.md) for the higher-level ownership.
+
 ## Deliberately Deferred Semantic Boundaries
 
 This is physical/build ownership, not a redesign of engine composition. The
 following existing feature awareness remains intentional for this stage:
 
-- `SceneExecutionProfile` presets and `EcsSystemGroup` vocabulary.
 - Screenshot commands and their existing request semantics.
 - Rendering-side `UiSystem` and resource integration.
 - Service discovery and optional runtime composition.

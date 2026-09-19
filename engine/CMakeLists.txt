@@ -47,6 +47,7 @@ add_library(gravitas_engine INTERFACE)
 target_compile_features(gravitas_engine INTERFACE cxx_std_20)
 
 target_link_libraries(gravitas_engine INTERFACE
+    gravitas_execution_policy
     gravitas_core
     gravitas_modules
 )

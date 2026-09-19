@@ -24,7 +24,7 @@
 #include "Entity.h"
 #include "ECSSimulationSystem.hpp"
 #include "ECSControllerSystem.hpp"
-#include "EcsExecutionProfile.h"
+#include "EcsExecutionSelection.h"
 #include "SubscriptionToken.hpp"
 
 // Integrated ECS world with component storage, systems, and an event bus.
@@ -184,18 +184,20 @@ class ECSWorld
         struct RegisteredSimulationSystem
         {
             std::unique_ptr<ECSSimulationSystem> system;
-            EcsSystemGroup group = EcsSystemGroup::Gameplay;
+            EcsSystemGroup group = EcsSystemGroup{};
         };
 
         struct RegisteredControllerSystem
         {
             std::unique_ptr<ECSControllerSystem> system;
-            EcsSystemGroup group = EcsSystemGroup::Gameplay;
+            EcsSystemGroup group = EcsSystemGroup{};
         };
 
         std::vector<RegisteredSimulationSystem> simulationSystems;
         std::vector<RegisteredControllerSystem> controllerSystems;
-        std::vector<SceneExecutionProfile> executionProfileStack = {SceneExecutionProfile::gameplay()};
+        EcsExecutionSelection defaultExecutionSelection;
+        bool defaultExecutionSelectionConfigured = false;
+        std::vector<EcsExecutionSelection> executionSelectionStack = {defaultExecutionSelection};
         struct SystemProfile
         {
             float totalMs = 0.0f;
@@ -222,12 +224,6 @@ class ECSWorld
         std::vector<std::function<void(ECSWorld&)>> deferredStructuralCommands;
         bool flushingDeferredStructuralCommands = false;
         EntityCommandBuffer commandBuffer;
-
-        static const SceneExecutionProfile& defaultExecutionProfile()
-        {
-            static const SceneExecutionProfile profile = SceneExecutionProfile::gameplay();
-            return profile;
-        }
 
         Entity reserveDeferredEntity()
         {
@@ -933,48 +929,65 @@ class ECSWorld
                 profile = {};
         }
 
-        const SceneExecutionProfile& getCurrentExecutionProfile() const
+        // Policy owners may establish a default without disturbing active entries.
+        // The first explicit default wins and survives clear(); core knows no preset.
+        bool hasConfiguredDefaultExecutionSelection() const
         {
-            return executionProfileStack.empty()
-                ? defaultExecutionProfile()
-                : executionProfileStack.back();
+            return defaultExecutionSelectionConfigured;
+        }
+
+        bool configureDefaultExecutionSelection(EcsExecutionSelection selection)
+        {
+            if (defaultExecutionSelectionConfigured)
+                return false;
+            defaultExecutionSelection = std::move(selection);
+            executionSelectionStack.front() = defaultExecutionSelection;
+            defaultExecutionSelectionConfigured = true;
+            return true;
+        }
+
+        const EcsExecutionSelection& getCurrentExecutionSelection() const
+        {
+            return executionSelectionStack.empty()
+                ? defaultExecutionSelection
+                : executionSelectionStack.back();
         }
 
         bool shouldExecuteGroup(EcsSystemGroup group) const
         {
-            return getCurrentExecutionProfile().contains(group);
+            return getCurrentExecutionSelection().contains(group);
         }
 
-        size_t pushExecutionProfile(SceneExecutionProfile profile)
+        size_t pushExecutionSelection(EcsExecutionSelection profile)
         {
-            executionProfileStack.push_back(std::move(profile));
-            return executionProfileStack.size();
+            executionSelectionStack.push_back(std::move(profile));
+            return executionSelectionStack.size();
         }
 
-        bool popExecutionProfile()
+        bool popExecutionSelection()
         {
-            if (executionProfileStack.size() <= 1)
+            if (executionSelectionStack.size() <= 1)
                 return false;
 
-            executionProfileStack.pop_back();
+            executionSelectionStack.pop_back();
             return true;
         }
 
-        bool popExecutionProfile(std::string_view expectedTopId)
+        bool popExecutionSelection(std::string_view expectedTopId)
         {
-            if (executionProfileStack.size() <= 1)
+            if (executionSelectionStack.size() <= 1)
                 return false;
 
-            if (executionProfileStack.back().id != expectedTopId)
+            if (executionSelectionStack.back().id != expectedTopId)
                 return false;
 
-            executionProfileStack.pop_back();
+            executionSelectionStack.pop_back();
             return true;
         }
 
-        size_t getExecutionProfileDepth() const
+        size_t getExecutionSelectionDepth() const
         {
-            return executionProfileStack.size();
+            return executionSelectionStack.size();
         }
 
         template<typename... Components>
@@ -1013,8 +1026,8 @@ class ECSWorld
             controllerProfilePrintScratch.clear();
             lastControllerTimingSamples.clear();
             controllerInstanceScratch.clear();
-            executionProfileStack.clear();
-            executionProfileStack.push_back(SceneExecutionProfile::gameplay());
+            executionSelectionStack.clear();
+            executionSelectionStack.push_back(defaultExecutionSelection);
             forEachScratch.clear();
             forEachScratch.shrink_to_fit();
             deferredStructuralCommands.clear();

@@ -59,7 +59,7 @@ int main()
 
     ECSWorld world;
     EcsControllerContext context{world};
-    world.addControllerSystem<PhysicsController>(EcsSystemGroup::Always);
+    world.addControllerSystem<PhysicsController>(static_cast<EcsSystemGroup>(1ull));
     world.updateControllers(context);
     if (gts::physics::controllerContext(std::as_const(context)).physics != nullptr)
         return 1;

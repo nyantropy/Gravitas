@@ -106,3 +106,5 @@ if(TARGET gravitas_vulkan_backend)
 endif()
 
 target_link_libraries(gravitas_rendering PUBLIC gravitas_model_frontend)
+
+target_link_libraries(gravitas_rendering PUBLIC gravitas_execution_policy)

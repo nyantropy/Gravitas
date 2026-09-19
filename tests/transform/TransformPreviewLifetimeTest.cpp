@@ -33,6 +33,9 @@ int main()
             for (int cycle = 0; cycle != 3; ++cycle)
             {
                 particles.ensure(&resources);
+                if (particles.ecsWorld().getCurrentExecutionSelection().id != "gameplay" ||
+                    particles.ecsWorld().getCurrentExecutionSelection().enabledSystems != 0xfff)
+                    return 1;
                 requireWorldCount(2);
                 const auto state = gts::transform::inspectTransformWorldState(&particles.ecsWorld());
                 if (state.callbacks != 1)
@@ -41,6 +44,9 @@ int main()
                 requireWorldCount(1);
             }
             particles.ensure(&resources);
+                if (particles.ecsWorld().getCurrentExecutionSelection().id != "gameplay" ||
+                    particles.ecsWorld().getCurrentExecutionSelection().enabledSystems != 0xfff)
+                    return 1;
             requireWorldCount(2);
             // The destructor's abandon path does not call world.clear().
         }

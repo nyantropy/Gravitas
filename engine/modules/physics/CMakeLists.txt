@@ -25,3 +25,5 @@ target_link_libraries(gravitas_physics PUBLIC
     gravitas_physics_contracts
     gravitas_transform
 )
+
+target_link_libraries(gravitas_physics PUBLIC gravitas_execution_policy)

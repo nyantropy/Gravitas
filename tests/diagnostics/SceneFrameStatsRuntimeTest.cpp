@@ -1,9 +1,13 @@
+#include "SceneExecutionPolicy.h"
 #include "GtsScene.hpp"
 #include "IGtsGraphicsModule.hpp"
 #include "ISceneFrameStats.h"
 #include "ProfileAccumulator.h"
 #include "RenderingRuntime.h"
 #include "TimeContext.h"
+#include "UiSystem.h"
+#include "ParticleFrameData.h"
+#include "CameraGpuComponent.h"
 
 #include <stdexcept>
 #include <string>
@@ -24,13 +28,15 @@ namespace
         GtsFrameStats            submitted;
         GtsFrameStats            finalStats;
         bool                     staleResult = false;
+        size_t submittedParticles = 0;
+        view_id_type submittedCamera = 0;
 
         void renderFrame(float,
                          const std::vector<RenderCommand>&,
                          const MaterialFrameData&,
                          const std::vector<ObjectUploadCommand>&,
-                         const std::vector<CameraUploadCommand>&,
-                         const ParticleFrameData&,
+                         const std::vector<CameraUploadCommand>& cameras,
+                         const ParticleFrameData& particles,
                          const RenderViewportRect&,
                          const UiCommandBuffer&,
                          const EditorPreviewRenderData&,
@@ -38,6 +44,8 @@ namespace
                          const GtsModelFrameData&) override
         {
             events.push_back("submit");
+            submittedParticles = particles.instances.size();
+            submittedCamera = cameras.empty() ? 0 : cameras.front().cameraViewID;
             submitted                     = stats;
             finalStats                    = stats;
             finalStats.gpuTimingSupported = 1;
@@ -220,4 +228,31 @@ int main()
     render(observer, benchmarkAccumulator);
     require(observer.observations == 2 && benchmarkAccumulator.frameCount == 2,
             "Observation-only scenes must receive exactly one callback per frame");
+
+    for (auto mode : {FrameBuildMode::FullWorld, FrameBuildMode::UiOnly, FrameBuildMode::CachedWorldFrame, FrameBuildMode::None})
+    {
+        Scene modes;
+        ProfileAccumulator modeAccumulator;
+        runtime.resetSceneState();
+        const auto camera = modes.getWorld().createEntity();
+        CameraGpuComponent gpu;
+        gpu.active = true;
+        gpu.viewID = 111;
+        modes.getWorld().addComponent(camera, gpu);
+        auto& particles = modes.getWorld().createSingleton<ParticleFrameDataComponent>();
+        particles.frameData.instances.push_back({});
+        render(modes, modeAccumulator);
+        require(graphics.submittedCamera == 111 && graphics.submittedParticles == 1, "Prime full-world extraction");
+        modes.getWorld().getComponent<CameraGpuComponent>(camera).viewID = 222;
+        auto profile = SceneExecutionProfile::gameplay();
+        profile.frameBuildMode = mode;
+        profile.enabledSystems = 0; // Rendering/UI is not governed by the Ui bit.
+        modes.getWorld().pushExecutionSelection(profile);
+        runtime.setUiEnabled(true);
+        render(modes, modeAccumulator);
+        require(modeAccumulator.frameCount == 2, "Every frame mode must still submit and accumulate");
+        require(graphics.submittedParticles == (mode == FrameBuildMode::FullWorld ? 1u : 0u), "Particle frame participation");
+        require(graphics.submittedCamera == (mode == FrameBuildMode::FullWorld ? 222u : 111u), "Only full-world mode rebuilds extraction");
+        require(runtime.ui()->isEnabled() == (mode != FrameBuildMode::None), "UI frame-mode participation changed");
+    }
 }

@@ -1,3 +1,4 @@
+#include "BuiltinExecutionGroups.h"
 #include "RenderingBenchmark.h"
 #include "RenderingControllerContext.h"
 #include "GtsJsonParser.h"

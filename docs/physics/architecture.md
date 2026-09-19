@@ -50,7 +50,7 @@ The installer:
 4. Creates a scene-owned `detail::ScenePhysicsBinding` borrowing that implementation
    and populates the call's physics-owned controller context. Later engine calls
    use `findScenePhysics` to obtain the same borrowed implementation pointer.
-5. Registers `PhysicsSystem` as an `EcsSystemGroup::Physics` simulation system.
+5. Registers `PhysicsSystem` as an `gts::execution::groups::Physics` simulation system.
 
 The physics world is scene-local and is destroyed with the scene or on scene reset.
 The binding owns no implementation and its destructor never dereferences the

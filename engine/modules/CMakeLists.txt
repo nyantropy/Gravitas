@@ -1,3 +1,6 @@
+# Fixed engine execution policy is available without optional implementations.
+add_subdirectory(execution)
+
 # Lightweight feature contracts and retained UI are available without feature backends.
 add_subdirectory(rendering/contracts)
 add_subdirectory(rendering/contracts/controller)
@@ -35,6 +38,7 @@ add_library(gravitas_modules INTERFACE)
 target_compile_features(gravitas_modules INTERFACE cxx_std_20)
 
 target_link_libraries(gravitas_modules INTERFACE
+    gravitas_execution_policy
     gravitas_core
     gravitas_rendering_contracts
     gravitas_physics_contracts

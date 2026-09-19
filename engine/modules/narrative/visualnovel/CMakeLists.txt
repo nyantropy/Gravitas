@@ -7,6 +7,7 @@ target_include_directories(gravitas_visualnovel INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/ui"
 )
 target_link_libraries(gravitas_visualnovel INTERFACE
+    gravitas_vn_execution_contracts
     gravitas_dialogue
     gravitas_rendering
 )

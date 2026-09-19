@@ -54,8 +54,8 @@ int main()
     InputBindingRegistry input;
     GtsCommandBuffer     commands;
     std::vector<int>     calls;
-    world.addControllerSystem<Reader>(EcsSystemGroup::Always, calls, 1);
-    world.addControllerSystem<Reader>(EcsSystemGroup::Always, calls, 2);
+    world.addControllerSystem<Reader>(static_cast<EcsSystemGroup>(1ull), calls, 1);
+    world.addControllerSystem<Reader>(static_cast<EcsSystemGroup>(1ull), calls, 2);
     std::weak_ptr<int> lifetime;
     {
         EcsControllerContext ctx{world};

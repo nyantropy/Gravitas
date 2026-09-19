@@ -94,3 +94,18 @@ available, it also registers the existing `vn_frontend_runtime` test against
 `gravitas_visualnovel` alone. These tests do not require the Vulkan runtime-test
 configuration: dialogue is testable with rendering disabled, and the VN frontend
 is testable with the Vulkan backend disabled.
+
+## Execution Policy Integration
+
+`visualnovel/contracts/VNExecutionProfiles.h` owns `gts::vn::dialogueOverlay()` and
+`gts::vn::fullscreenDialogue()`. The always-available header-only
+`gravitas_vn_execution_contracts` target consumes `gravitas_execution_policy` only;
+it does not bring in VN, rendering, UI or physics implementation. The existing
+`gravitas_visualnovel` target consumes these recipes alongside its existing dependencies.
+
+VN retains the IDs `dialogue_overlay` / `fullscreen_dialogue`, masks `0xF99` / `0xF81`,
+and FullWorld / UiOnly presentation modes. It pushes a single complete selection
+and restores it through expected-ID pop. Profile changes occur at the same points
+in external-dialogue/interaction updates. Native script playback/input blocking,
+headless dialogue, typewriter behavior and engine pause are unchanged. Rendering
+reads only the common execution-policy contract and never depends on VN recipes.

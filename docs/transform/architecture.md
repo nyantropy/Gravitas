@@ -2,7 +2,9 @@
 
 `engine/modules/transform/` owns local transforms, hierarchy, dirty propagation,
 world-matrix resolution and publication. `gravitas_transform` is a static
-library with a single public dependency, `gravitas_core`. Rendering, physics,
+library consuming `gravitas_core` and the lightweight `gravitas_execution_policy`
+contract. The latter owns the shared `RenderPrep` participation identity and runtime
+default; it has no rendering implementation dependency. Rendering, physics,
 tools, debug drawing and transform animation consume that target. Its include
 directories are exported only by the owning target; `gravitas_modules` retains
 aggregate access for engine/game consumers.

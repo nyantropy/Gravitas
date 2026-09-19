@@ -1,5 +1,8 @@
 #pragma once
 
+#include "BuiltinExecutionGroups.h"
+#include "SceneExecutionPolicy.h"
+
 #include "ActiveCameraViewSystem.hpp"
 #include "CameraBindingLifecycle.h"
 #include "CameraBindingSystem.hpp"
@@ -20,6 +23,7 @@ namespace gts::rendering
 
     inline void installRendererCameraSceneFeature(ECSWorld& world, IResourceProvider* resources)
     {
+        gts::execution::ensureExecutionPolicy(world);
         world.registerRemoveCallback<CameraGpuComponent>(
             [resources](ECSWorld&, Entity, CameraGpuComponent& cameraGpu)
             {
@@ -40,11 +44,11 @@ namespace gts::rendering
                 queueCameraCleanup(world, entity);
             });
 
-        world.addControllerSystem<CameraLifecycleSystem>(EcsSystemGroup::Camera);
-        world.addControllerSystem<DefaultCameraControlSystem>(EcsSystemGroup::Camera);
-        world.addControllerSystem<CameraGpuSystem>(EcsSystemGroup::Camera);
-        world.addControllerSystem<CameraBindingSystem>(EcsSystemGroup::Camera);
-        world.addControllerSystem<ActiveCameraViewSystem>(EcsSystemGroup::Camera);
+        world.addControllerSystem<CameraLifecycleSystem>(gts::execution::groups::Camera);
+        world.addControllerSystem<DefaultCameraControlSystem>(gts::execution::groups::Camera);
+        world.addControllerSystem<CameraGpuSystem>(gts::execution::groups::Camera);
+        world.addControllerSystem<CameraBindingSystem>(gts::execution::groups::Camera);
+        world.addControllerSystem<ActiveCameraViewSystem>(gts::execution::groups::Camera);
 
         world.forEachSnapshot<CameraDescriptionComponent>(
             [&world](Entity entity, CameraDescriptionComponent&)

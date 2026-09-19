@@ -24,7 +24,7 @@ int main()
 {
     ECSWorld world;
     bool     missing = false;
-    world.addControllerSystem<ModelReader>(EcsSystemGroup::Always, missing);
+    world.addControllerSystem<ModelReader>(static_cast<EcsSystemGroup>(1ull), missing);
     world.updateControllers(EcsControllerContext{world});
     return missing ? 0 : 1;
 }

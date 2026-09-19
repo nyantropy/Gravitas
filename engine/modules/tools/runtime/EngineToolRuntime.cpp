@@ -1,3 +1,4 @@
+#include "BuiltinExecutionGroups.h"
 #include "EngineToolRuntime.hpp"
 #include "RenderingControllerContext.h"
 
@@ -114,7 +115,7 @@ namespace gts::tools
             const auto  flushEnd = std::chrono::steady_clock::now();
             const float flushMs  = std::chrono::duration<float, std::milli>(flushEnd - flushStart).count();
 
-            ctx.world.recordExternalControllerTimingSample(system.getName(), EcsSystemGroup::Tools, ms, flushMs);
+            ctx.world.recordExternalControllerTimingSample(system.getName(), gts::execution::groups::Tools, ms, flushMs);
         }
 
         void resetSceneSystems()

@@ -1,4 +1,5 @@
 #pragma once
+#include "SceneExecutionPolicy.h"
 
 #include "PhysicsControllerContext.h"
 #include "ScenePhysics.h"
@@ -128,6 +129,7 @@ class GravitasEngine
     // physics is sourced from the active scene so it is always up to date.
     EcsControllerContext buildControllerContext(ECSWorld& world)
     {
+        gts::execution::ensureExecutionPolicy(world);
         GtsScene* activeScene = sceneManager->getActiveScene();
 
         EcsControllerContext ctx{world};

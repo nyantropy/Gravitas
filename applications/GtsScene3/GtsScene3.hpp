@@ -1,5 +1,7 @@
 #pragma once
 
+#include "BuiltinExecutionGroups.h"
+
 #include "RenderingControllerContext.h"
 #include <chrono>
 #include <cstdio>
@@ -59,7 +61,7 @@ inline void GtsScene3::onLoad(EcsControllerContext& ctx, const GtsSceneTransitio
 {
     resetSceneWorld();
     buildTextureSet();
-    ecsWorld.addSimulationSystem<CubeAnimationSystem>(EcsSystemGroup::Animation);
+    ecsWorld.addSimulationSystem<CubeAnimationSystem>(gts::execution::groups::Animation);
     gts::rendering::installRendererFeature(*this, ctx);
     buildMaterialSet();
 

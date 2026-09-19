@@ -1,3 +1,4 @@
+#include "SceneExecutionPolicy.h"
 #include <cmath>
 #include <cstdio>
 
@@ -121,6 +122,10 @@ namespace
         gts::animation::installAnimationFeature(scene);
         gts::animation::installAnimationFeature(scene);
         auto&                       world = scene.getWorld();
+        if (!require(world.getCurrentExecutionSelection().id == "gameplay" &&
+                     world.getCurrentExecutionSelection().enabledSystems == 0xfff,
+                     "Standalone animation installs the runtime default"))
+            return false;
         TransformAnimationComponent animation;
         animation.enableMode(TransformAnimationMode::Rotate);
         animation.rotationSpeed = 1.0f;
@@ -128,11 +133,11 @@ namespace
         tick(world, 1.0f);
         bool ok = require(near(world.getComponent<TransformComponent>(entity).rotation, {0.0f, 1.0f, 0.0f}),
                           "repeated scene installation advances once");
-        world.pushExecutionProfile(SceneExecutionProfile::pauseMenu());
+        world.pushExecutionSelection(SceneExecutionProfile::pauseMenu());
         tick(world, 1.0f);
         ok &= require(world.getComponent<TransformAnimationComponent>(entity).time == 1.0f,
                       "pause profile masks the animation system");
-        world.popExecutionProfile();
+        world.popExecutionSelection();
         tick(world, 1.0f);
         ok &= require(near(world.getComponent<TransformComponent>(entity).rotation, {0.0f, 2.0f, 0.0f}),
                       "resume continues from retained animation time");

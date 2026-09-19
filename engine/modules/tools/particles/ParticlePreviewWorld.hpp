@@ -1,5 +1,7 @@
 #pragma once
 
+#include "BuiltinExecutionGroups.h"
+
 #include "RenderingControllerContext.h"
 #include <algorithm>
 #include <cmath>
@@ -247,10 +249,10 @@ namespace gts::tools
                     gts::rendering::queueCameraCleanup(world, entity);
                 });
 
-            world.addControllerSystem<CameraLifecycleSystem>(EcsSystemGroup::Camera);
-            world.addControllerSystem<CameraGpuSystem>(EcsSystemGroup::Camera);
-            world.addControllerSystem<CameraBindingSystem>(EcsSystemGroup::Camera);
-            world.addControllerSystem<ActiveCameraViewSystem>(EcsSystemGroup::Camera);
+            world.addControllerSystem<CameraLifecycleSystem>(gts::execution::groups::Camera);
+            world.addControllerSystem<CameraGpuSystem>(gts::execution::groups::Camera);
+            world.addControllerSystem<CameraBindingSystem>(gts::execution::groups::Camera);
+            world.addControllerSystem<ActiveCameraViewSystem>(gts::execution::groups::Camera);
         }
 
         void createCamera()

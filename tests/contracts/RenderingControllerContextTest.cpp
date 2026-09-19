@@ -23,7 +23,7 @@ int main()
 {
     ECSWorld world;
     float    width = 0;
-    world.addControllerSystem<ViewportReader>(EcsSystemGroup::Always, width);
+    world.addControllerSystem<ViewportReader>(static_cast<EcsSystemGroup>(1ull), width);
     EcsControllerContext tools{world};
     const auto&          defaults = gts::rendering::controllerContext(std::as_const(tools));
     if (defaults.resources || defaults.windowAspectRatio != 1 || defaults.windowPixelWidth != 1 ||

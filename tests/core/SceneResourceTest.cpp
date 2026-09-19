@@ -91,7 +91,7 @@ namespace
                 return;
             createSceneResource<Resource>(events, 42);
             createSceneResource<SecondResource>(events);
-            getWorld().addControllerSystem<Controller>(EcsSystemGroup::Always, events);
+            getWorld().addControllerSystem<Controller>(static_cast<EcsSystemGroup>(1ull), events);
             registerSceneResetHook(
                 [this](ECSWorld& world)
                 {
