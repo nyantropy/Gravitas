@@ -19,13 +19,6 @@ namespace gts::rendering
             return;
 
         ECSWorld& world = scene.getWorld();
-        scene.registerSceneResetHook(
-            [](ECSWorld& world)
-            {
-                resetRendererGeometrySceneFeature(world);
-                resetRendererCameraSceneFeature(world);
-            });
-
         installRendererGeometrySceneFeature(world, gts::rendering::controllerContext(ctx).resources, execution);
         installRendererCameraSceneFeature(world, gts::rendering::controllerContext(ctx).resources, execution);
         installRendererParticleSceneFeature(world, execution);

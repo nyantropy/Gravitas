@@ -69,3 +69,17 @@ add_executable(ScreenshotCommandTest ScreenshotCommandTest.cpp)
 target_link_libraries(ScreenshotCommandTest PRIVATE gravitas_rendering_command_contracts)
 add_test(NAME screenshot_command COMMAND ScreenshotCommandTest)
 set_tests_properties(screenshot_command PROPERTIES LABELS "gravitas;contracts;screenshot;cpu")
+
+add_executable(MaterialWorldLifetimeTest MaterialWorldLifetimeTest.cpp)
+target_link_libraries(MaterialWorldLifetimeTest PRIVATE gravitas_material_frontend)
+add_test(NAME material_world_lifetime COMMAND MaterialWorldLifetimeTest)
+set_tests_properties(material_world_lifetime PROPERTIES LABELS "gravitas;rendering;lifecycle;cpu")
+
+if(TARGET gravitas_rendering AND TARGET gravitas_tools)
+    add_executable(RendererWorldLifetimeTest ../rendering/RendererWorldLifetimeTest.cpp)
+    target_link_libraries(RendererWorldLifetimeTest PRIVATE gravitas_rendering gravitas_tools gravitas_runtime_execution)
+    add_test(NAME renderer_world_lifetime COMMAND RendererWorldLifetimeTest)
+    add_test(NAME renderer_world_static_shutdown COMMAND RendererWorldLifetimeTest --static-shutdown)
+    set_tests_properties(renderer_world_lifetime renderer_world_static_shutdown
+        PROPERTIES LABELS "gravitas;rendering;lifecycle;tools;cpu")
+endif()

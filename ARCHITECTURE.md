@@ -215,6 +215,10 @@ non-throwing teardown callback. These run after world clearing or, on destructio
 after world-owned members are destroyed. Transform uses one such registration
 to release dirty queues and publication callbacks together; ordinary callers
 do not manage transform registries. See the [transform lifetime contract](docs/transform/architecture.md).
+Rendering uses the same final world-teardown boundary for material/cache, geometry,
+invalidation and camera state, after component-removal callbacks have finished.
+Standalone preview/benchmark worlds participate automatically; snapshot builders
+also detach when their world ends first. See [rendering world lifetime](docs/rendering/architecture.md#world-state-lifetime).
 
 Hot-path queries use `forEach<C...>(fn)`. Mutation-safe traversal uses
 `forEachSnapshot<C...>(fn)`. Structural changes from systems should go through

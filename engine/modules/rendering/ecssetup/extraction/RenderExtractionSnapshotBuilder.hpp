@@ -425,7 +425,9 @@ class RenderExtractionSnapshotBuilder
 
     static void notifyRenderableRemoved(ECSWorld& world, Entity entity, const RenderGpuComponent& renderGpu)
     {
-        auto& builders = builderRegistry();
+        if (liveBuilders == nullptr)
+            return;
+        auto& builders = *liveBuilders;
         auto  it       = builders.find(&world);
         if (it == builders.end() || it->second == nullptr)
             return;
@@ -503,10 +505,39 @@ class RenderExtractionSnapshotBuilder
     bool                                       m_pendingSnapshotDirty = true;
     bool                                       m_snapshotDirty        = true;
 
-    static std::unordered_map<ECSWorld*, RenderExtractionSnapshotBuilder*>& builderRegistry()
+    using BuilderRegistry = std::unordered_map<ECSWorld*, RenderExtractionSnapshotBuilder*>;
+    static inline BuilderRegistry* liveBuilders = nullptr;
+
+    static BuilderRegistry& builderRegistry()
     {
-        static std::unordered_map<ECSWorld*, RenderExtractionSnapshotBuilder*> registry;
+        struct Registry : BuilderRegistry
+        {
+            Registry() { liveBuilders = this; }
+            ~Registry() { liveBuilders = nullptr; }
+        };
+        static Registry registry;
         return registry;
+    }
+
+    static void detachWorld(ECSWorld& world) noexcept
+    {
+        if (liveBuilders == nullptr)
+            return;
+        const auto it = liveBuilders->find(&world);
+        if (it == liveBuilders->end())
+            return;
+
+        auto& builder = *it->second;
+        const auto contentGeneration = builder.contentVersion;
+        const auto cameraGeneration = builder.cameraVersion;
+        builder.resetSceneState();
+        // Consumers may retain their extraction caches until their own reset.
+        // Reattachment must publish a new generation, even at the same address.
+        builder.contentVersion = contentGeneration;
+        builder.cameraVersion = cameraGeneration;
+        builder.snapshot.cameraViewID = 0;
+        builder.snapshot.cameraViewMatrix = glm::mat4(1.0f);
+        builder.snapshot.frustum.fill(glm::vec4(0.0f));
     }
 
     void registerWithWorld(ECSWorld& world)
@@ -516,6 +547,7 @@ class RenderExtractionSnapshotBuilder
 
         unregisterFromWorld();
         resetPersistentState();
+        world.registerTeardownCallback(detachWorld);
         builderRegistry()[&world] = this;
         registeredWorld           = &world;
         m_pendingSnapshotDirty    = true;
@@ -527,10 +559,12 @@ class RenderExtractionSnapshotBuilder
         if (registeredWorld == nullptr)
             return;
 
-        auto& registry = builderRegistry();
-        auto  it       = registry.find(registeredWorld);
-        if (it != registry.end() && it->second == this)
-            registry.erase(it);
+        if (liveBuilders != nullptr)
+        {
+            auto it = liveBuilders->find(registeredWorld);
+            if (it != liveBuilders->end() && it->second == this)
+                liveBuilders->erase(it);
+        }
         registeredWorld = nullptr;
     }
 

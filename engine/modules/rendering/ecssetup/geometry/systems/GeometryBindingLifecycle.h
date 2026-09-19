@@ -61,15 +61,29 @@ namespace gts::rendering
         uint32_t queueDeduplications = 0;
     };
 
-    inline auto& geometryBindingLifecycleRegistry()
+    inline auto& geometryBindingLifecycleRegistry(ECSWorld* world = nullptr)
     {
-        static std::unordered_map<ECSWorld*, GeometryBindingLifecycleState> registry;
+        // Static worlds may outlive this storage during process shutdown.
+        static bool alive = true;
+        struct Registry : std::unordered_map<ECSWorld*, GeometryBindingLifecycleState>
+        {
+            ~Registry() { alive = false; }
+        };
+        static Registry registry;
+        if (world != nullptr && !registry.contains(world))
+        {
+            world->registerTeardownCallback([](ECSWorld& retiringWorld) noexcept
+            {
+                if (alive)
+                    registry.erase(&retiringWorld);
+            });
+        }
         return registry;
     }
 
     inline GeometryBindingLifecycleState& geometryBindingLifecycleState(ECSWorld& world)
     {
-        return geometryBindingLifecycleRegistry()[&world];
+        return geometryBindingLifecycleRegistry(&world)[&world];
     }
 
     inline void resetGeometryBindingLifecycleState(ECSWorld& world)

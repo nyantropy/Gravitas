@@ -122,6 +122,51 @@ GPU/runtime companions include:
 Resource cleanup happens through removal callbacks and explicit lifecycle
 systems. Descriptor add/remove does not recursively mutate unrelated ECS state.
 
+## World-State Lifetime
+
+Renderer CPU state belongs to its `ECSWorld`: material runtime (including its
+lifetime token), shared unlit-material cache, geometry/material-user queues,
+render invalidation queues, and camera binding queues. The first state access
+registers an identity-only, non-throwing callback with the existing world
+teardown mechanism. All five storage paths use this same lifetime contract;
+there is no scene-specific cleanup registry or required caller cleanup sequence.
+Material-only consumers receive this protection through `gravitas_material_frontend`
+without linking the rendering implementation.
+
+During `ECSWorld::clear()`, component-removal callbacks run while these states
+and the resource provider are still available. They may unregister materials,
+queue render/camera cleanup, notify extraction, and release object slots,
+owned procedural meshes and camera buffers. Final world teardown then erases
+all renderer registry entries, including entries first created during removal.
+Its callbacks only erase CPU state; they never query the world, access the
+resource provider, publish transforms, or recreate queues.
+
+The renderer no longer registers an early scene-reset hook. Generic scene order
+is unchanged: unload, reset hooks, world clear (including final teardown), scene
+resource destruction, installation bookkeeping reset. Explicit renderer reset
+helpers remain state resets, not uninstallation: later use can create fresh
+state, which automatically receives the same final cleanup. World clear likewise
+does not destroy scene resources or reset scene installation guards.
+
+Direct world/scene destruction still does not perform unload or invoke ECS
+component-removal callbacks. Final identity-only cleanup runs after world members
+are destroyed, and is safe even if a scene resource or external resource provider
+has already been destroyed. Static registry destruction is guarded for static
+worlds that survive until process shutdown. Reusing a world address starts with
+fresh state. GPU teardown and synchronization remain with their existing owners.
+
+Preview and benchmark worlds participate automatically through normal state
+access, including preview `destroy()`/recreate and destructor `abandon()` paths.
+No preview- or benchmark-specific registry cleanup is required.
+
+`RenderExtractionSnapshotBuilder` continues to own its snapshot and attachment
+independently. Builder destruction/reset detaches as before. A world-side teardown
+callback also detaches and clears a surviving builder when its world clears or
+dies first; a later build reattaches normally with advancing content/camera
+generations, so surviving extraction caches cannot reuse an old frame. This closes address reuse without
+moving snapshot storage into the renderer state registries. The existing single
+active snapshot-builder registration per world is unchanged.
+
 ## Lifecycle System Order
 
 The shared renderer feature installs controller systems in this order:

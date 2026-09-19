@@ -590,15 +590,29 @@ namespace gts::rendering
         }
     };
 
-    inline auto& materialRuntimeRegistry()
+    inline auto& materialRuntimeRegistry(ECSWorld* world = nullptr)
     {
-        static std::unordered_map<ECSWorld*, MaterialRuntime> registry;
+        // Static worlds may outlive this storage during process shutdown.
+        static bool alive = true;
+        struct Registry : std::unordered_map<ECSWorld*, MaterialRuntime>
+        {
+            ~Registry() { alive = false; }
+        };
+        static Registry registry;
+        if (world != nullptr && !registry.contains(world))
+        {
+            world->registerTeardownCallback([](ECSWorld& retiringWorld) noexcept
+            {
+                if (alive)
+                    registry.erase(&retiringWorld);
+            });
+        }
         return registry;
     }
 
     inline MaterialRuntime& materialRuntime(ECSWorld& world)
     {
-        return materialRuntimeRegistry()[&world];
+        return materialRuntimeRegistry(&world)[&world];
     }
 
     inline void resetMaterialRuntime(ECSWorld& world)

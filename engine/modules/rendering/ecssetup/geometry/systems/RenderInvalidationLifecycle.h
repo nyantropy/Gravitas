@@ -16,15 +16,29 @@ namespace gts::rendering
         std::vector<uint8_t>        snapshotDirtyFlags;
     };
 
-    inline auto& renderInvalidationRegistry()
+    inline auto& renderInvalidationRegistry(ECSWorld* world = nullptr)
     {
-        static std::unordered_map<ECSWorld*, RenderInvalidationState> registry;
+        // Static worlds may outlive this storage during process shutdown.
+        static bool alive = true;
+        struct Registry : std::unordered_map<ECSWorld*, RenderInvalidationState>
+        {
+            ~Registry() { alive = false; }
+        };
+        static Registry registry;
+        if (world != nullptr && !registry.contains(world))
+        {
+            world->registerTeardownCallback([](ECSWorld& retiringWorld) noexcept
+            {
+                if (alive)
+                    registry.erase(&retiringWorld);
+            });
+        }
         return registry;
     }
 
     inline RenderInvalidationState& renderInvalidationState(ECSWorld& world)
     {
-        return renderInvalidationRegistry()[&world];
+        return renderInvalidationRegistry(&world)[&world];
     }
 
     inline void resetRenderInvalidationState(ECSWorld& world)

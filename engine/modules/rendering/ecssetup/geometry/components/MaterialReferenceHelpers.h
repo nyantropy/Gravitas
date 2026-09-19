@@ -65,9 +65,23 @@ namespace gts::rendering
                            MaterialInstanceHandle,
                            UnlitMaterialDescriptorHash>;
 
-    inline auto& sharedUnlitMaterialCacheRegistry()
+    inline auto& sharedUnlitMaterialCacheRegistry(ECSWorld* world = nullptr)
     {
-        static std::unordered_map<ECSWorld*, SharedUnlitMaterialCache> registry;
+        // Static worlds may outlive this storage during process shutdown.
+        static bool alive = true;
+        struct Registry : std::unordered_map<ECSWorld*, SharedUnlitMaterialCache>
+        {
+            ~Registry() { alive = false; }
+        };
+        static Registry registry;
+        if (world != nullptr && !registry.contains(world))
+        {
+            world->registerTeardownCallback([](ECSWorld& retiringWorld) noexcept
+            {
+                if (alive)
+                    registry.erase(&retiringWorld);
+            });
+        }
         return registry;
     }
 
@@ -128,7 +142,7 @@ namespace gts::rendering
         const UnlitMaterialDescriptor& descriptor)
     {
         MaterialRuntime& runtime = materialRuntime(world);
-        SharedUnlitMaterialCache& cache = sharedUnlitMaterialCacheRegistry()[&world];
+        SharedUnlitMaterialCache& cache = sharedUnlitMaterialCacheRegistry(&world)[&world];
         auto it = cache.find(descriptor);
         if (it != cache.end() && runtime.isInstanceAlive(it->second))
             return it->second;

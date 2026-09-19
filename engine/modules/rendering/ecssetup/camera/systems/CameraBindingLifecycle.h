@@ -14,15 +14,29 @@ namespace gts::rendering
         std::unordered_set<entity_id_type> cleanupEntities;
     };
 
-    inline auto& cameraBindingLifecycleRegistry()
+    inline auto& cameraBindingLifecycleRegistry(ECSWorld* world = nullptr)
     {
-        static std::unordered_map<ECSWorld*, CameraBindingLifecycleState> registry;
+        // Static worlds may outlive this storage during process shutdown.
+        static bool alive = true;
+        struct Registry : std::unordered_map<ECSWorld*, CameraBindingLifecycleState>
+        {
+            ~Registry() { alive = false; }
+        };
+        static Registry registry;
+        if (world != nullptr && !registry.contains(world))
+        {
+            world->registerTeardownCallback([](ECSWorld& retiringWorld) noexcept
+            {
+                if (alive)
+                    registry.erase(&retiringWorld);
+            });
+        }
         return registry;
     }
 
     inline CameraBindingLifecycleState& cameraBindingLifecycleState(ECSWorld& world)
     {
-        return cameraBindingLifecycleRegistry()[&world];
+        return cameraBindingLifecycleRegistry(&world)[&world];
     }
 
     inline void resetCameraBindingLifecycleState(ECSWorld& world)
