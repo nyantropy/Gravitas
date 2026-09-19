@@ -1,4 +1,6 @@
-add_subdirectory(debugdraw)
-if(GTS_ENABLE_PHYSICS)
+if(GTS_ENABLE_DEBUGDRAW)
+    add_subdirectory(debugdraw)
+endif()
+if(GTS_ENABLE_PHYSICS AND GTS_ENABLE_DEBUGDRAW)
     add_subdirectory(physics)
 endif()

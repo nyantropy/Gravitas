@@ -5,10 +5,6 @@
 #include "DebugDrawRenderableComponent.h"
 #include "DebugDrawSystem.hpp"
 #include "DynamicMeshComponent.h"
-#include "PhysicsDebugRenderer.h"
-#include "PhysicsWorld.h"
-#include "SphereColliderComponent.h"
-#include "WorldTransformComponent.h"
 
 namespace
 {
@@ -54,18 +50,4 @@ int main()
     system.update(context);
     require(!world.hasComponent<gts::debugdraw::DebugDrawRenderableComponent>(batch),
             "empty queue left its old renderable alive");
-
-    const Entity collider = world.createEntity();
-    world.addComponent(collider, WorldTransformComponent{});
-    world.addComponent(collider, SphereColliderComponent{});
-    PhysicsWorld physics(&world);
-    context.physics = &physics;
-    PhysicsDebugRenderer producer;
-    producer.update(context);
-    require(physics.getProfileStats().debugSegmentCount == 36, "sphere diagnostic segment count changed");
-    system.update(context);
-    entities = world.getAllEntitiesWith<gts::debugdraw::DebugDrawRenderableComponent>();
-    require(entities.size() == 1, "physics diagnostics did not use one color batch");
-    require(world.getComponent<DynamicMeshComponent>(entities.front()).vertices.size() == 36 * 8,
-            "physics diagnostics generated the wrong geometry");
 }

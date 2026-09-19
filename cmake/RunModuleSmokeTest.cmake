@@ -13,11 +13,13 @@ endif()
 set(case_binary_dir "${GRAVITAS_BINARY_ROOT}/${GRAVITAS_SMOKE_CASE}")
 set(expect_configure_failure OFF)
 set(expected_configure_error "")
+set(runtime_test_regex "")
 
 set(configure_args
     -S "${GRAVITAS_SOURCE_DIR}"
     -B "${case_binary_dir}"
     -DCMAKE_BUILD_TYPE=Debug
+    -DBUILD_TESTING=ON
     -DGTS_BUILD_TEST_SCENES=OFF
     -DGTS_ENABLE_MODULE_SMOKE_TESTS=OFF
     -DGTS_ENABLE_RUNTIME_SMOKE_TESTS=OFF
@@ -59,7 +61,7 @@ elseif(GRAVITAS_SMOKE_CASE STREQUAL "vulkan_backend_no_tools")
         -DGTS_ENABLE_DEBUGDRAW=OFF
         -DGTS_ENABLE_TOOLS=OFF
     )
-elseif(GRAVITAS_SMOKE_CASE STREQUAL "debugdraw_without_physics_is_rejected")
+elseif(GRAVITAS_SMOKE_CASE STREQUAL "debugdraw_without_physics")
     list(APPEND configure_args
         -DGTS_ENABLE_RENDERING=ON
         -DGTS_ENABLE_VULKAN_BACKEND=OFF
@@ -67,8 +69,36 @@ elseif(GRAVITAS_SMOKE_CASE STREQUAL "debugdraw_without_physics_is_rejected")
         -DGTS_ENABLE_DEBUGDRAW=ON
         -DGTS_ENABLE_TOOLS=OFF
     )
+    set(runtime_test_regex "^debugdraw_runtime$")
+elseif(GRAVITAS_SMOKE_CASE STREQUAL "debugdraw_with_physics")
+    list(APPEND configure_args
+        -DGTS_ENABLE_RENDERING=ON
+        -DGTS_ENABLE_VULKAN_BACKEND=OFF
+        -DGTS_ENABLE_PHYSICS=ON
+        -DGTS_ENABLE_DEBUGDRAW=ON
+        -DGTS_ENABLE_TOOLS=OFF
+    )
+    set(runtime_test_regex "^(debugdraw_runtime|physics_debugdraw_runtime)$")
+elseif(GRAVITAS_SMOKE_CASE STREQUAL "debugdraw_without_rendering_is_rejected")
+    list(APPEND configure_args
+        -DGTS_ENABLE_RENDERING=OFF
+        -DGTS_ENABLE_VULKAN_BACKEND=OFF
+        -DGTS_ENABLE_PHYSICS=OFF
+        -DGTS_ENABLE_DEBUGDRAW=ON
+        -DGTS_ENABLE_TOOLS=OFF
+    )
     set(expect_configure_failure ON)
-    set(expected_configure_error "GTS_ENABLE_DEBUGDRAW currently requires GTS_ENABLE_PHYSICS")
+    set(expected_configure_error "GTS_ENABLE_DEBUGDRAW currently requires GTS_ENABLE_RENDERING")
+elseif(GRAVITAS_SMOKE_CASE STREQUAL "tools_without_physics_is_rejected")
+    list(APPEND configure_args
+        -DGTS_ENABLE_RENDERING=ON
+        -DGTS_ENABLE_VULKAN_BACKEND=OFF
+        -DGTS_ENABLE_PHYSICS=OFF
+        -DGTS_ENABLE_DEBUGDRAW=ON
+        -DGTS_ENABLE_TOOLS=ON
+    )
+    set(expect_configure_failure ON)
+    set(expected_configure_error "GTS_ENABLE_TOOLS requires GTS_ENABLE_PHYSICS")
 else()
     message(FATAL_ERROR "Unknown Gravitas module smoke case: ${GRAVITAS_SMOKE_CASE}")
 endif()
@@ -120,3 +150,19 @@ if(NOT build_result EQUAL 0)
 endif()
 
 message(STATUS "Smoke build passed for ${GRAVITAS_SMOKE_CASE}")
+
+if(runtime_test_regex)
+    execute_process(
+        COMMAND "${CMAKE_CTEST_COMMAND}" --test-dir "${case_binary_dir}"
+            --build-config Debug --output-on-failure --no-tests=error -R "${runtime_test_regex}"
+        RESULT_VARIABLE test_result
+        OUTPUT_VARIABLE test_output
+        ERROR_VARIABLE test_error
+    )
+    if(NOT test_result EQUAL 0)
+        message(FATAL_ERROR
+            "Runtime tests failed for ${GRAVITAS_SMOKE_CASE}.\n"
+            "${test_output}\n${test_error}")
+    endif()
+    message(STATUS "Runtime tests passed for ${GRAVITAS_SMOKE_CASE}")
+endif()

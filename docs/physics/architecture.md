@@ -18,6 +18,9 @@ scene-local physics world, not a full rigid-body solver.
 
 Physics diagnostics live separately under `modules/diagnostics/physics/` and
 emit debug-draw primitives instead of making physics depend on rendering.
+The `gravitas_diagnostics_physics` bridge is built only when both
+`GTS_ENABLE_PHYSICS` and `GTS_ENABLE_DEBUGDRAW` are enabled. Generic debug drawing
+can be built independently of physics.
 `gravitas_physics` links `gravitas_transform` for transform contracts and
 resolution; transform include directories are owned by that target. The
 [transform architecture](../transform/architecture.md) describes its boundary.

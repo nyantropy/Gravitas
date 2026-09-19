@@ -52,12 +52,32 @@ consumer of generic debug drawing rather than part of base physics.
 
 ## Build Policy And Verification
 
-The existing `GTS_ENABLE_DEBUGDRAW` requirement for both rendering and physics
-is preserved, including the rejection test when physics is disabled. Whether
-generic debug drawing should support a physics-free configuration is a separate
-architectural question; tools also has its own physics dependency.
+`GTS_ENABLE_DEBUGDRAW` requires `GTS_ENABLE_RENDERING`, independently of
+`GTS_ENABLE_PHYSICS`. It does not require a Vulkan backend. The diagnostics
+parent registers the generic target when debug drawing is enabled, and registers
+the physics bridge only when both debug drawing and physics are enabled.
+`gravitas_modules` aggregates only targets that exist.
 
-The CPU diagnostic test characterizes line geometry/color, queue consumption,
-unchanged/changed batch versions, renderable removal and collider visualization.
-Tools tests, engine runtime smoke tests and module-configuration builds exercise
-the existing integration paths.
+| Debug drawing | Physics | Diagnostics targets |
+| --- | --- | --- |
+| Off | Off or on | None |
+| On | Off | `gravitas_debugdraw` |
+| On | On | `gravitas_debugdraw`, `gravitas_diagnostics_physics` |
+
+Tools retains its separate physics dependency for entity-selection metadata.
+A configuration with physics disabled must also disable tools; this does not
+restrict generic debug drawing. CMake diagnoses missing rendering for debug
+drawing and missing physics for tools explicitly.
+
+`debugdraw_runtime` links only `gravitas_debugdraw` and characterizes line
+geometry/color, queue consumption, unchanged/changed batch versions and
+renderable removal. `physics_debugdraw_runtime` links the physics bridge and
+checks collider visualization through the same generic drawing implementation.
+It is registered only when the bridge exists.
+
+Module smoke tests configure and build both debugdraw-without-physics and
+debugdraw-with-physics configurations, with tools and Vulkan disabled. They also
+execute the corresponding CPU tests. Configure-time test assertions check target
+presence and module aggregation against the selected options. Negative tests
+retain the actual rendering prerequisite and tools' own physics prerequisite.
+The full tools and runtime smoke suites cover the default integration paths.

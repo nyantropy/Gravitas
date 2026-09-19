@@ -160,6 +160,9 @@ vendored documentation and should not be rewritten as first-party engine docs.
   transform directories themselves. Shared tween primitives live in `core/tween/`.
 - Base physics must not depend on rendering. Physics visualization belongs in
   diagnostics bridge modules such as `diagnostics/physics/`.
+- Generic `gravitas_debugdraw` requires rendering, independently of physics.
+  `gravitas_diagnostics_physics` is built only when physics and debug drawing are
+  both enabled. Tools retains its own physics dependency for selection metadata.
 - Tools and debug bridges may depend on multiple modules because integration is
   their purpose.
 - Public module headers should stay small and stable. Heavy implementation
