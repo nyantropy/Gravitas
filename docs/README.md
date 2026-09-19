@@ -20,6 +20,8 @@ Start with:
 - [../ARCHITECTURE.md](../ARCHITECTURE.md) for the engine architecture index.
 - [ui/architecture.md](ui/architecture.md) and
   [ui/authoring-guide.md](ui/authoring-guide.md) for retained UI.
+- [narrative/architecture.md](narrative/architecture.md) for headless dialogue
+  and its visual-novel presentation consumer.
 - [tooling/architecture.md](tooling/architecture.md) and
   [tooling/authoring-guide.md](tooling/authoring-guide.md) for engine tools.
 - [tooling/presets.md](tooling/presets.md) for launch presets and screenshot

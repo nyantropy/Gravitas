@@ -208,7 +208,10 @@ Editor UX can evolve without adding a second UI architecture.
 
 ## VN And Interaction Frontend
 
-The visual novel module is an engine-level presentation/runtime module.
+The visual-novel compartment under `modules/narrative/visualnovel/` owns the
+engine's VN presentation/runtime. It consumes headless dialogue and retained UI;
+generic UI does not depend on narrative. See
+[narrative architecture](../narrative/architecture.md) for the runtime and target boundaries.
 Applications provide scripts, speaker identifiers, image asset paths,
 branching labels, and application-specific commands.
 

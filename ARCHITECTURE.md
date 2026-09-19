@@ -3,7 +3,7 @@
 Gravitas is a C++20 modular application engine built around a two-tier ECS
 architecture. The engine separates fixed-step simulation from frame-facing
 controller work and assembles optional feature modules such as rendering,
-physics, tooling, narrative, visual novel presentation, diagnostics, tweening,
+physics, tooling, narrative (dialogue and visual novel presentation), diagnostics, tweening,
 and future audio through explicit engine and scene hooks.
 
 This file is the engine architecture entrypoint. Feature details live under
@@ -43,12 +43,12 @@ engine/
     transform/           local/world transforms and hierarchy
     animation/           transform animation ECS feature, CPU skeletal evaluation and playback occurrences
     tween/               reusable tween/easing helpers
-    narrative/           headless narrative/dialogue runtimes
-    dialogue/            dialogue module surface kept in tree
+    narrative/           narrative feature ownership
+      dialogue/          headless graphs/progression and ECS requests/events
+      visualnovel/       VN stage/runtime, interaction and retained UI frontend
     diagnostics/         debug draw and diagnostic bridges
     physics/             sphere-collider collision detection
     tools/               in-engine inspection/editing toolchain
-    visualnovel/         VN stage/runtime and retained UI frontend
     rendering/           renderer contracts, ECS setup, runtime, Vulkan backend
   resources/             engine-owned fonts, models, textures
   shaders/               GLSL sources and checked-in SPIR-V
@@ -59,6 +59,9 @@ engine/
 vendored documentation and should not be rewritten as first-party engine docs.
 
 ## Feature Documentation Map
+
+- [docs/narrative/architecture.md](docs/narrative/architecture.md): headless dialogue,
+  VN presentation, separate runtime ownership and optional target dependencies.
 
 - [docs/model/model-extraction.md](docs/model/model-extraction.md): the authoritative
   resource → realization → instance → generic static/skinned frame extraction path.

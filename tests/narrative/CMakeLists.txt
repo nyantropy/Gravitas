@@ -1,0 +1,11 @@
+add_executable(DialogueRuntimeTest dialogue/DialogueRuntimeTest.cpp)
+target_link_libraries(DialogueRuntimeTest PRIVATE gravitas_dialogue)
+add_test(NAME dialogue_runtime COMMAND DialogueRuntimeTest)
+set_tests_properties(dialogue_runtime PROPERTIES LABELS "gravitas;narrative;dialogue;cpu")
+
+if(TARGET gravitas_visualnovel)
+    add_executable(VNFrontendRuntimeTest ../ui/VNFrontendRuntimeTest.cpp)
+    target_link_libraries(VNFrontendRuntimeTest PRIVATE gravitas_visualnovel)
+    add_test(NAME vn_frontend_runtime COMMAND VNFrontendRuntimeTest)
+    set_tests_properties(vn_frontend_runtime PROPERTIES LABELS "gravitas;narrative;ui;runtime;vn")
+endif()

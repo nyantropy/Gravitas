@@ -10,6 +10,7 @@ add_subdirectory(animation/skinning)
 if(GTS_ENABLE_RENDERING)
     add_subdirectory(rendering)
 endif()
+add_subdirectory(narrative)
 if(GTS_ENABLE_PHYSICS)
     add_subdirectory(physics)
 endif()
@@ -36,12 +37,6 @@ target_include_directories(gravitas_modules INTERFACE
     # Tweening
     "${CMAKE_CURRENT_SOURCE_DIR}/tween"
 
-    # Narrative runtimes
-    "${CMAKE_CURRENT_SOURCE_DIR}/narrative/dialogue/components"
-    "${CMAKE_CURRENT_SOURCE_DIR}/narrative/dialogue/events"
-    "${CMAKE_CURRENT_SOURCE_DIR}/narrative/dialogue/runtime"
-    "${CMAKE_CURRENT_SOURCE_DIR}/narrative/dialogue/systems"
-
     # Transform
     "${CMAKE_CURRENT_SOURCE_DIR}/transform/components"
     "${CMAKE_CURRENT_SOURCE_DIR}/transform/hierarchy"
@@ -49,15 +44,11 @@ target_include_directories(gravitas_modules INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}/transform/scene"
     "${CMAKE_CURRENT_SOURCE_DIR}/transform/systems"
 
-    # Visual novel presentation/runtime
-    "${CMAKE_CURRENT_SOURCE_DIR}/visualnovel/components"
-    "${CMAKE_CURRENT_SOURCE_DIR}/visualnovel/runtime"
-    "${CMAKE_CURRENT_SOURCE_DIR}/visualnovel/systems"
-    "${CMAKE_CURRENT_SOURCE_DIR}/visualnovel/ui"
 )
 
 target_link_libraries(gravitas_modules INTERFACE
     gravitas_core
+    gravitas_dialogue
     gravitas_model_loading
     gravitas_model_realization
     gravitas_model_instances
@@ -65,6 +56,7 @@ target_link_libraries(gravitas_modules INTERFACE
 )
 
 foreach(GTS_OPTIONAL_MODULE_TARGET
+        gravitas_visualnovel
         gravitas_rendering
         gravitas_physics
         gravitas_debugdraw
