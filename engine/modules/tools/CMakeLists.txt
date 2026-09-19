@@ -14,6 +14,7 @@ else()
 endif()
 
 target_include_directories(gravitas_tools PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/input"
     "${CMAKE_CURRENT_SOURCE_DIR}/core"
     "${CMAKE_CURRENT_SOURCE_DIR}/ui"
     "${CMAKE_CURRENT_SOURCE_DIR}/assets"
@@ -27,6 +28,7 @@ target_include_directories(gravitas_tools PUBLIC
 )
 
 target_link_libraries(gravitas_tools PUBLIC
+    gravitas_tool_contracts
     gravitas_core
     gravitas_transform
     gravitas_rendering

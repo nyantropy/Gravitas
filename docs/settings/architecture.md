@@ -6,7 +6,7 @@ different lifetimes and must not be treated as interchangeable copies.
 
 ## Startup Composition
 
-`engine/EngineConfig.h` is the application-facing startup aggregate:
+`engine/runtime/EngineConfig.h` is the application-facing startup aggregate:
 
 ```text
 EngineConfig
@@ -34,11 +34,15 @@ registry after construction.
 
 Types live beside their owners, not inside `EngineConfig.h`:
 
+`ToolSettings` is an always-available `gravitas_tool_contracts` value under
+`modules/tools/contracts/`; using startup configuration does not require the tools
+implementation to be enabled.
+
 | Type | Source ownership | Application |
 | --- | --- | --- |
 | `SimulationSettings` | `core/time/` | Fixed-step scheduler initialization; positive tick rate required. |
 | `FramePacingSettings` | `core/time/` | Engine frame scheduling; zero means uncapped. |
-| `ToolSettings` | `modules/tools/core/` | Tool runtime installation and initial debug overlay visibility. |
+| `ToolSettings` | `modules/tools/contracts/` | Tool runtime installation and initial debug overlay visibility. |
 | `GraphicsStartupOptions` | `modules/rendering/core/init/` | Backend, validation, headless operation, GPU timestamps; initialization only. |
 | `WindowSettings` | `modules/rendering/core/windowing/output/` | Window dimensions, mode, and preferred monitor. |
 | `PresentationSettings` | `modules/rendering/core/init/` | Presentation policy resolved by the graphics backend. |

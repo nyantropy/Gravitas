@@ -7,6 +7,9 @@ Third-party dependency documentation stays with the dependency under
 
 Start with:
 
+- [modules/ownership.md](modules/ownership.md) for the permanent core/modules/runtime
+  placement rule, dependency enforcement and known migration blockers.
+
 - [transform/architecture.md](transform/architecture.md) for transforms, hierarchy
   and world-transform publication.
 - [core/architecture.md](core/architecture.md) for foundational ownership, feature contracts and deferred semantic boundaries.

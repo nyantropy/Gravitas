@@ -6,6 +6,18 @@ before each system against the current selection; queued structural commands
 flush after each executed system. Masked systems produce no timing sample and
 consume no timing instance index.
 
+## Ownership Blocker
+
+Engine-wide execution vocabulary and presentation coordination belong in
+`runtime/execution/` under the permanent [source-layer rule](../modules/ownership.md).
+They currently remain in `modules/execution/`: transform/animation/rendering and
+other standalone installers configure gameplay defaults, VN creates coordinated
+profiles, tools register categories, and rendering benchmarks interpret labels.
+Moving the existing policy target would make those modules depend on runtime.
+Preserving their current APIs requires deferring that relocation until explicit
+policy inputs can be supplied at composition/standalone entry points. No upward
+include or target link is introduced as a workaround.
+
 ## Fixed Catalog
 
 `modules/execution/BuiltinExecutionGroups.h` owns the coordinated catalog and

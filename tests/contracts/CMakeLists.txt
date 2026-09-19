@@ -26,7 +26,21 @@ add_test(NAME execution_policy COMMAND ExecutionPolicyTest)
 
 if(TARGET gravitas_rendering)
     add_executable(EnginePauseTest EnginePauseTest.cpp)
-    target_include_directories(EnginePauseTest PRIVATE "${GTS_ENGINE_ROOT}/engine")
-    target_link_libraries(EnginePauseTest PRIVATE gravitas_rendering)
+    target_link_libraries(EnginePauseTest PRIVATE gravitas_runtime)
     add_test(NAME engine_pause_execution COMMAND EnginePauseTest)
 endif()
+
+foreach(boundary_case allowed core_modules core_runtime modules_runtime transitive_alias
+        include_directory root_include_directory core_source_include module_source_include
+        core_relative_include module_runtime_source)
+    add_test(NAME source_layers_${boundary_case}
+        COMMAND "${CMAKE_COMMAND}"
+            "-DCHECK_FILE=${GTS_ENGINE_ROOT}/cmake/GravitasSourceLayers.cmake"
+            "-DFIXTURE_ROOT=${CMAKE_CURRENT_BINARY_DIR}/source_layer_fixtures"
+            "-DCASE=${boundary_case}"
+            -P "${GTS_ENGINE_ROOT}/cmake/TestSourceLayers.cmake")
+endforeach()
+
+add_executable(ModuleBoundaryTest ModuleBoundaryTest.cpp)
+target_link_libraries(ModuleBoundaryTest PRIVATE gravitas_transform gravitas_rendering_contracts)
+add_test(NAME module_boundary COMMAND ModuleBoundaryTest)

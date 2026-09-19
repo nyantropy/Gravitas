@@ -41,32 +41,16 @@ endif()
 add_subdirectory(core)
 add_subdirectory(modules)
 
-# ── gravitas_engine — umbrella INTERFACE target ────────────────────────────────
-# Applications link against this single target and get everything transitively.
+add_subdirectory(runtime)
+
+# Application entry point; runtime owns composition and selected capabilities.
 add_library(gravitas_engine INTERFACE)
-target_compile_features(gravitas_engine INTERFACE cxx_std_20)
-
-target_link_libraries(gravitas_engine INTERFACE
-    gravitas_execution_policy
-    gravitas_core
-    gravitas_modules
-)
-
-if(TARGET gravitas_rendering)
-    target_link_libraries(gravitas_engine INTERFACE gravitas_rendering)
-endif()
-
-if(TARGET gravitas_vulkan_backend)
-    target_link_libraries(gravitas_engine INTERFACE gravitas_vulkan_backend)
-endif()
-
-# Engine-root headers (GravitasEngine.hpp, GtsGameLoop.h, GtsPlatform.h, EngineConfig.h)
-target_include_directories(gravitas_engine INTERFACE
-    "${CMAKE_CURRENT_SOURCE_DIR}"
-)
-
-# Backward-compatibility alias — existing application CMakeLists files use GravitasEngine
+target_link_libraries(gravitas_engine INTERFACE gravitas_runtime)
 add_library(GravitasEngine ALIAS gravitas_engine)
+
+include("${GTS_ENGINE_ROOT}/cmake/GravitasSourceLayers.cmake")
+set_property(GLOBAL PROPERTY GRAVITAS_SOURCE_LAYER_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
+cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}" CALL gravitas_check_source_layers)
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     if(GTS_BUILD_TEST_SCENES AND EXISTS "${GTS_ENGINE_ROOT}/applications/CMakeLists.txt")

@@ -1,5 +1,10 @@
 # Foundational Core Ownership
 
+`gravitas_core` is the lowest source/target layer. It cannot depend on `modules/`
+or `runtime/`. The engine facade, configuration, control bindings, platform and
+game loop live in `runtime/`, owned by `gravitas_runtime`. See the permanent
+[three-layer placement rule](../modules/ownership.md).
+
 `gravitas_core` owns mechanisms needed independently of optional capabilities:
 
 | Compartment | Responsibility |
@@ -122,7 +127,11 @@ vocabulary remain in core's execution contracts. See
 This is physical/build ownership, not a redesign of engine composition. The
 following existing feature awareness remains intentional for this stage:
 
-- Screenshot commands and their existing request semantics.
+- Screenshot commands and their existing request/variant semantics. Moving them
+  requires a command API migration, not an include-directory workaround.
+- `InputManager` grants concrete `GtsPlatform` friendship for private raw-event
+  injection and frame advancement. Removing this semantic runtime reference
+  requires a neutral input-writer/access contract. There is no runtime include/link.
 - Rendering-side `UiSystem` and resource integration.
 - Service discovery and optional runtime composition.
 
@@ -140,3 +149,7 @@ The core-only module smoke case configures, builds and runs all its available te
 `scene_resource` exercises exact-type and const lookup, explicit failures,
 installation/reset cycles, resource isolation and the distinct unload/direct
 destruction/world-clear paths, including scene factory transitions.
+
+`GtsFrameEndedEvent` belongs to rendering contracts. Its `dt` and `imageIndex`
+payload and the Vulkan emission point are unchanged; core event transport does
+not define renderer-specific events.

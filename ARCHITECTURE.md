@@ -50,12 +50,14 @@ engine/
       visualnovel/       VN stage/runtime, interaction and retained UI frontend
     diagnostics/         always-available profiling, optional debug draw and diagnostic bridges
     ui/                  retained documents, surfaces, layout and interaction
-    execution/           fixed runtime participation and scene-presentation policy
+    execution/           existing policy dependency; migration blocker described below
     physics/             sphere-collider collision detection
       contracts/         physics accessor and collision values; no implementation dependency
     tools/               in-engine inspection/editing toolchain
     rendering/           renderer contracts, ECS setup, runtime, Vulkan backend
       contracts/         resource handle aliases; no renderer dependency
+  runtime/               composition root: facade, startup configuration, platform and loop
+    input/               engine control bindings
   resources/             engine-owned fonts, models, textures
   shaders/               GLSL sources and checked-in SPIR-V
   docs/                  feature-owned engine documentation
@@ -152,7 +154,22 @@ vendored documentation and should not be rewritten as first-party engine docs.
 
 ## Dependency Rules
 
-- `engine/core/` must not include headers from `engine/modules/`.
+- `engine/core/` is the lowest layer: feature-neutral mechanisms. It must not
+  include or link `engine/modules/` or `engine/runtime/`.
+- `engine/modules/` owns concrete capabilities. Modules may consume core and
+  explicit contracts from other capabilities; they must not include or link runtime.
+- `engine/runtime/` is Gravitas composition: facade, startup configuration, platform
+  and game-loop orchestration, control policy, and engine-wide execution policy.
+  It may depend on modules and core. It is never part of `gravitas_core`.
+- These are permanent placement rules, not a requirement to move capability-local
+  directories named `runtime` (for example `modules/rendering/runtime/`).
+- `gravitas_runtime` owns the header-only composition root. `gravitas_engine` is
+  the application entry target and links it. Runtime uses selected module targets;
+  neither core nor modules inherit the engine-root include directory.
+- CMake checks actual target links, transitive aliases/interface wrappers and
+  include/source paths at the end of configuration. Source checks reject includes
+  of higher-layer headers. See [source ownership](docs/modules/ownership.md)
+  for the placement test, enforcement and remaining API blockers.
 - Core contains foundational mechanisms and generic utilities, not feature accessors
   or feature implementations. See [core ownership](docs/core/architecture.md) for
   target boundaries and the intentionally deferred semantic dependencies.
@@ -174,7 +191,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
   consumes `WorldTransformComponent`; it must not compute parent-child world
   matrices or mutate scene transforms.
 - `gravitas_transform` owns transform include directories and compiled implementation,
-  and links only `gravitas_core`. Consumers link the target rather than exporting
+  and links core plus the existing execution-policy contract described below.
+  Consumers link the target rather than exporting
   transform directories themselves. Shared tween primitives live in `core/tween/`.
 - Base physics must not depend on rendering. Physics visualization belongs in
   diagnostics bridge modules such as `diagnostics/physics/`.
@@ -231,10 +249,17 @@ groups filter participation and never sort or establish phases. The current top
 selection is checked before each system, so changes affect later systems in the
 same pass. Structural commands still flush after each executed system.
 
-`modules/execution/` owns the fixed catalog in `BuiltinExecutionGroups.h`:
+The intended owner of coordinated execution policy is `runtime/execution/`.
+The existing `modules/execution/` still owns the fixed catalog in `BuiltinExecutionGroups.h`:
 `gts::execution::groups::{Always, Gameplay, Physics, Camera, RenderPrep, Particles,
 Animation, Audio, Ui, Dialogue, VN, Tools}`. Bits 0–11 and diagnostic labels retain
 their original identities. `Always` is maskable like every other group.
+
+This is an explicit ownership exception, not a permitted modules → runtime edge.
+Standalone feature installers, VN and benchmark code currently consume the policy
+API. Relocating it without changing those APIs would introduce upward dependencies.
+The structural migration therefore leaves it in place pending the policy-input
+refactor described in [source ownership](docs/modules/ownership.md).
 
 `SceneExecutionProfile` is an authoring value outside core. Converting it to a
 selection copies its ID/mask and typed `SceneExecutionPolicy` metadata into one
@@ -266,7 +291,7 @@ module invokes its `registerInputBindings` hook. `RenderingRuntime` installs UI
 and default camera bindings; `EngineToolRuntime` installs tool bindings only when
 tooling is enabled. There is no central enumeration of individual bindings:
 
-- `input/EngineControlBindings.hpp`: engine lifecycle and diagnostic controls.
+- `runtime/input/EngineControlBindings.hpp`: engine lifecycle and diagnostic controls.
 - `modules/ui/input/UiDefaultBindings.hpp`: retained UI controls.
 - `modules/rendering/ecssetup/camera/input/CameraDefaultBindings.hpp`: default camera controls.
 - `modules/tools/input/ToolDefaultBindings.hpp`: tooling and editor camera controls.

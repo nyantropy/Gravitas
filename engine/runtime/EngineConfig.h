@@ -3,8 +3,8 @@
 #include <cstdint>
 
 #include "GraphicsConfig.h"
-#include "core/time/SimulationSettings.h"
-#include "modules/tools/core/ToolSettings.h"
+#include "SimulationSettings.h"
+#include "ToolSettings.h"
 
 struct EngineConfig
 {

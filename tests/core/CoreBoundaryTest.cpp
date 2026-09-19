@@ -10,7 +10,9 @@
     __has_include("GtsFrameStats.h") || __has_include("ProfileAccumulator.h") || \
     __has_include("ScenePhysics.h") || __has_include("ISceneFrameStats.h") || \
     __has_include("BuiltinExecutionGroups.h") || __has_include("SceneExecutionProfile.h") || \
-    __has_include("VNExecutionProfiles.h")
+    __has_include("VNExecutionProfiles.h") || __has_include("GravitasEngine.hpp") || \
+    __has_include("EngineConfig.h") || __has_include("GtsGameLoop.h") || \
+    __has_include("GtsPlatform.h") || __has_include("GtsFrameEndedEvent.h")
 #error "Core must not publish feature contracts or implementation"
 #endif
 

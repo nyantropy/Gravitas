@@ -22,6 +22,14 @@ This document records the repository style contract for the Gravitas engine. It 
 
 ## Files
 
+- Apply the permanent three-layer placement rule in `docs/modules/ownership.md`:
+  feature-neutral mechanisms belong in `engine/core/`, capabilities in
+  `engine/modules/`, and Gravitas composition/policy in `engine/runtime/`.
+- Dependencies point runtime → modules/core and modules → core or explicit module
+  contracts. Core must not depend on modules/runtime; modules must not depend on
+  runtime. Never export a parent include directory or link an application aggregate
+  to bypass the owning target. CMake verifies source/target boundaries.
+
 - Keep small value types, templates, and genuinely small inline functions header-only.
 - Put substantial non-template implementations in a neighboring `.cpp` file. Keep the public header focused on the contract, using the feature's existing `.h` or `.hpp` convention.
 - Keep header/implementation pairs together in the owning feature folder; do not create separate include/source directory trees just for this split.

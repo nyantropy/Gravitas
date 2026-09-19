@@ -29,6 +29,7 @@
 #include "threading/ThreadPool.h"
 
 #include "GtsPlatformEventBus.hpp"
+#include "GtsFrameEndedEvent.h"
 #include "GtsEventTypes.h"
 
 #include <UiCommand.h>

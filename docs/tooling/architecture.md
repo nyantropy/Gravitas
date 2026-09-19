@@ -65,6 +65,8 @@ Workspace switching filters pane descriptors. It does not change engine mode.
 
 ## Feature Layout
 
+- `modules/tools/contracts/`: startup `ToolSettings`, exposed by the always-available
+  `gravitas_tool_contracts` target even when the tools implementation is disabled.
 - `modules/tools/core/`: shared tool state, query helpers, workspace enums, and
   non-UI formatting/path helpers.
 - `modules/tools/ui/`: pane descriptors, pane widgets, shell composition,
