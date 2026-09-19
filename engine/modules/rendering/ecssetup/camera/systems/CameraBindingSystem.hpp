@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
 #include "ECSControllerSystem.hpp"
 #include "CameraDescriptionComponent.h"
 #include "CameraGpuComponent.h"
@@ -17,7 +18,7 @@ class CameraBindingSystem : public ECSControllerSystem
                 [&](Entity e, CameraDescriptionComponent&, CameraGpuComponent& gpu)
             {
                 if (gpu.viewID == 0)
-                    gpu.viewID = ctx.resources->requestCameraBuffer();
+                    gpu.viewID = gts::rendering::controllerContext(ctx).resources->requestCameraBuffer();
 
                 // Matrix uploads are performed by the renderer after the
                 // current frame's fence has been waited. Clearing this keeps

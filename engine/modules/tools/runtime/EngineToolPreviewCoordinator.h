@@ -1,5 +1,7 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
+#include "UiControllerContext.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -66,7 +68,7 @@ namespace gts::tools
             if (!particleSession.hasAsset() || particleSession.path().empty() || !particlePreviewWorld)
                 return;
 
-            particlePreviewWorld->ensure(ctx.resources);
+            particlePreviewWorld->ensure(gts::rendering::controllerContext(ctx).resources);
             particlePreviewWorld->syncAsset(particleSession.path(),
                                             particleSession.asset(),
                                             particleSession.timeScale(),
@@ -106,21 +108,21 @@ namespace gts::tools
         {
             uint32_t width = 320;
             uint32_t height = 240;
-            if (ctx.ui == nullptr)
+            if (gts::ui::controllerContext(ctx).ui == nullptr)
                 return {width, height};
 
-            const UiNode* node = ctx.ui->findNode(imageHandle);
+            const UiNode* node = gts::ui::controllerContext(ctx).ui->findNode(imageHandle);
             if (node == nullptr)
                 return {width, height};
 
             width = std::max(1u,
                              static_cast<uint32_t>(
                                  std::round(node->computedLayout.bounds.width *
-                                            std::max(1.0f, ctx.windowPixelWidth))));
+                                            std::max(1.0f, gts::rendering::controllerContext(ctx).windowPixelWidth))));
             height = std::max(1u,
                               static_cast<uint32_t>(
                                   std::round(node->computedLayout.bounds.height *
-                                             std::max(1.0f, ctx.windowPixelHeight))));
+                                             std::max(1.0f, gts::rendering::controllerContext(ctx).windowPixelHeight))));
             return {width, height};
         }
 
@@ -133,10 +135,10 @@ namespace gts::tools
         bool syncAsset(const EcsControllerContext& ctx, const AssetBrowserSession& assetSession)
         {
             const AssetBrowserEntry* asset = assetSession.selected();
-            if (asset == nullptr || !asset->valid || !assetPreviewWorld || ctx.resources == nullptr)
+            if (asset == nullptr || !asset->valid || !assetPreviewWorld || gts::rendering::controllerContext(ctx).resources == nullptr)
                 return false;
 
-            assetPreviewWorld->ensure(ctx.resources);
+            assetPreviewWorld->ensure(gts::rendering::controllerContext(ctx).resources);
             assetPreviewWorld->syncAsset(asset->manifestPath, asset->manifest);
             return true;
         }

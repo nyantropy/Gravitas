@@ -1,5 +1,6 @@
-#include "model/extraction/ModelFrameExtraction.h"
 #include "RenderingRuntime.h"
+#include "RenderingControllerContext.h"
+#include "model/extraction/ModelFrameExtraction.h"
 #include "../ecssetup/camera/input/CameraDefaultBindings.hpp"
 #include "input/UiDefaultBindings.hpp"
 
@@ -184,11 +185,11 @@ namespace gts::rendering
     {
         const RenderViewportRect viewport = resolveSceneViewport(ctx.world, windowPixelWidth, windowPixelHeight);
 
-        ctx.sceneViewportPixelX      = static_cast<float>(viewport.x);
-        ctx.sceneViewportPixelY      = static_cast<float>(viewport.y);
-        ctx.sceneViewportPixelWidth  = static_cast<float>(viewport.width);
-        ctx.sceneViewportPixelHeight = static_cast<float>(viewport.height);
-        ctx.sceneViewportAspectRatio = viewport.aspect();
+        gts::rendering::controllerContext(ctx).sceneViewportPixelX      = static_cast<float>(viewport.x);
+        gts::rendering::controllerContext(ctx).sceneViewportPixelY      = static_cast<float>(viewport.y);
+        gts::rendering::controllerContext(ctx).sceneViewportPixelWidth  = static_cast<float>(viewport.width);
+        gts::rendering::controllerContext(ctx).sceneViewportPixelHeight = static_cast<float>(viewport.height);
+        gts::rendering::controllerContext(ctx).sceneViewportAspectRatio = viewport.aspect();
     }
 
     void RenderingRuntime::dispatchUiInput(const InputBindingRegistry* input,

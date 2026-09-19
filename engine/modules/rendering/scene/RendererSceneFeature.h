@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
 #include "EcsControllerContext.hpp"
 #include "GtsScene.hpp"
 #include "RendererCameraSceneFeature.h"
@@ -24,8 +25,8 @@ namespace gts::rendering
                 resetRendererCameraSceneFeature(world);
             });
 
-        installRendererGeometrySceneFeature(world, ctx.resources);
-        installRendererCameraSceneFeature(world, ctx.resources);
+        installRendererGeometrySceneFeature(world, gts::rendering::controllerContext(ctx).resources);
+        installRendererCameraSceneFeature(world, gts::rendering::controllerContext(ctx).resources);
         installRendererParticleSceneFeature(world);
     }
 }

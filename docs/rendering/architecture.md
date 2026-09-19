@@ -5,6 +5,19 @@ engine-level only; application scene composition belongs in application docs.
 
 ## Ownership Model
 
+`contracts/controller/RenderingControllerContext.h` owns borrowed resource access
+and window/scene viewport metrics for controller calls. Its independent
+`gravitas_rendering_controller_contracts` target depends only on core, separately
+from the standard-library-only resource-handle target. Consumers call
+`gts::rendering::controllerContext(ctx)`; missing data retains null resources,
+unit dimensions/aspects and zero viewport origin.
+
+Engine composition populates window metrics at the existing context construction
+point. `RenderingRuntime::applySceneViewportMetrics` updates only that call's
+scene viewport. Tool/scene contexts for one world and preview-world contexts retain
+independent values. This does not publish mutable per-call metrics into ECS or
+change render viewport selection, controller ordering or output.
+
 Particle effects, font metadata, and glTF/GLB JSON use
 [`GtsJsonParser`](../json/architecture.md) from core. These rendering-owned
 loaders retain schema validation and conversion; font loading implementation

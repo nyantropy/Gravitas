@@ -1,5 +1,6 @@
 #pragma once
 
+#include "UiControllerContext.h"
 #include <algorithm>
 #include <cstdint>
 #include <memory>
@@ -62,8 +63,8 @@ namespace gts::vn
 
         void update(const EcsControllerContext& ctx) override
         {
-            buildUiIfNeeded(ctx.world, ctx.ui);
-            writeFrontendState(ctx.world, ctx.ui);
+            buildUiIfNeeded(ctx.world, gts::ui::controllerContext(ctx).ui);
+            writeFrontendState(ctx.world, gts::ui::controllerContext(ctx).ui);
 
             if (dialogueActive(ctx.world))
             {
@@ -87,19 +88,19 @@ namespace gts::vn
             input.dt = ctx.time == nullptr ? 0.0f : ctx.time->unscaledDeltaTime;
             input.continuePressed = continuePressed(ctx);
 
-            if (ctx.ui != nullptr
+            if (gts::ui::controllerContext(ctx).ui != nullptr
                 && uiBuilt
                 && runtime.isActive()
                 && runtime.getConfig().capturePointerInput)
             {
-                if (VNDialogueComposition* composition = dialogueComposition(ctx.ui))
+                if (VNDialogueComposition* composition = dialogueComposition(gts::ui::controllerContext(ctx).ui))
                     input.clickedChoiceIndex = composition->consumeClickedChoiceIndex();
             }
 
             runtime.update(ctx, input);
             writePlaybackState(ctx.world);
 
-            syncUi(ctx.ui);
+            syncUi(gts::ui::controllerContext(ctx).ui);
         }
 
     private:
@@ -250,11 +251,11 @@ namespace gts::vn
             const bool continueInput = acceptDialogueInput && continuePressed(ctx);
             int clickedChoiceIndex = -1;
             if (acceptDialogueInput
-                && ctx.ui != nullptr
+                && gts::ui::controllerContext(ctx).ui != nullptr
                 && uiBuilt
                 && runtime.getConfig().capturePointerInput)
             {
-                if (VNDialogueComposition* composition = dialogueComposition(ctx.ui))
+                if (VNDialogueComposition* composition = dialogueComposition(gts::ui::controllerContext(ctx).ui))
                     clickedChoiceIndex = composition->consumeClickedChoiceIndex();
             }
 
@@ -291,7 +292,7 @@ namespace gts::vn
             }
 
             writePlaybackState(ctx.world);
-            syncUi(ctx.ui);
+            syncUi(gts::ui::controllerContext(ctx).ui);
         }
 
         static bool interactionSessionActive(ECSWorld& world)
@@ -320,7 +321,7 @@ namespace gts::vn
             runtime.update(ctx, input);
 
             writePlaybackState(ctx.world);
-            syncUi(ctx.ui);
+            syncUi(gts::ui::controllerContext(ctx).ui);
         }
 
         void presentDialogueRuntime(const gts::dialogue::DialogueRuntime& dialogueRuntime)

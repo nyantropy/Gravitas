@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
 #include <cmath>
 #include "GlmConfig.h"
 
@@ -64,7 +65,7 @@ public:
 
             desc.target      = tr.position + forward;
             desc.up          = glm::vec3(0.0f, 1.0f, 0.0f);
-            desc.aspectRatio = ctx.windowAspectRatio;
+            desc.aspectRatio = gts::rendering::controllerContext(ctx).windowAspectRatio;
         }
     }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
 #include <chrono>
 #include <cstdint>
 
@@ -83,10 +84,10 @@ public:
         }
 
         auto& commands = ctx.world.commands();
-        if (ctx.resources != nullptr)
+        if (gts::rendering::controllerContext(ctx).resources != nullptr)
         {
-            ctx.resources->takeProceduralMeshUploadMetrics();
-            ctx.resources->beginProceduralMeshUpdateBatch(metrics.queuedMeshes);
+            gts::rendering::controllerContext(ctx).resources->takeProceduralMeshUploadMetrics();
+            gts::rendering::controllerContext(ctx).resources->beginProceduralMeshUpdateBatch(metrics.queuedMeshes);
         }
 
         for (entity_id_type entityId : pendingMeshes)
@@ -100,7 +101,7 @@ public:
             }
 
             const gts::rendering::DynamicMeshSyncResult result =
-                gts::rendering::syncDynamicMeshBinding(ctx.world, entity, ctx.resources, commands);
+                gts::rendering::syncDynamicMeshBinding(ctx.world, entity, gts::rendering::controllerContext(ctx).resources, commands);
             metrics.versionCheckCpuMs += result.versionCheckCpuMs;
             metrics.validationCpuMs += result.validationCpuMs;
             metrics.boundsCpuMs += result.boundsCpuMs;
@@ -138,10 +139,10 @@ public:
                 metrics.boundsRecomputed += 1;
         }
 
-        if (ctx.resources != nullptr)
+        if (gts::rendering::controllerContext(ctx).resources != nullptr)
         {
-            ctx.resources->endProceduralMeshUpdateBatch();
-            const ProceduralMeshUploadMetrics uploads = ctx.resources->takeProceduralMeshUploadMetrics();
+            gts::rendering::controllerContext(ctx).resources->endProceduralMeshUpdateBatch();
+            const ProceduralMeshUploadMetrics uploads = gts::rendering::controllerContext(ctx).resources->takeProceduralMeshUploadMetrics();
             if (uploads.uploadCalls != 0)
             {
                 metrics.gpuMeshAllocations = uploads.gpuAllocations;

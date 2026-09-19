@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
 #include <chrono>
 #include <cstdio>
 #include <cstdint>
@@ -63,7 +64,7 @@ inline void GtsScene3::onLoad(EcsControllerContext& ctx, const GtsSceneTransitio
 
     const auto loadStart = std::chrono::steady_clock::now();
     spawnStressCubes();
-    spawnCamera(ctx.windowAspectRatio);
+    spawnCamera(gts::rendering::controllerContext(ctx).windowAspectRatio);
     const auto loadEnd = std::chrono::steady_clock::now();
 
     const float loadMs = std::chrono::duration<float, std::milli>(loadEnd - loadStart).count();

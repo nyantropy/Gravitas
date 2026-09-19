@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
 #include "ECSControllerSystem.hpp"
 #include "GeometryBindingLifecycle.h"
 #include "RenderObjectLifecycle.h"
@@ -15,6 +16,6 @@ public:
 
         auto& commands = ctx.world.commands();
         for (entity_id_type entityId : pendingRenderObjects)
-            gts::rendering::syncRenderObjectLifecycle(ctx.world, Entity{entityId}, ctx.resources, commands);
+            gts::rendering::syncRenderObjectLifecycle(ctx.world, Entity{entityId}, gts::rendering::controllerContext(ctx).resources, commands);
     }
 };

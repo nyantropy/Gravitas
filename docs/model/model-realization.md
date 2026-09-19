@@ -122,7 +122,8 @@ there is no additional request configuration. Ownership comparison is used only
 for lookup, never for geometry ordering or structural matching.
 
 `GravitasEngine` owns this cache alongside the loading registry and supplies it via
-`EcsControllerContext::modelRealizations`. Cache lifetime spans scenes; returned
+`gts::model::controllerContext(ctx).modelRealizations` through the model-owned
+`GtsModelControllerContext.h` contract. Cache lifetime spans scenes; returned
 shared models can outlive the cache. Loading policy still runs before a game requests
 realization, so this cache does not bypass strict/source restrictions.
 

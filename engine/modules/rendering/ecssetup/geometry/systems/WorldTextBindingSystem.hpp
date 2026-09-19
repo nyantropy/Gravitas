@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
 #include <vector>
 #include "ECSControllerSystem.hpp"
 #include "WorldTextComponent.h"
@@ -20,7 +21,7 @@ class WorldTextBindingSystem : public ECSControllerSystem
 public:
     void update(const EcsControllerContext& ctx) override
     {
-        if (ctx.resources == nullptr)
+        if (gts::rendering::controllerContext(ctx).resources == nullptr)
             return;
 
         auto& commands = ctx.world.commands();
@@ -38,11 +39,11 @@ public:
 
             if (runtime.fontID == 0 || runtime.boundFontPath != wtc.fontPath)
             {
-                runtime.fontID = ctx.resources->requestFont(wtc.fontPath);
+                runtime.fontID = gts::rendering::controllerContext(ctx).resources->requestFont(wtc.fontPath);
                 runtime.boundFontPath = wtc.fontPath;
             }
 
-            const BitmapFont* font = ctx.resources->getFont(runtime.fontID);
+            const BitmapFont* font = gts::rendering::controllerContext(ctx).resources->getFont(runtime.fontID);
             if (font == nullptr)
             {
                 cleanupTextMesh(ctx.world, commands, e, runtime, wtc);
@@ -78,7 +79,7 @@ public:
                 }
 
                 const mesh_id_type existingId = meshGpu.ownsProceduralMeshResource ? meshGpu.meshID : 0;
-                meshGpu.meshID = ctx.resources->uploadProceduralMesh(
+                meshGpu.meshID = gts::rendering::controllerContext(ctx).resources->uploadProceduralMesh(
                     existingId,
                     verts,
                     indices,

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
 #include <vector>
 
 #include "ECSControllerSystem.hpp"
@@ -21,7 +22,7 @@ public:
         for (entity_id_type entityId : pendingMaterials)
         {
             Entity entity{entityId};
-            gts::rendering::syncWorldTextMaterialBinding(ctx.world, entity, ctx.resources, commands);
+            gts::rendering::syncWorldTextMaterialBinding(ctx.world, entity, gts::rendering::controllerContext(ctx).resources, commands);
         }
 
         drainQueuedMaterials(ctx);
@@ -57,7 +58,7 @@ private:
             if (!materials.materialNeedsGpuSync(handle))
                 continue;
 
-            const MaterialSyncResult result = materials.synchronizeGpuState(handle, ctx.resources);
+            const MaterialSyncResult result = materials.synchronizeGpuState(handle, gts::rendering::controllerContext(ctx).resources);
             metrics.synchronizedMaterials += 1;
             if (!result.changed || !result.topologyChanged)
                 continue;
@@ -81,7 +82,7 @@ private:
         const MaterialInstanceHandle fallback = materials.defaultMaterial();
         if (materials.materialNeedsGpuSync(fallback))
         {
-            materials.synchronizeGpuState(fallback, ctx.resources);
+            materials.synchronizeGpuState(fallback, gts::rendering::controllerContext(ctx).resources);
             metrics.synchronizedMaterials += 1;
         }
 

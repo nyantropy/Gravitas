@@ -15,3 +15,7 @@ add_test(NAME input_binding_routing COMMAND InputBindingRoutingTest)
 add_executable(CoreBoundaryTest CoreBoundaryTest.cpp)
 target_link_libraries(CoreBoundaryTest PRIVATE gravitas_core)
 add_test(NAME core_boundary COMMAND CoreBoundaryTest)
+
+add_executable(ControllerContextTest ControllerContextTest.cpp)
+target_link_libraries(ControllerContextTest PRIVATE gravitas_core)
+add_test(NAME controller_context COMMAND ControllerContextTest)

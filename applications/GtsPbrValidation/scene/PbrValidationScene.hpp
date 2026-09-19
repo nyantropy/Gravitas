@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
 #include "BoundsComponent.h"
 #include "CameraDescriptionComponent.h"
 #include "DirectionalLightComponent.h"
@@ -30,7 +31,7 @@ public:
         spawnTextureMapSamples();
         spawnLights();
         spawnEnvironment();
-        spawnCamera(ctx.windowAspectRatio);
+        spawnCamera(gts::rendering::controllerContext(ctx).windowAspectRatio);
     }
 
     void onUpdateSimulation(const EcsSimulationContext& ctx) override

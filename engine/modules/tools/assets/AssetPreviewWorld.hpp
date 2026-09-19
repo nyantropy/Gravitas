@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -124,15 +125,16 @@ namespace gts::tools
             previewTime.frame = ++frame;
 
             EcsControllerContext previewCtx{world};
-            previewCtx.resources = resourceProvider;
+            auto& rendering = gts::rendering::controllerContext(previewCtx);
+            rendering.resources = resourceProvider;
             previewCtx.time = &previewTime;
-            previewCtx.windowPixelWidth = static_cast<float>(std::max(1u, width));
-            previewCtx.windowPixelHeight = static_cast<float>(std::max(1u, height));
-            previewCtx.windowAspectRatio =
+            rendering.windowPixelWidth = static_cast<float>(std::max(1u, width));
+            rendering.windowPixelHeight = static_cast<float>(std::max(1u, height));
+            rendering.windowAspectRatio =
                 static_cast<float>(std::max(1u, width)) / static_cast<float>(std::max(1u, height));
-            previewCtx.sceneViewportPixelWidth = previewCtx.windowPixelWidth;
-            previewCtx.sceneViewportPixelHeight = previewCtx.windowPixelHeight;
-            previewCtx.sceneViewportAspectRatio = previewCtx.windowAspectRatio;
+            rendering.sceneViewportPixelWidth = rendering.windowPixelWidth;
+            rendering.sceneViewportPixelHeight = rendering.windowPixelHeight;
+            rendering.sceneViewportAspectRatio = rendering.windowAspectRatio;
 
             world.updateControllers(previewCtx);
 

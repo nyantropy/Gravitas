@@ -1,4 +1,5 @@
 #include "PhysicsDebugRenderer.h"
+#include "PhysicsControllerContext.h"
 
 #include <chrono>
 #include <cmath>
@@ -103,7 +104,7 @@ void PhysicsDebugRenderer::update(const EcsControllerContext& ctx)
             collider.radius);
     });
 
-    if (auto* physicsWorld = dynamic_cast<PhysicsWorld*>(ctx.physics))
+    if (auto* physicsWorld = dynamic_cast<PhysicsWorld*>(gts::physics::controllerContext(ctx).physics))
     {
         const auto debugEnd = Clock::now();
         const double debugMs = std::chrono::duration<double, std::milli>(debugEnd - debugStart).count();

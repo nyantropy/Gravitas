@@ -1,3 +1,5 @@
+#include "RenderingControllerContext.h"
+#include "UiControllerContext.h"
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -329,9 +331,9 @@ namespace
         gts::vn::VNSystem system(config);
 
         EcsControllerContext ctx{world};
-        ctx.ui = &ui;
-        ctx.windowPixelWidth = 1280.0f;
-        ctx.windowPixelHeight = 720.0f;
+        gts::ui::controllerContext(ctx).ui = &ui;
+        gts::rendering::controllerContext(ctx).windowPixelWidth = 1280.0f;
+        gts::rendering::controllerContext(ctx).windowPixelHeight = 720.0f;
 
         system.update(ctx);
         extract(ui);
@@ -426,9 +428,9 @@ namespace
         gts::vn::VNSystem system(config);
 
         EcsControllerContext ctx{world};
-        ctx.ui = &ui;
-        ctx.windowPixelWidth = 1280.0f;
-        ctx.windowPixelHeight = 720.0f;
+        gts::ui::controllerContext(ctx).ui = &ui;
+        gts::rendering::controllerContext(ctx).windowPixelWidth = 1280.0f;
+        gts::rendering::controllerContext(ctx).windowPixelHeight = 720.0f;
 
         system.update(ctx);
         extract(ui);
@@ -463,9 +465,9 @@ namespace
 
         gts::vn::VNSystem system;
         EcsControllerContext ctx{world};
-        ctx.ui = &ui;
-        ctx.windowPixelWidth = 1280.0f;
-        ctx.windowPixelHeight = 720.0f;
+        gts::ui::controllerContext(ctx).ui = &ui;
+        gts::rendering::controllerContext(ctx).windowPixelWidth = 1280.0f;
+        gts::rendering::controllerContext(ctx).windowPixelHeight = 720.0f;
 
         system.update(ctx);
         extract(ui);

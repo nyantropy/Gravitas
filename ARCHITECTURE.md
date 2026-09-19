@@ -208,8 +208,19 @@ System types:
 - `ECSControllerSystem`: once per rendered frame, presentation, UI, tooling,
   renderer lifecycle, input sampling, and engine command requests.
 
-Controller context pointers are valid only for the current update call. Do not
-cache them across frames.
+`EcsControllerContext` holds foundational execution state: world, input, time,
+commands and scene catalog/name. Optional data is supplied through module-owned
+controller contracts using typed, value-owned `ControllerFrameData` snapshots:
+`gts::model::controllerContext`, `gts::ui::controllerContext`,
+`gts::physics::controllerContext` and `gts::rendering::controllerContext`.
+Core neither names nor includes those capabilities. Model callers normally keep
+using `requestGtsModel` and `modelInstances`, which resolve their dependencies at
+the model boundary. Missing capabilities retain their existing null/error behavior.
+
+Snapshots are call-local, including distinct tool/scene viewports for the same
+world and preview-world metrics. Copying a context copies payload values; borrowed
+service pointers remain valid only for the current call. Do not cache them across
+frames. This does not change system signatures, ordering, scene hooks or service discovery.
 
 ## Execution Profiles
 

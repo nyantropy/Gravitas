@@ -1,4 +1,5 @@
 #include "RenderingBenchmark.h"
+#include "RenderingControllerContext.h"
 #include "GtsJsonParser.h"
 
 #include <algorithm>
@@ -1222,18 +1223,19 @@ namespace gts::rendering::benchmarks
 
             EcsControllerContext ctx{
                 state.world,
-                &state.resources,
                 nullptr,
                 &time
             };
-            ctx.windowPixelWidth = static_cast<float>(config.renderWidth);
-            ctx.windowPixelHeight = static_cast<float>(config.renderHeight);
-            ctx.windowAspectRatio = config.renderHeight == 0
+            auto& rendering = gts::rendering::controllerContext(ctx);
+            rendering.resources = &state.resources;
+            rendering.windowPixelWidth = static_cast<float>(config.renderWidth);
+            rendering.windowPixelHeight = static_cast<float>(config.renderHeight);
+            rendering.windowAspectRatio = config.renderHeight == 0
                 ? 1.0f
                 : static_cast<float>(config.renderWidth) / static_cast<float>(config.renderHeight);
-            ctx.sceneViewportPixelWidth = ctx.windowPixelWidth;
-            ctx.sceneViewportPixelHeight = ctx.windowPixelHeight;
-            ctx.sceneViewportAspectRatio = ctx.windowAspectRatio;
+            rendering.sceneViewportPixelWidth = rendering.windowPixelWidth;
+            rendering.sceneViewportPixelHeight = rendering.windowPixelHeight;
+            rendering.sceneViewportAspectRatio = rendering.windowAspectRatio;
 
             mutateFrame(state, config, frameIndex);
 

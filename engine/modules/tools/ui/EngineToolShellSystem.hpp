@@ -1,5 +1,7 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
+#include "UiControllerContext.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -39,7 +41,7 @@ namespace gts::tools
     public:
         void update(const EcsControllerContext& ctx) override
         {
-            if (ctx.ui == nullptr)
+            if (gts::ui::controllerContext(ctx).ui == nullptr)
                 return;
 
             EngineToolStateComponent& state = ensureState(ctx.world);
@@ -62,7 +64,7 @@ namespace gts::tools
                 return;
             }
 
-            EngineToolShellComposition* shell = ensureComposition(*ctx.ui);
+            EngineToolShellComposition* shell = ensureComposition(*gts::ui::controllerContext(ctx).ui);
             if (shell == nullptr)
             {
                 state.status = "TOOLS UI NOT READY";
@@ -78,7 +80,7 @@ namespace gts::tools
 
             ToolShellView view = buildView(ctx, state, workspace);
             shell->setView(view);
-            ctx.ui->updateComposition(shellComposition);
+            gts::ui::controllerContext(ctx).ui->updateComposition(shellComposition);
 
             inputCapture.update(ctx.world, ctx);
             previewCoordinator.publish(ctx,
@@ -93,7 +95,7 @@ namespace gts::tools
                 view.previewTexture = previewCoordinator.particleTexture();
                 view.assetPreviewTexture = previewCoordinator.assetTexture();
                 shell->setView(view);
-                ctx.ui->updateComposition(shellComposition);
+                gts::ui::controllerContext(ctx).ui->updateComposition(shellComposition);
             }
         }
 
@@ -233,8 +235,8 @@ namespace gts::tools
             inputCapture.clear(ctx.world);
             previewCoordinator.clear(ctx.world);
             previewCoordinator.destroy();
-            if (ctx.ui != nullptr)
-                destroyComposition(*ctx.ui);
+            if (gts::ui::controllerContext(ctx).ui != nullptr)
+                destroyComposition(*gts::ui::controllerContext(ctx).ui);
             publishWorkspace(ctx, false);
         }
 
@@ -258,8 +260,8 @@ namespace gts::tools
 
         EngineToolWorkspaceComponent& publishWorkspace(const EcsControllerContext& ctx, bool active)
         {
-            const int width = std::max(1, static_cast<int>(std::round(ctx.windowPixelWidth)));
-            const int height = std::max(1, static_cast<int>(std::round(ctx.windowPixelHeight)));
+            const int width = std::max(1, static_cast<int>(std::round(gts::rendering::controllerContext(ctx).windowPixelWidth)));
+            const int height = std::max(1, static_cast<int>(std::round(gts::rendering::controllerContext(ctx).windowPixelHeight)));
             return publishEngineToolWorkspace(ctx.world, width, height, active, activeWorkspace);
         }
 
@@ -267,7 +269,7 @@ namespace gts::tools
         {
             if (fontReady)
                 return true;
-            if (ctx.resources == nullptr)
+            if (gts::rendering::controllerContext(ctx).resources == nullptr)
                 return false;
 
             if (tryLoadFont(ctx, DefaultEditorTheme.typography.fontAsset))
@@ -278,11 +280,11 @@ namespace gts::tools
 
         bool tryLoadFont(const EcsControllerContext& ctx, const std::string& path)
         {
-            if (ctx.resources == nullptr || path.empty())
+            if (gts::rendering::controllerContext(ctx).resources == nullptr || path.empty())
                 return false;
 
-            const font_id_type fontID = ctx.resources->requestFont(path);
-            const BitmapFont* loadedFont = ctx.resources->getFont(fontID);
+            const font_id_type fontID = gts::rendering::controllerContext(ctx).resources->requestFont(path);
+            const BitmapFont* loadedFont = gts::rendering::controllerContext(ctx).resources->getFont(fontID);
             if (loadedFont == nullptr)
                 return false;
 

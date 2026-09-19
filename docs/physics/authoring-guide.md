@@ -11,10 +11,11 @@ Install the physics feature from scene setup:
 gts::physics::installPhysicsFeature(*this, ctx);
 ```
 
-This creates the scene-local `PhysicsWorld`, exposes `ctx.physics`, and
+This creates the scene-local `PhysicsWorld`, exposes
+`gts::physics::controllerContext(ctx).physics` through `PhysicsControllerContext.h`, and
 registers `PhysicsSystem` in fixed simulation space.
 
-Collision consumers that read `ctx.physics->getCollisions()` should run after
+Collision consumers that read `gts::physics::controllerContext(ctx).physics->getCollisions()` should run after
 the physics feature's simulation system has been installed.
 
 ## Adding A Collider

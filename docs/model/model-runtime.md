@@ -1,5 +1,15 @@
 # Shared CPU model loading
 
+Controller callers keep using `requestGtsModel(ctx, ...)` and
+`modelInstances(world, ctx)`. Engine composition supplies registry/realization
+pointers through `model/public/GtsModelControllerContext.h`, owned by the lightweight
+`gravitas_model_controller_contracts` target (core only). The model facade reads
+that call-local payload, retaining the existing missing-service exceptions.
+World realization also reads the rendering-owned resource contract, which remains
+nullable for headless operation. `gravitas_model_world` privately links the
+lightweight rendering controller contract; no rendering implementation is required.
+Registries/caches remain engine-owned, and instance runtime remains world-owned.
+
 `model/loading` owns the synchronous, backend-independent
 `gravitas_model_loading` target. `GtsModelRegistry::requestModel` is the authoritative
 entry point for migrated high-level runtime model requests:
@@ -172,7 +182,7 @@ no jobs, locks, eviction, streaming or pending handles. Requests are main-thread
 `lookup(handle)` checks ownership by this registry, not structural equality.
 
 `GravitasEngine` owns the registry across scene transitions and supplies it through
-`EcsControllerContext::models`. Callers retain handles, not frame-context pointers.
+`gts::model::controllerContext(ctx).models`. Callers retain handles, not frame-context pointers.
 
 ## Scoped clip discovery
 

@@ -1,4 +1,6 @@
 #include "model/public/GtsModels.h"
+#include "RenderingControllerContext.h"
+#include "model/public/GtsModelControllerContext.h"
 #include "model/loading/GtsModelRegistry.h"
 #include "model/loading/GtsModelResource.h"
 #include "model/domain/model/GtsModelSkin.h"
@@ -7,9 +9,9 @@
 
 GtsModelRequestResult requestGtsModel(const EcsControllerContext& context, const GtsModelRequest& request)
 {
-    if (!context.models)
+    if (!gts::model::controllerContext(context).models)
         throw std::logic_error("Model requests require the engine model service");
-    return context.models->requestModel(request);
+    return gts::model::controllerContext(context).models->requestModel(request);
 }
 GtsModelRequestResult requestGtsModel(const EcsControllerContext& context, const std::filesystem::path& path)
 {
@@ -17,9 +19,9 @@ GtsModelRequestResult requestGtsModel(const EcsControllerContext& context, const
 }
 GtsModelInstanceRuntime& modelInstances(ECSWorld& world, const EcsControllerContext& context)
 {
-    if (!context.modelRealizations)
+    if (!gts::model::controllerContext(context).modelRealizations)
         throw std::logic_error("Model instances require the engine realization service");
-    return modelInstances(world, *context.modelRealizations, context.resources);
+    return modelInstances(world, *gts::model::controllerContext(context).modelRealizations, gts::rendering::controllerContext(context).resources);
 }
 std::size_t gtsModelSkeletonUseCount(const GtsModelHandle& model)
 {

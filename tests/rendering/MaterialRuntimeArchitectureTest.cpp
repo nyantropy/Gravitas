@@ -1,3 +1,4 @@
+#include "RenderingControllerContext.h"
 #include <cstdio>
 #include <cmath>
 #include <filesystem>
@@ -216,7 +217,7 @@ namespace
     void update(ECSWorld& world, FakeResourceProvider& resources, const TimeContext* time = nullptr)
     {
         EcsControllerContext ctx{world};
-        ctx.resources = &resources;
+        gts::rendering::controllerContext(ctx).resources = &resources;
         ctx.time = time;
         world.updateControllers(ctx);
     }

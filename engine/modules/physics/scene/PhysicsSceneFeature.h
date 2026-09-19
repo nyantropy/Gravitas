@@ -1,5 +1,6 @@
 #pragma once
 
+#include "PhysicsControllerContext.h"
 #include "EcsControllerContext.hpp"
 #include "GtsScene.hpp"
 #include "PhysicsSystem.h"
@@ -17,7 +18,7 @@ namespace gts::physics
 
         PhysicsWorld& physicsWorld = scene.createSceneResource<PhysicsWorld>(&scene.getWorld());
         scene.setPhysicsModule(&physicsWorld);
-        ctx.physics = &physicsWorld;
+        gts::physics::controllerContext(ctx).physics = &physicsWorld;
 
         scene.getWorld().addSimulationSystem<PhysicsSystem>(EcsSystemGroup::Physics, &physicsWorld);
     }

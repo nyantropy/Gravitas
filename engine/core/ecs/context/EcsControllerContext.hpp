@@ -7,13 +7,9 @@
 #include "TimeContext.h"
 #include "GtsCommandBuffer.h"
 #include "RegisteredSceneInfo.h"
+#include "ControllerFrameData.h"
 
 class ECSWorld;
-class GtsModelRegistry;
-class GtsModelRealizationCache;
-class IGtsPhysicsModule;
-class IResourceProvider;
-class UiSystem;
 
 // this is the context object passed into each ecs controller system
 // contains all frame-dependent dependencies, and is thus NOT available in simulation systems
@@ -23,22 +19,10 @@ struct EcsControllerContext
 {
     ECSWorld&                       world;
 
-    IResourceProvider*              resources         = nullptr;
     InputBindingRegistry*           input             = nullptr;
     const TimeContext*              time              = nullptr;
     GtsCommandBuffer*               engineCommands    = nullptr;
-    UiSystem*                       ui                = nullptr;
-    IGtsPhysicsModule*              physics           = nullptr;
     const std::vector<RegisteredSceneInfo>* registeredScenes = nullptr;
     const std::string*              activeSceneName   = nullptr;
-    float                           windowAspectRatio  = 1.0f;
-    float                           windowPixelWidth   = 1.0f;
-    float                           windowPixelHeight  = 1.0f;
-    float                           sceneViewportPixelX = 0.0f;
-    float                           sceneViewportPixelY = 0.0f;
-    float                           sceneViewportPixelWidth = 1.0f;
-    float                           sceneViewportPixelHeight = 1.0f;
-    float                           sceneViewportAspectRatio = 1.0f;
-    GtsModelRegistry*                models = nullptr;
-    GtsModelRealizationCache*        modelRealizations = nullptr;
+    ControllerFrameData             frameData;
 };

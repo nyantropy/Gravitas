@@ -43,12 +43,36 @@ Retained UI implementation is compiled once into `gravitas_ui`. Rendering retain
 its existing mixed UI facade/resource/extraction integration; UI does not link
 rendering implementation. See [UI architecture](../ui/architecture.md).
 
+## Controller Execution Context
+
+`EcsControllerContext` contains only the world, input registry, timing, engine
+commands, scene catalog/current scene name and generic `ControllerFrameData`.
+There are no named optional capabilities or viewport fields in core.
+
+Module-owned controller contracts provide typed access to value-owned call data:
+model registry/realization access, UI access, physics access, and rendering
+resource/viewport access. `ControllerFrameData` only copies, reads and edits typed
+values; it has no service registration, keys, factories or world/global lookup.
+The concrete module types are absent from core. Missing payloads read as immutable
+default values, preserving null optional pointers and default viewport metrics.
+
+Frame data is attached to the call because tool and scene contexts for the same
+world can have different viewport snapshots. Copying a context copies these values;
+it does not share mutable data or extend the lifetime of borrowed service pointers.
+Adding a payload preserves references to existing payloads. Owners populate data
+before dispatch; controllers only read it. Payload references and borrowed services
+must not be cached beyond the call. World clear/destruction never leaves frame data
+in a registry because none is stored there.
+
+The scene catalog and active scene name remain foundational lifecycle information.
+They do not identify a feature capability. Engine commands, input and time retain
+their existing nullable contracts for standalone callers/tests.
+
 ## Deliberately Deferred Semantic Boundaries
 
 This is physical/build ownership, not a redesign of engine composition. The
 following existing feature awareness remains intentional for this stage:
 
-- `EcsControllerContext` forward-declared module pointers and viewport data.
 - `GtsScene` physics accessors and frame-statistics hooks. `GtsFrameStats` is
   forward-declared; implementations accessing fields include its diagnostics header.
 - `SceneExecutionProfile` presets and `EcsSystemGroup` vocabulary.

@@ -1,4 +1,6 @@
 #include "UiSurface.h"
+#include "UiControllerContext.h"
+#include "ECSWorld.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -21,6 +23,9 @@ namespace
 
 int main()
 {
+    ECSWorld world;
+    const EcsControllerContext context{world};
+    require(gts::ui::controllerContext(context).ui == nullptr, "Absent UI access remains optional");
     UiSurfaceDesc desc;
     desc.rect = {0.25f, 0.25f, 0.5f, 0.5f};
     UiSurface surface(UI_DEFAULT_SURFACE, desc);

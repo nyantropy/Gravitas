@@ -1,0 +1,3 @@
+add_library(gravitas_rendering_controller_contracts INTERFACE)
+target_link_libraries(gravitas_rendering_controller_contracts INTERFACE gravitas_core)
+target_include_directories(gravitas_rendering_controller_contracts INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")

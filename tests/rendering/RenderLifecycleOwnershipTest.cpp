@@ -1,3 +1,4 @@
+#include "RenderingControllerContext.h"
 #include <cstdio>
 #include <string>
 #include <unordered_map>
@@ -178,7 +179,7 @@ namespace
     void update(ECSWorld& world, FakeResourceProvider& resources)
     {
         EcsControllerContext ctx{world};
-        ctx.resources = &resources;
+        gts::rendering::controllerContext(ctx).resources = &resources;
         world.updateControllers(ctx);
     }
 

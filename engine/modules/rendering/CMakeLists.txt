@@ -93,6 +93,7 @@ target_link_libraries(gravitas_rendering PUBLIC
     gravitas_core
     gravitas_ui
     gravitas_rendering_contracts
+    gravitas_rendering_controller_contracts
     gravitas_profiling
     gravitas_transform
     PUBLIC gravitas_model_domain gravitas_cooked_assets gravitas_mesh_loading gravitas_image_decode

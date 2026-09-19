@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -825,7 +826,7 @@ private:
                                       const ParticleEmitterComponent& emitter,
                                       ParticleEmitterRuntimeComponent& runtime)
     {
-        if (ctx.resources == nullptr)
+        if (gts::rendering::controllerContext(ctx).resources == nullptr)
             return;
 
         const std::string texturePath = emitter.texturePath.empty()
@@ -834,7 +835,7 @@ private:
 
         if (runtime.textureID == 0 || runtime.boundTexturePath != texturePath)
         {
-            runtime.textureID = ctx.resources->requestTexture(texturePath);
+            runtime.textureID = gts::rendering::controllerContext(ctx).resources->requestTexture(texturePath);
             runtime.boundTexturePath = texturePath;
         }
 
@@ -855,7 +856,7 @@ private:
         if (runtime.meshID != 0 && runtime.boundMeshPath == emitter.meshPath)
             return;
 
-        runtime.meshID = ctx.resources->requestMesh(emitter.meshPath);
+        runtime.meshID = gts::rendering::controllerContext(ctx).resources->requestMesh(emitter.meshPath);
         runtime.boundMeshPath = emitter.meshPath;
     }
 

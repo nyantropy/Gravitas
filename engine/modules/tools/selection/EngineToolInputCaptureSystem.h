@@ -1,5 +1,7 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
+#include "UiControllerContext.h"
 #include <algorithm>
 #include <cmath>
 
@@ -29,7 +31,7 @@ namespace gts::tools
         void update(ECSWorld& world, const EcsControllerContext& ctx)
         {
             EngineToolInputCaptureComponent& capture = ensure(world);
-            const UiDispatchResult& dispatch = ctx.ui == nullptr ? UiDispatchResult{} : ctx.ui->dispatchResult();
+            const UiDispatchResult& dispatch = gts::ui::controllerContext(ctx).ui == nullptr ? UiDispatchResult{} : gts::ui::controllerContext(ctx).ui->dispatchResult();
 
             capture.pointerOverToolUi = dispatch.hovered != UI_INVALID_HANDLE;
             capture.toolUiPressed = dispatch.pressed != UI_INVALID_HANDLE;
@@ -73,8 +75,8 @@ namespace gts::tools
             capture.scrollY = static_cast<float>(ctx.input->scrollY());
 
             RenderViewportRect viewport =
-                RenderViewportRect::full(std::max(1, static_cast<int>(std::round(ctx.windowPixelWidth))),
-                                         std::max(1, static_cast<int>(std::round(ctx.windowPixelHeight))));
+                RenderViewportRect::full(std::max(1, static_cast<int>(std::round(gts::rendering::controllerContext(ctx).windowPixelWidth))),
+                                         std::max(1, static_cast<int>(std::round(gts::rendering::controllerContext(ctx).windowPixelHeight))));
             if (world.hasAny<RenderViewportComponent>())
                 viewport = world.getSingleton<RenderViewportComponent>().sceneViewport;
 

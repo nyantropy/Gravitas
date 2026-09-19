@@ -1,4 +1,7 @@
 if(TARGET gravitas_physics)
+    add_executable(PhysicsControllerInstallationTest PhysicsControllerInstallationTest.cpp)
+    target_link_libraries(PhysicsControllerInstallationTest PRIVATE gravitas_physics)
+    add_test(NAME physics_controller_installation COMMAND PhysicsControllerInstallationTest)
     add_executable(PhysicsTransformIntegrationTest PhysicsTransformIntegrationTest.cpp)
     target_link_libraries(PhysicsTransformIntegrationTest PRIVATE gravitas_physics)
     add_test(NAME physics_transform_integration COMMAND PhysicsTransformIntegrationTest)

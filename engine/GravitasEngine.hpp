@@ -1,5 +1,9 @@
 #pragma once
 
+#include "PhysicsControllerContext.h"
+#include "RenderingControllerContext.h"
+#include "UiControllerContext.h"
+#include "model/public/GtsModelControllerContext.h"
 #include <algorithm>
 #include <memory>
 #include <iostream>
@@ -126,24 +130,25 @@ class GravitasEngine
         GtsScene* activeScene = sceneManager->getActiveScene();
 
         EcsControllerContext ctx{world};
-        ctx.resources         = renderingRuntime->resources();
-        ctx.models            = &modelRegistry;
-        ctx.modelRealizations = &modelRealizations;
+        auto& rendering = gts::rendering::controllerContext(ctx);
+        rendering.resources         = renderingRuntime->resources();
+        gts::model::controllerContext(ctx).models            = &modelRegistry;
+        gts::model::controllerContext(ctx).modelRealizations = &modelRealizations;
         ctx.input             = platform.getInputBindingRegistry();
         ctx.time              = &timeContext;
         ctx.engineCommands    = &engineCommands;
-        ctx.ui                = renderingRuntime->ui();
-        ctx.physics           = activeScene == nullptr ? nullptr : activeScene->getPhysicsModule();
+        gts::ui::controllerContext(ctx).ui                = renderingRuntime->ui();
+        gts::physics::controllerContext(ctx).physics           = activeScene == nullptr ? nullptr : activeScene->getPhysicsModule();
         ctx.registeredScenes  = &sceneManager->getRegisteredScenes();
         ctx.activeSceneName   = &sceneManager->getActiveSceneName();
-        ctx.windowAspectRatio = windowAspectRatio;
-        ctx.windowPixelWidth  = static_cast<float>(windowPixelWidth);
-        ctx.windowPixelHeight = static_cast<float>(windowPixelHeight);
-        ctx.sceneViewportPixelX = 0.0f;
-        ctx.sceneViewportPixelY = 0.0f;
-        ctx.sceneViewportPixelWidth = static_cast<float>(windowPixelWidth);
-        ctx.sceneViewportPixelHeight = static_cast<float>(windowPixelHeight);
-        ctx.sceneViewportAspectRatio = windowAspectRatio;
+        rendering.windowAspectRatio = windowAspectRatio;
+        rendering.windowPixelWidth  = static_cast<float>(windowPixelWidth);
+        rendering.windowPixelHeight = static_cast<float>(windowPixelHeight);
+        rendering.sceneViewportPixelX = 0.0f;
+        rendering.sceneViewportPixelY = 0.0f;
+        rendering.sceneViewportPixelWidth = static_cast<float>(windowPixelWidth);
+        rendering.sceneViewportPixelHeight = static_cast<float>(windowPixelHeight);
+        rendering.sceneViewportAspectRatio = windowAspectRatio;
         return ctx;
     }
 

@@ -1,3 +1,4 @@
+#include "RenderingControllerContext.h"
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -25,9 +26,9 @@ public:
         if (ctx.input->getTriggersForAction("engine.tools_toggle").empty() == toolsEnabled)
             throw std::runtime_error("Tool bindings do not match enabled modules");
 
-        const auto fontId = ctx.resources->requestFont(
+        const auto fontId = gts::rendering::controllerContext(ctx).resources->requestFont(
             GraphicsConstants::ENGINE_RESOURCES + "/fonts/gravitasfont.font.json");
-        const auto* font = ctx.resources->getFont(fontId);
+        const auto* font = gts::rendering::controllerContext(ctx).resources->getFont(fontId);
         if (font == nullptr || font->atlasTexture == 0 || font->glyphs.empty())
             throw std::runtime_error("Engine font atlas failed to load through the texture manager");
     }

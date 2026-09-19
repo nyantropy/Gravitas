@@ -1,3 +1,4 @@
+#include "PhysicsControllerContext.h"
 #include <cstdlib>
 #include <iostream>
 
@@ -31,7 +32,7 @@ int main()
     world.addComponent(collider, WorldTransformComponent{});
     world.addComponent(collider, SphereColliderComponent{});
     PhysicsWorld physics(&world);
-    context.physics = &physics;
+    gts::physics::controllerContext(context).physics = &physics;
     PhysicsDebugRenderer producer;
     producer.update(context);
     require(physics.getProfileStats().debugSegmentCount == 36, "sphere diagnostic segment count changed");

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
+#include "UiControllerContext.h"
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -109,7 +111,7 @@ public:
                 const GtsSceneTransitionData* data = nullptr) override
     {
         spawnGrid();
-        spawnCamera(ctx.windowAspectRatio);
+        spawnCamera(gts::rendering::controllerContext(ctx).windowAspectRatio);
 
         if (ctx.input != nullptr)
         {
@@ -145,30 +147,30 @@ public:
                             ActivationMode::Held);
         }
 
-        const font_id_type overlayFontID = ctx.resources->requestFont(
+        const font_id_type overlayFontID = gts::rendering::controllerContext(ctx).resources->requestFont(
             GraphicsConstants::ENGINE_RESOURCES + "/fonts/gravitasfont.font.json");
-        if (const BitmapFont* loadedFont = ctx.resources->getFont(overlayFontID))
+        if (const BitmapFont* loadedFont = gts::rendering::controllerContext(ctx).resources->getFont(overlayFontID))
             overlayFont = *loadedFont;
 
-        overlayHandle = ctx.ui->createNode(UiNodeType::Text);
+        overlayHandle = gts::ui::controllerContext(ctx).ui->createNode(UiNodeType::Text);
         UiLayoutSpec overlayLayout;
         overlayLayout.positionMode = UiPositionMode::Absolute;
         overlayLayout.widthMode = UiSizeMode::Fixed;
         overlayLayout.heightMode = UiSizeMode::Fixed;
         overlayLayout.offsetMin = {0.01f, 0.01f};
-        ctx.ui->setLayout(overlayHandle, overlayLayout);
-        ctx.ui->setState(overlayHandle, UiStateFlags{
+        gts::ui::controllerContext(ctx).ui->setLayout(overlayHandle, overlayLayout);
+        gts::ui::controllerContext(ctx).ui->setState(overlayHandle, UiStateFlags{
             .visible = true,
             .enabled = false,
             .interactable = false
         });
-        ctx.ui->setPayload(overlayHandle, UiTextData{
+        gts::ui::controllerContext(ctx).ui->setPayload(overlayHandle, UiTextData{
             "CULLING ON\nFRUSTUM LIVE",
             {},
             {1.0f, 1.0f, 1.0f, 1.0f},
             0.03f
         });
-        ctx.ui->setTextFont(overlayHandle, &overlayFont);
+        gts::ui::controllerContext(ctx).ui->setTextFont(overlayHandle, &overlayFont);
 
         // FreeFlyCamera must run before the shared camera pipeline so its
         // transform/description updates feed the same-frame matrix upload.
@@ -212,7 +214,7 @@ public:
             snprintf(buf, sizeof(buf), "CULLING %s\nFRUSTUM %s",
                 cullingEnabled ? "ON" : "OFF",
                 frustumFrozen  ? "FROZEN" : "LIVE");
-            ctx.ui->setPayload(overlayHandle, UiTextData{
+            gts::ui::controllerContext(ctx).ui->setPayload(overlayHandle, UiTextData{
                 buf,
                 {},
                 {1.0f, 1.0f, 1.0f, 1.0f},

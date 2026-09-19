@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
 #include <cmath>
 #include <limits>
 
@@ -161,7 +162,7 @@ namespace gts::tools
                     return viewport.sceneViewport.aspect();
             }
 
-            return ctx.windowAspectRatio > 0.0f ? ctx.windowAspectRatio : 1.0f;
+            return gts::rendering::controllerContext(ctx).windowAspectRatio > 0.0f ? gts::rendering::controllerContext(ctx).windowAspectRatio : 1.0f;
         }
 
         static glm::vec3 worldCameraPosition(ECSWorld& world, Entity entity)

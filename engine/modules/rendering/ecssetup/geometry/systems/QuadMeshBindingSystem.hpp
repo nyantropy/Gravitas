@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RenderingControllerContext.h"
 #include "ECSControllerSystem.hpp"
 #include "GeometryBindingLifecycle.h"
 #include "MeshBindingLifecycle.h"
@@ -23,7 +24,7 @@ public:
                 continue;
             }
 
-            gts::rendering::syncQuadMeshBinding(ctx.world, entity, ctx.resources, commands);
+            gts::rendering::syncQuadMeshBinding(ctx.world, entity, gts::rendering::controllerContext(ctx).resources, commands);
         }
     }
 };

@@ -1,4 +1,5 @@
 #include "EngineToolRuntime.hpp"
+#include "RenderingControllerContext.h"
 
 #include <algorithm>
 #include <chrono>
@@ -241,8 +242,8 @@ namespace gts::tools
 
         void publishWorkspace(const EcsControllerContext& ctx) const
         {
-            const int width  = std::max(1, static_cast<int>(std::round(ctx.windowPixelWidth)));
-            const int height = std::max(1, static_cast<int>(std::round(ctx.windowPixelHeight)));
+            const int width  = std::max(1, static_cast<int>(std::round(gts::rendering::controllerContext(ctx).windowPixelWidth)));
+            const int height = std::max(1, static_cast<int>(std::round(gts::rendering::controllerContext(ctx).windowPixelHeight)));
             publishEngineToolWorkspace(
                 ctx.world, width, height, persistentToolState.visible, shellSystem.currentWorkspace());
         }

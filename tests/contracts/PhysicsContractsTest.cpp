@@ -1,5 +1,8 @@
 #include "CollisionEvent.h"
 #include "IGtsPhysicsModule.h"
+#include "PhysicsControllerContext.h"
+#include "ECSWorld.hpp"
+#include <utility>
 
 #include <type_traits>
 
@@ -21,11 +24,28 @@ private:
     std::vector<CollisionEvent> collisions;
 };
 
+class PhysicsController : public ECSControllerSystem
+{
+public:
+    void update(const EcsControllerContext& ctx) override
+    {
+        if (auto* physics = gts::physics::controllerContext(ctx).physics)
+            physics->update(0.1f);
+    }
+};
+
 int main()
 {
+    ECSWorld world;
+    EcsControllerContext context{world};
+    world.addControllerSystem<PhysicsController>(EcsSystemGroup::Always);
+    world.updateControllers(context);
+    if (gts::physics::controllerContext(std::as_const(context)).physics != nullptr)
+        return 1;
     ContractPhysics implementation;
-    IGtsPhysicsModule& physics = implementation;
-    physics.update(0.1f);
+    gts::physics::controllerContext(context).physics = &implementation;
+    IGtsPhysicsModule& physics = *gts::physics::controllerContext(std::as_const(context)).physics;
+    world.updateControllers(context);
     if (physics.getCollisions().size() != 1 || physics.getCollisions()[0].a != Entity{1} ||
         physics.getCollisions()[0].b != Entity{2})
         return 1;

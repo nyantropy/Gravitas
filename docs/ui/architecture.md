@@ -16,6 +16,12 @@ accessibility. Its only dependencies are `gravitas_core` and the header-only
 `gravitas_rendering_contracts` resource identities. Retained UI builds without
 rendering, Vulkan, GLFW or physics.
 
+`UiControllerContext.h` owns optional controller access to the existing `UiSystem`
+facade. `gts::ui::controllerContext(ctx).ui` is a borrowed pointer, populated by
+engine composition for each call; absent data yields null. The contract only
+forward-declares `UiSystem`, so retained UI still does not link rendering.
+Controllers invoking the mixed facade continue to depend on rendering as before.
+
 Rendering depends on this target. The existing mixed `UiSystem`, widget and
 composition integration, schema loaders, font/resource realization, render-command
 extraction and GPU integration remain under `modules/rendering/core/ui/` and

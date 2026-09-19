@@ -25,8 +25,10 @@ can be built independently of physics.
 `gravitas_physics_contracts` is an always-available header-only target depending
 only on `gravitas_core`. Collision/accessor consumers link it without inheriting
 physics implementation or transform. `gravitas_physics` consumes this contract
-target; core does not. Existing scene/context physics forward declarations and
-accessor signatures are retained pending a separate semantic-boundary decision.
+target; core does not. `PhysicsControllerContext.h` exposes optional borrowed
+access via `gts::physics::controllerContext(ctx).physics`. Core's controller context
+does not know about physics. Scene physics accessors remain unchanged pending a
+separate semantic-boundary decision.
 `gravitas_physics` links `gravitas_transform` for transform contracts and
 resolution; transform include directories are owned by that target. The
 [transform architecture](../transform/architecture.md) describes its boundary.
@@ -41,7 +43,8 @@ The installer:
    scheduling a transform controller. Physics resolves explicitly before queries;
    renderer installation places the presentation resolver after transform writers.
 3. Creates a scene resource `PhysicsWorld`.
-4. Exposes it through `scene.setPhysicsModule(...)` and `ctx.physics`.
+4. Exposes it through `scene.setPhysicsModule(...)` and the call's physics-owned
+   controller context. Later calls are populated from the existing scene accessor.
 5. Registers `PhysicsSystem` as an `EcsSystemGroup::Physics` simulation system.
 
 The physics world is scene-local and is destroyed with the scene.
