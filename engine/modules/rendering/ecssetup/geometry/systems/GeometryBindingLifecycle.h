@@ -83,6 +83,10 @@ namespace gts::rendering
 
     inline GeometryBindingLifecycleState& geometryBindingLifecycleState(ECSWorld& world)
     {
+        auto& registry = geometryBindingLifecycleRegistry();
+        if (auto it = registry.find(&world); it != registry.end())
+            return it->second;
+
         return geometryBindingLifecycleRegistry(&world)[&world];
     }
 

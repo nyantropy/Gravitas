@@ -36,6 +36,10 @@ namespace gts::rendering
 
     inline CameraBindingLifecycleState& cameraBindingLifecycleState(ECSWorld& world)
     {
+        auto& registry = cameraBindingLifecycleRegistry();
+        if (auto it = registry.find(&world); it != registry.end())
+            return it->second;
+
         return cameraBindingLifecycleRegistry(&world)[&world];
     }
 

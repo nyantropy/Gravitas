@@ -59,7 +59,12 @@ Runtime and resolver installation both establish one idempotent transform
 world-state lifetime registration. Lazy dirty-state access and publication
 callback registration establish the same registration, so explicit resolution
 or authoring before scene installation cannot leave unowned registry entries.
-No extra entity or ECS system is created for lifetime tracking.
+No extra entity or ECS system is created for lifetime tracking. Dirty-state
+access uses one direct map lookup plus an internal enrollment marker. A new
+entry enrolls teardown and publication storage before that marker is set and
+before the accessor returns; enrollment failure erases the partial state.
+Reset erases the marker with the entry, so lazy recreation enrolls again. This
+keeps the Debug fast path without restoring unowned historical map access.
 
 The world owns a small, opt-in teardown callback list. Transform registers one
 callback that erases **both** its invalidation entry (queued entity IDs and

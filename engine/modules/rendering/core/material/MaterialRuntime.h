@@ -612,6 +612,10 @@ namespace gts::rendering
 
     inline MaterialRuntime& materialRuntime(ECSWorld& world)
     {
+        auto& registry = materialRuntimeRegistry();
+        if (auto it = registry.find(&world); it != registry.end())
+            return it->second;
+
         return materialRuntimeRegistry(&world)[&world];
     }
 

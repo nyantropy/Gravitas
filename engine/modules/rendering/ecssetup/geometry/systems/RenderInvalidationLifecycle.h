@@ -38,6 +38,10 @@ namespace gts::rendering
 
     inline RenderInvalidationState& renderInvalidationState(ECSWorld& world)
     {
+        auto& registry = renderInvalidationRegistry();
+        if (auto it = registry.find(&world); it != registry.end())
+            return it->second;
+
         return renderInvalidationRegistry(&world)[&world];
     }
 

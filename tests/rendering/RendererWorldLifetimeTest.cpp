@@ -51,6 +51,58 @@ namespace
         queueCameraCleanup(world, Entity{17});
     }
 
+    template<typename Access, typename Reset>
+    void exerciseStateAccess(Access access, Reset reset)
+    {
+        const auto baseline = counts();
+        ECSWorld survivor;
+        auto* survivorState = &access(survivor);
+        alignas(ECSWorld) std::byte storage[sizeof(ECSWorld)];
+        for (int cycle = 0; cycle != 3; ++cycle)
+        {
+            auto* world = std::construct_at(reinterpret_cast<ECSWorld*>(storage));
+            requireAbsent(world);
+            auto* state = &access(*world);
+            for (int read = 0; read != 100; ++read)
+                require(&access(*world) == state, "existing-state access replaced state");
+            reset(*world);
+            requireAbsent(world);
+            state = &access(*world);
+            require(&access(*world) == state, "reset/recreation lost existing state");
+            world->clear();
+            requireAbsent(world);
+
+            // clear drained the callback list: lazy recreation must enroll anew.
+            state = &access(*world);
+            require(&access(*world) == state, "post-clear existing-state access changed state");
+            std::destroy_at(world);
+            requireAbsent(world);
+            require(&access(survivor) == survivorState, "another world's teardown replaced survivor state");
+        }
+        survivor.clear();
+        require(counts() == baseline, "state access leaked registry entries");
+    }
+
+    void fastAndColdStateAccess()
+    {
+        exerciseStateAccess(materialRuntime, resetMaterialRuntime);
+        exerciseStateAccess(sharedUnlitMaterialCache, resetSharedUnlitMaterialCache);
+        exerciseStateAccess(geometryBindingLifecycleState, resetGeometryBindingLifecycleState);
+        exerciseStateAccess(renderInvalidationState, resetRenderInvalidationState);
+        exerciseStateAccess(cameraBindingLifecycleState, resetCameraBindingLifecycleState);
+
+        ECSWorld world;
+        const auto token = materialRuntime(world).lifetimeToken();
+        for (int read = 0; read != 100; ++read)
+            require(!materialRuntime(world).lifetimeToken().owner_before(token) &&
+                    !token.owner_before(materialRuntime(world).lifetimeToken()), "fast access changed material lifetime");
+        resetMaterialRuntime(world);
+        require(token.expired(), "explicit reset did not expire original material lifetime");
+        const auto recreated = materialRuntime(world).lifetimeToken();
+        world.clear();
+        require(recreated.expired(), "recreated material lifetime was not enrolled for teardown");
+    }
+
     struct TrackedResources : Resources
     {
         int                      objects = 0;
@@ -371,6 +423,7 @@ int main(int argc, char** argv)
             std::cout << "Rendering removal characterization passed\n";
             return 0;
         }
+        fastAndColdStateAccess();
         individualStatesAndLateCreation();
         clearAndReinstall();
         sceneLifecycle();

@@ -180,6 +180,43 @@ namespace
         requireReleased(&world);
     }
 
+    void fastAndColdStateAccess()
+    {
+        ECSWorld survivor;
+        queueTransformDirty(survivor, Entity{7});
+        alignas(ECSWorld) std::byte storage[sizeof(ECSWorld)];
+        for (int cycle = 0; cycle != 3; ++cycle)
+        {
+            auto* world = std::construct_at(reinterpret_cast<ECSWorld*>(storage));
+            requireReleased(world);
+            auto* state = &transformInvalidationState(*world);
+            require(state->transformDirtyEntities.empty(), "cold access retained dirty state");
+            require(inspectTransformWorldState(world).hasPublication, "cold access did not install publication state");
+            registerWorldTransformPublishedCallback(*world, firstCallback);
+            for (int read = 0; read != 100; ++read)
+            {
+                queueTransformDirty(*world, Entity{3});
+                require(&transformInvalidationState(*world) == state, "fast access replaced transform state");
+            }
+            require(state->transformDirtyEntities == std::vector<entity_id_type>{3}, "fast access lost dirty deduplication");
+            require(inspectTransformWorldState(world).callbacks == 1, "fast access changed callbacks");
+            resetTransformSceneFeature(*world);
+            requireReleased(world);
+            queueTransformDirty(*world, Entity{4});
+            require(inspectTransformWorldState(world).callbacks == 0, "reset/recreation retained publication callbacks");
+            world->clear();
+            requireReleased(world);
+            // Recreate after the world's callback list was drained by clear.
+            state = &transformInvalidationState(*world);
+            require(&transformInvalidationState(*world) == state, "post-clear fast access replaced state");
+            std::destroy_at(world);
+            requireReleased(world);
+            require(inspectTransformWorldState(&survivor).queuedEntities == 1, "teardown affected another world");
+        }
+        survivor.clear();
+        requireReleased(&survivor);
+    }
+
     class TestScene : public GtsScene
     {
         public:
@@ -224,6 +261,7 @@ int main()
     repeatedClearAndRemoval();
     addressReuseAndLazyState();
     repeatedExplicitReset();
+    fastAndColdStateAccess();
     sceneLifetime();
     const auto state = inspectTransformWorldState();
     require(state.invalidationWorlds == 0 && state.publicationWorlds == 0, "test worlds leaked registry entries");

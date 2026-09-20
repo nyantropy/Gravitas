@@ -14,6 +14,7 @@ namespace gts::transform
     {
         std::vector<entity_id_type> transformDirtyEntities;
         std::vector<uint8_t>        transformDirtyFlags;
+        bool                       lifetimeEnrolled = false;
     };
 
     void installTransformWorldState(ECSWorld& world);

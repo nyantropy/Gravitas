@@ -130,6 +130,9 @@ render invalidation queues, and camera binding queues. The first state access
 registers an identity-only, non-throwing callback with the existing world
 teardown mechanism. All five storage paths use this same lifetime contract;
 there is no scene-specific cleanup registry or required caller cleanup sequence.
+Existing-state access performs one world-registry lookup and returns the stored
+state directly. Only missing-state access checks/enrolls teardown and creates
+state, including recreation after explicit reset or world clear.
 Material-only consumers receive this protection through `gravitas_material_frontend`
 without linking the rendering implementation.
 

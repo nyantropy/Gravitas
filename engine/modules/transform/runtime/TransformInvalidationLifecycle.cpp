@@ -46,13 +46,21 @@ namespace gts::transform
         {
             return registries().publication;
         }
+
+        TransformInvalidationState& createAndEnrollTransformWorldState(ECSWorld& world)
+        {
+            world.registerTeardownCallback(releaseTransformWorldState);
+            auto& state = registries();
+            auto it = state.invalidation.try_emplace(&world).first;
+            state.publication.try_emplace(&world);
+            it->second.lifetimeEnrolled = true;
+            return it->second;
+        }
     } // namespace
 
     void installTransformWorldState(ECSWorld& world)
     {
-        world.registerTeardownCallback(releaseTransformWorldState);
-        transformInvalidationRegistry().try_emplace(&world);
-        worldTransformPublishedCallbackRegistry().try_emplace(&world);
+        createAndEnrollTransformWorldState(world);
     }
 
     void releaseTransformWorldState(ECSWorld& world) noexcept
@@ -66,14 +74,21 @@ namespace gts::transform
 
     TransformInvalidationState& transformInvalidationState(ECSWorld& world)
     {
-        auto& registry = transformInvalidationRegistry();
-        auto  it       = registry.find(&world);
-        if (it == registry.end())
+        auto& state = transformInvalidationRegistry()[&world];
+        if (!state.lifetimeEnrolled)
         {
-            installTransformWorldState(world);
-            it = registry.find(&world);
+            try
+            {
+                return createAndEnrollTransformWorldState(world);
+            }
+            catch (...)
+            {
+                // Do not leave lazily created state without a teardown owner.
+                releaseTransformWorldState(world);
+                throw;
+            }
         }
-        return it->second;
+        return state;
     }
 
     void registerWorldTransformPublishedCallback(ECSWorld& world, WorldTransformPublishedCallback callback)

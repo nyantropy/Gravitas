@@ -85,6 +85,15 @@ namespace gts::rendering
         return registry;
     }
 
+    inline SharedUnlitMaterialCache& sharedUnlitMaterialCache(ECSWorld& world)
+    {
+        auto& registry = sharedUnlitMaterialCacheRegistry();
+        if (auto it = registry.find(&world); it != registry.end())
+            return it->second;
+
+        return sharedUnlitMaterialCacheRegistry(&world)[&world];
+    }
+
     inline void resetSharedUnlitMaterialCache(ECSWorld& world)
     {
         sharedUnlitMaterialCacheRegistry().erase(&world);
@@ -142,7 +151,7 @@ namespace gts::rendering
         const UnlitMaterialDescriptor& descriptor)
     {
         MaterialRuntime& runtime = materialRuntime(world);
-        SharedUnlitMaterialCache& cache = sharedUnlitMaterialCacheRegistry(&world)[&world];
+        SharedUnlitMaterialCache& cache = sharedUnlitMaterialCache(world);
         auto it = cache.find(descriptor);
         if (it != cache.end() && runtime.isInstanceAlive(it->second))
             return it->second;
