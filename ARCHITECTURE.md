@@ -144,6 +144,8 @@ vendored documentation and should not be rewritten as first-party engine docs.
   rendering authoring rules.
 - [docs/rendering/roadmap.md](docs/rendering/roadmap.md): future rendering work
   only.
+- [docs/performance-benchmarks.md](docs/performance-benchmarks.md): explicit CPU
+  scaling application, reproducible workload ladders, raw samples and unavailable metrics.
 - [docs/rendering/benchmarks.md](docs/rendering/benchmarks.md): deterministic
   rendering benchmark suite, JSON results, counters, baselines, and CI
   regression checks.

@@ -11,6 +11,8 @@ if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     option(GTS_BUILD_TEST_SCENES "Build bundled engine validation scenes" ON)
 endif()
 
+option(GTS_BUILD_PERFORMANCE_BENCHMARKS "Build the isolated CPU scaling benchmark application" ON)
+
 option(GTS_ENABLE_RENDERING "Build the generic rendering module" ON)
 option(GTS_ENABLE_VULKAN_BACKEND "Build the Vulkan rendering backend" ON)
 option(GTS_ENABLE_PHYSICS "Build the physics module" ON)
@@ -55,7 +57,7 @@ set_property(GLOBAL PROPERTY GRAVITAS_SOURCE_LAYER_ROOT "${CMAKE_CURRENT_SOURCE_
 cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}" CALL gravitas_check_source_layers)
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-    if(GTS_BUILD_TEST_SCENES AND EXISTS "${GTS_ENGINE_ROOT}/applications/CMakeLists.txt")
+    if((GTS_BUILD_TEST_SCENES OR GTS_BUILD_PERFORMANCE_BENCHMARKS) AND EXISTS "${GTS_ENGINE_ROOT}/applications/CMakeLists.txt")
         add_subdirectory("${GTS_ENGINE_ROOT}/applications" "${CMAKE_BINARY_DIR}/applications")
     endif()
 

@@ -1,3 +1,11 @@
+if(GTS_BUILD_PERFORMANCE_BENCHMARKS)
+    add_subdirectory(GtsPerformanceBenchmarks)
+endif()
+
+if(NOT GTS_BUILD_TEST_SCENES)
+    return()
+endif()
+
 if(NOT TARGET GravitasEngine)
     message(STATUS "Skipping bundled engine applications: complete GravitasEngine runtime unavailable")
     return()
