@@ -1,8 +1,6 @@
 # OBJ Cooking and Runtime Consumers
 
-OBJ has one interpreter, `modules/model/import/obj/GtsObjModelImporter`.
-The former legacy OBJ importer and backend model loader are removed, including
-registry entries and tests dedicated to the old DTO interface.
+OBJ has one interpreter, `modules/model/import/obj/GtsObjModelImporter.h`.
 
 ```text
 OBJ / MTL → GtsObjModelImporter ─┐
@@ -39,7 +37,7 @@ Development source loading retains primitive ranges but uses caller/default runt
 materials, as before: it does not cook images or create source material instances.
 Cooked submesh material references still support the existing opt-in mesh-material path.
 
-## Observable changes and retained limits
+## Preparation and limits
 
 - Vertex storage may grow because primitive-local vertices are not welded across
   shapes/material boundaries. Triangle topology and primitive ordering survive.
@@ -59,12 +57,12 @@ Cooked submesh material references still support the existing opt-in mesh-materi
 
 ## Build and tests
 
-The CPU `gravitas_mesh_loading` and `gravitas_mesh_loading` targets
-own the existing loading/flat-adapter implementations. Rendering consumes them;
-`gravitas_asset_cooking` shares the canonical importer/preparation targets.
-TinyOBJ remains private to the canonical OBJ importer. Canonical domain/import/preparation targets remain usable without rendering.
-The reusable normal/tangent algorithms remain in rendering/core/geometry because
-static preparation and procedural callers still use them; relocation is deferred.
+`gravitas_mesh_loading` owns CPU direct loading and the flat-model adapter. It
+links cooked assets/static geometry and privately links the canonical OBJ importer.
+`gravitas_model_cooking` consumes canonical import/preparation separately;
+`gravitas_asset_cooking` owns standalone texture cooking. TinyOBJ is private to the
+OBJ importer. Shared normal/tangent algorithms live in `modules/assets/geometry/`
+and are also available to procedural geometry without linking the renderer.
 
 `CanonicalObjPipelineTest` exercises public CPU runtime loading, strict policy,
 source removal/cooked preference, boundaries, authored/generated attributes,

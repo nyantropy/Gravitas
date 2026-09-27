@@ -136,8 +136,8 @@ transform remains applied; skinning itself changes neither.
 Palette output is skeleton reference-space deformation. `object.model` must be
 the desired character/reference-space placement. A glTF skinned mesh node's
 ordinary transform must **not** be blindly supplied again as object placement.
-Runtime occurrence/placement ownership must be settled when draw extraction is
-introduced; this backend path deliberately does not infer it.
+Generic model extraction supplies the entity world transform and owns this
+composition rule; the backend consumes the resulting draw data.
 
 ## Validation and remaining work
 
@@ -155,66 +155,31 @@ introduced; this backend path deliberately does not infer it.
   It skips with code 77 if no Vulkan GPU exists. This is pipeline/resource smoke
   coverage, not a rendered-image/readback test.
 
-`MeshResource` and `DynamicMeshComponent` remain static-profile-only to avoid a
-resource/ECS redesign in this ABI task. Their broad names should be revisited
-during a future broader static resource naming cleanup. Static rendering has no new
-skinning allocation or shader work. Canonical assets, CPU preparation, pose and
-palette evaluation remain unchanged; the backend only includes their data types.
+`MeshResource` and `DynamicMeshComponent` are static-profile APIs. Model instances
+use separate static/skinned frame draws. Minimal playback lives upstream in
+`modules/animation/skeletal/runtime/`. Animated culling bounds, geometry staging
+pools, shadow/depth skinned variants, animated cooked formats and modular character
+assembly are unsupported. The shader performs linear-blend skinning. Extreme finite
+CPU values can still overflow shader arithmetic.
 
-Minimal playback now lives upstream in `animation/skeletal/runtime`; world
-extraction and frame-safe palette submission are described below. Animated culling
-bounds, geometry staging pools, shadow/depth skinned variants, cooked formats and
-modular character assembly remain deferred. The shader performs linear-blend skinning, not dual-quaternion
-skinning. Finite CPU input can still overflow extreme shader arithmetic; this stage
-does not add per-vertex finite/bounds checks to the production shader.
+## Verification
 
-## Change inventory and verification
-
-Paths below are relative to the engine repository:
-
-- Renamed `engine/modules/rendering/backend/vulkan/resources/mesh/VulkanVertexDescription.h`
-  to `VulkanStaticVertexDescription.h`; added neighboring `VulkanSkinnedVertexDescription.h`.
-- Added `resources/skinning/VulkanSkinPaletteBuffer.h/.cpp`,
-  `VulkanSkinnedMeshResource.h/.cpp` and the backend-private `VulkanSkinningBuffer.h/.cpp`
-  under that Vulkan backend.
-- Added `rendering/pipeline/VulkanSkinnedPipelineConfig.h`; updated static naming
-  in `VulkanPipelineConfig.h` and `rendering/particles/ParticleRenderStage.h`.
-- Added `shaders/skinned_vertexshader.vert` and `skinned_vert.spv`; updated
-  `shaders/compile.sh` and root `CMakeLists.txt` shader compilation.
-- Added `tests/rendering/VulkanSkinnedGeometryTest.cpp`, `VulkanSkinnedGpuSmoke.cpp`,
-  `VulkanSkinningResourceTest.cpp`, and `SkinnedShaderAbiTest.cmake`. Updated
-  `tests/CMakeLists.txt` and static naming in `GeometryPbrPreparationTest.cpp`.
-- Updated `engine/modules/rendering/backend/vulkan/CMakeLists.txt` for the focused
-  resource include directory. Backend-owned `.cpp` glob includes the new resources;
-  no CPU target gains a renderer dependency and no new target link edge is needed.
-- Updated this document, the architecture index, rendering architecture, and static
-  geometry documentation. No canonical/profile/evaluation data files changed.
-
-Verification from the game repository root:
+From the engine repository root, after configuring the default build described
+in [README.md](../../README.md):
 
 ```sh
-cmake -S engine -B engine/build_release
-cmake --build engine/build_release --parallel
-cmake --build /tmp/gravitas-model-domain-cpu --parallel 4
-ctest --test-dir /tmp/gravitas-model-domain-cpu -L cpu --output-on-failure
-ctest --test-dir engine/build_release -R '^(vulkan_skin.*|geometry_pbr_preparation|asset_serialization|cooked_asset_pipeline|runtime_asset_policy|canonical_obj_pipeline|gltf_asset_importer|render_lifecycle_ownership|material_runtime_architecture|first_lit_renderer_architecture|object_material_color_ownership|rendering_benchmark_support|rendering_benchmark_static_geometry_smoke)$' --output-on-failure
-cmake --build build --parallel 4
+cmake --build build_release --parallel
+ctest --test-dir build_release -R '^vulkan_skin.*$' --output-on-failure
 ```
 
-The full engine build, CPU-only build and game build all succeed.
-The CPU-only configuration has rendering and Vulkan disabled. All 19 canonical,
-preparation and animation tests pass. All 15 selected device-independent backend
-and static regression tests pass. The real-device smoke test skips because this
-environment has no Vulkan GPU (`/dev/dri` is absent). Shader source compilation,
-SPIR-V validation and ABI inspection pass; the shipped skinned SPIR-V matches the
-freshly compiled output. Device execution and rendered output remain unverified in
-this environment. No test-only vertex deformation implementation was introduced.
-
+CPU profile/evaluation tests can use the backend-free configuration in
+[model-domain.md](../model/model-domain.md). GPU tests may skip without a compatible
+device; inspect actual rendered captures for visual verification. Historical test
+counts and machine-specific results are not part of this contract.
 
 ## Generic model submission
 
-The old skinned-only presentation bridge has been removed. See
-[model extraction](model-extraction.md) for the authoritative instance/ECS route,
+See [model extraction](../model/model-extraction.md) for the authoritative instance/ECS route,
 shared immutable geometry references, runtime material synchronization, renderer
 palette snapshots and frame-fence ownership. `VulkanSkinnedSceneRenderer` now consumes
 primitive frame draws and caches geometry independently of occurrence resources.

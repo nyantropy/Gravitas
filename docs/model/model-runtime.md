@@ -144,7 +144,7 @@ resolver is invented. Material and other dependency references remain unresolved
 CPU association data, including each mesh's own dependencies. Package and mesh
 reference directories are retained so later realization can resolve paths correctly,
 including when a cooked artifact is reached through a symlink. Missing/corrupt
-subordinate meshes fail the whole request. Material/texture realization is deferred.
+subordinate meshes fail the whole request. Material/texture realization belongs to the downstream world service.
 
 Serializers and storage contracts live under `model/serialization` for model hierarchies and `assets/serialization` for shared mesh/material/texture data; CPU
 loaders live beside their owning model/shared asset phases. `gravitas_cooked_assets` owns the
@@ -196,7 +196,7 @@ resources enumerate no clips/skeletons and fail clip lookup cleanly.
 Skeleton compatibility remains separate from identity; no compatible definitions
 or occurrences are merged. Engine loading assigns no Idle/Walk gameplay meaning.
 
-## Yune and later realization
+## Game integration
 
 Yune keeps its content path and requests geometry + skeletons + skin bindings +
 animations through the ordinary engine policy. Development fallback loads the
@@ -204,7 +204,7 @@ animated merchant GLB. Strict policy fails explicitly; the old static merchant
 artifact cannot satisfy this request. No Yune-only source-permission exception
 remains. Required game clip names remain `Yune · quiet idle` and `Yune · slow walk`.
 
-`YuneModelConfiguration` retains content/clip policy and temporary renderer setup.
+`YuneModelConfiguration` retains only content identity and clip policy.
 [Generic model instances](../model/runtime-instances.md) retain shared realization
 references and own playback, poses and palettes per skeleton use. Generic geometry work now belongs to
 [model realization](model-realization.md), which prepares canonical geometry once
@@ -227,4 +227,5 @@ with source fallback disabled at compile time. The legacy mesh-policy test direc
 exercises OBJ fallback, cooked preference, strict loading and corrupt/missing cases.
 Game integration tests exercise the existing cube OBJ and real animated Yune through
 the same request API, strict rejection after source cache warmup, clip discovery
-and independent playback. See the task report for commands and final results.
+and independent playback. Run the focused loading tests registered by `tests/assets/CMakeLists.txt`;
+game integration is covered by DungeonCrawler's `yune_animation` test.

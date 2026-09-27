@@ -54,10 +54,9 @@ Binding validation delegates to `validateGtsSkinBinding(binding, skeleton)`:
 valid skeleton, exact binding compatibility, nonempty/assigned mappings, range
 checks and finite affine inverse binds. Singular matrices are permitted.
 
-`GtsSkeletonPose` now carries `skeletonCompatibility`, a self-contained exact
-contract populated by both default and animated evaluation. Previously the pose
-contained only arrays; counts alone could not distinguish different rigs with the
-same node count. The descriptor has no skeleton pointer, asset ID or display-name
+`GtsSkeletonPose` carries `skeletonCompatibility`, a self-contained exact
+contract populated by default and animated evaluation. Counts alone cannot
+distinguish different rigs with the same node count. The descriptor has no skeleton pointer, asset ID or display-name
 identity and does not retain the source skeleton. It includes the established exact
 ordered IDs, parent relationships, transform forms and default components.
 
@@ -116,14 +115,14 @@ validation/copying after profiling; none are introduced here.
 `gravitas_skin_assets`, transitively skeleton/animation asset contracts and core
 math. The existing pose target remains independent of the skin domain. Neither
 production target links model assets, prepared geometry, importers, ECS, renderer
-or Vulkan. Only the integration test connects those independent CPU branches.
+or Vulkan. Model instances integrate these independent CPU branches without introducing
+reverse dependencies into the evaluators.
 
 A palette is dynamic deformation data, never cooked/serialized asset data. It
 contains no playback time, clip selection, runtime controller, GPU allocation,
-vertex input declaration or shader state. No production or test CPU vertex
-skinning helper was necessary: analytical matrix tests directly verify ordering
-and inverse-bind use. GPU upload/ABI, normal deformation, object placement and
-animated bounds remain downstream concerns.
+vertex input declaration or shader state. Analytical matrix tests verify ordering and inverse-bind use.
+[Vulkan skinning](../rendering/skinned-geometry.md) owns upload/ABI and normal
+deformation; ECS owns world placement. Animated bounds remain unsupported.
 
 ## Tests
 

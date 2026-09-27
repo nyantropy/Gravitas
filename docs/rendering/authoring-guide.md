@@ -6,7 +6,12 @@ or rendering integrations. Architecture details live in
 
 ## Renderable Geometry
 
-Author exactly one geometry descriptor for a renderable entity:
+For complete file-backed models, use `requestGtsModel`, create an instance through
+`modelInstances`, and attach `ModelInstanceComponent` plus an ECS transform. The
+model owns hierarchy/material associations and static/skinned profile selection;
+see the [model authoring boundary](../model/architecture.md#encapsulated-model-subsystem).
+
+For direct/generated geometry, author exactly one geometry descriptor per entity:
 
 - `StaticMeshComponent` for mesh assets.
 - `QuadMeshComponent` for shared generated quads.
@@ -107,7 +112,7 @@ paths; inspect those files for visual validation.
 - Do not expose Vulkan handles through gameplay-facing APIs.
 - Do not make physics, gameplay, or tools include Vulkan headers.
 - Do not mutate GPU companion components from application code.
-- Do not recompute renderer-owned world matrices in rendering consumers; read
+- Do not recompute transform-owned world matrices in rendering consumers; read
   `WorldTransformComponent`.
 - Do not treat material parameters as object state unless the object truly
   needs a unique material instance.

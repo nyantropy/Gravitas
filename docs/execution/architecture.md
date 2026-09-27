@@ -17,8 +17,7 @@ consume no timing instance index.
 
 The single selection stack carries an ID, mask and one optional typed value payload.
 Push, pop, guarded pop and clear preserve selection and presentation metadata
-atomically. Core does not inspect that payload. No extra stack, component, registry,
-service lookup or scheduler abstraction is introduced.
+atomically. Core does not inspect that payload. There is no secondary policy stack or service lookup.
 
 Bare core worlds have an unnamed, unfiltered default. The existing
 `configureDefaultExecutionSelection` operation establishes a default once, replaces
@@ -69,7 +68,7 @@ activating new behavior.
 
 Simple installers require the default `EcsExecutionSelection` and their opaque
 group values as explicit arguments. No argument silently substitutes engine or
-neutral policy. The supplied default is applied at the previous installation point
+neutral policy. The supplied default is applied during installation
 only if no default has been configured. A pre-existing default wins, and active
 overlays remain intact.
 
@@ -137,8 +136,7 @@ workload configuration or serialization. Runtime/application composition supplie
 `ecsSystemGroupName`. Controller names, instance suffixes and timing keys are unchanged.
 
 Engine pause still stops fixed simulation ticks while controllers/rendering continue.
-A selection never pauses the engine clock. No transform, physics or main-loop ordering
-changes accompany policy injection.
+A selection never pauses the engine clock. Injected policy values filter participation without reordering systems.
 
 ## Targets And Enforcement
 
@@ -164,7 +162,7 @@ and policy integration tests link `gravitas_runtime_execution` explicitly; this 
 not imply availability of the complete `gravitas_runtime` / `GravitasEngine` facade. Module-only tests
 link capability targets and reject visibility of runtime headers.
 
-The existing three-layer CMake checker is unchanged. It rejects upward links,
+The three-layer CMake checker rejects upward links,
 transitive wrappers/aliases, include-directory leaks and forbidden source includes.
 Characterization covers the catalog, all presets, ordering/filtering/flush behavior,
 stack/default semantics, pause, VN transitions, all frame modes and their read point,

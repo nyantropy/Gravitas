@@ -2,11 +2,9 @@
 
 `modules/model/import/GtsModelImportBundle.h` describes the canonical products
 of one import operation. Bundle validation lives beside it, separately from model
-validation. Both compile into the existing CPU-only `gravitas_model_domain` target;
-no parser, runtime or renderer dependency is introduced. The target now also
-links the CPU-only `gravitas_animation_assets` target for clip values/validation.
-`GtsModelImportResult.h/.cpp` retain their existing `model/` paths so current
-consumers need no include changes.
+validation. Bundle/result implementation belongs to `gravitas_model_import`, which links
+`gravitas_model_domain`. The domain links skin and animation asset targets for
+validation. No parser, runtime or renderer dependency enters these contracts.
 
 ```cpp
 struct GtsModelImportBundle
@@ -37,7 +35,7 @@ Provenance and external resolution remain deferred.
   compatibility contract, with no skeleton pointer or occurrence selection.
 - `animationClips` owns clip values in producer order; copying a bundle copies
   clips. No shared ownership is needed for their self-contained data.
-- A future runtime pose will be mutable evaluated state; it is absent here.
+- Runtime poses are mutable evaluated state owned by model instances, absent from the bundle.
 
 Create one shared immutable definition object per intended imported definition.
 Copy that shared pointer into the bundle list and all corresponding model uses.
@@ -117,7 +115,7 @@ when selected nodes use skins; static glTF keeps an empty skeleton list.
 Skeletal TRS animations now produce clip values. Ordinary-node/morph animation,
 ambiguous or multi-rig targets remain explicit failures. Cooking now consumes this bundle through the canonical core; cooked-v1 rejects associated skeletal/animation products.
 
-## Tests and next boundary
+## Tests and downstream consumers
 
 `tests/assets/importers/GtsModelImportBundleTest.cpp` covers model-only and
 model-less products, multiple definitions/occurrences, composed validation,
@@ -131,5 +129,7 @@ During glTF skin decoding, importers intentionally choose which
 skins share definitions, create each definition once, enumerate it, and wire
 model uses to that same object. Complete model validation already gates skin
 compatibility and weight totals. See the implemented [glTF skin policy](gltf-importer.md#skins-definitions-and-occurrences).
-Persistent IDs, external skeleton resolution, dependency/provenance tracking,
-cooking, pose evaluation and runtime realization remain deferred.
+Persistent skeleton IDs, external skeleton resolution and a complete source
+dependency manifest are unsupported. [Cooking](canonical-cooking.md) consumes
+static bundles; [model instances](runtime-instances.md) consume skeletal bundles
+through loading/realization and the CPU pose/palette evaluators.

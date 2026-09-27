@@ -10,7 +10,7 @@ tweening, rendering, ECS, or Vulkan.
 GtsSkeletonAsset        = default evaluation hierarchy
 GtsSkeletonCompatibility = exact indexed structural contract
 GtsAnimationClipAsset   = immutable timed overrides for that contract
-future pose            = mutable evaluated result
+GtsSkeletonPose        = mutable evaluated result
 ```
 
 These are producer-authored values, published to consumers as immutable data.
@@ -29,7 +29,7 @@ Times and duration are uncompressed float seconds.
 Targets are `GtsAnimationTarget::{Translation, Rotation, Scale}`. Each track owns
 one property's timing; translation, rotation, and scale need not share keys.
 Track order remains producer order. Duplicate node/property pairs are invalid.
-Missing nodes/properties are allowed: future evaluation starts from skeleton
+Missing nodes/properties are allowed: evaluation starts from skeleton
 defaults and overrides only authored properties. No defaults are copied into clips.
 
 `GtsAnimationKeyValues` is an explicit typed variant:
@@ -47,7 +47,7 @@ also fail. No arbitrary animated properties or matrix tracks are defined.
 `Step` means holding the preceding key. `Linear` means component interpolation
 for vectors and spherical interpolation for rotations. `CubicSpline` means cubic
 Hermite interpolation using the incoming/value/outgoing triple at each key.
-This task stores these semantics; it implements no sampling.
+This domain stores those semantics; the [CPU evaluator](../animation/skeletal-evaluation.md) implements sampling.
 
 ## Cubic derivatives and rotations
 
@@ -55,7 +55,7 @@ This task stores these semantics; it implements no sampling.
 `GtsAnimationCubicRotationKey` stores vec4 `inTangent`, quat `value`, and vec4
 `outTangent`. Rotation derivatives explicitly use **XYZW component order** and
 units per second. They are not rotations and may be zero or non-unit.
-Future Hermite sampling multiplies derivatives by segment duration; quaternion
+Hermite sampling multiplies derivatives by segment duration; quaternion
 results then require normalization. Stored tangents must not be normalized or
 pre-scaled by a segment duration.
 
@@ -102,7 +102,7 @@ No alternative skeleton-matching algorithm is introduced.
 
 ## Tests and scope
 
-`tests/model/domain/animation/GtsAnimationClipAssetTest.cpp` links only
+`tests/assets/animation/GtsAnimationClipAssetTest.cpp` links only
 `gravitas_animation_assets`; assertions remain active in Release builds. It covers
 typed TRS values, every interpolation, independent keys, constants, cubic
 derivatives, malformed counts/times/values/enums, duplicate targets, exact
@@ -127,5 +127,6 @@ model occurrence becomes part of clip targeting.
 
 The separate [CPU skeletal evaluator](../animation/skeletal-evaluation.md) now
 samples these assets and produces local/reference-space poses. Clip data and
-validation remain unchanged. No playback, cooking, serialization, ECS, rendering,
-or Vulkan integration is implemented here.
+validation remain domain-owned. [Playback](../animation/skeletal-playback.md)
+and [model instances](runtime-instances.md) supply time and mutable occurrences;
+cooked-v1 cannot serialize animated assets.

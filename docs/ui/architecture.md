@@ -26,7 +26,7 @@ Rendering depends on this target. The existing mixed `UiSystem`, widget and
 composition integration, schema loaders, font/resource realization, render-command
 extraction and GPU integration remain under `modules/rendering/core/ui/` and
 the rendering backend. They continue to consume the same retained contracts;
-this migration does not invert that dependency or split the mixed integration API.
+the retained module does not depend on this mixed integration API.
 
 UI asset, widget, package, and localization loaders use the shared
 [`GtsJsonParser`](../json/architecture.md). UI owns schema conversion and
@@ -74,9 +74,9 @@ primitives and rendering extraction.
 - coordinate conversion
 - input and render participation
 
-Use multiple surfaces for distinct output domains such as editor previews,
-split screen, render-target UI, tool surfaces, or future projection surfaces.
-Do not create a new surface merely to organize a panel.
+Use multiple surfaces for distinct retained output/input domains, such as the
+scene UI and tool UI. Render-target, world-space and multi-window surface targets
+are not implemented merely by creating a surface. Do not create one to organize a panel.
 
 `UiLayer` owns coarse surface-local ordering and input participation. Render
 traversal visits lower-order layers first. Hit testing walks input-enabled
@@ -216,14 +216,13 @@ the composition model.
 Serialized assets, widget assets, widgets, and compositions may consume
 localized text.
 
-## Visual UI Editor And Tooling
+## UI Asset Authoring
 
-The visual editor/tooling surface is a client of the same retained UI model. It
-authors serialized UI/widget assets, previews them through normal runtime
-loading, and uses runtime services for layout, theme, focus, navigation,
-drag/drop, binding, accessibility, packages, and localization.
-
-Editor UX can evolve without adding a second UI architecture.
+Serialized UI/widget assets can be loaded, instantiated and reloaded through the
+rendering-owned UI integration. There is no dedicated visual UI editor workspace
+in the current tool shell: its workspaces are World, Particles and Assets.
+A future editor should consume the existing serialization/runtime contracts;
+it must not introduce separate layout, event or subtree ownership.
 
 ## VN And Interaction Frontend
 

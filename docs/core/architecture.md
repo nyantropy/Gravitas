@@ -20,9 +20,9 @@ game loop live in `runtime/`, owned by `gravitas_runtime`. See the permanent
 | `paths/` | Engine/project path resolution |
 | `types/` | Generic enum-name utilities |
 
-`ecs/world/EntityTypes.h` defines the unchanged `uint32_t` entity identity.
+`ecs/world/EntityTypes.h` defines `uint32_t` entity identity.
 Mesh, texture, font, view and SSBO handles are feature contracts, defined only
-in `modules/rendering/contracts/ResourceTypes.h`; their names and types are unchanged.
+in `modules/rendering/contracts/ResourceTypes.h`.
 
 ## Feature Targets
 
@@ -148,7 +148,37 @@ unchanged runtime point. Pause semantics and input event translation are unchang
 No concrete runtime class is named or friended by core input.
 
 Rendering-side UI integration, service discovery and optional composition remain
-outside this ownership cleanup; no new core/module dependency is introduced.
+outside core; their contracts belong to the owning modules.
+
+## Binding Routing
+
+`InputBindingRegistry` evaluates active contexts newest-first, then the global
+context. Within one context, all matching bindings are evaluated together:
+
+- Passthrough bindings observe input without reserving it.
+- Exclusive bindings reserve matching held/pressed/released physical input against
+  lower contexts, even if their activation mode does not fire this frame.
+- Distinct exclusive sibling actions claiming the same physical input are suppressed
+  and recorded by `getRoutingConflicts()` for that update. The input remains reserved
+  against lower contexts; passthrough observers still run.
+- Multiple bindings for the same action do not conflict with one another.
+- Paused gameplay bindings neither evaluate nor reserve input.
+
+Reservation expresses ownership, not successful UI handling. The registry does not
+provide UI-handled fallback or modal capture; `checkConflict()` is a first-match
+editing query, separate from runtime routing diagnostics.
+
+`bindDefaults` installs all alternatives for actions without existing bindings and
+preserves actions already rebound. It does not track explicitly unbound actions as
+overrides. Engine/module hooks install bindings once per engine instance; scene
+switches clear contexts without reinstalling defaults. Runtime module unloading
+and per-module binding ownership tokens are unsupported.
+
+Frame-local `isPressed` / `isReleased` serve controllers. Simulation consumes
+latched edges through `isSimulationPressed` / `isSimulationReleased` and
+`finishSimulationTick`, so input survives rendered frames without a simulation tick.
+Runtime owns engine defaults in `runtime/input/EngineControlBindings.hpp`; feature
+bindings live under UI, camera and tools. Core does not enumerate feature controls.
 
 ## Verification Boundaries
 

@@ -11,7 +11,7 @@ calls. Its tests compile with rendering and Vulkan disabled.
 - **Resource**: what the model is — immutable `GtsModelResource`.
 - **Realization**: prepared shared geometry and model associations — `GtsRealizedModel`.
 - **Instance**: one mutable world occurrence — `GtsModelInstance`.
-- **Extraction**: renderer-owned frame draws derived from the authoritative instance.
+- **Extraction**: model-owned frame draws derived from the authoritative instance for rendering.
 - **GPU resource**: backend realization, never authoritative animation state.
 
 ```text
@@ -90,7 +90,7 @@ null for static geometry and the current CPU palette for skinned geometry.
 `GtsModelResource::skeletonUses()` and `skinBindings()` expose existing shared
 associations without requiring callers to inspect canonical backing. Current
 prepared cooked resources are static and return empty spans. Future animated
-cooked support can supply these same resource queries; this task adds no formats.
+cooked formats currently supply only static definitions through these queries.
 
 Static instances have an empty skeleton-occurrence vector and no dummy pose or
 palettes. Every declared skeleton use in a skinned model receives one runtime
@@ -154,15 +154,14 @@ specific logical-slot overrides. Actual lookup precedence is:
 per-slot override → model-wide override → shared base material
 ```
 
-```cpp
-// The association must be a reference from this instance's shared realized geometry.
-std::optional<GtsModelMaterialSlot> slot = instance.materialSlot(association);
-instance.setMaterialOverride(handle, materialRuntime.lifetimeToken()); // Whole-model fallback.
-instance.setMaterialOverride(*slot, replacement, materialRuntime.lifetimeToken());
-instance.clearMaterialOverride(*slot); // Only this logical slot.
-instance.clearMaterialOverride();      // Only the whole-model fallback.
-instance.clearMaterialOverrides();     // Both whole-model and all slot overrides.
-```
+| Operation | Contract |
+| --- | --- |
+| `instance.materialSlot(association)` | Returns an optional slot; `association` must be a reference from this instance's shared realized geometry. Check it before dereferencing. |
+| `instance.setMaterialOverride(handle, materialRuntime.lifetimeToken())` | Sets the model-wide fallback; check the returned status. |
+| `instance.setMaterialOverride(slot, handle, materialRuntime.lifetimeToken())` | Sets one valid logical slot; check the returned status. |
+| `instance.clearMaterialOverride(slot)` | Clears only that slot. |
+| `instance.clearMaterialOverride()` | Clears only the model-wide fallback. |
+| `instance.clearMaterialOverrides()` | Clears both. |
 
 Both setters return `GtsModelInstanceStatus` and must be checked. Slot acquisition
 returns no value for unassigned/default, foreign, or copied/fabricated associations.

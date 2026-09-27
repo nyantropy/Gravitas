@@ -44,7 +44,18 @@ Vulkan device is available, the executable exits with code 77 so CTest can mark
 the benchmark skipped. If the device cannot provide timestamp queries, the run
 continues with CPU timings and counters while marking GPU timing unsupported.
 
-## Usage
+## Build and usage
+
+From the engine repository root:
+
+```sh
+cmake -S . -B build_release -DCMAKE_BUILD_TYPE=Release -DGTS_BUILD_TEST_SCENES=ON
+cmake --build build_release --target GtsRenderingBenchmarks
+build_release/applications/GtsRenderingBenchmarks/GtsRenderingBenchmarks --list-presets
+```
+
+The complete runtime is required for this executable, including its `cpu_smoke`
+mode. Subsequent examples abbreviate the executable path as `GtsRenderingBenchmarks`.
 
 List presets:
 
@@ -154,7 +165,7 @@ GtsScene3 camera, and all cubes moving every measured frame. It enables an
 8 ms hitch threshold by default and is intended for transform, snapshot,
 render-sync, object-upload, and submit tail-latency diagnosis.
 
-M1 parallel-readiness presets isolate the same hot path without adding threads:
+Batch-processing presets isolate the same hot path without adding threads:
 
 - `moving_64k_independent`: 64,000 independent moving renderables, the maximum
   contiguous transform/render-sync/snapshot batchability case.
@@ -519,9 +530,9 @@ processing, while high upload buckets point at backend buffer writes.
   workload generation is not yet wired into the smoke generator.
 - GPU runtime workload generation uses generated quad/procedural geometry and
   engine fallback textures; asset-heavy benchmark fixtures can be added later.
-- Timestamp overhead is optional and disabled outside GPU benchmark mode by
-  default. This workspace could validate the disabled CPU smoke path and the
-  no-Vulkan skip path, but not timestamp overhead on real GPU hardware.
+- GPU timestamps are optional and disabled outside GPU benchmark mode by
+  default. Measure their overhead on the actual Vulkan runner; CPU smoke and
+  no-device skips do not measure it.
 
 The CPU entry point also requires `BenchmarkExecutionInputs`, containing renderer
 installation values and a stateless group-label function. The benchmark executable

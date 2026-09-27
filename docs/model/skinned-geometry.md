@@ -112,29 +112,29 @@ by this mesh-only API. The mesh debug name is retained; canonical primitives hav
 no names to copy. Geometry metadata intersects attribute flags, ORs generation
 flags, and reports combined vertex/index counts.
 
-## Bounds, dependencies and deferred consumers
+## Bounds, dependencies and consumers
 
-Like `GtsPreparedStaticMesh`, this type does not own bounds. Future realization
-may compute stored/bind-space bounds. Such bounds alone are insufficient for
-animated culling; animated/conservative bounds remain deferred.
+Like `GtsPreparedStaticMesh`, this type does not own bounds. Model realization
+computes stored/bind-space bounds. These are insufficient for animated culling;
+conservative animated bounds are not implemented.
 
 `gravitas_skinned_geometry` links CPU `gravitas_primitive_geometry` and
 `gravitas_skin_assets`; the shared target links `gravitas_model_domain` and exposes the
-existing CPU-only `rendering/core/geometry` header directory for the algorithms.
-`GtsStaticVertex` belongs to `geometry/static/`; common metadata belongs to
-`geometry/GtsGeometryMetadata.h`. The skinned prepared header includes common
+CPU-only `modules/assets/geometry/` algorithms through `gravitas_asset_contracts`.
+`GtsStaticVertex` and common metadata belong to `modules/assets/geometry/`;
+`GtsSkinnedVertex` belongs to `modules/model/processing/geometry/skinned/`. The skinned prepared header includes common
 metadata and math, without depending on the static vertex header. Neither profile links the renderer/backend. Canonical model's
 existing dependency on animation *assets* remains transitive; there is no dependency
 on animation *evaluation*, ECS, importers, Vulkan or a runtime resource manager.
 
 No positions/normals are pre-skinned, no skeleton/model/world transforms are
-applied, and no pose or inverse-bind multiplication occurs. GPU palette access,
-normal deformation, vertex ABI, animated bounds, cooking and playback remain
-separate future decisions.
+applied, and no pose or inverse-bind multiplication occurs. Playback and palette evaluation live in the animation module;
+[Vulkan skinning](../rendering/skinned-geometry.md) owns GPU palette access,
+deformation and vertex bindings. Animated bounds and animated cooking are unsupported.
 
 ## Tests
 
-`tests/model/processing/geometry/skinned/` contains Release-active tests for
+`tests/assets/processing/geometry/skinned/` contains Release-active tests for
 one through eight influences, deterministic ties and strongest-weight selection,
 normalization/padding, numbered sets, binding checks, invalid data, primitive
 rebasing/materials, attribute generation/defaults and input immutability. A direct

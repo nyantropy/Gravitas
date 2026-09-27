@@ -68,19 +68,16 @@ The original stdlib-only rendering resource contract target stays independent of
 Raw input mutation goes through core's five-operation `InputWriter`. The runtime
 platform owns that borrowed writer alongside the input manager and calls it from its
 existing event subscriptions. Core input grants no concrete runtime friendship.
-Neither boundary requires a service registry, a second command transport or a new
-layer exception. The CMake boundary checker remains unchanged.
+Both use core mechanisms without adding a reverse dependency.
 
 Execution ownership is fully separated: runtime supplies opaque defaults/groups,
 prepared VN selections, the rendering mode selector and benchmark label function.
-Modules neither construct Gravitas defaults nor import runtime policy. Core execution
-and the existing boundary checker are unchanged. See [execution policy](../execution/architecture.md).
+Modules neither construct Gravitas defaults nor import runtime policy. See [execution policy](../execution/architecture.md).
 Other core references to feature systems are explanatory comments, not types,
 storage, includes or scheduling vocabulary.
 
-`GtsFrameEndedEvent` was a clean extraction: the rendering-owned event carries the
-same `dt` and `imageIndex`, is still emitted at the same Vulkan point, and uses the
-unchanged generic core event bus.
+`GtsFrameEndedEvent` is rendering-owned, carries `dt` and `imageIndex`, and is
+emitted by Vulkan through the generic core platform event bus.
 
 ## Public Include Surfaces
 
@@ -88,8 +85,8 @@ Targets export their owned leaf directories. The engine source root and the comp
 `modules/` directory are never public include roots. Model, asset and animation
 consumers include headers through the owning target's exported directory, for example
 `GtsModelControllerContext.h`, `ModelFrameExtraction.h` and `GtsStaticVertex.h`.
-The previous `model/...` and `assets/...` spellings depended on exporting every module;
-no forwarding headers or generated header mirrors preserve that incidental access.
+Use exported header basenames rather than `model/...` or `assets/...` paths that
+require broad module include roots. There are no forwarding header mirrors.
 
 `gravitas_model_controller_contracts` exports `model/public/` and core only. Model
 phases export their own directories and obtain other phases through declared links.
@@ -116,7 +113,7 @@ a private backend dependency, not a generic-rendering export. The dungeon HUD us
 own font-scale value and does not consume backend debug-overlay declarations. Backend-internal tests
 explicitly request the backend's private include requirements and setup/rendering targets.
 
-The source layout is unchanged. Directory-level exports still expose neighboring headers
+Directory-level exports expose neighboring headers
 inside an owned leaf: model public request/controller headers, loading policy alongside
 its nested loader folders, material/provider declarations, and rendering's mixed UI and
 window-manager integration. Removing that remaining intra-feature granularity would

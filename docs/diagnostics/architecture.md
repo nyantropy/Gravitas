@@ -54,9 +54,7 @@ renderer-owned GPU resources
 
 The primitive helpers and queue remain public. `DebugDrawSystem.hpp` provides
 the system declaration and value-owned batch state; its `.cpp` owns geometry
-construction, materials and rendering integration. Public headers no longer
-pull in its rendering implementation. Copy/reset behavior of the system's
-batch arrays and its normal ECS ordering are unchanged.
+construction, materials and rendering integration. Public headers expose the declaration without pulling in rendering implementation.
 
 `DebugDrawRenderableComponent` stays in diagnostics: tool selection consumes
 the marker to distinguish diagnostic entities. Queue consumption, batch cache

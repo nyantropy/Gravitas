@@ -7,8 +7,7 @@ tooling UI is built on the retained UI runtime:
 UiSurface -> UiLayer -> UiMount -> UiComposition -> UiWidget -> retained UiNode
 ```
 
-Tooling uses that runtime through a pane-based shell. The previous
-`EngineToolPanel` registry must not return as the main editor shell.
+Tooling uses that runtime through a pane-based shell.
 
 ## Overview
 
@@ -89,7 +88,7 @@ Workspace switching filters pane descriptors. It does not change engine mode.
 
 ## Ownership
 
-`ToolShellComposition` owns editor shell structure only: global chrome,
+`EngineToolShellComposition` owns editor shell structure only: global chrome,
 workspace tabs, pane mounting, dock layout usage, and command collection. It
 does not edit particles, mutate ECS, perform asset IO, render previews, or
 apply tool commands.
@@ -133,7 +132,7 @@ Tool interaction follows one direction:
 ```text
 Pane
   -> ToolCommand
-  -> ToolShellComposition command queue
+  -> EngineToolShellComposition command queue
   -> EngineToolShellSystem
   -> feature session or engine service
   -> updated view model
@@ -165,7 +164,6 @@ renderer data.
 - dirty state
 - playback state
 - compile/save/reload helpers
-- future undo/redo insertion point
 
 `EngineToolShellSystem` builds particle view models and property descriptors,
 then applies emitted commands back through the session.
@@ -194,7 +192,9 @@ commands belong to engine tooling.
 routes `AssetPreviewWorld` rendering into the preview target, and publishes
 `EditorPreviewRenderComponent`. The preview world is engine-tool owned and loads
 the manifest model path through the same mesh/material binding systems as
-runtime scenes. `unlit_texture_override` manifests use a shared unlit material
+direct-mesh runtime scenes. The preview currently authors `StaticMeshComponent`,
+so it is not the complete `.gmodel`/animated `ModelInstanceComponent` route.
+`unlit_texture_override` manifests use a shared unlit material
 with the fallback texture; `cooked_mesh_materials` manifests enable submesh
 material bindings from the cooked mesh and use the standard lit material path.
 
@@ -256,12 +256,10 @@ These are known limits, not accidental regressions:
 
 Do not:
 
-- revive `EngineToolPanel` as the main editor shell
 - add pane-specific placement switches back into `EngineToolShellComposition`
 - make panes mutate ECS, scene state, renderer state, or particle assets
 - merge the particle preview into the world viewport
 - switch to an editor mode that stops live runtime scene rendering
-- add freeform docking before the fixed pane editor is stable
 - introduce reflection or serialization-driven property editing
 - simulate UI clicks for preset startup
 - use gameplay scenes as the default editor visual QA surface

@@ -80,10 +80,11 @@ not panes.
 
 ## Visual QA Rules
 
-Use deterministic presets for visual work:
+For DungeonCrawler-hosted tool UI, start from the game repository root:
 
 ```sh
-build/src/DungeonCrawler \
+cd build/src
+./DungeonCrawler \
   --tooling-preset=engine/docs/tooling/tooling_presets/editor_eval_particles.json \
   --screenshot-directory=screenshots/tooling/editor_eval_particles
 ```
@@ -97,13 +98,14 @@ unless the user explicitly asks for them.
 
 ## Validation Commands
 
-Run from the repository root:
+From the engine repository root, using its configured standalone build:
 
 ```sh
-cmake --build build
+cmake --build build_release --parallel
+ctest --test-dir build_release -R 'tool|preview' --output-on-failure
 git diff --check
-git -C engine diff --check
 ```
 
-For docs-only changes, `git diff --check` is usually sufficient unless the
-docs change command paths or runtime behavior claims.
+For game integration, also build/test from the game root as described in the
+game README. Documentation-only changes need link, path and command checks;
+visible tooling changes need captures from the same preset before and after.

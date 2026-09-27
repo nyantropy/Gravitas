@@ -13,9 +13,9 @@ scene-local physics world, not a full rigid-body solver.
 - `modules/physics/contracts/IGtsPhysicsModule.h`: public physics access interface.
 - `modules/physics/contracts/CollisionEvent.h`: collision pair event data.
 - `modules/physics/contracts/ScenePhysics.h`: optional/required borrowed scene access.
-- `modules/physics/core/PhysicsWorld.h/.cpp`: scene-local collision storage,
+- `modules/physics/core/PhysicsWorld.h` and `PhysicsWorld.cpp`: scene-local collision storage,
   profile counters, and `IGtsPhysicsModule` implementation.
-- `modules/physics/systems/PhysicsSystem.h/.cpp`: fixed-step collision update.
+- `modules/physics/systems/PhysicsSystem.h` and `PhysicsSystem.cpp`: fixed-step collision update.
 - `modules/physics/scene/PhysicsSceneFeature.h`: scene feature installer.
 
 Physics diagnostics live separately under `modules/diagnostics/physics/` and

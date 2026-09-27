@@ -63,7 +63,7 @@ are diagnostic data, never cache identity.
 
 External `GtsModelImage` paths use their imported absolute source location;
 embedded encoded bytes decode in memory. `assets/importer/image/GtsImageDecode`
-provides the single stb-backed decoding wrapper, also used by legacy image import.
+provides the stb-backed decoding wrapper shared with standalone image cooking.
 There are no temporary image files or additional decoder implementations.
 
 Base-color/emissive textures use sRGB; normals and scalar maps use linear data.

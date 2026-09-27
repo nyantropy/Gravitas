@@ -18,9 +18,9 @@ scene viewport. Tool/scene contexts for one world and preview-world contexts ret
 independent values. This does not publish mutable per-call metrics into ECS or
 change render viewport selection, controller ordering or output.
 
-Particle effects, font metadata, and glTF/GLB JSON use
-[`GtsJsonParser`](../json/architecture.md) from core. These rendering-owned
-loaders retain schema validation and conversion; font loading implementation
+Particle effects and font metadata use
+[`GtsJsonParser`](../json/architecture.md) from core. Rendering owns their schemas;
+model import owns glTF/GLB schema conversion. Font loading implementation
 lives in `FontAssetIO.cpp`, not its data-facing header.
 
 Particle descriptor loading follows the named sections written by the asset
@@ -45,7 +45,7 @@ runtime state.
 ## Module Layout
 
 - `modules/rendering/core/`: generic rendering contracts, resource provider
-  interfaces, geometry, materials, lighting frame data, UI extraction, preview
+  interfaces, materials, lighting frame data, UI extraction, preview
   data, viewport/windowing contracts.
 - `modules/rendering/ecssetup/`: ECS descriptors, runtime components, lifecycle
   systems, extraction, camera setup, geometry setup, lighting extraction, and
@@ -78,7 +78,8 @@ SceneExecutionProfile
 ```
 
 `FrameBuildMode` controls whether the renderer builds world commands, reuses a
-cached world frame, renders UI only, or renders nothing. This is how modes such
+cached world frame, builds UI only, or skips world/UI construction.
+`None` does not skip backend submission or independent preview work. This is how modes such
 as fullscreen VN can keep the scene loaded but asleep.
 
 `RenderPassVisibilityComponent` is narrower: it can submit empty scene and/or
@@ -95,7 +96,9 @@ when the selected device supports them.
 
 ## Descriptor To GPU Split
 
-Renderable geometry should use one geometry descriptor at a time:
+Direct/generated renderables use one geometry descriptor at a time. Complete
+file-backed models instead use `ModelInstanceComponent` and generic extraction
+(see [model route](#high-level-model-route)). Direct descriptors are:
 
 - `StaticMeshComponent`
 - `QuadMeshComponent`
@@ -247,7 +250,8 @@ The current static renderer consumes the explicit `GtsStaticVertex` profile from
 canonical vertex type. `GtsVertexAttribute` owns canonical semantic streams;
 `GtsSkinnedVertex` is the separate prepared skinned profile. Its backend-owned
 vertex ABI, palette upload and separate shader path are documented in
-[skinned geometry](skinned-geometry.md); runtime world extraction remains static-only.
+[skinned geometry](skinned-geometry.md). Generic model extraction supports both
+static and skinned occurrences; direct mesh components use the static profile.
 
 The static profile remains:
 
@@ -406,52 +410,11 @@ Dense snapshot storage remains stable by object slot. Per-entry refresh is the
 parallelizable unit; camera changes, material-frame aggregation, content-version
 publication, and invalidation-queue clearing are aggregate merge work.
 
-Future task-graph barriers are therefore explicit:
-
-```text
-hierarchy topology ready
-  -> parent transform levels complete
-  -> world-transform publication complete
-  -> render-sync outputs complete
-  -> snapshot entry refresh complete
-  -> aggregate extraction and backend submission may begin
-```
-
 Structural ECS mutation is not allowed inside batch-processing loops. Creation,
-component add/remove, object-slot allocation, material/mesh lifecycle, and
-resource cleanup stay in lifecycle systems or publish/cleanup barriers.
-
-The minimal future executor requirement is range execution with a single-thread
-fallback:
-
-```text
-parallelFor(itemCount, batchSize, processRange)
-  -> one output buffer per range
-  -> deterministic merge in range-index order
-  -> profiling context per range
-```
-
-A real executor must provide dependency barriers and per-task scratch/output
-storage, but it should not change the algorithms above.
-
-Render-thread readiness depends on extraction producing a complete immutable
-frame package: render commands, material frame data, object uploads,
-camera/light/environment uploads, particles, UI commands, and resource lifetime
-commands. The current extraction boundary is close to that shape, but backend
-submission still runs on the main thread and uses live renderer/runtime owners.
-No render thread is installed.
-
-Physics-thread readiness is separate. The future boundary should be:
-
-```text
-immutable physics input snapshot
-  -> fixed-step physics execution
-  -> deterministic result publication
-  -> gameplay/render-prep consumption barrier
-```
-
-Current physics remains a main-thread ECS system and does not own a worker or
-double-buffered publication path.
+component add/remove, object-slot allocation, material/mesh lifecycle and resource
+cleanup stay in lifecycle systems or publication/cleanup barriers. Backend
+submission and physics currently run on the main thread; no worker executor or
+render/physics thread is installed.
 
 Object uploads remain object-owned data:
 
@@ -680,7 +643,7 @@ requestScreenshot
 
 ## Model material realization
 
-[Model material realization](model-material-realization.md) resolves logical
+[Model material realization](../model/model-material-realization.md) resolves logical
 `GtsRealizedModel` material associations into world-scoped `MaterialRuntime` handles.
 Canonical and cooked materials share the existing runtime instance contract;
 shared assets and CPU geometry retain no world handles. The service runs at setup,
@@ -689,7 +652,7 @@ with runtime-lifetime validation and explicit model-scoped lookup.
 ## High-level model route
 
 File-backed/composed model occurrences use `ModelInstanceComponent` and generic
-[model render extraction](model-extraction.md). Shared definitions/prepared geometry
+[model render extraction](../model/model-extraction.md). Shared definitions/prepared geometry
 are referenced, while dynamic transform/material/palette values become frame data.
 The instance module has no rendering dependency. Backend submission consumes only
 geometry, ranges, runtime material state, placement and optional palettes. Direct

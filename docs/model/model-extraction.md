@@ -19,10 +19,10 @@ RENDERER: extractModelFrame → extractModelRenderState → GtsModelFrameData
 ```
 
 `model/extraction` owns the CPU-testable `gravitas_model_frontend` target.
-`GtsModelInstanceRuntime` lives here because its world creation facade orchestrates
-geometry and renderer material services. The instance, skeletal occurrence state,
-immutable hierarchy evaluator, material association interface and opaque material
-instance handle remain in `model/runtime`. That target depends only on CPU model
+`GtsModelInstanceRuntime` lives in `modules/model/world/`, owned by
+`gravitas_model_world`; it orchestrates geometry and world material services. The instance, skeletal occurrence state,
+immutable hierarchy evaluator and material association interface live in
+`modules/model/runtime/`; opaque material handles live in shared `modules/assets/material/`. That target depends only on CPU model
 realization and animation; it does not include/link rendering, material realization
 or Vulkan. The material frontend implements `GtsRealizedModelMaterials` as a live,
 weakly runtime-scoped association. No runtime implementation is moved into assets.
@@ -57,8 +57,7 @@ instance, sharing that snapshot across its primitive/node draws. Static extracti
 allocates no palettes. The opaque owner is never cast back to a model by the backend.
 
 Geometry arrays, model hierarchy, skeletons, clips, bindings and canonical materials
-are never copied into frame packets. The old persistent presentation types and their
-skinned-only ECS query have been removed. A frame is derived draw data, not another
+are never copied into frame packets. A frame is derived draw data, not another
 persistent model definition or occurrence.
 
 ## Transforms

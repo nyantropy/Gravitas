@@ -102,7 +102,7 @@ package/mesh directories remain available; no files are resolved during realizat
   mesh reference directory.
 
 There are no world-local material handles. Material conversion and texture work
-remain separate future responsibilities.
+belong to [world material realization](model-material-realization.md).
 
 Canonical static bounds use the existing stored-vertex bounds calculation. Skinned
 bounds use stored/bind-space positions only; they are not animated culling bounds.

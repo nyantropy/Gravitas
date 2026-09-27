@@ -1,6 +1,6 @@
 # Gravitas Engine
 
-A C++20 Vulkan engine with an ECS core, a two-stage frame graph renderer, and a retained UI graph. The repository now contains the reusable engine plus three bundled validation scenes: `GtsScene1`, `GtsScene2`, and `GtsScene3`.
+A C++20 Vulkan engine with an ECS core, a two-stage frame graph renderer, and a retained UI graph. Bundled applications include `GtsScene1`, `GtsScene2`, `GtsScene3`, `GtsPbrValidation`, `GtsRenderingBenchmarks` and the independent CPU harness `GtsPerformanceBenchmarks`.
 
 ---
 
@@ -13,7 +13,7 @@ A C++20 Vulkan engine with an ECS core, a two-stage frame graph renderer, and a 
   - Ubuntu/Debian: `sudo apt install libvulkan-dev vulkan-tools`
 - **GLFW** — preferred from the system (`pkg-config` / CMake package). CMake falls back to `FetchContent` only when no local package is available.
 - **GLM** — bundled in `external/glm/`. No install needed.
-- GCC 10+ or Clang 12+
+- A compiler and standard library with C++20 support
 
 ### Windows
 - **CMake 3.20+**
@@ -30,6 +30,7 @@ A C++20 Vulkan engine with an ECS core, a two-stage frame graph renderer, and a 
 ```bash
 git clone https://github.com/nyantropy/Gravitas.git
 cd Gravitas
+git submodule update --init --recursive
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
@@ -62,12 +63,23 @@ ctest --test-dir build-physics -R physics_transform_integration --output-on-fail
 See [runtime configuration](docs/modules/runtime-configuration.md) for the option/target
 contract, other reduced combinations, and facade availability checks.
 
-### Engine source subtree
-```bash
-cd engine
-cmake -B build
-cmake --build build --parallel
+### Engine submodule inside DungeonCrawler
+
+Commands in engine docs use the engine repository root unless explicitly labeled
+as game commands. In a DungeonCrawler checkout, configure the standalone engine
+from the game root with:
+
+```sh
+cmake -S engine -B engine/build_release -DCMAKE_BUILD_TYPE=Release
+cmake --build engine/build_release --parallel
+ctest --test-dir engine/build_release --output-on-failure
 ```
+
+The game build defaults `GTS_BUILD_TEST_SCENES=OFF` and registers only game tests.
+A standalone engine build defaults validation scenes and engine CTest registration
+on. GPU tests may report skipped when a compatible Vulkan device is unavailable;
+a headless renderer still requires Vulkan. Module smoke tests configure nested
+reduced builds; use CTest filters for focused checks during iteration.
 
 ---
 
@@ -90,16 +102,14 @@ Shaders and engine-owned resources resolve relative to the engine root, so the e
 |-----|--------|
 | Escape | Quit |
 | F3 | Toggle debug stats overlay |
-| P | Pause / Resume simulation |
+| X | Pause / Resume simulation |
+| F6 | Toggle tooling (when enabled) |
+| F12 | Screenshot |
 
-### GtsScene2 — Frustum Culling Test
-| Key | Action |
-|-----|--------|
-| W / S / A / D | Move camera |
-| Q / E | Camera up / down |
-| R / F | Camera roll / down |
-| C | Toggle frustum culling on / off |
-| F | Freeze / unfreeze cull frustum |
+Application scenes may add or override actions. The default camera and tool bindings
+live in `engine/modules/rendering/ecssetup/camera/input/CameraDefaultBindings.hpp`
+and `engine/modules/tools/input/ToolDefaultBindings.hpp`. Game keybindings and saved
+preferences are owned by the consuming application.
 
 ---
 
@@ -126,3 +136,12 @@ If `glslc` is not found, CMake warns and the checked-in SPIRVs are used as-is.
 | GLM | Bundled — `external/glm/` |
 | stb_image | Bundled — `external/stb/` |
 | tinyobjloader | Bundled — `external/` |
+
+## Documentation
+
+Start with [ARCHITECTURE.md](ARCHITECTURE.md) for ownership and runtime contracts,
+then [docs/README.md](docs/README.md) for feature guides. Build options and reduced
+configurations are specified in [runtime configuration](docs/modules/runtime-configuration.md).
+CPU scaling and rendering measurements have separate guides:
+[CPU benchmarks](docs/performance-benchmarks.md),
+[rendering benchmarks](docs/rendering/benchmarks.md).

@@ -1,6 +1,6 @@
 # Canonical glTF / GLB Importer
 
-`modules/model/import/gltf/GtsGltfModelImporter` implements `IGtsModelImporter`
+`modules/model/import/gltf/GtsGltfModelImporter.h` implements `IGtsModelImporter`
 and returns `GtsModelImportResult -> GtsModelImportBundle` with a primary model
 and any selected skeleton definitions and skeletal animation clips. It handles `.gltf` JSON
 and `.glb` version 2 containers. No legacy model DTO, renderer vertex, image decoder,
@@ -19,17 +19,16 @@ Vulkan object, or runtime/cooked resource is involved.
 
 ## Decoder ownership and reuse
 
-`gravitas_gltf_importer` links the canonical asset/core JSON target and the small
-standard-library-only `gravitas_gltf_source` target. It builds with rendering and
+`gravitas_gltf_importer` publicly links `gravitas_model_import` and privately links
+the standard-library-only `gravitas_gltf_source` target. Core JSON arrives through
+the model domain dependency. It builds with rendering and
 Vulkan disabled. Its public importer header includes only the Strategy interface.
 Source reader/utility headers are internal implementation details in this folder.
 
-File byte reads, little-endian word reads, base64/data-URI decoding, component
-sizes/counts, and integer normalization were extracted from the legacy importer.
-The canonical source reader is now the only production glTF model parser, including
-strict GLB framing, direct unsigned index reads, buffer/accessor validation, scene
-selection, materials, skins and animation. The former cooker-specific orchestration
-and DTOs were removed by the [canonical cooking cutover](canonical-cooking.md).
+Shared source utilities own byte reads, little-endian words, base64/data-URI
+decoding, component sizes/counts and integer normalization. The source reader and
+canonical importer own GLB framing, accessors, scene selection, materials, skins
+and animation for both [cooking](canonical-cooking.md) and source loading.
 Unknown GLB chunks retain canonical warnings; malformed inputs fail validation.
 
 ## Supported geometry
@@ -91,7 +90,7 @@ that glTF requires that choice.
 
 ## Skins, definitions and occurrences
 
-`GltfSkinImporter.h/.cpp` is an importer-private source interpretation stage. It
+`GltfSkinImporter.h` / `GltfSkinImporter.cpp` is an importer-private source interpretation stage. It
 uses the existing source reader for accessors and composes canonical definitions,
 bindings and model associations directly. No legacy DTO or rendering vertex is
 used. Skeleton and binding data enter the result only through full canonical
@@ -238,7 +237,7 @@ other unsupported extensions are diagnosed rather than silently claimed supporte
 
 ## Skeletal animation import
 
-`GltfAnimationImporter.h/.cpp` directly decodes skeletal animation using the
+`GltfAnimationImporter.h` / `GltfAnimationImporter.cpp` directly decodes skeletal animation using the
 existing `GltfSourceReader`; no legacy DTO, tween, sampler runtime, or renderer
 representation is involved. `GltfSkinImportResult` privately retains each
 definition's evaluation-node-to-original-source-node correspondence. It is copied
@@ -342,25 +341,25 @@ into structured errors with source/accessor/mesh/primitive/node/material context
 Ordinary file/format failures do not escape as exceptions or successful partial assets.
 This is a supported-feature importer, not a complete glTF conformance validator.
 
-## Tests and later cutover
+## Tests and downstream integration
 
-`tests/assets/importers/gltf/GtsGltfModelImporterTest` uses generated JSON/binary
+`tests/assets/importers/gltf/GtsGltfModelImporterTest.cpp` uses generated JSON/binary
 fixtures and links only the canonical importer. It covers both containers, all
 buffer/image input forms, interleaving, integer normalization and index encodings,
 semantic sets, material factors/channels, scene selection/remapping/transforms,
 malformed ranges/GLB/hierarchy, explicit unsupported policies, and deterministic
 canonical geometry. Assertions remain active in Release through explicit checks.
 
-No cooker, runtime loader, static preparation, realization, cooked format,
-renderer, or ECS consumer was migrated. The importer result still lacks a source
-provenance/dependency carrier; external buffer and source-file dependencies cannot
-be exported as a manifest. Image identity remains available in the model.
+Canonical cooking and development runtime loading both consume this importer.
+[Model realization](model-realization.md) preserves hierarchy/instancing and
+prepares static or skinned geometry; [model instances](runtime-instances.md) own
+playback and feed generic rendering. Cooking rejects skeletal/animated data and
+material UV sets other than UV0. World material realization also requires UV0.
 
-Before cutover, general model realization must preserve glTF hierarchy/instancing
-(the current OBJ adapter accepts only flat identity roots). Nonzero material UV
-sets need an explicit downstream capability policy. Sampler/texture transforms,
-scene selection options, sparse support, ordinary-node/morph animation and skinned
-realization remain focused future decisions. No animation sampling or runtime skinning is implemented.
+The import result has no complete source-dependency manifest: image identity is
+available, but external buffers and the source file are not exported as a manifest.
+Sampler/texture transforms, scene-selection options, sparse accessors and
+ordinary-node/morph animation remain unsupported.
 
 `GtsGltfSkinImporterTest` shares generated JSON/binary fixture utilities with the
 static importer suite. It covers one-joint and helper-rich rigs, out-of-order source

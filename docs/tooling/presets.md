@@ -17,10 +17,12 @@ A preset is not:
 
 ## Command Line
 
-Primary usage:
+DungeonCrawler parses these command-line flags; they are not automatic flags
+on every engine application. From the game repository root:
 
 ```sh
-build/src/DungeonCrawler --tooling-preset=engine/docs/tooling/tooling_presets/particles.json
+cd build/src
+./DungeonCrawler --tooling-preset=engine/docs/tooling/tooling_presets/particles.json
 ```
 
 Supported overrides:
@@ -83,7 +85,14 @@ Fields:
   project root.
 - `screenshots.exitAfterCapture`: exits after the final requested capture.
 
-Example presets live in `engine/docs/tooling/tooling_presets/`:
+Preset paths are tried relative to the working directory, then to
+`GtsPaths::GetProjectRoot()`. DungeonCrawler sets that root to its source checkout.
+Game resource paths remain working-directory-relative: use `build/src/` so model
+requests find the build-cooked assets. Capture overrides only apply when a preset
+is loaded; `--no-auto-exit` disables its exit-after-capture flag.
+
+Example presets live in `docs/tooling/tooling_presets/` in the engine repository
+(`engine/docs/tooling/tooling_presets/` from the game root):
 
 - `empty_editor.json`
 - `world_viewer.json`
@@ -143,10 +152,10 @@ Default UI pass workflow:
 6. Repeat with `editor_eval_world.json` or `editor_eval_assets.json` when the
    change affects those workspaces.
 
-Expected launch shape:
+From the same game `build/src/` working directory:
 
 ```sh
-build/src/DungeonCrawler \
+./DungeonCrawler \
   --tooling-preset=engine/docs/tooling/tooling_presets/editor_eval_particles.json
 ```
 

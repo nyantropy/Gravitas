@@ -49,7 +49,7 @@ are relative to the skeleton reference frame. Eventual composition is
 now implements this composition. There is one convention
 for all assets, not a per-skeleton format/coordinate flag. Source conversion
 must make geometry, binding spaces, and the chosen skeleton frame consistent;
-asset identity and character/world placement are separate future contracts.
+resource identity and ECS world placement are owned by loading and transform services.
 
 Validation rejects nonfinite translation, quaternion, scale, or matrix values.
 Quaternion squared magnitude must differ from one by at most `1e-4`, matching
@@ -66,7 +66,7 @@ contract does not require inverses or global-transform evaluation.
 
 Default local transforms are not mesh bind data. A
 [skin binding](skin-binding-domain.md) owns mesh-specific joint remapping and
-inverse bind matrices; a future runtime pose
+inverse bind matrices; `GtsSkeletonPose`
 owns mutable evaluated transforms. Neither belongs in this skeleton.
 
 ## Validation and exact compatibility
@@ -126,7 +126,7 @@ No caching, interning, hashing, or binary layout is introduced.
 
 ## Tests and scope
 
-`tests/model/domain/skeleton/GtsSkeletonAssetTest` and `GtsSkeletonCompatibilityTest`
+`tests/assets/skeleton/GtsSkeletonAssetTest.cpp` and `GtsSkeletonCompatibilityTest`
 link only `gravitas_skeleton_assets`.
 Checks remain active in Release builds. Coverage includes empty/minimal/deep
 forests, helpers, names versus IDs, invalid hierarchy, both transform forms,
@@ -141,15 +141,10 @@ cmake --build /tmp/gravitas-model-domain-cpu --target GtsSkeletonAssetTest GtsSk
 ctest --test-dir /tmp/gravitas-model-domain-cpu -R '^gts_skeleton_(asset|compatibility)$' --output-on-failure
 ```
 
-The separate [skin-binding domain](skin-binding-domain.md) now provides remaps,
-inverse binds, and validation against a supplied skeleton. The skeleton itself
-still owns none of that data. The [model domain](model-domain.md#skeleton-uses-and-skin-associations)
-now owns skeleton-use and skin-binding associations and mesh-context validation.
-The [import bundle](import-bundle.md) now enumerates shared immutable definitions.
-The independent [animation clip domain](animation-clip-domain.md) now stores timed
-TRS overrides against a compatibility value. Canonical glTF skeletal animation
-import now produces clips in the associated-asset bundle. The separate animation
-module now evaluates CPU poses; the skeleton asset retains no evaluated state.
-No cooker, playback, ECS, or rendering integration is implemented. The canonical glTF importer now produces skeletons and model uses
-for actual skins, preserving helper nodes and TRS/matrix forms. This does not
-change the importer result or the static rendering profile.
+The [skin-binding domain](skin-binding-domain.md) provides remaps and inverse
+binds. The [model domain](model-domain.md#skeleton-uses-and-skin-associations)
+associates skeleton occurrences and bindings; the [import bundle](import-bundle.md)
+enumerates definitions. Canonical glTF imports skeletons and TRS clips, the CPU
+evaluator produces poses, and [model instances](runtime-instances.md) own playback.
+Static cooked-v1 does not serialize skeletons. None of this mutable state belongs
+in `GtsSkeletonAsset`.

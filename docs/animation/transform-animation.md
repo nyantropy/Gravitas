@@ -65,17 +65,11 @@ To restart from the current transform, set `initialized = false` and `time = 0`.
 Enabled properties are owned by animation relative to the captured baseline;
 another system should not simultaneously author those same properties.
 
-The previous generic `AnimationComponent`/`AnimationMode` names and demo-owned
-system were replaced without compatibility aliases. The unused `localSpace`
-flag was removed, and `rotationAxis` is now `rotationEulerFactors` to express
-its existing Euler behavior. Scaling now oscillates around the captured scale;
-the earlier demo formula added a permanent amplitude offset.
-
 ## Boundaries and validation
 
-This feature animates whole-entity transforms. Skeletal clip playback remains
-unimplemented; the existing CPU pose evaluator takes an explicit clip time and
-owns no ECS playback clock. Texture UV animation remains in rendering because
+This feature animates whole-entity transforms. Skeletal playback is a separate
+[explicit-delta API](skeletal-playback.md), integrated by model instances.
+The pose evaluator itself takes a clip time and owns no playback clock. Texture UV animation remains in rendering because
 it updates renderer-owned object data. GtsScene3's specialized cube orbit/bounce
 behavior remains demo-owned.
 

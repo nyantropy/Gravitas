@@ -152,8 +152,6 @@ curves, determinism and immutable inputs. Checks remain active in Release builds
 nontrivial source-to-evaluation indices, LINEAR rotation and cubic translation/
 rotation. Known timestamps verify descendant reference-space positions and
 quaternion components. A mesh-node translation of 1000 remains outside the pose.
-The four existing project GLBs inspected for optional real-asset coverage contain
-no animations or skins; no binary asset was added.
 
 Using the CPU-only configuration in [model-domain.md](../model/model-domain.md):
 
@@ -162,5 +160,5 @@ cmake --build /tmp/gravitas-model-domain-cpu --parallel 4
 ctest --test-dir /tmp/gravitas-model-domain-cpu -L cpu --output-on-failure
 ```
 
-No canonical contracts, importers, bundles, skin matrices, playback controllers,
-blending, cooking, ECS, rendering, shaders, or Vulkan integration change here.
+For occurrence-owned looping/time and render integration, see
+[skeletal playback](skeletal-playback.md) and [model instances](../model/runtime-instances.md).

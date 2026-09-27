@@ -71,8 +71,7 @@ The shared `GtsPrimitiveGeometryPreparation` helper calls the existing CPU-only,
 header-only
 `gts::rendering::prepareMeshGeometry` once per primitive. Its default initialization,
 area-weighted normal accumulation, tangent generation, handedness, degeneracy
-thresholds, and finite fallbacks are reused unchanged. There is no legacy
-`ImportedMesh` intermediate and no second implementation of the geometry math.
+thresholds and finite fallbacks are shared with direct/procedural geometry.
 
 The existing tangent generator normalizes its working normals. After it returns,
 the adapter restores any authored canonical normals exactly; tangent generation
@@ -110,10 +109,8 @@ mesh-local `AssetBounds` from prepared positions using the CPU queries in
 of preparation and avoids a dependency on cooking.
 
 The preparation target links `gravitas_primitive_geometry`, which links
-`gravitas_model_domain` (and transitively core) and exposes the existing narrow
-`rendering/core/geometry` header directory for the existing CPU processor only.
-`GtsStaticVertex.h` lives inside `geometry/static/`; shared flags and
-`MeshGeometryMetadata` live in `geometry/GtsGeometryMetadata.h`. The processor
+`gravitas_model_domain` and `gravitas_asset_contracts`. Shared CPU algorithms,
+`GtsStaticVertex.h` and `GtsGeometryMetadata.h` live in `modules/assets/geometry/`. The processor
 includes these CPU profile headers without a renderer/backend link. No linking
 to `gravitas_rendering`, GLFW, Vulkan, TinyOBJ, or the importer is required.
 Primitive stream conversion is shared with the separate
@@ -121,13 +118,13 @@ Primitive stream conversion is shared with the separate
 location preserves the rule that core domain headers must not depend on module
 contracts.
 
-The target is available with rendering disabled. OBJ cooking and development
-runtime loading now consume it through the source-neutral flat-model adapter.
-glTF and procedural geometry still use their existing preparation calls.
+The target is available with rendering disabled. Canonical OBJ/glTF cooking and
+model realization consume static preparation. Direct OBJ mesh loading uses the
+flat-model adapter; procedural geometry can use shared geometry algorithms directly.
 
 ## Tests
 
-`tests/model/processing/geometry/static/GtsStaticMeshPreparationTest` constructs canonical
+`tests/assets/processing/geometry/static/GtsStaticMeshPreparationTest.cpp` constructs canonical
 fixtures directly and links only the preparation target. It covers copied streams,
 normal/tangent generation, finite fallbacks, mixed per-primitive availability,
 indexed and sequential rebasing, ranges/materials, exact authored-data retention,
@@ -150,10 +147,8 @@ static preparation  -> GtsStaticVertex
 skinned preparation -> GtsSkinnedVertex
 ```
 
-`GtsStaticVertex` is the renamed concrete static layout, formerly the renderer's
-ambiguous `Vertex` type. The old header and alias are gone. Its fields, order,
-defaults and component-wise GLM equality are unchanged; no hash
-specialization existed to migrate. The current GLM configuration yields size 64,
+`GtsStaticVertex` is the concrete static layout with member defaults and
+component-wise GLM equality. The current GLM configuration yields size 64,
 alignment 4, and offsets `pos=0`, `normal=12`, `tangent=24`, `color=40`, `texCoord=56`.
 CPU tests freeze this ABI and existing Vulkan tests verify matching stride,
 locations, offsets and formats. Cooked-v1 serialization still writes the same
@@ -164,8 +159,8 @@ golden fingerprint and full vertex round-trip checks.
 `VulkanStaticVertexDescription` still describe this static profile. Procedural meshes,
 world text, debug geometry, previews and canonical model cooking now
 spell their existing output `GtsStaticVertex`; none are migrated through canonical
-model assets. These broadly named runtime APIs will need deliberate profile choices
-when skinned GPU support arrives. Their behavior remains unchanged here.
+model assets. Skinned model instances use a distinct prepared profile and Vulkan resource path;
+these direct/procedural APIs remain static-profile APIs.
 
 The shared primitive converter continues using a `GtsStaticVertex` working buffer
 for existing CPU normal/tangent algorithms before copying surface fields into the

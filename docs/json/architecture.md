@@ -9,7 +9,7 @@ JSON dependency.
 - `GtsJsonValue.h` defines the owned value tree: null, bool, number, string, array,
   and object. Objects preserve insertion order; `find(key)` returns a borrowed
   pointer or null. Checked access and lookup live in `GtsJsonValue.cpp`.
-- `GtsJsonParser.h/.cpp` provides stateless text parsing and serialization.
+- `GtsJsonParser.h` / `GtsJsonParser.cpp` provides stateless text parsing and serialization.
   The implementation is compiled once into `gravitas_core`.
 - Feature loaders own file/resource access, schema validation, defaults, version
   migration, and conversion between JSON values and their data structures.
@@ -144,7 +144,7 @@ Both directions allow values through nesting depth 128, counting the root as
 depth zero. This bounds recursive stack use, not document byte size. These
 loaders are intended for local engine assets, not unbounded network input.
 
-## Migrated Consumers
+## Consumers
 
 - Input binding documents.
 - Particle effects, emitter descriptors, module stacks, and graphs.
@@ -161,22 +161,10 @@ engine C++ parser or an external dependency.
 
 ## Compatibility And Verification
 
-Existing schemas and feature lifecycle behavior remain in place. Legacy particle
-schema migration remains particle-owned. Invalid documents previously tolerated
-by individual readers can now fail consistently, notably duplicate keys and
-malformed numbers/escapes. Unicode escapes no longer degrade to placeholder
-characters. Numeric input codes require the whole code string to be numeric.
-Font dimensions and particle unsigned fields require an in-range integer.
-Checked access also rejects fractional/out-of-range integer fields in UI and
-presets instead of truncating them or risking an invalid C++ cast. Optional
-fields keep their feature defaults when conversion fails; strict fields fail
-with feature diagnostics. Particle burst counts reject negative/fractional or
-overflowing values, and finite values too large for float no longer become
-infinities in vector, curve, or scalar conversions.
-
-Saved files remain human-readable, but whitespace, escape spelling, and number
-formatting can change. Particle and font floats are no longer truncated to four
-or three decimal places; benchmark integer counters retain all 64 bits.
+Feature schemas own compatibility and migrations. Optional invalid fields retain
+feature defaults; strict fields fail with feature diagnostics. Integer fields reject
+fractions/out-of-range values, and float conversions reject overflow. Saved files
+are readable JSON with roundtrippable numbers rather than fixed decimal precision.
 
 `GtsJsonParserTest` covers syntax failures, transactional parsing, UTF-8,
 surrogates, controls, exact integers, floating-point roundtrips, nesting, and

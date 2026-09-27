@@ -71,7 +71,7 @@ This document records the repository style contract for the Gravitas engine. It 
 ## ECS
 
 - Simulation systems are fixed-timestep and deterministic with respect to simulation time - these are to be used for actual game systems.
-- Controller systems run once per rendered frame and may read frame time, input, UI, graphics, and tooling state - these are to be used for important engine side systems.
+- Controller systems run once per rendered frame for presentation, UI, camera, tooling, input sampling, rendering lifecycle and engine requests. Game presentation can use controllers; authoritative gameplay timing belongs in simulation.
 - Use command buffers for structural ECS changes while systems are iterating.
 - Descriptor components represent authored or high-level intent.
 - GPU/runtime components represent renderer-owned bindings, slots, handles, or cached runtime state.

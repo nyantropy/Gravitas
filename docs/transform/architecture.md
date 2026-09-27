@@ -140,14 +140,7 @@ update and before collider collection/query on each simulation tick. A frame
 can therefore have physics resolutions plus a controller resolution after
 presentation writers; those are separate, intentional demand points.
 
-Previously runtime installation also registered a controller, accidentally
-retained when the split installer was introduced. The combined installer ran
-two adjacent passes; the second was empty and replaced the first pass's metrics
-with zeros. Split installation could additionally publish intermediate values
-before a writer. Only the post-writer controller remains. Per-publication
-callback behavior and version rules are unchanged; the removed pass no longer
-emits intermediate publications or contributes controller timing samples.
-Metrics now describe the single scheduled pass, including real work when dirty.
+Metrics describe the scheduled resolver pass, including real work when dirty.
 
 ## Verification
 

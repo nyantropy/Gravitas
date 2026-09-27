@@ -1,11 +1,11 @@
 # Canonical Model Asset Domain
 
 `engine/modules/model/domain/model/` owns `GtsModelAsset`. The `IGtsModelImporter` interface
-and its concrete strategies live together under `engine/modules/assets/importer/`.
+and its concrete strategies live under `engine/modules/model/import/`.
 The model domain compiles into `gravitas_model_domain`, which links `gravitas_core` and the CPU-only `gravitas_skin_assets` target
 (and transitively `gravitas_skeleton_assets`). It has no renderer, Vulkan, ECS, or parser dependency.
 
-The boundary for future file-backed model importers is:
+The file-backed model import boundary is:
 
 ```text
 source file -> IGtsModelImporter -> GtsModelImportResult -> GtsModelImportBundle
@@ -38,7 +38,8 @@ and `uvec4` for Joints. The variant stores exactly one typed vector per stream.
 Importers decode source encodings into these GLM values. Multiple UV, color, joint,
 or weight sets require no new vertex structure. Joint values are geometry data;
 their skin-local interpretation is checked when a node selects a binding.
-No weight normalization, animation, or morph storage is defined.
+The geometry domain does not normalize weights or store mutable animation state.
+Clips live in the separate animation asset domain; morph targets are unsupported.
 
 Primitives use point, line, or triangle lists. Empty indices select sequential
 vertices; populated indices must address Position[0]. There are no strips, fans,
@@ -220,11 +221,9 @@ references meaningful. Each image has an optional name and exactly one source:
 
 Materials reference the table rather than duplicating payloads. The same image
 may serve multiple materials and roles, so color space belongs to the role,
-not globally to the image. Decoded pixels, dimensions, mip chains, content hashes,
-cooked paths, dependency tracking, and texture runtime ownership are deferred.
-Sampler state and texture transforms are also deferred; the former importers did not
-currently preserves them. Future texture-domain work can extend image/binding
-contracts without moving image ownership into materials.
+not globally to the image. Image decoding, scalar packing, cooked textures and runtime realization are
+downstream services; they do not alter canonical image inputs. Importers do not
+preserve sampler state or texture transforms. See [material realization](model-material-realization.md).
 
 `validateGtsModelMaterial` checks factors and alpha/channel enums, including
 invalid enum values introduced by casts. `validateGtsModelAsset` additionally
@@ -261,21 +260,18 @@ does not clamp, decode, generate UVs, or check image channel availability.
 | Base color / normal / emissive texture index | Importer maps source texture/image to a model image binding |
 | Metallic-roughness texture index | Same image for metallic/Blue and roughness/Green |
 | Occlusion texture index | AO/Red binding |
-| Texture `texCoord` (currently discarded) | Each binding's `texCoordSet` |
+| Texture `texCoord` | Each binding's `texCoordSet` |
 | External URI / embedded image | Resolved external path / encoded image table entry |
 | Opaque / Mask / Blend, cutoff, double-sided | `alphaMode`, `alphaCutoff`, `doubleSided` |
 
-The old `ImportedMaterial` optionals become concrete factors; source omission is
-resolved by import rather than retained as runtime ambiguity. Its parallel path
-and signed texture-index fields become one model-local binding representation.
+Import resolves source omissions into concrete factors and model-local image bindings.
 `renderState.depthWrite`, blend-state selection, and `vertexColorOnly` are
 downstream policy, as are `MaterialShaderFamily`, feature flags, variants, handles,
 versions, and resolved texture IDs. `.gmat` IDs, dependencies, and cooked references
 are storage concerns. None enter this domain. Source-authored unlit material
 semantics remain unsupported.
 
-The former OBJ fallback treated height maps as normal maps. Canonical OBJ import
-now diagnoses and omits height maps, preserving only actual normal maps. OBJ ambient color, specular/shininess, optical density,
+Canonical OBJ import diagnoses and omits height maps, preserving only actual normal maps. OBJ ambient color, specular/shininess, optical density,
 illumination modes, displacement, separate opacity maps, map options, and glTF
 material extensions other than emissive strength are not currently preserved by
 the canonical importers. Samplers, UV transforms, height-map
@@ -300,24 +296,24 @@ so a successful skeleton-only bundle has a null `asset()`; use `succeeded()` to
 distinguish success. `failure(diagnostics)` exposes no bundle and always reports
 at least one error. OBJ and static glTF remain model-only; rigged glTF also enumerates skeleton definitions.
 
-Diagnostics use the existing engine pattern of severity, code, and message,
-plus a textual location. Existing `AssetImportResult`/`AssetDiagnostic` reside in
-renderer-coupled `AssetTypes.h`, so this domain does not import those types.
+Import diagnostics carry severity, code, message and textual location through
+`GtsModelDiagnostic`; they have no rendering dependency.
 Source diagnostics may name source locations; downstream behavior must not branch
 on source format or diagnostic text.
 
 ## CPU-only test
 
 `GtsModelAssetTest` and `GtsModelMaterialTest` link `gravitas_model_domain` and are registered independently of
-the existing Vulkan-gated test suite. For an entirely backend-free build:
+the Vulkan-gated test suite. From the engine repository root, configure
+an entirely backend-free build:
 
 ```sh
-cmake -S engine -B /tmp/gravitas-model-domain-cpu -G Ninja \
+cmake -S . -B /tmp/gravitas-model-domain-cpu -G Ninja \
   -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
   -DGTS_ENABLE_RENDERING=OFF -DGTS_ENABLE_VULKAN_BACKEND=OFF \
   -DGTS_ENABLE_PHYSICS=OFF -DGTS_ENABLE_DEBUGDRAW=OFF -DGTS_ENABLE_TOOLS=OFF \
   -DGTS_BUILD_TEST_SCENES=OFF -DGTS_BUILD_ASSETC=OFF \
   -DGTS_ENABLE_MODULE_SMOKE_TESTS=OFF -DGTS_ENABLE_RUNTIME_SMOKE_TESTS=OFF
 cmake --build /tmp/gravitas-model-domain-cpu --target GtsModelAssetTest GtsModelMaterialTest --parallel 2
-ctest --test-dir /tmp/gravitas-model-domain-cpu --output-on-failure
+ctest --test-dir /tmp/gravitas-model-domain-cpu -R '^gts_model_(asset|material)$' --output-on-failure
 ```

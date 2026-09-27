@@ -86,10 +86,3 @@ Intentional differences in other fixtures:
   multi-image derived combinations use deterministic material-context names.
 - OBJ multi-mesh hierarchy is preserved rather than concatenated for storage.
 - Skin/animation loss, unsupported UV use and missing images now fail explicitly.
-
-The removed historical architecture consisted of `GltfAssetImporter`,
-`AssetImporter`/`IAssetImporter`/`AssetImporterRegistry`, `AssetImportResult`,
-`ImportedMesh`/`ImportedMeshPrimitive`, `ImportedMaterial`, `ImportedNode`, and the
-`ImageAssetImporter` wrapper. The entire `cooking/legacy/` directory is removed.
-The useful texture input is now `TextureCookInput` in cooking, and one authoritative
-`GtsImageDecode` implementation serves runtime and cooking.

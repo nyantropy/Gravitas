@@ -15,8 +15,10 @@ This creates the scene-local `PhysicsWorld`, exposes
 `gts::physics::controllerContext(ctx).physics` through `PhysicsControllerContext.h`, and
 registers `PhysicsSystem` in fixed simulation space.
 
-Collision consumers that read `gts::physics::controllerContext(ctx).physics->getCollisions()` should run after
-the physics feature's simulation system has been installed.
+Pass the borrowed physics module from the controller setup context into a
+simulation consumer, then register that consumer after the physics installer.
+`EcsSimulationContext` does not carry the controller payload. Read the collision
+list during simulation after `PhysicsSystem` updates it.
 
 ## Adding A Collider
 

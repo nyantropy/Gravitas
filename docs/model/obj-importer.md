@@ -1,6 +1,6 @@
 # Canonical OBJ Importer
 
-`engine/modules/model/import/obj/GtsObjModelImporter` is the first concrete
+`engine/modules/model/import/obj/GtsObjModelImporter.h` implements
 `IGtsModelImporter`. It accepts a filesystem source path and returns a validated
 `GtsModelAsset` through `GtsModelImportResult`:
 
@@ -13,16 +13,14 @@ OBJ / MTL -> TinyOBJ -> GtsObjModelImporter -> GtsModelAsset
 ```
 
 It does not use legacy imported DTOs, renderer vertices, runtime resources,
-Vulkan, ECS, image decoders, or cooked formats. It is the sole OBJ interpretation
-implementation. Both production consumers use it; the former renderer-coupled
-OBJ importer and backend OBJ loader have been deleted.
+Vulkan, ECS, image decoders, or cooked formats. It is the sole OBJ interpreter for cooking and runtime loading.
 
 ## Build boundary and reuse
 
-`gravitas_obj_importer` depends publicly on `gravitas_model_domain` and privately on
-`gravitas_tinyobj`. TinyOBJ headers and implementation remain in this strategy's
-folder. Rendering links the strategy for its cooking/runtime consumers and has
-no direct TinyOBJ target dependency. Canonical domain and preparation remain
+`gravitas_obj_importer` depends publicly on `gravitas_model_import` (and thus
+`gravitas_model_domain`) and privately on `gravitas_tinyobj`. TinyOBJ headers and implementation remain in this strategy's
+folder. Model cooking/loading and direct mesh loading consume the canonical importer;
+rendering does not parse OBJ or depend directly on TinyOBJ. Canonical domain and preparation remain
 independently testable with rendering disabled.
 
 The implementation reuses TinyOBJ's `LoadObj`, triangulation, independent corner
@@ -56,7 +54,7 @@ See [OBJ consumers](obj-consumers.md) for cooking and runtime adaptation.
   means XYZ followed by RGB. Four-value homogeneous vertices are not colored;
   authored white remains authored. The imported color alpha is 1 because this
   parser's vertex-color extension supplies RGB only.
-- Only polygon faces are supported in this step, matching the old path. Line
+- Only polygon faces are supported. Line
   and point records are omitted with `OBJ_UNSUPPORTED_PRIMITIVE` warnings; a
   source with no face geometry fails. No smoothing-group-driven generation,
   freeform surfaces, skinning, or tangents are implemented.
@@ -109,8 +107,7 @@ omitted with `OBJ_IMAGE_CHANNEL_UNSUPPORTED`. Shared packed images can still
 provide separate scalar channels without source-specific downstream behavior.
 
 Unauthored Kd/Pm/Pr/Ke use canonical defaults, rather than TinyOBJ's zero-filled
-material initialization. This deliberately differs from the old conversion for
-unspecified Kd/Pr; cooking and development source loading now use these canonical defaults.
+material initialization. Cooking and development source loading use the same defaults.
 TinyOBJ handles `d` versus `Tr` precedence. Canonical validation rejects malformed
 factor ranges instead of silently clamping them.
 
@@ -137,7 +134,7 @@ tables or cooked IDs were added to `GtsModelAsset` here.
 
 ## Tests
 
-`tests/assets/importers/obj/GtsObjModelImporterTest` links only the standalone
+`tests/assets/importers/obj/GtsObjModelImporterTest.cpp` links only the standalone
 importer target. It covers triangle and indexed geometry, triangulation, positive
 and relative indices, all supported streams, seams, absent/partial streams,
 authored colors, shape and material runs, flat roots, MTL factors/opacity, all image
@@ -149,5 +146,5 @@ Using the backend-free configuration in [model-domain.md](model-domain.md):
 ```sh
 cmake --build /tmp/gravitas-model-domain-cpu \
   --target GtsObjModelImporterTest GtsModelAssetTest GtsModelMaterialTest --parallel 2
-ctest --test-dir /tmp/gravitas-model-domain-cpu --output-on-failure
+ctest --test-dir /tmp/gravitas-model-domain-cpu -R '^gts_(obj_model_importer|model_asset|model_material)$' --output-on-failure
 ```

@@ -44,13 +44,38 @@ MODEL EXTRACTION:               generic model render extraction
 `modules/model/` owns source interpretation through renderer-ready frame extraction.
 The ordinary application boundary is `model/public/GtsModels.h`:
 
+Link `gravitas_model_world` for creation and `gravitas_model_frontend` when also
+using ECS extraction. A scene setup helper can attach a model to an existing
+entity with a `TransformComponent`:
+
 ```cpp
-auto requested = requestGtsModel(context, path);
-auto created = modelInstances(world, context).create(requested.handle());
-// Check diagnostics, then attach ModelInstanceComponent to the entity.
-auto clip = findGtsModelClip(requested.handle(), "clip name", skeletonUse);
-// The instance supplies play/updateAnimations/material-slot overrides.
+#include "ECSWorld.hpp"
+#include "GtsModels.h"
+
+bool attachModel(ECSWorld& world, Entity entity, const EcsControllerContext& context,
+                 const std::filesystem::path& path,
+                 std::vector<GtsModelDiagnostic>& diagnostics)
+{
+    auto requested = requestGtsModel(context, path);
+    diagnostics = requested.diagnostics();
+    if (!requested.succeeded())
+        return false;
+
+    auto created = modelInstances(world, context).create(requested.handle());
+    diagnostics.insert(diagnostics.end(), created.diagnostics.begin(), created.diagnostics.end());
+    if (!created.succeeded())
+        return false;
+
+    world.addComponent(entity, ModelInstanceComponent{
+        std::shared_ptr<GtsModelInstance>(std::move(created.instance))});
+    return true;
+}
 ```
+
+Call this during setup, outside an active ECS traversal. Separate calls create
+independent mutable instances. For animated content, use `GtsModelRequest` with
+required skeleton/skin/animation capabilities, resolve clips with `findGtsModelClip`,
+and check the status of `play` and `updateAnimations`; see [instances](runtime-instances.md).
 
 The existing engine context supplies registry, geometry cache and resource-provider
 references internally. `modelInstances(world)` reuses the configured world service.
@@ -164,8 +189,7 @@ palette deformation; they do not reapply the authored skinned mesh-node transfor
 Frames retain immutable geometry owners and capture dynamic transform/material state.
 A palette snapshot is shared across draws using that instance binding. Material
 rebinding, animation updates and entity movement appear in the next extraction without
-refreshing a persistent presentation. The temporary model presentation types and
-Yune-specific render submission path have been removed.
+refreshing a persistent presentation.
 
 Model semantics end at extraction. Backend inputs are geometry, primitive ranges,
 runtime materials, object placement and palette bytes. Existing static/skinned vertex
@@ -181,8 +205,7 @@ OBJ and glTF feed the same `GtsModelCooker::cookModelBundle` core. One identity-
 single-mesh model emits `.gmesh`; other model structures emit `.gmodel` with shared
 subordinate meshes. Exact local matrices, helper nodes, material slots and primitive
 ranges survive. Shared image decoding and scalar packing serve cooking and runtime.
-The legacy glTF importer, importer registry, model DTO graph and redundant image
-wrapper are removed; `TextureCookInput` remains a cooking-local image input.
+`TextureCookInput` is a cooking-local image input.
 
 Cooked-v1 formats, IDs, references and vertex layouts are unchanged. Cooking rejects
 skeletons, skin bindings, animation clips and weighted geometry rather than silently
@@ -196,8 +219,8 @@ remain CPU-only. Cooking links canonical importers, processing and serialization
 never model instances or rendering. Loading does not invoke cooking. Model runtime
 consumes CPU realization and animation; renderer frontend consumes model runtime.
 `assetc`, loading, realization and headless model tests build with rendering/Vulkan
-disabled. World creation orchestration stays in the frontend so the instance module
-itself remains renderer-independent.
+disabled. World creation orchestration belongs to `gravitas_model_world`;
+`gravitas_model_instances` remains independent of world material services.
 
 ## Regression guardrails and remaining features
 
@@ -211,8 +234,9 @@ individual boundaries. Game `YuneAnimationTest` exercises the real animated sour
 and a static OBJ through the same runtime route. Device-dependent Vulkan tests may
 skip without a compatible GPU; headless success is not visual verification.
 
-Future work includes animated cooked storage, blending, character assembly/clothing,
-root motion, per-slot material variants and conservative animated bounds. Current renderer
+Unsupported features include animated cooked storage, blending, character
+assembly/clothing, root-motion extraction and conservative animated bounds.
+Per-slot and model-wide runtime material overrides are implemented by instances. Current renderer
 limits include opaque depth-writing skinned submission and model bounds-culling work.
 These features should extend the existing model path; they must not introduce another
 source interpretation or persistent renderer presentation mirror.

@@ -1,44 +1,66 @@
-# Gravitas Engine Documentation
+# Gravitas documentation
 
-This folder contains first-party engine documentation. Game-specific
-DungeonCrawler documentation belongs under the repository root `docs/game/`.
-Third-party dependency documentation stays with the dependency under
-`engine/external/`.
+Start at [ARCHITECTURE.md](../ARCHITECTURE.md) for cross-module contracts and
+[README.md](../README.md) for builds. These are engine-owned docs; game behavior
+belongs to the consuming application's documentation.
 
-Start with:
+## Path and command conventions
 
-- [modules/ownership.md](modules/ownership.md) for the permanent core/modules/runtime
-  placement rule, dependency enforcement and known migration blockers.
+The engine repository root is the directory containing this `docs/` folder. In
+DungeonCrawler it is the `engine/` submodule. Production sources live under its
+nested `engine/` directory: `engine/modules/` here means `engine/engine/modules/`
+from the game root. Short source fragments beginning `core/`, `modules/` or
+`runtime/` are relative to that production source tree; feature-local fragments
+are relative to the feature described by the page.
 
-- [transform/architecture.md](transform/architecture.md) for transforms, hierarchy
-  and world-transform publication.
-- [core/architecture.md](core/architecture.md) for foundational ownership, feature contracts and deferred semantic boundaries.
-- [core/tween.md](core/tween.md) for shared UI/VN easing and value transitions.
-- [diagnostics/architecture.md](diagnostics/architecture.md) for debug drawing
-  and its physics/tooling consumers.
-- [assets/architecture.md](assets/architecture.md) for the canonical asset/model
-  pipeline, CPU ownership, cooking and runtime boundaries.
-- [model/canonical-cooking.md](model/canonical-cooking.md) and
-  [cooked-asset-pipeline.md](cooked-asset-pipeline.md) for static cooking and storage.
-- [model/runtime-instances.md](model/runtime-instances.md) for model occurrence state.
-- [model/model-material-realization.md](model/model-material-realization.md)
-  and [model/model-extraction.md](model/model-extraction.md) for world materials
-  and generic static/skinned rendering.
-- [settings/architecture.md](settings/architecture.md) for startup configuration,
-  runtime preferences, resolution policies, and effective state.
-- [../ARCHITECTURE.md](../ARCHITECTURE.md) for the engine architecture index.
-- [ui/architecture.md](ui/architecture.md) and
-  [ui/authoring-guide.md](ui/authoring-guide.md) for retained UI.
-- [narrative/architecture.md](narrative/architecture.md) for headless dialogue
-  and its visual-novel presentation consumer.
-- [tooling/architecture.md](tooling/architecture.md) and
-  [tooling/authoring-guide.md](tooling/authoring-guide.md) for engine tools.
-- [tooling/presets.md](tooling/presets.md) for launch presets and screenshot
-  automation.
-- [rendering/architecture.md](rendering/architecture.md) and
-  [rendering/authoring-guide.md](rendering/authoring-guide.md) for rendering.
-- [physics/architecture.md](physics/architecture.md) and
-  [physics/authoring-guide.md](physics/authoring-guide.md) for physics.
+Build commands run from the engine repository root unless explicitly labeled as
+DungeonCrawler commands. Third-party docs under `external/` remain vendor-owned.
 
-Add new engine feature docs under the owning feature folder rather than growing
-the root architecture index.
+## Foundation and runtime
+
+- [Source ownership](modules/ownership.md): placement, target dependencies and include enforcement.
+- [Runtime configuration](modules/runtime-configuration.md): complete facade and reduced builds.
+- [Core](core/architecture.md): ECS contexts, scene resources, commands and input mutation.
+- [Execution](execution/architecture.md): ordered scheduling, groups, selections and runtime recipes.
+- [Settings](settings/architecture.md): startup snapshots, live requests and effective state.
+- [JSON](json/architecture.md): checked values, syntax, serialization and schema boundaries.
+- [Tween](core/tween.md): caller-owned easing and value transitions.
+- [Transform](transform/architecture.md): hierarchy, invalidation, resolution and lifetime.
+- [Diagnostics](diagnostics/architecture.md): profiling, debug drawing and feature bridges.
+
+## Assets and models
+
+- [Shared assets](assets/architecture.md): geometry, images, direct meshes and cooked containers.
+- [Model architecture](model/architecture.md): application API, phase/target map and ownership.
+- [Model domain](model/model-domain.md), [skeletons](model/skeleton-domain.md),
+  [skin bindings](model/skin-binding-domain.md), [clips](model/animation-clip-domain.md).
+- [Import bundle](model/import-bundle.md), [OBJ importer](model/obj-importer.md),
+  [OBJ consumers](model/obj-consumers.md), [glTF/GLB importer](model/gltf-importer.md).
+- [Static preparation](model/static-geometry.md), [skinned preparation](model/skinned-geometry.md).
+- [Canonical cooking](model/canonical-cooking.md), [cooked formats and CLI](cooked-asset-pipeline.md).
+- [Model loading](model/model-runtime.md), [geometry realization](model/model-realization.md),
+  [world materials](model/model-material-realization.md), [instances](model/runtime-instances.md),
+  [render extraction](model/model-extraction.md).
+- [Transform animation](animation/transform-animation.md),
+  [skeletal evaluation](animation/skeletal-evaluation.md),
+  [skeletal playback](animation/skeletal-playback.md), [skin palettes](animation/skin-palette.md).
+
+## Presentation and tools
+
+- Rendering: [architecture](rendering/architecture.md),
+  [authoring](rendering/authoring-guide.md), [Vulkan skinning](rendering/skinned-geometry.md).
+- UI: [architecture](ui/architecture.md), [authoring](ui/authoring-guide.md).
+- [Narrative](narrative/architecture.md): headless dialogue, VN presentation and interaction slots.
+- Physics: [architecture](physics/architecture.md), [authoring](physics/authoring-guide.md).
+- Tooling: [architecture](tooling/architecture.md), [authoring](tooling/authoring-guide.md),
+  [presets and screenshots](tooling/presets.md).
+- Measurements: [CPU scaling](performance-benchmarks.md),
+  [rendering benchmarks](rendering/benchmarks.md),
+  [baseline policy](../benchmarks/baselines/README.md).
+
+Architecture pages describe current contracts and explicit limitations. Keep
+feature details here, cross-module rules in the root index, and reproducible test
+commands beside the behavior they verify. Historical benchmark measurements and
+completed-task narratives are not project specifications. The cooking
+[golden-fixture provenance](../tests/assets/fixtures/canonical-cooking/README.md)
+is retained because it defines an immutable regression baseline.

@@ -23,8 +23,8 @@ binding.joints[slot]
 The binding stores no vertex streams. Local slot order need not follow skeleton
 node order; subsets and repeated mappings are valid. Repeated mappings retain
 their own matrices and are not merged. Source formats may impose stricter rules:
-glTF's `skin.joints` requires unique source node entries, which a future source
-importer must validate, rather than imposing that source rule on this domain.
+glTF's `skin.joints` requires unique source node entries, which the canonical glTF
+importer validates, rather than imposing that source rule on this domain.
 See the [Khronos skin schema](https://raw.githubusercontent.com/KhronosGroup/glTF/main/specification/2.0/schema/skin.schema.json).
 
 An uninitialized entry uses `InvalidSkeletonNodeIndex` (`uint32_t` max), following
@@ -59,7 +59,7 @@ GtsSkeletonAsset         = reusable definition
 GtsSkeletonCompatibility = exact structural requirement, independent value
 GtsSkinBinding          = requires a compatible structure
 GtsModelSkeletonUse     = selects a particular skeleton definition
-future runtime pose     = mutable occurrence
+GtsSkeletonPose         = mutable evaluated occurrence
 ```
 
 Compatibility does not imply asset/pointer identity or a shared runtime pose.
@@ -71,8 +71,8 @@ cooking may choose deduplication/storage independently of this canonical value.
 ## Inverse-bind semantics
 
 For local slot `k`, its matrix maps **stored mesh vertex coordinates into the
-binding coordinates associated with the mapped skeleton node**. The future
-composition is `G[skeletonNodeIndex] * inverseBindMatrix`, where `G` comes from
+binding coordinates associated with the mapped skeleton node**. The palette evaluator
+computes `G[skeletonNodeIndex] * inverseBindMatrix`, where `G` comes from
 the shared evaluated skeleton pose. This module does not compute that product.
 
 Default skeleton transform is not inverse bind data. Validation never derives
@@ -118,7 +118,7 @@ cache, palette, upload generation, or current-pose state is stored.
 
 ## Tests and scope
 
-`tests/model/domain/skin/GtsSkinBindingTest` links only the skin target. Release-active
+`tests/assets/skin/GtsSkinBindingTest.cpp` links only the skin target. Release-active
 checks cover minimal/multiple/reordered/repeated mappings, equal compatibility requirements with
 distinct inverse binds, structural versus contextual errors, every matrix
 element's finite checks, singular affine data, exact compatibility, name
@@ -128,12 +128,13 @@ With the rendering/Vulkan-disabled configuration in [model-domain.md](model-doma
 
 ```sh
 cmake --build /tmp/gravitas-model-domain-cpu --target GtsSkinBindingTest --parallel 2
-ctest --test-dir /tmp/gravitas-model-domain-cpu --output-on-failure
+ctest --test-dir /tmp/gravitas-model-domain-cpu -R '^gts_skin_binding$' --output-on-failure
 ```
 
 The [model domain](model-domain.md#skeleton-uses-and-skin-associations) now owns
 model-local binding/use tables and contextual JOINTS/WEIGHTS validation. Those
 responsibilities do not move into this independent skin domain. The [import bundle](import-bundle.md) now enumerates the definitions shared by
 model uses. Canonical glTF skin decoding now fills these values and associations;
-source-specific rules remain in that importer. No animation, runtime, serialization,
-ECS, or rendering integration is added.
+source-specific rules remain in that importer. The [palette evaluator](../animation/skin-palette.md)
+and [model instances](runtime-instances.md) consume bindings at runtime; this domain
+owns neither evaluated state nor GPU resources. Cooked-v1 does not serialize bindings.

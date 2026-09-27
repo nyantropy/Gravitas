@@ -79,8 +79,8 @@ composition is owned by `UiSystem` and borrows the VN runtime.
 
 The interaction frontend exposes slots for application-owned content such as
 merchant UI. VN owns stage and shell presentation; application code owns the
-content's business rules. Existing execution-profile handling, typewriter
-behavior and system scheduling remain unchanged.
+content's business rules. Execution selections are supplied by composition as
+described below; VN owns when to push and restore them.
 
 ## Public Includes And Verification
 

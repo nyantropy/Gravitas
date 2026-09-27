@@ -15,7 +15,7 @@ The complete facade currently requires all of:
 | `GTS_ENABLE_VULKAN_BACKEND` | The installed default provider and supported Vulkan startup path |
 | `GTS_ENABLE_TOOLS` | The facade includes, constructs and invokes `EngineToolRuntime`; the runtime `tools.enabled` setting does not erase the type dependency |
 | `GTS_ENABLE_DEBUGDRAW` | Tools' existing debug drawing dependency |
-| `GTS_ENABLE_PHYSICS` | Tools' existing selection dependency; scene physics contract access remains unchanged |
+| `GTS_ENABLE_PHYSICS` | Tool selection consumes physics; scene access is provided by physics contracts |
 
 All default to ON. Always-defined supporting targets (core, transform, model/assets,
 retained UI, dialogue/VN when rendering is present, profiling, lightweight contracts and
@@ -65,9 +65,8 @@ registry lifetime, replacement behavior and construction path. No Vulkan impleme
 headers are exposed through runtime. Runtime links the backend privately; final executables
 receive its link requirements without backend header search paths.
 
-`GraphicsStartupOptions` still defaults to Vulkan. The platform, loop, settings, startup,
-GPU synchronization, rendering and scheduling behavior are unchanged. This boundary does
-not add backend selection machinery or make the facade conditional at C++ call sites.
+`GraphicsStartupOptions` defaults to Vulkan. The complete facade is a build-time
+target contract; callers do not select partial compositions at C++ call sites.
 
 ## Verification contract
 
@@ -77,4 +76,4 @@ is rejected for a missing facade in each reduced configuration. The complete fac
 link test checks Vulkan defaults, provider installation and stable provider identity;
 headless runtime smoke tests exercise construction and running with tools enabled/disabled.
 The module matrix builds leaf targets, runs their relevant tests, and checks facade absence
-and include visibility. The existing three-layer checker is unchanged.
+and include visibility.
