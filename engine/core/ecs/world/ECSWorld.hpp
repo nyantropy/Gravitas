@@ -19,6 +19,8 @@
 #include <limits>
 #include <string_view>
 #include <utility>
+#include <exception>
+#include <stdexcept>
 
 #include "Archetype.h"
 #include "Entity.h"
@@ -224,6 +226,42 @@ class ECSWorld
         std::vector<std::function<void(ECSWorld&)>> deferredStructuralCommands;
         bool flushingDeferredStructuralCommands = false;
         EntityCommandBuffer commandBuffer;
+        uint32_t nonstructuralTraversalDepth = 0;
+
+        class NonstructuralTraversalScope
+        {
+        public:
+            explicit NonstructuralTraversalScope(ECSWorld& world) : world(world)
+            {
+                ++world.nonstructuralTraversalDepth;
+            }
+
+            ~NonstructuralTraversalScope()
+            {
+                --world.nonstructuralTraversalDepth;
+            }
+
+            NonstructuralTraversalScope(const NonstructuralTraversalScope&) = delete;
+            NonstructuralTraversalScope& operator=(const NonstructuralTraversalScope&) = delete;
+
+        private:
+            ECSWorld& world;
+        };
+
+        void requireStructuralMutationAllowed() const
+        {
+            if (nonstructuralTraversalDepth != 0)
+                throw std::logic_error("Structural mutation during ECSWorld::forEachNonstructural");
+        }
+
+        template<typename Component>
+        static Component* nonstructuralColumnData(Archetype& archetype)
+        {
+            using StoredComponent = std::remove_const_t<Component>;
+            auto& column = static_cast<ArchetypeColumn<StoredComponent>&>(
+                *archetype.columns.at(std::type_index(typeid(StoredComponent))));
+            return &column.get(0);
+        }
 
         Entity reserveDeferredEntity()
         {
@@ -248,6 +286,7 @@ class ECSWorld
             if (flushingDeferredStructuralCommands || deferredStructuralCommands.empty())
                 return;
 
+            requireStructuralMutationAllowed();
             flushingDeferredStructuralCommands = true;
             while (!deferredStructuralCommands.empty())
             {
@@ -594,6 +633,18 @@ class ECSWorld
         {
         }
 
+        ECSWorld(const ECSWorld&) = delete;
+        ECSWorld& operator=(const ECSWorld&) = delete;
+        ECSWorld(ECSWorld&&) = delete;
+        ECSWorld& operator=(ECSWorld&&) = delete;
+
+        ~ECSWorld()
+        {
+            // Destroying the owner cannot unwind safely through borrowed rows.
+            if (nonstructuralTraversalDepth != 0)
+                std::terminate();
+        }
+
         void registerTeardownCallback(TeardownCallback callback)
         {
             auto& callbacks = teardownCallbacks.callbacks;
@@ -603,6 +654,7 @@ class ECSWorld
 
         Entity createEntity()
         {
+            requireStructuralMutationAllowed();
             Entity entity{ nextEntityId++ };
             ensureEntityLocationCapacity(entity.id);
             entityLocations[entity.id] = EntityLocation{};
@@ -612,6 +664,7 @@ class ECSWorld
 
         void destroyEntity(Entity e)
         {
+            requireStructuralMutationAllowed();
             if (e.id >= entityLocations.size())
                 return;
 
@@ -639,6 +692,7 @@ class ECSWorld
         template<typename Component>
         void addComponent(Entity entity, const Component& component)
         {
+            requireStructuralMutationAllowed();
             ensureEntityLocationCapacity(entity.id);
             setSignatureBit<Component>(entity);
             refreshEntityArchetype(entity, std::type_index(typeid(Component)), &component);
@@ -672,6 +726,7 @@ class ECSWorld
         template<typename Component>
         void removeComponent(Entity entity)
         {
+            requireStructuralMutationAllowed();
             if (!hasSignatureBit<Component>(entity))
                 return;
 
@@ -710,6 +765,32 @@ class ECSWorld
         void forEach(Func&& fn)
         {
             query<Components...>().each(std::forward<Func>(fn));
+        }
+
+        // Borrows rows until return. Immediate structural mutation of this world
+        // is rejected; queued commands stay deferred. References must not escape.
+        template<typename... Components, typename Func>
+        void forEachNonstructural(Func&& fn)
+        {
+            static_assert(sizeof...(Components) > 0);
+            static_assert(((!std::is_reference_v<Components> && !std::is_volatile_v<Components>) && ...));
+            NonstructuralTraversalScope scope(*this);
+            const auto requiredMask = requiredSignatureMask<std::remove_const_t<Components>...>();
+
+            for (Archetype& archetype : archetypes)
+            {
+                if (archetype.entities.empty() || !archetype.signature.containsAll(requiredMask))
+                    continue;
+
+                auto columns = std::tuple<Components*...>{nonstructuralColumnData<Components>(archetype)...};
+                const Entity* entities = archetype.entities.data();
+                const size_t count = archetype.entities.size();
+                std::apply([&](auto*... componentData)
+                {
+                    for (size_t row = 0; row < count; ++row)
+                        fn(entities[row], componentData[row]...);
+                }, columns);
+            }
         }
 
         // Snapshot iteration explicitly supports structural mutation inside the
@@ -1006,6 +1087,7 @@ class ECSWorld
         // Call at the start of onLoad when a scene may be reloaded.
         void clear()
         {
+            requireStructuralMutationAllowed();
             std::vector<Entity> entities;
             for (const Archetype& archetype : archetypes)
             {

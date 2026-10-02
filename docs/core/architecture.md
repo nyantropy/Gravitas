@@ -48,6 +48,44 @@ Retained UI implementation is compiled once into `gravitas_ui`. Rendering retain
 its existing mixed UI facade/resource/extraction integration; UI does not link
 rendering implementation. See [UI architecture](../ui/architecture.md).
 
+## Nonstructural ECS Traversal
+
+`ECSWorld::forEachNonstructural<C...>(callback)` visits matching archetypes in
+storage order, then their live rows in row order. Each requested typed column is
+resolved once per nonempty matching archetype. The callback receives an entity
+ID and references to the components in that row, without per-row entity-location
+or component-type map lookup. `const C` requests a read-only reference; other
+component references are mutable. References are borrowed only for the call and
+must not be retained. No column view or query cache survives return.
+
+A world-local RAII scope protects storage until traversal returns, including
+exception unwinding. Nested nonstructural traversals and non-mutating legacy
+queries are supported, without using the legacy entity-ID scratch vector.
+Immediate create/destroy, component add/remove (including replacement), and
+world clear throw `std::logic_error` before changing storage while any such scope
+is active. This conservative guard covers the whole world, including archetypes
+that do not match the query, in both Debug and Release. Other worlds are unaffected.
+Destroying the world during an active traversal terminates before storage teardown;
+the world must outlive its callbacks. Worlds are explicitly noncopyable/nonmovable:
+their command buffers, teardown enrollment and traversal scopes belong to that
+world identity.
+
+`world.commands()` may enqueue structural work, including reserving new entity
+IDs. Pending commands remain pending on scope exit. Attempting a nonempty flush
+inside the scope throws before consuming the queue; an empty flush is a no-op.
+Normal system-boundary flushing is unchanged. Nested callbacks must obey the
+same structural restriction, including event/lifecycle callbacks they invoke.
+
+The existing `forEach` / `query().each` entity-ID snapshot implementation and
+`forEachSnapshot` remain available with their existing mutation behavior. They
+are not redirected to the new API. Without structural mutation, their archetype/
+row visitation order matches the new traversal. Mixing a legacy query into a
+nonstructural scope does not grant permission to invalidate the active rows.
+After scope exit, structural changes and world clear/destruction are permitted;
+the next traversal resolves columns afresh, including after archetype relocation
+or reconstruction of a world at a reused address. This remains single-threaded
+ECS access, not a lock or concurrent-mutation facility.
+
 ## Controller Execution Context
 
 `EcsControllerContext` contains only the world, input registry, timing, engine

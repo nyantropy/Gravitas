@@ -47,9 +47,12 @@ event subscriptions, simulation/controller lists and the execution-selection sta
 - `ECSControllerSystem` runs per rendered frame for input, presentation, UI, tooling,
   rendering lifecycle and engine commands. Controller `unscaledDeltaTime` is the
   supplied frame delta; `deltaTime` currently contains the fixed simulation step.
-- Use `forEach<C...>` for stable hot-path traversal and `forEachSnapshot<C...>`
-  when traversal must tolerate mutation. Queue structural work through
-  `world.commands()`; commands flush after each executed system.
+- Use `forEachNonstructural<C...>` for scoped row traversal without immediate
+  structural mutation. `forEach<C...>` / `query<C...>().each` and
+  `forEachSnapshot<C...>` retain entity-ID snapshot traversal for mutation-compatible
+  callers. Queue structural work through `world.commands()`; commands flush after
+  each executed system, never on nonstructural traversal exit. See the
+  [traversal contract](docs/core/architecture.md#nonstructural-ecs-traversal).
 - Systems execute in registration order. Groups **filter**, never sort or create
   phases. The selection is checked before each system, so a profile change can
   affect later systems in the same pass. `Always` is maskable too.

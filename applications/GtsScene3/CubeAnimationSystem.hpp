@@ -13,7 +13,7 @@ class CubeAnimationSystem : public ECSSimulationSystem
 public:
     void update(const EcsSimulationContext& ctx) override
     {
-        ctx.world.forEach<CubeAnimationComponent, TransformComponent>(
+        ctx.world.forEachNonstructural<CubeAnimationComponent, TransformComponent>(
             [&](Entity entity, CubeAnimationComponent& animation, TransformComponent& transform)
         {
             animation.accumulatedTime += ctx.dt;
