@@ -1,4 +1,6 @@
 #pragma once
+#include <string>
+#include <variant>
 #include "GtsRealizedGeometry.h"
 #include "GtsModelHandle.h"
 
@@ -14,6 +16,8 @@ struct GtsRealizedModelOccurrence
 struct GtsRealizedModel
 {
     GtsModelHandle                          model;
+    // Prepared before const publication; deterministic hierarchy errors remain extraction errors.
+    std::variant<std::vector<glm::mat4>, std::string> authoredNodeTransforms;
     std::vector<GtsRealizedGeometry>        geometry;
     std::vector<GtsRealizedModelOccurrence> occurrences;
 };

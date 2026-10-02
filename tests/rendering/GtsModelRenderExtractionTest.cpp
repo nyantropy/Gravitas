@@ -9,6 +9,7 @@
 #include "GtsModelRegistry.h"
 #include "GtsModelAsset.h"
 #include "AssetSerializers.h"
+#include "ModelAssetSerializer.h"
 #include <limits>
 
 using namespace gts::rendering;
@@ -362,6 +363,9 @@ namespace
         auto frame = extract(a, world);
         require(frame.staticDraws.size() == 2 && frame.skinnedDraws.size() == 6,
                 "one traversal dispatches mixed profiles and primitives");
+        const auto& prepared = std::get<std::vector<glm::mat4>>(a->geometry()->authoredNodeTransforms);
+        require(prepared.size() == model->nodes().size() && prepared[0][3].x == 30,
+                "preparation includes authored skinned nodes although their transforms are not applied to draws");
         const auto& d = frame.skinnedDraws;
         require(d[0].geometry == d[2].geometry && d[0].geometry != d[4].geometry,
                 "same binding shares geometry, different binding context distinct");
@@ -409,12 +413,217 @@ namespace
         require(extract(b, world).skinnedDraws[0].geometry == retained,
                 "destroying one instance preserves shared geometry");
     }
+    void preparedHierarchy(const std::filesystem::path& root)
+    {
+        GtsModelRegistry         registry;
+        GtsModelRealizationCache cache;
+        GltfFixtureBuilder       fixture;
+        field(fixture.root, "nodes")  = parse(R"([
+            {"translation":[4,0,0],"scale":[2,3,4],"children":[1]},
+            {"mesh":0,"translation":[1,2,3],"rotation":[0,0,1,0],"children":[3]},
+            {"mesh":0}, {"translation":[0,5,0]}])");
+        field(fixture.root, "scenes") = parse(R"([{"nodes":[0,2]}])");
+        auto      canonical           = load(registry, fixture, root / "prepared-hierarchy");
+        glm::mat4 parent(1), child(1), helper(1);
+        parent[0][0] = 2;
+        parent[1][1] = 3;
+        parent[2][2] = 4;
+        parent[3].x  = 4;
+        child[0][0]  = -1;
+        child[1][1]  = -1;
+        child[3]     = {1, 2, 3, 1};
+        helper[3].y  = 5;
+        const std::vector<glm::mat4> expected{parent, parent * child, glm::mat4(1), (parent * child) * helper};
+
+        MeshAssetData mesh;
+        mesh.vertices.resize(3);
+        mesh.vertices[1].pos.x = 1;
+        mesh.vertices[2].pos.y = 1;
+        mesh.indices           = {0, 1, 2};
+        mesh.submeshes         = {{0, 3, {}, {}}};
+        std::string error;
+        require(MeshAssetSerializer::writeFile(mesh, root / "prepared-hierarchy.gmesh", &error), error);
+        ModelAssetData package;
+        package.meshes = {AssetReference::fromLogicalPath("prepared-hierarchy.gmesh")};
+        package.nodes.resize(4);
+        const int parents[] = {-1, 0, -1, 1};
+        for (size_t i = 0; i < 4; ++i)
+        {
+            package.nodes[i].parentIndex    = parents[i];
+            package.nodes[i].localTransform = canonical->nodes()[i].localTransform;
+            if (i == 1 || i == 2)
+                package.nodes[i].mesh = package.meshes[0];
+        }
+        require(ModelAssetSerializer::writeFile(package, root / "prepared-hierarchy.gmodel", &error), error);
+        auto cooked = registry.requestModel(root / "prepared-hierarchy.gmodel");
+        require(cooked.succeeded(), "cooked hierarchy loads");
+        for (const auto& model : {canonical, cooked.handle()})
+        {
+            World       first, second;
+            auto        a        = create(modelInstances(first, cache, nullptr), model);
+            auto        b        = create(modelInstances(first, cache, nullptr), model);
+            auto        c        = create(modelInstances(second, cache, nullptr), model);
+            const auto& matrices = std::get<std::vector<glm::mat4>>(a->geometry()->authoredNodeTransforms);
+            require(matrices == expected, "exact prepared matrices for roots, helpers and noncommuting locals");
+            require(a->geometry() == b->geometry() && a->geometry() == c->geometry() &&
+                        matrices.data() ==
+                            std::get<std::vector<glm::mat4>>(c->geometry()->authoredNodeTransforms).data(),
+                    "instances in simultaneous worlds share one immutable prepared array");
+            auto placement = glm::translate(glm::mat4(1), glm::vec3(7, 8, 9));
+            auto frame     = extract(a, first, placement);
+            require(frame.staticDraws.size() == 2 && frame.staticDraws[0].occurrenceIndex == 0 &&
+                        frame.staticDraws[1].occurrenceIndex == 1 && frame.staticDraws[0].primitiveIndex == 0 &&
+                        frame.staticDraws[0].geometry == frame.staticDraws[1].geometry &&
+                        frame.staticDraws[0].worldFromGeometry == placement * expected[1] &&
+                        frame.staticDraws[1].worldFromGeometry == placement * expected[2],
+                    "canonical/cooked final matrices, order and repeated geometry unchanged");
+            require(frame.staticDraws[0].occurrenceOwner == a &&
+                        frame.staticDraws[0].material.instance == a->materialFor(0, 0),
+                    "draw owners and materials unchanged");
+            first.clear();
+            require(!a->worldMaterialsValid() && c->worldMaterialsValid() &&
+                        std::get<std::vector<glm::mat4>>(a->geometry()->authoredNodeTransforms) == expected,
+                    "clear expires only world materials, not shared prepared state");
+            extract(c, second);
+            ok(a->rebindMaterials(modelMaterialRealization(first, nullptr).realize(a->geometry()).materials));
+            require(extract(a, first, placement).staticDraws[0].worldFromGeometry ==
+                        frame.staticDraws[0].worldFromGeometry,
+                    "rebind retains prepared matrices and old frame values");
+        }
+
+        GtsModelFrameData                     retainedFrame;
+        std::weak_ptr<const GtsRealizedModel> retained;
+        const glm::mat4*                      preparedAddress = nullptr;
+        {
+            GtsModelRegistry         temporaryRegistry;
+            GtsModelRealizationCache temporaryCache;
+            World                    temporaryWorld;
+            auto                     model = load(temporaryRegistry, GltfFixtureBuilder{}, root / "retained-prepared");
+            auto                     instance = create(modelInstances(temporaryWorld, temporaryCache, nullptr), model);
+            retained                          = instance->geometry();
+            preparedAddress = std::get<std::vector<glm::mat4>>(instance->geometry()->authoredNodeTransforms).data();
+            retainedFrame   = extract(instance, temporaryWorld);
+        }
+        require(!retained.expired() &&
+                    std::get<std::vector<glm::mat4>>(retained.lock()->authoredNodeTransforms).data() ==
+                        preparedAddress &&
+                    *preparedAddress == glm::mat4(1) && retainedFrame.staticDraws[0].geometry->indices().size() == 3,
+                "frame owners retain prepared and geometry storage beyond registry/cache/world destruction");
+        retainedFrame = {};
+        require(retained.expired(), "prepared data has no ownership cycle");
+
+        GtsModelRegistry replacementRegistry;
+        field(fixture.root, "nodes")  = parse(R"([{"mesh":0,"translation":[99,0,0]}])");
+        field(fixture.root, "scenes") = parse(R"([{"nodes":[0]}])");
+        auto replacement              = load(replacementRegistry, fixture, root / "prepared-hierarchy");
+        auto oldGeometry              = cache.realize(canonical).model();
+        auto newGeometry              = cache.realize(replacement).model();
+        require(replacement->identityPath() == canonical->identityPath() && replacement != canonical &&
+                    oldGeometry != newGeometry &&
+                    std::get<std::vector<glm::mat4>>(oldGeometry->authoredNodeTransforms) == expected &&
+                    std::get<std::vector<glm::mat4>>(newGeometry->authoredNodeTransforms)[0][3].x == 99,
+                "same-path replacement uses independent resource identity and preparation");
+    }
+
+    void preparedFailureAndLifetime(const std::filesystem::path& root)
+    {
+        GtsModelRegistry         registry;
+        GtsModelRealizationCache cache;
+        GltfFixtureBuilder       fixture;
+        field(fixture.root, "nodes")  = parse(R"([{"mesh":0},
+            {"scale":[1e30,1,1],"children":[2]}, {"scale":[1e30,1,1]}])");
+        field(fixture.root, "scenes") = parse(R"([{"nodes":[0,1]}])");
+        auto model                    = load(registry, fixture, root / "overflow-prepared");
+        auto realized                 = cache.realize(model);
+        require(realized.succeeded(), "composed overflow must not become realization failure");
+        require(std::get<std::string>(realized.model()->authoredNodeTransforms) ==
+                    "Non-finite model transform at node 2",
+                "non-rendering helper overflow retained as immutable failure");
+        World world, other;
+        auto  instance = create(modelInstances(world, cache, nullptr), model);
+        auto  check    = [&](gts::rendering::MaterialRuntime& runtime, const std::string& message)
+        {
+            auto failed = extractModelRenderState(instance, glm::mat4(1), runtime);
+            require(!failed.succeeded() && failed.frame.staticDraws.empty() && failed.frame.skinnedDraws.empty() &&
+                        failed.diagnostics.size() == 1 && failed.diagnostics[0].code == "model.render.extraction" &&
+                        failed.diagnostics[0].message == message &&
+                        failed.diagnostics[0].location == model->identityPath().string(),
+                    "deferred failure keeps extraction stage, atomic output, code, message and model context");
+        };
+        check(materialRuntime(world), "Non-finite model transform at node 2");
+        check(materialRuntime(other), "Material runtime belongs to another world");
+        auto& runtime     = materialRuntime(world);
+        auto  replacement = runtime.createInstance(MaterialInstance{});
+        ok(instance->setMaterialOverride(replacement, runtime.lifetimeToken()));
+        runtime.destroyInstance(replacement);
+        const std::string invalid =
+            "Invalid or expired instance materials; clear a destroyed override or rebind after runtime reset";
+        check(runtime, invalid);
+        instance->clearMaterialOverride();
+        check(runtime, "Non-finite model transform at node 2");
+        auto base = instance->materialFor(0, 0);
+        require(runtime.destroyInstance(base), "canonical base material can be destroyed");
+        check(runtime, invalid);
+        resetMaterialRuntime(world);
+        check(materialRuntime(world), invalid);
+        ok(instance->rebindMaterials(modelMaterialRealization(world, nullptr).realize(instance->geometry()).materials));
+        check(materialRuntime(world), "Non-finite model transform at node 2");
+
+        auto invalidPlacement  = glm::mat4(1);
+        invalidPlacement[0][0] = std::numeric_limits<float>::infinity();
+        auto firstError        = extractModelRenderState(instance, invalidPlacement, materialRuntime(world));
+        require(firstError.diagnostics[0].message == "Non-finite model transform at node 2" &&
+                    firstError.diagnostics[0].location == model->identityPath().string(),
+                "hierarchy failure still precedes final placement validation");
+        ModelAssetData package;
+        package.meshes = {AssetReference::fromLogicalPath("prepared-hierarchy.gmesh")};
+        package.nodes.resize(3);
+        package.nodes[0].mesh                 = package.meshes[0];
+        package.nodes[1].localTransform[0][0] = 1e30f;
+        package.nodes[2].localTransform[0][0] = 1e30f;
+        package.nodes[2].parentIndex          = 1;
+        std::string error;
+        require(ModelAssetSerializer::writeFile(package, root / "overflow.gmodel", &error), error);
+        auto cooked = registry.requestModel(root / "overflow.gmodel");
+        require(cooked.succeeded(), "finite cooked locals load before composed overflow");
+        auto cookedInstance = create(modelInstances(world), cooked.handle());
+        auto cookedFailure  = extractModelRenderState(cookedInstance, glm::mat4(1), materialRuntime(world));
+        require(!cookedFailure.succeeded() && cookedFailure.frame.staticDraws.empty() &&
+                    cookedFailure.diagnostics[0].code == "model.render.extraction" &&
+                    cookedFailure.diagnostics[0].message == "Non-finite model transform at node 2" &&
+                    cookedFailure.diagnostics[0].location == cooked.handle()->identityPath().string(),
+                "cooked non-rendering overflow also remains an atomic extraction error");
+
+        // Reconstruct the world at the same address while frames and instances retain the model.
+        auto                              validModel = load(registry, GltfFixtureBuilder{}, root / "recreated-world");
+        alignas(ECSWorld) std::byte       storage[sizeof(ECSWorld)];
+        std::shared_ptr<GtsModelInstance> previous;
+        for (int cycle = 0; cycle < 3; ++cycle)
+        {
+            auto* current = std::construct_at(reinterpret_cast<ECSWorld*>(storage));
+            auto  next    = create(modelInstances(*current, cache, nullptr), validModel);
+            if (previous)
+            {
+                require(previous->geometry() == next->geometry() && !previous->worldMaterialsValid() &&
+                            !extractModelRenderState(previous, glm::mat4(1), materialRuntime(*current)).succeeded(),
+                        "address reuse shares immutable model but never stale world materials");
+            }
+            auto frame = extractModelRenderState(next, glm::mat4(1), materialRuntime(*current));
+            require(frame.succeeded(), "replacement world extracts successfully");
+            std::destroy_at(current);
+            require(!next->worldMaterialsValid() && frame.frame.staticDraws[0].worldFromGeometry == glm::mat4(1),
+                    "destroyed world expires scope while retained frame remains valid");
+            previous = std::move(next);
+        }
+    }
 } // namespace
 int main()
 {
     ScopedRuntimeAssetPolicy policy("development");
     auto                     root = std::filesystem::temp_directory_path() / "gravitas-model-extraction-test";
     std::filesystem::create_directories(root);
+    preparedHierarchy(root);
+    preparedFailureAndLifetime(root);
     materialOverrides(root);
     logicalMaterialOverrides(root);
     staticHierarchy(root);

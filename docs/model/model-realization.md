@@ -20,6 +20,13 @@ source → canonical import ─────────────────�
                               + model occurrence associations
 ```
 
+Each realization also owns a node-indexed authored-transform outcome, completed
+before shared const publication. Success retains the authored node-to-root matrices;
+deterministic hierarchy failure retains its message for the existing extraction
+error path. Material changes and world teardown do not invalidate this immutable
+data. A replacement resource gets independent preparation by resource ownership
+identity. No entity placement or per-instance animation state is stored here.
+
 Loading selects and decodes a model definition. Preparation transforms one mesh
 into a concrete geometry profile. Realization interprets complete model associations,
 selects preparation per occurrence and shares compatible prepared definitions.

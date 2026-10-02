@@ -1,5 +1,5 @@
 #include "GtsModelRenderExtraction.h"
-#include "GtsModelHierarchy.h"
+#include "GtsModelResource.h"
 #include <map>
 #include <cmath>
 #include <tuple>
@@ -22,7 +22,9 @@ GtsModelExtractionResult extractModelRenderState(std::shared_ptr<const GtsModelI
         if (instance->materials()->scopeToken().lock() != materials.lifetimeToken().lock())
             throw std::runtime_error("Material runtime belongs to another world");
         const auto& model      = instance->geometry();
-        const auto  transforms = gtsModelNodeTransforms(*instance->model());
+        if (const auto* error = std::get_if<std::string>(&model->authoredNodeTransforms))
+            throw std::runtime_error(*error);
+        const auto& transforms = std::get<std::vector<glm::mat4>>(model->authoredNodeTransforms);
         std::map<uint32_t, std::shared_ptr<const GtsSkinPalette>> palettes;
         std::map<MaterialInstanceHandle, MaterialFrameState, decltype([](auto a, auto b)
             { return std::tie(a.id, a.generation) < std::tie(b.id, b.generation); })> materialStates;

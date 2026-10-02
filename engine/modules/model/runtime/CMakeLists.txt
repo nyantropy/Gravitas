@@ -1,4 +1,4 @@
-add_library(gravitas_model_instances STATIC GtsModelInstance.cpp GtsModelHierarchy.cpp)
+add_library(gravitas_model_instances STATIC GtsModelInstance.cpp)
 target_link_libraries(gravitas_model_instances PUBLIC gravitas_model_realization gravitas_skeletal_animation gravitas_skin_palette)
 target_compile_features(gravitas_model_instances PUBLIC cxx_std_20)
 

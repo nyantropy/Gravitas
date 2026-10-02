@@ -62,8 +62,11 @@ persistent model definition or occurrence.
 
 ## Transforms
 
-`gtsModelNodeTransforms` evaluates immutable authored roots/children, including
-prepared cooked hierarchies. Static placement is exactly:
+`realizeGtsModel` prepares immutable authored node-to-root matrices once per shared
+realization, including cooked hierarchies and helper/skinned nodes. Extraction reads
+the prepared array without copying it. Deterministic hierarchy failures are retained
+in the realization and reported during extraction after instance/material/scope
+validation, preserving extraction diagnostics and error precedence. Static placement is exactly:
 
 ```text
 entityWorld × modelNodeToRoot
