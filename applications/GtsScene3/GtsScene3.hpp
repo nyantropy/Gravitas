@@ -1,5 +1,6 @@
 #include "SceneExecutionPolicy.h"
 #pragma once
+#include "GtsFrameStats.h"
 
 #include "BuiltinExecutionGroups.h"
 

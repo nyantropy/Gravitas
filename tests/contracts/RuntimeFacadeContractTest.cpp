@@ -1,5 +1,6 @@
-#include "GravitasEngine.hpp"
+#include "GravitasEngine.h"
 #include "rendering/GraphicsBackendInstaller.h"
+#include "GraphicsBackendRegistry.h"
 
 #include <stdexcept>
 #include <type_traits>

@@ -63,6 +63,11 @@ the accepted frame limit.
 
 ## Runtime Change Flow
 
+`RenderEngineCommands.h` and its compiled helpers belong to
+`gravitas_rendering_command_contracts`; they enqueue owned values without
+requiring rendering implementation. They do not return backend apply status.
+See [request API](../rendering/commands-api.md).
+
 ```text
 application draft: GraphicsSettings
   -> requestApplyGraphicsSettings(GtsCommandBuffer, draft)

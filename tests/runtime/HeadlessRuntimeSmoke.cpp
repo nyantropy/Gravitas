@@ -1,4 +1,6 @@
 #include "RenderingControllerContext.h"
+#include "GtsScene.hpp"
+#include "IResourceProvider.hpp"
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -6,7 +8,7 @@
 #include <string>
 
 #include "EngineConfig.h"
-#include "GravitasEngine.hpp"
+#include "GravitasEngine.h"
 #include "GraphicsConstants.h"
 #include "BitmapFont.h"
 

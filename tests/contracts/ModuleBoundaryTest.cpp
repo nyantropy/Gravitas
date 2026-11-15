@@ -4,7 +4,7 @@
 
 #include <type_traits>
 
-#if __has_include("GravitasEngine.hpp") ||                                                                             \
+#if __has_include("GravitasEngine.h") ||                                                                             \
                   __has_include(                                                                                       \
                       "EngineConfig.h") ||                                                                             \
                       __has_include(                                                                                   \

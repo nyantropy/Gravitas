@@ -1,3 +1,4 @@
+#include "GtsCommandConsumer.h"
 #include "SceneExecutionPolicy.h"
 #include "ScreenshotCommand.h"
 #include "GtsScene.hpp"
@@ -204,7 +205,7 @@ int main()
     GtsCommandBuffer commands;
     gts::rendering::requestScreenshot(commands);
     gts::rendering::requestScreenshot(commands, "captures/unchanged");
-    for (const auto& command : commands.commands)
+    for (const auto& command : GtsCommandConsumer::takePendingCommands(commands))
         require(runtime.applyExtensionCommand(std::get<GtsExtensionCommand>(command)), "Screenshot recognized by rendering");
     require(graphics.screenshots == std::vector<std::string>{"", "captures/unchanged"}, "Screenshot dispatch preserves order/options");
     require(runtime.applyExtensionCommand({gts::rendering::REQUEST_SCREENSHOT_COMMAND, 42}), "Known malformed extension is consumed");

@@ -30,6 +30,7 @@ add_test(NAME execution_selection COMMAND ExecutionSelectionTest)
 
 add_executable(CommandTransportTest CommandTransportTest.cpp)
 target_link_libraries(CommandTransportTest PRIVATE gravitas_core)
+target_link_libraries(CommandTransportTest PRIVATE gravitas_command_consumer)
 add_test(NAME command_transport COMMAND CommandTransportTest)
 
 add_executable(InputWriterTest InputWriterTest.cpp)

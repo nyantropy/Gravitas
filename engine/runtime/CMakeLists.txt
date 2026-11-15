@@ -15,7 +15,7 @@ if(missing_runtime_requirements)
     return()
 endif()
 
-add_library(gravitas_runtime STATIC rendering/GraphicsBackendInstaller.cpp)
+add_library(gravitas_runtime STATIC GravitasEngine.cpp rendering/GraphicsBackendInstaller.cpp)
 target_compile_features(gravitas_runtime PUBLIC cxx_std_20)
 target_include_directories(gravitas_runtime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(gravitas_runtime PUBLIC
@@ -23,5 +23,5 @@ target_link_libraries(gravitas_runtime PUBLIC
     gravitas_tool_contracts
     gravitas_modules
     gravitas_runtime_execution
-    PRIVATE gravitas_vulkan_backend
+    PRIVATE gravitas_vulkan_backend gravitas_command_consumer
 )

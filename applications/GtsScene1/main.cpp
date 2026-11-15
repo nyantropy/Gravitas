@@ -3,7 +3,7 @@
 #include <memory>
 #include <vector>
 
-#include "GravitasEngine.hpp"
+#include "GravitasEngine.h"
 #include "EngineConfig.h"
 #include "DefaultScene.hpp"
 

@@ -14,6 +14,12 @@ add_executable(EngineDefaultInputBindingsTest input/EngineDefaultInputBindingsTe
 target_link_libraries(EngineDefaultInputBindingsTest PRIVATE gravitas_engine)
 add_test(NAME engine_default_input_bindings COMMAND EngineDefaultInputBindingsTest)
 
+add_executable(SceneLifecycleRuntimeTest runtime/SceneLifecycleRuntimeTest.cpp)
+target_link_libraries(SceneLifecycleRuntimeTest PRIVATE gravitas_engine)
+add_test(NAME scene_lifecycle_runtime COMMAND SceneLifecycleRuntimeTest)
+set_tests_properties(scene_lifecycle_runtime PROPERTIES
+    LABELS "gravitas;runtime;lifecycle" SKIP_RETURN_CODE 77 TIMEOUT 45)
+
 add_executable(GraphicsSettingsTest rendering/GraphicsSettingsTest.cpp)
 target_link_libraries(GraphicsSettingsTest PRIVATE gravitas_rendering)
 add_test(NAME graphics_settings COMMAND GraphicsSettingsTest)

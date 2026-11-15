@@ -1,5 +1,10 @@
 # Engine Rendering Architecture
 
+Application screenshot/frustum/graphics requests use declaration headers and
+paired implementations in `gravitas_rendering_command_contracts`, separate from
+this renderer implementation. See the [request API](commands-api.md) for payload
+ownership and pre-render dispatch behavior.
+
 This document describes the current Gravitas rendering architecture. It is
 engine-level only; application scene composition belongs in application docs.
 

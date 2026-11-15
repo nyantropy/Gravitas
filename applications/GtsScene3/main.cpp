@@ -1,6 +1,6 @@
 #include <memory>
 
-#include "GravitasEngine.hpp"
+#include "GravitasEngine.h"
 #include "EngineConfig.h"
 #include "GtsScene3.hpp"
 

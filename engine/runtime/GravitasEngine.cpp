@@ -1,4 +1,5 @@
-#pragma once
+#include "GravitasEngine.h"
+#include "GtsCommandConsumer.h"
 #include "SceneExecutionPolicy.h"
 
 #include "PhysicsControllerContext.h"
@@ -13,6 +14,7 @@
 #include <thread>
 #include <variant>
 #include <vector>
+#include <stdexcept>
 
 #include "EngineConfig.h"
 #include "Timer.hpp"
@@ -22,7 +24,7 @@
 #include "input/EngineControlBindings.hpp"
 #include "GtsGameLoop.h"
 
-#include "SceneManager.hpp"
+#include "SceneManager.h"
 
 #include "GtsCommand.h"
 #include "GtsCommandBuffer.h"
@@ -40,7 +42,7 @@
 #include "EcsSimulationContext.hpp"
 #include "EcsControllerContext.hpp"
 
-class GravitasEngine
+struct GravitasEngine::Impl
 {
     private:
     // how the engine is configured
@@ -56,9 +58,9 @@ class GravitasEngine
     std::unique_ptr<Timer> timer;
 
     // installed engine-level service registry and module lifecycle hooks
-    EngineServiceRegistry serviceRegistry;
-    GtsModelRegistry modelRegistry;
-    GtsModelRealizationCache modelRealizations;
+    EngineServiceRegistry       serviceRegistry;
+    GtsModelRegistry            modelRegistry;
+    GtsModelRealizationCache    modelRealizations;
     std::vector<IEngineModule*> engineModules;
 
     // renderer runtime integration
@@ -82,17 +84,17 @@ class GravitasEngine
     bool engineRunning = true;
 
     gts::tools::ToolScreenshotPreset toolScreenshotPreset;
-    bool     toolScreenshotAutomationEnabled = false;
-    bool     toolScreenshotExitAfterRender = false;
-    float    toolScreenshotElapsed = 0.0f;
-    float    toolScreenshotNextAt = 0.0f;
-    float    toolScreenshotInterval = 1.0f;
-    uint32_t toolScreenshotsRequested = 0;
+    bool                             toolScreenshotAutomationEnabled = false;
+    bool                             toolScreenshotExitAfterRender   = false;
+    float                            toolScreenshotElapsed           = 0.0f;
+    float                            toolScreenshotNextAt            = 0.0f;
+    float                            toolScreenshotInterval          = 1.0f;
+    uint32_t                         toolScreenshotsRequested        = 0;
 
     // Per-frame CPU timing buckets accumulated in start(), consumed in render()
-    float              lastSimCpuMs   = 0.0f;
-    float              lastCtrlCpuMs  = 0.0f;
-    float              lastFrameCpuMs = 0.0f;
+    float              lastSimCpuMs            = 0.0f;
+    float              lastCtrlCpuMs           = 0.0f;
+    float              lastFrameCpuMs          = 0.0f;
     uint32_t           lastSimulationTickCount = 0;
     ProfileAccumulator profiler;
 
@@ -133,23 +135,24 @@ class GravitasEngine
         GtsScene* activeScene = sceneManager->getActiveScene();
 
         EcsControllerContext ctx{world};
-        auto& rendering = gts::rendering::controllerContext(ctx);
-        rendering.resources         = renderingRuntime->resources();
+        auto&                rendering                       = gts::rendering::controllerContext(ctx);
+        rendering.resources                                  = renderingRuntime->resources();
         gts::model::controllerContext(ctx).models            = &modelRegistry;
         gts::model::controllerContext(ctx).modelRealizations = &modelRealizations;
-        ctx.input             = platform.getInputBindingRegistry();
-        ctx.time              = &timeContext;
-        ctx.engineCommands    = &engineCommands;
-        gts::ui::controllerContext(ctx).ui                = renderingRuntime->ui();
-        gts::physics::controllerContext(ctx).physics           = activeScene == nullptr ? nullptr : gts::physics::findScenePhysics(*activeScene);
-        ctx.registeredScenes  = &sceneManager->getRegisteredScenes();
-        ctx.activeSceneName   = &sceneManager->getActiveSceneName();
-        rendering.windowAspectRatio = windowAspectRatio;
-        rendering.windowPixelWidth  = static_cast<float>(windowPixelWidth);
-        rendering.windowPixelHeight = static_cast<float>(windowPixelHeight);
-        rendering.sceneViewportPixelX = 0.0f;
-        rendering.sceneViewportPixelY = 0.0f;
-        rendering.sceneViewportPixelWidth = static_cast<float>(windowPixelWidth);
+        ctx.input                                            = platform.getInputBindingRegistry();
+        ctx.time                                             = &timeContext;
+        ctx.engineCommands                                   = &engineCommands;
+        gts::ui::controllerContext(ctx).ui                   = renderingRuntime->ui();
+        gts::physics::controllerContext(ctx).physics =
+            activeScene == nullptr ? nullptr : gts::physics::findScenePhysics(*activeScene);
+        ctx.registeredScenes               = &sceneManager->getRegisteredScenes();
+        ctx.activeSceneName                = &sceneManager->getActiveSceneName();
+        rendering.windowAspectRatio        = windowAspectRatio;
+        rendering.windowPixelWidth         = static_cast<float>(windowPixelWidth);
+        rendering.windowPixelHeight        = static_cast<float>(windowPixelHeight);
+        rendering.sceneViewportPixelX      = 0.0f;
+        rendering.sceneViewportPixelY      = 0.0f;
+        rendering.sceneViewportPixelWidth  = static_cast<float>(windowPixelWidth);
         rendering.sceneViewportPixelHeight = static_cast<float>(windowPixelHeight);
         rendering.sceneViewportAspectRatio = windowAspectRatio;
         return ctx;
@@ -195,11 +198,17 @@ class GravitasEngine
             module->afterSceneLoad(*activeScene, loadCtx);
     }
 
-    void switchScene(std::string name, const GtsSceneTransitionData* data)
+    bool switchScene(std::string name, const GtsSceneTransitionData* data)
     {
+        if (!sceneManager->hasScene(name))
+        {
+            std::cerr << "Scene request rejected; scene is not registered: " << name << '\n';
+            return false;
+        }
         platform.waitForGraphicsIdle();
         unloadActiveScene();
         loadScene(std::move(name), data);
+        return true;
     }
 
     // render call
@@ -207,18 +216,17 @@ class GravitasEngine
     {
         GtsScene* activeScene = sceneManager->getActiveScene();
         refreshWindowMetrics();
-        renderingRuntime->renderFrame(
-            dt,
-            *activeScene,
-            timeContext,
-            lastSimulationTickCount,
-            lastSimCpuMs,
-            lastCtrlCpuMs,
-            lastFrameCpuMs,
-            toolRuntime == nullptr ? 0u : toolRuntime->controllerSystemCount(),
-            windowPixelWidth,
-            windowPixelHeight,
-            profiler);
+        renderingRuntime->renderFrame(dt,
+                                      *activeScene,
+                                      timeContext,
+                                      lastSimulationTickCount,
+                                      lastSimCpuMs,
+                                      lastCtrlCpuMs,
+                                      lastFrameCpuMs,
+                                      toolRuntime == nullptr ? 0u : toolRuntime->controllerSystemCount(),
+                                      windowPixelWidth,
+                                      windowPixelHeight,
+                                      profiler);
     }
 
     // command callback from lower level architectures
@@ -236,30 +244,16 @@ class GravitasEngine
 
     void applyPendingRenderCommands()
     {
-        for (auto it = engineCommands.commands.begin(); it != engineCommands.commands.end();)
-        {
-            if (auto* cmd = std::get_if<GtsExtensionCommand>(&*it))
-            {
-                if (applyPendingRenderingCommand(*cmd))
-                    it = engineCommands.commands.erase(it);
-                else
-                    ++it;
-            }
-            else
-            {
-                ++it;
-            }
-        }
-    }
-
-    bool applyPendingRenderingCommand(const GtsExtensionCommand& command)
-    {
-        return renderingRuntime->applyExtensionCommand(command);
+        GtsCommandConsumer::consumeMatchingExtensions(engineCommands,
+                                                     [this](const GtsExtensionCommand& command)
+                                                     {
+                                                         return renderingRuntime->applyExtensionCommand(command);
+                                                     });
     }
 
     void applyCommands()
     {
-        for (auto& cmd : engineCommands.commands)
+        for (auto& cmd : GtsCommandConsumer::takePendingCommands(engineCommands))
         {
             if (std::holds_alternative<GtsTogglePauseCommand>(cmd))
             {
@@ -275,21 +269,18 @@ class GravitasEngine
                 engineRunning = false;
             }
         }
-
-        engineCommands.commands.clear();
     }
 
     public:
-    explicit GravitasEngine(EngineConfig config = EngineConfig{})
-        : engineConfig(std::move(config))
-        , platform(engineConfig.graphics, createDefaultGraphicsBackendRegistry())
+    explicit Impl(EngineConfig config)
+        : engineConfig(std::move(config)), platform(engineConfig.graphics, createDefaultGraphicsBackendRegistry())
     {
         if (engineConfig.tools.debugOverlayEnabledByDefault)
             platform.toggleDebugOverlay();
         gts::input::defaults::engine::install(*platform.getInputBindingRegistry());
         gameLoop.init(engineConfig);
-        maxFrameRate   = engineConfig.graphics.settings.framePacing.maxFrameRate;
-        sceneManager   = std::make_unique<SceneManager>();
+        maxFrameRate     = engineConfig.graphics.settings.framePacing.maxFrameRate;
+        sceneManager     = std::make_unique<SceneManager>();
         renderingRuntime = std::make_unique<gts::rendering::RenderingRuntime>(
             engineConfig.graphics.settings.rendering.frustumCullingEnabled,
             *platform.getGraphics(),
@@ -309,18 +300,19 @@ class GravitasEngine
         }
     }
 
-    ~GravitasEngine() = default;
+    ~Impl()
+    {
+        shutdown();
+    }
 
     void registerScene(std::string name, SceneManager::SceneFactory factory, RegisteredSceneInfo info = {})
     {
         sceneManager->registerScene(std::move(name), std::move(factory), std::move(info));
     }
 
-    void setActiveScene(std::string name, std::unique_ptr<GtsSceneTransitionData> data = nullptr)
+    bool setActiveScene(std::string name, std::unique_ptr<GtsSceneTransitionData> data)
     {
-        platform.waitForGraphicsIdle();
-        unloadActiveScene();
-        loadScene(std::move(name), data.get());
+        return switchScene(std::move(name), data.get());
     }
 
     void applyToolLaunchPreset(const gts::tools::ToolLaunchPreset& preset)
@@ -328,14 +320,14 @@ class GravitasEngine
         if (toolRuntime != nullptr)
             toolRuntime->setStartupOptions(preset.tools);
 
-        toolScreenshotPreset = preset.screenshots;
+        toolScreenshotPreset            = preset.screenshots;
         toolScreenshotAutomationEnabled = toolScreenshotPreset.enabled && toolScreenshotPreset.count > 0;
-        toolScreenshotExitAfterRender = false;
-        toolScreenshotElapsed = 0.0f;
-        toolScreenshotsRequested = 0;
-        toolScreenshotNextAt = std::max(0.0f, toolScreenshotPreset.afterSeconds);
-        toolScreenshotInterval = std::max(toolScreenshotPreset.intervalSeconds,
-                                          engineConfig.graphics.screenshots.minSecondsBetweenScreenshots);
+        toolScreenshotExitAfterRender   = false;
+        toolScreenshotElapsed           = 0.0f;
+        toolScreenshotsRequested        = 0;
+        toolScreenshotNextAt            = std::max(0.0f, toolScreenshotPreset.afterSeconds);
+        toolScreenshotInterval          = std::max(toolScreenshotPreset.intervalSeconds,
+                                                   engineConfig.graphics.screenshots.minSecondsBetweenScreenshots);
     }
 
     private:
@@ -366,7 +358,7 @@ class GravitasEngine
 
     bool consumeToolScreenshotExitAfterRender()
     {
-        const bool shouldExit = toolScreenshotExitAfterRender;
+        const bool shouldExit         = toolScreenshotExitAfterRender;
         toolScreenshotExitAfterRender = false;
         return shouldExit;
     }
@@ -374,6 +366,8 @@ class GravitasEngine
     public:
     void start()
     {
+        if (shutdownComplete || sceneManager->getActiveScene() == nullptr)
+            throw std::logic_error("Engine start requires a loaded scene and a live runtime");
         timer         = std::make_unique<Timer>();
         engineRunning = true;
 
@@ -473,6 +467,16 @@ class GravitasEngine
             lastFrameCpuMs     = std::chrono::duration<float, std::milli>(loopEnd - loopStart).count();
         }
 
+        shutdown();
+    }
+
+    private:
+    bool shutdownComplete = false;
+
+    void shutdown()
+    {
+        if (shutdownComplete)
+            return;
         platform.waitForGraphicsIdle();
         unloadActiveScene();
         if (toolRuntime != nullptr)
@@ -485,5 +489,30 @@ class GravitasEngine
 
         // shutdown graphics module after we close the window
         platform.shutdown();
+        shutdownComplete = true;
     }
 };
+
+GravitasEngine::GravitasEngine(EngineConfig config) : impl(std::make_unique<Impl>(std::move(config))) {}
+
+GravitasEngine::~GravitasEngine() = default;
+
+void GravitasEngine::registerScene(std::string name, SceneFactory factory, RegisteredSceneInfo info)
+{
+    impl->registerScene(std::move(name), std::move(factory), std::move(info));
+}
+
+bool GravitasEngine::setActiveScene(std::string name, std::unique_ptr<GtsSceneTransitionData> data)
+{
+    return impl->setActiveScene(std::move(name), std::move(data));
+}
+
+void GravitasEngine::applyToolLaunchPreset(const gts::tools::ToolLaunchPreset& preset)
+{
+    impl->applyToolLaunchPreset(preset);
+}
+
+void GravitasEngine::start()
+{
+    impl->start();
+}

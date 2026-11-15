@@ -9,9 +9,10 @@ function(add_include_surface_test name target)
         string(APPEND source "#include \"${header}\"\n")
     endforeach()
     set(forbidden ${surface_FORBIDDEN})
+    list(APPEND forbidden GtsCommandConsumer.h GtsCommandStorage.h)
     if(NOT surface_RUNTIME)
-        list(APPEND forbidden GravitasEngine.hpp BuiltinExecutionGroups.h SceneExecutionPolicy.h
-            runtime/GravitasEngine.hpp runtime/execution/BuiltinExecutionGroups.h)
+        list(APPEND forbidden GravitasEngine.h BuiltinExecutionGroups.h SceneExecutionPolicy.h
+            runtime/GravitasEngine.h runtime/execution/BuiltinExecutionGroups.h)
     endif()
     if(NOT surface_BACKEND)
         list(APPEND forbidden VulkanGraphics.hpp VulkanContext.hpp VulkanBackendContext.h
@@ -56,7 +57,8 @@ add_include_surface_test(model_extraction gravitas_model_frontend FEATURE
     HEADERS ModelFrameExtraction.h WorldTransformComponent.h FORBIDDEN VulkanGraphics.hpp)
 add_include_surface_test(rendering_contracts gravitas_rendering_contracts FEATURE
     HEADERS ResourceTypes.h GtsFrameEndedEvent.h FORBIDDEN IResourceProvider.hpp GtsModelRegistry.h)
-add_include_surface_test(rendering_commands gravitas_rendering_command_contracts FEATURE HEADERS ScreenshotCommand.h)
+add_include_surface_test(rendering_commands gravitas_rendering_command_contracts FEATURE
+    HEADERS ScreenshotCommand.h RenderEngineCommands.h)
 add_include_surface_test(rendering_execution gravitas_rendering_execution_contracts FEATURE HEADERS RendererExecutionInputs.h)
 add_include_surface_test(rendering_controller gravitas_rendering_controller_contracts FEATURE HEADERS RenderingControllerContext.h)
 add_include_surface_test(rendering_window gravitas_rendering_window_contracts FEATURE
@@ -77,7 +79,7 @@ add_include_surface_test(runtime gravitas_runtime FEATURE IMPLEMENTATION RUNTIME
 add_include_surface_test(tool_contracts gravitas_tool_contracts FEATURE HEADERS ToolSettings.h)
 add_include_surface_test(profiling gravitas_profiling FEATURE HEADERS ISceneFrameStats.h)
 if(TARGET gravitas_runtime)
-    add_include_surface_test(facade gravitas_runtime FEATURE IMPLEMENTATION RUNTIME HEADERS GravitasEngine.hpp)
+    add_include_surface_test(facade gravitas_runtime FEATURE IMPLEMENTATION RUNTIME HEADERS GravitasEngine.h)
 endif()
 foreach(case allowed module_root wrapped_module_root source_root ancestor rendering_root
         sibling_allowed symlink_module_root root_alias)

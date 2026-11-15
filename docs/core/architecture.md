@@ -168,6 +168,11 @@ commands. `GtsCommandBuffer` retains their ordered value-owned queue; extension 
 uses the existing copyable `std::any` payload. Capability-specific requests and their
 producer helpers belong to their modules. Screenshot requests live in rendering's
 `contracts/commands/ScreenshotCommand.h`, not in the core variant or buffer API.
+`RenderEngineCommands.h` lives alongside it in the same compiled command contract.
+The public producer has no queue container or drain API. A separate core-owned
+`gravitas_command_consumer` is linked privately by engine consumers; runtime is
+never friended or referenced by core. See [commands](commands-api.md),
+[scenes](scenes-api.md) and the [runtime facade](runtime-api.md).
 
 `InputManager` exposes input reading and its existing explicit reset operation.
 Raw event injection and frame advancement remain private. The core-owned

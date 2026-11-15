@@ -2,7 +2,7 @@
 #include <memory>
 
 #include "EngineConfig.h"
-#include "GravitasEngine.hpp"
+#include "GravitasEngine.h"
 #include "PbrValidationScene.hpp"
 
 int main()

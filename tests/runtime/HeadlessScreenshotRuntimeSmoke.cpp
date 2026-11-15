@@ -8,7 +8,9 @@
 #include <utility>
 
 #include "EngineConfig.h"
-#include "GravitasEngine.hpp"
+#include "GravitasEngine.h"
+#include "GtsScene.hpp"
+#include "ToolLaunchPreset.h"
 #include "RenderEngineCommands.h"
 
 class HeadlessScreenshotSmokeScene : public GtsScene

@@ -15,8 +15,5 @@ namespace gts::rendering
     };
 
     // take a screenshot
-    inline void requestScreenshot(GtsCommandBuffer& commands, std::string directory = {})
-    {
-        commands.requestExtensionCommand(REQUEST_SCREENSHOT_COMMAND, ScreenshotCommand{std::move(directory)});
-    }
+    void requestScreenshot(GtsCommandBuffer& commands, std::string directory = {});
 }

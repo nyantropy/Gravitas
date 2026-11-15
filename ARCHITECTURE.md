@@ -99,7 +99,10 @@ not the registry. See [binding routing](docs/core/architecture.md#binding-routin
 
 ## Scenes and lifetime
 
-`SceneManager` stores factories. `GravitasEngine` keeps only the active `GtsScene`
+`SceneManager` stores factories. `GravitasEngine.h` declares the runtime facade;
+its paired `.cpp` owns implementation through a private smart owner. It validates
+scene IDs before destructive teardown; unknown requests leave the old scene loaded.
+`GravitasEngine` keeps only the active `GtsScene`
 alive: a switch waits for graphics idle, unloads/clears the old scene, destroys it,
 constructs the new scene and calls `onLoad`. Persistent application state belongs
 outside scene instances and enters through factory captures/transition data.
@@ -127,7 +130,8 @@ rendering implement this for preview/benchmark worlds as well as scenes. See
 - ECS domain events use `world.publish(...)`, with immediate single-threaded
   subscriber dispatch before the call returns.
 - `GtsCommandBuffer` carries lifecycle requests and generic typed extensions.
-  Feature semantics belong to their module contracts.
+  Its application surface is enqueue-only; private core-owned consumption is
+  linked only by engine consumers. Feature semantics belong to their module contracts.
 
 Screenshots use `ScreenshotCommand.h` and
 `gts::rendering::requestScreenshot(commands, directory)` from
@@ -136,6 +140,8 @@ Screenshots use `ScreenshotCommand.h` and
 changes and quit drain afterward. A capture requested with quit can capture the
 final frame. Preset automation uses the same renderer-owned PNG path. See
 [tooling presets](docs/tooling/presets.md) and [settings](docs/settings/architecture.md).
+The [command API](docs/core/commands-api.md), [scene API](docs/core/scenes-api.md)
+and [runtime API](docs/core/runtime-api.md) define ownership and rejection behavior.
 
 ## Assets, models and rendering
 

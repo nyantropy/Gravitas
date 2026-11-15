@@ -1,4 +1,5 @@
-#include "SceneManager.hpp"
+#include "SceneManager.h"
+#include "GtsScene.hpp"
 
 #include <stdexcept>
 #include <string>
@@ -209,4 +210,16 @@ int main()
     manager.setActiveScene("scene");
     require(transitions == std::vector<std::string>{"resource", "second", "world"},
             "Factory replacement must retain direct-destruction semantics");
+    require(manager.hasScene("scene") && !manager.hasScene("missing"), "Scene availability query changed");
+    manager.registerScene("null", [] { return std::unique_ptr<GtsScene>{}; });
+    bool nullRejected = false;
+    try
+    {
+        manager.setActiveScene("null");
+    }
+    catch (const std::runtime_error&)
+    {
+        nullRejected = true;
+    }
+    require(nullRejected && manager.getActiveScene() == nullptr, "Null factory did not fail explicitly");
 }

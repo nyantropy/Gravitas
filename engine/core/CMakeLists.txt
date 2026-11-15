@@ -5,7 +5,13 @@ file(GLOB_RECURSE CORE_SOURCES
     CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
 )
+list(FILTER CORE_SOURCES EXCLUDE REGEX "/command/internal/")
 add_library(gravitas_core STATIC ${CORE_SOURCES})
+
+# Only engine consumers opt into queue access; application links remain enqueue-only.
+add_library(gravitas_command_consumer STATIC command/internal/GtsCommandConsumer.cpp)
+target_include_directories(gravitas_command_consumer PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/command/internal")
+target_link_libraries(gravitas_command_consumer PUBLIC gravitas_core)
 
 target_compile_features(gravitas_core PUBLIC cxx_std_20)
 

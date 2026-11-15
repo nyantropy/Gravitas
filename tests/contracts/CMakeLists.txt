@@ -71,6 +71,7 @@ endif()
 
 add_executable(ScreenshotCommandTest ScreenshotCommandTest.cpp)
 target_link_libraries(ScreenshotCommandTest PRIVATE gravitas_rendering_command_contracts)
+target_link_libraries(ScreenshotCommandTest PRIVATE gravitas_command_consumer)
 add_test(NAME screenshot_command COMMAND ScreenshotCommandTest)
 set_tests_properties(screenshot_command PROPERTIES LABELS "gravitas;contracts;screenshot;cpu")
 

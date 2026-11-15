@@ -28,7 +28,7 @@
 #include "GeometryBindingLifecycle.h"
 #include "GlmConfig.h"
 #include "GraphicsConstants.h"
-#include "GravitasEngine.hpp"
+#include "GravitasEngine.h"
 #include "GtsFrameStats.h"
 #include "GtsScene.hpp"
 #include "ISceneFrameStats.h"

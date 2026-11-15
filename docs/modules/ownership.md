@@ -44,7 +44,7 @@ See [runtime configuration](runtime-configuration.md).
 `gravitas_tool_contracts` exposes startup settings even with tools disabled.
 
 The engine-root include directory is not exported. Runtime exports its own directory,
-so applications still include `GravitasEngine.hpp` and `EngineConfig.h` through their
+so applications include declaration-only `GravitasEngine.h` and `EngineConfig.h` through their
 owning target without forwarding files. Module headers are resolved through module
 targets. Core and feature consumers do not inherit the facade.
 
@@ -60,8 +60,9 @@ Review remains necessary for feature vocabulary and API design.
 
 ## Feature-Neutral Core Boundaries
 
-Screenshot semantics belong to `gravitas_rendering_command_contracts`, which depends
-only on core command transport. Rendering handles its typed extension payload at the
+Screenshot and typed graphics request semantics belong to the compiled
+`gravitas_rendering_command_contracts`, which depends only on core command
+transport and window/config contracts. Rendering handles its typed extension payload at the
 existing pre-render drain point; core neither names nor routes capture behavior.
 The original stdlib-only rendering resource contract target stays independent of core.
 
