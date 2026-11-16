@@ -137,6 +137,7 @@ struct GravitasEngine::Impl
         EcsControllerContext ctx{world};
         auto&                rendering                       = gts::rendering::controllerContext(ctx);
         rendering.resources                                  = renderingRuntime->resources();
+        rendering.uiResources                                = rendering.resources;
         gts::model::controllerContext(ctx).models            = &modelRegistry;
         gts::model::controllerContext(ctx).modelRealizations = &modelRealizations;
         ctx.input                                            = platform.getInputBindingRegistry();
@@ -169,6 +170,9 @@ struct GravitasEngine::Impl
         for (auto it = engineModules.rbegin(); it != engineModules.rend(); ++it)
             (*it)->beforeSceneUnload(*activeScene, unloadCtx);
 
+        // Retained compositions borrow scene-owned fonts, runtime and grid data.
+        // Destroy their mounts/callbacks while those owners are still alive.
+        renderingRuntime->clearUi();
         activeScene->unload(unloadCtx);
         sceneManager->clearActiveScene();
 

@@ -6,6 +6,7 @@
 
 #include "GtsScene.hpp"
 #include "SubscriptionToken.hpp"
+#include "UiComposition.h"
 
 struct LifecycleRecord
 {
@@ -19,6 +20,7 @@ struct LifecycleRecord
     int                             destroyedScenes    = 0;
     int                             pingDeliveries     = 0;
     int                             aFrames            = 0;
+    int                             compositionsDestroyed = 0;
     bool                            runScenario        = true;
 };
 
@@ -51,4 +53,14 @@ class LifecycleScene : public GtsScene
     LifecycleRecord&  record;
     std::string       label;
     SubscriptionToken pingToken;
+};
+
+class LifecycleBorrowingComposition : public UiComposition
+{
+public:
+    explicit LifecycleBorrowingComposition(LifecycleRecord& record);
+    void build(UiCompositionContext& context) override;
+    void destroy(UiCompositionContext& context) override;
+private:
+    LifecycleRecord& record;
 };

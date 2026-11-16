@@ -1,0 +1,5 @@
+add_library(gravitas_rendering_ui_resources STATIC IUiResourceProvider.cpp)
+target_compile_features(gravitas_rendering_ui_resources PUBLIC cxx_std_20)
+target_include_directories(gravitas_rendering_ui_resources PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(gravitas_rendering_ui_resources PUBLIC
+    gravitas_rendering_contracts)

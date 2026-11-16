@@ -10,7 +10,8 @@ add_library(gravitas_material_frontend STATIC
 )
 target_compile_features(gravitas_material_frontend PUBLIC cxx_std_20)
 target_link_libraries(gravitas_material_frontend PUBLIC
-    gravitas_core gravitas_cooked_assets gravitas_rendering_contracts gravitas_image_decode)
+    gravitas_core gravitas_cooked_assets gravitas_rendering_contracts gravitas_image_decode
+    gravitas_rendering_ui_resources)
 target_include_directories(gravitas_material_frontend
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/authoring"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/internal" "${CMAKE_CURRENT_SOURCE_DIR}/../interface")

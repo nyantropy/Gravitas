@@ -3,12 +3,14 @@
 #include "EcsControllerContext.hpp"
 
 class IResourceProvider;
+class IUiResourceProvider;
 
 namespace gts::rendering
 {
     struct RenderingControllerContext
     {
         IResourceProvider* resources                = nullptr;
+        IUiResourceProvider* uiResources             = nullptr;
         float              windowAspectRatio        = 1.0f;
         float              windowPixelWidth         = 1.0f;
         float              windowPixelHeight        = 1.0f;

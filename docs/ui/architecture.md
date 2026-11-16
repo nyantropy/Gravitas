@@ -54,6 +54,19 @@ UiSurface
 Higher layers express structure and behavior. Lower layers own retained
 primitives and rendering extraction.
 
+## Resource and scene borrows
+
+Compositions/widgets, `UiSystem` and UI extraction consume the narrow
+`IUiResourceProvider` asset acquisition interface. Runtime supplies its call-scoped
+borrow through `RenderingControllerContext::uiResources`. Mesh, camera-buffer and
+object allocation remain on the engine's broader provider. See the
+[UI resource API](../rendering/ui-resource-api.md) for targets and lifetime.
+
+Gravitas destroys retained compositions before scene unload/world clear, while
+scene fonts, grids, callbacks and VN runtimes still exist. This also prunes mount
+focus/navigation/drag/drop state before scene replacement. Scene resources and
+world caches retain their existing subsequent reset order.
+
 ## Runtime Ownership
 
 `UiSurface` is the boundary for a retained UI universe. It owns:

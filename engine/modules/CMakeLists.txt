@@ -11,6 +11,7 @@ add_subdirectory(ui)
 
 # Layered CPU/model and reusable animation/material services precede rendering.
 add_subdirectory(assets)
+add_subdirectory(rendering/contracts/ui-resources)
 add_subdirectory(tools/assets/manifest)
 add_subdirectory(model)
 add_subdirectory(rendering/core/material)

@@ -3,3 +3,8 @@ add_executable(RetainedUiStandaloneTest RetainedUiStandaloneTest.cpp)
 target_link_libraries(RetainedUiStandaloneTest PRIVATE gravitas_ui)
 add_test(NAME ui_retained_standalone COMMAND RetainedUiStandaloneTest)
 set_tests_properties(ui_retained_standalone PROPERTIES LABELS "gravitas;ui;cpu")
+
+add_executable(UiResourceContractTest UiResourceContractTest.cpp UiResourceContractTest.h)
+target_link_libraries(UiResourceContractTest PRIVATE gravitas_rendering_ui_resources)
+add_test(NAME ui_resource_contract COMMAND UiResourceContractTest)
+set_tests_properties(ui_resource_contract PROPERTIES LABELS "gravitas;ui;resources;cpu")

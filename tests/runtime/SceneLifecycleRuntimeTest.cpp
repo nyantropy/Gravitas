@@ -5,6 +5,8 @@
 #include <utility>
 
 #include "GravitasEngine.h"
+#include "UiControllerContext.h"
+#include "UiSystem.h"
 
 namespace
 {
@@ -18,6 +20,17 @@ namespace
             throw std::runtime_error(message);
     }
 } // namespace
+
+LifecycleBorrowingComposition::LifecycleBorrowingComposition(LifecycleRecord& record) : record(record) {}
+
+void LifecycleBorrowingComposition::build(UiCompositionContext&) {}
+
+void LifecycleBorrowingComposition::destroy(UiCompositionContext&)
+{
+    require(record.resourcesCreated > record.resourcesDestroyed,
+            "Retained UI outlived the scene resource it borrowed");
+    ++record.compositionsDestroyed;
+}
 
 LifecyclePayload::LifecyclePayload(LifecycleRecord& record, std::string label) : record(record), label(std::move(label))
 {
@@ -54,6 +67,10 @@ void LifecycleScene::onLoad(EcsControllerContext& ctx, const GtsSceneTransitionD
     require(record.resourcesCreated == record.resourcesDestroyed, "Prior scene resource survived scene replacement");
     record.loads.push_back(label);
     createSceneResource<LifecycleResource>(record);
+    UiMountDesc mount;
+    mount.name = "scene-lifetime-borrow";
+    gts::ui::controllerContext(ctx).ui->mountComposition(
+        std::make_unique<LifecycleBorrowingComposition>(record), mount);
     auto subscription = std::make_shared<int>(0);
     record.subscriptions.push_back(subscription);
     pingToken = ctx.world.subscribe<Ping>(
@@ -105,6 +122,7 @@ void LifecycleScene::onUpdateControllers(const EcsControllerContext& ctx)
 
 void LifecycleScene::onUnload(EcsControllerContext& ctx)
 {
+    require(record.compositionsDestroyed == record.resourcesCreated, "Scene unload retained UI borrowers");
     record.unloads.push_back(label);
     ctx.world.publish(Ping{});
 }

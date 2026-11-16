@@ -36,7 +36,7 @@ namespace gts::ui
 
         UiSystem& ui;
         UiDocument& document;
-        IResourceProvider* resources = nullptr;
+        IUiResourceProvider* resources = nullptr;
         UiSurfaceId surface = UI_DEFAULT_SURFACE;
         UiMountId mount = UI_INVALID_MOUNT;
         UiHandle compositionRoot = UI_INVALID_HANDLE;

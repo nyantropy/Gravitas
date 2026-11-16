@@ -194,6 +194,11 @@ invalidation, material/lighting contracts, extraction and current renderer limit
 
 ## UI, narrative and shared services
 
+UI contexts/extraction acquire texture/font assets through the rendering-owned
+`IUiResourceProvider`, separate from backend mesh/camera/object allocation.
+Runtime clears retained compositions before unloading their borrowed scene data.
+See [UI acquisition and lifetime](docs/rendering/ui-resource-api.md).
+
 `gravitas_ui` owns retained UI and depends on core plus lightweight rendering
 resource contracts. Rendering owns `UiSystem`, resource realization and extraction.
 Author ordinary UI with compositions, widgets, layouts, themes and retained events;

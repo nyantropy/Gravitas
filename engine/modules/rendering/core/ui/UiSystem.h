@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "BitmapFont.h"
-#include "IResourceProvider.hpp"
+#include "IUiResourceProvider.h"
 #include "UiAnimationManager.h"
 #include "UiAssetRuntime.h"
 #include "UiBindingManager.h"
@@ -44,7 +44,7 @@ public:
         uint32_t commandCacheHit = 0;
     };
 
-    explicit UiSystem(IResourceProvider* resources);
+    explicit UiSystem(IUiResourceProvider* resources);
 
     void clear();
     void setEnabled(bool enabled);
@@ -336,7 +336,7 @@ private:
                                const UiCommandBuffer& source,
                                const UiRect& surfaceRect) const;
 
-    IResourceProvider*                         resources = nullptr;
+    IUiResourceProvider*                         resources = nullptr;
     bool                                       enabled   = true;
     UiRenderResolver                           resolver;
     std::unordered_map<UiSurfaceId, SurfaceRecord> surfaces;

@@ -4,6 +4,7 @@
 #include "BuiltinExecutionGroups.h"
 
 #include "RenderingControllerContext.h"
+#include "IResourceProvider.hpp"
 #include "UiControllerContext.h"
 #include <cstdio>
 #include <cstring>

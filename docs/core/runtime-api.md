@@ -42,3 +42,12 @@ See [commands](commands-api.md), [scenes](scenes-api.md),
 [runtime configuration](../modules/runtime-configuration.md) and the existing
 module lifecycle contracts. Teardown callbacks must not throw; this API adds no
 general recovery from unload/load exceptions.
+
+## Retained scene borrower teardown
+
+After module before-unload hooks, runtime clears retained UI before invoking scene
+unload/world clear/destruction. Compositions may borrow scene fonts, grids and VN
+runtimes during their own destruction. Mount-owned focus, navigation, drag/drop and
+callbacks are therefore released while scene owners are alive. Renderer reset,
+input-context clearing, subsequent scene load and command drain cadence remain at
+their existing boundaries. See [UI acquisition/lifetime](../rendering/ui-resource-api.md).

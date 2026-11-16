@@ -24,7 +24,7 @@ namespace
 
 }
 
-UiSystem::UiSystem(IResourceProvider* inResources)
+UiSystem::UiSystem(IUiResourceProvider* inResources)
     : resources(inResources)
 {
     recreateDefaultSurface();

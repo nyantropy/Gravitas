@@ -11,6 +11,7 @@
 #include "AssetTypes.h"
 #include "MaterialTypes.h"
 #include "ResourceTypes.h"
+#include "IUiResourceProvider.h"
 #include "TextureColorSpace.h"
 #include "GtsStaticVertex.h"
 #include "GtsGeometryMetadata.h"
@@ -41,18 +42,7 @@ struct ProceduralMeshUploadMetrics
     float cleanupCpuMs = 0.0f;
 };
 
-struct TextureDimensions
-{
-    int width = 0;
-    int height = 0;
-
-    bool isValid() const
-    {
-        return width > 0 && height > 0;
-    }
-};
-
-class IResourceProvider
+class IResourceProvider : public IUiResourceProvider
 {
     public:
         // request a mesh id from the resource provider
@@ -86,12 +76,6 @@ class IResourceProvider
             return {};
         }
 
-        // request a texture from the resource provider, no nearest neighbor
-        virtual texture_id_type requestTexture(const std::string& path) = 0;
-        virtual texture_id_type requestTexture(const std::string& path, TextureColorSpace)
-        {
-            return requestTexture(path);
-        }
         // Immutable CPU RGBA8 input. Providers cache by image ownership and color-space interpretation.
         virtual texture_id_type requestMemoryTexture(std::shared_ptr<const GtsDecodedImage>, TextureColorSpace)
         {
@@ -101,22 +85,6 @@ class IResourceProvider
         {
             return requestTexture({}, textureColorSpaceForRole(role));
         }
-        // Like requestTexture but clamps UVs to the texture edge while preserving linear filtering.
-        virtual texture_id_type requestClampedTexture(const std::string& path) = 0;
-        // Like requestTexture but forces NEAREST-neighbor sampling and no anisotropy.
-        // Use for pixel-art or bitmap-font atlases that must render crisp.
-        virtual texture_id_type requestPixelTexture(const std::string& path) = 0;
-        virtual texture_id_type requestPixelTexture(const std::string& path, TextureColorSpace)
-        {
-            return requestPixelTexture(path);
-        }
-        virtual TextureDimensions getTextureDimensions(texture_id_type id) const = 0;
-
-        // request a bitmap font asset; the font manager owns metadata and uses
-        // the texture manager for the atlas texture
-        virtual font_id_type requestFont(const std::string& path) = 0;
-        virtual const BitmapFont* getFont(font_id_type id) const = 0;
-
         // Camera / render-view buffer allocation.
         // Each call creates framesInFlight UBOs + descriptor sets for one render view.
         virtual view_id_type requestCameraBuffer() = 0;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "IResourceProvider.hpp"
+#include "IUiResourceProvider.h"
 #include "UiCompositionTypes.h"
 #include "UiDocument.h"
 #include "UiEvent.h"
@@ -12,7 +12,7 @@ struct UiCompositionContext
 {
     UiSystem& ui;
     UiDocument& document;
-    IResourceProvider* resources = nullptr;
+    IUiResourceProvider* resources = nullptr;
     UiSurfaceId surface = UI_DEFAULT_SURFACE;
     UiMountId mount = UI_INVALID_MOUNT;
     UiHandle root = UI_INVALID_HANDLE;

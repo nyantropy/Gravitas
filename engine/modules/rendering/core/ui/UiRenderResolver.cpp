@@ -550,7 +550,7 @@ namespace
 void UiRenderResolver::buildCommandBuffer(
     UiCommandBuffer& buffer,
     const UiVisualList& visualList,
-    IResourceProvider* resources,
+    IUiResourceProvider* resources,
     const std::unordered_map<UiHandle, BitmapFont*>& textBindings,
     int viewportWidth,
     int viewportHeight) const

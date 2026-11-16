@@ -52,6 +52,14 @@ The [material API](material-api.md), [camera API](camera-api.md) and
 `RendererSceneFeature.h` now declares installation without inheriting lifecycle
 system or GPU companion headers; its `.cpp` owns composition implementation.
 
+## UI acquisition contract
+
+The [UI resource API](ui-resource-api.md) separates texture/font acquisition and
+metadata from backend allocation. `IResourceProvider` derives from the narrow
+`IUiResourceProvider`; UI contexts, `UiSystem` and UI extraction consume only the
+narrow interface. The lightweight compiled target is available without a renderer
+backend or UI runtime. Scene UI teardown precedes the data it borrows.
+
 ## Module Layout
 
 - `modules/rendering/core/`: generic rendering contracts, resource provider
