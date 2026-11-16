@@ -14,9 +14,10 @@ renderer, backend, UI or resource provider implementation.
 
 Callers borrow the command writer for the call. Helpers own the extension
 names/types; application feature code does not invent names or inspect/drain
-the queue. These enqueue operations do not report that the request was applied.
-Graphics saved/requested/applied result reporting is separate from this producer
-contract; see [settings architecture](../settings/architecture.md).
+the queue. The graphics-settings helper now returns a shared const receipt for queued,
+pending and terminal outcomes. Submission itself is not application. Other helpers
+remain enqueue-only. See [settings request outcomes](graphics-settings-requests.md)
+and [settings architecture](../settings/architecture.md).
 
 ```cpp
 #include "RenderEngineCommands.h"

@@ -111,3 +111,5 @@ target_link_libraries(gravitas_rendering PUBLIC gravitas_rendering_execution_con
 target_include_directories(gravitas_rendering PRIVATE "${GTS_ENGINE_ROOT}/external/stb")
 
 target_link_libraries(gravitas_rendering PRIVATE gravitas_material_runtime_access)
+
+target_link_libraries(gravitas_rendering PRIVATE gravitas_rendering_request_completion)

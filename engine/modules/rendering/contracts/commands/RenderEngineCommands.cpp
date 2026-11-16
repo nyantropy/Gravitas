@@ -12,8 +12,4 @@ namespace gts::rendering
         commands.requestExtensionCommand(SET_FRUSTUM_FREEZE_COMMAND, SetFrustumFreezeCommand{frozen});
     }
 
-    void requestApplyGraphicsSettings(GtsCommandBuffer& commands, const GraphicsSettings& settings)
-    {
-        commands.requestExtensionCommand(APPLY_GRAPHICS_SETTINGS_COMMAND, ApplyGraphicsSettingsCommand{settings});
-    }
 } // namespace gts::rendering

@@ -48,6 +48,14 @@ int main(int argc, char** argv) try
             state = graphics.getGraphicsRuntimeState();
             require(state.renderExtent == state.outputExtent, "MatchOutput extent differs");
             require(state.presentMode.has_value(), "Missing effective presentation mode");
+            settings.window.monitorName = "gravitas-fixture-unavailable-monitor";
+            settings.window.monitorIndex = 9999;
+            require(graphics.applyGraphicsSettings(settings).accepted(), "Missing monitor preference was rejected instead of falling back");
+            state = graphics.getGraphicsRuntimeState();
+            require(graphics.getRequestedGraphicsSettings().window.monitorName == settings.window.monitorName,
+                    "Monitor fallback erased the requested preference");
+            require(state.window && state.window->monitorName != settings.window.monitorName,
+                    "Monitor fallback was not observable in runtime state");
         }
         else
         {

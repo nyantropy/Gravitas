@@ -29,6 +29,7 @@
 #include "ProfileAccumulator.h"
 #include "DynamicMeshBindingSystem.hpp"
 #include "RenderEngineCommands.h"
+#include "GraphicsSettingsRequestCompletion.h"
 #include "RenderGpuSystem.hpp"
 #include "RenderPassVisibilityComponent.h"
 #include "RenderPipeline.h"
@@ -146,7 +147,13 @@ namespace gts::rendering
                 {
                     auto settings = graphics.getRequestedGraphicsSettings();
                     settings.rendering.frustumCullingEnabled = payload->enabled;
-                    graphicsSettingsCallback(settings);
+                    const auto result = graphicsSettingsCallback(settings);
+                    if (result.accepted() && pendingGraphicsRequest)
+                    {
+                        pendingGraphicsRequest->publish(GraphicsSettingsRequestStatus::Superseded,
+                            "Superseded by a later graphics settings change.", graphics.getGraphicsRuntimeState());
+                        pendingGraphicsRequest.reset();
+                    }
                 }
                 else
                     setVisibilityEnabled(payload->enabled);
@@ -165,8 +172,27 @@ namespace gts::rendering
         {
             if (const auto* payload = std::any_cast<ApplyGraphicsSettingsCommand>(&command.payload))
             {
-                if (graphicsSettingsCallback)
-                    graphicsSettingsCallback(payload->settings);
+                const auto result = graphicsSettingsCallback
+                    ? graphicsSettingsCallback(payload->settings)
+                    : GraphicsSettingsApplyResult{GraphicsSettingsApplyStatus::Rejected,
+                        "Graphics settings application service is unavailable."};
+                const auto observed = graphics.getGraphicsRuntimeState();
+                if (result.accepted() && pendingGraphicsRequest)
+                {
+                    pendingGraphicsRequest->publish(GraphicsSettingsRequestStatus::Superseded,
+                        "Superseded by a later accepted graphics settings request.", observed);
+                    pendingGraphicsRequest.reset();
+                }
+                if (payload->completion)
+                {
+                    const auto status = result.status == GraphicsSettingsApplyStatus::Rejected
+                        ? GraphicsSettingsRequestStatus::Rejected
+                        : result.status == GraphicsSettingsApplyStatus::Pending
+                            ? GraphicsSettingsRequestStatus::Pending : GraphicsSettingsRequestStatus::Applied;
+                    payload->completion->publish(status, result.message, observed);
+                    if (status == GraphicsSettingsRequestStatus::Pending)
+                        pendingGraphicsRequest = payload->completion;
+                }
             }
             return true;
         }
@@ -502,6 +528,15 @@ namespace gts::rendering
                              passVisibility.renderScene && (frameBuildMode == FrameBuildMode::FullWorld ||
                                  frameBuildMode == FrameBuildMode::CachedWorldFrame)
                                  ? modelFrame : GtsModelFrameData{});
+        if (pendingGraphicsRequest)
+        {
+            const auto observed = graphics.getGraphicsRuntimeState();
+            if (!observed.pending)
+            {
+                pendingGraphicsRequest->publish(GraphicsSettingsRequestStatus::Applied, {}, observed);
+                pendingGraphicsRequest.reset();
+            }
+        }
         const auto submitEnd    = std::chrono::steady_clock::now();
         GtsFrameStats finalStats = graphics.getLastFrameStats();
         if (finalStats.frameIndex != stats.frameIndex)

@@ -1,5 +1,12 @@
 # Rendering requests over core command transport; no rendering implementation.
-add_library(gravitas_rendering_command_contracts STATIC RenderEngineCommands.cpp ScreenshotCommand.cpp)
+add_library(gravitas_rendering_command_contracts STATIC RenderEngineCommands.cpp ScreenshotCommand.cpp
+    GraphicsSettingsRequest.cpp internal/GraphicsSettingsRequestCompletion.cpp)
 target_compile_features(gravitas_rendering_command_contracts PUBLIC cxx_std_20)
 target_include_directories(gravitas_rendering_command_contracts PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(gravitas_rendering_command_contracts PUBLIC gravitas_core gravitas_rendering_window_contracts)
+
+target_include_directories(gravitas_rendering_command_contracts PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/internal")
+# Only engine rendering consumers may publish outcomes; application receipts are const.
+add_library(gravitas_rendering_request_completion INTERFACE)
+target_link_libraries(gravitas_rendering_request_completion INTERFACE gravitas_rendering_command_contracts)
+target_include_directories(gravitas_rendering_request_completion INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/internal")

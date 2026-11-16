@@ -18,17 +18,19 @@ class UiSystem;
 struct EcsControllerContext;
 struct GtsExtensionCommand;
 struct GraphicsSettings;
+struct GraphicsSettingsApplyResult;
 struct TimeContext;
 struct EcsExecutionSelection;
 
 namespace gts::rendering
 {
+    namespace detail { class GraphicsSettingsRequestCompletion; }
     using FrameBuildModeSelector = FrameBuildMode (*)(const EcsExecutionSelection&);
 
     class RenderingRuntime : public IEngineModule
     {
     public:
-        using GraphicsSettingsCallback = std::function<void(const GraphicsSettings&)>;
+        using GraphicsSettingsCallback = std::function<GraphicsSettingsApplyResult(const GraphicsSettings&)>;
 
         RenderingRuntime(bool                     frustumCullingEnabled,
                          IGtsGraphicsModule&      graphics,
@@ -82,5 +84,6 @@ namespace gts::rendering
         std::unique_ptr<UiSystem> uiSystem;
         bool uiEnabled = true;
         GtsModelFrameData modelFrame;
+        std::shared_ptr<detail::GraphicsSettingsRequestCompletion> pendingGraphicsRequest;
     };
 }

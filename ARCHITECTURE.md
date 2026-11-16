@@ -136,7 +136,8 @@ rendering implement this for preview/benchmark worlds as well as scenes. See
 Screenshots use `ScreenshotCommand.h` and
 `gts::rendering::requestScreenshot(commands, directory)` from
 `gravitas_rendering_command_contracts`; graphics settings use
-`requestApplyGraphicsSettings`. Capture commands drain before rendering; scene
+`requestApplyGraphicsSettings`, returning a shared const request/outcome receipt.
+See [settings outcomes](docs/rendering/graphics-settings-requests.md). Capture commands drain before rendering; scene
 changes and quit drain afterward. A capture requested with quit can capture the
 final frame. Preset automation uses the same renderer-owned PNG path. See
 [tooling presets](docs/tooling/presets.md) and [settings](docs/settings/architecture.md).

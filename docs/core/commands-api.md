@@ -42,3 +42,7 @@ Screenshot plus quit can capture the final frame. Quit marks the loop to stop
 after processing the batch; it does not discard later FIFO scene requests.
 Invalid scene IDs reject without unloading; see [scene API](scenes-api.md).
 No generic scene-load rollback is provided.
+
+Rendering graphics-setting requests return a shared const value receipt. Only the
+rendering-owned private completion capability writes it; core transport knows no
+settings semantics. See [request outcomes](../rendering/graphics-settings-requests.md).

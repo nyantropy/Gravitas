@@ -234,7 +234,7 @@ struct GravitasEngine::Impl
     }
 
     // command callback from lower level architectures
-    void applyGraphicsSettingsCommand(const GraphicsSettings& settings)
+    GraphicsSettingsApplyResult applyGraphicsSettingsCommand(const GraphicsSettings& settings)
     {
         const auto result = platform.applyGraphicsSettings(settings);
         if (result.accepted())
@@ -244,6 +244,7 @@ struct GravitasEngine::Impl
         }
         else
             std::cerr << "Graphics settings rejected: " << result.message << '\n';
+        return result;
     }
 
     void applyPendingRenderCommands()
@@ -291,7 +292,7 @@ struct GravitasEngine::Impl
             gts::execution::selectFrameBuildMode,
             [this](const GraphicsSettings& settings)
             {
-                applyGraphicsSettingsCommand(settings);
+                return applyGraphicsSettingsCommand(settings);
             });
         serviceRegistry.registerService(modelRegistry);
         serviceRegistry.registerService(modelRealizations);

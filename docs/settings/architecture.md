@@ -65,7 +65,8 @@ the accepted frame limit.
 
 `RenderEngineCommands.h` and its compiled helpers belong to
 `gravitas_rendering_command_contracts`; they enqueue owned values without
-requiring rendering implementation. They do not return backend apply status.
+requiring rendering implementation. Graphics settings return an owned const observation receipt; other helpers remain
+enqueue-only.
 See [request API](../rendering/commands-api.md).
 
 ```text
@@ -163,8 +164,9 @@ When adding settings:
 Do not add empty settings types for unimplemented features, duplicate mutable
 startup snapshots, or perform GPU/window work in serializers or UI controls.
 
-There is no general engine configuration-file precedence resolver, reflection
-registry, automatic video rollback, or asynchronous UI completion subscription
-in this implementation. The command path logs rejected requests; the direct
-backend API returns the application result. These can be extended without
-changing settings ownership or conflating requested and observed state.
+There is no general configuration-file precedence resolver, reflection registry or
+automatic video rollback. The rendering-owned
+[request receipt](../rendering/graphics-settings-requests.md) exposes queued,
+pending, applied, rejected, superseded and abandoned outcomes without borrowing
+scene/backend state. Direct backend results remain available to engine consumers.
+Requested preference persistence stays application-owned and separate.
