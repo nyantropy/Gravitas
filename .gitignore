@@ -5,7 +5,6 @@
 /.VSCodeCounter/
 /.claude/
 CLAUDE.md
-AGENTS.md
 /.codex/
 .codex
 .bash_profile
@@ -28,3 +27,7 @@ refs
 /GtsScene1
 /GtsScene2
 /GtsScene3
+
+# Generated Python bytecode from optional benchmark tooling, never source scripts.
+__pycache__/
+*.py[cod]
