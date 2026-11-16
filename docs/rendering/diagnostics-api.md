@@ -18,3 +18,9 @@ cache it as an authoritative gameplay condition or use its counters to gate rule
 `ActiveCameraViewStateComponent.h` is the separate read-only camera projection
 snapshot. It exposes copied matrices/validity and a same-world camera identity,
 without permitting writes to camera GPU companions. See the [camera API](camera-api.md).
+
+Game presentation may aggregate these values into its own diagnostic record, but
+that record must stay separate from authoritative gameplay state. Missing scene
+inputs must clear aggregates rather than leaving stale readiness counts. Tool
+visibility/selection and visual-debug overrides are likewise observation or
+presentation policy, never prerequisites for mechanics.

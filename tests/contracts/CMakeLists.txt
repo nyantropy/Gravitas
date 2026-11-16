@@ -92,3 +92,15 @@ endif()
 include(IncludeSurfaces.cmake)
 
 include(RuntimeAvailability.cmake)
+
+add_executable(ToolLaunchPresetTest ../tooling/ToolLaunchPresetTest.cpp)
+target_link_libraries(ToolLaunchPresetTest PRIVATE gravitas_tool_contracts)
+add_test(NAME tool_launch_preset COMMAND ToolLaunchPresetTest)
+
+if(TARGET RendererWorldLifetimeTest)
+    target_include_directories(RendererWorldLifetimeTest PRIVATE
+        "${PROJECT_SOURCE_DIR}/engine/modules/tools/assets"
+        "${PROJECT_SOURCE_DIR}/engine/modules/tools/particles"
+        "${PROJECT_SOURCE_DIR}/engine/modules/tools/cameras"
+        "${PROJECT_SOURCE_DIR}/engine/modules/tools/selection")
+endif()

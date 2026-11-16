@@ -45,7 +45,7 @@ controllers that continue with unscaled time while simulation is paused.
 
 ## Tool camera return targets
 
-`ToolCameraHandoff.h`/`.cpp`, owned by `gravitas_tools`, exposes:
+`ToolCameraHandoff.h`/`.cpp`, owned by the core-only `gravitas_tool_contracts`, exposes:
 
 - `isToolCameraActive(const ECSWorld&)`: observe tool camera activity without
   exposing its state component.

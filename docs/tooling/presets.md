@@ -105,8 +105,8 @@ Example presets live in `docs/tooling/tooling_presets/` in the engine repository
 
 ## Startup Flow
 
-`modules/tools/runtime/ToolLaunchPreset.h` contains the lightweight preset data
-and the `loadToolLaunchPreset` declaration. The neighboring `.cpp` owns path
+`modules/tools/contracts/ToolLaunchPreset.h` contains the lightweight preset data
+and the `loadToolLaunchPreset` declaration. The neighboring `.cpp` in the core-only `gravitas_tool_contracts` owns path
 resolution, file reading, and JSON parsing. Callers that only inspect or apply
 presets do not include the filesystem or UI serialization implementation through
 this header. The loader uses `core/json/GtsJsonParser`; JSON syntax does not

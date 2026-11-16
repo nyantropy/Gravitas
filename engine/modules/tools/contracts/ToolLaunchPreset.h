@@ -35,13 +35,7 @@ namespace gts::tools
         bool hasSelectedModule = false;
         size_t selectedModule = 0;
 
-        bool hasAnyToolState() const
-        {
-            return hasVisible || hasWorkspace || !particleEffect.empty() ||
-                !assetManifest.empty() ||
-                hasVisualEvaluation || hasDebugDraw || hasGizmos ||
-                hasSelectedEmitter || hasSelectedModule;
-        }
+        bool hasAnyToolState() const;
     };
 
     struct ToolScreenshotPreset

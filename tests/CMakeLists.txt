@@ -2,12 +2,10 @@ add_executable(JsonMigrationTest core/JsonMigrationTest.cpp)
 target_link_libraries(JsonMigrationTest PRIVATE gravitas_rendering)
 add_test(NAME json_migration COMMAND JsonMigrationTest)
 
-add_executable(ToolLaunchPresetTest tooling/ToolLaunchPresetTest.cpp)
-target_link_libraries(ToolLaunchPresetTest PRIVATE gravitas_tools)
-add_test(NAME tool_launch_preset COMMAND ToolLaunchPresetTest)
-
 add_executable(EngineDefaultInputBindingsTest input/EngineDefaultInputBindingsTest.cpp)
 target_link_libraries(EngineDefaultInputBindingsTest PRIVATE gravitas_engine)
+target_include_directories(EngineDefaultInputBindingsTest PRIVATE
+    "${PROJECT_SOURCE_DIR}/engine/modules/tools/input")
 add_test(NAME engine_default_input_bindings COMMAND EngineDefaultInputBindingsTest)
 
 add_executable(SceneLifecycleRuntimeTest runtime/SceneLifecycleRuntimeTest.cpp)
@@ -727,3 +725,13 @@ add_executable(GraphicsSettingsRequestTest rendering/GraphicsSettingsRequestTest
 target_link_libraries(GraphicsSettingsRequestTest PRIVATE gravitas_rendering gravitas_runtime_execution gravitas_command_consumer)
 add_test(NAME graphics_settings_requests COMMAND GraphicsSettingsRequestTest)
 set_tests_properties(graphics_settings_requests PROPERTIES LABELS "settings;requests;cpu")
+
+add_executable(ToolBoundaryTest tooling/ToolBoundaryTest.cpp tooling/ToolBoundaryTest.h)
+target_link_libraries(ToolBoundaryTest PRIVATE gravitas_tools gravitas_physics)
+target_include_directories(ToolBoundaryTest PRIVATE
+    "${PROJECT_SOURCE_DIR}/engine/modules/tools/core"
+    "${PROJECT_SOURCE_DIR}/engine/modules/tools/cameras"
+    "${PROJECT_SOURCE_DIR}/engine/modules/tools/gizmos"
+    "${PROJECT_SOURCE_DIR}/engine/modules/tools/selection")
+add_test(NAME tool_contracts_camera_gizmo COMMAND ToolBoundaryTest)
+set_tests_properties(tool_contracts_camera_gizmo PROPERTIES LABELS "tooling;camera;transform;cpu")

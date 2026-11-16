@@ -17,6 +17,13 @@
 
 namespace gts::tools
 {
+    bool ToolStartupOptions::hasAnyToolState() const
+    {
+        return hasVisible || hasWorkspace || !particleEffect.empty() ||
+            !assetManifest.empty() || hasVisualEvaluation || hasDebugDraw ||
+            hasGizmos || hasSelectedEmitter || hasSelectedModule;
+    }
+
     namespace
     {
         std::string lowerCopy(std::string value)

@@ -238,7 +238,8 @@ beside the enum in `EnumName` tables.
 - [Physics](docs/physics/architecture.md),
   [physics authoring](docs/physics/authoring-guide.md),
   [diagnostics](docs/diagnostics/architecture.md).
-- [Tooling](docs/tooling/architecture.md), [tool authoring](docs/tooling/authoring-guide.md),
+- [Tooling](docs/tooling/architecture.md), [application contracts](docs/tooling/application-api.md),
+  [tool authoring](docs/tooling/authoring-guide.md),
   [presets and captures](docs/tooling/presets.md).
 - [CPU scaling benchmarks](docs/performance-benchmarks.md),
   [rendering benchmarks](docs/rendering/benchmarks.md).

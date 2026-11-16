@@ -46,3 +46,11 @@ endif()
 if(TARGET TransformPreviewLifetimeTest)
     target_link_libraries(TransformPreviewLifetimeTest PRIVATE gravitas_material_runtime_access)
 endif()
+
+if(TARGET TransformPreviewLifetimeTest)
+    target_include_directories(TransformPreviewLifetimeTest PRIVATE
+        "${PROJECT_SOURCE_DIR}/engine/modules/tools/assets"
+        "${PROJECT_SOURCE_DIR}/engine/modules/tools/particles"
+        "${PROJECT_SOURCE_DIR}/engine/modules/tools/cameras"
+        "${PROJECT_SOURCE_DIR}/engine/modules/tools/selection")
+endif()

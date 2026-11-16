@@ -16,7 +16,7 @@ individual scenes. It updates against the active scene ECS world so tools can
 inspect and edit the currently running scene without applications installing
 editor systems.
 
-`EngineToolRuntime.hpp` is the small public runtime contract. Its concrete
+`EngineToolRuntime.hpp` is the small engine-composition runtime contract. Its concrete
 systems and persistent editor state live in `EngineToolRuntime.cpp`, behind one
 privately owned implementation object. Tool-system changes therefore do not
 propagate through this header into engine clients. The tooling target declares
@@ -64,8 +64,9 @@ Workspace switching filters pane descriptors. It does not change engine mode.
 
 ## Feature Layout
 
-- `modules/tools/contracts/`: startup `ToolSettings`, exposed by the always-available
-  `gravitas_tool_contracts` target even when the tools implementation is disabled.
+- `modules/tools/contracts/`: compiled public labels, optional visibility, camera
+  handoff and launch-preset contracts plus startup `ToolSettings`. The core-only
+  `gravitas_tool_contracts` remains available with tools/rendering disabled.
 - `modules/tools/core/`: shared tool state, query helpers, workspace enums, and
   non-UI formatting/path helpers.
 - `modules/tools/ui/`: pane descriptors, pane widgets, shell composition,
@@ -293,3 +294,17 @@ camera redirects the return target to its original player camera; hiding tools
 then restores that camera. Unrelated return targets remain intact. See the
 [camera API](../rendering/camera-api.md) for world-scoped lifetime and post-scene
 snapshot finalization.
+
+## Application boundary
+
+Applications link `gravitas_tool_contracts` for labels, visibility, camera handoff
+and launch presets. See [application contracts](application-api.md). Tool selection,
+input capture, workspace state, panes, gizmos and preview worlds are implementation
+state; their include directories are private. Only the runtime lifecycle directory
+is exported for engine composition. Engine tests that inspect preview internals
+select their required directories explicitly; applications never acquire them.
+
+Visibility is optional: an absent toolkit differs from an installed hidden one.
+Queries return copied values and never install state. Camera handoff retains only
+same-world entity identity and uses the existing authoritative camera/transform
+paths. Game rules must not depend on visibility, selection or resource readiness.

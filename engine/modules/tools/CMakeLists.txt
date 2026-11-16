@@ -4,6 +4,7 @@ file(GLOB_RECURSE TOOLS_SOURCES
 )
 
 list(FILTER TOOLS_SOURCES EXCLUDE REGEX "/assets/manifest/")
+list(FILTER TOOLS_SOURCES EXCLUDE REGEX "/contracts/")
 add_library(gravitas_tools STATIC ${TOOLS_SOURCES})
 
 target_compile_features(gravitas_tools PUBLIC cxx_std_20)
@@ -14,7 +15,8 @@ else()
     target_compile_options(gravitas_tools PRIVATE -Wall -Wextra -Wno-unused-parameter)
 endif()
 
-target_include_directories(gravitas_tools PUBLIC
+target_include_directories(gravitas_tools PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/runtime")
+target_include_directories(gravitas_tools PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/input"
     "${CMAKE_CURRENT_SOURCE_DIR}/core"
     "${CMAKE_CURRENT_SOURCE_DIR}/ui"
