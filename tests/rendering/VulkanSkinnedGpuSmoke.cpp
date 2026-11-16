@@ -1,3 +1,5 @@
+#include "ECSWorld.hpp"
+#include "MaterialRuntimeRegistry.h"
 #include "GtsModelRealizationCache.h"
 #include "../assets/importers/gltf/GltfFixtureBuilder.h"
 #include "../assets/runtime/ScopedRuntimeAssetPolicy.h"

@@ -25,9 +25,18 @@ transforms.
 Do not write GPU companion components from application code. `MeshGpuComponent`
 and `RenderGpuComponent` are engine-managed.
 
+## Cameras
+
+Author `CameraDescriptionComponent` plus a transform. A game-controlled camera
+uses `CameraControlOverrideComponent` to suppress default input, while the engine
+still computes/synchronizes matrices. Do not add `CameraOverrideComponent` or
+write GPU companions to implement ordinary free-camera movement. Keep aspect
+current from call-scoped viewport metrics. See the [camera API](camera-api.md)
+and [read-only diagnostics](diagnostics-api.md).
+
 ## Materials
 
-Create material instances through `MaterialRuntime` and attach
+Create material instances through the compiled CPU `MaterialRuntime` API and attach
 `MaterialReferenceComponent` to renderable entities. For simple unlit props,
 tools, and tests, use `UnlitMaterialDescriptor` with
 `createUnlitMaterial(...)` when the entity needs a unique mutable material, or
@@ -47,6 +56,9 @@ for lit output and tangent/UV0 data when enabling normal maps.
 
 Do not put texture IDs, colors, or blend flags into render commands or object
 uploads. They belong to material instances and material frame state.
+
+See the [material API](material-api.md) for mutation, borrowed views, versioning
+and world lifetime. GPU synchronization and cache registries are engine-private.
 
 ## Texture Roles
 

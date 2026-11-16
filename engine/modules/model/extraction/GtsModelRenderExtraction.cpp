@@ -1,4 +1,5 @@
 #include "GtsModelRenderExtraction.h"
+#include "MaterialRuntimeAccess.h"
 #include "GtsModelResource.h"
 #include <map>
 #include <cmath>
@@ -64,10 +65,10 @@ GtsModelExtractionResult extractModelRenderState(std::shared_ptr<const GtsModelI
                 if (found == materialStates.end())
                 {
                     // Use the ordinary runtime synchronization, including role-specific texture fallbacks.
-                    materials.synchronizeGpuState(handle, resources);
-                    if (resources && !materials.getGpuState(handle))
+                    gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, resources);
+                    if (resources && !gts::rendering::MaterialRuntimeAccess::getGpuState(materials, handle))
                         throw std::runtime_error("Material synchronization produced no runtime state");
-                    auto state = resources ? makeMaterialFrameState(*materials.getGpuState(handle))
+                    auto state = resources ? makeMaterialFrameState(*gts::rendering::MaterialRuntimeAccess::getGpuState(materials, handle))
                                            : materials.frameState(handle);
                     found      = materialStates.emplace(handle, state).first;
                 }

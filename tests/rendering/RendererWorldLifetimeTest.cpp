@@ -1,3 +1,8 @@
+#include "GtsScene.hpp"
+#include "RendererCameraSceneFeature.h"
+#include "ECSWorld.hpp"
+#include "SharedUnlitMaterialCache.h"
+#include "MaterialRuntimeRegistry.h"
 #include "SceneExecutionPolicy.h"
 #include "RendererSceneFeature.h"
 #include "RenderingBenchmark.h"

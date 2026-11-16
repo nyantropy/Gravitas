@@ -1,3 +1,4 @@
+#include "MaterialRuntimeAccess.h"
 #pragma once
 
 #include <algorithm>
@@ -157,7 +158,7 @@ class RenderExtractionSnapshotBuilder
             MeshGpuComponent&     meshGpu = world.getComponent<MeshGpuComponent>(e);
             MaterialReferenceComponent& materialRef = world.getComponent<MaterialReferenceComponent>(e);
             gts::rendering::MaterialRuntime& materials = gts::rendering::materialRuntime(world);
-            const MaterialGpuState* materialGpu = materials.getGpuState(materialRef.material);
+            const MaterialGpuState* materialGpu = gts::rendering::MaterialRuntimeAccess::getGpuState(materials, materialRef.material);
             if (materialGpu == nullptr)
                 continue;
 
@@ -187,7 +188,7 @@ class RenderExtractionSnapshotBuilder
                     continue;
                 }
 
-                const MaterialGpuState* submeshMaterialGpu = materials.getGpuState(submeshMaterial);
+                const MaterialGpuState* submeshMaterialGpu = gts::rendering::MaterialRuntimeAccess::getGpuState(materials, submeshMaterial);
                 if (submeshMaterialGpu == nullptr)
                 {
                     submeshMaterials.push_back({});
@@ -748,7 +749,7 @@ class RenderExtractionSnapshotBuilder
         snapshot.materialFrameData.reserve(snapshot.renderables.size());
         for (const RenderableSnapshot& renderable : snapshot.renderables)
         {
-            const MaterialGpuState* materialGpu = materials.getGpuState(renderable.material);
+            const MaterialGpuState* materialGpu = gts::rendering::MaterialRuntimeAccess::getGpuState(materials, renderable.material);
             if (materialGpu != nullptr)
                 snapshot.materialFrameData.upsert(makeMaterialFrameState(*materialGpu));
 
@@ -758,7 +759,7 @@ class RenderExtractionSnapshotBuilder
                     continue;
 
                 const MaterialGpuState* submeshMaterialGpu =
-                    materials.getGpuState(submeshMaterial.material);
+                    gts::rendering::MaterialRuntimeAccess::getGpuState(materials, submeshMaterial.material);
                 if (submeshMaterialGpu != nullptr)
                     snapshot.materialFrameData.upsert(makeMaterialFrameState(*submeshMaterialGpu));
             }

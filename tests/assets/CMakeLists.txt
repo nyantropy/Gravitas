@@ -102,3 +102,10 @@ set_tests_properties(canonical_model_cooking PROPERTIES LABELS "gravitas;assets;
 
 # Fixture image writing is test implementation, not an image decoder public API.
 target_include_directories(GtsModelMaterialRealizationTest PRIVATE "${GTS_ENGINE_ROOT}/external/stb")
+
+# CPU model fixtures intentionally inspect engine material lifetime/synchronization.
+foreach(material_fixture CanonicalModelCookingTest GtsModelInstanceTest GtsModelMaterialRealizationTest GtsModelRenderExtractionTest)
+    if(TARGET ${material_fixture})
+        target_link_libraries(${material_fixture} PRIVATE gravitas_material_runtime_access)
+    endif()
+endforeach()

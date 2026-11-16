@@ -1,4 +1,8 @@
 #include "GtsModelMaterialRealization.h"
+#include "ECSWorld.hpp"
+#include "IResourceProvider.hpp"
+#include "MaterialAssetLoader.h"
+#include "MaterialRuntimeAccess.h"
 
 #include <stdexcept>
 #include "MaterialAssetRealization.h"
@@ -274,7 +278,7 @@ GtsModelMaterialResult GtsModelMaterialRealization::realize(std::shared_ptr<cons
             allocated.push_back(item.handle);
             if (resources)
             {
-                const auto sync = runtime.synchronizeGpuState(item.handle, resources);
+                const auto sync = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(runtime, item.handle, resources);
                 if (!sync.state || !sync.state->textures.baseColor || !sync.state->textures.normal ||
                     !sync.state->textures.metallicRoughness || !sync.state->textures.ambientOcclusion ||
                     !sync.state->textures.emissive)
@@ -300,7 +304,7 @@ GtsModelMaterialResult GtsModelMaterialRealization::realize(std::shared_ptr<cons
         }
         if (resources)
         {
-            const auto sync = runtime.synchronizeGpuState(runtime.defaultMaterial(), resources);
+            const auto sync = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(runtime, runtime.defaultMaterial(), resources);
             if (!sync.state || !sync.state->textures.baseColor || !sync.state->textures.normal ||
                 !sync.state->textures.metallicRoughness || !sync.state->textures.ambientOcclusion ||
                 !sync.state->textures.emissive)

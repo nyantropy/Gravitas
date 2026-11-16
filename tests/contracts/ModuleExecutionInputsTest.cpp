@@ -1,3 +1,6 @@
+#ifdef TEST_RENDERING_INPUTS
+#include "RenderingControllerContext.h"
+#endif
 #include "AnimationSceneFeature.h"
 #include "EcsControllerContext.hpp"
 #include "TransformSceneFeature.h"

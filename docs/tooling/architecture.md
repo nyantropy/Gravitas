@@ -282,3 +282,14 @@ preview values through shell recreation and the preview coordinator. Both previe
 worlds retain their own copies across clear/destroy/reinstall, and install them only
 when resources are available. External controllers still bypass filtering. No tools
 source includes Gravitas execution policy; see [execution ownership](../execution/architecture.md).
+
+
+## Scene camera handoff
+
+Scene-controlled cameras use `ToolCameraHandoff.h` for activity observation and
+return-target replacement while tools own the view. The paired implementation
+keeps `EngineToolCameraStateComponent` mutation inside tools. A retiring debug
+camera redirects the return target to its original player camera; hiding tools
+then restores that camera. Unrelated return targets remain intact. See the
+[camera API](../rendering/camera-api.md) for world-scoped lifetime and post-scene
+snapshot finalization.

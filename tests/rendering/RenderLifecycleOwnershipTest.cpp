@@ -1,3 +1,4 @@
+#include "MaterialRuntimeAccess.h"
 #include "SceneExecutionPolicy.h"
 #include "RenderingControllerContext.h"
 #include <cstdio>
@@ -205,7 +206,7 @@ namespace
         if (!world.hasComponent<MaterialReferenceComponent>(entity))
             return nullptr;
 
-        return gts::rendering::materialRuntime(world).getGpuState(
+        return gts::rendering::MaterialRuntimeAccess::getGpuState(gts::rendering::materialRuntime(world),
             world.getComponent<MaterialReferenceComponent>(entity).material);
     }
 

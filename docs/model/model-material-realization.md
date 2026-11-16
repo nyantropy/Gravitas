@@ -32,7 +32,7 @@ logical primitive association. The exact realized-model owner scopes these
 indices; foreign owners, invalid ranges and expired/destroyed handles return an
 invalid handle. `MaterialRuntime::frameState` provides an existing `MaterialFrameState` snapshot
 at renderer extraction. Snapshots use the same semantic mapping as
-`MaterialRuntime::synchronizeGpuState`; they do not constitute a second material
+engine-private `MaterialRuntimeAccess::synchronizeGpuState`; they do not constitute a second material
 conversion.
 
 The ECS singleton owns the service, and the existing world `MaterialRuntime`

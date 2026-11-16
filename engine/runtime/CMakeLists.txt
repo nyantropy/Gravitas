@@ -25,3 +25,5 @@ target_link_libraries(gravitas_runtime PUBLIC
     gravitas_runtime_execution
     PRIVATE gravitas_vulkan_backend gravitas_command_consumer
 )
+
+target_link_libraries(gravitas_runtime PRIVATE gravitas_material_runtime_access)

@@ -1,3 +1,5 @@
+#include "ECSWorld.hpp"
+#include "MaterialRuntimeRegistry.h"
 #include "GtsModelResource.h"
 #include "GtsModelMaterialRealization.h"
 #include "GtsModelRealizationCache.h"

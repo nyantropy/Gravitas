@@ -11,6 +11,8 @@
 #include "MaterialRuntime.h"
 #include "GtsRealizedModelMaterials.h"
 
+struct GtsDecodedImage;
+
 struct GtsModelMaterialResult
 {
     std::shared_ptr<const GtsRealizedModelMaterials> materials;

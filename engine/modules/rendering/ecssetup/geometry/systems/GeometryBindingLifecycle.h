@@ -1,3 +1,4 @@
+#include "MaterialRuntimeAccess.h"
 #pragma once
 
 #include <limits>
@@ -240,7 +241,7 @@ namespace gts::rendering
         byEntity[entity.id] = material;
 
         if (queueSync)
-            materials.queueMaterialSync(material);
+            gts::rendering::MaterialRuntimeAccess::queueMaterialSync(materials, material);
         return material;
     }
 
@@ -419,7 +420,7 @@ namespace gts::rendering
             return false;
 
         const MaterialReferenceComponent& reference = world.getComponent<MaterialReferenceComponent>(entity);
-        const MaterialGpuState* state = materialRuntime(world).getGpuState(reference.material);
+        const MaterialGpuState* state = gts::rendering::MaterialRuntimeAccess::getGpuState(materialRuntime(world), reference.material);
         return state != nullptr && state->baseColorTextureID != 0;
     }
 

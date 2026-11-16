@@ -1,3 +1,5 @@
+#include "SharedUnlitMaterialCache.h"
+#include "MaterialRuntimeRegistry.h"
 #pragma once
 
 #include "RendererExecutionInputs.h"

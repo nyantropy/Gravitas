@@ -703,3 +703,26 @@ endforeach()
 
 target_link_libraries(CookedAssetPipelineTest PRIVATE gravitas_mesh_loading)
 target_link_libraries(CanonicalObjPipelineTest PRIVATE gravitas_mesh_loading)
+
+# Engine implementation fixtures may exercise private material synchronization.
+foreach(material_fixture
+    CanonicalModelCookingTest
+    FirstLitRendererArchitectureTest
+    GtsModelInstanceTest
+    GtsModelMaterialRealizationTest
+    GtsModelRenderExtractionTest
+    MaterialRuntimeArchitectureTest
+    MaterialWorldLifetimeTest
+    RenderLifecycleOwnershipTest
+    RendererWorldLifetimeTest
+    VulkanSkinnedGpuSmoke
+)
+    if(TARGET ${material_fixture})
+        target_link_libraries(${material_fixture} PRIVATE gravitas_material_runtime_access)
+    endif()
+endforeach()
+
+add_executable(CameraAuthoringContractTest rendering/CameraAuthoringContractTest.cpp rendering/CameraAuthoringContractTest.h)
+target_link_libraries(CameraAuthoringContractTest PRIVATE gravitas_rendering gravitas_runtime_execution gravitas_material_runtime_access)
+add_test(NAME camera_authoring_contract COMMAND CameraAuthoringContractTest)
+set_tests_properties(camera_authoring_contract PROPERTIES LABELS "gravitas;rendering;camera;cpu;integration")

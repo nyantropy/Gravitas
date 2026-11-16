@@ -1,3 +1,4 @@
+#include "MaterialRuntimeAccess.h"
 #include "SceneExecutionPolicy.h"
 #include "RenderingControllerContext.h"
 #include <cstdio>
@@ -271,7 +272,7 @@ namespace
         instance.definition = definitionHandle;
 
         const MaterialInstanceHandle handle = materials.createInstance(instance);
-        const MaterialSyncResult firstSync = materials.synchronizeGpuState(handle, &resources);
+        const MaterialSyncResult firstSync = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, &resources);
         const bool firstSyncResolved =
             firstSync.changed && firstSync.state != nullptr && firstSync.state->baseColorTextureID != 0;
         const uint64_t firstVersion = materials.getInstance(handle)->version;
@@ -283,7 +284,7 @@ namespace
                 editable.baseColor = {0.25f, 0.5f, 0.75f, 1.0f};
                 return true;
             });
-        const MaterialSyncResult secondSync = materials.synchronizeGpuState(handle, &resources);
+        const MaterialSyncResult secondSync = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, &resources);
         const bool secondSyncUpdatedParameters = secondSync.changed && secondSync.parameterChanged;
         const uint64_t updatedVersion = materials.getInstance(handle)->version;
 
@@ -334,7 +335,7 @@ namespace
         const mesh_id_type meshA = world.getComponent<MeshGpuComponent>(a).meshID;
         const mesh_id_type meshB = world.getComponent<MeshGpuComponent>(b).meshID;
         const uint32_t meshRequests = resources.meshRequests;
-        const MaterialGpuState* state = materials.getGpuState(shared);
+        const MaterialGpuState* state = gts::rendering::MaterialRuntimeAccess::getGpuState(materials, shared);
         const uint64_t uploadedVersion = state ? state->uploadedVersion : 0;
 
         materials.modifyInstance(
@@ -352,7 +353,7 @@ namespace
         const bool bClean = world.hasComponent<RenderDirtyComponent>(b)
             && !world.getComponent<RenderDirtyComponent>(b).materialDirty
             && !world.getComponent<RenderDirtyComponent>(b).objectDataDirty;
-        const MaterialGpuState* updatedState = materials.getGpuState(shared);
+        const MaterialGpuState* updatedState = gts::rendering::MaterialRuntimeAccess::getGpuState(materials, shared);
         const auto materialMetrics = MaterialBindingSystem::getLastMetrics();
         RenderExtractionSnapshot& updatedSnapshot = builder.build(world);
         const MaterialFrameState* updatedFrameState =
@@ -365,7 +366,7 @@ namespace
             && require(world.hasComponent<RenderGpuComponent>(a) && world.hasComponent<RenderGpuComponent>(b),
                        "both shared-material renderables become render objects")
             && require(resources.textureRequests == 5, "shared material resolves one texture set")
-            && require(materials.gpuStateCount() == 1, "shared material creates one GPU material cache state")
+            && require(gts::rendering::MaterialRuntimeAccess::gpuStateCount(materials) == 1, "shared material creates one GPU material cache state")
             && require(updatedState != nullptr && updatedState->uploadedVersion == uploadedVersion + 1,
                        "shared material update uploads one material cache version")
             && require(aClean && bClean, "parameter-only material update keeps renderable dirty flags clean")
@@ -743,7 +744,7 @@ namespace
             "textures/shared.png",
             {1.0f, 1.0f, 1.0f, 1.0f});
         const MaterialInstanceHandle handle = materials.createInstance(instance);
-        const MaterialSyncResult firstSync = materials.synchronizeGpuState(handle, &resources);
+        const MaterialSyncResult firstSync = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, &resources);
         const MaterialVariantKey initialVariant = firstSync.state->variantKey;
 
         materials.modifyInstance(
@@ -753,7 +754,7 @@ namespace
                 editable.baseColor = {0.25f, 0.5f, 0.75f, 1.0f};
                 return true;
             });
-        const MaterialSyncResult parameterSync = materials.synchronizeGpuState(handle, &resources);
+        const MaterialSyncResult parameterSync = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, &resources);
         const MaterialVariantKey parameterVariant = parameterSync.state->variantKey;
 
         materials.modifyInstance(
@@ -763,7 +764,7 @@ namespace
                 editable.renderState.doubleSided = !editable.renderState.doubleSided;
                 return true;
             });
-        const MaterialSyncResult topologySync = materials.synchronizeGpuState(handle, &resources);
+        const MaterialSyncResult topologySync = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, &resources);
 
         materials.modifyInstance(
             handle,
@@ -774,7 +775,7 @@ namespace
                 editable.renderState.depthWrite = false;
                 return true;
             });
-        const MaterialSyncResult alphaSync = materials.synchronizeGpuState(handle, &resources);
+        const MaterialSyncResult alphaSync = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, &resources);
         const MaterialFrameState frameState = makeMaterialFrameState(*alphaSync.state);
 
         return require(firstSync.changed, "initial sync creates material GPU state")
@@ -842,7 +843,7 @@ namespace
         instance.emissiveTexture = MaterialTextureBinding::assetPath("textures/emissive.png");
 
         const MaterialInstanceHandle handle = materials.createInstance(instance);
-        const MaterialSyncResult sync = materials.synchronizeGpuState(handle, &resources);
+        const MaterialSyncResult sync = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, &resources);
         const MaterialGpuState* state = sync.state;
 
         return require(sync.changed && state != nullptr, "standard surface texture set synchronizes")
@@ -885,7 +886,7 @@ namespace
         instance.emissiveTexture = MaterialTextureBinding::assetPath({});
 
         const MaterialInstanceHandle handle = materials.createInstance(instance);
-        const MaterialSyncResult sync = materials.synchronizeGpuState(handle, &resources);
+        const MaterialSyncResult sync = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, &resources);
         const MaterialGpuState* state = sync.state;
 
         return require(state != nullptr, "fallback material state exists")
@@ -919,7 +920,7 @@ namespace
             materials.getInstance(materials.defaultStandardSurfaceMaterial());
         MaterialInstance instance = defaultSurface != nullptr ? *defaultSurface : MaterialInstance{};
         const MaterialInstanceHandle handle = materials.createInstance(instance);
-        const MaterialSyncResult first = materials.synchronizeGpuState(handle, &resources);
+        const MaterialSyncResult first = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, &resources);
         const MaterialVariantKey initialVariant = first.state->variantKey;
         const uint64_t initialVersion = materials.getInstance(handle)->version;
 
@@ -935,7 +936,7 @@ namespace
                 editable.emissiveStrength = -4.0f;
                 return true;
             });
-        const MaterialSyncResult second = materials.synchronizeGpuState(handle, &resources);
+        const MaterialSyncResult second = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, &resources);
 
         return require(materials.getInstance(handle)->version == initialVersion + 1,
                        "surface factor edit increments material version")
@@ -963,7 +964,7 @@ namespace
             materials.getInstance(materials.defaultStandardSurfaceMaterial());
         MaterialInstance instance = defaultSurface != nullptr ? *defaultSurface : MaterialInstance{};
         const MaterialInstanceHandle handle = materials.createInstance(instance);
-        const MaterialSyncResult first = materials.synchronizeGpuState(handle, &resources);
+        const MaterialSyncResult first = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, &resources);
         const MaterialVariantKey initialVariant = first.state->variantKey;
 
         materials.modifyInstance(
@@ -975,7 +976,7 @@ namespace
                 return true;
             });
         const MaterialSyncResult metallicRoughnessSync =
-            materials.synchronizeGpuState(handle, &resources);
+            gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, &resources);
         const bool metallicRoughnessParameterChanged = metallicRoughnessSync.parameterChanged;
         const bool metallicRoughnessTopologyChanged = metallicRoughnessSync.topologyChanged;
         const MaterialVariantKey metallicRoughnessVariant =
@@ -990,7 +991,7 @@ namespace
                 return true;
             });
         const MaterialSyncResult normalEnabledSync =
-            materials.synchronizeGpuState(handle, &resources);
+            gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, &resources);
         const bool normalEnabledTopologyChanged = normalEnabledSync.topologyChanged;
         const MaterialVariantKey normalVariant = normalEnabledSync.state->variantKey;
 
@@ -1003,7 +1004,7 @@ namespace
                 return true;
             });
         const MaterialSyncResult normalReplacementSync =
-            materials.synchronizeGpuState(handle, &resources);
+            gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, &resources);
         const bool normalReplacementParameterChanged = normalReplacementSync.parameterChanged;
         const bool normalReplacementTopologyChanged = normalReplacementSync.topologyChanged;
         const MaterialVariantKey normalReplacementVariant =
@@ -1086,7 +1087,7 @@ namespace
         const Entity staticEntity = createStaticRenderable(world, "mesh/b.gmesh", shared);
         update(world, resources);
 
-        const uint64_t materialVersion = materials.getGpuState(shared)->uploadedVersion;
+        const uint64_t materialVersion = gts::rendering::MaterialRuntimeAccess::getGpuState(materials, shared)->uploadedVersion;
         TextureAnimationComponent animation;
         animation.enabled = true;
         animation.scrollSpeed = {1.0f, 0.0f};
@@ -1100,7 +1101,7 @@ namespace
         return require(world.getComponent<RenderGpuComponent>(animated).uvTransform.z !=
                        world.getComponent<RenderGpuComponent>(staticEntity).uvTransform.z,
                        "shared-material renderables can have independent UV animation")
-            && require(materials.getGpuState(shared)->uploadedVersion == materialVersion,
+            && require(gts::rendering::MaterialRuntimeAccess::getGpuState(materials, shared)->uploadedVersion == materialVersion,
                        "per-object UV animation does not mutate shared material state");
     }
 
@@ -1122,7 +1123,7 @@ namespace
 
         return require(world.getComponent<MaterialReferenceComponent>(entity).material == materials.defaultMaterial(),
                        "destroyed material references are replaced with the default material")
-            && require(materials.getGpuState(materials.defaultMaterial()) != nullptr,
+            && require(gts::rendering::MaterialRuntimeAccess::getGpuState(materials, materials.defaultMaterial()) != nullptr,
                        "default fallback material has synchronized GPU state")
             && require(materialMetrics.fallbackSubstitutions == 1 &&
                        materialMetrics.userInvalidations == 1,

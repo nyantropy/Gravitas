@@ -1,6 +1,7 @@
+#include "GtsModelInstanceRuntime.h"
+#include "ECSWorld.hpp"
 #include "GtsModelMaterialRealization.h"
 #include "GtsModelRealizationCache.h"
-#include "GtsModelInstanceRuntime.h"
 #include <stdexcept>
 
 GtsModelInstanceCreationResult GtsModelInstanceRuntime::create(GtsModelHandle model)

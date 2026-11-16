@@ -222,7 +222,8 @@ beside the enum in `EnumName` tables.
 - [Model pipeline and phase map](docs/model/architecture.md),
   [shared assets](docs/assets/architecture.md),
   [cooked formats and CLI](docs/cooked-asset-pipeline.md).
-- [Rendering](docs/rendering/architecture.md),
+- [Rendering](docs/rendering/architecture.md), [material API](docs/rendering/material-api.md),
+  [camera API](docs/rendering/camera-api.md), [diagnostics](docs/rendering/diagnostics-api.md),
   [rendering authoring](docs/rendering/authoring-guide.md),
   [Vulkan skinning](docs/rendering/skinned-geometry.md).
 - [UI](docs/ui/architecture.md), [UI authoring](docs/ui/authoring-guide.md),

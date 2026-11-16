@@ -1,3 +1,4 @@
+#include "MaterialRuntimeAccess.h"
 #include "SceneExecutionPolicy.h"
 #include <cmath>
 #include <cstddef>
@@ -555,8 +556,8 @@ namespace
 
         const MaterialInstanceHandle unlit = materials.createInstance(makeInstance(unlitDef));
         const MaterialInstanceHandle lit = materials.createInstance(makeInstance(litDef));
-        const MaterialSyncResult unlitSync = materials.synchronizeGpuState(unlit, &resources);
-        const MaterialSyncResult litSync = materials.synchronizeGpuState(lit, &resources);
+        const MaterialSyncResult unlitSync = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, unlit, &resources);
+        const MaterialSyncResult litSync = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, lit, &resources);
         const MaterialVariantKey litVariant = litSync.state ? litSync.state->variantKey : MaterialVariantKey{};
         const MaterialVariantKey unlitVariant =
             unlitSync.state ? unlitSync.state->variantKey : MaterialVariantKey{};
@@ -575,7 +576,7 @@ namespace
                 instance.roughness = 0.0f;
                 return true;
             });
-        const MaterialSyncResult parameterSync = materials.synchronizeGpuState(lit, &resources);
+        const MaterialSyncResult parameterSync = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, lit, &resources);
         const bool parameterOnlyChange =
             parameterSync.changed && parameterSync.parameterChanged && !parameterSync.topologyChanged;
         const MaterialVariantKey parameterVariant =
@@ -592,7 +593,7 @@ namespace
                 instance.definition = unlitDef;
                 return true;
             });
-        const MaterialSyncResult topologySync = materials.synchronizeGpuState(lit, &resources);
+        const MaterialSyncResult topologySync = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, lit, &resources);
 
         return require(unlitSync.state != nullptr && litSync.state != nullptr, "material sync creates states")
             && require(unlitFamily == MaterialShaderFamily::Unlit,
@@ -970,13 +971,13 @@ namespace
             : MaterialDefinitionHandle{});
         instance.baseColorTexture = MaterialTextureBinding::assetPath("textures/base.png");
         const MaterialInstanceHandle baseColor = materials.createInstance(instance);
-        materials.synchronizeGpuState(baseColor, &resources);
+        gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, baseColor, &resources);
 
         instance.baseColorTexture = MaterialTextureBinding::assetPath("textures/base.png");
         instance.metallicRoughnessTexture =
             MaterialTextureBinding::dataAssetPath("textures/roughness.png");
         const MaterialInstanceHandle dataTexture = materials.createInstance(instance);
-        materials.synchronizeGpuState(dataTexture, &resources);
+        gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, dataTexture, &resources);
 
         return require(resources.textureColorSpaces["textures/base.png"] == TextureColorSpace::SRgb,
                        "base-color texture requests are classified as sRGB")

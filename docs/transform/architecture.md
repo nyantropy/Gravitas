@@ -163,3 +163,13 @@ writer/resolver/consumer ordering, late-writer timing, explicit and resolver-onl
 use, execution masks, and scene installation across unload/reinstall cycles.
 Physics integration additionally verifies publication and collision results
 without executing any controller.
+
+
+## Camera and presentation authoring
+
+Camera/game presentation writers edit local transforms and call `markDirty`;
+rendering computes camera matrices from published world transforms and authored
+lens/target values. They must not maintain parallel world matrices or GPU dirty
+flags. Renderer installation is declared through `RendererSceneFeature.h` and
+implemented in its paired source; it retains writer → resolver → consumer order.
+See the [camera contract](../rendering/camera-api.md).

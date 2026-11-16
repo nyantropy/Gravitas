@@ -67,7 +67,8 @@ add_include_surface_test(physics gravitas_physics_contracts FEATURE
     HEADERS IGtsPhysicsModule.h ScenePhysics.h FORBIDDEN PhysicsWorld.h TransformSystem.hpp)
 add_include_surface_test(ui gravitas_ui FEATURE HEADERS UiControllerContext.h UiSurface.h FORBIDDEN IResourceProvider.hpp)
 add_include_surface_test(vn gravitas_vn_execution_contracts FEATURE HEADERS VNExecutionInputs.h FORBIDDEN VNRuntime.h)
-add_include_surface_test(materials gravitas_material_frontend FEATURE HEADERS MaterialRuntime.h IResourceProvider.hpp)
+add_include_surface_test(materials gravitas_material_frontend FEATURE HEADERS MaterialRuntime.h MaterialReferenceHelpers.h
+    FORBIDDEN IResourceProvider.hpp MaterialRuntimeAccess.h MaterialRuntimeRegistry.h SharedUnlitMaterialCache.h)
 add_include_surface_test(rendering gravitas_rendering FEATURE IMPLEMENTATION HEADERS RenderingRuntime.h RendererSceneFeature.h)
 add_include_surface_test(vulkan_setup gravitas_vulkan_setup FEATURE BACKEND
     HEADERS VulkanContext.hpp OutputWindow.hpp GtsPlatformEventBus.hpp PresentationSettings.h

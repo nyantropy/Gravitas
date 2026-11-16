@@ -1,3 +1,4 @@
+#include "MaterialRuntimeAccess.h"
 #pragma once
 
 #include "RenderingControllerContext.h"
@@ -41,7 +42,7 @@ private:
         gts::rendering::MaterialRuntime& materials = gts::rendering::materialRuntime(ctx.world);
         auto& lifecycleState = gts::rendering::geometryBindingLifecycleState(ctx.world);
         Metrics& metrics = lifecycleState.materialMetrics;
-        std::vector<MaterialInstanceHandle> queuedMaterials = materials.takeQueuedMaterialSyncs();
+        std::vector<MaterialInstanceHandle> queuedMaterials = gts::rendering::MaterialRuntimeAccess::takeQueuedMaterialSyncs(materials);
         metrics.queuedMaterials += static_cast<uint32_t>(queuedMaterials.size());
 
         for (MaterialInstanceHandle handle : queuedMaterials)
@@ -55,10 +56,10 @@ private:
                 continue;
             }
 
-            if (!materials.materialNeedsGpuSync(handle))
+            if (!gts::rendering::MaterialRuntimeAccess::materialNeedsGpuSync(materials, handle))
                 continue;
 
-            const MaterialSyncResult result = materials.synchronizeGpuState(handle, gts::rendering::controllerContext(ctx).resources);
+            const MaterialSyncResult result = gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, handle, gts::rendering::controllerContext(ctx).resources);
             metrics.synchronizedMaterials += 1;
             if (!result.changed || !result.topologyChanged)
                 continue;
@@ -80,9 +81,9 @@ private:
             return;
 
         const MaterialInstanceHandle fallback = materials.defaultMaterial();
-        if (materials.materialNeedsGpuSync(fallback))
+        if (gts::rendering::MaterialRuntimeAccess::materialNeedsGpuSync(materials, fallback))
         {
-            materials.synchronizeGpuState(fallback, gts::rendering::controllerContext(ctx).resources);
+            gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materials, fallback, gts::rendering::controllerContext(ctx).resources);
             metrics.synchronizedMaterials += 1;
         }
 

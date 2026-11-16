@@ -1,3 +1,5 @@
+#include "ECSWorld.hpp"
+#include "MaterialRuntimeRegistry.h"
 #include "TestMaterialResources.h"
 #include "../../assets/importers/gltf/GltfFixtureBuilder.h"
 #include "../../assets/runtime/ScopedRuntimeAssetPolicy.h"

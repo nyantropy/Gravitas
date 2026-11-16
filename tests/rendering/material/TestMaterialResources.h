@@ -1,4 +1,5 @@
 #pragma once
+#include "IResourceProvider.hpp"
 #include "GtsModelMaterialRealization.h"
 #include <map>
 #include <stdexcept>

@@ -8,6 +8,7 @@ endif()
 # ── gravitas_rendering ─────────────────────────────────────────────────────────
 # ECS rendering layer + windowing (GLFW window management).
 # core/ and ecssetup/ are entirely owned by this target — GLOB_RECURSE is safe.
+# Material sources are now excluded: gravitas_material_frontend owns that capability.
 # CPU asset import/loading/cooking implementations are owned by assets targets.
 file(GLOB_RECURSE RENDERING_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.cpp"
@@ -15,7 +16,9 @@ file(GLOB_RECURSE RENDERING_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/ecssetup/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/runtime/*.cpp"
 )
+list(FILTER RENDERING_SOURCES EXCLUDE REGEX "/core/material/")
 list(APPEND RENDERING_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/scene/RendererSceneFeature.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/external/stb_image_write_impl.cpp"
 )
 add_library(gravitas_rendering STATIC ${RENDERING_SOURCES})
@@ -36,7 +39,6 @@ target_include_directories(gravitas_rendering PUBLIC
 
     # Graphics config / init headers
     "${CMAKE_CURRENT_SOURCE_DIR}/core/lighting"
-    "${CMAKE_CURRENT_SOURCE_DIR}/core/material"
 
     # Abstract interfaces (IGtsGraphicsModule, IResourceProvider)
     "${CMAKE_CURRENT_SOURCE_DIR}/core/interface"
@@ -107,3 +109,5 @@ target_link_libraries(gravitas_rendering PUBLIC gravitas_model_frontend)
 target_link_libraries(gravitas_rendering PUBLIC gravitas_rendering_execution_contracts)
 
 target_include_directories(gravitas_rendering PRIVATE "${GTS_ENGINE_ROOT}/external/stb")
+
+target_link_libraries(gravitas_rendering PRIVATE gravitas_material_runtime_access)

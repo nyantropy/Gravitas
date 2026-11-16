@@ -1,3 +1,4 @@
+#include "MaterialRuntimeAccess.h"
 #pragma once
 
 #include <chrono>
@@ -152,7 +153,7 @@ namespace gts::rendering
             {
                 MaterialInstanceHandle handle =
                     getOrCreateSharedCookedMaterial(world, materialPath);
-                materialRuntime(world).synchronizeGpuState(handle, resources);
+                gts::rendering::MaterialRuntimeAccess::synchronizeGpuState(materialRuntime(world), handle, resources);
                 meshGpu.submeshMaterials.push_back(handle);
             }
             catch (const std::exception& error)

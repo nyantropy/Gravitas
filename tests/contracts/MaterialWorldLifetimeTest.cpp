@@ -1,3 +1,5 @@
+#include "ECSWorld.hpp"
+#include "MaterialRuntimeRegistry.h"
 #include "MaterialRuntime.h"
 
 #include <memory>

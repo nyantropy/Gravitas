@@ -47,6 +47,11 @@ cached paths, dirty flags, temporary upload state, generated runtime data, and
 backend bookkeeping belong in engine-owned runtime components or render
 runtime state.
 
+The [material API](material-api.md), [camera API](camera-api.md) and
+[diagnostic API](diagnostics-api.md) define current authoring/observation contracts.
+`RendererSceneFeature.h` now declares installation without inheriting lifecycle
+system or GPU companion headers; its `.cpp` owns composition implementation.
+
 ## Module Layout
 
 - `modules/rendering/core/`: generic rendering contracts, resource provider
@@ -439,7 +444,15 @@ model matrix changed.
 
 ## Material Runtime
 
-`MaterialRuntime` owns:
+`gravitas_material_frontend` is a compiled CPU library. Its paired public
+interfaces live under `core/material/authoring/`; GPU synchronization, queues
+and world/shared cache registries are behind the engine-private
+`gravitas_material_runtime_access` include surface under `core/material/internal/`.
+Model realization/rendering and explicit engine fixtures link that capability
+privately. Authoring consumers cannot call the runtime's private synchronization
+methods or acquire the registry through public includes.
+
+`MaterialRuntime` owns internally:
 
 - `MaterialDefinition`
 - `MaterialInstance`
@@ -478,7 +491,7 @@ Base color data flow:
 
 ```text
 MaterialInstance::baseColor
-  -> MaterialRuntime::synchronizeGpuState
+  -> engine-private MaterialRuntimeAccess synchronization
   -> MaterialGpuState::parameters.baseColor
   -> MaterialFrameData / MaterialFrameState
   -> SceneRenderStage material push constants

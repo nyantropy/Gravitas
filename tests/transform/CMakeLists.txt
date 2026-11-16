@@ -42,3 +42,7 @@ if(TARGET gravitas_tools)
     add_test(NAME transform_preview_lifetime COMMAND TransformPreviewLifetimeTest)
     set_tests_properties(transform_preview_lifetime PROPERTIES LABELS "gravitas;transform;tools;lifecycle;cpu")
 endif()
+
+if(TARGET TransformPreviewLifetimeTest)
+    target_link_libraries(TransformPreviewLifetimeTest PRIVATE gravitas_material_runtime_access)
+endif()

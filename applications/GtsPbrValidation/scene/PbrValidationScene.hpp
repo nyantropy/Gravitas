@@ -1,5 +1,6 @@
 #include "SceneExecutionPolicy.h"
 #pragma once
+#include "LightingFrameData.h"
 
 #include "RenderingControllerContext.h"
 #include "BoundsComponent.h"

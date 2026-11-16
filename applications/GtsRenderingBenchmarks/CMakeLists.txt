@@ -16,3 +16,5 @@ set_target_properties(GtsRenderingBenchmarks PROPERTIES
 if (WIN32)
     set_target_properties(GtsRenderingBenchmarks PROPERTIES OUTPUT_NAME "GtsRenderingBenchmarks.exe")
 endif()
+
+target_link_libraries(GtsRenderingBenchmarks PRIVATE gravitas_material_runtime_access)
