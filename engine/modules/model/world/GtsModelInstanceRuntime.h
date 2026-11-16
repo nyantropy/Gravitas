@@ -10,10 +10,7 @@ struct GtsModelInstanceCreationResult
 {
     std::unique_ptr<GtsModelInstance> instance;
     std::vector<GtsModelDiagnostic>   diagnostics;
-    bool                              succeeded() const
-    {
-        return static_cast<bool>(instance);
-    }
+    bool succeeded() const;
 };
 
 // World-owned creation facade, not an instance registry. It retains no mutable instances.
@@ -21,10 +18,7 @@ struct GtsModelInstanceCreationResult
 class GtsModelInstanceRuntime
 {
     public:
-    GtsModelInstanceRuntime(ECSWorld& world, GtsModelRealizationCache& geometry, IResourceProvider* resources)
-        : world(world), geometry(geometry), resources(resources)
-    {
-    }
+    GtsModelInstanceRuntime(ECSWorld& world, GtsModelRealizationCache& geometry, IResourceProvider* resources);
     [[nodiscard]] GtsModelInstanceCreationResult create(GtsModelHandle model);
 
     private:

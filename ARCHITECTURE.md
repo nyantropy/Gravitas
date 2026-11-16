@@ -207,7 +207,8 @@ use engine focus/navigation/modal/drag-drop ownership.
 
 Headless dialogue and VN presentation are separate narrative targets. Game content,
 conditions and story persistence remain application-owned. Physics provides sphere
-collision detection, not a response solver; diagnostics bridges own visualization.
+collision detection, not a response solver; its paired scene installer hides concrete
+world/system construction. Diagnostics bridges own visualization.
 
 JSON syntax, checked values and serialization belong to `core/json/`. Feature
 loaders own file access, schemas, defaults and diagnostics. Reuse `GtsJsonValue`

@@ -1,5 +1,6 @@
 #include "SceneExecutionPolicy.h"
 #include "PhysicsSceneFeature.h"
+#include "PhysicsWorld.h"
 #include "PhysicsControllerContext.h"
 #include "ScenePhysics.h"
 

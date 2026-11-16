@@ -204,7 +204,14 @@ post-transform added. Existing Yune anchor/facing conventions remain unchanged.
 
 The world creation facade is declared in
 `model/world/GtsModelInstanceRuntime.h`; it orchestrates frontend material
-services without making the instance library depend on them. The instance retains
+services without making the instance library depend on them. This is a public
+creation contract owned by `gravitas_model_world`, also available through the
+frontend facade, rather than a cache/registry implementation. Game setup uses
+`modelInstances(world, context)` and subsequent `modelInstances(world).create(handle)`;
+engine composition supplies the borrowed cache/provider. Those services must
+outlive the world service, as stated by the contract. The result owns its instance
+and diagnostics. Constructor/result-method implementations live in the paired
+source; cache, provider and instance-registry state are not published through it. The instance retains
 only the renderer-independent `GtsRealizedModelMaterials` association interface.
 Its implementation is runtime-scoped, and resetting MaterialRuntime expires it.
 

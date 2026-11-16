@@ -3,6 +3,7 @@ file(GLOB_RECURSE PHYSICS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/systems/*.cpp"
 )
 
+list(APPEND PHYSICS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/scene/PhysicsSceneFeature.cpp")
 add_library(gravitas_physics STATIC ${PHYSICS_SOURCES})
 target_compile_features(gravitas_physics PUBLIC cxx_std_20)
 

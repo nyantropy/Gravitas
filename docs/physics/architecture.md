@@ -16,7 +16,7 @@ scene-local physics world, not a full rigid-body solver.
 - `modules/physics/core/PhysicsWorld.h` and `PhysicsWorld.cpp`: scene-local collision storage,
   profile counters, and `IGtsPhysicsModule` implementation.
 - `modules/physics/systems/PhysicsSystem.h` and `PhysicsSystem.cpp`: fixed-step collision update.
-- `modules/physics/scene/PhysicsSceneFeature.h`: scene feature installer.
+- `modules/physics/scene/PhysicsSceneFeature.h` and `.cpp`: paired scene feature installer.
 
 Physics diagnostics live separately under `modules/diagnostics/physics/` and
 emit debug-draw primitives instead of making physics depend on rendering.
@@ -55,6 +55,13 @@ The installer:
 
 The supplied default is forwarded to transform installation, preserving its
 first-configured-default-wins behavior and original installation position.
+
+The public installer header contains only its declaration and core execution values.
+Its compiled implementation owns concrete `PhysicsWorld`, binding and system
+construction. Consumers install the feature without seeing the concrete world or
+system headers transitively; direct implementation access belongs to explicit
+engine/test subjects, not ordinary game integration. Installation order, marker,
+context publication and idempotence are unchanged.
 
 The physics world is scene-local and is destroyed with the scene or on scene reset.
 The binding owns no implementation and its destructor never dereferences the

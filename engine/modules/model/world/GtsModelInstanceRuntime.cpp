@@ -3,6 +3,18 @@
 #include "GtsModelMaterialRealization.h"
 #include "GtsModelRealizationCache.h"
 #include <stdexcept>
+#include <utility>
+
+bool GtsModelInstanceCreationResult::succeeded() const
+{
+    return static_cast<bool>(instance);
+}
+
+GtsModelInstanceRuntime::GtsModelInstanceRuntime(ECSWorld& world, GtsModelRealizationCache& geometry,
+                                               IResourceProvider* const resources)
+    : world(world), geometry(geometry), resources(resources)
+{
+}
 
 GtsModelInstanceCreationResult GtsModelInstanceRuntime::create(GtsModelHandle model)
 {
