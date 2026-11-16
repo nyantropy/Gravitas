@@ -1,0 +1,4 @@
+add_library(gravitas_tool_asset_manifest STATIC AssetManifest.cpp)
+target_include_directories(gravitas_tool_asset_manifest PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_compile_features(gravitas_tool_asset_manifest PUBLIC cxx_std_20)
+target_link_libraries(gravitas_tool_asset_manifest PUBLIC gravitas_asset_contracts)

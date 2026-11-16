@@ -200,7 +200,7 @@ namespace
         return readVec3Value(*json, "$." + key, value, error);
     }
 
-    bool readBounds(const GtsJsonValue& object, BoundsComponent& bounds, std::string* error)
+    bool readBounds(const GtsJsonValue& object, AssetManifestBounds& bounds, std::string* error)
     {
         const GtsJsonValue* json = requireMember(object, "bounds", error);
         if (json == nullptr)

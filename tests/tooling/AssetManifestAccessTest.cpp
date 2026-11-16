@@ -1,5 +1,9 @@
 #include "AssetManifest.h"
 
+#if __has_include("BoundsComponent.h") || __has_include("GravitasEngine.h") || __has_include("AssetPreviewWorld.hpp")
+#error "Manifest loading must compile without renderer, runtime or tool implementation headers"
+#endif
+
 #include <chrono>
 #include <filesystem>
 #include <fstream>

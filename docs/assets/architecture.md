@@ -4,6 +4,11 @@
 standalone textures, font/UI/particle resources, direct meshes and generic materials.
 The complete model-specific workflow lives in [`modules/model/`](../model/architecture.md).
 
+The separate [authoring manifest API](authoring-manifest-api.md) publishes CPU-only
+file/schema loading through `gravitas_tool_asset_manifest`. Its owned bounds values
+do not depend on rendering components; tools and application content services
+consume that library explicitly.
+
 | Directory | Responsibility / non-model consumers |
 | --- | --- |
 | `geometry/` | Static vertex ABI, geometry metadata and CPU normal/tangent/default generation; text, procedural/dynamic meshes and `MeshResource`. |

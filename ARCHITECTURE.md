@@ -221,6 +221,7 @@ beside the enum in `EnumName` tables.
   [playback](docs/animation/skeletal-playback.md), [palettes](docs/animation/skin-palette.md).
 - [Model pipeline and phase map](docs/model/architecture.md),
   [shared assets](docs/assets/architecture.md),
+  [authoring manifests](docs/assets/authoring-manifest-api.md),
   [cooked formats and CLI](docs/cooked-asset-pipeline.md).
 - [Rendering](docs/rendering/architecture.md), [material API](docs/rendering/material-api.md),
   [camera API](docs/rendering/camera-api.md), [diagnostics](docs/rendering/diagnostics-api.md),

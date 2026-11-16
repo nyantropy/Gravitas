@@ -973,7 +973,7 @@ namespace gts::tools
                 toolui::fixed(value.z, 2);
         }
 
-        static std::string boundsText(const BoundsComponent& bounds)
+        static std::string boundsText(const AssetManifestBounds& bounds)
         {
             return "min " + vec3Text(bounds.min) + "  max " + vec3Text(bounds.max);
         }

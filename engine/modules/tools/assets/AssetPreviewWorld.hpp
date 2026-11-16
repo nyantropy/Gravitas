@@ -346,7 +346,7 @@ namespace gts::tools
             world.addComponent(assetEntity, transform);
             world.addComponent(assetEntity, mesh);
             world.addComponent(assetEntity, materialReferenceForManifest(manifest));
-            world.addComponent(assetEntity, manifest.bounds);
+            world.addComponent(assetEntity, BoundsComponent{manifest.bounds.min, manifest.bounds.max});
             gts::transform::markDirty(world, assetEntity);
         }
 
@@ -359,7 +359,7 @@ namespace gts::tools
             transform = assetTransform(manifest);
             gts::transform::markDirty(world, assetEntity);
             if (world.hasComponent<BoundsComponent>(assetEntity))
-                world.getComponent<BoundsComponent>(assetEntity) = manifest.bounds;
+                world.getComponent<BoundsComponent>(assetEntity) = BoundsComponent{manifest.bounds.min, manifest.bounds.max};
         }
 
         void destroyAssetEntity()

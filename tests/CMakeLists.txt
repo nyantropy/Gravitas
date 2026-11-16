@@ -1,7 +1,3 @@
-add_executable(AssetManifestAccessTest tooling/AssetManifestAccessTest.cpp)
-target_link_libraries(AssetManifestAccessTest PRIVATE gravitas_tools)
-add_test(NAME asset_manifest_access COMMAND AssetManifestAccessTest)
-
 add_executable(JsonMigrationTest core/JsonMigrationTest.cpp)
 target_link_libraries(JsonMigrationTest PRIVATE gravitas_rendering)
 add_test(NAME json_migration COMMAND JsonMigrationTest)

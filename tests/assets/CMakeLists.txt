@@ -109,3 +109,8 @@ foreach(material_fixture CanonicalModelCookingTest GtsModelInstanceTest GtsModel
         target_link_libraries(${material_fixture} PRIVATE gravitas_material_runtime_access)
     endif()
 endforeach()
+
+add_executable(AssetManifestAccessTest ../tooling/AssetManifestAccessTest.cpp)
+target_link_libraries(AssetManifestAccessTest PRIVATE gravitas_tool_asset_manifest)
+add_test(NAME asset_manifest_access COMMAND AssetManifestAccessTest)
+set_tests_properties(asset_manifest_access PROPERTIES LABELS "gravitas;assets;cpu")

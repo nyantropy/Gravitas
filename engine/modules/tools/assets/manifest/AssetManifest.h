@@ -2,7 +2,6 @@
 
 #include <string>
 
-#include "BoundsComponent.h"
 #include "GlmConfig.h"
 
 namespace gts::tools
@@ -18,6 +17,12 @@ namespace gts::tools
         float cameraDistance = 4.0f;
     };
 
+    struct AssetManifestBounds
+    {
+        glm::vec3 min{-0.5f};
+        glm::vec3 max{0.5f};
+    };
+
     struct AssetManifest
     {
         int version = 1;
@@ -28,7 +33,7 @@ namespace gts::tools
         std::string fallbackTexturePath;
         AssetMaterialMode materialMode = AssetMaterialMode::UnlitTextureOverride;
         glm::vec3 scale = {1.0f, 1.0f, 1.0f};
-        BoundsComponent bounds;
+        AssetManifestBounds bounds;
         bool baseAtGround = true;
         AssetPreviewSettings preview;
     };
